@@ -1,0 +1,124 @@
+# ---- Project Info and Dependencies ----
+
+[project.urls]
+Repository = "https://github.com/ssweber/laddercodec"
+
+[project]
+name = "laddercodec"
+description = "Binary codec for AutomationDirect CLICK PLC ladder clipboard format"
+authors = [
+    { name="ssweber", email="57631333+ssweber@users.noreply.github.com" },
+]
+readme = "README.md"
+license = "MPL-2.0"
+requires-python = ">=3.11,<4.0"
+dynamic = ["version"]
+
+# https://pypi.org/classifiers/
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+
+
+# ---- Main dependencies ----
+
+dependencies = []
+
+
+# ---- Dev dependencies ----
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.5",
+    "ruff>=0.11.0",
+    "codespell>=2.4.1",
+    "rich>=13.9.4",
+    "ty>=0.0.14",
+    "funlog>=0.2.0",
+]
+
+
+# ---- Build system ----
+
+# Dynamic versioning from:
+# https://github.com/ninoseki/uv-dynamic-versioning/
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/laddercodec"]
+
+
+# ---- Settings ----
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "UP",
+    "B",
+    "I",
+]
+ignore = [
+    "E501",
+    "E402",
+    "E731",
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300",
+    "Q000",
+    "Q001",
+    "Q002",
+    "Q003",
+    "COM812",
+    "COM819",
+    "ISC002",
+]
+
+[tool.ty.environment]
+python-version = "3.11"
+root = ["./src", "./tests", "./devtools"]
+
+[tool.ty.src]
+exclude = []
+
+[tool.ty.rules]
+unresolved-import = "ignore"
+
+[tool.codespell]
+
+[tool.pytest.ini_options]
+python_files = ["*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+testpaths = [
+    "src",
+    "tests",
+]
+norecursedirs = []
+filterwarnings = []
