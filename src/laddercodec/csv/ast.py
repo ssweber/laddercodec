@@ -127,7 +127,7 @@ AfNode = AfBlank | AfCall
 class RowAst:
     canonical: CanonicalRow
     condition_nodes: tuple[ConditionCellNode, ...]
-    af_node: AfNode | None
+    af_node: AfNode
 
     def __post_init__(self) -> None:
         if len(self.condition_nodes) != len(self.canonical.conditions):
