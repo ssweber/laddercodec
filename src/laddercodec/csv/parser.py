@@ -21,20 +21,23 @@ def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | 
 
 
 def _canonical_row_from_fields(fields: list[str], strict: bool = True) -> CanonicalRow:
-    if len(fields) != TOTAL_COLUMNS:
-        raise ValueError(f"Expected {TOTAL_COLUMNS} columns; got {len(fields)}")
-
-    marker = fields[0].strip()
+    marker = fields[0].strip() if fields else ""
     if not is_valid_marker(marker):
         raise ValueError(f"Invalid marker {marker!r}; expected 'R', '#', or blank")
 
-    conditions = tuple(cell.strip() for cell in fields[1:-1])
-    af = fields[-1].strip()
-
+    # Comment rows may be short (just marker + text); pad to full width.
     if marker == "#":
-        if any(cell for cell in conditions[1:]) or af:
+        padded = fields + [""] * (TOTAL_COLUMNS - len(fields))
+        conditions = tuple(cell.strip() for cell in padded[1:-1])
+        if any(cell for cell in conditions[1:]):
             raise ValueError("Comment rows may only populate column A text")
         return CanonicalRow(marker=marker, conditions=conditions, af="")
+
+    if len(fields) != TOTAL_COLUMNS:
+        raise ValueError(f"Expected {TOTAL_COLUMNS} columns; got {len(fields)}")
+
+    conditions = tuple(cell.strip() for cell in fields[1:-1])
+    af = fields[-1].strip()
 
     if strict:
         forbidden = {"->", "..."}

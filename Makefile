@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test upgrade build clean
+.PHONY: default install lint test golden upgrade build clean
 
 default: install lint test
 
@@ -15,6 +15,9 @@ lint:
 
 test:
 	uv run pytest
+
+golden:
+	uv run devtools/golden.py
 
 upgrade:
 	uv sync --upgrade

@@ -4,7 +4,7 @@ Golden fixtures are multi-rung CSV/BIN pairs in tests/fixtures/ladder_captures/g
 named mr-*.csv. Each CSV uses multiple R markers (one per rung). The BIN is the
 expected encode_multi_rung() output, verified through Click paste round-trip.
 
-Regenerate BIN files:  uv run python devtools/generate_golden.py
+Regenerate BIN files:  make golden
 """
 
 from __future__ import annotations

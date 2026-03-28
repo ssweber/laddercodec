@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -134,6 +134,15 @@ class AfCall:
     name: str
     args: tuple[str, ...]
     known: bool
+    kwargs: dict[str, str] = field(default_factory=dict)
+
+    def to_token(self) -> str:
+        """Reconstruct the canonical token string."""
+        parts = list(self.args)
+        parts.extend(f"{k}={v}" for k, v in self.kwargs.items())
+        if not parts:
+            return f"{self.name}()"
+        return f"{self.name}({','.join(parts)})"
 
 
 AfNode = AfBlank | AfCall

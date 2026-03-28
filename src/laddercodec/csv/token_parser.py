@@ -93,6 +93,54 @@ def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
     return tuple(parts)
 
 
+def _kwarg_eq_index(seg: str) -> int:
+    """Return the index of the ``=`` that separates key from value, or -1.
+
+    Skips ``==`` (comparison operator) and ``=`` inside quotes, parens, or
+    brackets.  A valid kwarg ``=`` has an identifier-like key on the left.
+    """
+    paren = bracket = 0
+    in_quote = False
+    idx = 0
+    while idx < len(seg):
+        ch = seg[idx]
+        if in_quote:
+            if ch == '"':
+                if idx + 1 < len(seg) and seg[idx + 1] == '"':
+                    idx += 2
+                    continue
+                in_quote = False
+            idx += 1
+            continue
+        if ch == '"':
+            in_quote = True
+            idx += 1
+            continue
+        if ch == "(":
+            paren += 1
+        elif ch == ")":
+            paren -= 1
+        elif ch == "[":
+            bracket += 1
+        elif ch == "]":
+            bracket -= 1
+        elif ch == "=" and paren == 0 and bracket == 0:
+            # Skip == (comparison operator)
+            if idx + 1 < len(seg) and seg[idx + 1] == "=":
+                idx += 2
+                continue
+            # Skip != (preceded by !)
+            if idx > 0 and seg[idx - 1] in ("!", "<", ">"):
+                idx += 1
+                continue
+            # Key must be a simple identifier
+            key = seg[:idx].strip()
+            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+                return idx
+        idx += 1
+    return -1
+
+
 def _decode_af_string_literal(arg: str) -> str:
     if not arg:
         return arg
@@ -199,5 +247,26 @@ def parse_af_token(token: str) -> AfNode:
 
     name = m.group(1)
     args_src = m.group(2).strip()
-    args = tuple(_decode_af_string_literal(arg) for arg in _split_top_level_csv_like(args_src))
-    return AfCall(name=name, args=args, known=name in KNOWN_AF_NAMES)
+    segments = _split_top_level_csv_like(args_src)
+
+    positional: list[str] = []
+    kwargs: dict[str, str] = {}
+    in_kwargs = False
+    for seg in segments:
+        eq_idx = _kwarg_eq_index(seg)
+        if eq_idx >= 0:
+            in_kwargs = True
+            key = seg[:eq_idx].strip()
+            val = _decode_af_string_literal(seg[eq_idx + 1 :].strip())
+            kwargs[key] = val
+        else:
+            if in_kwargs:
+                raise ValueError(f"Positional arg after keyword arg in AF token: {token!r}")
+            positional.append(_decode_af_string_literal(seg))
+
+    return AfCall(
+        name=name,
+        args=tuple(positional),
+        known=name in KNOWN_AF_NAMES,
+        kwargs=kwargs,
+    )

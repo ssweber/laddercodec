@@ -1,0 +1,3 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,receive__basic
+R,C228,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTarget(name=""plc2"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""DS1"",dest=DS197..DS200,receiving=C229,success=C230,error=C231,exception_response=DS201,count=4)"

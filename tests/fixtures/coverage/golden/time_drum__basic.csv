@@ -1,0 +1,4 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,time_drum__basic
+R,C205,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"time_drum(outputs=[C206,C207],presets=[1000,2000],unit=Tms,pattern=[[1,0],[0,1]],current_step=DS185,accumulator=TD4,completion_flag=C208)"
+,C209,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,.reset()
