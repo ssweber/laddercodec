@@ -18,7 +18,7 @@ from tests.golden_io import GOLDEN_DIR, read_golden_csv
 
 # -- Golden CSV/BIN round-trip tests --
 
-_GOLDEN_CSVS = sorted(GOLDEN_DIR.glob("*.csv"))
+_GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswith("mr-"))
 
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
@@ -55,11 +55,6 @@ def test_encode_rung_rejects_vertical_last_row() -> None:
     row[1] = "|"
     with pytest.raises(ValueError, match="last row"):
         encode_rung(1, [row], [""])
-
-
-def test_encode_rung_rejects_comment_overflow_2row() -> None:
-    with pytest.raises(ValueError, match="too long"):
-        encode_rung(2, [_empty(), _empty()], ["", ""], comment="X" * 1400)
 
 
 def test_encode_rung_rejects_out_of_range_rows() -> None:

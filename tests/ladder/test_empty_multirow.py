@@ -9,9 +9,7 @@ from laddercodec.empty_multirow import (
 )
 from laddercodec.topology import (
     COLS_PER_ROW,
-    HEADER_ENTRY_BASE,
-    HEADER_ENTRY_COUNT,
-    HEADER_ENTRY_SIZE,
+    PROGRAM_HEADER_BASE,
     cell_offset,
 )
 
@@ -73,13 +71,9 @@ def test_synthesize_empty_multirow_writes_row_word_header_and_cell_formulas(rows
 
     assert len(payload) == empty_multirow_payload_length(rows)
 
-    # Verify header row word directly
-    row_word = payload[HEADER_ENTRY_BASE] | (payload[HEADER_ENTRY_BASE + 1] << 8)
+    # Verify program header row word
+    row_word = payload[PROGRAM_HEADER_BASE] | (payload[PROGRAM_HEADER_BASE + 1] << 8)
     assert row_word == empty_multirow_row_word(rows)
-
-    for col in range(HEADER_ENTRY_COUNT):
-        entry_start = HEADER_ENTRY_BASE + col * HEADER_ENTRY_SIZE
-        assert payload[entry_start + 0x05] == 0x00
     assert payload[0x0A59] == 0x00
 
     _assert_active_cell_rules(payload, logical_rows=rows)

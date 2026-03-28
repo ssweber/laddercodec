@@ -33,9 +33,10 @@ Instead:
 
 ```
 src/laddercodec/
-├── __init__.py           # Public API: encode_rung()
-├── encode.py             # Unified rung encoder: encode_rung()
-├── topology.py           # Header table + wire-topology helpers + cell offset math
+├── __init__.py           # Public API: encode_rung(), encode_multi_rung()
+├── encode.py             # Single-rung encoder: encode_rung()
+├── encode_multi.py       # Multi-rung encoder: encode_multi_rung()
+├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
 ├── model.py              # Domain objects: Contact, Coil, InstructionType, RungGrid
 ├── csv/                  # CSV parsing subpackage
@@ -48,14 +49,14 @@ src/laddercodec/
 │   ├── bundle.py         # Program bundle parser (main.csv + sub_*.csv)
 │   └── token_parser.py   # Condition + AF token parsers
 └── resources/
-    ├── comment_phase_a.bin                       # Phase-A continuation stream (4040 bytes)
     └── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis
 ```
 
 ## Key Modules
 
-- **encode.py** — Unified encoder. Public API is `encode_rung()`. Pipeline: allocate empty multi-row buffer → apply comment payload + phase-A → write wire flags → write AF column (NOP). Comment framing uses prefix/suffix literals + `comment_phase_a.bin`.
-- **topology.py** — Cell offset math, wire flag constants (+0x19 left, +0x1D right, +0x21 down), header entry extraction/normalization.
+- **encode.py** — Single-rung encoder. Public API is `encode_rung()`. Pipeline: allocate base buffer → write wire flags into cell grid → write NOP → insert comment payload into rung 0 preamble at 0x0298 (grid pushes forward) → pad to page.
+- **encode_multi.py** — Multi-rung encoder. Public API is `encode_multi_rung()`. Combines N rungs into one buffer with per-rung preambles and data rows.
+- **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, wire flag constants (+0x19 left, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
 - **model.py** — Domain objects: `Contact` (NO/NC/edge), `Coil` (out/latch/reset), `InstructionType` enum, `RungGrid` (single-row rung model with CSV parse/serialize). Currently used only by csv/ subpackage; will become active when instruction encoding is added.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
@@ -70,8 +71,8 @@ tests/
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/
 │   ├── test_encode.py       # encode_rung() pipeline, multi-row, comments, wires, NOP
+│   ├── test_encode_multi.py # encode_multi_rung() golden fixture tests
 │   ├── test_model.py        # Contact, Coil, RungGrid CSV round-trips
-│   ├── test_topology.py     # Cell offsets, wire topology, header normalization
 │   └── test_empty_multirow.py  # Payload synthesis for rows 1..32
 ├── csv/
 │   ├── test_shorthand.py    # Shorthand normalization + macros
@@ -81,47 +82,56 @@ tests/
 │   ├── test_bundle.py       # Program bundle parsing
 │   └── test_token_parser.py # Condition + AF token parsing
 └── fixtures/
-    └── ladder_captures/golden/  # 20 byte-exact golden fixtures
+    └── ladder_captures/golden/  # 39 byte-exact golden fixtures
 ```
 
 Golden fixtures verified through Click paste round-trip.
+
+## Binary Format Model
+
+The clipboard buffer has three regions:
+
+1. **Program header** (0x0254–0x025F) — row_word at +0x00 (total_grid_rows × 0x20).
+2. **Rung preamble** — each rung has a 0x40-byte preamble holding its comment data:
+   - Rung 0: at 0x0260, immediately after the program header (from template, not in grid).
+   - Rung N>0: cell 0 of the rung's preamble row in the grid.
+   - Comment layout: flag at +0x30, length (4B LE) at +0x34, body (RTF) at +0x38.
+3. **Cell grid** (0x0A60+) — 32 cells per row × 0x40 bytes each. Comment payloads inserted at +0x38 push everything after them forward (payload push model).
+
+Multi-rung grid rows: `[rung 0 data] [rung 1 preamble] [rung 1 data] [rung 2 preamble] ... [terminal]`.
 
 ## Current Encoder State
 
 All tested shapes pass Click round-trip (verified via paste → copy-back):
 
-**Non-comment:**
+**Single-rung, no comment:**
 - Empty rungs (1/2/3/4/5/8/9/13/17/32 rows)
 - Wire topologies (horizontal, vertical, T-junction, mixed, partial)
 - NOP on AF column (row 0, multi-row with wires)
 - Edge cases (all 31 cols dashed, vertical B-only, T at column AE)
 
-**Comment (1-row):**
-- Empty, full wire, partial wire, NOP, full wire + NOP
-- Max 1400-byte comment with full wire + NOP
+**Single-rung, with comment:**
+- 1-row: empty, full wire, partial wire, NOP, full wire + NOP, max 1400-byte
+- 2-row: empty, NOP, sparse wire, wire at col A, max 1324-byte
+- 3-row: empty, NOP, wires, same-col wire, mixed wire, max 1400-byte
+- 4/5/9/13/32-row: empty, partial wire, max 1400-byte
+- Styled comments: bold, italic, underline, mixed styles, multiline
 
-**Comment (2-row):**
-- Empty, NOP on row 1, sparse wire (B+D) on both rows
-- Wire at col A on both rows
-- Max 1324-byte comment (exact buffer limit) with wire + NOP
-
-**Comment (3+ rows):**
-- 3-row: empty, NOP on row 2, wire on rows 1+2, same-col wire, mixed wire, max 1400
-- 4-row: empty, full wire rows 0-2
-- 5/9/13/32-row: partial wire (full row 0, B+D on middle rows)
-- 5-row: max 1400-byte comment with wire
+**Multi-rung:**
+- 2-rung: empty, NOP, wire, 2-row
+- 3-rung: empty, wire + NOP
+- Comments on rung 0 only, rung 1 only, both rungs, all 3 rungs
+- Comments with wires + NOP, 2-row rungs, styled text
 
 ## Known Limitations (Not Yet Implemented)
 
-- Styled comments (RTF bold/italic/underline)
 - Contacts (NO, NC, edge, comparison, immediate variants)
 - Coils / AF instructions (out, latch, reset)
 - Instruction stream placement
 
-## Known Parity Gaps (Non-blocking)
+## Development Approach
 
-- **AF left-wire flag:** When NOP has horizontal wire from the left, native captures show phase-A slot 62 +0x21 = 1. Encoder writes only +0x25. Cosmetic only — Click accepts both.
-- **Col-A left-wire in phase-A stride:** Native captures are inconsistent. Click ignores it. Encoder skips it (col_idx > 0 guard).
+RE-first: understand the binary format thoroughly through native captures and byte-level diffing before building any byte→model decode layer. The encoder writes bytes directly from verified formulas — no premature abstractions over incompletely-understood structure.
 
 ## Validation Rules
 
@@ -131,8 +141,8 @@ All tested shapes pass Click round-trip (verified via paste → copy-back):
 
 ## Important Patterns
 
-- **Comment wire encoding uses phase-A stride, not cell grid.** For comment rungs row 0, wire data goes at phase-A-relative positions, NOT at cell grid offsets. The cell grid wire bytes are all zero in native comment captures.
-- **Comment row 1+ wire/NOP uses continuation stream records.** 32 records per row after phase-A. Wire at +0x19/+0x1D. NOP encoding spans cont[0] and cont[31].
-- **No payload padding.** Phase-A starts immediately after the RTF payload.
-- **Comment flag varies by session (0x5A, 0x41, 0x67, 0x65).** Not grid-dependent. Encoder uses 0x5A; Click accepts all observed values.
+- **Rung preamble model.** Every rung has a 0x40-byte preamble at a fixed offset. Rung 0's is at 0x0260; rung N>0's is cell 0 of the preamble row preceding its data rows. Comment flag (+0x30), length (+0x34), and body (+0x38) live at the same offsets in every preamble.
+- **Payload push model.** The cell grid always lives at 0x0A60 in a no-payload buffer. A comment payload inserted into a preamble pushes everything after it forward. Wire flags written to cell grid positions before insertion land at the right absolute addresses after insertion — no special stride encoding needed.
+- **Buffer sizing for comments.** Truncate the base buffer to `GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE` before inserting the payload. This keeps the page-aligned final size consistent: `pad_to_page(minimal_end + payload_len)`.
+- **Comment max depends on row count.** Inserting > 1400-byte body is rejected outright. The practical per-row limit is determined by where `minimal_end + payload_len` crosses the next page boundary (e.g. 2-row: body ≤ 1324 bytes stays at 0x2000; 1325+ bumps to 0x3000).
 - **Native captures are the ground truth.** When something doesn't work, capture a native rung with the same shape and diff against synthetic.

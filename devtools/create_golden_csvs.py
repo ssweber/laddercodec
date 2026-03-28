@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from golden_io import GOLDEN_DIR, write_golden_csv
+from golden_io import GOLDEN_DIR, MultiRungItem, write_golden_csv, write_multi_rung_golden_csv
 
 E = ""
 D = "-"
@@ -32,6 +32,14 @@ def sparse_ac() -> list[str]:
     row = [E] * 31
     row[0] = D
     row[2] = D
+    return row
+
+
+def sparse_bd() -> list[str]:
+    """Wire at B (col 1) and D (col 3)."""
+    row = [E] * 31
+    row[1] = D
+    row[3] = D
     return row
 
 
@@ -57,6 +65,15 @@ def write(
     rows = len(conditions)
     cmt = f" comment={len(comment)}ch" if comment else ""
     print(f"  {name}.csv  ({rows} row{'s' if rows > 1 else ''}{cmt})")
+
+
+def write_mr(name: str, rungs: list[MultiRungItem]) -> None:
+    path = GOLDEN_DIR / f"{name}.csv"
+    write_multi_rung_golden_csv(path, rungs)
+    n = len(rungs)
+    cmts = sum(1 for _, _, _, c in rungs if c)
+    cmt_str = f" {cmts} commented" if cmts else ""
+    print(f"  {name}.csv  ({n} rungs{cmt_str})")
 
 
 def main() -> None:
@@ -181,7 +198,144 @@ def main() -> None:
     )
 
     print()
-    print(f"Created 20 golden CSV files in {GOLDEN_DIR}")
+    print("Multi-rung (no comment) fixtures:")
+
+    # 21. Two 1-row empty rungs
+    write_mr(
+        "mr-2rung-empty",
+        [
+            (1, [empty()], [E], None),
+            (1, [empty()], [E], None),
+        ],
+    )
+
+    # 22. Two 1-row rungs: rung 0 wire at A, rung 1 full wire
+    write_mr(
+        "mr-2rung-wire",
+        [
+            (1, [wire_a()], [E], None),
+            (1, [full_wire()], [E], None),
+        ],
+    )
+
+    # 23. Two 2-row rungs: full wire + empty continuation
+    write_mr(
+        "mr-2rung-2row",
+        [
+            (2, [full_wire(), empty()], [E, E], None),
+            (2, [wire_a(), empty()], [E, E], None),
+        ],
+    )
+
+    # 24. Two 1-row rungs with NOP on both
+    write_mr(
+        "mr-2rung-nop",
+        [
+            (1, [empty()], ["NOP"], None),
+            (1, [empty()], ["NOP"], None),
+        ],
+    )
+
+    # 25. Three 1-row empty rungs
+    write_mr(
+        "mr-3rung-empty",
+        [
+            (1, [empty()], [E], None),
+            (1, [empty()], [E], None),
+            (1, [empty()], [E], None),
+        ],
+    )
+
+    # 26. Three rungs: sparse wire + NOP, full wire, NOP only
+    write_mr(
+        "mr-3rung-wire-nop",
+        [
+            (1, [sparse_bd()], ["NOP"], None),
+            (1, [full_wire()], [E], None),
+            (1, [empty()], ["NOP"], None),
+        ],
+    )
+
+    print()
+    print("Multi-rung comment fixtures:")
+
+    # 27. Comment on rung 0 only
+    write_mr(
+        "mr-cmt-2rung-r0",
+        [
+            (1, [empty()], [E], "Rung zero"),
+            (1, [empty()], [E], None),
+        ],
+    )
+
+    # 28. Comment on rung 1 only
+    write_mr(
+        "mr-cmt-2rung-r1",
+        [
+            (1, [empty()], [E], None),
+            (1, [empty()], [E], "Rung one"),
+        ],
+    )
+
+    # 29. Comment on both rungs
+    write_mr(
+        "mr-cmt-2rung-both",
+        [
+            (1, [empty()], [E], "First"),
+            (1, [empty()], [E], "Second"),
+        ],
+    )
+
+    # 30. Comments + wires + NOP
+    write_mr(
+        "mr-cmt-2rung-wire-nop",
+        [
+            (1, [full_wire()], ["NOP"], "Wired rung"),
+            (1, [wire_a()], [E], "Wire A"),
+        ],
+    )
+
+    # 31. Three rungs, all commented
+    write_mr(
+        "mr-cmt-3rung-all",
+        [
+            (1, [empty()], [E], "Alpha"),
+            (1, [full_wire()], ["NOP"], "Beta"),
+            (1, [empty()], [E], "Gamma"),
+        ],
+    )
+
+    # 32. Three rungs, comment on middle only
+    write_mr(
+        "mr-cmt-3rung-r1",
+        [
+            (1, [wire_a()], [E], None),
+            (1, [full_wire()], [E], "Middle"),
+            (1, [empty()], ["NOP"], None),
+        ],
+    )
+
+    # 33. Multi-row rungs with comments
+    write_mr(
+        "mr-cmt-2rung-2row",
+        [
+            (2, [full_wire(), sparse_ac()], [E, "NOP"], "Two-row rung"),
+            (2, [wire_a(), empty()], [E, E], "Also two rows"),
+        ],
+    )
+
+    # 34. Styled/multiline comment in multi-rung
+    write_mr(
+        "mr-cmt-2rung-styled",
+        [
+            (1, [full_wire()], ["NOP"], "**Bold** and _italic_\nSecond line"),
+            (1, [empty()], [E], None),
+        ],
+    )
+
+    total = 20 + 6 + 8
+    print()
+    print(f"Created {total} golden CSV files in {GOLDEN_DIR}")
 
 
 if __name__ == "__main__":

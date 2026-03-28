@@ -16,9 +16,7 @@ from .topology import (
     COLS_PER_ROW,
     GRID_FIRST_ROW_START,
     GRID_ROW_STRIDE,
-    HEADER_ENTRY_BASE,
-    HEADER_ENTRY_COUNT,
-    HEADER_ENTRY_SIZE,
+    PROGRAM_HEADER_BASE,
     cell_offset,
 )
 
@@ -26,7 +24,6 @@ EMPTY_MULTIROW_MIN_ROWS = 1
 EMPTY_MULTIROW_MAX_ROWS = 32
 EMPTY_MULTIROW_PAGE_SIZE = 0x1000
 EMPTY_MULTIROW_TRAILER_OFFSET = 0x0A59
-EMPTY_MULTIROW_HEADER_PROFILE_05_OFFSET = 0x05
 EMPTY_MULTIROW_ROW_WORD_STRIDE = 0x20
 EMPTY_MULTIROW_TEMPLATE_RESOURCE = "resources/empty_multirow_rule_minimal.scaffold.bin"
 
@@ -78,13 +75,10 @@ def synthesize_empty_multirow(
     out[:copy_len] = template_bytes[:copy_len]
     out[:8] = b"CLICK   "
 
-    # Keep header table deterministic for this lane.
+    # Write row word into program header (+0x00/+0x01).
     row_word = empty_multirow_row_word(logical_rows)
-    out[HEADER_ENTRY_BASE + 0x00] = row_word & 0xFF
-    out[HEADER_ENTRY_BASE + 0x01] = (row_word >> 8) & 0xFF
-    for column in range(HEADER_ENTRY_COUNT):
-        entry_start = HEADER_ENTRY_BASE + column * HEADER_ENTRY_SIZE
-        out[entry_start + EMPTY_MULTIROW_HEADER_PROFILE_05_OFFSET] = 0x00
+    out[PROGRAM_HEADER_BASE + 0x00] = row_word & 0xFF
+    out[PROGRAM_HEADER_BASE + 0x01] = (row_word >> 8) & 0xFF
     if EMPTY_MULTIROW_TRAILER_OFFSET < len(out):
         out[EMPTY_MULTIROW_TRAILER_OFFSET] = 0x00
 

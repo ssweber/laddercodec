@@ -1,14 +1,22 @@
 """Reverse-engineered offsets for the Click clipboard binary format.
 
-Fixed-size 64-byte cell layout and the 0x0254 header entry table.
+Fixed-size 64-byte cell layout, program header, and rung preamble.
 """
 
 from __future__ import annotations
 
-# --- Header table (32 entries x 64 bytes) ---
-HEADER_ENTRY_BASE = 0x0254
-HEADER_ENTRY_SIZE = 0x40
-HEADER_ENTRY_COUNT = 32
+# --- Program header (0x0254–0x025F) ---
+PROGRAM_HEADER_BASE = 0x0254
+
+# --- Rung preamble ---
+# Each rung has a 0x40-byte preamble that precedes its data rows.
+# Rung 0's preamble starts at 0x0260, immediately after the program header.
+# Rung N>0's preamble is cell 0 of its preamble row in the grid.
+# Comment data sits at fixed offsets within any preamble:
+RUNG0_PREAMBLE_BASE = 0x0260
+PREAMBLE_COMMENT_FLAG = 0x30  # 0x01 when comment present
+PREAMBLE_COMMENT_LENGTH = 0x34  # 4-byte LE payload length
+PREAMBLE_COMMENT_BODY = 0x38  # RTF payload bytes start here
 
 # --- Grid/cell layout ---
 GRID_FIRST_ROW_START = 0x0A60

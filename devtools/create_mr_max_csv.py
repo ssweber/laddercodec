@@ -1,0 +1,24 @@
+"""One-time script to create mr-cmt-2rung-r1-max1400 golden CSV."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
+from golden_io import GOLDEN_DIR, MultiRungItem, write_multi_rung_golden_csv
+
+# 1400-byte comment body: "ABCDEFGHIJ" x 140
+comment_text = "ABCDEFGHIJ" * 140
+assert len(comment_text.encode("cp1252")) == 1400
+
+# 2 rungs, each 1 row, empty cells, no AF
+# MultiRungItem = (logical_rows, condition_rows, af_tokens, comment)
+rungs: list[MultiRungItem] = [
+    (1, [[""] * 31], [""], None),  # rung 0: 1 row, no comment
+    (1, [[""] * 31], [""], comment_text),  # rung 1: 1 row, max comment
+]
+
+csv_path = GOLDEN_DIR / "mr-cmt-2rung-r1-max1400.csv"
+write_multi_rung_golden_csv(csv_path, rungs)
+print(f"Created {csv_path.name} ({csv_path.stat().st_size} bytes)")
