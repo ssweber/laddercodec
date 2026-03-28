@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
-from laddercodec import decode, write_csv
+from laddercodec import Rung, decode, write_csv
 
 
 def main() -> None:
@@ -16,7 +17,7 @@ def main() -> None:
     result = decode(data)
 
     if isinstance(result, list):
-        rungs = result
+        rungs: list[Rung] = cast(list[Rung], result)
     else:
         rungs = [result]
 

@@ -23,10 +23,10 @@ Build the rung data directly — no CSV needed.
 from laddercodec import encode, Rung, Contact, Coil
 
 # A simple rung: NO contact on column A, output coil on AF
-conds = [[""] * 31]              # 31 condition columns, all blank
-conds[0][0] = Contact("X001")    # NO contact at column A
+conds = [[""] * 31]  # 31 condition columns, all blank
+conds[0][0] = Contact.from_csv_token("X001")
 
-binary = encode(Rung(1, conds, [Coil("Y001")], None))
+binary = encode(Rung(1, conds, [Coil.from_csv_token("out(Y001)")], None))
 ```
 
 ## Decode a binary
@@ -45,6 +45,21 @@ print(f"Comment: {decoded.comment}")
 print(f"Instructions: {decoded.instructions}")
 ```
 
+## Decode a program file
+
+Read a Click program file (`Scr*.tmp`) — the internal format Click writes to disk.
+
+```python
+from laddercodec import decode_program
+
+with open("Scr1.tmp", "rb") as f:
+    program = decode_program(f.read())
+
+print(f"Program: {program.name} ({len(program.rungs)} rungs)")
+for rung in program.rungs:
+    print(f"  {rung.logical_rows} rows, comment: {rung.comment}")
+```
+
 ## Round-trip
 
 Encode and decode are inverses for all supported instruction types.
@@ -54,8 +69,8 @@ from laddercodec import encode, decode, Rung, Contact, Coil
 
 binary = encode(Rung(
     1,
-    [[Contact("X001")] + [""] * 30],
-    [Coil("Y001")],
+    [[Contact.from_csv_token("X001")] + [""] * 30],
+    [Coil.from_csv_token("out(Y001)")],
     "My comment",
 ))
 

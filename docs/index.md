@@ -7,7 +7,8 @@ laddercodec encodes and decodes the native clipboard binary used by [CLICK Progr
 ## What it does
 
 - **Encode** — CSV rung descriptions → clipboard binary, ready to paste into Click
-- **Decode** — clipboard binary → structured data (contacts, coils, wires, comments)
+- **Decode clipboard** — clipboard binary → structured data (contacts, coils, wires, comments)
+- **Decode program** — Click program files (`Scr*.tmp`) → full program with all rungs
 - **Round-trip** — `decode(encode(data)) == data` for all supported instruction types
 
 ## Who it's for
@@ -32,7 +33,9 @@ assert decoded.logical_rows == rungs[0].logical_rows
 
 ## Current status
 
-Pre-alpha. Supports contacts (NO, NC, edge, immediate), comparison contacts, coils (out, latch, reset, immediate, range), and timers. See [known limitations](guides/encoding.md#known-limitations) for what's not yet implemented.
+**Beta.** All standard Click instruction types are supported — contacts, coils, timers, counters, copy/fill/pack/unpack, math, shift registers, drums, search, flow control (call/return/end/for/next), and Modbus send/receive. See [supported instructions](guides/encoding.md#supported-instructions) for the full list.
+
+Program file decoding (`decode_program`) is **alpha** — functional but not yet extensively tested.
 
 ## Guide overview
 

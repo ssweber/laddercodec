@@ -128,35 +128,14 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
         return None
 
     result = spec.parse_blob(raw)
-    if isinstance(result, ConditionInstruction):
+    if isinstance(result, (Contact, CompareContact)):
         return result
     return None
 
 
 def parse_af_blob(
     raw: bytes,
-) -> (
-    Call
-    | Coil
-    | Timer
-    | Counter
-    | Copy
-    | BlockCopy
-    | Drum
-    | Fill
-    | Pack
-    | Unpack
-    | ForLoop
-    | Math
-    | Next
-    | Search
-    | Shift
-    | End
-    | Receive
-    | Return
-    | Send
-    | None
-):
+) -> AfInstruction | None:
     """Try to parse an AF-column instruction blob."""
     class_name = _read_class_name(raw)
     if class_name is None:

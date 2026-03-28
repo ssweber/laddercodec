@@ -36,12 +36,13 @@ Instead:
 
 ```
 src/laddercodec/
-├── __init__.py           # Public API: encode(), decode(), read_csv(), write_csv(), Rung, ...
+├── __init__.py           # Public API: encode(), decode(), decode_program(), read_csv(), write_csv(), Rung, ...
 ├── encode.py             # Encoder: encode() + internal encode_rung(), constants, RTF helpers
 ├── encode_multi.py       # Multi-rung encoder: internal encode_rungs()
 ├── _grid.py              # Shared grid-building: _validate_rung, _compute_rung_metadata, _build_rung_grid
 ├── binary_helpers.py     # Shared binary primitives: UTF-16LE encode/decode, tagged fields
 ├── decode.py             # Decoder: decode() + internal decode_rung(), decode_rungs()
+├── decode_program.py     # Program file decoder: decode_program() — Scr*.tmp to Program
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
@@ -74,6 +75,7 @@ src/laddercodec/
 - **_grid.py** — Shared grid-building functions used by both encoders. `_validate_rung()` validates dimensions/tokens, `_compute_rung_metadata()` returns a `RungMetadata` dataclass (instruction indices, AF summary, segment boundaries), `_build_rung_grid()` builds the cell grid for one rung.
 - **binary_helpers.py** — Shared binary serialization primitives. Encoding: `_utf16le_null()`, `_tagged_field()`, `_variant_tagged_field()`. Decoding: `_read_utf16le()`, `_parse_tagged_fields()`, `_parse_tagged_fields_verbose()` (returns tag IDs + handles variant sentinels). Used by all instruction modules and `devtools/inspect_bin.py`.
 - **decode.py** — Decoder. Public API is `decode()` (auto-detects single vs multi-rung). Returns `Rung` or `list[Rung]`. Walks the variable-length cell grid, parses instruction blobs into Contact/Coil/Timer domain objects, decodes RTF comments to markdown. Falls back to `RawInstruction` for unrecognised cell types.
+- **decode_program.py** — Program file decoder. Public API is `decode_program()`. Reads `Scr*.tmp` files (Click's internal format, ~17x smaller than clipboard) and returns a `Program` with name, index, and decoded rungs. Same instruction parsing as `decode.py` but different framing.
 - **cell.py** — Cell object builders. `ClickCell` dataclass builds 0x25-byte header + blob + 16-byte tail. Also: `build_preamble_cell()`, `build_terminal_cell()`, `build_row()`.
 - **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, cell flag constants (+0x19 segment, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
@@ -95,6 +97,7 @@ tests/
 │   ├── test_encode_multi.py # encode() multi-rung golden fixture tests
 │   ├── test_decode.py       # decode() tests
 │   ├── test_decode_multi.py # decode() multi-rung tests
+│   ├── test_decode_program.py # decode_program() program file tests
 │   ├── test_verify_status.py # Golden verification status check
 │   ├── test_model.py        # InstructionType, operand validation
 │   └── test_empty_multirow.py  # Payload synthesis for rows 1..32
@@ -152,24 +155,32 @@ All tested shapes pass Click round-trip (verified via paste → copy-back):
 
 ## Current Decoder State
 
-The decoder (`decode.py`) reads Click clipboard binaries back into structured data. Validated against a 37-rung native capture covering all basic instruction types.
+The clipboard decoder (`decode.py`) reads Click clipboard binaries back into structured data. Validated against a 37-rung native capture covering all basic instruction types.
 
-**Decoded instruction types:**
+The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against 114-rung coverage fixture plus shift and counter programs.
+
+**All standard Click instruction types decoded natively:**
 - Contacts: NO, NC, edge (rise/fall), immediate (NO/NC)
 - Comparison contacts: GT, GE, LT, LE, EQ, NE
-- Coils: out, latch, reset, immediate, range (e.g. `out(C1..C2)`), oneshot
-- Timers: on_delay, off_delay
+- Coils: out, latch, reset, immediate, range, oneshot
+- Timers: on_delay, off_delay, retentive
+- Counters: count_up, count_down
+- Copy family: Copy, BlockCopy, Fill, Pack, Unpack
+- Math: decimal/hex expressions
+- Shift registers, drum sequencers (event/time), table search
+- Flow control: Call, Return, End, ForLoop, Next
+- Modbus: Send, Receive
 - Wire tokens: classified by (right, down) only — segment flag ignored (T, -, |, blank)
 - Comments: RTF → markdown round-trip
 - Multi-rung buffers with interleaved preambles
+- Program files (`Scr*.tmp`) with row topology blocks
 - Unknown types: `RawInstruction` fallback with raw bytes preserved
 
 See [instruction blobs](docs/internals/instruction-blobs.md) for the binary blob structure.
 
-## Known Limitations (Not Yet Implemented)
+## Instruction Coverage
 
-- Counters, math blocks, shift registers, drum sequencers
-- Full AF instruction set beyond coils, timers, and copy family
+All standard Click instruction types are natively supported. `RawInstruction` fallback handles any future/unknown types for lossless round-trip.
 
 ## Development Approach
 

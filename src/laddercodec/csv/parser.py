@@ -17,9 +17,6 @@ def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | 
     # subroutines/ folder layout: parent dir is "subroutines", slug is stem
     if path.parent.name == "subroutines" and path.suffix.lower() == ".csv":
         return "subroutine", path.stem
-    # Legacy sub_* layout
-    if path.name.startswith("sub_") and path.suffix.lower() == ".csv":
-        return "subroutine", path.stem[len("sub_") :]
     return "subroutine", None
 
 

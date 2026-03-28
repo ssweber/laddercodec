@@ -53,11 +53,11 @@ class TestNativeBlobParsing:
 
 class TestNextBlobSize:
     def test_next_blob_matches_native_size(self) -> None:
-        """NEXT blob must be 32 bytes to match native Click encoding."""
+        """NEXT blob must be 28 bytes to match native Click encoding."""
         blob = Next().build_blob()
-        assert len(blob) == 32
+        assert len(blob) == 28
 
-    def test_next_blob_trailing_zeros(self) -> None:
-        """Terminal field uses proper UTF-16LE empty value + 4-byte trailing zeros."""
+    def test_next_blob_ends_with_empty_field(self) -> None:
+        """Terminal field uses proper UTF-16LE empty value (no trailing zeros)."""
         blob = Next().build_blob()
-        assert blob[-6:] == b"\x00\x00\x00\x00\x00\x00"
+        assert blob[-2:] == b"\x00\x00"

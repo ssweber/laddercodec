@@ -4,13 +4,18 @@ from pathlib import Path
 
 from laddercodec import decode
 from laddercodec.decode import inspect_cells
-from laddercodec.decode_scr import (
+from laddercodec.decode_program import (
+    _SCR_TAG_PARSE_SPECS,
     _find_row_topology_block,
     _find_sections,
     _parse_extra_row_right_wires,
     _parse_header,
-    decode_scr,
+    _parse_scr_tags,
+    decode_program,
+    _scr_to_af,
 )
+from laddercodec.instructions.math import Math
+from laddercodec.instructions.timer import Timer
 
 _SCR_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 _COL_NAMES = {
@@ -26,7 +31,7 @@ def _load_fixture_pair(name: str):
 
     clip_result = decode(clip_data)
     clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
-    program = decode_scr(scr_data)
+    program = decode_program(scr_data)
     return clip_rungs, program.rungs
 
 
@@ -99,11 +104,129 @@ def _parse_row0_entry_order(data: bytes, block) -> tuple[int, ...]:
     return tuple(data[block.flags_start + i * 2 + 1] for i in range(block.row0_flag_count))
 
 
-def test_decode_scr_matches_or_topology_fixture():
+def _compact_scr_blob(
+    class_name: str,
+    type_code: int,
+    m1: int,
+    body: bytes,
+) -> bytes:
+    class_bytes = class_name.encode("utf-16-le") + b"\x00"
+    header = bytearray()
+    header.append(len(class_bytes))
+    header += class_bytes
+    header += type_code.to_bytes(2, "little")
+    header += b"\x00" * 6
+    header += b"\x01"
+    header += b"\x00" * m1
+    end_offset = 1 + len(class_bytes) + 2 + 6 + 1 + m1 + 4 + len(body)
+    header += end_offset.to_bytes(4, "little")
+    return bytes(header) + body
+
+
+def _compact_scr_string_field(tag: int, value: str) -> bytes:
+    encoded = value.encode("utf-16-le") + b"\x00"
+    return tag.to_bytes(2, "little") + bytes([len(encoded)]) + encoded
+
+
+def _compact_scr_byte_field(tag: int, value: int) -> bytes:
+    return tag.to_bytes(2, "little") + bytes([value])
+
+
+def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
+    out = bytearray(tag.to_bytes(2, "little"))
+    for sub_idx, value in entries.items():
+        out += sub_idx.to_bytes(2, "little")
+        out += value.to_bytes(2, "little")
+    out += (0xFFFF).to_bytes(2, "little")
+    return bytes(out)
+
+
+def test_decode_program_matches_or_topology_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("or_topology")
 
     assert len(scr_rungs) == len(clip_rungs)
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def test_parse_scr_tags_handles_compact_math_nickname_flag():
+    raw = _compact_scr_blob(
+        "Math",
+        0x271A,
+        1,
+        b"".join(
+            [
+                _compact_scr_string_field(0x6065, "DS124"),
+                _compact_scr_string_field(0x61FF, "@ + 200"),
+                _compact_scr_string_field(0x6228, "<z_AckAndClearAllAlm_loop> + 200"),
+                _compact_scr_string_field(0x6229, "@#+#H200"),
+                _compact_scr_string_field(0x61FD, "DS123#+#H200"),
+                _compact_scr_byte_field(0x2224, 1),
+                (0x6888).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
+        _SCR_TAG_PARSE_SPECS["Math"],
+    )
+    parsed = _scr_to_af(
+        class_name,
+        type_code,
+        tags,
+        tag_byte_lens,
+        variant_u16_tags,
+        variant_string_tags,
+    )
+
+    assert parsed == Math(expression="DS123 + 200", result="DS124", mode="decimal", oneshot=False)
+
+
+def test_parse_scr_tags_handles_compact_timer_variant_fields():
+    raw = _compact_scr_blob(
+        "Tmr",
+        0x2718,
+        2,
+        b"".join(
+            [
+                _compact_scr_string_field(0x6068, "T141"),
+                _compact_scr_string_field(0x606A, "DS588"),
+                _compact_scr_string_field(0x6069, "TD141"),
+                _compact_scr_byte_field(0x21F9, 1),
+                _compact_scr_byte_field(0x21FB, 1),
+                _compact_scr_variant_u16_field(0x3A05, {0: 8725, 1: 8726}),
+                (0x0000).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        2,
+        _SCR_TAG_PARSE_SPECS["Tmr"],
+    )
+    parsed = _scr_to_af(
+        class_name,
+        type_code,
+        tags,
+        tag_byte_lens,
+        variant_u16_tags,
+        variant_string_tags,
+    )
+
+    assert parsed == Timer(
+        timer_type="on_delay",
+        done_bit="T141",
+        current="TD141",
+        setpoint="DS588",
+        unit="Ts",
+        retained=True,
+    )
 
 
 def test_parse_extra_row_right_wires_matches_or_topology_clipboard_columns():
@@ -184,13 +307,13 @@ def test_continuation_row_next_seg_matches_successor_segment_flags():
             )
             seg_by_col = {_COL_IDX_BY_NAME[cell.col]: cell.flags[0] for cell in cell_dumps}
 
-            for current_col, next_col in zip(ordered_columns, ordered_columns[1:]):
+            for current_col, next_col in zip(ordered_columns, ordered_columns[1:], strict=False):
                 assert next_seg_by_col[current_col] == seg_by_col[next_col]
 
     assert saw_wrapped_order
 
 
-def test_decode_scr_matches_coverage_fixture():
+def test_decode_program_matches_coverage_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("coverage")
 
     assert len(clip_rungs) == 114
@@ -198,14 +321,14 @@ def test_decode_scr_matches_coverage_fixture():
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 
-def test_decode_scr_matches_shift_scr_fixture():
+def test_decode_program_matches_shift_scr_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("shift_scr")
 
     assert len(scr_rungs) == len(clip_rungs) == 2
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 
-def test_decode_scr_matches_counter_scr_fixture():
+def test_decode_program_matches_counter_scr_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("counter_scr")
 
     assert len(scr_rungs) == len(clip_rungs)

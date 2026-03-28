@@ -11,8 +11,9 @@ pin-row handling (``.reset()`` etc.) and tall-instruction auto-padding.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
-from ..decode import Rung
+from ..decode import AfToken, ConditionToken, Rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import convert_rung
 from .parser import parse_csv_file
@@ -40,7 +41,18 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
     replaced with blank tokens instead of raising.
     """
     ast = parse_csv_file(Path(path), syntax="canonical")
-    return [Rung(*convert_rung(rung, strict=strict)) for rung in ast.rungs]
+    rungs: list[Rung] = []
+    for rung in ast.rungs:
+        logical_rows, conditions, instructions, comment = convert_rung(rung, strict=strict)
+        rungs.append(
+            Rung(
+                logical_rows=logical_rows,
+                conditions=cast(list[list[ConditionToken]], conditions),
+                instructions=cast(list[AfToken], instructions),
+                comment=comment,
+            )
+        )
+    return rungs
 
 
 __all__ = [

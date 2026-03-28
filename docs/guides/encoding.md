@@ -1,139 +1,178 @@
 # Encoding
 
-`encode()` takes a `Rung` object (or a list of them) and produces a Click clipboard binary.
+`laddercodec.encode()` is the stable root entry point for producing Click
+clipboard binary.
 
-## Single rung
+It accepts either:
 
-Every rung has four components:
+- a single `Rung`
+- a sequence of `Rung` objects for a multi-rung clipboard buffer
+
+If you already have canonical Click CSV, the shortest path is:
 
 ```python
-from laddercodec import encode, Rung
+from laddercodec import encode, read_csv
+
+binary = encode(read_csv("main.csv"))
+```
+
+Low-level helpers such as `encode_rung()` and `encode_rungs()` are still
+available in submodules for advanced use, but the root `encode()` API is the
+preferred public surface.
+
+## Build A Single Rung In Code
+
+```python
+from laddercodec import Coil, Contact, Rung, encode
 
 rung = Rung(
-    logical_rows=1,       # int: 1..32
-    conditions=[[""] * 31],  # list of lists: one row of 31 condition tokens each
-    instructions=["NOP"], # list: one AF token per row
-    comment=None,         # str | None: plain text, optional markdown formatting
+    logical_rows=1,
+    conditions=[
+        [Contact.from_csv_token("X001"), "-", Contact.from_csv_token("~X002")] + [""] * 28,
+    ],
+    instructions=[Coil.from_csv_token("out(Y001)")],
+    comment="Motor start circuit",
 )
+
 binary = encode(rung)
 ```
 
-### Wires
+Every `Rung` has four fields:
+
+| Field | Type | Notes |
+|---|---|---|
+| `logical_rows` | `int` | `1..32` |
+| `conditions` | `list[list[object]]` | One row per logical row, exactly 31 condition columns each |
+| `instructions` | `list[object]` | One AF token per logical row |
+| `comment` | `str \| None` | Optional plain text with lightweight markdown styling |
+
+## Wire Tokens
 
 Condition columns accept four wire tokens as strings:
 
 | Token | Meaning |
 |---|---|
-| `-` | Horizontal wire |
-| `\|` | Vertical down |
-| `T` | Branch junction (right + down) |
-| `""` | Blank (no wire) |
+| `"-"` | Horizontal wire |
+| `"|"` | Vertical down |
+| `"T"` | Branch junction (right + down) |
+| `""` | Blank cell |
 
 ```python
-# Two-row rung with a branch
-from laddercodec import encode, Rung
+from laddercodec import Rung, encode
 
 conds = [
-    ["-", "T", "-", "-"] + [""] * 27,   # Row 0: wire into T, continue right
-    ["",  "-", "-", "-"] + [""] * 27,    # Row 1: branch continues right
+    ["-", "T", "-", "-"] + [""] * 27,
+    ["", "-", "-", "-"] + [""] * 27,
 ]
-binary = encode(Rung(2, conds, ["NOP", "NOP"], None))
+
+binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", "NOP"], comment=None))
 ```
 
-### Contacts and coils
+## Condition-Side Instructions
 
-Place instruction objects directly in the grid.
+The most convenient public helpers are the instruction token parsers:
 
 ```python
-from laddercodec import encode, Rung, Contact, Coil
+from laddercodec import CompareContact, Contact
 
-conds = [[Contact("X001"), "-", Contact("X002", nc=True)] + [""] * 28]
-binary = encode(Rung(1, conds, [Coil("Y001")], None))
+Contact.from_csv_token("X001")
+Contact.from_csv_token("~X001")
+Contact.from_csv_token("rise(X001)")
+Contact.from_csv_token("fall(X001)")
+Contact.from_csv_token("immediate(X001)")
+
+CompareContact.from_csv_token("DS1==DS2")
 ```
 
-Contact variants:
-
-- `Contact("X001")` — normally open
-- `Contact("X001", nc=True)` — normally closed
-- `Contact("X001", edge="rise")` — rising edge
-- `Contact("X001", edge="fall")` — falling edge
-- `Contact("X001", immediate=True)` — immediate NO
-
-Coil variants:
-
-- `Coil("Y001")` — output
-- `Coil("Y001", latch=True)` — latch
-- `Coil("Y001", reset=True)` — reset
-- `Coil("Y001", immediate=True)` — immediate output
-- `Coil("C1", range_end="C8")` — range output
-
-### Comparison contacts
+You can also construct comparison contacts directly:
 
 ```python
-from laddercodec import encode, Rung, CompareContact, Coil
+from laddercodec import CompareContact
 
-conds = [[CompareContact("DS1", "==", "DS2")] + [""] * 30]
-binary = encode(Rung(1, conds, [Coil("Y001")], None))
+compare = CompareContact(op=">=", left="DS1", right="100")
 ```
 
-Operators: `==`, `!=`, `>`, `<`, `>=`, `<=`
+## AF-Side Instructions
 
-### Timers
+Coils have a CSV-token helper as well:
 
 ```python
-from laddercodec import encode, Rung, Contact, Timer
+from laddercodec import Coil
 
-conds = [[Contact("X001")] + [""] * 30]
-binary = encode(Rung(1, conds, [Timer("on_delay", "T1", "TD1", "1000", "Tms")], None))
+Coil.from_csv_token("out(Y001)")
+Coil.from_csv_token("latch(Y001)")
+Coil.from_csv_token("reset(Y001)")
+Coil.from_csv_token("out(immediate(Y001))")
+Coil.from_csv_token("out(C1..C8)")
 ```
 
-Timer modes: `on_delay`, `off_delay`
-
-Timer units: `Tms` (10ms), `Ts` (seconds), `Tm` (minutes), `Th` (hours), `Td` (days)
-
-Timers occupy 2 grid rows. If you provide only 1 row, the encoder auto-pads with a blank continuation row.
-
-### Comments
-
-Plain text with optional markdown-style formatting:
+Timers are typically easiest to build directly:
 
 ```python
-binary = encode(Rung(1, conds, afs, "Motor start circuit"))
-binary = encode(Rung(1, conds, afs, "**Bold** and _italic_ and __underlined__"))
-binary = encode(Rung(1, conds, afs, "Line one\nLine two"))
+from laddercodec import Contact, Rung, Timer, encode
+
+rung = Rung(
+    logical_rows=2,
+    conditions=[
+        [Contact.from_csv_token("X001")] + [""] * 30,
+        [""] * 31,
+    ],
+    instructions=[
+        Timer(
+            timer_type="on_delay",
+            done_bit="T1",
+            current="TD1",
+            setpoint="1000",
+            unit="Tms",
+        ),
+        "",
+    ],
+    comment=None,
+)
+
+binary = encode(rung)
 ```
 
-Max comment body size is 1400 bytes. For multi-row rungs the practical limit may be lower — see [binary format](../internals/binary-format.md#comment-sizing).
+Tall instructions such as timers, copy-family instructions, shift, drum, and
+some counters occupy multiple visual rows. `encode()` accepts the fully expanded
+rows directly. When you come from canonical CSV, `read_csv()` handles the
+padding and pin-row shaping for you.
 
-### NOP
+## Comments
 
-A rung with no AF instruction uses the string `"NOP"`:
+Comments are plain text with optional markdown-style inline formatting:
 
 ```python
-binary = encode(Rung(1, conds, ["NOP"], None))
+rung.comment = "Motor start circuit"
+rung.comment = "**Bold** and _italic_ and __underlined__"
+rung.comment = "Line one\nLine two"
 ```
 
-At most one NOP per rung.
+The comment body limit is 1400 bytes after RTF encoding. For multi-row rungs
+the practical limit can be lower; see
+[binary format](../internals/binary-format.md#comment-sizing).
 
-## Multi-rung encoding
+## Multi-Rung Encoding
 
-Pass a list of `Rung` objects to `encode()` to combine multiple rungs into a single clipboard buffer:
+Pass a list of `Rung` objects to `encode()`:
 
 ```python
-from laddercodec import encode, Rung
+from laddercodec import Rung, encode
 
 rungs = [
-    Rung(1, [[""] * 31], ["NOP"], None),
-    Rung(1, [[""] * 31], ["NOP"], "Second rung"),
+    Rung(logical_rows=1, conditions=[[""] * 31], instructions=["NOP"], comment=None),
+    Rung(logical_rows=1, conditions=[[""] * 31], instructions=["NOP"], comment="Second rung"),
 ]
+
 binary = encode(rungs)
 ```
 
-## Known limitations
+## Supported Instructions
 
-Not yet implemented:
+All standard Click instruction families are supported from the root package:
 
-- Counters, math blocks, shift registers, drum sequencers
-- Copy/move/fill instructions
-- Full AF instruction set beyond coils and timers
-- Instruction cell encoding is limited to contacts, comparison contacts, coils, and timers
+- Condition side: `Contact`, `CompareContact`
+- AF side: `Coil`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`
+
+Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
+binary payload intact for lossless round-trip.

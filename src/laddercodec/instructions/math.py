@@ -158,6 +158,46 @@ def _make_internal(expression: str) -> str:
     return expression.replace(" ", "#")
 
 
+def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
+    """Rebuild a canonical expression from display literals + internal operands.
+
+    Click stores two useful math formula views:
+
+    - ``template_display`` keeps the user's literal formatting but replaces
+      operands with ``@`` placeholders.
+    - ``formula_internal`` keeps concrete operands but normalizes literals
+      (for example ``200`` may become ``H200``).
+
+    There is also a display-expression field in native blobs that may be
+    nickname-expanded (for example ``<tag_name> + 200``).  Canonical CSV
+    deliberately ignores that richer display form for now; if we later add a
+    ``preserve_math_display``-style option, that field is the right source to
+    expose alongside the canonical expression.
+
+    Replacing each ``@`` with the next operand occurrence from the internal
+    form gives us a stable CSV expression without nickname expansion and
+    without the internal-only literal normalization.
+    """
+
+    if not template_display:
+        return formula_internal.replace("#", " ")
+
+    placeholder_count = template_display.count("@")
+    if placeholder_count == 0:
+        return template_display
+
+    operand_occurrences = [m.group(0) for m in _ADDR_RE.finditer(formula_internal)]
+    if len(operand_occurrences) != placeholder_count:
+        return formula_internal.replace("#", " ")
+
+    parts = template_display.split("@")
+    rebuilt = [parts[0]]
+    for operand, suffix in zip(operand_occurrences, parts[1:], strict=True):
+        rebuilt.append(operand)
+        rebuilt.append(suffix)
+    return "".join(rebuilt)
+
+
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
@@ -269,10 +309,9 @@ def parse_blob(raw: bytes) -> Math | None:
     result = fields[0][2]  # field[0] value
     hex_flag = fields[1][2]  # field[1] value
     oneshot_flag = fields[2][2]  # field[2] value
+    template_display = fields[3][2]  # field[3] value
     formula_internal = fields[6][2]  # field[6] value
-
-    # Reconstruct expression from internal form: # → space.
-    expression = formula_internal.replace("#", " ")
+    expression = _reconstruct_expression(template_display, formula_internal)
 
     # Determine mode from hex flag (more reliable than func code for unknown variants).
     mode: Literal["decimal", "hex"] = "hex" if hex_flag == "-1" else "decimal"
@@ -294,9 +333,13 @@ def parse_af_call(call: AfCall) -> Math:
         )
 
     expression, result = call.args
-    mode = call.kwargs.get("mode", "decimal")
-    if mode not in ("decimal", "hex"):
-        raise ValueError(f"math mode must be 'decimal' or 'hex', got {mode!r}")
+    mode_arg = call.kwargs.get("mode", "decimal")
+    if mode_arg == "decimal":
+        mode: Literal["decimal", "hex"] = "decimal"
+    elif mode_arg == "hex":
+        mode = "hex"
+    else:
+        raise ValueError(f"math mode must be 'decimal' or 'hex', got {mode_arg!r}")
 
     return Math(
         expression=expression,

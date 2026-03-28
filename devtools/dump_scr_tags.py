@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from devtools.walk_scr import find_row_header_before, find_valid_sections, parse_header
-from laddercodec.decode_scr import _parse_blob
+from devtools.walk_scr import find_valid_sections, parse_header
+from laddercodec.decode_program import _parse_blob
 
 
 def main() -> None:
@@ -21,8 +21,7 @@ def main() -> None:
     name, prog_idx, data_start = parse_header(data)
     sections = find_valid_sections(data, start=data_start)
 
-    for si, (sec_off, count, sec_end) in enumerate(sections):
-        rh = find_row_header_before(data, sec_off)
+    for si, (sec_off, count, _sec_end) in enumerate(sections):
         print(f"\nRung {si}:")
         cursor = sec_off + 6
         for ii in range(count):

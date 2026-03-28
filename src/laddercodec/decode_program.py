@@ -1,4 +1,4 @@
-"""SCR temp file decoder — Scr*.tmp binary to structured Rung data.
+"""Program file decoder — Scr*.tmp binary to structured Rung data.
 
 Reads Click Programming Software's internal temp files and produces
 the same ``Rung`` objects as the clipboard decoder.
@@ -6,7 +6,7 @@ the same ``Rung`` objects as the clipboard decoder.
 Public API
 ----------
 
-    decode_scr(data)  -> list[Rung]
+    decode_program(data)  -> Program
 
 The SCR format is compact (~17x smaller than clipboard) and represents
 the full program as stored on disk.  Instruction tag IDs and operand
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
+from typing import Literal, cast
 
 from .decode import Rung, _decode_rtf
 from .instructions import INSTRUCTION_MODULES, RawInstruction
@@ -29,7 +30,7 @@ from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.end import End
 from .instructions.forloop import ForLoop, Next
-from .instructions.math import Math
+from .instructions.math import Math, _reconstruct_expression
 from .instructions.return_ import Return
 from .instructions.search import Search
 from .instructions.send_receive import (
@@ -104,8 +105,13 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         flag_tags=frozenset({0x11F8, 0x1201, 0x1221}),
     ),
     "Math": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x2224}),
         flag_tags=frozenset({0x11F8, 0x11FE}),
         stop_tags=frozenset({0x6888, 0x688C}),
+    ),
+    "Tmr": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x21F9, 0x21FA, 0x21FB}),
+        variant_u16_tags=frozenset({0x3A05}),
     ),
     "Drum": _ScrTagParseSpec(
         byte_value_tags=frozenset({0x2200, 0x21F9}),
@@ -240,7 +246,7 @@ _TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 }
 
 # Compare type index → operator
-_COMPARE_IDX_TO_OP: dict[str, str] = {
+_COMPARE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "0": "==",
     "1": "!=",
     "2": ">",
@@ -466,7 +472,7 @@ def _scr_to_af(
         current = tags.get(0x6069, "")
         unit_idx = tags.get(0x21F9, "0")  # default: Tms
         unit = TIMER_UNITS.get(unit_idx)
-        if not all([done_bit, current, setpoint, unit]):
+        if not done_bit or not current or not setpoint or unit is None:
             return None
         timer_type = "off_delay" if 0x21FA in tags else "on_delay"
         return Timer(
@@ -483,11 +489,14 @@ def _scr_to_af(
         preset = tags.get(0x606A, "")
         current = tags.get(0x606C, "")
         mode = lens.get(0x21FC, 0)
-        variant = {
-            0: ("count_up", False, True),
-            1: ("count_down", False, True),
-            2: ("count_up", True, True),
-        }.get(mode)
+        variant = cast(
+            tuple[Literal["count_up", "count_down"], bool, bool] | None,
+            {
+                0: ("count_up", False, True),
+                1: ("count_down", False, True),
+                2: ("count_up", True, True),
+            }.get(mode),
+        )
         if not all([done_bit, preset, current]) or variant is None:
             return None
         counter_type, down_enabled, reset_enabled = variant
@@ -651,7 +660,10 @@ def _scr_to_af(
 
     if class_name == "Math" and type_code == 0x271A:
         result = tags.get(0x6065, "")
-        expression = tags.get(0x6228, "")
+        expression = _reconstruct_expression(
+            tags.get(0x61FF, ""),
+            tags.get(0x61FD, ""),
+        ) or tags.get(0x6228, "")
         if not result or not expression:
             return None
         return Math(
@@ -1399,7 +1411,7 @@ def _build_topology_backed_rung(
         class_name,
         type_code,
         tags,
-        m1,
+        _m1,
         tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
@@ -1480,7 +1492,7 @@ def _build_topology_backed_rung(
             class_name,
             type_code,
             tags,
-            m1,
+            _m1,
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
@@ -1577,9 +1589,9 @@ def _build_rung(
 
     # Initialize grids
     conditions: list[list[ConditionToken]] = [
-        [""] * _CONDITION_COLUMNS for _ in range(logical_rows)
+        cast(list[ConditionToken], [""] * _CONDITION_COLUMNS) for _ in range(logical_rows)
     ]
-    instructions: list[AfToken] = [""] * logical_rows
+    instructions: list[AfToken] = cast(list[AfToken], [""] * logical_rows)
 
     # 1. Place instructions from instruction section
     instr_positions: set[tuple[int, int]] = set()
@@ -1691,7 +1703,7 @@ def _build_rung(
                 elif cell == "":
                     conditions[row][col] = "|"  # vertical only
                 # "T" or "|" already set — keep as is
-            elif hasattr(cell, "wire_down"):
+            elif isinstance(cell, (Contact, CompareContact)):
                 cell.wire_down = True
 
     implied_modifier_rows: set[int] = set()
@@ -1740,7 +1752,7 @@ def _build_rung(
 # ---------------------------------------------------------------------------
 
 
-def decode_scr(data: bytes) -> Program:
+def decode_program(data: bytes) -> Program:
     """Decode an SC-SCR temp file into a Program.
 
     Parameters
@@ -1777,7 +1789,7 @@ def decode_scr(data: bytes) -> Program:
             class_name,
             type_code,
             tags,
-            m1,
+            _m1,
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
@@ -1790,7 +1802,7 @@ def decode_scr(data: bytes) -> Program:
                     class_name,
                     type_code,
                     tags,
-                    m1,
+                    _m1,
                     tag_byte_lens,
                     variant_u16_tags,
                     variant_string_tags,
@@ -1818,6 +1830,7 @@ def decode_scr(data: bytes) -> Program:
             prev_sec_end = sec_end
             continue
 
+        assert topology_block is not None
         comment_start = prev_sec_end
         empty_topology_blocks = _find_row_topology_blocks_between(
             data, prev_sec_end, topology_block.start

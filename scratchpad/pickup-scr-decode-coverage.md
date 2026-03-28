@@ -63,6 +63,16 @@
 
 21. **New shift fixture + regressions**: Added `tests/fixtures/scr_captures/shift_scr.{scr,bin,csv}` (two-rung connected vs disconnected shift capture), plus tests that lock in both `shift_scr` parity and the `0x1F` row-header parsing on the existing `coverage.scr` shift/drum/time-drum cases.
 
+22. **Math display-vs-canonical field map**: A newer math capture (`problem_instructions`) showed that native CLIP/SCR blobs can carry both nickname-expanded display text and internal concrete formulas at the same time. The useful fields are:
+
+   - `0x61FF` = display template (`@ + 200`)
+   - `0x6228` = display expression, sometimes nickname-expanded (`<z_AckAndClearAllAlm_loop> + 200`)
+   - `0x6229` = internal template (`@#+#H200`)
+   - `0x61FD` = internal concrete expression (`DS123#+#H200`)
+   - `0x6888[...]` = operand slots (`DS123`, ...)
+
+   Canonical CSV now intentionally reconstructs `DS123 + 200` by combining the display template with the internal concrete operand occurrences. For now we ignore the richer nickname-expanded display expression in canonical output. If we later add something like `preserve_math_display=True`, `0x6228` is the field to preserve alongside the canonical expression.
+
 ## Test Fixtures
 
 `tests/fixtures/scr_captures/` has three capture sets:

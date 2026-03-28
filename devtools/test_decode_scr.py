@@ -1,13 +1,14 @@
-"""Compare decode_scr() output against decode() for or_topology."""
+"""Compare decode_program() output against decode() for or_topology."""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from laddercodec import decode
-from laddercodec.decode_scr import decode_scr
+from laddercodec import Rung, decode
+from laddercodec.decode_program import decode_program
 
 
 def token_to_str(tok) -> str:
@@ -19,7 +20,7 @@ def token_to_str(tok) -> str:
     return repr(tok)
 
 
-def rung_to_lines(r) -> list[str]:
+def rung_to_lines(r: Rung) -> list[str]:
     """Convert a Rung to comparable text lines."""
     lines = []
     for row_idx in range(r.logical_rows):
@@ -45,9 +46,9 @@ def main() -> None:
     clip_data = Path(clip_path).read_bytes()
 
     clip_result = decode(clip_data)
-    clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
+    clip_rungs = cast(list[Rung], clip_result) if isinstance(clip_result, list) else [clip_result]
 
-    program = decode_scr(scr_data)
+    program = decode_program(scr_data)
     scr_rungs = program.rungs
 
     print(f"CLIP rungs: {len(clip_rungs)}")
@@ -71,7 +72,7 @@ def main() -> None:
 
         if not match:
             # Show diffs
-            for j, (cl, sl) in enumerate(zip(clip_csv, scr_csv)):
+            for j, (cl, sl) in enumerate(zip(clip_csv, scr_csv, strict=False)):
                 if cl != sl:
                     print(f"  Line {j}:")
                     print(f"    CLIP: {cl}")

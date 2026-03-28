@@ -42,9 +42,11 @@ from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX, CONDITION_COLUMNS
 from .instructions import (
+    AfInstruction,
     BlockCopy,
     Coil,
     CompareContact,
+    ConditionInstruction,
     Contact,
     Copy,
     Counter,
@@ -107,7 +109,7 @@ class UnknownInstruction:
 
 
 #: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
-ConditionToken = str | Contact | CompareContact | UnknownCondition
+ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
 
 #: An AF-column cell: ``""`` / ``"NOP"`` string, parsed AF instruction model,
 #: raw opaque blob, or unknown blob.
@@ -127,6 +129,7 @@ AfToken = (
     | End
     | Return
     | RawInstruction
+    | AfInstruction
     | UnknownInstruction
 )
 

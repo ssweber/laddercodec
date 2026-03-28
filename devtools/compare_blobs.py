@@ -27,9 +27,8 @@ def extract_scr_blob(data: bytes, type_offset: int) -> tuple[str, bytes, int]:
     # Walk backwards to find the length-prefixed class name
     # The class name is: [u8 byte_len] [UTF-16LE string]
     # Type marker follows immediately after the class name
-    name_end = type_offset
     # Determine class name length from the byte before the UTF-16LE string
-    # The type marker is at name_end, so the class name ends at name_end
+    # The type marker is at type_offset, so the class name ends there
     # Find the length prefix by checking backwards
     for back in range(2, 50):
         pos = type_offset - back
@@ -110,7 +109,7 @@ def main() -> None:
         print(f"\n{'=' * 72}")
         print(f"Type {typ:#06x}: SCR has {len(scr_offsets)}, CLIP has {len(clip_offsets)}")
 
-        for i, (s_off, c_off) in enumerate(zip(scr_offsets, clip_offsets)):
+        for i, (s_off, c_off) in enumerate(zip(scr_offsets, clip_offsets, strict=False)):
             s_name, s_blob, s_start = extract_scr_blob(scr, s_off)
             c_name, c_blob, c_start = extract_clip_blob(clip, c_off)
 

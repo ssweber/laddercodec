@@ -3,7 +3,7 @@
 from .csv import read_csv
 from .csv.writer import write_csv
 from .decode import Rung, decode
-from .decode_scr import decode_scr
+from .decode_program import decode_program
 from .encode import encode
 from .instructions import (
     BlockCopy,
@@ -37,7 +37,7 @@ from .model import Program, Project
 __all__ = [
     "encode",
     "decode",
-    "decode_scr",
+    "decode_program",
     "read_csv",
     "write_csv",
     "Rung",

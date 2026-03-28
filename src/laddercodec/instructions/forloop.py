@@ -134,7 +134,6 @@ class Next(AfInstruction):
         out += b"\x01\x00"  # part_count
         out += struct.pack("<I", 1)  # field_count
         out += _tagged_field(0x0000, "")
-        out += b"\x00\x00\x00\x00"  # trailing zeros (native padding)
         return bytes(out)
 
 

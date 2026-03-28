@@ -37,12 +37,9 @@ def test_subroutines_in_subfolder(tmp_path: Path) -> None:
     assert [sub.subroutine_slug for sub in bundle.subroutines] == ["alpha", "zeta"]
 
 
-def test_legacy_sub_prefix_fallback(tmp_path: Path) -> None:
+def test_no_subroutines_without_folder(tmp_path: Path) -> None:
     _write_one_row_file(tmp_path / "main.csv")
-    _write_one_row_file(tmp_path / "sub_zeta.csv", af="return()")
-    _write_one_row_file(tmp_path / "sub_alpha.csv", af="return()")
 
     bundle = parse_bundle(tmp_path)
     assert bundle.main.path.name == "main.csv"
-    assert [sub.path.name for sub in bundle.subroutines] == ["sub_alpha.csv", "sub_zeta.csv"]
-    assert [sub.subroutine_slug for sub in bundle.subroutines] == ["alpha", "zeta"]
+    assert bundle.subroutines == ()

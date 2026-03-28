@@ -16,17 +16,12 @@ def parse_bundle(directory: Path | str) -> ProgramBundleAst:
 
     main = parse_csv_file(main_path, syntax="canonical")
 
-    # Look for subroutines in subroutines/ subfolder first, fall back to sub_* files
     sub_dir = dir_path / "subroutines"
     if sub_dir.is_dir():
         sub_paths = sorted(
             p for p in sub_dir.iterdir() if p.is_file() and p.suffix.lower() == ".csv"
         )
     else:
-        sub_paths = sorted(
-            p
-            for p in dir_path.iterdir()
-            if p.is_file() and p.suffix.lower() == ".csv" and p.name.startswith("sub_")
-        )
+        sub_paths = []
     subroutines = tuple(parse_csv_file(path, syntax="canonical") for path in sub_paths)
     return ProgramBundleAst(directory=dir_path, main=main, subroutines=subroutines)

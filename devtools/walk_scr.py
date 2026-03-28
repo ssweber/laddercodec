@@ -9,6 +9,19 @@ from __future__ import annotations
 import struct
 import sys
 from pathlib import Path
+from typing import TypedDict
+
+ParsedInstruction = TypedDict(
+    "ParsedInstruction",
+    {"col": str, "class": str, "type": int, "rh": int},
+)
+
+
+class ParsedRung(TypedDict):
+    comment: str | None
+    rows: int
+    instructions: list[ParsedInstruction]
+    headerless: bool
 
 
 def read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
@@ -87,9 +100,9 @@ def find_valid_sections(data: bytes, start: int = 0x100) -> list[tuple[int, int,
     return sections
 
 
-def parse_section_blobs(data: bytes, offset: int, count: int) -> list[dict]:
+def parse_section_blobs(data: bytes, offset: int, count: int) -> list[ParsedInstruction]:
     """Parse all instruction blobs in a validated section."""
-    instrs = []
+    instrs: list[ParsedInstruction] = []
     cursor = offset + 6
     for _ in range(count):
         blob = parse_blob(data, cursor + 8)
@@ -192,11 +205,11 @@ def walk(path: str, verbose: bool = False) -> None:
         print(f"  Pre-validated {len(sections)} instruction sections")
 
     # --- Phase 2: for each section, find its row header and comment ---
-    rungs = []
+    rungs: list[ParsedRung] = []
     prev_sec_end = data_start
 
     for sec_idx, (sec_off, count, sec_end) in enumerate(sections):
-        rung = {"comment": None, "rows": 1, "instructions": [], "headerless": False}
+        rung: ParsedRung = {"comment": None, "rows": 1, "instructions": [], "headerless": False}
 
         # Find row header between previous section end and this section
         rh = find_row_header_before(data, sec_off)
@@ -236,7 +249,7 @@ def walk(path: str, verbose: bool = False) -> None:
     for i in range(last_sec_end, len(data) - 7):
         if data[i + 2 : i + 8] == b"\x03\x00\x00\x01\x20\x00":
             row_word = struct.unpack_from("<H", data, i)[0]
-            sentinel = {
+            sentinel: ParsedRung = {
                 "comment": None,
                 "rows": row_word - 1,
                 "instructions": [],
