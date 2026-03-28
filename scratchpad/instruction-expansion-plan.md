@@ -30,7 +30,7 @@ Extra bytes before field_count = `part_count - 1` sequential bytes (0x01, 0x02, 
 | Out | 0x2715-17 | 1 | 6 | out/latch/reset + oneshot | KNOWN |
 | Tmr | 0x2718 | 2 | 9 | on_delay/off_delay/rton | KNOWN |
 | Cnt | 0x2719 | 3 | 9 | count_up/count_down | type_idx: 0=up, 1=down, 2=up+down |
-| Math | 0x271A | 1 | 1010 | calc__decimal/hex | Expression tree; 1010 pre-allocated field slots |
+| Math | 0x271A | 1 | 1010 | math__decimal/hex | Expression tree; 1010 pre-allocated field slots |
 | Drum | 0x271B | 4 | 64 | time_drum/event_drum | type_idx field[4]: 0=time, 1=event |
 | SR | 0x2720 | 3 | 6 | shift | start/end operands + 3 variant func codes |
 | Copy | 0x2721 | 1 | 13 | copy/blockcopy/fill/pack/unpack | All copy variants share one class! field[6] discriminates: 0=single, 1=block, 2=fill, 3=pack |
@@ -73,7 +73,7 @@ src/laddercodec/instructions/
 ├── timer.py             # "Tmr" (0x2718) — timers
 ├── raw.py               # RawInstruction — opaque blob passthrough
 ├── counter.py           # "Cnt" (0x2719) — counters (up/down/up+down)
-├── math.py              # "Math" (0x271A) — decimal/hex calc expressions
+├── math.py              # "Math" (0x271A) — decimal/hex math expressions
 ├── drum.py              # "Drum" (0x271B) — time/event sequencer drums
 ├── shift_register.py    # "SR" (0x2720) — shift register
 ├── copy.py              # "Copy" (0x2721) — single/block/fill/pack/unpack

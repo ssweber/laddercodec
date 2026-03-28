@@ -9,7 +9,11 @@ import pytest
 from laddercodec import (
     Coil,
     Contact,
+    Counter,
+    ForLoop,
+    Next,
     Rung,
+    Shift,
     Timer,
     decode,
     read_csv,
@@ -161,6 +165,145 @@ class TestDecodedRungToRows:
         )
         rows = decoded_rung_to_rows(rung)
         assert rows[0][32] == "NOP"
+
+    def test_count_up_reset_collapses_middle_row(self) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT1",
+            current="CTD1",
+            preset="100",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [Contact(InstructionType.CONTACT_EDGE, "C73", edge_kind="rise")] + ["-"] * 30,
+                [""] * 31,
+                [Contact(InstructionType.CONTACT_NO, "C74")] + ["-"] * 30,
+            ],
+            instructions=[counter, "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 2
+        assert rows[0][32] == "count_up(CT1,CTD1,preset=100)"
+        assert rows[1][32] == ".reset()"
+        assert rows[1][1] == "C74"
+
+    def test_count_up_down_emits_down_pin(self) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT2",
+            current="CTD2",
+            preset="100",
+            down_enabled=True,
+            reset_enabled=True,
+        )
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [Contact(InstructionType.CONTACT_EDGE, "C75", edge_kind="rise")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C76")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C77")] + ["-"] * 30,
+            ],
+            instructions=[counter, "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 3
+        assert rows[0][32] == "count_up(CT2,CTD2,preset=100)"
+        assert rows[1][32] == ".down()"
+        assert rows[2][32] == ".reset()"
+
+    def test_count_down_rehydrates_nop_shape(self) -> None:
+        counter = Counter(
+            counter_type="count_down",
+            done_bit="CT3",
+            current="CTD3",
+            preset="50",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [""] * 31,
+                [Contact(InstructionType.CONTACT_EDGE, "C78", edge_kind="rise")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C79")] + ["-"] * 30,
+            ],
+            instructions=[counter, "NOP", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 2
+        assert rows[0][32] == "count_down(CT3,CTD3,preset=50)"
+        assert rows[0][1] == "rise(C78)"
+        assert rows[1][32] == ".reset()"
+
+    def test_shift_emits_clock_and_reset_pins(self) -> None:
+        shift = Shift("C99", "C106")
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [Contact(InstructionType.CONTACT_NO, "C96")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C97")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C98")] + ["-"] * 30,
+            ],
+            instructions=[shift, "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 3
+        assert rows[0][32] == "shift(C99..C106)"
+        assert rows[1][32] == ".clock()"
+        assert rows[2][32] == ".reset()"
+
+    def test_shift_requires_three_rows(self) -> None:
+        shift = Shift("C99", "C106")
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                [Contact(InstructionType.CONTACT_NO, "C96")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C97")] + ["-"] * 30,
+            ],
+            instructions=[shift, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        with pytest.raises(WriterError, match="shift requires 3 decoded rows"):
+            decoded_rung_to_rows(rung)
+
+    def test_forloop_serializes(self) -> None:
+        rung = Rung(
+            logical_rows=1,
+            conditions=[[Contact(InstructionType.CONTACT_NO, "C222")] + ["-"] * 30],
+            instructions=[ForLoop(limit="3", oneshot=False)],
+            comment_rtf=None,
+            comment=None,
+        )
+        rows = decoded_rung_to_rows(rung)
+        assert rows[0][32] == "for(3,oneshot=0)"
+
+    def test_next_serializes(self) -> None:
+        rung = Rung(
+            logical_rows=1,
+            conditions=[["-"] * 31],
+            instructions=[Next()],
+            comment_rtf=None,
+            comment=None,
+        )
+        rows = decoded_rung_to_rows(rung)
+        assert rows[0][32] == "next()"
 
     def test_comment_rows_not_padded(self) -> None:
         """Comment rows are short (just marker + text), not 33 columns."""

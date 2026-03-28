@@ -27,14 +27,24 @@ is stripped before writing — the forward path's auto-padding restores it.
 from __future__ import annotations
 
 import csv as csv_mod
+from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 from ..decode import (
     Rung,
     UnknownCondition,
     UnknownInstruction,
 )
-from ..instructions import AfInstruction, ConditionInstruction, Timer
+from ..instructions import (
+    AfInstruction,
+    ConditionInstruction,
+    Counter,
+    Drum,
+    Shift,
+    Timer,
+    get_af_family_for_token,
+)
 from .contract import CSV_HEADER
 
 
@@ -66,7 +76,7 @@ def _token_to_csv(token: object) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _is_blank_row(conditions: list[object], af: object) -> bool:
+def _is_blank_row(conditions: Sequence[object], af: object) -> bool:
     """Return True if all conditions are blank/empty and AF is blank."""
     if af != "":
         return False
@@ -92,12 +102,78 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
 
     # --- Determine timer retention / tall padding ---
     af0 = rung.instructions[0] if rung.instructions else None
-    is_retained_timer = isinstance(af0, Timer) and af0.retained
+    af0_family = get_af_family_for_token(af0) if isinstance(af0, AfInstruction) else None
+    family_name = af0_family.family_name if af0_family is not None else None
+    is_retained_timer = family_name == "timer" and isinstance(af0, Timer) and af0.retained
     is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
 
     # Build working copies for potential stripping.
     condition_rows = list(rung.conditions)
     af_tokens = list(rung.instructions)
+
+    if family_name == "counter":
+        counter = cast(Counter, af0)
+        if len(condition_rows) < 3 or len(af_tokens) < 3:
+            raise WriterError(
+                f"{counter.counter_type} requires 3 decoded rows; got {len(condition_rows)}"
+            )
+
+        if counter.counter_type == "count_up":
+            top_conditions = condition_rows[0]
+            rows.append(["R"] + [_token_to_csv(c) for c in top_conditions] + [counter.to_csv()])
+
+            if counter.down_enabled:
+                down_conditions = condition_rows[1]
+                rows.append([""] + [_token_to_csv(c) for c in down_conditions] + [".down()"])
+
+            if counter.reset_enabled:
+                reset_conditions = condition_rows[2]
+                rows.append([""] + [_token_to_csv(c) for c in reset_conditions] + [".reset()"])
+
+            return rows
+
+        if af_tokens[1] != "NOP":
+            raise WriterError("count_down requires a NOP bridge row in the decoded rung")
+
+        up_conditions = condition_rows[1]
+        rows.append(["R"] + [_token_to_csv(c) for c in up_conditions] + [counter.to_csv()])
+
+        if counter.reset_enabled:
+            reset_conditions = condition_rows[2]
+            rows.append([""] + [_token_to_csv(c) for c in reset_conditions] + [".reset()"])
+
+        return rows
+
+    if family_name == "shift":
+        shift = cast(Shift, af0)
+        if len(condition_rows) != 3 or len(af_tokens) != 3:
+            raise WriterError(f"shift requires 3 decoded rows; got {len(condition_rows)}")
+
+        rows.append(["R"] + [_token_to_csv(c) for c in condition_rows[0]] + [shift.to_csv()])
+        rows.append([""] + [_token_to_csv(c) for c in condition_rows[1]] + [".clock()"])
+        rows.append([""] + [_token_to_csv(c) for c in condition_rows[2]] + [".reset()"])
+        return rows
+
+    if family_name == "drum":
+        drum = cast(Drum, af0)
+        if len(condition_rows) < 4 or len(af_tokens) < 4:
+            raise WriterError(f"Drum requires 4 decoded rows; got {len(condition_rows)}")
+
+        # Row 0: main + drum instruction
+        rows.append(["R"] + [_token_to_csv(c) for c in condition_rows[0]] + [drum.to_csv()])
+        # Row 1: .reset() — always present
+        rows.append([""] + [_token_to_csv(c) for c in condition_rows[1]] + [".reset()"])
+        # Row 2: .jump(target) if enabled
+        if drum.jump_enabled:
+            rows.append(
+                [""]
+                + [_token_to_csv(c) for c in condition_rows[2]]
+                + [f".jump({drum.jump_target})"]
+            )
+        # Row 3: .jog() if enabled
+        if drum.jog_enabled:
+            rows.append([""] + [_token_to_csv(c) for c in condition_rows[3]] + [".jog()"])
+        return rows
 
     if is_retained_timer:
         # Retained timer: the second row becomes a .reset() pin row.

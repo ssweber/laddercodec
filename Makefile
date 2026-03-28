@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test golden upgrade build clean docs-serve docs-build docs-check
+.PHONY: default install lint test golden coverage-golden upgrade build clean docs-serve docs-build docs-check
 
 default: install lint test
 
@@ -18,6 +18,9 @@ test:
 
 golden:
 	uv run devtools/golden.py
+
+coverage-golden:
+	uv run devtools/coverage_golden.py
 
 upgrade:
 	uv sync --upgrade

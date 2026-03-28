@@ -16,8 +16,13 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..model import AfInstruction
+from .family import AfInstructionFamilySpec
+
+if TYPE_CHECKING:
+    from ..csv.ast import AfCall
 
 # ---------------------------------------------------------------------------
 # Blob boundary detection
@@ -150,3 +155,18 @@ class RawInstruction(AfInstruction):
             part_count = 1
 
         return cls(class_name=class_name, blob=blob, part_count=part_count)
+
+
+def parse_af_call(call: AfCall) -> RawInstruction:
+    """Parse an AF AST call into a RawInstruction."""
+    return RawInstruction.from_csv_token(call.to_token())
+
+
+SPEC = AfInstructionFamilySpec(
+    family_name="raw",
+    instruction_types=(RawInstruction,),
+    binary_class_names=(),
+    parse_blob=lambda raw: None,
+    csv_names=("raw",),
+    parse_csv_call=parse_af_call,
+)

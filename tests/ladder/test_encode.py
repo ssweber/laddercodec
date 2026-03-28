@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Coil, CompareContact, Contact, Timer, decode, encode, read_csv
+from laddercodec import Coil, CompareContact, Contact, Return, Timer, decode, encode, read_csv
 from laddercodec.encode import encode_rung
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
@@ -200,6 +200,14 @@ class TestInstructionRoundTrip:
         d = decode(buf)
         assert isinstance(d.instructions[0], Coil)
         assert d.instructions[0].operand == "Y001"
+
+    def test_return_instruction(self) -> None:
+        contact = Contact(InstructionType.CONTACT_NO, "C233")
+        ret = Return()
+        buf = encode_rung(1, [_wire_row(contact)], [ret])
+        d = decode(buf)
+        a = d.instructions[0]
+        assert isinstance(a, Return)
 
     def test_mixed_wire_and_instruction(self) -> None:
         """Existing wire-only golden fixtures are not affected."""

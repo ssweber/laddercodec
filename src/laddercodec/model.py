@@ -32,7 +32,7 @@ class ConditionInstruction:
 
 
 class AfInstruction:
-    """Base class for AF-side instructions (Coil, Timer, Copy, BlockCopy, Fill, RawInstruction)."""
+    """Base class for AF-side instructions (Coil, Timer, Counter, Copy, Fill, RawInstruction)."""
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -55,7 +55,15 @@ class InstructionType(IntEnum):
     COIL_LATCH = 0x16  # 0x2716
     COIL_RESET = 0x17  # 0x2717
     TIMER = 0x18  # 0x2718 (on_delay / off_delay timers)
+    COUNTER = 0x19  # 0x2719 (count_up / count_down counters)
+    MATH = 0x1A  # 0x271A (math expression)
+    DRUM = 0x1B  # 0x271B (event drum / time drum)
+    SHIFT = 0x20  # 0x2720 (shift register)
     COPY = 0x21  # 0x2721 (single/block/fill/pack/unpack copy)
+    SEARCH = 0x22  # 0x2722 (search table)
+    CALL = 0x23  # 0x2723 (subroutine call)
+    FOR_LOOP = 0x25  # 0x2725 (for loop)
+    NEXT = 0x26  # 0x2726 (for loop terminator)
 
 
 OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")

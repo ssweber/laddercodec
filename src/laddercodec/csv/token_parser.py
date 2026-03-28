@@ -269,7 +269,7 @@ def parse_af_token(token: str) -> AfNode:
 
     m = _CALL_RE.fullmatch(text)
     if not m:
-        return AfCall(name=text, args=tuple(), known=False)
+        return AfCall(name=text, args=tuple(), known=False, raw=text)
 
     name = m.group(1)
     args_src = m.group(2).strip()
@@ -295,4 +295,5 @@ def parse_af_token(token: str) -> AfNode:
         args=tuple(positional),
         known=name in KNOWN_AF_NAMES,
         kwargs=kwargs,
+        raw=text,
     )

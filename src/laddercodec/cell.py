@@ -63,7 +63,7 @@ class ClickCell:
 
     # Multi-row AF instruction (timers, counters, etc.)
     # row_span: how many data rows this cell occupies (1 = normal, 2 = timer)
-    # visual_rows: visual sub-row count (1 = contact/coil, 2 = timer, 3 = retentive timer)
+    # visual_rows: visual sub-row count (1 = contact/coil, 2 = timer/copy/search)
     row_span: int = 1
     visual_rows: int = 1
 

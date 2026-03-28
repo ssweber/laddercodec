@@ -267,7 +267,7 @@ def _build_rung_grid(
                             is_contact=False,
                             rung_has_instructions=meta.rung_has_instructions,
                             segment=_af_segment(local_row, is_multi_row, single_rung),
-                            wire_right=1,
+                            wire_right=int(params.get("wire_right", 1)),
                             instr_index=meta.af_instr_indices[local_row],
                             blob=blob,
                             row_span=logical_rows if is_multi_row else 1,

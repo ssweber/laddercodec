@@ -36,8 +36,8 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
     Instruction tokens (e.g. ``X001``, ``out(Y001)``) are parsed into
     ``Contact`` / ``Coil`` objects; wire tokens remain as strings.
 
-    When *strict* is ``False``, unsupported AF instructions (e.g. counters)
-    are silently replaced with blank tokens instead of raising.
+    When *strict* is ``False``, unsupported AF instructions are silently
+    replaced with blank tokens instead of raising.
     """
     ast = parse_csv_file(Path(path), syntax="canonical")
     return [Rung(*convert_rung(rung, strict=strict)) for rung in ast.rungs]

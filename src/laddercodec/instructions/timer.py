@@ -9,9 +9,13 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from ..model import AfInstruction
+from .family import AfInstructionFamilySpec
+
+if TYPE_CHECKING:
+    from ..csv.ast import AfCall
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -85,6 +89,8 @@ class Timer(AfInstruction):
         unit = kwargs.get("unit", "")
         if not setpoint or not unit:
             raise ValueError(f"{timer_type} missing preset or unit kwargs: {token!r}")
+        if unit not in TIMER_UNIT_TO_INDEX:
+            raise ValueError(f"Unknown timer unit: {unit!r}")
         return cls(
             timer_type=timer_type,
             done_bit=done_bit,
@@ -119,7 +125,7 @@ class Timer(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        return {"visual_rows": 3 if self.retained else 2}
+        return {"visual_rows": 2}
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this timer cell."""
@@ -235,3 +241,20 @@ def parse_blob(raw: bytes) -> Timer | None:
         unit=unit,
         retained=retained,
     )
+
+
+def parse_af_call(call: AfCall) -> Timer:
+    """Parse an AF AST call into a Timer."""
+    return Timer.from_csv_token(call.to_token())
+
+
+SPEC = AfInstructionFamilySpec(
+    family_name="timer",
+    instruction_types=(Timer,),
+    binary_class_names=("Tmr",),
+    parse_blob=parse_blob,
+    csv_names=("on_delay", "off_delay"),
+    parse_csv_call=parse_af_call,
+    pin_names=(".reset",),
+    min_csv_rows=2,
+)

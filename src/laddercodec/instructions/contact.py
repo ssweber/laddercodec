@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ..model import ConditionInstruction, InstructionType, _validate_operand
+from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
 # Func code tables — NO/NC
@@ -281,3 +282,11 @@ def _parse_edge_blob(raw: bytes, pos: int) -> Contact | None:
         immediate=immediate,
         edge_kind=edge_kind,
     )
+
+
+SPEC = ConditionInstructionFamilySpec(
+    family_name="contact",
+    instruction_types=(Contact,),
+    binary_class_names=("ContactNO", "Edge"),
+    parse_blob=parse_blob,
+)

@@ -196,7 +196,7 @@ When the user provides a `.bin` + `.csv` from a Click capture:
 1. **Inspect the capture:** `uv run devtools/inspect_bin.py <file.bin>` — shows known instructions with `to_csv()` output, and RawInstruction/Unknown blobs with full tagged-field breakdown (tag IDs, sentinel types, values).
 2. **Identify what's new:** RawInstruction means the class name is recognized but the func code isn't. The field breakdown shows exactly which func code / field values differ from existing support.
 3. **Update the code:** add func codes, fields, or new instruction modules as needed. Update `csv/converter.py` to pass new kwargs through.
-4. **Update coverage CSV:** `tests/fixtures/coverage/main.csv` and `golden/<name>.csv` — use kwargs style for boolean flags (e.g. `oneshot=1`).
+4. **Update coverage CSV:** `tests/fixtures/coverage/golden/<name>.csv` — use kwargs style for boolean flags (e.g. `oneshot=1`).
 5. **Verify:** `make test` + `make lint`.
 
 See [`docs/guides/adding-instructions.md`](docs/guides/adding-instructions.md) for the full guide.

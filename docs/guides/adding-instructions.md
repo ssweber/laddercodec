@@ -10,8 +10,12 @@ This shows every instruction in the capture: known types display their model + `
 
 From the inspect output you'll see one of two cases:
 
-- **RawInstruction** — class name recognized, func code not → new variant of an existing instruction
-- **UnknownInstruction** — class name not in registry → entirely new instruction type
+- **RawInstruction** — blob structure parsed, but no supported model matched yet. This can mean:
+  - a new variant of an existing instruction class, or
+  - an entirely new instruction class name
+- **UnknownInstruction** — blob boundary could not be parsed cleanly (truncated/novel layout); inspect raw bytes before modeling
+
+Tip: use the reported `class='...'` value. If the class name is already registered, you're likely adding a new variant; if it's new, you're likely adding a new instruction type.
 
 ## Base classes
 
@@ -20,7 +24,17 @@ All instruction dataclasses inherit from one of two base classes in `model.py`:
 - **`ConditionInstruction`** — condition-side (Contact, CompareContact)
 - **`AfInstruction`** — AF-side (Coil, Timer, Copy, BlockCopy, Fill, RawInstruction)
 
-Both declare `to_csv()`, `build_blob()`, and `cell_params()` stubs. The pipeline uses these base classes for isinstance dispatch, so **new instruction types that inherit from the right base class are automatically recognized** by the encoder, decoder, grid builder, and CSV writer — no isinstance updates needed in those files.
+Both declare `to_csv()`, `build_blob()`, and `cell_params()` stubs. The pipeline uses these base classes for isinstance dispatch, so **new instruction types that inherit from the right base class are automatically recognized** by the encoder, decoder, grid builder, and CSV writer.
+
+In addition, each instruction family module now exposes a small family spec in `src/laddercodec/instructions/family.py`. That spec is the shared source of truth for:
+
+- binary class names
+- CSV token names
+- CSV call parsing
+- supported pin names
+- minimum CSV row count (`min_csv_rows`)
+
+For most new instruction families, the main extension point is: **add the dataclass + codec logic in the family module, then register a `SPEC` for it.**
 
 ## Case 1: New variant of existing instruction
 
@@ -53,9 +67,9 @@ In `src/laddercodec/instructions/<module>.py`:
 - Update `to_csv()` to include the new parameter
 - Update `parse_blob()` to extract the new field from the func code table
 
-### 3. Update the CSV converter
+### 3. Update the CSV-facing parse path
 
-In `src/laddercodec/csv/converter.py`, pass the new kwarg through when constructing the instruction:
+If the variant is covered by an existing family spec, update the family module's CSV parsing path rather than adding a new central converter branch. For example, extend `from_csv_token()` or the family's `parse_af_call()` hook so the new kwarg is understood:
 
 ```python
 oneshot = call.kwargs.get("oneshot") == "1"
@@ -64,7 +78,7 @@ return Coil(..., oneshot=oneshot)
 
 ### 4. Update the coverage CSV
 
-The coverage fixture at `tests/fixtures/coverage/main.csv` should already have a row for the variant. Verify the CSV token matches what your `to_csv()` produces (e.g. `out(C47,oneshot=1)`). Boolean flags use kwargs style: `oneshot=1`, not wrapper style.
+The coverage fixture at `tests/fixtures/coverage/golden/<rung_id>.csv` should already exist for the variant. Verify the CSV token matches what your `to_csv()` produces (e.g. `out(C47,oneshot=1)`). Boolean flags use kwargs style: `oneshot=1`, not wrapper style.
 
 ### 5. Verify
 
@@ -76,7 +90,7 @@ make test && make lint
 
 ### 1. Read the field breakdown
 
-Same as above, but the class name won't be in the registry. The inspect output shows the full blob structure — class name, type marker, part count, field count, all tagged fields.
+Same as above. For new types, inspect will often show `RawInstruction` with a new class name (for example `class='End'`). `UnknownInstruction` is less common and usually means the blob format itself wasn't parsed cleanly. The inspect output shows the blob structure — class name, type marker, part count, field count, all tagged fields.
 
 ### 2. Create instruction module
 
@@ -87,32 +101,52 @@ In `src/laddercodec/instructions/`:
 - Follow existing modules (coil.py, timer.py, copy.py) as templates
 - Add `InstructionType` enum value in `model.py` if it uses a new type marker
 
-**Tall instructions:** if the new instruction occupies more than 1 grid row (like Timer and Copy at 2 rows), return `{"visual_rows": N}` from `cell_params()`. The pipeline detects tall instructions automatically via `cell_params()` — no isinstance updates needed. Also add the token name to the `_TALL_AF` dict in `csv/converter.py` so the CSV auto-padding works.
+**Tall instructions:** if the new instruction occupies more than 1 grid row in the binary/editor shape, return `{"visual_rows": N}` from `cell_params()`.
+
+If the instruction also needs auto-padding in CSV, set `min_csv_rows=N` on the family `SPEC`. These are related but not always identical:
+
+- `visual_rows` = binary/editor cell height
+- `min_csv_rows` = minimum CSV/logical rows to synthesize on read
+
+Example: timers currently use `visual_rows=2` and `min_csv_rows=2`, while counter/shift/drum families use explicit higher CSV row counts because their lower rows have pin semantics.
+
+Also add a family `SPEC` in the module:
+
+- `binary_class_names`
+- `csv_names`
+- `parse_blob`
+- `parse_csv_call` (for AF families)
+- `pin_names` if the family uses dot-prefixed continuation rows
+- `min_csv_rows` if the family should auto-pad in CSV
 
 ### 3. Register and export
 
 | File | What to update |
 |------|---------------|
-| `instructions/__init__.py` | `INSTRUCTION_MODULES` registry (binary class name → module), re-export the new class |
+| `instructions/__init__.py` | Register the family `SPEC` in `AF_FAMILY_SPECS` or `CONDITION_FAMILY_SPECS`, and re-export the new class |
 | `__init__.py` | Re-export the new class in the public API |
-| `csv/ast.py` | Add the token name to `KNOWN_AF_NAMES` |
 
-Thanks to the base classes, `encode.py`, `_grid.py`, `csv/writer.py`, and `devtools/inspect_bin.py` need no changes — they dispatch on `AfInstruction`/`ConditionInstruction`.
+`KNOWN_AF_NAMES` is now derived from the registered family specs, so `csv/ast.py` does not need manual token updates.
 
-### 4. Update CSV converter
+Thanks to the base classes and family specs, `encode.py`, `_grid.py`, `devtools/inspect_bin.py`, and most of the CSV token dispatch need no changes.
 
-In `csv/converter.py`:
+### 4. Update family CSV parsing if needed
 
-- Add a branch in `_af_call_to_token()` for the new instruction name
-- Handle positional args and kwargs
+For AF instructions, make sure the family `SPEC` can parse the CSV call:
+
+- add the CSV token name to `csv_names`
+- implement or extend `parse_csv_call`
+- handle positional args and kwargs there
 
 ### 5. Update CSV writer
 
-If the instruction has pin rows or padding (like timers), update `csv/writer.py` to handle the reverse direction.
+If the instruction has only generic blank padding, the existing tall-instruction stripping usually works automatically.
+
+If the instruction has semantic lower rows or pins (like timers, counters, shifts, or drums), update `csv/writer.py` and possibly `csv/converter.py` to handle the reverse row-shaping explicitly.
 
 ### 6. Update coverage CSV and verify
 
-Add rows to `tests/fixtures/coverage/main.csv` covering all variants.
+Add `tests/fixtures/coverage/golden/<rung_id>.csv` files covering all variants.
 
 ```bash
 make test && make lint
@@ -125,9 +159,20 @@ Coverage golden fixtures live in `tests/fixtures/coverage/golden/`. Each fixture
 ### Adding a fixture
 
 1. Create `tests/fixtures/coverage/golden/<rung_id>.csv` by hand — one rung per file, 33-column canonical format.
-2. Add the rung to `tests/fixtures/coverage/main.csv` (the combined file that `test_coverage.py` reads).
-3. Capture the golden binary via Click paste round-trip using `clicknick-rung guided`.
-4. `make test` — each `.bin` gets a parametrized test comparing encoded CSV against captured bytes.
+2. Capture the golden binary via Click paste round-trip using `clicknick-rung guided`.
+3. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded CSV against captured bytes.
+
+### Regenerating coverage bins from verified fixtures
+
+When you want to refresh coverage bins from the current encoder, use:
+
+```bash
+make coverage-golden
+```
+
+This command reads `tests/fixtures/coverage/golden/verify_progress.log`, selects only fixture IDs marked `: worked`, regenerates those `.bin` files, and removes non-worked coverage `.bin` files.
+
+Use this for bulk refresh/sync. For native Click fidelity checks, keep using capture round-trips for the specific fixture.
 
 ## Clicknick compatibility
 

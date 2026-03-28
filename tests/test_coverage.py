@@ -1,7 +1,7 @@
 """Coverage test harness -- per-rung byte-exact comparison against Click golden binaries.
 
 Workflow:
-    1. pyrung devtools/coverage_program.py -> fixtures/coverage/main.csv
+    1. Create golden/<rung_id>.csv by hand (33-column canonical format)
     2. Paste CSV into Click, copy each rung back -> golden/<rung_id>.bin
     3. make test -> this file runs, comparing encoded output to golden binaries
 
@@ -12,18 +12,18 @@ Standalone report:  uv run python -m pytest tests/test_coverage.py -v
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 from laddercodec.csv.converter import ConvertError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
+from laddercodec.csv.writer import write_csv
+from laddercodec.decode import Rung, decode
 from laddercodec.encode import encode_rung
+from laddercodec.encode_multi import encode_rungs
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "coverage"
-CSV_PATH = FIXTURES_DIR / "main.csv"
-GOLDEN_DIR = FIXTURES_DIR / "golden"
+GOLDEN_DIR = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
 # ---------------------------------------------------------------------------
@@ -31,24 +31,52 @@ GOLDEN_DIR = FIXTURES_DIR / "golden"
 # ---------------------------------------------------------------------------
 
 
-def _rung_id(rung):
-    """Extract rung ID from comment rows (e.g. 'cond__no', 'out__tag')."""
-    if rung.comment_rows:
-        return rung.comment_rows[0].canonical.conditions[0].strip()
-    return "unknown"
+def _load_golden_pairs() -> list[tuple[str, Path, Path]]:
+    """Scan golden dir for CSV files with matching .bin files.
+
+    Returns list of (rung_id, csv_path, bin_path).
+    """
+    pairs = []
+    for csv_path in sorted(GOLDEN_DIR.glob("*.csv")):
+        bin_path = csv_path.with_suffix(".bin")
+        if bin_path.exists():
+            pairs.append((csv_path.stem, csv_path, bin_path))
+    return pairs
 
 
-def _golden_path(rung_id: str) -> Path:
-    """Map rung ID to golden binary path: 'cond__no' -> cond__no.bin."""
-    return GOLDEN_DIR / f"{rung_id}.bin"
+def _convert_program(
+    csv_path: Path,
+) -> tuple[list[object], list[tuple[int, list[list[object]], list[object], str | None]]]:
+    program = parse_csv_file(csv_path)
+    rungs = list(program.rungs)
+    converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
+    for idx, rung in enumerate(rungs):
+        try:
+            converted.append(convert_rung(rung))
+        except (ConvertError, NotImplementedError, ValueError) as exc:
+            raise ValueError(f"rung {idx}: {exc}") from exc
+    return rungs, converted
 
 
-# ---------------------------------------------------------------------------
-# Load rungs at import time for parametrize (empty list if no CSV)
-# ---------------------------------------------------------------------------
+def _encode_converted(
+    converted: list[tuple[int, list[list[object]], list[object], str | None]],
+) -> bytes:
+    if len(converted) == 1:
+        logical_rows, cond_rows, af_tokens, comment = converted[0]
+        return encode_rung(
+            logical_rows=logical_rows,
+            condition_rows=cond_rows,
+            af_tokens=af_tokens,
+            comment=comment,
+        )
 
-_RUNGS = list(parse_csv_file(CSV_PATH).rungs) if CSV_PATH.exists() else []
-_IDS = [_rung_id(r) for r in _RUNGS]
+    rung_inputs = [(lr, cond_rows, af_tokens) for lr, cond_rows, af_tokens, _ in converted]
+    comments = [comment for _, _, _, comment in converted]
+    return encode_rungs(rung_inputs, comments=comments)
+
+
+_GOLDEN_PAIRS = _load_golden_pairs()
+_IDS = [rid for rid, _, _ in _GOLDEN_PAIRS]
 
 
 # ---------------------------------------------------------------------------
@@ -56,28 +84,19 @@ _IDS = [_rung_id(r) for r in _RUNGS]
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("rung_index", range(len(_RUNGS)), ids=_IDS)
-def test_rung_byte_exact(rung_index):
-    rung = _RUNGS[rung_index]
-    rid = _rung_id(rung)
-    golden = _golden_path(rid)
-
-    if not golden.exists():
-        pytest.skip(f"no golden binary: {golden.name}")
-
+@pytest.mark.parametrize("pair_index", range(len(_GOLDEN_PAIRS)), ids=_IDS)
+def test_rung_byte_exact(pair_index):
+    _rid, csv_path, bin_path = _GOLDEN_PAIRS[pair_index]
     try:
-        logical_rows, cond_rows, af_tokens, comment = convert_rung(rung)
-    except (ConvertError, NotImplementedError, ValueError) as exc:
+        rungs, converted = _convert_program(csv_path)
+    except ValueError as exc:
         pytest.skip(f"not encodable: {exc}")
+    if not rungs:
+        pytest.skip(f"no rungs in {csv_path.name}")
 
-    encoded = encode_rung(
-        logical_rows=logical_rows,
-        condition_rows=cond_rows,
-        af_tokens=af_tokens,
-        comment=comment,
-    )
+    encoded = _encode_converted(converted)
 
-    golden_bytes = golden.read_bytes()
+    golden_bytes = bin_path.read_bytes()
     if encoded != golden_bytes:
         offset = next(
             (
@@ -90,6 +109,45 @@ def test_rung_byte_exact(rung_index):
         pytest.fail(
             f"byte mismatch at 0x{offset:04X} (golden={len(golden_bytes)}B, got={len(encoded)}B)"
         )
+
+
+@pytest.mark.parametrize("pair_index", range(len(_GOLDEN_PAIRS)), ids=_IDS)
+def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
+    """Ensure coverage CSV fixtures survive csv->encode->decode->csv semantically."""
+    rid, csv_path, _ = _GOLDEN_PAIRS[pair_index]
+    try:
+        rungs, converted = _convert_program(csv_path)
+    except ValueError as exc:
+        pytest.skip(f"not encodable: {exc}")
+    if not rungs:
+        pytest.skip(f"no rungs in {csv_path.name}")
+
+    encoded = _encode_converted(converted)
+
+    decoded = decode(encoded)
+    decoded_rungs = decoded if isinstance(decoded, list) else [decoded]
+    if any(not isinstance(r, Rung) for r in decoded_rungs):
+        pytest.fail(f"decode returned unexpected object type for {rid}")
+
+    out_csv = tmp_path / f"{rid}.roundtrip.csv"
+    write_csv(out_csv, list(decoded_rungs))
+
+    # Compare normalized convert signatures (robust to equivalent token spellings
+    # like immediate(X1) vs X1.immediate).
+    out_program = parse_csv_file(out_csv)
+    out_rungs = list(out_program.rungs)
+    if len(out_rungs) != len(rungs):
+        pytest.fail(
+            f"roundtrip output rung count mismatch for {rid}: {len(out_rungs)} != {len(rungs)}"
+        )
+
+    out_converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
+    for idx, rung in enumerate(out_rungs):
+        out_converted.append(convert_rung(rung))
+        if idx >= len(converted):
+            pytest.fail(f"unexpected extra rung {idx} in roundtrip output for {rid}")
+
+    assert out_converted == converted
 
 
 # ---------------------------------------------------------------------------
@@ -107,42 +165,33 @@ _RST = "\033[0m"
 
 
 def _run_report():
-    if not CSV_PATH.exists():
-        print(f"No CSV at {CSV_PATH} -- run pyrung coverage_program.py first")
-        sys.exit(1)
-
-    rungs = list(parse_csv_file(CSV_PATH).rungs)
+    pairs = _load_golden_pairs()
+    csv_only = sorted(
+        p.stem for p in GOLDEN_DIR.glob("*.csv") if not p.with_suffix(".bin").exists()
+    )
     results: list[tuple[str, str, str]] = []
 
-    for rung in rungs:
-        rid = _rung_id(rung)
-        golden = _golden_path(rid)
-
-        if not golden.exists():
-            results.append((rid, "NBIN", ""))
-            continue
-
+    for rid, csv_path, bin_path in pairs:
         try:
-            logical_rows, cond_rows, af_tokens, comment = convert_rung(rung)
-        except (ConvertError, NotImplementedError, ValueError) as exc:
+            rungs, converted = _convert_program(csv_path)
+        except ValueError as exc:
             results.append((rid, "SKIP", str(exc)))
             continue
         except Exception as exc:
             results.append((rid, "ERR!", f"{type(exc).__name__}: {exc}"))
             continue
 
+        if not rungs:
+            results.append((rid, "SKIP", "no rungs in CSV"))
+            continue
+
         try:
-            encoded = encode_rung(
-                logical_rows=logical_rows,
-                condition_rows=cond_rows,
-                af_tokens=af_tokens,
-                comment=comment,
-            )
+            encoded = _encode_converted(converted)
         except Exception as exc:
             results.append((rid, "ERR!", f"{type(exc).__name__}: {exc}"))
             continue
 
-        golden_bytes = golden.read_bytes()
+        golden_bytes = bin_path.read_bytes()
         if encoded == golden_bytes:
             results.append((rid, "PASS", ""))
         else:
@@ -161,6 +210,9 @@ def _run_report():
                     f"diff at 0x{offset:04X} (golden={len(golden_bytes)}B, got={len(encoded)}B)",
                 )
             )
+
+    for rid in csv_only:
+        results.append((rid, "NBIN", ""))
 
     # -- Print report --
     passed = sum(1 for _, s, _ in results if s == "PASS")

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ..model import ConditionInstruction, InstructionType
+from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -168,3 +169,11 @@ def parse_blob(raw: bytes) -> CompareContact | None:
         return None
 
     return CompareContact(op=op, left=left, right=right)
+
+
+SPEC = ConditionInstructionFamilySpec(
+    family_name="comparison",
+    instruction_types=(CompareContact,),
+    binary_class_names=("Compare",),
+    parse_blob=parse_blob,
+)

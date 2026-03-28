@@ -6,41 +6,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from ..instructions import KNOWN_AF_NAMES as _KNOWN_AF_NAMES
 from .contract import CONDITION_COLUMNS
 
-KNOWN_AF_NAMES = {
-    "out",
-    "latch",
-    "reset",
-    "copy",
-    "blockcopy",
-    "fill",
-    "calc",
-    "search",
-    "pack_bits",
-    "pack_words",
-    "pack_text",
-    "unpack_to_bits",
-    "unpack_to_words",
-    "on_delay",
-    "off_delay",
-    "count_up",
-    "count_down",
-    "shift",
-    "event_drum",
-    "time_drum",
-    "send",
-    "receive",
-    "call",
-    "return",
-    "for",
-    "next",
-    ".reset",
-    ".down",
-    ".clock",
-    ".jump",
-    ".jog",
-}
+KNOWN_AF_NAMES = _KNOWN_AF_NAMES
 
 
 @dataclass(frozen=True)
@@ -138,9 +107,12 @@ class AfCall:
     args: tuple[str, ...]
     known: bool
     kwargs: dict[str, str] = field(default_factory=dict)
+    raw: str | None = None
 
     def to_token(self) -> str:
         """Reconstruct the canonical token string."""
+        if self.raw is not None:
+            return self.raw
         parts = list(self.args)
         parts.extend(f"{k}={v}" for k, v in self.kwargs.items())
         if not parts:

@@ -42,12 +42,22 @@ from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX, CONDITION_COLUMNS
 from .instructions import (
+    BlockCopy,
     Coil,
     CompareContact,
     Contact,
     Copy,
+    Counter,
+    End,
+    Fill,
+    ForLoop,
+    Next,
+    Pack,
     RawInstruction,
+    Return,
+    Shift,
     Timer,
+    Unpack,
     parse_af_blob,
     parse_condition_blob,
 )
@@ -98,9 +108,26 @@ class UnknownInstruction:
 #: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
 ConditionToken = str | Contact | CompareContact | UnknownCondition
 
-#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed Coil/Timer/Copy,
+#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed AF instruction model,
 #: raw opaque blob, or unknown blob.
-AfToken = str | Coil | Timer | Copy | RawInstruction | UnknownInstruction
+AfToken = (
+    str
+    | Coil
+    | Timer
+    | Counter
+    | Copy
+    | BlockCopy
+    | Fill
+    | Pack
+    | Unpack
+    | ForLoop
+    | Next
+    | Shift
+    | End
+    | Return
+    | RawInstruction
+    | UnknownInstruction
+)
 
 
 @dataclass
@@ -404,10 +431,22 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
 
         # Determine cell boundary.
         if has_instr:
+            # Use blob structure to find minimum scan start — large blobs
+            # (e.g. Math at ~8KB) can contain byte patterns that fool the
+            # heuristic cell-signature scanner.
+            scan_from = pos + CELL_SIZE
+            try:
+                instr_start = pos + _INSTR_DATA_OFFSET
+                _, blob_end, _ = find_blob_boundary(data[instr_start:])
+                blob_abs_end = instr_start + blob_end
+                if blob_abs_end > scan_from:
+                    scan_from = blob_abs_end
+            except (ValueError, IndexError):
+                pass
             if col < COLS_PER_ROW - 1:
-                next_pos = _find_next_cell(data, pos + CELL_SIZE, col + 1, row_byte)
+                next_pos = _find_next_cell(data, scan_from, col + 1, row_byte)
             else:
-                next_pos = _find_row_end(data, pos + CELL_SIZE, row_byte)
+                next_pos = _find_row_end(data, scan_from, row_byte)
         else:
             next_pos = pos + CELL_SIZE
 
@@ -791,10 +830,19 @@ def inspect_cells(
         for c in range(col_idx + 1):
             has_instr = data[pos + _INSTR_DATA_OFFSET] != 0
             if has_instr:
+                scan_from = pos + CELL_SIZE
+                try:
+                    instr_start = pos + _INSTR_DATA_OFFSET
+                    _, blob_end, _ = find_blob_boundary(data[instr_start:])
+                    blob_abs_end = instr_start + blob_end
+                    if blob_abs_end > scan_from:
+                        scan_from = blob_abs_end
+                except (ValueError, IndexError):
+                    pass
                 if c < COLS_PER_ROW - 1:
-                    next_pos = _find_next_cell(data, pos + CELL_SIZE, c + 1, row_byte)
+                    next_pos = _find_next_cell(data, scan_from, c + 1, row_byte)
                 else:
-                    next_pos = _find_row_end(data, pos + CELL_SIZE, row_byte)
+                    next_pos = _find_row_end(data, scan_from, row_byte)
             else:
                 next_pos = pos + CELL_SIZE
 

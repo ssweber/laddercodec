@@ -19,7 +19,6 @@ instr-no-out: worked
 instr-series: worked
 instr-timer-off: worked
 instr-timer-on: worked
-instr-timer-ret: worked
 mr-2rung-2row: worked
 mr-2rung-wire: worked
 mr-3rung-wire-nop: worked
@@ -39,3 +38,4 @@ mr-cmt-3rung-multirow-multiinstructions: worked
 mr-cmt-3rung-multirow-nopaddedrows: worked
 mr-instr-2rung: worked
 mr-instr-cond__and: worked
+instr-timer-ret: worked

@@ -13,6 +13,7 @@ from laddercodec import (
     Coil,
     CompareContact,
     Contact,
+    Counter,
     RawInstruction,
     Rung,
     Timer,
@@ -35,7 +36,7 @@ __all__ = [
 
 def _token_to_csv(token: ConditionToken | AfToken) -> str:
     """Serialize a token (string, Contact, Coil, CompareContact, Timer, or RawInstruction) to CSV."""
-    if isinstance(token, (Contact, Coil, CompareContact, Timer, RawInstruction)):
+    if isinstance(token, (Contact, Coil, CompareContact, Counter, Timer, RawInstruction)):
         return token.to_csv()
     return token
 

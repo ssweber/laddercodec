@@ -8,8 +8,13 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..model import AfInstruction, InstructionType, _validate_operand
+from .family import AfInstructionFamilySpec
+
+if TYPE_CHECKING:
+    from ..csv.ast import AfCall
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -80,7 +85,26 @@ class Coil(AfInstruction):
             raise ValueError(f"Cannot parse coil: {token!r}")
 
         coil_type = COIL_NAME_TO_TYPE[m.group(1)]
-        arg = m.group(2).strip()
+        inner = m.group(2).strip()
+        parts = [seg.strip() for seg in inner.split(",") if seg.strip()]
+        if not parts:
+            raise ValueError(f"Cannot parse coil: {token!r}")
+
+        arg = parts[0]
+        kwargs: dict[str, str] = {}
+        for seg in parts[1:]:
+            if "=" not in seg:
+                raise ValueError(f"Cannot parse coil keyword arg: {token!r}")
+            k, v = seg.split("=", 1)
+            kwargs[k.strip()] = v.strip()
+
+        unknown = set(kwargs) - {"oneshot"}
+        if unknown:
+            raise ValueError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
+        oneshot_raw = kwargs.get("oneshot", "0")
+        if oneshot_raw not in {"0", "1"}:
+            raise ValueError("coil oneshot must be 0 or 1")
+        oneshot = oneshot_raw == "1"
 
         immediate_inner = False
         inner = re.fullmatch(r"immediate\((.+)\)", arg)
@@ -98,9 +122,20 @@ class Coil(AfInstruction):
                 raise ValueError(f"Cannot parse coil range: {token!r}")
             op1 = _validate_operand(parts[0])
             op2 = _validate_operand(parts[1])
-            return cls(type=coil_type, operand=op1, range_end=op2, immediate=immediate)
+            return cls(
+                type=coil_type,
+                operand=op1,
+                range_end=op2,
+                immediate=immediate,
+                oneshot=oneshot,
+            )
 
-        return cls(type=coil_type, operand=_validate_operand(arg), immediate=immediate)
+        return cls(
+            type=coil_type,
+            operand=_validate_operand(arg),
+            immediate=immediate,
+            oneshot=oneshot,
+        )
 
     @property
     def func_code(self) -> str:
@@ -195,3 +230,18 @@ def parse_blob(raw: bytes) -> Coil | None:
         immediate=immediate,
         oneshot=oneshot,
     )
+
+
+def parse_af_call(call: AfCall) -> Coil:
+    """Parse an AF AST call into a Coil."""
+    return Coil.from_csv_token(call.to_token())
+
+
+SPEC = AfInstructionFamilySpec(
+    family_name="coil",
+    instruction_types=(Coil,),
+    binary_class_names=("Out", "Latch", "Reset"),
+    parse_blob=parse_blob,
+    csv_names=("out", "latch", "reset"),
+    parse_csv_call=parse_af_call,
+)

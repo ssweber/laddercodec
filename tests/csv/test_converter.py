@@ -25,7 +25,18 @@ from laddercodec.csv.converter import (
     strip_tall_padding,
 )
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.instructions import Coil, CompareContact, Contact, RawInstruction, Timer
+from laddercodec.instructions import (
+    Coil,
+    CompareContact,
+    Contact,
+    Counter,
+    ForLoop,
+    Next,
+    RawInstruction,
+    Return,
+    Shift,
+    Timer,
+)
 from laddercodec.model import InstructionType
 
 
@@ -322,6 +333,44 @@ class TestAfNodeToToken:
         assert result.done_bit == "T1"
         assert result.setpoint == "1000"
 
+    def test_timer_rejects_unknown_unit(self) -> None:
+        node = AfCall(
+            name="on_delay",
+            args=("T1", "TD1"),
+            known=True,
+            kwargs={"preset": "1000", "unit": "BadUnit"},
+        )
+        with pytest.raises(ValueError, match="Unknown timer unit"):
+            af_node_to_token(node)
+
+    def test_time_drum_rejects_unsupported_unit(self) -> None:
+        node = AfCall(
+            name="time_drum",
+            args=(),
+            known=True,
+            kwargs={
+                "outputs": "[C211,C212]",
+                "presets": "[100,200]",
+                "unit": "Ts",
+                "pattern": "[[1,0],[0,1]]",
+                "current_step": "DS186",
+                "accumulator": "TD5",
+                "completion_flag": "C213",
+            },
+        )
+        with pytest.raises(ValueError, match="Unsupported time drum unit"):
+            af_node_to_token(node)
+
+    def test_return(self) -> None:
+        node = AfCall(name="return", args=(), known=True)
+        result = af_node_to_token(node)
+        assert isinstance(result, Return)
+
+    def test_return_rejects_args(self) -> None:
+        node = AfCall(name="return", args=("X1",), known=True)
+        with pytest.raises(ValueError, match="return expects no arguments"):
+            af_node_to_token(node)
+
     def test_raw(self) -> None:
         # Minimal valid blob: class name "X" + type marker + part count + field count(0)
         blob_hex = "580000002711000001000000000000"
@@ -331,20 +380,211 @@ class TestAfNodeToToken:
         assert result.class_name == "X"
         assert result.blob == bytes.fromhex(blob_hex)
 
-    def test_unsupported_raises_by_default(self) -> None:
-        node = AfCall(name="count_up", args=("C1", "DS1"), known=True)
-        with pytest.raises(ValueError, match="Unsupported AF instruction"):
-            af_node_to_token(node)
+    def test_counter(self) -> None:
+        node = AfCall(
+            name="count_up",
+            args=("CT1", "CTD1"),
+            known=True,
+            kwargs={"preset": "100"},
+        )
+        result = af_node_to_token(node)
+        assert isinstance(result, Counter)
+        assert result.counter_type == "count_up"
+        assert result.done_bit == "CT1"
+        assert result.current == "CTD1"
+        assert result.preset == "100"
+        assert result.down_enabled is False
+        assert result.reset_enabled is False
 
-    def test_unsupported_returns_blank_when_not_strict(self) -> None:
-        node = AfCall(name="count_up", args=("C1", "DS1"), known=True)
-        assert af_node_to_token(node, strict=False) == ""
+    def test_shift(self) -> None:
+        node = AfCall(name="shift", args=("C99..C106",), known=True)
+        result = af_node_to_token(node)
+        assert isinstance(result, Shift)
+        assert result.start_bit == "C99"
+        assert result.end_bit == "C106"
+
+    def test_forloop(self) -> None:
+        node = AfCall(name="for", args=("3",), known=True, kwargs={"oneshot": "0"})
+        result = af_node_to_token(node)
+        assert isinstance(result, ForLoop)
+        assert result.limit == "3"
+        assert result.oneshot is False
+
+    def test_next(self) -> None:
+        node = AfCall(name="next", args=(), known=True)
+        result = af_node_to_token(node)
+        assert isinstance(result, Next)
+
+
+class TestCounterRows:
+    def test_count_up_reset_layout(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("rise(C73)"), "count_up(CT1,CTD1,preset=100)"),
+                ("", _wire_row("C74"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Counter)
+        assert afs[0].counter_type == "count_up"
+        assert afs[0].down_enabled is False
+        assert afs[0].reset_enabled is True
+        assert afs[1] == ""
+        assert afs[2] == ""
+        assert isinstance(conds[0][0], Contact)
+        assert conds[0][0].type == InstructionType.CONTACT_EDGE
+        assert conds[0][0].operand == "C73"
+        assert all(c == "" for c in conds[1])
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C74"
+
+    def test_count_up_down_reset_layout(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("rise(C75)"), "count_up(CT2,CTD2,preset=100)"),
+                ("", _wire_row("C76"), ".down()"),
+                ("", _wire_row("C77"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Counter)
+        assert afs[0].counter_type == "count_up"
+        assert afs[0].down_enabled is True
+        assert afs[0].reset_enabled is True
+        assert afs[1] == ""
+        assert afs[2] == ""
+        assert isinstance(conds[1][0], Contact)
+        assert conds[1][0].operand == "C76"
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C77"
+
+    def test_count_down_layout_with_middle_nop(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("rise(C78)"), "count_down(CT3,CTD3,preset=50)"),
+                ("", _wire_row("C79"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Counter)
+        assert afs[0].counter_type == "count_down"
+        assert afs[0].down_enabled is False
+        assert afs[0].reset_enabled is True
+        assert afs[1] == "NOP"
+        assert afs[2] == ""
+        assert all(c == "" for c in conds[0])
+        assert isinstance(conds[1][0], Contact)
+        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].operand == "C78"
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C79"
+
+    def test_count_up_requires_reset_pin(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(csv_path, [("R", _wire_row("rise(C80)"), "count_up(CT4,CTD4,preset=10)")])
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ConvertError, match="requires a .reset\\(\\) pin row"):
+            convert_rung(rung)
+
+
+class TestShiftRows:
+    def test_shift_clock_reset_layout(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".clock()"),
+                ("", _wire_row("C98"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Shift)
+        assert afs[0].start_bit == "C99"
+        assert afs[0].end_bit == "C106"
+        assert afs[1] == ""
+        assert afs[2] == ""
+        assert isinstance(conds[0][0], Contact)
+        assert conds[0][0].operand == "C96"
+        assert isinstance(conds[1][0], Contact)
+        assert conds[1][0].operand == "C97"
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C98"
+
+    def test_shift_missing_pins_autofills_blank_rows(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(csv_path, [("R", _wire_row("C96"), "shift(C99..C106)")])
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Shift)
+        assert afs[1] == ""
+        assert afs[2] == ""
+        assert all(c == "" for c in conds[1])
+        assert all(c == "" for c in conds[2])
+
+    def test_shift_rejects_non_shift_pin(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".down()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ConvertError, match="not supported for shift"):
+            convert_rung(rung)
+
+
+class TestForLoopRows:
+    def test_multirung_for_and_next_stay_separate(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C222"), "for(3,oneshot=0)"),
+                ("R", _wire_row(), "next()"),
+            ],
+        )
+
+        program = parse_csv_file(csv_path)
+        assert len(program.rungs) == 2
+
+        lr0, _, afs0, _ = convert_rung(program.rungs[0])
+        assert lr0 == 1
+        assert isinstance(afs0[0], ForLoop)
+
+        lr1, _, afs1, _ = convert_rung(program.rungs[1])
+        assert lr1 == 1
+        assert isinstance(afs1[0], Next)
 
 
 class TestConvertRungStrict:
     def test_unsupported_af_raises_by_default(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
-        _write_csv(csv_path, [("R", _wire_row(), "count_up(C1,DS1)")])
+        _write_csv(csv_path, [("R", _wire_row(), "drum(DS1,DS2)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ValueError, match="Unsupported AF instruction"):
@@ -352,10 +592,10 @@ class TestConvertRungStrict:
 
     def test_unsupported_af_blanked_when_not_strict(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
-        _write_csv(csv_path, [("R", _wire_row(), "count_up(C1,DS1)")])
+        _write_csv(csv_path, [("R", _wire_row(), "drum(DS1,DS2)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, comment = convert_rung(rung, strict=False)
+        lr, conds, afs, _ = convert_rung(rung, strict=False)
         assert lr == 1
         assert afs[0] == ""
         assert isinstance(conds[0][0], Contact)
@@ -367,7 +607,7 @@ class TestConvertRungStrict:
         _write_csv(
             csv_path,
             [
-                ("R", _wire_row(), "count_up(C1,DS1)"),
+                ("R", _wire_row(), "drum(DS1,DS2)"),
                 ("", wires, ".reset()"),
             ],
         )

@@ -34,24 +34,21 @@ auto-appended so ``encode_rung()`` receives the correct ``logical_rows``.
 
 from __future__ import annotations
 
-import re
-from typing import Literal
+from typing import cast
 
 from ..encode import AfToken, ConditionToken
 from ..instructions import (
-    BlockCopy,
-    Coil,
+    KNOWN_PIN_NAMES,
     CompareContact,
     Contact,
-    Copy,
-    Fill,
-    RawInstruction,
+    Counter,
+    Drum,
+    Shift,
     Timer,
+    get_af_family_for_token,
+    parse_af_call,
 )
-from ..instructions.coil import COIL_NAME_TO_TYPE
-from ..instructions.raw import find_blob_boundary
-from ..instructions.timer import TIMER_UNIT_TO_INDEX
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import AfInstruction, InstructionType
 from .ast import (
     AfBlank,
     AfCall,
@@ -66,7 +63,6 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
-from .token_parser import parse_af_token as _parse_af_token
 
 # ---------------------------------------------------------------------------
 # Pin row table — dot-prefixed AF tokens and their effects
@@ -75,18 +71,6 @@ from .token_parser import parse_af_token as _parse_af_token
 #: Pin names that make the parent timer retentive.
 _RETENTIVE_PINS = frozenset({".reset"})
 
-#: All recognised pin names (extend as new instructions are supported).
-_KNOWN_PINS = frozenset({".reset", ".down", ".clock", ".jump", ".jog"})
-
-#: AF instruction names whose cells are taller than one grid row.
-#: Value = minimum grid rows the instruction needs.
-_TALL_AF: dict[str, int] = {
-    "on_delay": 2,
-    "off_delay": 2,
-    "copy": 2,
-    "blockcopy": 2,
-    "fill": 2,
-}
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -129,175 +113,13 @@ def condition_node_to_token(node: object) -> ConditionToken:
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
 
-def _parse_coil_arg(arg: str) -> tuple[str, str | None, bool]:
-    """Parse a coil inner argument into (operand, range_end, immediate).
-
-    Handles ``immediate()`` wrapper and ``..`` range syntax.
-    """
-    immediate = False
-    inner = re.fullmatch(r"immediate\((.+)\)", arg)
-    if inner:
-        immediate = True
-        arg = inner.group(1).strip()
-
-    if ".." in arg:
-        parts = [p.strip() for p in arg.split("..")]
-        if len(parts) != 2 or not all(parts):
-            raise ValueError(f"Cannot parse coil range: {arg!r}")
-        return _validate_operand(parts[0]), _validate_operand(parts[1]), immediate
-
-    return _validate_operand(arg), None, immediate
-
-
-def _parse_range(arg: str) -> tuple[str, str]:
-    """Split ``"DS28..DS31"`` into ``("DS28", "DS31")``."""
-    if ".." not in arg:
-        raise ValueError(f"Expected range with '..': {arg!r}")
-    parts = [p.strip() for p in arg.split("..")]
-    if len(parts) != 2 or not all(parts):
-        raise ValueError(f"Cannot parse range: {arg!r}")
-    return parts[0], parts[1]
-
-
-_CONVERT_FORMATS = frozenset({"to_text", "to_value", "to_binary", "to_ascii"})
-
-
-def _parse_convert_value(raw: str) -> tuple[str, dict[str, str]]:
-    """Parse a ``convert=`` kwarg value, returning *(format, text_opts)*.
-
-    Examples: ``to_value``, ``to_text(suppress_zero=0,exponential=1)``.
-    """
-    parsed = _parse_af_token(raw.strip())
-    if not isinstance(parsed, AfCall) or parsed.name not in _CONVERT_FORMATS:
-        raise ValueError(f"Cannot parse convert value: {raw!r}")
-
-    fmt = parsed.name[3:]  # "text", "value", "binary", "ascii"
-
-    if fmt != "text":
-        if parsed.args or parsed.kwargs:
-            raise ValueError(f"to_{fmt} takes no arguments: {raw!r}")
-        return fmt, {}
-
-    return "text", dict(parsed.kwargs)
-
-
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     """Convert a parsed AF call node to an encode-ready token."""
-    name = call.name
-
-    if name in COIL_NAME_TO_TYPE:
-        if len(call.args) != 1:
-            raise ValueError(
-                f"Coil {name!r} expects exactly 1 positional arg, got {len(call.args)}"
-            )
-        operand, range_end, immediate = _parse_coil_arg(call.args[0])
-        oneshot = call.kwargs.get("oneshot") == "1"
-        return Coil(
-            type=COIL_NAME_TO_TYPE[name],
-            operand=operand,
-            range_end=range_end,
-            immediate=immediate,
-            oneshot=oneshot,
-        )
-
-    if name in ("on_delay", "off_delay"):
-        timer_type: Literal["on_delay", "off_delay"] = name  # type: ignore[assignment]
-        if len(call.args) != 2:
-            raise ValueError(f"{name} expects 2 positional args (done, acc), got {len(call.args)}")
-        done_bit, current = call.args
-        setpoint = call.kwargs.get("preset", "")
-        unit = call.kwargs.get("unit", "")
-        if not setpoint or not unit:
-            raise ValueError(f"{name} missing preset or unit kwargs")
-        if unit not in TIMER_UNIT_TO_INDEX:
-            raise ValueError(f"Unknown timer unit: {unit!r}")
-        return Timer(
-            timer_type=timer_type,
-            done_bit=done_bit,
-            current=current,
-            setpoint=setpoint,
-            unit=unit,
-        )
-
-    if name == "copy":
-        if len(call.args) != 2:
-            raise ValueError(f"copy expects 2 positional args (source, dest), got {len(call.args)}")
-        source, destination = call.args
-        oneshot = call.kwargs.get("oneshot") == "1"
-
-        # Parse convert= kwarg
-        convert_raw = call.kwargs.get("convert", "")
-        if convert_raw:
-            fmt, text_opts = _parse_convert_value(convert_raw)
-        else:
-            fmt, text_opts = "none", {}
-
-        suppress_zero = text_opts.get("suppress_zero", "0")
-        exponential = text_opts.get("exponential", "0")
-        term_val = text_opts.get("termination_code", "0")
-        if term_val == "none":
-            term_val = "0"
-
-        return Copy(
-            source=source,
-            destination=destination,
-            format=fmt,
-            oneshot=oneshot,
-            suppress_zero=suppress_zero,
-            exponential=exponential,
-            termination_code=term_val,
-        )
-
-    if name == "blockcopy":
-        if len(call.args) != 2:
-            raise ValueError(
-                f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
-            )
-        src_start, src_end = _parse_range(call.args[0])
-        dest_start, dest_end = _parse_range(call.args[1])
-        oneshot = call.kwargs.get("oneshot") == "1"
-        convert_raw = call.kwargs.get("convert", "")
-        if convert_raw:
-            fmt, _ = _parse_convert_value(convert_raw)
-        else:
-            fmt = "none"
-        return BlockCopy(
-            source_start=src_start,
-            source_end=src_end,
-            dest_start=dest_start,
-            dest_end=dest_end,
-            format=fmt,
-            oneshot=oneshot,
-        )
-
-    if name == "fill":
-        if len(call.args) != 2:
-            raise ValueError(
-                f"fill expects 2 positional args (value, dest_range), got {len(call.args)}"
-            )
-        value = call.args[0]
-        dest_start, dest_end = _parse_range(call.args[1])
-        oneshot = call.kwargs.get("oneshot") == "1"
-        return Fill(
-            value=value,
-            dest_start=dest_start,
-            dest_end=dest_end,
-            oneshot=oneshot,
-        )
-
-    if name == "raw":
-        if len(call.args) != 2:
-            raise ValueError(f"raw() expects 2 positional args, got {len(call.args)}")
-        class_name = call.args[0]
-        blob = bytes.fromhex(call.args[1])
-        try:
-            _, _, part_count = find_blob_boundary(blob)
-        except (ValueError, IndexError):
-            part_count = 1
-        return RawInstruction(class_name=class_name, blob=blob, part_count=part_count)
-
+    token = parse_af_call(call)
+    if token is not None:
+        return token
     if strict:
-        raise ValueError(f"Unsupported AF instruction: {name!r}")
+        raise ValueError(f"Unsupported AF instruction: {call.name!r}")
     return ""
 
 
@@ -347,8 +169,19 @@ def convert_rung(
     # --- Classify rows: instruction rows vs pin rows ---
     condition_rows: list[list[ConditionToken]] = []
     af_tokens: list[AfToken] = []
-    parent_af_name: str | None = None  # name of the AF instruction on row 0
     parent_timer: Timer | None = None
+    parent_counter: Counter | None = None
+    parent_shift: Shift | None = None
+    parent_drum: Drum | None = None
+    counter_up_conditions: list[ConditionToken] | None = None
+    counter_down_conditions: list[ConditionToken] | None = None
+    counter_reset_conditions: list[ConditionToken] | None = None
+    shift_data_conditions: list[ConditionToken] | None = None
+    shift_clock_conditions: list[ConditionToken] | None = None
+    shift_reset_conditions: list[ConditionToken] | None = None
+    drum_reset_conditions: list[ConditionToken] | None = None
+    drum_jump_conditions: list[ConditionToken] | None = None
+    drum_jog_conditions: list[ConditionToken] | None = None
 
     for row_idx, row in enumerate(rung.rows):
         af_node = row.af_node
@@ -356,8 +189,95 @@ def convert_rung(
         # Check for pin row (dot-prefixed AF token).
         if isinstance(af_node, AfCall) and af_node.name.startswith("."):
             pin_name = af_node.name
-            if pin_name not in _KNOWN_PINS:
+            if pin_name not in KNOWN_PIN_NAMES:
                 raise ConvertError(f"Unknown pin token: {pin_name!r}")
+
+            conds = [condition_node_to_token(n) for n in row.condition_nodes]
+
+            if parent_counter is not None:
+                if pin_name == ".down":
+                    if parent_counter.counter_type != "count_up":
+                        raise ConvertError(".down() is only valid for count_up()")
+                    counter_down_conditions = conds
+                    parent_counter = Counter(
+                        counter_type=parent_counter.counter_type,
+                        done_bit=parent_counter.done_bit,
+                        current=parent_counter.current,
+                        preset=parent_counter.preset,
+                        down_enabled=True,
+                        reset_enabled=parent_counter.reset_enabled,
+                    )
+                    af_tokens[0] = parent_counter
+                    continue
+
+                if pin_name == ".reset":
+                    counter_reset_conditions = conds
+                    parent_counter = Counter(
+                        counter_type=parent_counter.counter_type,
+                        done_bit=parent_counter.done_bit,
+                        current=parent_counter.current,
+                        preset=parent_counter.preset,
+                        down_enabled=parent_counter.down_enabled,
+                        reset_enabled=True,
+                    )
+                    af_tokens[0] = parent_counter
+                    continue
+
+                raise ConvertError(
+                    f"Pin token {pin_name!r} is not supported for {parent_counter.counter_type}()"
+                )
+
+            if parent_drum is not None:
+                if pin_name == ".reset":
+                    drum_reset_conditions = conds
+                    continue
+                if pin_name == ".jump":
+                    jump_target = af_node.args[0] if af_node.args else ""
+                    parent_drum = Drum(
+                        drum_kind=parent_drum.drum_kind,
+                        outputs=parent_drum.outputs,
+                        events_or_presets=parent_drum.events_or_presets,
+                        pattern=parent_drum.pattern,
+                        current_step=parent_drum.current_step,
+                        completion_flag=parent_drum.completion_flag,
+                        accumulator=parent_drum.accumulator,
+                        unit=parent_drum.unit,
+                        jog_enabled=parent_drum.jog_enabled,
+                        jump_enabled=True,
+                        jump_target=jump_target,
+                    )
+                    af_tokens[0] = parent_drum
+                    drum_jump_conditions = conds
+                    continue
+                if pin_name == ".jog":
+                    parent_drum = Drum(
+                        drum_kind=parent_drum.drum_kind,
+                        outputs=parent_drum.outputs,
+                        events_or_presets=parent_drum.events_or_presets,
+                        pattern=parent_drum.pattern,
+                        current_step=parent_drum.current_step,
+                        completion_flag=parent_drum.completion_flag,
+                        accumulator=parent_drum.accumulator,
+                        unit=parent_drum.unit,
+                        jog_enabled=True,
+                        jump_enabled=parent_drum.jump_enabled,
+                        jump_target=parent_drum.jump_target,
+                    )
+                    af_tokens[0] = parent_drum
+                    drum_jog_conditions = conds
+                    continue
+                raise ConvertError(
+                    f"Pin token {pin_name!r} is not supported for {parent_drum.drum_kind}_drum()"
+                )
+
+            if parent_shift is not None:
+                if pin_name == ".clock":
+                    shift_clock_conditions = conds
+                    continue
+                if pin_name == ".reset":
+                    shift_reset_conditions = conds
+                    continue
+                raise ConvertError(f"Pin token {pin_name!r} is not supported for shift()")
 
             if pin_name in _RETENTIVE_PINS and parent_timer is not None:
                 # .reset() makes the parent timer retentive.
@@ -374,7 +294,6 @@ def convert_rung(
 
             # Pin row contributes its conditions/wires as a normal data row,
             # but the AF token becomes blank (no separate instruction).
-            conds = [condition_node_to_token(n) for n in row.condition_nodes]
             condition_rows.append(conds)
             af_tokens.append("")
             continue
@@ -387,15 +306,101 @@ def convert_rung(
         token = af_node_to_token(af_node, strict=strict)
         af_tokens.append(token)
         if row_idx == 0 and isinstance(af_node, AfCall) and af_node.name.upper() != "NOP":
-            parent_af_name = af_node.name
             if isinstance(token, Timer):
                 parent_timer = token
+            if isinstance(token, Counter):
+                parent_counter = token
+                counter_up_conditions = conds
+            if isinstance(token, Shift):
+                parent_shift = token
+                shift_data_conditions = conds
+            if isinstance(token, Drum):
+                parent_drum = token
+
+    # --- Drum row shaping ---
+    if parent_drum is not None:
+        if drum_reset_conditions is None:
+            raise ConvertError("Drum requires a .reset() pin row")
+
+        if len(condition_rows) != 1:
+            raise ConvertError(
+                "Drum pin rows must use .reset()/.jump()/.jog() tokens "
+                "(blank-AF continuation rows are unsupported)"
+            )
+
+        main_conds = condition_rows[0]
+        blank_row = cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+
+        condition_rows = [
+            main_conds,
+            drum_reset_conditions,
+            drum_jump_conditions if drum_jump_conditions is not None else blank_row,
+            drum_jog_conditions if drum_jog_conditions is not None else blank_row,
+        ]
+        af_tokens = [parent_drum, "", "", ""]
+
+    # --- Counter row shaping ---
+    if parent_counter is not None:
+        if counter_up_conditions is None:
+            raise ConvertError("Counter rung is missing a primary row")
+
+        if len(condition_rows) != 1:
+            raise ConvertError(
+                "Counter pin rows must use .down()/.reset() tokens (blank-AF continuation rows are unsupported)"
+            )
+
+        if counter_reset_conditions is None:
+            raise ConvertError(f"{parent_counter.counter_type} requires a .reset() pin row")
+
+        assert counter_up_conditions is not None
+        assert counter_reset_conditions is not None
+        blank_row = cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+
+        if parent_counter.counter_type == "count_up":
+            if parent_counter.down_enabled:
+                if counter_down_conditions is None:
+                    raise ConvertError("count_up with .down() is missing down conditions")
+                middle_row = counter_down_conditions
+            else:
+                middle_row = blank_row
+            condition_rows = [counter_up_conditions, middle_row, counter_reset_conditions]
+            af_tokens = [parent_counter, "", ""]
+        else:
+            if counter_down_conditions is not None:
+                raise ConvertError("count_down does not support .down()")
+            condition_rows = [blank_row, counter_up_conditions, counter_reset_conditions]
+            af_tokens = [parent_counter, "NOP", ""]
+
+    # --- Shift row shaping ---
+    if parent_shift is not None:
+        if shift_data_conditions is None:
+            raise ConvertError("Shift rung is missing a primary row")
+
+        if len(condition_rows) != 1:
+            raise ConvertError(
+                "Shift pin rows must use .clock()/.reset() tokens (blank-AF continuation rows are unsupported)"
+            )
+
+        clock_conditions = (
+            shift_clock_conditions
+            if shift_clock_conditions is not None
+            else cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+        )
+        reset_conditions = (
+            shift_reset_conditions
+            if shift_reset_conditions is not None
+            else cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+        )
+        condition_rows = [shift_data_conditions, clock_conditions, reset_conditions]
+        af_tokens = [parent_shift, "", ""]
 
     # --- Auto-pad for tall instructions ---
-    if parent_af_name in _TALL_AF:
-        min_rows = _TALL_AF[parent_af_name]
+    af0 = af_tokens[0] if af_tokens else ""
+    if isinstance(af0, AfInstruction):
+        spec = get_af_family_for_token(af0)
+        min_rows = spec.min_csv_rows if spec is not None else 1
         while len(condition_rows) < min_rows:
-            condition_rows.append([""] * CONDITION_COLUMNS)
+            condition_rows.append(cast(list[ConditionToken], [""] * CONDITION_COLUMNS))
             af_tokens.append("")
 
     logical_rows = len(condition_rows)

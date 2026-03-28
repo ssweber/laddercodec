@@ -1,15 +1,14 @@
-"""Copy family — single copy, block copy, and fill (type marker 0x2721).
+"""Copy family — single copy, block copy, fill, pack, and unpack (type marker 0x2721).
 
 Binary class name: ``"Copy"``.
 
-All three variants share the same binary class, discriminated by field[6]:
+All five variants share the same binary class, discriminated by field[6]:
 
 - ``0`` → single copy (``Copy``)
 - ``1`` → block copy (``BlockCopy``)
 - ``2`` → fill (``Fill``)
-
-Pack and unpack share the same binary class but are not yet implemented —
-they fall back to ``RawInstruction``.
+- ``3`` → pack (``Pack``)
+- ``4`` → unpack (``Unpack``)
 
 Quirk: the ``to_text_term`` variant (termination checkbox enabled) was
 captured with the termination value greyed-out in the Click UI, yet the
@@ -23,8 +22,13 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ..model import AfInstruction
+from .family import AfInstructionFamilySpec
+
+if TYPE_CHECKING:
+    from ..csv.ast import AfCall
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -36,6 +40,7 @@ COPY_FUNC_CODES: dict[str, str] = {
     "1": "8962",  # block
     "2": "8976",  # fill
     "3": "8978",  # pack
+    "4": "8980",  # unpack
 }
 
 #: Reverse lookup.
@@ -146,6 +151,16 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
             text_opts[k.strip()] = v.strip()
 
     return "text", text_opts
+
+
+def _parse_range(arg: str) -> tuple[str, str]:
+    """Split ``"A..B"`` into ``("A", "B")``."""
+    if ".." not in arg:
+        raise ValueError(f"Expected range with '..': {arg!r}")
+    parts = [p.strip() for p in arg.split("..")]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"Cannot parse range: {arg!r}")
+    return parts[0], parts[1]
 
 
 # ---------------------------------------------------------------------------
@@ -502,6 +517,195 @@ class Fill(AfInstruction):
         return bytes(out)
 
 
+# ---------------------------------------------------------------------------
+# Pack
+# ---------------------------------------------------------------------------
+
+#: Pack sub-type names and their CSV token names.
+_PACK_TYPES = frozenset({"bits", "words", "text"})
+
+#: field[8] conversion_type values for pack_text.
+_PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
+
+
+@dataclass
+class Pack(AfInstruction):
+    """A pack instruction (copy_type_idx=3).
+
+    Packs a range of source registers into a single destination.
+
+    Attributes
+    ----------
+    source_start, source_end:
+        Source range (e.g. ``"C108"`` .. ``"C123"``).
+    destination:
+        Destination operand (e.g. ``"DS167"``).
+    pack_type:
+        ``"bits"``, ``"words"``, or ``"text"``.
+    allow_whitespace:
+        Text option — allow whitespace in text packing.
+    oneshot:
+        Execute once on OFF→ON transition.
+    """
+
+    source_start: str
+    source_end: str
+    destination: str
+    pack_type: str = "bits"
+    allow_whitespace: bool = False
+    oneshot: bool = False
+
+    def __post_init__(self) -> None:
+        if self.pack_type not in _PACK_TYPES:
+            raise ValueError(f"Invalid pack type: {self.pack_type!r}")
+
+    @property
+    def func_code(self) -> str:
+        base = int(COPY_FUNC_CODES["3"])  # pack base: 8978
+        return str(base + (1 if self.oneshot else 0))
+
+    def to_csv(self) -> str:
+        src = f"{self.source_start}..{self.source_end}"
+        parts = [src, self.destination]
+        kw: list[str] = []
+        if self.oneshot:
+            kw.append("oneshot=1")
+        if self.allow_whitespace:
+            kw.append("allow_whitespace=1")
+        if kw:
+            return f"pack_{self.pack_type}({','.join(parts)},{','.join(kw)})"
+        return f"pack_{self.pack_type}({','.join(parts)})"
+
+    def cell_params(self) -> dict:
+        return {"visual_rows": 2}
+
+    def build_blob(self) -> bytes:
+        from ..binary_helpers import _tagged_field, _utf16le_null
+
+        if self.pack_type == "text":
+            if self.allow_whitespace:
+                conv_type = _PACK_TEXT_CONVTYPE["allow_whitespace"]
+                field4 = "1"
+            else:
+                conv_type = _PACK_TEXT_CONVTYPE["default"]
+                field4 = "0"
+        else:
+            conv_type = "0"
+            field4 = "0"
+
+        type_marker = 0x2721
+        field_count = 13
+        fields = [
+            self.source_start,  # [0]
+            self.source_end,  # [1]
+            self.destination,  # [2]
+            "",  # [3] destination_end (pack = empty)
+            field4,  # [4] format_option
+            "-1" if self.oneshot else "0",  # [5]
+            "3",  # [6] copy_type_idx (pack)
+            self.func_code,  # [7]
+            conv_type,  # [8] conversion_type
+            "0",  # [9] termination_flag
+            "0",  # [10] termination_char
+            "0",  # [11] termination_flag2
+            "",  # [12] terminator
+        ]
+
+        out = bytearray()
+        out += _utf16le_null("Copy")
+        out += struct.pack("<I", type_marker)
+        out += b"\x01\x00"  # part count
+        out += struct.pack("<I", field_count)
+        for tag, value in zip(_COPY_TAGS, fields, strict=True):
+            out += _tagged_field(tag, value)
+        return bytes(out)
+
+
+# ---------------------------------------------------------------------------
+# Unpack
+# ---------------------------------------------------------------------------
+
+#: Unpack sub-type names.
+_UNPACK_TYPES = frozenset({"bits", "words"})
+
+
+@dataclass
+class Unpack(AfInstruction):
+    """An unpack instruction (copy_type_idx=4).
+
+    Unpacks a single source into a range of destination registers.
+
+    Attributes
+    ----------
+    source:
+        Source operand (e.g. ``"DS172"``).
+    dest_start, dest_end:
+        Destination range (e.g. ``"C128"`` .. ``"C143"``).
+    unpack_type:
+        ``"bits"`` or ``"words"``.
+    oneshot:
+        Execute once on OFF→ON transition.
+    """
+
+    source: str
+    dest_start: str
+    dest_end: str
+    unpack_type: str = "bits"
+    oneshot: bool = False
+
+    def __post_init__(self) -> None:
+        if self.unpack_type not in _UNPACK_TYPES:
+            raise ValueError(f"Invalid unpack type: {self.unpack_type!r}")
+
+    @property
+    def func_code(self) -> str:
+        base = int(COPY_FUNC_CODES["4"])  # unpack base: 8980
+        return str(base + (1 if self.oneshot else 0))
+
+    def to_csv(self) -> str:
+        dst = f"{self.dest_start}..{self.dest_end}"
+        parts = [self.source, dst]
+        kw: list[str] = []
+        if self.oneshot:
+            kw.append("oneshot=1")
+        if kw:
+            return f"unpack_to_{self.unpack_type}({','.join(parts)},{','.join(kw)})"
+        return f"unpack_to_{self.unpack_type}({','.join(parts)})"
+
+    def cell_params(self) -> dict:
+        return {"visual_rows": 2}
+
+    def build_blob(self) -> bytes:
+        from ..binary_helpers import _tagged_field, _utf16le_null
+
+        type_marker = 0x2721
+        field_count = 13
+        fields = [
+            self.source,  # [0]
+            "",  # [1] source_end (unpack = empty)
+            self.dest_start,  # [2]
+            self.dest_end,  # [3]
+            "0",  # [4] format_option
+            "-1" if self.oneshot else "0",  # [5]
+            "4",  # [6] copy_type_idx (unpack)
+            self.func_code,  # [7]
+            "0",  # [8] conversion_type
+            "0",  # [9] termination_flag
+            "0",  # [10] termination_char
+            "0",  # [11] termination_flag2
+            "",  # [12] terminator
+        ]
+
+        out = bytearray()
+        out += _utf16le_null("Copy")
+        out += struct.pack("<I", type_marker)
+        out += b"\x01\x00"  # part count
+        out += struct.pack("<I", field_count)
+        for tag, value in zip(_COPY_TAGS, fields, strict=True):
+            out += _tagged_field(tag, value)
+        return bytes(out)
+
+
 # Module-level wrapper for backward compatibility.
 def build_blob(copy: Copy) -> bytes:
     """Build the instruction data blob for a copy cell."""
@@ -513,11 +717,10 @@ def build_blob(copy: Copy) -> bytes:
 # ---------------------------------------------------------------------------
 
 
-def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | None:
+def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
     """Try to parse a Copy-family instruction from an instruction blob.
 
-    Handles single copy (0), block copy (1), and fill (2).
-    Pack (3) and other variants return None → RawInstruction fallback.
+    Handles single copy (0), block copy (1), fill (2), pack (3), and unpack (4).
     """
     from ..binary_helpers import _parse_tagged_fields, _read_utf16le
 
@@ -590,4 +793,161 @@ def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | None:
             oneshot=fields[5] == "-1",
         )
 
+    if copy_type_idx == "3":
+        # --- Pack ---
+        conv_type = fields[8]
+        if conv_type == _PACK_TEXT_CONVTYPE["default"]:
+            pack_type = "text"
+            allow_whitespace = False
+        elif conv_type == _PACK_TEXT_CONVTYPE["allow_whitespace"]:
+            pack_type = "text"
+            allow_whitespace = True
+        elif conv_type == "0":
+            # Discriminate bits vs words by source address type.
+            pack_type = "bits" if fields[0].startswith("C") else "words"
+            allow_whitespace = False
+        else:
+            return None
+
+        return Pack(
+            source_start=fields[0],
+            source_end=fields[1],
+            destination=fields[2],
+            pack_type=pack_type,
+            allow_whitespace=allow_whitespace,
+            oneshot=fields[5] == "-1",
+        )
+
+    if copy_type_idx == "4":
+        # --- Unpack ---
+        # Discriminate bits vs words by destination address type.
+        unpack_type = "bits" if fields[2].startswith("C") else "words"
+
+        return Unpack(
+            source=fields[0],
+            dest_start=fields[2],
+            dest_end=fields[3],
+            unpack_type=unpack_type,
+            oneshot=fields[5] == "-1",
+        )
+
     return None
+
+
+def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
+    """Parse an AF AST call into a Copy-family instruction."""
+    if call.name == "copy":
+        if len(call.args) != 2:
+            raise ValueError(
+                f"copy expects 2 positional args (source, dest), got {len(call.args)}"
+            )
+        source, destination = call.args
+        oneshot = call.kwargs.get("oneshot") == "1"
+
+        convert_raw = call.kwargs.get("convert", "")
+        if convert_raw:
+            fmt, text_opts = _parse_convert_kwarg(convert_raw)
+        else:
+            fmt, text_opts = "none", {}
+
+        suppress_zero = text_opts.get("suppress_zero", "0")
+        exponential = text_opts.get("exponential", "0")
+        term_val = text_opts.get("termination_code", "0")
+        if term_val == "none":
+            term_val = "0"
+
+        return Copy(
+            source=source,
+            destination=destination,
+            format=fmt,
+            oneshot=oneshot,
+            suppress_zero=suppress_zero,
+            exponential=exponential,
+            termination_code=term_val,
+        )
+
+    if call.name == "blockcopy":
+        if len(call.args) != 2:
+            raise ValueError(
+                "blockcopy expects 2 positional args (src_range, dest_range), "
+                f"got {len(call.args)}"
+            )
+        src_start, src_end = _parse_range(call.args[0])
+        dest_start, dest_end = _parse_range(call.args[1])
+        convert_raw = call.kwargs.get("convert", "")
+        if convert_raw:
+            fmt, _ = _parse_convert_kwarg(convert_raw)
+        else:
+            fmt = "none"
+        return BlockCopy(
+            source_start=src_start,
+            source_end=src_end,
+            dest_start=dest_start,
+            dest_end=dest_end,
+            format=fmt,
+            oneshot=call.kwargs.get("oneshot") == "1",
+        )
+
+    if call.name == "fill":
+        if len(call.args) != 2:
+            raise ValueError(
+                f"fill expects 2 positional args (value, dest_range), got {len(call.args)}"
+            )
+        dest_start, dest_end = _parse_range(call.args[1])
+        return Fill(
+            value=call.args[0],
+            dest_start=dest_start,
+            dest_end=dest_end,
+            oneshot=call.kwargs.get("oneshot") == "1",
+        )
+
+    if call.name in ("pack_bits", "pack_words", "pack_text"):
+        if len(call.args) != 2:
+            raise ValueError(
+                f"{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}"
+            )
+        src_start, src_end = _parse_range(call.args[0])
+        return Pack(
+            source_start=src_start,
+            source_end=src_end,
+            destination=call.args[1],
+            pack_type=call.name.removeprefix("pack_"),
+            allow_whitespace=call.kwargs.get("allow_whitespace") == "1",
+            oneshot=call.kwargs.get("oneshot") == "1",
+        )
+
+    if call.name in ("unpack_to_bits", "unpack_to_words"):
+        if len(call.args) != 2:
+            raise ValueError(
+                f"{call.name} expects 2 positional args (source, dest_range), got {len(call.args)}"
+            )
+        dest_start, dest_end = _parse_range(call.args[1])
+        return Unpack(
+            source=call.args[0],
+            dest_start=dest_start,
+            dest_end=dest_end,
+            unpack_type=call.name.removeprefix("unpack_to_"),
+            oneshot=call.kwargs.get("oneshot") == "1",
+        )
+
+    raise ValueError(f"Unsupported copy-family instruction: {call.name!r}")
+
+
+SPEC = AfInstructionFamilySpec(
+    family_name="copy",
+    instruction_types=(Copy, BlockCopy, Fill, Pack, Unpack),
+    binary_class_names=("Copy",),
+    parse_blob=parse_blob,
+    csv_names=(
+        "copy",
+        "blockcopy",
+        "fill",
+        "pack_bits",
+        "pack_words",
+        "pack_text",
+        "unpack_to_bits",
+        "unpack_to_words",
+    ),
+    parse_csv_call=parse_af_call,
+    min_csv_rows=2,
+)
