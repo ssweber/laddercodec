@@ -25,5 +25,8 @@ Thumbs.db
 htmlcov/
 .coverage
 
+# Verification progress
+verify_progress.log
+
 # uv
 uv.lock
