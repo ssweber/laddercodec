@@ -112,7 +112,7 @@ python-version = "3.11"
 root = ["./src", "./tests", "./devtools"]
 
 [tool.ty.src]
-exclude = ["tests"]
+exclude = ["tests", "scratchpad"]
 
 [tool.ty.rules]
 unresolved-import = "ignore"

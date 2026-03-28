@@ -145,10 +145,10 @@ def _decode_af_string_literal(arg: str) -> str:
     if not arg:
         return arg
 
-    if not (arg.startswith('"') or arg.endswith('"')):
+    if not arg.startswith('"'):
         return arg
 
-    if len(arg) < 2 or not (arg.startswith('"') and arg.endswith('"')):
+    if len(arg) < 2 or not arg.endswith('"'):
         raise ValueError(f"Malformed AF quoted string argument: {arg!r}")
 
     chars: list[str] = []

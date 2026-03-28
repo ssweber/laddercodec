@@ -64,6 +64,8 @@ class InstructionType(IntEnum):
     CALL = 0x23  # 0x2723 (subroutine call)
     FOR_LOOP = 0x25  # 0x2725 (for loop)
     NEXT = 0x26  # 0x2726 (for loop terminator)
+    RECEIVE = 0x28  # 0x2728 (modbus receive / read)
+    SEND = 0x29  # 0x2729 (modbus send / write)
 
 
 OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")

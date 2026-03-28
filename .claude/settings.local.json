@@ -8,7 +8,8 @@
       "Bash(make lint:*)",
       "Bash(ls:*)",
       "Bash(python:*)",
-      "Bash(make golden:*)"
+      "Bash(make golden:*)",
+      "Bash(make coverage-golden:*)"
     ]
   }
 }

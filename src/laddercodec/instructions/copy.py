@@ -838,9 +838,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
     """Parse an AF AST call into a Copy-family instruction."""
     if call.name == "copy":
         if len(call.args) != 2:
-            raise ValueError(
-                f"copy expects 2 positional args (source, dest), got {len(call.args)}"
-            )
+            raise ValueError(f"copy expects 2 positional args (source, dest), got {len(call.args)}")
         source, destination = call.args
         oneshot = call.kwargs.get("oneshot") == "1"
 
@@ -869,8 +867,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
     if call.name == "blockcopy":
         if len(call.args) != 2:
             raise ValueError(
-                "blockcopy expects 2 positional args (src_range, dest_range), "
-                f"got {len(call.args)}"
+                f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
             )
         src_start, src_end = _parse_range(call.args[0])
         dest_start, dest_end = _parse_range(call.args[1])

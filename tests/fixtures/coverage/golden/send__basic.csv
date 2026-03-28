@@ -1,3 +1,0 @@
-marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,send__basic
-R,C224,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"send(target=ModbusTcpTarget(name=""plc2"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""DS1"",source=DS192..DS195,sending=C225,success=C226,error=C227,exception_response=DS196)"

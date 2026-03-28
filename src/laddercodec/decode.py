@@ -64,6 +64,7 @@ from .instructions import (
 from .instructions.raw import find_blob_boundary
 from .topology import (
     CELL_SIZE,
+    CELL_TAIL_SIZE,
     COLS_PER_ROW,
     GRID_FIRST_ROW_START,
     GRID_ROW_STRIDE,
@@ -433,12 +434,14 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
         if has_instr:
             # Use blob structure to find minimum scan start — large blobs
             # (e.g. Math at ~8KB) can contain byte patterns that fool the
-            # heuristic cell-signature scanner.
+            # heuristic cell-signature scanner.  Skip past the 16-byte
+            # tail too — tail bytes can match cell signatures when
+            # row_byte is small (e.g. 0x01).
             scan_from = pos + CELL_SIZE
             try:
                 instr_start = pos + _INSTR_DATA_OFFSET
                 _, blob_end, _ = find_blob_boundary(data[instr_start:])
-                blob_abs_end = instr_start + blob_end
+                blob_abs_end = instr_start + blob_end + CELL_TAIL_SIZE
                 if blob_abs_end > scan_from:
                     scan_from = blob_abs_end
             except (ValueError, IndexError):
@@ -529,8 +532,9 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
         marker_05 = data[cursor + 0x05]
         marker_30 = data[cursor + 0x30]
 
-        if marker_05 == 0xFF:
-            # Terminal sentinel — end of grid.
+        if marker_05 == 0xFF and data[cursor + 0x01] == 0x01 and data[cursor + 0x03] == 0x30:
+            # Terminal sentinel — end of grid.  Full signature check
+            # avoids false positives when a data row has row_byte 0xFF.
             is_multi = True
             break
 
@@ -834,7 +838,7 @@ def inspect_cells(
                 try:
                     instr_start = pos + _INSTR_DATA_OFFSET
                     _, blob_end, _ = find_blob_boundary(data[instr_start:])
-                    blob_abs_end = instr_start + blob_end
+                    blob_abs_end = instr_start + blob_end + CELL_TAIL_SIZE
                     if blob_abs_end > scan_from:
                         scan_from = blob_abs_end
                 except (ValueError, IndexError):

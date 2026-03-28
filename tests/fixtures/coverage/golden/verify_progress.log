@@ -19,11 +19,9 @@ out__block: worked
 out__immediate: worked
 out__oneshot: worked
 out__tag: worked
-receive__basic: error (Unsupported AF instruction: 'receive')
 reset__block: worked
 reset__immediate: worked
 reset__tag: worked
-send__basic: error (Unsupported AF instruction: 'send')
 copy__tag: worked
 copy__to_ascii: worked
 copy__to_binary: worked
@@ -83,3 +81,26 @@ time_drum__basic_td: worked
 off_delay__tof: worked
 on_delay__rton: worked
 on_delay__ton: worked
+receive__rtu_click_block: worked
+receive__rtu_click_single: worked
+receive__rtu_modbus_block: worked
+receive__rtu_modbus_single: worked
+receive__tcp_click_coil: worked
+receive__tcp_click_input: worked
+receive__tcp_click_input_reg: worked
+receive__tcp_click_wordswap: worked
+send__rtu_click_block: worked
+send__rtu_click_single: worked
+send__rtu_modbus_block: worked
+send__rtu_modbus_single: worked
+send__tcp_click_coil: worked
+send__tcp_click_coils: worked
+send__tcp_click_wordswap: worked
+send__error_off: worked
+send__errorcode_off: worked
+send__sending_off: worked
+send__success_off: worked
+raw_instructions__email: worked
+raw_instructions__home: worked
+raw_instructions__position: worked
+raw_instructions__velocity: worked

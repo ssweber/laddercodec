@@ -18,6 +18,7 @@ from . import math as math_mod
 from . import raw as raw_mod
 from . import return_ as return_mod
 from . import search as search_mod
+from . import send_receive as send_receive_mod
 from . import shift as shift_mod
 from . import timer as timer_mod
 from .call import Call
@@ -34,6 +35,7 @@ from .math import Math
 from .raw import RawInstruction
 from .return_ import Return
 from .search import Search
+from .send_receive import ModbusAddress, ModbusRtuTarget, ModbusTcpTarget, Receive, Send
 from .shift import Shift
 from .timer import Timer
 
@@ -59,20 +61,17 @@ AF_FAMILY_SPECS: tuple[AfInstructionFamilySpec, ...] = (
     drum_mod.SPEC,
     end_mod.SPEC,
     return_mod.SPEC,
+    send_receive_mod.SPEC,
     raw_mod.SPEC,
 )
 
 _CONDITION_BINARY_TO_SPEC = {
-    class_name: spec
-    for spec in CONDITION_FAMILY_SPECS
-    for class_name in spec.binary_class_names
+    class_name: spec for spec in CONDITION_FAMILY_SPECS for class_name in spec.binary_class_names
 }
 _AF_BINARY_TO_SPEC = {
     class_name: spec for spec in AF_FAMILY_SPECS for class_name in spec.binary_class_names
 }
-_AF_CSV_TO_SPEC = {
-    csv_name: spec for spec in AF_FAMILY_SPECS for csv_name in spec.csv_names
-}
+_AF_CSV_TO_SPEC = {csv_name: spec for spec in AF_FAMILY_SPECS for csv_name in spec.csv_names}
 
 KNOWN_AF_NAMES = frozenset(_AF_CSV_TO_SPEC) | frozenset(
     pin_name for spec in AF_FAMILY_SPECS for pin_name in spec.pin_names
@@ -153,7 +152,9 @@ def parse_af_blob(
     | Search
     | Shift
     | End
+    | Receive
     | Return
+    | Send
     | None
 ):
     """Try to parse an AF-column instruction blob."""
@@ -193,11 +194,16 @@ __all__ = [
     "Fill",
     "ForLoop",
     "Math",
+    "ModbusAddress",
+    "ModbusRtuTarget",
+    "ModbusTcpTarget",
     "Next",
     "Pack",
     "RawInstruction",
+    "Receive",
     "Return",
     "Search",
+    "Send",
     "Shift",
     "Timer",
     "Unpack",

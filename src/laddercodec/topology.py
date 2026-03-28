@@ -23,6 +23,7 @@ GRID_FIRST_ROW_START = 0x0A60
 CELL_SIZE = 0x40
 COLS_PER_ROW = 32
 GRID_ROW_STRIDE = CELL_SIZE * COLS_PER_ROW  # 0x800
+CELL_TAIL_SIZE = 16  # 16-byte tail appended after the blob in instruction cells
 
 # Cell-local topology flag offsets
 # +0x19: segment flag — load-bearing; getting it wrong causes contacts/wires
