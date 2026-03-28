@@ -27,9 +27,6 @@ mr-cmt-2rung-2row: worked
 mr-cmt-2rung-both: worked
 mr-cmt-2rung-r1-max1400: worked
 mr-cmt-3rung-all: worked
-mr-cmt-3rung-multirow: worked
-mr-instr-2rung: worked
-mr-instr-cond__and: worked
 nc-1row-empty: worked
 nc-1row-fullwire-nop: worked
 nc-32row-empty: worked
@@ -37,3 +34,8 @@ nc-3row-t-junction: worked
 nc-4row-vertical: worked
 instr-3row-or: worked
 instr-3row-or-colA: worked
+mr-cmt-3rung-multirow: worked
+mr-cmt-3rung-multirow-multiinstructions: worked
+mr-cmt-3rung-multirow-nopaddedrows: worked
+mr-instr-2rung: worked
+mr-instr-cond__and: worked

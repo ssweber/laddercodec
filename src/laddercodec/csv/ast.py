@@ -92,12 +92,14 @@ class ContactCondition:
     operand: str
     negated: bool
     immediate: bool
+    wire_down: bool = False
 
 
 @dataclass(frozen=True)
 class EdgeCondition:
     kind: Literal["rise", "fall"]
     operand: str
+    wire_down: bool = False
 
 
 @dataclass(frozen=True)
@@ -105,6 +107,7 @@ class ComparisonCondition:
     left: str
     op: Literal["==", "!=", "<", ">", "<=", ">="]
     right: str
+    wire_down: bool = False
 
 
 @dataclass(frozen=True)

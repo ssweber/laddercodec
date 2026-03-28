@@ -1,6 +1,6 @@
 """Read/write golden canonical CSV files for encode_rung() testing.
 
-Reading delegates to ``laddercodec.csv.reader``.  Write helpers are
+Reading delegates to ``laddercodec.csv``.  Write helpers are
 test-only utilities that stay here.
 """
 
@@ -9,28 +9,25 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from laddercodec.csv.contract import CSV_HEADER
-from laddercodec.csv.reader import (
-    MultiRungItem,
-    is_multi_rung_csv,
-    read_golden_csv,
+from laddercodec import (
+    Coil,
+    CompareContact,
+    Contact,
+    RawInstruction,
+    Rung,
+    Timer,
+    read_csv,
 )
-from laddercodec.csv.reader import (
-    read_multi_rung_csv as read_multi_rung_golden_csv,
-)
+from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import AfToken, ConditionToken
-from laddercodec.instructions import Coil, CompareContact, Contact, RawInstruction, Timer
 
 GOLDEN_DIR = Path(__file__).resolve().parent / "fixtures" / "ladder_captures" / "golden"
 TOTAL_COLUMNS = len(CSV_HEADER)  # 33
 
-# Re-export for existing test imports
 __all__ = [
     "GOLDEN_DIR",
-    "MultiRungItem",
-    "is_multi_rung_csv",
-    "read_golden_csv",
-    "read_multi_rung_golden_csv",
+    "Rung",
+    "read_csv",
     "write_golden_csv",
     "write_multi_rung_golden_csv",
 ]
@@ -64,16 +61,26 @@ def write_golden_csv(
             writer.writerow(row)
 
 
-def write_multi_rung_golden_csv(path: Path, rungs: list[MultiRungItem]) -> None:
-    """Write a multi-rung golden CSV file."""
+def write_multi_rung_golden_csv(
+    path: Path,
+    rungs: list[Rung] | list[tuple[int, list, list, str | None]],
+) -> None:
+    """Write a multi-rung golden CSV file.
+
+    Accepts either ``Rung`` objects or ``(logical_rows, conditions, instructions, comment)`` tuples.
+    """
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(CSV_HEADER)
-        for _logical_rows, condition_rows, af_tokens, comment in rungs:
+        for item in rungs:
+            if isinstance(item, tuple):
+                _lr, conds, afs, comment = item
+            else:
+                conds, afs, comment = item.conditions, item.instructions, item.comment
             if comment is not None:
                 for line in comment.split("\n"):
                     writer.writerow(["#", line])
-            for i, (conditions, af) in enumerate(zip(condition_rows, af_tokens, strict=True)):
+            for i, (conditions, af) in enumerate(zip(conds, afs, strict=True)):
                 marker = "R" if i == 0 else ""
                 writer.writerow(
                     [marker] + [_token_to_csv(c) for c in conditions] + [_token_to_csv(af)]

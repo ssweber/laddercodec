@@ -1,15 +1,13 @@
-"""CSV writer — decode binary to CSV v2 format.
+"""CSV writer — Rung objects to CSV v2 format.
 
-Converts ``DecodedRung`` objects (from ``decode_rung()`` / ``decode_multi_rung()``)
-into canonical CSV files that round-trip through ``read_golden_csv()`` and back
-to ``encode_rung()``.
+Converts ``Rung`` objects (from ``decode()``) into canonical CSV files
+that round-trip through ``read_csv()`` and back to ``encode()``.
 
 Public API
 ----------
 
-    decode_to_csv(data, path)           — single or multi-rung binary → CSV file
-    write_decoded_csv(path, rungs)      — list[DecodedRung] → CSV file
-    decoded_rung_to_rows(rung)          — DecodedRung → list of CSV row lists
+    write_csv(path, rungs)              — list[Rung] → CSV file
+    decoded_rung_to_rows(rung)          — Rung → list of CSV row lists
 
 Pin row reconstruction
 ----------------------
@@ -32,11 +30,9 @@ import csv as csv_mod
 from pathlib import Path
 
 from ..decode import (
-    DecodedRung,
+    Rung,
     UnknownCondition,
     UnknownInstruction,
-    decode_multi_rung,
-    decode_rung,
 )
 from ..instructions import Coil, CompareContact, Contact, RawInstruction, Timer
 from .contract import CSV_HEADER
@@ -77,8 +73,8 @@ def _is_blank_row(conditions: list[object], af: object) -> bool:
     return all(c == "" for c in conditions)
 
 
-def decoded_rung_to_rows(rung: DecodedRung) -> list[list[str]]:
-    """Convert a ``DecodedRung`` to a list of CSV row lists.
+def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
+    """Convert a ``Rung`` to a list of CSV row lists.
 
     Each returned row is a list of 33 strings: [marker, A..AE, AF].
     Comment rows have marker ``"#"`` and text in column A.
@@ -92,16 +88,16 @@ def decoded_rung_to_rows(rung: DecodedRung) -> list[list[str]]:
     # --- Comment rows ---
     if rung.comment is not None:
         for line in rung.comment.split("\n"):
-            rows.append(["#", line] + [""] * 31)
+            rows.append(["#", line])
 
     # --- Determine timer retention / tall padding ---
-    af0 = rung.af_tokens[0] if rung.af_tokens else None
+    af0 = rung.instructions[0] if rung.instructions else None
     is_retained_timer = isinstance(af0, Timer) and af0.retained
     is_tall_timer = isinstance(af0, Timer)
 
     # Build working copies for potential stripping.
-    condition_rows = list(rung.condition_rows)
-    af_tokens = list(rung.af_tokens)
+    condition_rows = list(rung.conditions)
+    af_tokens = list(rung.instructions)
 
     if is_retained_timer:
         # Retained timer: the second row becomes a .reset() pin row.
@@ -134,9 +130,9 @@ def decoded_rung_to_rows(rung: DecodedRung) -> list[list[str]]:
 # ---------------------------------------------------------------------------
 
 
-def write_decoded_csv(
+def write_csv(
     path: Path | str,
-    rungs: list[DecodedRung],
+    rungs: list[Rung],
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
@@ -146,7 +142,7 @@ def write_decoded_csv(
         Output file path.
     rungs:
         One or more decoded rungs (from ``decode_rung()`` or
-        ``decode_multi_rung()``).
+        ``decode_rungs()``).
 
     Raises
     ------
@@ -160,34 +156,3 @@ def write_decoded_csv(
         for rung in rungs:
             for row in decoded_rung_to_rows(rung):
                 writer.writerow(row)
-
-
-def decode_to_csv(data: bytes, path: Path | str) -> list[DecodedRung]:
-    """Decode a Click clipboard binary and write the result as CSV.
-
-    Auto-detects single vs. multi-rung buffers.
-
-    Parameters
-    ----------
-    data:
-        Raw clipboard bytes.
-    path:
-        Output CSV file path.
-
-    Returns
-    -------
-    list[DecodedRung]
-        The decoded rungs (useful for inspection or further processing).
-
-    Raises
-    ------
-    WriterError
-        If the binary contains unknown instructions.
-    """
-    try:
-        rungs = [decode_rung(data)]
-    except Exception:
-        rungs = decode_multi_rung(data)
-
-    write_decoded_csv(path, rungs)
-    return rungs

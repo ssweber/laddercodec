@@ -6,7 +6,7 @@ raw blobs to confirm the byte layout before building the real parser.
 
 from pathlib import Path
 
-from laddercodec import UnknownCondition, UnknownInstruction, decode_rung
+from laddercodec.decode import UnknownCondition, UnknownInstruction, decode
 
 CAPTURES = Path(r"c:\Users\Sam\Documents\GitHub\clicknick\devtools\captures")
 
@@ -87,9 +87,10 @@ for name in ["instr-no-out.native.bin", "instr-nc-out.native.bin"]:
     print(f"{'=' * 60}")
 
     data = path.read_bytes()
-    rung = decode_rung(data)
+    rung = decode(data)
+    assert not isinstance(rung, list), "Expected single rung"
 
-    for row_idx, (conds, af) in enumerate(zip(rung.condition_rows, rung.af_tokens, strict=True)):
+    for row_idx, (conds, af) in enumerate(zip(rung.conditions, rung.instructions, strict=True)):
         for col_idx, cell in enumerate(conds):
             if isinstance(cell, UnknownCondition):
                 print(f"\n  Row {row_idx}, Col {col_idx} — CONDITION ({len(cell.raw)} bytes)")

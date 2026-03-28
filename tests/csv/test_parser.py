@@ -89,7 +89,7 @@ def test_comment_row_without_following_rung_rejected(tmp_path: Path) -> None:
         parse_csv_file(csv_path, syntax="canonical")
 
 
-def test_continuation_before_first_r_rejected_in_strict_mode(tmp_path: Path) -> None:
+def test_continuation_before_first_r_rejected(tmp_path: Path) -> None:
     csv_path = tmp_path / "main.csv"
     _write_canonical(
         csv_path,
@@ -99,7 +99,7 @@ def test_continuation_before_first_r_rejected_in_strict_mode(tmp_path: Path) -> 
     )
 
     with pytest.raises(ValueError, match="before first 'R' marker"):
-        parse_csv_file(csv_path, syntax="canonical", strict=True)
+        parse_csv_file(csv_path, syntax="canonical")
 
 
 def test_token_typing_and_unknown_fallbacks(tmp_path: Path) -> None:
@@ -150,6 +150,21 @@ def test_token_typing_and_unknown_fallbacks(tmp_path: Path) -> None:
     assert af.name == "future_call"
     assert af.known is False
     assert af.args == ("1", "[2,3]")
+
+
+def test_comment_preserves_leading_whitespace(tmp_path: Path) -> None:
+    """Column A whitespace in comment rows is preserved (code-style indentation)."""
+    csv_path = tmp_path / "main.csv"
+    _write_canonical(
+        csv_path,
+        [
+            ("#", ["  indented text", *[""] * (len(CONDITION_COLUMNS) - 1)], ""),
+            ("R", _mk_conditions(), ""),
+        ],
+    )
+
+    parsed = parse_csv_file(csv_path, syntax="canonical")
+    assert parsed.rungs[0].comment_rows[0].canonical.comment_text == "  indented text"
 
 
 def test_csv_reader_then_af_parser_decodes_doubled_quotes(tmp_path: Path) -> None:

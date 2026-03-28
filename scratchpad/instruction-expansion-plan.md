@@ -67,15 +67,15 @@ Migrate existing instruction logic into per-class-name modules:
 ```
 src/laddercodec/instructions/
 ├── __init__.py          # Registry: class_name → module dispatch
-├── contact_no.py        # "ContactNO" (0x2711-12) — NO/NC contacts
-├── edge.py              # "Edge" (0x2713) — rise/fall edge contacts
-├── compare.py           # "Compare" (0x2714) — comparison contacts
-├── out.py               # "Out" (0x2715-17) — all coil types + oneshot
-├── tmr.py               # "Tmr" (0x2718) — timers
-├── cnt.py               # "Cnt" (0x2719) — counters (up/down/up+down)
+├── contact.py           # "ContactNO" (0x2711-12) + "Edge" (0x2713) — all contacts
+├── comparison.py        # "Compare" (0x2714) — comparison contacts
+├── coil.py              # "Out" (0x2715-17) — all coil types + oneshot
+├── timer.py             # "Tmr" (0x2718) — timers
+├── raw.py               # RawInstruction — opaque blob passthrough
+├── counter.py           # "Cnt" (0x2719) — counters (up/down/up+down)
 ├── math.py              # "Math" (0x271A) — decimal/hex calc expressions
 ├── drum.py              # "Drum" (0x271B) — time/event sequencer drums
-├── sr.py                # "SR" (0x2720) — shift register
+├── shift_register.py    # "SR" (0x2720) — shift register
 ├── copy.py              # "Copy" (0x2721) — single/block/fill/pack/unpack
 ├── search.py            # "Search" (0x2722) — array search
 ├── call.py              # "Call" (0x2723) — subroutine call
@@ -85,6 +85,9 @@ src/laddercodec/instructions/
 ├── sd.py                # "SD" (0x2729) — MODBUS send
 └── email.py             # "Email" (0x2737) — email send
 ```
+
+Naming convention: files use Python domain names (contact, coil, timer), not Click
+binary class names (ContactNO, Out, Tmr).  New modules follow this pattern.
 
 Each module contains:
 - **Model dataclass** (fields, from_csv_token, to_csv)

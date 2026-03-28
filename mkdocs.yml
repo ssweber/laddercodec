@@ -1,0 +1,60 @@
+site_name: laddercodec
+site_description: Documentation for laddercodec
+repo_url: https://github.com/ssweber/laddercodec
+site_url: https://ssweber.github.io/laddercodec/
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+  - Guides:
+      - Encoding: guides/encoding.md
+      - Decoding: guides/decoding.md
+      - CSV Format: guides/csv-format.md
+      - Adding Instructions: guides/adding-instructions.md
+  - Internals:
+      - Binary Format: internals/binary-format.md
+      - Wire Rendering: internals/wire-rendering.md
+      - Instruction Blobs: internals/instruction-blobs.md
+  - API Reference:
+      - Overview: reference/index.md
+      - Codec API: reference/api/codec.md
+      - CSV I/O API: reference/api/csv.md
+      - Instructions API: reference/api/instructions.md
+
+plugins:
+  - search
+  - gen-files:
+      scripts:
+        - docs/gen_reference.py
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - src
+          options:
+            filters:
+              - "!^_"
+            heading_level: 2
+            inherited_members: false
+            members_order: source
+            separate_signature: true
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: false
+  - llmstxt:
+      full_output: llms-full.txt
+      sections:
+        Getting Started:
+          - getting-started/*.md
+        Guides:
+          - guides/*.md
+        Internals:
+          - internals/*.md
+        API Reference:
+          - reference/index.md
+          - reference/api/*.md

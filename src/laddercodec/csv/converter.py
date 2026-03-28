@@ -34,12 +34,19 @@ auto-appended so ``encode_rung()`` receives the correct ``logical_rows``.
 
 from __future__ import annotations
 
+import re
+from typing import Literal
+
 from ..encode import AfToken, ConditionToken
-from ..instructions import Coil, CompareContact, Contact, Timer
-from ..model import InstructionType
+from ..instructions import Coil, CompareContact, Contact, RawInstruction, Timer
+from ..instructions.coil import COIL_NAME_TO_TYPE
+from ..instructions.raw import find_blob_boundary
+from ..instructions.timer import TIMER_UNIT_TO_INDEX
+from ..model import InstructionType, _validate_operand
 from .ast import (
     AfBlank,
     AfCall,
+    AfNode,
     BlankCondition,
     ComparisonCondition,
     ContactCondition,
@@ -75,7 +82,7 @@ _TALL_AF: dict[str, int] = {
 CONDITION_COLUMNS = 31
 
 
-def _condition_node_to_token(node: object) -> ConditionToken:
+def condition_node_to_token(node: object) -> ConditionToken:
     """Convert a parsed condition AST node to an encode-ready token."""
     if isinstance(node, BlankCondition):
         return ""
@@ -86,37 +93,110 @@ def _condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, VerticalPassThroughWire):
         return "|"
     if isinstance(node, ContactCondition):
-        if node.negated:
-            itype = InstructionType.CONTACT_NC
-        else:
-            itype = InstructionType.CONTACT_NO
-        return Contact(type=itype, operand=node.operand, immediate=node.immediate)
+        itype = InstructionType.CONTACT_NC if node.negated else InstructionType.CONTACT_NO
+        return Contact(
+            type=itype,
+            operand=node.operand,
+            immediate=node.immediate,
+            wire_down=node.wire_down,
+        )
     if isinstance(node, EdgeCondition):
         return Contact(
             type=InstructionType.CONTACT_EDGE,
             operand=node.operand,
             edge_kind=node.kind,
+            wire_down=node.wire_down,
         )
     if isinstance(node, ComparisonCondition):
-        return CompareContact(op=node.op, left=node.left, right=node.right)
+        return CompareContact(
+            op=node.op, left=node.left, right=node.right, wire_down=node.wire_down
+        )
     if isinstance(node, GenericCondition):
         raise ValueError(f"Cannot convert generic condition to encode token: {node.raw!r}")
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
 
-def _af_call_to_token(call: AfCall) -> AfToken:
+def _parse_coil_arg(arg: str) -> tuple[str, str | None, bool]:
+    """Parse a coil inner argument into (operand, range_end, immediate).
+
+    Handles ``immediate()`` wrapper and ``..`` range syntax.
+    """
+    immediate = False
+    inner = re.fullmatch(r"immediate\((.+)\)", arg)
+    if inner:
+        immediate = True
+        arg = inner.group(1).strip()
+
+    if ".." in arg:
+        parts = [p.strip() for p in arg.split("..")]
+        if len(parts) != 2 or not all(parts):
+            raise ValueError(f"Cannot parse coil range: {arg!r}")
+        return _validate_operand(parts[0]), _validate_operand(parts[1]), immediate
+
+    return _validate_operand(arg), None, immediate
+
+
+def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     """Convert a parsed AF call node to an encode-ready token."""
     name = call.name
 
-    if name in ("out", "latch", "reset"):
-        # Coil.from_csv_token expects positional-only form: out(Y001)
-        positional_token = f"{name}({','.join(call.args)})"
-        return Coil.from_csv_token(positional_token)
+    if name in COIL_NAME_TO_TYPE:
+        if len(call.args) != 1:
+            raise ValueError(
+                f"Coil {name!r} expects exactly 1 positional arg, got {len(call.args)}"
+            )
+        operand, range_end, immediate = _parse_coil_arg(call.args[0])
+        return Coil(
+            type=COIL_NAME_TO_TYPE[name],
+            operand=operand,
+            range_end=range_end,
+            immediate=immediate,
+        )
 
     if name in ("on_delay", "off_delay"):
-        return Timer.from_csv_token(call.to_token())
+        timer_type: Literal["on_delay", "off_delay"] = name  # type: ignore[assignment]
+        if len(call.args) != 2:
+            raise ValueError(f"{name} expects 2 positional args (done, acc), got {len(call.args)}")
+        done_bit, current = call.args
+        setpoint = call.kwargs.get("preset", "")
+        unit = call.kwargs.get("unit", "")
+        if not setpoint or not unit:
+            raise ValueError(f"{name} missing preset or unit kwargs")
+        if unit not in TIMER_UNIT_TO_INDEX:
+            raise ValueError(f"Unknown timer unit: {unit!r}")
+        return Timer(
+            timer_type=timer_type,
+            done_bit=done_bit,
+            current=current,
+            setpoint=setpoint,
+            unit=unit,
+        )
 
-    raise ValueError(f"Unsupported AF instruction: {name!r}")
+    if name == "raw":
+        if len(call.args) != 2:
+            raise ValueError(f"raw() expects 2 positional args, got {len(call.args)}")
+        class_name = call.args[0]
+        blob = bytes.fromhex(call.args[1])
+        try:
+            _, _, part_count = find_blob_boundary(blob)
+        except (ValueError, IndexError):
+            part_count = 1
+        return RawInstruction(class_name=class_name, blob=blob, part_count=part_count)
+
+    if strict:
+        raise ValueError(f"Unsupported AF instruction: {name!r}")
+    return ""
+
+
+def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
+    """Convert a parsed AF AST node to an encode-ready token."""
+    if isinstance(node, AfBlank):
+        return ""
+    if isinstance(node, AfCall):
+        if node.name.upper() == "NOP":
+            return "NOP"
+        return _af_call_to_token(node, strict=strict)
+    raise TypeError(f"Unknown AF node type: {type(node).__name__}")
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +210,8 @@ class ConvertError(ValueError):
 
 def convert_rung(
     rung: RungAst,
+    *,
+    strict: bool = True,
 ) -> tuple[int, list[list[ConditionToken]], list[AfToken], str | None]:
     """Convert a ``RungAst`` to ``encode_rung()`` arguments.
 
@@ -179,30 +261,22 @@ def convert_rung(
 
             # Pin row contributes its conditions/wires as a normal data row,
             # but the AF token becomes blank (no separate instruction).
-            conds = [_condition_node_to_token(n) for n in row.condition_nodes]
+            conds = [condition_node_to_token(n) for n in row.condition_nodes]
             condition_rows.append(conds)
             af_tokens.append("")
             continue
 
         # Normal row — convert conditions.
-        conds = [_condition_node_to_token(n) for n in row.condition_nodes]
+        conds = [condition_node_to_token(n) for n in row.condition_nodes]
         condition_rows.append(conds)
 
         # Convert AF token.
-        if isinstance(af_node, AfBlank):
-            af_tokens.append("")
-        elif isinstance(af_node, AfCall):
-            if af_node.name.upper() == "NOP":
-                af_tokens.append("NOP")
-            else:
-                token = _af_call_to_token(af_node)
-                af_tokens.append(token)
-                if row_idx == 0:
-                    parent_af_name = af_node.name
-                    if isinstance(token, Timer):
-                        parent_timer = token
-        else:
-            af_tokens.append("")
+        token = af_node_to_token(af_node, strict=strict)
+        af_tokens.append(token)
+        if row_idx == 0 and isinstance(af_node, AfCall) and af_node.name.upper() != "NOP":
+            parent_af_name = af_node.name
+            if isinstance(token, Timer):
+                parent_timer = token
 
     # --- Auto-pad for tall instructions ---
     if parent_af_name in _TALL_AF:

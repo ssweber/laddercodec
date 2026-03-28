@@ -20,10 +20,10 @@ from typing import TYPE_CHECKING
 from .topology import CELL_SIZE, COLS_PER_ROW
 
 if TYPE_CHECKING:
-    from .instructions.compare import CompareContact
-    from .instructions.contact_no import Contact
-    from .instructions.out import Coil
-    from .instructions.tmr import Timer
+    from .instructions.coil import Coil
+    from .instructions.comparison import CompareContact
+    from .instructions.contact import Contact
+    from .instructions.timer import Timer
 
 # Instruction data starts at this offset in the cell header.
 _INSTR_DATA_OFFSET = 0x25
@@ -131,26 +131,46 @@ class ClickCell:
 
         if self.af_summary:
             # Modified tail for the last AF instruction cell when a summary
-            # block is present.  Confirmed via native capture (instr-3row-branch).
+            # block is present (single-rung only; multi-rung does not use
+            # af_summary).  Confirmed via native capture (instr-3row-branch).
             tail[3] = 0x01
             tail[12] = 0x01
             tail[15] = 0x01
         elif self.blob:
             # Instruction cell tail — always has marker, dynamic rung_idx.
-            # Condition-side (col < 31): tail[13] = local_row + 1 (confirmed
-            #   via native capture — NOT a running counter).
-            # AF-side (col 31): tail[13] = local_row + 2 for last rung
-            #   (confirmed via native captures: instr-2row-spread, instr-3row-branch).
-            #   Non-last rungs: visual row hint from native capture (3rung_mixed.bin):
-            #   1-row → 0, 2-row → 2.
+            # Condition-side (col < 31): tail[13] = local_row + 1.
+            # AF-side (col 31): single-rung and multi-rung use different
+            # row/rung counters in native captures.
+
+            # Multi-rung last-row-of-last-rung: tail[12] = 1 constant
+            # marker, no tail[8]/tail[9].  Confirmed via native captures
+            # (nopaddedrows: 1 AF/rung, multiinstructions: 4 AF/rung —
+            # both show tail[12]=1).
+            if self.col == 31 and not self.single_rung:
+                is_last_row = self.local_row == self.logical_rows - 1
+                if is_last_row and self.is_last_rung:
+                    tail[12] = 0x01
+                    return tail
+
             tail[8] = 0x01
             tail[9] = self.rung_idx
             if self.col < 31:
                 tail[13] = (self.local_row + 1) & 0xFF
-            elif self.is_last_rung:
-                tail[13] = (self.local_row + 2) & 0xFF
-            elif self.logical_rows > 1:
-                tail[13] = min(self.instr_index + 1, self.logical_rows) & 0xFF
+            elif self.single_rung:
+                # Single-rung AF instructions keep the legacy row hint.
+                if self.is_last_rung:
+                    tail[13] = (self.local_row + 2) & 0xFF
+                elif self.logical_rows > 1:
+                    tail[13] = min(self.instr_index + 1, self.logical_rows) & 0xFF
+            else:
+                # Multi-rung AF instructions:
+                #   - tail[9] switches to next rung index at non-last rung end.
+                #   - tail[13] is only present on non-final data rows.
+                is_last_row = self.local_row == self.logical_rows - 1
+                if not self.is_last_rung and is_last_row:
+                    tail[9] = (self.rung_idx + 1) & 0xFF
+                if not is_last_row:
+                    tail[13] = (self.local_row + 2) & 0xFF
         else:
             # Data cell tail — position-dependent logic.
             is_last_row = self.local_row == self.logical_rows - 1
@@ -216,28 +236,28 @@ def _variant_tagged_field(tag: int, sub_marker: bytes, value: str) -> bytes:
 
 def build_contact_blob(contact: Contact) -> bytes:
     """Build the instruction data blob for a contact cell."""
-    from .instructions.contact_no import build_blob
+    from .instructions.contact import build_blob
 
     return build_blob(contact)
 
 
 def build_coil_blob(coil: Coil) -> bytes:
     """Build the instruction data blob for a coil cell."""
-    from .instructions.out import build_blob
+    from .instructions.coil import build_blob
 
     return build_blob(coil)
 
 
 def build_compare_blob(compare: CompareContact) -> bytes:
     """Build the instruction data blob for a compare contact cell."""
-    from .instructions.compare import build_blob
+    from .instructions.comparison import build_blob
 
     return build_blob(compare)
 
 
 def build_timer_blob(timer: Timer) -> bytes:
     """Build the instruction data blob for a timer cell."""
-    from .instructions.tmr import build_blob
+    from .instructions.timer import build_blob
 
     return build_blob(timer)
 

@@ -9,18 +9,17 @@ to ``(parse_blob, build_blob)`` callables for dispatch.
 
 from __future__ import annotations
 
-from . import compare as compare_mod
-from . import contact_no as contact_no_mod
-from . import edge as edge_mod
-from . import out as out_mod
-from . import tmr as tmr_mod
+from . import coil as coil_mod
+from . import comparison as comparison_mod
+from . import contact as contact_mod
+from . import timer as timer_mod
 
 # Re-export model classes for convenience.
-from .compare import CompareContact
-from .contact_no import Contact
-from .out import Coil
+from .coil import Coil
+from .comparison import CompareContact
+from .contact import Contact
 from .raw import RawInstruction
-from .tmr import Timer
+from .timer import Timer
 
 # ---------------------------------------------------------------------------
 # Registry: binary class name → (parse_blob, build_blob | None)
@@ -28,13 +27,13 @@ from .tmr import Timer
 
 # Each entry: class_name → module with parse_blob(raw) and build_blob(obj).
 INSTRUCTION_MODULES = {
-    "ContactNO": contact_no_mod,
-    "Edge": edge_mod,
-    "Compare": compare_mod,
-    "Out": out_mod,
-    "Latch": out_mod,  # all coil class names → same module
-    "Reset": out_mod,
-    "Tmr": tmr_mod,
+    "ContactNO": contact_mod,
+    "Edge": contact_mod,
+    "Compare": comparison_mod,
+    "Out": coil_mod,
+    "Latch": coil_mod,  # all coil class names → same module
+    "Reset": coil_mod,
+    "Tmr": timer_mod,
 }
 
 

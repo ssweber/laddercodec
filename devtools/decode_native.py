@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from laddercodec import decode_rung
+from laddercodec import decode
 from laddercodec.decode import UnknownCondition, UnknownInstruction
 
 path = (
@@ -12,7 +12,8 @@ path = (
     else Path("c:/Users/Sam/Documents/GitHub/clicknick/devtools/captures/instr-no-out.native.bin")
 )
 data = path.read_bytes()
-r = decode_rung(data)
+r = decode(data)
+assert not isinstance(r, list), "Expected single rung"
 
 print(f"File: {path.name}")
 print(f"Logical rows: {r.logical_rows}")
@@ -20,8 +21,8 @@ print(f"Comment: {r.comment}")
 print()
 
 for row_idx in range(r.logical_rows):
-    conds = r.condition_rows[row_idx]
-    af = r.af_tokens[row_idx]
+    conds = r.conditions[row_idx]
+    af = r.instructions[row_idx]
 
     for col_idx, tok in enumerate(conds):
         col_letter = chr(ord("A") + col_idx) if col_idx < 26 else f"A{chr(ord('A') + col_idx - 26)}"

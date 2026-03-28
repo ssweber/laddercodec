@@ -86,7 +86,6 @@ from .encode import (
     MAX_ROWS,
     MIN_ROWS,
     SUPPORTED_CONDITION_TOKENS,
-    _build_af_summary,
     _build_rtf_body,
     _compute_seg_boundaries,
     _normalize_af,
@@ -114,7 +113,7 @@ RungInput = tuple[int, Sequence[Sequence[ConditionToken]], Sequence[AfToken]]
 # ---------------------------------------------------------------------------
 
 
-def encode_multi_rung(
+def encode_rungs(
     rungs: Sequence[RungInput],
     comments: Sequence[str | None] | None = None,
 ) -> bytes:
@@ -145,7 +144,7 @@ def encode_multi_rung(
     """
     N = len(rungs)
     if N < 2:
-        raise ValueError(f"encode_multi_rung requires at least 2 rungs, got {N}")
+        raise ValueError(f"encode_rungs requires at least 2 rungs, got {N}")
 
     # Normalise comments to a list aligned with rungs.
     if comments is None:
@@ -242,20 +241,6 @@ def encode_multi_rung(
                 af_instr_indices[lr] = idx
                 idx += 1
 
-        # AF summary block — needed on the last AF instruction cell when 2+ AFs.
-        af_summary_block = b""
-        af_rows = sorted(af_instr_indices.keys())
-        if len(af_rows) >= 2:
-            af_entries: list[tuple[int, int, bool]] = []
-            for r in af_rows:
-                cond_count = sum(
-                    1 for t in condition_rows[r] if isinstance(t, (Contact, CompareContact))
-                )
-                instrs_on_row = cond_count + 1  # +1 for the AF instruction itself
-                row_has_contact = cond_count > 0
-                af_entries.append((af_instr_indices[r], instrs_on_row, row_has_contact))
-            af_summary_block = _build_af_summary(total_instr_count, len(af_rows), af_entries)
-
         seg_boundaries = _compute_seg_boundaries(condition_rows) if rung_has_instructions else None
         for local_row in range(logical_rows):
             g = global_row + local_row
@@ -334,8 +319,6 @@ def encode_multi_rung(
                             ).to_bytes()
                         )
                 else:  # AF column (col 31)
-                    is_last_af = af_rows and local_row == af_rows[-1]
-                    summary = af_summary_block if is_last_af else b""
                     if af_kind == "COIL":
                         assert isinstance(af, Coil)
                         blob = build_coil_blob(af)
@@ -349,11 +332,10 @@ def encode_multi_rung(
                                 is_last_rung=is_last,
                                 is_contact=False,
                                 rung_has_instructions=rung_has_instructions,
-                                segment=1 if local_row == 0 else 0,
+                                segment=0,
                                 wire_right=1,
                                 instr_index=af_instr_indices[local_row],
                                 blob=blob,
-                                af_summary=summary,
                             ).to_bytes()
                         )
                     elif af_kind == "TIMER":
@@ -375,7 +357,6 @@ def encode_multi_rung(
                                 blob=blob,
                                 row_span=logical_rows,
                                 visual_rows=3 if af.retained else 2,
-                                af_summary=summary,
                             ).to_bytes()
                         )
                     elif af_kind == "RAW":
@@ -391,13 +372,12 @@ def encode_multi_rung(
                                 is_last_rung=is_last,
                                 is_contact=False,
                                 rung_has_instructions=rung_has_instructions,
-                                segment=0 if is_multi_row else (1 if local_row == 0 else 0),
+                                segment=0,
                                 wire_right=1,
                                 instr_index=af_instr_indices[local_row],
                                 blob=af.blob,
                                 row_span=logical_rows if is_multi_row else 1,
                                 visual_rows=af.part_count if is_multi_row else 1,
-                                af_summary=summary,
                             ).to_bytes()
                         )
                     else:

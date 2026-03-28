@@ -31,6 +31,18 @@ class TestContact:
         assert c.operand == "X003"
         assert c.immediate is True
 
+    def test_from_csv_token_no_immediate_wrapper(self):
+        c = Contact.from_csv_token("immediate(X001)")
+        assert c.type == InstructionType.CONTACT_NO
+        assert c.operand == "X001"
+        assert c.immediate is True
+
+    def test_from_csv_token_nc_immediate_wrapper(self):
+        c = Contact.from_csv_token("~immediate(X003)")
+        assert c.type == InstructionType.CONTACT_NC
+        assert c.operand == "X003"
+        assert c.immediate is True
+
     def test_from_csv_invalid_operand(self):
         with pytest.raises(ValueError, match="Invalid operand"):
             Contact.from_csv_token("XABC")

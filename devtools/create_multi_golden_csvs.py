@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from golden_io import GOLDEN_DIR, MultiRungItem, write_multi_rung_golden_csv
+from golden_io import GOLDEN_DIR, Rung, write_multi_rung_golden_csv
 
 E = ""
 D = "-"
@@ -70,7 +70,7 @@ def vertical_cont_row() -> list[str]:
     return row
 
 
-def write_mr(name: str, rungs: list[MultiRungItem]) -> None:
+def write_mr(name: str, rungs: list[Rung]) -> None:
     path = GOLDEN_DIR / f"{name}.csv"
     total_rows = sum(lr for lr, _, _, _ in rungs)
     write_multi_rung_golden_csv(path, rungs)

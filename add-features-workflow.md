@@ -6,7 +6,7 @@ User builds test rungs in Click Programming Software covering all variants of th
 
 ## 2. Decode & compare to PDF
 
-Convert PDF to PNGs, then run `decode_multi_rung()` on the binary. Compare the output to the PDF — every rung should appear, and unknown blobs tell you what needs parsing.
+Convert PDF to PNGs, then run `decode_rungs()` on the binary. Compare the output to the PDF — every rung should appear, and unknown blobs tell you what needs parsing.
 
 ## 3. Fix grid walking first
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 
-from golden_io import GOLDEN_DIR, MultiRungItem, write_golden_csv, write_multi_rung_golden_csv
+from golden_io import GOLDEN_DIR, Rung, write_golden_csv, write_multi_rung_golden_csv
 
 E = ""
 D = "-"
@@ -67,7 +67,7 @@ def write(
     print(f"  {name}.csv  ({rows} row{'s' if rows > 1 else ''}{cmt})")
 
 
-def write_mr(name: str, rungs: list[MultiRungItem]) -> None:
+def write_mr(name: str, rungs: list[Rung]) -> None:
     path = GOLDEN_DIR / f"{name}.csv"
     write_multi_rung_golden_csv(path, rungs)
     n = len(rungs)

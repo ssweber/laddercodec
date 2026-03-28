@@ -13,11 +13,10 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec.decode import decode_rung
+from laddercodec import Coil, CompareContact, Contact, Timer, decode, encode, read_csv
 from laddercodec.encode import encode_rung
-from laddercodec.instructions import Coil, CompareContact, Contact, Timer
 from laddercodec.model import InstructionType
-from tests.golden_io import GOLDEN_DIR, read_golden_csv
+from tests.golden_io import GOLDEN_DIR
 
 # -- Golden CSV/BIN round-trip tests --
 
@@ -26,8 +25,8 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_encode(csv_path: Path) -> None:
-    logical_rows, condition_rows, af_tokens, comment = read_golden_csv(csv_path)
-    result = encode_rung(logical_rows, condition_rows, af_tokens, comment=comment)
+    r = read_csv(csv_path)[0]
+    result = encode(r)
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
     expected = bin_path.read_bytes()
@@ -103,12 +102,12 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, Contact)
         assert c.type == InstructionType.CONTACT_NO
         assert c.operand == "X001"
-        a = d.af_tokens[0]
+        a = d.instructions[0]
         assert isinstance(a, Coil)
         assert a.type == InstructionType.COIL_OUT
         assert a.operand == "Y001"
@@ -117,52 +116,52 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NC, "X002")
         coil = Coil(InstructionType.COIL_LATCH, "Y002")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.type == InstructionType.CONTACT_NC
-        a = d.af_tokens[0]
+        a = d.instructions[0]
         assert isinstance(a, Coil) and a.type == InstructionType.COIL_LATCH
 
     def test_edge_rise_reset_coil(self) -> None:
         contact = Contact(InstructionType.CONTACT_EDGE, "X003", edge_kind="rise")
         coil = Coil(InstructionType.COIL_RESET, "Y003")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.edge_kind == "rise"
-        a = d.af_tokens[0]
+        a = d.instructions[0]
         assert isinstance(a, Coil) and a.type == InstructionType.COIL_RESET
 
     def test_edge_fall(self) -> None:
         contact = Contact(InstructionType.CONTACT_EDGE, "X004", edge_kind="fall")
         coil = Coil(InstructionType.COIL_OUT, "Y004")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.edge_kind == "fall"
 
     def test_immediate_contact(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X005", immediate=True)
         coil = Coil(InstructionType.COIL_OUT, "Y005")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.immediate is True
 
     def test_immediate_coil(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001", immediate=True)
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        a = d.af_tokens[0]
+        d = decode(buf)
+        a = d.instructions[0]
         assert isinstance(a, Coil) and a.immediate is True
 
     def test_range_coil(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "C1", range_end="C2")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode_rung(buf)
-        a = d.af_tokens[0]
+        d = decode(buf)
+        a = d.instructions[0]
         assert isinstance(a, Coil) and a.range_end == "C2" and a.operand == "C1"
 
     def test_series_contacts(self) -> None:
@@ -171,36 +170,36 @@ class TestInstructionRoundTrip:
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         row: list[str | Contact] = [c1, "-", c2] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
-        d = decode_rung(buf)
-        assert isinstance(d.condition_rows[0][0], Contact)
-        assert d.condition_rows[0][0].operand == "X001"
-        assert d.condition_rows[0][1] == "-"
-        assert isinstance(d.condition_rows[0][2], Contact)
-        assert d.condition_rows[0][2].operand == "X002"
+        d = decode(buf)
+        assert isinstance(d.conditions[0][0], Contact)
+        assert d.conditions[0][0].operand == "X001"
+        assert d.conditions[0][1] == "-"
+        assert isinstance(d.conditions[0][2], Contact)
+        assert d.conditions[0][2].operand == "X002"
 
     def test_contact_at_non_zero_col(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(contact, col=15)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][15]
+        d = decode(buf)
+        c = d.conditions[0][15]
         assert isinstance(c, Contact) and c.operand == "X001"
 
     def test_contact_only_no_coil(self) -> None:
         """Contact-only rung (no AF coil) still round-trips."""
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         buf = encode_rung(1, [_wire_row(contact)], [""])
-        d = decode_rung(buf)
-        assert isinstance(d.condition_rows[0][0], Contact)
-        assert d.af_tokens[0] == ""
+        d = decode(buf)
+        assert isinstance(d.conditions[0][0], Contact)
+        assert d.instructions[0] == ""
 
     def test_coil_only_no_contact(self) -> None:
         """Coil-only rung (wire-in, no contact) still round-trips."""
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [["-"] * 31], [coil])
-        d = decode_rung(buf)
-        assert isinstance(d.af_tokens[0], Coil)
-        assert d.af_tokens[0].operand == "Y001"
+        d = decode(buf)
+        assert isinstance(d.instructions[0], Coil)
+        assert d.instructions[0].operand == "Y001"
 
     def test_mixed_wire_and_instruction(self) -> None:
         """Existing wire-only golden fixtures are not affected."""
@@ -214,44 +213,44 @@ class TestInstructionRoundTrip:
         compare = CompareContact(op="==", left="DS1", right="1")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(compare)], [coil])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact)
         assert c.op == "==" and c.left == "DS1" and c.right == "1"
 
     def test_compare_ne(self) -> None:
         compare = CompareContact(op="!=", left="DS2", right="DS3")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "!="
 
     def test_compare_gt(self) -> None:
         compare = CompareContact(op=">", left="DS1", right="100")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == ">"
 
     def test_compare_lt(self) -> None:
         compare = CompareContact(op="<", left="DS1", right="DS2")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "<"
 
     def test_compare_ge(self) -> None:
         compare = CompareContact(op=">=", left="DS1", right="1")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == ">="
 
     def test_compare_le(self) -> None:
         compare = CompareContact(op="<=", left="DS1", right="1")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode_rung(buf)
-        c = d.condition_rows[0][0]
+        d = decode(buf)
+        c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "<="
 
     def test_compare_with_contact_and_coil(self) -> None:
@@ -261,10 +260,10 @@ class TestInstructionRoundTrip:
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         row: list[str | Contact | CompareContact] = [contact, "-", compare] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
-        d = decode_rung(buf)
-        assert isinstance(d.condition_rows[0][0], Contact)
-        assert isinstance(d.condition_rows[0][2], CompareContact)
-        assert isinstance(d.af_tokens[0], Coil)
+        d = decode(buf)
+        assert isinstance(d.conditions[0][0], Contact)
+        assert isinstance(d.conditions[0][2], CompareContact)
+        assert isinstance(d.instructions[0], Coil)
 
     # -- Timer round-trips --
 
@@ -278,8 +277,8 @@ class TestInstructionRoundTrip:
             unit="Tms",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode_rung(buf)
-        t = d.af_tokens[0]
+        d = decode(buf)
+        t = d.instructions[0]
         assert isinstance(t, Timer)
         assert t.timer_type == "on_delay"
         assert t.done_bit == "T1" and t.current == "TD1"
@@ -296,8 +295,8 @@ class TestInstructionRoundTrip:
             unit="Ts",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode_rung(buf)
-        t = d.af_tokens[0]
+        d = decode(buf)
+        t = d.instructions[0]
         assert isinstance(t, Timer) and t.timer_type == "off_delay"
         assert t.unit == "Ts"
 
@@ -312,8 +311,8 @@ class TestInstructionRoundTrip:
             retained=True,
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode_rung(buf)
-        t = d.af_tokens[0]
+        d = decode(buf)
+        t = d.instructions[0]
         assert isinstance(t, Timer) and t.retained is True
         assert t.unit == "Tm"
 
@@ -329,6 +328,6 @@ class TestInstructionRoundTrip:
                 unit=unit,
             )
             buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-            d = decode_rung(buf)
-            t = d.af_tokens[0]
+            d = decode(buf)
+            t = d.instructions[0]
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"

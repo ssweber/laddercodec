@@ -7,10 +7,25 @@ from pathlib import Path
 
 import pytest
 
+from laddercodec.csv.ast import (
+    AfBlank,
+    AfCall,
+    BlankCondition,
+    ComparisonCondition,
+    ContactCondition,
+    EdgeCondition,
+    HorizontalWire,
+)
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
-from laddercodec.csv.converter import ConvertError, convert_rung, strip_tall_padding
+from laddercodec.csv.converter import (
+    ConvertError,
+    af_node_to_token,
+    condition_node_to_token,
+    convert_rung,
+    strip_tall_padding,
+)
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.instructions import Coil, Contact, Timer
+from laddercodec.instructions import Coil, CompareContact, Contact, RawInstruction, Timer
 from laddercodec.model import InstructionType
 
 
@@ -230,3 +245,135 @@ class TestStripTallPadding:
         afs: list[object] = [timer]
         lr, new_conds, new_afs = strip_tall_padding(1, conds, afs)
         assert lr == 1
+
+
+class TestConditionNodeToToken:
+    def test_blank(self) -> None:
+        assert condition_node_to_token(BlankCondition()) == ""
+
+    def test_wire(self) -> None:
+        assert condition_node_to_token(HorizontalWire()) == "-"
+
+    def test_contact_no(self) -> None:
+        node = ContactCondition(operand="X001", negated=False, immediate=False)
+        result = condition_node_to_token(node)
+        assert isinstance(result, Contact)
+        assert result.type == InstructionType.CONTACT_NO
+        assert result.operand == "X001"
+
+    def test_contact_wire_down(self) -> None:
+        node = ContactCondition(operand="X001", negated=False, immediate=False, wire_down=True)
+        result = condition_node_to_token(node)
+        assert isinstance(result, Contact)
+        assert result.wire_down is True
+
+    def test_edge_wire_down(self) -> None:
+        node = EdgeCondition(kind="rise", operand="X002", wire_down=True)
+        result = condition_node_to_token(node)
+        assert isinstance(result, Contact)
+        assert result.type == InstructionType.CONTACT_EDGE
+        assert result.wire_down is True
+
+    def test_compare_wire_down(self) -> None:
+        node = ComparisonCondition(left="DS1", op="==", right="1", wire_down=True)
+        result = condition_node_to_token(node)
+        assert isinstance(result, CompareContact)
+        assert result.wire_down is True
+
+    def test_immediate(self) -> None:
+        node = ContactCondition(operand="X001", negated=False, immediate=True)
+        result = condition_node_to_token(node)
+        assert isinstance(result, Contact)
+        assert result.immediate is True
+
+
+class TestAfNodeToToken:
+    def test_blank(self) -> None:
+        assert af_node_to_token(AfBlank()) == ""
+
+    def test_nop(self) -> None:
+        assert af_node_to_token(AfCall(name="NOP", args=(), known=False)) == "NOP"
+
+    def test_coil(self) -> None:
+        node = AfCall(name="out", args=("Y001",), known=True)
+        result = af_node_to_token(node)
+        assert isinstance(result, Coil)
+        assert result.type == InstructionType.COIL_OUT
+        assert result.operand == "Y001"
+
+    def test_coil_immediate_range(self) -> None:
+        node = AfCall(name="out", args=("immediate(Y1..Y2)",), known=True)
+        result = af_node_to_token(node)
+        assert isinstance(result, Coil)
+        assert result.immediate is True
+        assert result.operand == "Y1"
+        assert result.range_end == "Y2"
+
+    def test_timer(self) -> None:
+        node = AfCall(
+            name="on_delay",
+            args=("T1", "TD1"),
+            known=True,
+            kwargs={"preset": "1000", "unit": "Tms"},
+        )
+        result = af_node_to_token(node)
+        assert isinstance(result, Timer)
+        assert result.timer_type == "on_delay"
+        assert result.done_bit == "T1"
+        assert result.setpoint == "1000"
+
+    def test_raw(self) -> None:
+        # Minimal valid blob: class name "X" + type marker + part count + field count(0)
+        blob_hex = "580000002711000001000000000000"
+        node = AfCall(name="raw", args=("X", blob_hex), known=False)
+        result = af_node_to_token(node)
+        assert isinstance(result, RawInstruction)
+        assert result.class_name == "X"
+        assert result.blob == bytes.fromhex(blob_hex)
+
+    def test_unsupported_raises_by_default(self) -> None:
+        node = AfCall(name="count_up", args=("C1", "DS1"), known=True)
+        with pytest.raises(ValueError, match="Unsupported AF instruction"):
+            af_node_to_token(node)
+
+    def test_unsupported_returns_blank_when_not_strict(self) -> None:
+        node = AfCall(name="count_up", args=("C1", "DS1"), known=True)
+        assert af_node_to_token(node, strict=False) == ""
+
+
+class TestConvertRungStrict:
+    def test_unsupported_af_raises_by_default(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(csv_path, [("R", _wire_row(), "count_up(C1,DS1)")])
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ValueError, match="Unsupported AF instruction"):
+            convert_rung(rung)
+
+    def test_unsupported_af_blanked_when_not_strict(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(csv_path, [("R", _wire_row(), "count_up(C1,DS1)")])
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, comment = convert_rung(rung, strict=False)
+        assert lr == 1
+        assert afs[0] == ""
+        assert isinstance(conds[0][0], Contact)
+        assert conds[0][0].operand == "X001"
+
+    def test_unsupported_af_with_pin_row_not_strict(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        wires = ["-"] * len(CONDITION_COLUMNS)
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row(), "count_up(C1,DS1)"),
+                ("", wires, ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung, strict=False)
+        assert lr == 2
+        assert afs[0] == ""
+        assert afs[1] == ""

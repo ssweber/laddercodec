@@ -1,20 +1,20 @@
 """Ladder rung decoder — binary clipboard buffer to structured data.
 
 Reads a Click clipboard binary and produces the same data structures
-that feed ``encode_rung()`` / ``encode_multi_rung()``.
+that feed ``encode_rung()`` / ``encode_rungs()``.
 
 Public API
 ----------
 
-    decode_rung(data)        -> DecodedRung
-    decode_multi_rung(data)  -> list[DecodedRung]
+    decode_rung(data)        -> Rung
+    decode_rungs(data)       -> list[Rung]
 
 Round-trip identity:
 
     decode_rung(encode_rung(lr, cr, af, cmt))
         .logical_rows  == lr
-        .condition_rows == cr
-        .af_tokens     == af
+        .conditions    == cr
+        .instructions  == af
         .comment       == cmt
 
 Instruction cells
@@ -103,35 +103,39 @@ AfToken = str | Coil | Timer | RawInstruction | UnknownInstruction
 
 
 @dataclass
-class DecodedRung:
-    """Decoded rung data — mirrors the arguments to ``encode_rung()``.
+class Rung:
+    """Structured rung data — used for both decode output and encode input.
 
     Attributes
     ----------
     logical_rows:
         Number of rung rows (1..32).
-    condition_rows:
+    conditions:
         Row-major token grid. Each row has 31 condition-column entries.
         Wire-only cells are strings (``""`` blank, ``"-"`` horizontal,
         ``"|"`` vertical, ``"T"`` junction-down).  Contacts are
         ``Contact`` objects; unrecognised cells are
         ``UnknownCondition``.
-    af_tokens:
+    instructions:
         One per row.  ``"NOP"`` or ``""`` for wire-only cells.
         Coils are ``Coil`` objects; unrecognised cells are
         ``UnknownInstruction``.
+    comment:
+        Markdown text (for CSV export), or ``None``.
     comment_rtf:
         Raw RTF payload bytes, or ``None``.  Preserves byte-exact
         fidelity for re-encoding.
-    comment:
-        Markdown text (for CSV export), or ``None``.
     """
 
     logical_rows: int
-    condition_rows: list[list[ConditionToken]]
-    af_tokens: list[AfToken]
-    comment_rtf: bytes | None
+    conditions: list[list[ConditionToken]]
+    instructions: list[AfToken]
     comment: str | None
+    comment_rtf: bytes | None = None
+
+
+# Backwards-compatible alias.
+DecodedRung = Rung
 
 
 @dataclass
@@ -312,6 +316,10 @@ def _decode_rtf(payload: bytes) -> str:
 
     body = payload[body_start:body_end].decode("cp1252")
 
+    # Strip RTF source line endings (CR/LF before \par are insignificant).
+    body = body.replace("\r\n\\par ", "\\par ")
+    body = body.replace("\r\\par ", "\\par ")
+
     # RTF markup -> markdown.  Group-style first (more specific), then toggle.
     body = _RE_GROUP_BOLD.sub(r"**\1**", body)
     body = _RE_GROUP_ITALIC.sub(r"*\1*", body)
@@ -322,6 +330,14 @@ def _decode_rtf(payload: bytes) -> str:
 
     # Line breaks.
     body = body.replace("\\par ", "\n")
+
+    # Unescape RTF special characters.
+    body = body.replace("\\{", "{")
+    body = body.replace("\\}", "}")
+    body = body.replace("\\\\", "\\")
+
+    # Strip any remaining stray CR.
+    body = body.replace("\r", "")
 
     return body
 
@@ -551,7 +567,37 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
 # ---------------------------------------------------------------------------
 
 
-def decode_rung(data: bytes) -> DecodedRung:
+def decode(data: bytes) -> Rung | list[Rung]:
+    """Decode a clipboard binary. Returns Rung for single-rung, list[Rung] for multi-rung.
+
+    Parameters
+    ----------
+    data:
+        Raw clipboard bytes (page-aligned, starts with ``CLICK   `` magic).
+
+    Returns
+    -------
+    Rung | list[Rung]
+        A single ``Rung`` for single-rung buffers, or a list of ``Rung``
+        objects for multi-rung buffers.
+
+    Raises
+    ------
+    DecodeError
+        If the buffer is invalid.
+    """
+    _validate_buffer(data)
+    row_word = struct.unpack_from("<H", data, PROGRAM_HEADER_BASE)[0]
+    total_grid_rows = row_word // 0x20
+    rung0_rtf, payload_len = _read_rung0_comment(data)
+    grid_start = GRID_FIRST_ROW_START + payload_len
+    row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
+    if is_multi:
+        return _decode_multi(data, row_infos, rung0_rtf)
+    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+
+
+def decode_rung(data: bytes) -> Rung:
     """Decode a single-rung clipboard binary.
 
     Parameters
@@ -561,11 +607,8 @@ def decode_rung(data: bytes) -> DecodedRung:
 
     Returns
     -------
-    DecodedRung
+    Rung
         Decoded rung data matching ``encode_rung()`` input contract.
-        Condition cells with instruction data appear as
-        ``UnknownCondition``; AF cells with instruction data appear
-        as ``UnknownInstruction``.
 
     Raises
     ------
@@ -583,36 +626,12 @@ def decode_rung(data: bytes) -> DecodedRung:
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
 
     if is_multi:
-        raise DecodeError("Buffer contains multiple rungs; use decode_multi_rung()")
+        raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    # Single-rung: total_grid_rows = logical_rows + 1 (format quirk).
-    logical_rows = total_grid_rows - 1
-    data_rows = [ri for ri in row_infos if ri[0] == _DATA][:logical_rows]
-
-    if len(data_rows) < logical_rows:
-        raise DecodeError(f"Expected {logical_rows} data rows, found {len(data_rows)}")
-
-    condition_rows: list[list[ConditionToken]] = []
-    af_tokens: list[AfToken] = []
-    for _, cursor, _ in data_rows:
-        conds, af, _ = _decode_data_row(data, cursor)
-        condition_rows.append(conds)
-        af_tokens.append(af)
-
-    comment: str | None = None
-    if rung0_rtf is not None:
-        comment = _decode_rtf(rung0_rtf)
-
-    return DecodedRung(
-        logical_rows=logical_rows,
-        condition_rows=condition_rows,
-        af_tokens=af_tokens,
-        comment_rtf=rung0_rtf,
-        comment=comment,
-    )
+    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
 
 
-def decode_multi_rung(data: bytes) -> list[DecodedRung]:
+def decode_rungs(data: bytes) -> list[Rung]:
     """Decode a multi-rung clipboard binary.
 
     Parameters
@@ -622,7 +641,7 @@ def decode_multi_rung(data: bytes) -> list[DecodedRung]:
 
     Returns
     -------
-    list[DecodedRung]
+    list[Rung]
         One entry per rung, in order.
 
     Raises
@@ -643,10 +662,53 @@ def decode_multi_rung(data: bytes) -> list[DecodedRung]:
     if not is_multi:
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
+    return _decode_multi(data, row_infos, rung0_rtf)
+
+
+def _decode_single(
+    data: bytes,
+    row_infos: list[_RowInfo],
+    total_grid_rows: int,
+    rung0_rtf: bytes | None,
+) -> Rung:
+    """Decode a single-rung buffer from pre-walked grid info."""
+    # Single-rung: total_grid_rows = logical_rows + 1 (format quirk).
+    logical_rows = total_grid_rows - 1
+    data_rows = [ri for ri in row_infos if ri[0] == _DATA][:logical_rows]
+
+    if len(data_rows) < logical_rows:
+        raise DecodeError(f"Expected {logical_rows} data rows, found {len(data_rows)}")
+
+    conditions: list[list[ConditionToken]] = []
+    instructions: list[AfToken] = []
+    for _, cursor, _ in data_rows:
+        conds, af, _ = _decode_data_row(data, cursor)
+        conditions.append(conds)
+        instructions.append(af)
+
+    comment: str | None = None
+    if rung0_rtf is not None:
+        comment = _decode_rtf(rung0_rtf)
+
+    return Rung(
+        logical_rows=logical_rows,
+        conditions=conditions,
+        instructions=instructions,
+        comment=comment,
+        comment_rtf=rung0_rtf,
+    )
+
+
+def _decode_multi(
+    data: bytes,
+    row_infos: list[_RowInfo],
+    rung0_rtf: bytes | None,
+) -> list[Rung]:
+    """Decode a multi-rung buffer from pre-walked grid info."""
     # Group DATA rows into rungs, split by PREAMBLE boundaries.
     # Rung 0: DATA rows before first PREAMBLE (comment from fixed preamble).
     # Rung N>0: DATA rows after PREAMBLE[N] (comment from that preamble).
-    rungs: list[DecodedRung] = []
+    rungs: list[Rung] = []
     current_data: list[int] = []  # cursors for current rung's data rows
     current_rtf: bytes | None = rung0_rtf  # rung 0 uses fixed preamble
 
@@ -666,25 +728,25 @@ def decode_multi_rung(data: bytes) -> list[DecodedRung]:
     return rungs
 
 
-def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> DecodedRung:
-    """Build a DecodedRung from a list of data-row cursors."""
-    condition_rows: list[list[ConditionToken]] = []
-    af_tokens: list[AfToken] = []
+def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> Rung:
+    """Build a Rung from a list of data-row cursors."""
+    conditions: list[list[ConditionToken]] = []
+    instructions: list[AfToken] = []
     for cursor in data_cursors:
         conds, af, _ = _decode_data_row(data, cursor)
-        condition_rows.append(conds)
-        af_tokens.append(af)
+        conditions.append(conds)
+        instructions.append(af)
 
     comment: str | None = None
     if rtf is not None:
         comment = _decode_rtf(rtf)
 
-    return DecodedRung(
+    return Rung(
         logical_rows=len(data_cursors),
-        condition_rows=condition_rows,
-        af_tokens=af_tokens,
-        comment_rtf=rtf,
+        conditions=conditions,
+        instructions=instructions,
         comment=comment,
+        comment_rtf=rtf,
     )
 
 

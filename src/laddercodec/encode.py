@@ -182,10 +182,14 @@ def _build_rtf_body(text: str) -> str:
         ``*text*``   → ``{\\i text}``  (italic, asterisk)
         ``_text_``   → ``{\\i text}``  (italic, underscore)
 
-    Plain-text ``{``, ``}`` and ``\\`` are not escaped — avoid them in
-    comment text or the resulting RTF will be malformed.
+    RTF special characters (``\\``, ``{``, ``}``) in the plain text are
+    escaped before markdown conversion so they pass through safely.
     """
     text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Escape RTF special characters (order matters: backslash first).
+    text = text.replace("\\", "\\\\")
+    text = text.replace("{", "\\{")
+    text = text.replace("}", "\\}")
     text = _RE_BOLD.sub(r"{\\b \1}", text)
     text = _RE_UNDERLINE.sub(r"{\\ul \1}", text)
     text = _RE_ITALIC_STAR.sub(r"{\\i \1}", text)
@@ -627,3 +631,29 @@ def encode_rung(
     # --- Step 5: Pad to page boundary ---
 
     return _pad_to_page(out)
+
+
+def encode(rungs):
+    """Encode one or more rungs to clipboard binary.
+
+    Parameters
+    ----------
+    rungs:
+        A single ``Rung`` object (single-rung encode) or a sequence of
+        ``Rung`` objects (multi-rung encode).
+
+    Returns
+    -------
+    bytes
+        Encoded binary payload.
+    """
+    from .decode import Rung  # lazy import to avoid circular
+
+    if isinstance(rungs, Rung):
+        return encode_rung(rungs.logical_rows, rungs.conditions, rungs.instructions, rungs.comment)
+    from .encode_multi import encode_rungs
+
+    return encode_rungs(
+        [(r.logical_rows, r.conditions, r.instructions) for r in rungs],
+        comments=[r.comment for r in rungs],
+    )

@@ -180,11 +180,15 @@ def _parse_contact(token: str) -> ContactCondition | None:
     if negated:
         text = text[1:].strip()
 
-    immediate = False
-    inner = re.fullmatch(r"immediate\((.+)\)", text)
-    if inner:
-        immediate = True
-        text = inner.group(1).strip()
+    immediate = text.endswith(".immediate")
+    if immediate:
+        text = text[: -len(".immediate")]
+
+    if not immediate:
+        inner = re.fullmatch(r"immediate\((.+)\)", text)
+        if inner:
+            immediate = True
+            text = inner.group(1).strip()
 
     if not OPERAND_RE.fullmatch(text):
         return None
@@ -216,21 +220,43 @@ def parse_condition_token(token: str) -> ConditionCellNode:
     if text == "|":
         return VerticalPassThroughWire()
 
+    # Detect wire-down prefix: T:X001 or |:rise(X002)
+    wire_down = False
+    if len(text) > 2 and text[1] == ":" and text[0] in ("T", "|"):
+        wire_down = True
+        text = text[2:]
+
     edge_match = _EDGE_RE.fullmatch(text)
     if edge_match:
         operand = edge_match.group(2).strip()
         if OPERAND_RE.fullmatch(operand):
             return EdgeCondition(
-                kind=cast(Literal["rise", "fall"], edge_match.group(1)), operand=operand
+                kind=cast(Literal["rise", "fall"], edge_match.group(1)),
+                operand=operand,
+                wire_down=wire_down,
             )
         return GenericCondition(raw=token)
 
     contact = _parse_contact(text)
     if contact is not None:
+        if wire_down:
+            contact = ContactCondition(
+                operand=contact.operand,
+                negated=contact.negated,
+                immediate=contact.immediate,
+                wire_down=True,
+            )
         return contact
 
     comparison = _parse_comparison(text)
     if comparison is not None:
+        if wire_down:
+            comparison = ComparisonCondition(
+                left=comparison.left,
+                op=comparison.op,
+                right=comparison.right,
+                wire_down=True,
+            )
         return comparison
 
     return GenericCondition(raw=token)
