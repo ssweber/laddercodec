@@ -4,19 +4,22 @@ This page documents the Click clipboard binary format as reverse-engineered from
 
 ## Buffer layout
 
-The clipboard buffer has three regions:
+The clipboard buffer has these regions:
 
 ```
 0x0000 +-----------------------+
        | Global header         |  Fixed template data. Not modified by the encoder.
 0x0254 +-----------------------+
-       | Program header        |  Single 0x40-byte struct. Row count at +0x00.
-0x0294 +-----------------------+
+       | Program header        |  Row count word at +0x00.
+0x0260 +-----------------------+
+       | Rung 0 preamble       |  Comment flag +0x30, length +0x34.
+0x0298 +-----------------------+
        | Payload region        |  Comment RTF body (variable length, may be empty).
        |                       |  When empty, this region is zero-length and the
        |                       |  grid starts immediately at 0x0A60.
 0x0A60 +-----------------------+  <-- grid start (in no-payload buffer)
-       | Cell grid             |  32 cells/row x 0x40 bytes/cell = 0x800 bytes/row.
+       | Cell grid             |  32 cells/row. Wire-only rows: 0x800 bytes/row.
+       |                       |  Instruction rows are larger (variable-length cells).
        |                       |  Pushed forward by payload_len when a comment exists.
        +-----------------------+
        | Page padding          |  Zero-filled to next 0x1000 (4096) boundary.
@@ -27,9 +30,9 @@ The clipboard buffer has three regions:
 
 Fixed template data loaded from the scaffold binary. Contains GUI state and format markers. The encoder does not modify this region.
 
-## Program header (0x0254–0x0293)
+## Program header (0x0254–0x025F)
 
-A single 0x40-byte structure:
+A 12-byte structure immediately before the rung 0 preamble:
 
 | Offset | Size | Field | Value |
 |---|---|---|---|
@@ -44,7 +47,7 @@ Every rung has a 0x40-byte preamble that holds its comment data:
 
 | Rung | Location |
 |---|---|
-| Rung 0 | Fixed at 0x0260 (inside program header region, not in cell grid) |
+| Rung 0 | Fixed at 0x0260 (between program header and cell grid) |
 | Rung N>0 | Cell 0 of the preamble row preceding the rung's data rows |
 
 Comment fields within the preamble:
@@ -59,9 +62,9 @@ Comment fields within the preamble:
 
 When rung 0 has a comment, the RTF body is inserted at 0x0298 (preamble +0x38). This **pushes the cell grid forward** by `payload_len` bytes — everything after the insertion point shifts.
 
-The encoder writes wire flags to cell grid positions computed from the no-payload base offset (0x0A60). Because the insertion happens after flag writing, the flags land at the correct absolute addresses in the final buffer.
+The encoder builds the grid as a byte blob (concatenated cell objects) appended to the header. The insertion at 0x0298 pushes the grid bytes forward by `payload_len`, so everything lands at the correct absolute addresses in the final buffer.
 
-Buffer size formula: `pad_to_page(GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE + payload_len)`, rounded up to the next 0x1000 boundary.
+The final buffer is padded to the next 0x1000 boundary. For wire-only rungs, the pre-padding size is `GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE + payload_len`. Instruction cells are variable-length, so rows with instructions exceed the 0x800-byte baseline.
 
 ## Comment sizing
 
@@ -74,9 +77,9 @@ Buffer size formula: `pad_to_page(GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE 
 Comments are stored as RTF with a fixed prefix and suffix:
 
 ```
-{\rtf1\ansi\deff0{\fonttbl{\f0 Tahoma;}}
-{\colortbl ;\red0\green0\blue0;}
-\f0\fs16\cf1 <body> }
+{\rtf1\ansi\ansicpg1252\deff0\deflang1033{\fonttbl{\f0\fnil\fcharset0 Arial;}}
+\viewkind4\uc1\pard\fs20 <body>
+\par }
 ```
 
 Body encoding:
@@ -89,7 +92,7 @@ Body encoding:
 
 ## Cell grid
 
-The cell grid starts at 0x0A60 (before any payload push). Each row is 0x800 bytes (32 cells x 0x40 bytes per cell). Columns 0–30 are condition columns (A–AE); column 31 is the AF (output) column.
+The cell grid starts at 0x0A60 (before any payload push). Each row has 32 cells. Wire-only rows are 0x800 bytes (32 x 0x40). Rows with instruction cells are larger because instruction cells are variable-length. Columns 0–30 are condition columns (A–AE); column 31 is the AF (output) column.
 
 ### Cell structure (wire/blank cells)
 
@@ -158,7 +161,7 @@ All buffers are padded with zero bytes to the next 0x1000 (4096 byte) boundary. 
 Empty rung buffers for N rows (1..32) are synthesized deterministically from a minimal scaffold binary. Payload length formula:
 
 ```
-payload_len = 0x1000 * (ceil((rows + 1) / 2) + 1)
+payload_len = 0x1000 * ((rows + 1) // 2 + 1)
 ```
 
 This produces the correct buffer for any row count without needing 32 separate template files.

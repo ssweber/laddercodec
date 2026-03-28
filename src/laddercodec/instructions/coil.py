@@ -9,26 +9,27 @@ import re
 import struct
 from dataclasses import dataclass
 
-from ..model import InstructionType, _validate_operand
+from ..model import AfInstruction, InstructionType, _validate_operand
 
 # ---------------------------------------------------------------------------
 # Func code tables
 # ---------------------------------------------------------------------------
 
-COIL_FUNC_CODES: dict[tuple[InstructionType, bool, bool], str] = {
-    # (type, is_range, immediate) -> func_code
-    (InstructionType.COIL_OUT, False, False): "8193",
-    (InstructionType.COIL_OUT, False, True): "8197",
-    (InstructionType.COIL_OUT, True, False): "8207",
-    (InstructionType.COIL_OUT, True, True): "8208",
-    (InstructionType.COIL_LATCH, False, False): "8195",
-    (InstructionType.COIL_LATCH, False, True): "8199",
-    (InstructionType.COIL_LATCH, True, False): "8213",
-    (InstructionType.COIL_LATCH, True, True): "8214",
-    (InstructionType.COIL_RESET, False, False): "8196",
-    (InstructionType.COIL_RESET, False, True): "8200",
-    (InstructionType.COIL_RESET, True, False): "8219",
-    (InstructionType.COIL_RESET, True, True): "8220",
+COIL_FUNC_CODES: dict[tuple[InstructionType, bool, bool, bool], str] = {
+    # (type, is_range, immediate, oneshot) -> func_code
+    (InstructionType.COIL_OUT, False, False, False): "8193",
+    (InstructionType.COIL_OUT, False, True, False): "8197",
+    (InstructionType.COIL_OUT, True, False, False): "8207",
+    (InstructionType.COIL_OUT, True, True, False): "8208",
+    (InstructionType.COIL_OUT, False, False, True): "8205",
+    (InstructionType.COIL_LATCH, False, False, False): "8195",
+    (InstructionType.COIL_LATCH, False, True, False): "8199",
+    (InstructionType.COIL_LATCH, True, False, False): "8213",
+    (InstructionType.COIL_LATCH, True, True, False): "8214",
+    (InstructionType.COIL_RESET, False, False, False): "8196",
+    (InstructionType.COIL_RESET, False, True, False): "8200",
+    (InstructionType.COIL_RESET, True, False, False): "8219",
+    (InstructionType.COIL_RESET, True, True, False): "8220",
 }
 
 COIL_NAME_TO_TYPE = {
@@ -39,8 +40,8 @@ COIL_NAME_TO_TYPE = {
 
 COIL_TYPE_TO_NAME = {v: k for k, v in COIL_NAME_TO_TYPE.items()}
 
-# Reverse lookup: func_code string → (InstructionType, is_range, immediate).
-_FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool]] = {
+# Reverse lookup: func_code string → (InstructionType, is_range, immediate, oneshot).
+_FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
     v: k for k, v in COIL_FUNC_CODES.items()
 }
 
@@ -56,13 +57,14 @@ _COIL_TAGS = (0x6066, 0x6067, 0x11F8, 0x11F5, 0x3218, 0x0000)
 
 
 @dataclass
-class Coil:
+class Coil(AfInstruction):
     """An output coil instruction."""
 
     type: InstructionType  # COIL_OUT, COIL_LATCH, COIL_RESET
     operand: str  # e.g. "Y001"
     range_end: str | None = None
     immediate: bool = False
+    oneshot: bool = False
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:
@@ -102,7 +104,7 @@ class Coil:
 
     @property
     def func_code(self) -> str:
-        key = (self.type, self.range_end is not None, self.immediate)
+        key = (self.type, self.range_end is not None, self.immediate, self.oneshot)
         return COIL_FUNC_CODES[key]
 
     def to_csv(self) -> str:
@@ -112,37 +114,43 @@ class Coil:
             operand = f"{operand}..{self.range_end}"
         if self.immediate:
             operand = f"immediate({operand})"
+        if self.oneshot:
+            return f"{name}({operand},oneshot=1)"
         return f"{name}({operand})"
 
+    def cell_params(self) -> dict:
+        """Return ClickCell kwargs intrinsic to this instruction."""
+        return {}
 
-# ---------------------------------------------------------------------------
-# Blob builder
-# ---------------------------------------------------------------------------
+    def build_blob(self) -> bytes:
+        """Build the instruction data blob for this coil cell."""
+        from ..binary_helpers import _tagged_field, _utf16le_null
+
+        type_marker = 0x2700 | self.type
+        field_count = 6
+        fields = [
+            self.operand,
+            self.range_end or "",
+            "-1" if self.oneshot else "0",
+            "1" if self.immediate else "0",
+            self.func_code,
+            "",
+        ]
+
+        out = bytearray()
+        out += _utf16le_null("Out")
+        out += struct.pack("<I", type_marker)
+        out += b"\x01\x00"
+        out += struct.pack("<I", field_count)
+        for tag, value in zip(_COIL_TAGS, fields, strict=True):
+            out += _tagged_field(tag, value)
+        return bytes(out)
 
 
+# Module-level wrapper for backward compatibility.
 def build_blob(coil: Coil) -> bytes:
     """Build the instruction data blob for a coil cell."""
-    from ..cell import _tagged_field, _utf16le_null
-
-    type_marker = 0x2700 | coil.type
-    field_count = 6
-    fields = [
-        coil.operand,
-        coil.range_end or "",
-        "0",  # oneshot (always "0" for basic coils)
-        "1" if coil.immediate else "0",
-        coil.func_code,
-        "",
-    ]
-
-    out = bytearray()
-    out += _utf16le_null("Out")
-    out += struct.pack("<I", type_marker)
-    out += b"\x01\x00"
-    out += struct.pack("<I", field_count)
-    for tag, value in zip(_COIL_TAGS, fields, strict=True):
-        out += _tagged_field(tag, value)
-    return bytes(out)
+    return coil.build_blob()
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +162,7 @@ _COIL_CLASSES = {"Out", "Latch", "Reset"}
 
 def parse_blob(raw: bytes) -> Coil | None:
     """Try to parse a Coil from an instruction blob."""
-    from ..decode import _parse_tagged_fields, _read_utf16le
+    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
 
     class_name, pos = _read_utf16le(raw, 0)
     if class_name not in _COIL_CLASSES:
@@ -179,10 +187,11 @@ def parse_blob(raw: bytes) -> Coil | None:
     if info is None:
         return None
 
-    itype, is_range, immediate = info
+    itype, is_range, immediate, oneshot = info
     return Coil(
         type=itype,
         operand=operand,
         range_end=range_end if is_range else None,
         immediate=immediate,
+        oneshot=oneshot,
     )

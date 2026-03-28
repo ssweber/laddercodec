@@ -45,6 +45,7 @@ from .instructions import (
     Coil,
     CompareContact,
     Contact,
+    Copy,
     RawInstruction,
     Timer,
     parse_af_blob,
@@ -97,9 +98,9 @@ class UnknownInstruction:
 #: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
 ConditionToken = str | Contact | CompareContact | UnknownCondition
 
-#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed Coil/Timer,
+#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed Coil/Timer/Copy,
 #: raw opaque blob, or unknown blob.
-AfToken = str | Coil | Timer | RawInstruction | UnknownInstruction
+AfToken = str | Coil | Timer | Copy | RawInstruction | UnknownInstruction
 
 
 @dataclass
@@ -232,44 +233,6 @@ _RE_TOGGLE_UNDERLINE = re.compile(r"\\ul\s(.+?)\\ulnone", re.DOTALL)
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
-
-# ---------------------------------------------------------------------------
-# Private helpers — instruction blob parsing (shared utilities)
-# ---------------------------------------------------------------------------
-
-
-def _read_utf16le(raw: bytes, offset: int) -> tuple[str, int]:
-    """Read a null-terminated UTF-16LE string from *raw* at *offset*.
-
-    Returns ``(string, offset_after_null_terminator)``.
-    """
-    i = offset
-    while i < len(raw) - 1:
-        if raw[i] == 0 and raw[i + 1] == 0:
-            return raw[offset:i].decode("utf-16-le"), i + 2
-        i += 2
-    # Unterminated — return what we have.
-    return raw[offset:].decode("utf-16-le", errors="replace"), len(raw)
-
-
-def _parse_tagged_fields(raw: bytes, offset: int, count: int) -> list[str]:
-    """Parse *count* tagged fields: ``[2B tag][FFFFFFFF][UTF-16LE value]``.
-
-    Returns a list of decoded string values (tags are discarded).
-    """
-    fields: list[str] = []
-    pos = offset
-    for _ in range(count):
-        if pos + 6 > len(raw):
-            break
-        pos += 2  # skip tag
-        if raw[pos : pos + 4] != b"\xff\xff\xff\xff":
-            break
-        pos += 4  # skip sentinel
-        value, pos = _read_utf16le(raw, pos)
-        fields.append(value)
-    return fields
-
 
 # ---------------------------------------------------------------------------
 # Private helpers — buffer validation & RTF

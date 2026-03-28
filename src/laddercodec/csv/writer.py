@@ -34,7 +34,7 @@ from ..decode import (
     UnknownCondition,
     UnknownInstruction,
 )
-from ..instructions import Coil, CompareContact, Contact, RawInstruction, Timer
+from ..instructions import AfInstruction, ConditionInstruction, Timer
 from .contract import CSV_HEADER
 
 
@@ -49,7 +49,7 @@ class WriterError(ValueError):
 
 def _token_to_csv(token: object) -> str:
     """Serialize a condition or AF token to its CSV string."""
-    if isinstance(token, (Contact, Coil, CompareContact, Timer, RawInstruction)):
+    if isinstance(token, (ConditionInstruction, AfInstruction)):
         return token.to_csv()
     if isinstance(token, UnknownCondition):
         raise WriterError(f"Cannot serialize unknown condition to CSV (raw {len(token.raw)} bytes)")
@@ -93,7 +93,7 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     # --- Determine timer retention / tall padding ---
     af0 = rung.instructions[0] if rung.instructions else None
     is_retained_timer = isinstance(af0, Timer) and af0.retained
-    is_tall_timer = isinstance(af0, Timer)
+    is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
 
     # Build working copies for potential stripping.
     condition_rows = list(rung.conditions)
@@ -103,8 +103,8 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         # Retained timer: the second row becomes a .reset() pin row.
         # Keep all rows — the second row carries reset-enable conditions.
         pass
-    elif is_tall_timer:
-        # Non-retained tall timer: strip trailing blank padding rows.
+    elif is_tall:
+        # Tall instruction (timer/copy): strip trailing blank padding rows.
         while len(condition_rows) > 1 and _is_blank_row(condition_rows[-1], af_tokens[-1]):
             condition_rows = condition_rows[:-1]
             af_tokens = af_tokens[:-1]

@@ -60,12 +60,16 @@ The encoder computes a per-row boundary column:
 
 ### AF column segment rules
 
+Single-rung buffers:
+
 | Cell type | Row | Segment |
 |---|---|---|
 | Coil | 0 | 1 |
 | Coil | 1+ | 0 |
-| Timer | any | 1 |
+| Timer | any | 0 |
 | NOP data cell | any | 1 |
+
+In multi-rung buffers, all AF instruction cells get segment=0 regardless of type or row.
 
 ### Note on native captures
 

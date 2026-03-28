@@ -97,16 +97,8 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from .cell import (
-    ClickCell,
-    build_coil_blob,
-    build_compare_blob,
-    build_contact_blob,
-    build_row,
-    build_timer_blob,
-)
 from .empty_multirow import synthesize_empty_multirow
-from .instructions import Coil, CompareContact, Contact, RawInstruction, Timer
+from .instructions import AfInstruction, ConditionInstruction
 from .topology import (
     COLS_PER_ROW,
     GRID_FIRST_ROW_START,
@@ -140,11 +132,11 @@ _TOKEN_FLAGS: dict[str, tuple[int, int, int]] = {
 
 SUPPORTED_CONDITION_TOKENS = frozenset(_TOKEN_FLAGS)
 
-#: A condition-column token: wire string, Contact, or CompareContact object.
-ConditionToken = str | Contact | CompareContact
+#: A condition-column token: wire string or ConditionInstruction.
+ConditionToken = str | ConditionInstruction
 
-#: An AF-column token: ``""`` / ``"NOP"`` string, Coil, Timer, or RawInstruction.
-AfToken = str | Coil | Timer | RawInstruction
+#: An AF-column token: ``""`` / ``"NOP"`` string or AfInstruction.
+AfToken = str | AfInstruction
 
 # RTF comment envelope — from native capture.
 # Prefix (105 bytes) + cp1252 body + suffix (11 bytes).
@@ -206,13 +198,9 @@ def _pad_to_page(data: bytearray) -> bytes:
 
 
 def _normalize_af(token: AfToken) -> str:
-    """Normalize an AF token to ``'NOP'``, ``''``, ``'COIL'``, ``'TIMER'``, or ``'RAW'``."""
-    if isinstance(token, Coil):
-        return "COIL"
-    if isinstance(token, Timer):
-        return "TIMER"
-    if isinstance(token, RawInstruction):
-        return "RAW"
+    """Normalize an AF token to ``'NOP'``, ``''``, or ``'INSTR'``."""
+    if isinstance(token, AfInstruction):
+        return "INSTR"
     stripped = token.strip().upper()
     if stripped == "NOP":
         return "NOP"
@@ -302,10 +290,22 @@ def _compute_seg_boundaries(
         ct_max = 0
         for prev_r in range(r):
             for c_idx, tok in enumerate(condition_rows[prev_r]):
-                if isinstance(tok, (Contact, CompareContact)):
+                if isinstance(tok, ConditionInstruction):
                     ct_max = max(ct_max, c_idx + 2)
         boundaries[r] = max(tj_max, ct_max)
     return boundaries
+
+
+def _af_segment(row_idx: int, is_multi_row: bool, single_rung: bool) -> int:
+    """Compute the segment flag for an AF instruction cell.
+
+    - Multi-row AF (Timer, multi-part Raw): always 0.
+    - Multi-rung (all AF types): always 0.
+    - Single-rung, single-row AF (Coil, single-part Raw): 1 on row 0, else 0.
+    """
+    if is_multi_row or not single_rung:
+        return 0
+    return 1 if row_idx == 0 else 0
 
 
 # ---------------------------------------------------------------------------
@@ -353,258 +353,30 @@ def encode_rung(
         Encoded binary payload ready for the target environment.
     """
 
-    # --- Validate dimensions ---
+    from ._grid import _build_rung_grid, _compute_rung_metadata, _validate_rung
 
-    if not (MIN_ROWS <= logical_rows <= MAX_ROWS):
-        raise ValueError(f"logical_rows must be {MIN_ROWS}..{MAX_ROWS}, got {logical_rows}")
-    if len(condition_rows) != logical_rows:
-        raise ValueError(f"Expected {logical_rows} condition rows, got {len(condition_rows)}")
-    if len(af_tokens) != logical_rows:
-        raise ValueError(f"Expected {logical_rows} AF tokens, got {len(af_tokens)}")
-    for row_idx, row in enumerate(condition_rows):
-        if len(row) != CONDITION_COLUMNS:
-            raise ValueError(f"Row {row_idx}: expected {CONDITION_COLUMNS} columns, got {len(row)}")
-        for col_idx, token in enumerate(row):
-            if isinstance(token, (Contact, CompareContact)):
-                continue  # Instruction objects are always valid
-            if token not in SUPPORTED_CONDITION_TOKENS:
-                raise ValueError(f"Unsupported token {token!r} at row={row_idx}, col={col_idx}")
-            if col_idx == 0 and token in ("|", "T"):
-                raise ValueError(
-                    f"Vertical-down tokens are not allowed in column A "
-                    f"(row={row_idx}, token={token!r})"
-                )
-            if row_idx == logical_rows - 1 and token in ("|", "T"):
-                raise ValueError(
-                    f"Vertical-down tokens are not allowed on the last row "
-                    f"(row={row_idx}, col={col_idx}, token={token!r})"
-                )
+    # --- Validate ---
 
-    nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
-    if nop_count > 1:
-        raise ValueError(f"Only one NOP per rung is allowed (got {nop_count})")
+    _validate_rung(logical_rows, condition_rows, af_tokens)
 
     # --- Step 1: Header — load from template with correct row_word ---
 
     template = synthesize_empty_multirow(logical_rows)
     out = bytearray(template[:GRID_FIRST_ROW_START])
 
-    # --- Step 2: Grid — build cell objects, concatenate ---
+    # --- Step 2: Grid — validate, compute metadata, build cells ---
 
-    grid = bytearray()
-    # NOP col-0 enable (+0x15) is only needed in NOP-only rungs.
-    # When the rung has instruction cells, the flag must stay 0.
-    rung_has_instructions = any(
-        isinstance(t, (Contact, CompareContact)) for row in condition_rows for t in row
-    ) or any(isinstance(af, (Coil, Timer, RawInstruction)) for af in af_tokens)
-
-    total_instr_count = sum(
-        1 for row in condition_rows for t in row if isinstance(t, (Contact, CompareContact))
-    ) + sum(1 for af in af_tokens if isinstance(af, (Coil, Timer, RawInstruction)))
-
-    # Pre-compute instruction indices: conditions first (all rows),
-    # then AF instructions (all rows).  Native Click numbers all
-    # condition-side instructions before any AF-side instructions.
-    cond_instr_indices: dict[tuple[int, int], int] = {}
-    af_instr_indices: dict[int, int] = {}
-    idx = 0
-    for row_idx in range(logical_rows):
-        for col_idx, tok in enumerate(condition_rows[row_idx]):
-            if isinstance(tok, (Contact, CompareContact)):
-                cond_instr_indices[(row_idx, col_idx)] = idx
-                idx += 1
-    for row_idx in range(logical_rows):
-        af = af_tokens[row_idx]
-        if isinstance(af, (Coil, Timer, RawInstruction)):
-            af_instr_indices[row_idx] = idx
-            idx += 1
-
-    # AF summary block — needed on the last AF instruction cell when 2+ AFs.
-    af_summary_block = b""
-    af_rows = sorted(af_instr_indices.keys())
-    if len(af_rows) >= 2:
-        af_entries: list[tuple[int, int, bool]] = []
-        for r in af_rows:
-            cond_count = sum(
-                1 for t in condition_rows[r] if isinstance(t, (Contact, CompareContact))
-            )
-            instrs_on_row = cond_count + 1  # +1 for the AF instruction itself
-            row_has_contact = cond_count > 0
-            af_entries.append((af_instr_indices[r], instrs_on_row, row_has_contact))
-        af_summary_block = _build_af_summary(total_instr_count, len(af_rows), af_entries)
-
-    # Per-row segment boundaries for instruction-bearing rungs.
-    seg_boundaries = _compute_seg_boundaries(condition_rows) if rung_has_instructions else None
-    for row_idx in range(logical_rows):
-        cond_row = condition_rows[row_idx]
-        af = af_tokens[row_idx]
-        af_kind = _normalize_af(af)
-        has_nop = af_kind == "NOP"
-        cells: list[bytes] = []
-        seg_bound = seg_boundaries[row_idx] if seg_boundaries else 0
-
-        for col_idx in range(COLS_PER_ROW):
-            if col_idx < CONDITION_COLUMNS:
-                token = cond_row[col_idx]
-                # Segment flag: on row 0, always 1 for non-blank.
-                # On row 1+, 0 below boundary, 1 at/above boundary.
-                seg = 1 if col_idx >= seg_bound else (0 if row_idx > 0 and seg_bound > 0 else 1)
-                if isinstance(token, Contact):
-                    blob = build_contact_blob(token)
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            is_contact=True,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=seg,
-                            wire_right=1,
-                            wire_down=1 if token.wire_down else 0,
-                            instr_index=cond_instr_indices[(row_idx, col_idx)],
-                            blob=blob,
-                        ).to_bytes()
-                    )
-                elif isinstance(token, CompareContact):
-                    blob = build_compare_blob(token)
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            is_contact=True,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=seg,
-                            wire_right=1,
-                            wire_down=1 if token.wire_down else 0,
-                            instr_index=cond_instr_indices[(row_idx, col_idx)],
-                            blob=blob,
-                        ).to_bytes()
-                    )
-                else:
-                    seg, right, down = _TOKEN_FLAGS[token]
-                    # Apply segment boundary on row 1+.
-                    if seg and row_idx > 0 and seg_bound > 0 and col_idx < seg_bound:
-                        seg = 0
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=seg,
-                            wire_right=right,
-                            wire_down=down,
-                            nop_enable=1
-                            if (
-                                has_nop
-                                and row_idx > 0
-                                and col_idx == 0
-                                and not rung_has_instructions
-                            )
-                            else 0,
-                        ).to_bytes()
-                    )
-            else:  # AF column (col 31)
-                is_last_af = af_rows and row_idx == af_rows[-1]
-                summary = af_summary_block if is_last_af else b""
-                if af_kind == "COIL":
-                    assert isinstance(af, Coil)
-                    blob = build_coil_blob(af)
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            is_contact=False,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=1 if row_idx == 0 else 0,
-                            wire_right=1,
-                            instr_index=af_instr_indices[row_idx],
-                            blob=blob,
-                            af_summary=summary,
-                        ).to_bytes()
-                    )
-                elif af_kind == "TIMER":
-                    assert isinstance(af, Timer)
-                    blob = build_timer_blob(af)
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            is_contact=False,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=0,
-                            wire_right=1,
-                            instr_index=af_instr_indices[row_idx],
-                            blob=blob,
-                            row_span=logical_rows,
-                            visual_rows=3 if af.retained else 2,
-                            af_summary=summary,
-                        ).to_bytes()
-                    )
-                elif af_kind == "RAW":
-                    assert isinstance(af, RawInstruction)
-                    is_multi_row = af.part_count > 1
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            is_contact=False,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=0 if is_multi_row else (1 if row_idx == 0 else 0),
-                            wire_right=1,
-                            instr_index=af_instr_indices[row_idx],
-                            blob=af.blob,
-                            row_span=logical_rows if is_multi_row else 1,
-                            visual_rows=af.part_count if is_multi_row else 1,
-                            af_summary=summary,
-                        ).to_bytes()
-                    )
-                else:
-                    cells.append(
-                        ClickCell(
-                            col=col_idx,
-                            global_row=row_idx,
-                            rung_idx=0,
-                            local_row=row_idx,
-                            logical_rows=logical_rows,
-                            is_last_rung=True,
-                            single_rung=True,
-                            rung_has_instructions=rung_has_instructions,
-                            segment=1 if has_nop else 0,
-                            af_nop=1 if has_nop else 0,
-                            instr_count=total_instr_count,
-                        ).to_bytes()
-                    )
-
-        grid += build_row(cells)
+    meta = _compute_rung_metadata(logical_rows, condition_rows, af_tokens)
+    grid = _build_rung_grid(
+        logical_rows,
+        condition_rows,
+        af_tokens,
+        meta,
+        global_row_start=0,
+        rung_idx=0,
+        is_last_rung=True,
+        single_rung=True,
+    )
 
     # --- Step 3: Assemble header + grid ---
 

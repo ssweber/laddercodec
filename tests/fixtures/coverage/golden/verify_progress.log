@@ -1,0 +1,93 @@
+# Verify 2026-03-20T19:38:08.081138+00:00
+calc__decimal: error (Unsupported AF instruction: 'calc')
+calc__hex: error (Unsupported AF instruction: 'calc')
+calc__oneshot: error (Unsupported AF instruction: 'calc')
+call__basic: error (Unsupported AF instruction: 'end')
+cond__and: worked
+cond__eq: worked
+cond__fall: worked
+cond__ge: worked
+cond__gt: worked
+cond__immediate: worked
+cond__le: worked
+cond__lt: worked
+cond__nc: worked
+cond__ne: worked
+cond__no: worked
+cond__or: worked
+cond__rise: worked
+count_down: error (Unsupported AF instruction: 'count_down')
+count_up__down: error (Unsupported AF instruction: 'count_up')
+count_up__reset: error (Unsupported AF instruction: 'count_up')
+event_drum__basic: error (Unsupported AF instruction: 'event_drum')
+event_drum__full: error (Unsupported AF instruction: 'event_drum')
+event_drum__jog: error (Unsupported AF instruction: 'event_drum')
+event_drum__jump: error (Unsupported AF instruction: 'event_drum')
+forloop__basic: error (Unsupported AF instruction: 'next')
+forloop__oneshot: error (Unsupported AF instruction: 'next')
+latch__block: worked
+latch__immediate: worked
+latch__tag: worked
+off_delay__tof: worked
+on_delay__rton: worked
+on_delay__ton: worked
+out__block: worked
+out__immediate: worked
+out__oneshot: worked
+out__tag: worked
+pack_bits: error (Unsupported AF instruction: 'pack_bits')
+pack_bits__oneshot: error (Unsupported AF instruction: 'pack_bits')
+pack_text: error (Unsupported AF instruction: 'pack_text')
+pack_text__allow_whitespace: error (Unsupported AF instruction: 'pack_text')
+pack_text__oneshot: error (Unsupported AF instruction: 'pack_text')
+pack_words: error (Unsupported AF instruction: 'pack_words')
+pack_words__oneshot: error (Unsupported AF instruction: 'pack_words')
+receive__basic: error (Unsupported AF instruction: 'receive')
+reset__block: worked
+reset__immediate: worked
+reset__tag: worked
+search__continuous: error (Unsupported AF instruction: 'search')
+search__eq: error (Unsupported AF instruction: 'search')
+search__ge: error (Unsupported AF instruction: 'search')
+search__gt: error (Unsupported AF instruction: 'search')
+search__le: error (Unsupported AF instruction: 'search')
+search__lt: error (Unsupported AF instruction: 'search')
+search__ne: error (Unsupported AF instruction: 'search')
+search__oneshot: error (Unsupported AF instruction: 'search')
+send__basic: error (Unsupported AF instruction: 'send')
+shift__basic: error (Unsupported AF instruction: 'shift')
+time_drum__basic: error (Unsupported AF instruction: 'time_drum')
+time_drum__full: error (Unsupported AF instruction: 'time_drum')
+time_drum__jog: error (Unsupported AF instruction: 'time_drum')
+time_drum__jump: error (Unsupported AF instruction: 'time_drum')
+unpack_to_bits: error (Unsupported AF instruction: 'unpack_to_bits')
+unpack_to_bits__oneshot: error (Unsupported AF instruction: 'unpack_to_bits')
+unpack_to_words: error (Unsupported AF instruction: 'unpack_to_words')
+unpack_to_words__oneshot: error (Unsupported AF instruction: 'unpack_to_words')
+copy__as_ascii: skipped
+copy__as_binary: skipped
+copy__as_text: skipped
+copy__as_text_exp: skipped
+copy__as_text_opts: skipped
+copy__as_text_pad: skipped
+copy__as_text_sz: skipped
+copy__as_text_term: skipped
+copy__as_value: skipped
+copy__literal_float: skipped
+copy__literal_int: skipped
+copy__oneshot: skipped
+copy__tag: worked
+copy__to_ascii: worked
+copy__to_binary: worked
+copy__to_text: worked
+copy__to_text_exp: worked
+copy__to_text_sz: worked
+copy__to_value: worked
+blockcopy__block: worked
+blockcopy__oneshot: worked
+blockcopy__to_value: worked
+copy__to_text_term: worked
+fill__literal: worked
+fill__oneshot: worked
+fill__tag: worked
+blockcopy__to_ascii: worked

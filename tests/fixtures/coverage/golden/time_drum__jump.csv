@@ -1,5 +1,0 @@
-marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,time_drum__jump
-R,C210,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"time_drum(outputs=[C211,C212],presets=[1000,2000],unit=Tms,pattern=[[1,0],[0,1]],current_step=DS186,accumulator=TD5,completion_flag=C213)"
-,C214,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,.reset()
-,C215,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,.jump(1)

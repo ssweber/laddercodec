@@ -6,12 +6,17 @@ laddercodec uses a 33-column CSV format for describing ladder rungs. This is the
 
 | Column | Name | Content |
 |---|---|---|
-| 0 | Marker | Row type: `R` (data), `#` (comment), `.reset()` (pin row) |
+| 0 | Marker | Row type: `R` (first row), `#` (comment), `""` (continuation/pin row) |
 | 1–31 | A–AE | Condition columns (wire tokens or instruction tokens) |
 | 32 | AF | Output column (instruction token, `NOP`, or blank) |
 
+## Template
+
+A minimal single-rung CSV you can copy-paste and modify:
+
 ```csv
-R,-,-,-,,,,,,,,,,,,,,,,,,,,,,,,,,,,out(Y001)
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)
 ```
 
 ## Wire tokens
@@ -29,18 +34,21 @@ The condition columns accept four tokens:
 
 ### Condition side (columns A–AE)
 
-Contacts and comparison contacts appear directly in condition columns:
+Contacts, comparison contacts, and wire-down prefixed contacts appear in condition columns:
 
 | Example | Meaning |
 |---|---|
 | `X001` | NO contact |
-| `/X001` | NC contact |
-| `^X001` | Rising edge |
-| `vX001` | Falling edge |
-| `!X001` | Immediate NO |
-| `!/X001` | Immediate NC |
+| `~X001` | NC contact |
+| `rise(X001)` | Rising edge |
+| `fall(X001)` | Falling edge |
+| `immediate(X001)` or `X001.immediate` | Immediate NO |
+| `~immediate(X001)` | Immediate NC |
 | `DS1==DS2` | Comparison (EQ) |
 | `DS1!=100` | Comparison (NE, literal) |
+| `T:X001` | Contact with vertical-down wire |
+| `T:~X002` | NC contact with vertical-down wire |
+| `T:rise(C1)` | Edge contact with vertical-down wire |
 
 ### AF side (column AF)
 
@@ -50,9 +58,9 @@ Contacts and comparison contacts appear directly in condition columns:
 | `latch(Y001)` | Latch coil |
 | `reset(Y001)` | Reset coil |
 | `out(C1..C8)` | Range output |
-| `!out(Y001)` | Immediate output |
-| `on_delay(TD1,1000,ms)` | On-delay timer |
-| `off_delay(TD1,500,Ts)` | Off-delay timer |
+| `out(immediate(Y001))` | Immediate output |
+| `on_delay(T1,TD1,preset=1000,unit=Tms)` | On-delay timer |
+| `off_delay(T1,TD1,preset=500,unit=Tms)` | Off-delay timer |
 | `NOP` | No operation |
 | `raw(ClassName,hex)` | Opaque blob passthrough |
 | *(blank)* | No instruction |
@@ -88,7 +96,7 @@ R,X001,-,-,,,,,,,,,,,,,,,,,,,,,,,,,,,,out(Y002)
 Pin rows are continuation rows whose AF token starts with a dot (`.reset()`, `.down()`, etc.). They modify the instruction on the row above rather than producing a separate AF instruction:
 
 ```csv
-R,X001,-,-,,,,,,,,,,,,,,,,,,,,,,,,,,,,on_delay(T1,TD1,preset=1000,unit=Tms)
+R,X001,-,-,,,,,,,,,,,,,,,,,,,,,,,,,,,,on_delay(T001,TD1,preset=1000,unit=Tms)
 ,X002,-,-,,,,,,,,,,,,,,,,,,,,,,,,,,,,,.reset()
 ```
 

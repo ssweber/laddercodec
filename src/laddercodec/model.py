@@ -13,6 +13,36 @@ from __future__ import annotations
 import re
 from enum import IntEnum
 
+# ---------------------------------------------------------------------------
+# Instruction base classes — used for isinstance dispatch
+# ---------------------------------------------------------------------------
+
+
+class ConditionInstruction:
+    """Base class for condition-side instructions (Contact, CompareContact)."""
+
+    def to_csv(self) -> str:
+        raise NotImplementedError
+
+    def build_blob(self) -> bytes:
+        raise NotImplementedError
+
+    def cell_params(self) -> dict:
+        raise NotImplementedError
+
+
+class AfInstruction:
+    """Base class for AF-side instructions (Coil, Timer, Copy, BlockCopy, Fill, RawInstruction)."""
+
+    def to_csv(self) -> str:
+        raise NotImplementedError
+
+    def build_blob(self) -> bytes:
+        raise NotImplementedError
+
+    def cell_params(self) -> dict:
+        raise NotImplementedError
+
 
 class InstructionType(IntEnum):
     """Instruction type IDs (low byte; high byte is always 0x27)."""
@@ -25,6 +55,7 @@ class InstructionType(IntEnum):
     COIL_LATCH = 0x16  # 0x2716
     COIL_RESET = 0x17  # 0x2717
     TIMER = 0x18  # 0x2718 (on_delay / off_delay timers)
+    COPY = 0x21  # 0x2721 (single/block/fill/pack/unpack copy)
 
 
 OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")

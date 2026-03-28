@@ -10,7 +10,7 @@ import struct
 from dataclasses import dataclass
 from typing import Literal
 
-from ..model import InstructionType, _validate_operand
+from ..model import ConditionInstruction, InstructionType, _validate_operand
 
 # ---------------------------------------------------------------------------
 # Func code tables — NO/NC
@@ -55,7 +55,7 @@ _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
 
 @dataclass
-class Contact:
+class Contact(ConditionInstruction):
     """A contact instruction (NO or NC)."""
 
     type: InstructionType  # CONTACT_NO, CONTACT_NC, or CONTACT_EDGE
@@ -140,48 +140,43 @@ class Contact:
             return f"T:{inner}"
         return inner
 
+    def cell_params(self) -> dict:
+        """Return ClickCell kwargs intrinsic to this instruction."""
+        return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
 
-# ---------------------------------------------------------------------------
-# Blob builder — NO/NC
-# ---------------------------------------------------------------------------
+    def build_blob(self) -> bytes:
+        """Build the instruction data blob for this contact cell."""
+        from ..binary_helpers import _tagged_field, _utf16le_null
 
+        if self.type == InstructionType.CONTACT_EDGE:
+            return _build_edge_blob(self)
 
-def build_blob(contact: Contact) -> bytes:
-    """Build the instruction data blob for a NO/NC contact cell.
+        class_name = "ContactNO"
+        tags = _CONTACT_NO_TAGS
+        field1 = "1" if self.immediate else "0"
 
-    Edge contacts are handled internally by :func:`_build_edge_blob`.
-    """
-    from ..cell import _tagged_field, _utf16le_null
+        type_marker = 0x2700 | self.type
+        field_count = 4
+        fields = [self.operand, field1, self.func_code, ""]
 
-    if contact.type == InstructionType.CONTACT_EDGE:
-        return _build_edge_blob(contact)
-
-    class_name = "ContactNO"
-    tags = _CONTACT_NO_TAGS
-    field1 = "1" if contact.immediate else "0"
-
-    type_marker = 0x2700 | contact.type
-    field_count = 4
-    fields = [contact.operand, field1, contact.func_code, ""]
-
-    out = bytearray()
-    out += _utf16le_null(class_name)
-    out += struct.pack("<I", type_marker)
-    out += b"\x01\x00"
-    out += struct.pack("<I", field_count)
-    for tag, value in zip(tags, fields, strict=True):
-        out += _tagged_field(tag, value)
-    return bytes(out)
+        out = bytearray()
+        out += _utf16le_null(class_name)
+        out += struct.pack("<I", type_marker)
+        out += b"\x01\x00"
+        out += struct.pack("<I", field_count)
+        for tag, value in zip(tags, fields, strict=True):
+            out += _tagged_field(tag, value)
+        return bytes(out)
 
 
 # ---------------------------------------------------------------------------
-# Blob builder — Edge
+# Blob builder — Edge (private helper)
 # ---------------------------------------------------------------------------
 
 
 def _build_edge_blob(contact: Contact) -> bytes:
     """Build the instruction data blob for an edge contact cell."""
-    from ..cell import _tagged_field, _utf16le_null
+    from ..binary_helpers import _tagged_field, _utf16le_null
 
     class_name = "Edge"
     tags = _EDGE_TAGS
@@ -201,6 +196,12 @@ def _build_edge_blob(contact: Contact) -> bytes:
     return bytes(out)
 
 
+# Module-level wrapper for backward compatibility.
+def build_blob(contact: Contact) -> bytes:
+    """Build the instruction data blob for a contact cell."""
+    return contact.build_blob()
+
+
 # ---------------------------------------------------------------------------
 # Blob parser — NO/NC
 # ---------------------------------------------------------------------------
@@ -208,7 +209,7 @@ def _build_edge_blob(contact: Contact) -> bytes:
 
 def parse_blob(raw: bytes) -> Contact | None:
     """Try to parse a Contact from an instruction blob ("ContactNO" or "Edge")."""
-    from ..decode import _parse_tagged_fields, _read_utf16le
+    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
 
     class_name, pos = _read_utf16le(raw, 0)
 
@@ -252,7 +253,7 @@ def parse_blob(raw: bytes) -> Contact | None:
 
 def _parse_edge_blob(raw: bytes, pos: int) -> Contact | None:
     """Parse a Contact from an instruction blob starting with "Edge"."""
-    from ..decode import _parse_tagged_fields
+    from ..binary_helpers import _parse_tagged_fields
 
     if pos + 10 > len(raw):
         return None

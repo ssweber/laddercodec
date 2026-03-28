@@ -17,6 +17,8 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass
 
+from ..model import AfInstruction
+
 # ---------------------------------------------------------------------------
 # Blob boundary detection
 # ---------------------------------------------------------------------------
@@ -91,7 +93,7 @@ def find_blob_boundary(raw: bytes) -> tuple[str, int, int]:
 
 
 @dataclass
-class RawInstruction:
+class RawInstruction(AfInstruction):
     """Opaque AF instruction — blob preserved for byte-exact round-trip.
 
     Attributes
@@ -110,6 +112,16 @@ class RawInstruction:
     class_name: str
     blob: bytes
     part_count: int = 1
+
+    def cell_params(self) -> dict:
+        """Return ClickCell kwargs intrinsic to this instruction."""
+        if self.part_count > 1:
+            return {"visual_rows": self.part_count}
+        return {}
+
+    def build_blob(self) -> bytes:
+        """Return the raw blob bytes (no-op — already stored)."""
+        return self.blob
 
     def to_csv(self) -> str:
         """Serialize to ``raw(ClassName,hex)`` CSV token."""

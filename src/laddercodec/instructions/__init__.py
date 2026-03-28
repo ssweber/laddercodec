@@ -9,15 +9,17 @@ to ``(parse_blob, build_blob)`` callables for dispatch.
 
 from __future__ import annotations
 
+# Re-export base classes and model classes for convenience.
+from ..model import AfInstruction, ConditionInstruction
 from . import coil as coil_mod
 from . import comparison as comparison_mod
 from . import contact as contact_mod
+from . import copy as copy_mod
 from . import timer as timer_mod
-
-# Re-export model classes for convenience.
 from .coil import Coil
 from .comparison import CompareContact
 from .contact import Contact
+from .copy import BlockCopy, Copy, Fill
 from .raw import RawInstruction
 from .timer import Timer
 
@@ -34,6 +36,7 @@ INSTRUCTION_MODULES = {
     "Latch": coil_mod,  # all coil class names → same module
     "Reset": coil_mod,
     "Tmr": timer_mod,
+    "Copy": copy_mod,
 }
 
 
@@ -59,12 +62,12 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
         return None
 
     result = mod.parse_blob(raw)
-    if isinstance(result, (Contact, CompareContact)):
+    if isinstance(result, ConditionInstruction):
         return result
     return None
 
 
-def parse_af_blob(raw: bytes) -> Coil | Timer | None:
+def parse_af_blob(raw: bytes) -> Coil | Timer | Copy | BlockCopy | Fill | None:
     """Try to parse an AF-column instruction blob.
 
     Dispatches to the appropriate module based on the UTF-16LE class name.
@@ -83,16 +86,21 @@ def parse_af_blob(raw: bytes) -> Coil | Timer | None:
         return None
 
     result = mod.parse_blob(raw)
-    if isinstance(result, (Coil, Timer)):
+    if isinstance(result, AfInstruction):
         return result
     return None
 
 
 __all__ = [
     "INSTRUCTION_MODULES",
+    "AfInstruction",
+    "BlockCopy",
     "Coil",
     "CompareContact",
+    "ConditionInstruction",
     "Contact",
+    "Copy",
+    "Fill",
     "RawInstruction",
     "Timer",
     "parse_af_blob",

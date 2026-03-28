@@ -38,11 +38,20 @@ import re
 from typing import Literal
 
 from ..encode import AfToken, ConditionToken
-from ..instructions import Coil, CompareContact, Contact, RawInstruction, Timer
+from ..instructions import (
+    BlockCopy,
+    Coil,
+    CompareContact,
+    Contact,
+    Copy,
+    Fill,
+    RawInstruction,
+    Timer,
+)
 from ..instructions.coil import COIL_NAME_TO_TYPE
 from ..instructions.raw import find_blob_boundary
 from ..instructions.timer import TIMER_UNIT_TO_INDEX
-from ..model import InstructionType, _validate_operand
+from ..model import AfInstruction, InstructionType, _validate_operand
 from .ast import (
     AfBlank,
     AfCall,
@@ -57,6 +66,7 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
+from .token_parser import parse_af_token as _parse_af_token
 
 # ---------------------------------------------------------------------------
 # Pin row table — dot-prefixed AF tokens and their effects
@@ -73,6 +83,9 @@ _KNOWN_PINS = frozenset({".reset", ".down", ".clock", ".jump", ".jog"})
 _TALL_AF: dict[str, int] = {
     "on_delay": 2,
     "off_delay": 2,
+    "copy": 2,
+    "blockcopy": 2,
+    "fill": 2,
 }
 
 # ---------------------------------------------------------------------------
@@ -136,6 +149,38 @@ def _parse_coil_arg(arg: str) -> tuple[str, str | None, bool]:
     return _validate_operand(arg), None, immediate
 
 
+def _parse_range(arg: str) -> tuple[str, str]:
+    """Split ``"DS28..DS31"`` into ``("DS28", "DS31")``."""
+    if ".." not in arg:
+        raise ValueError(f"Expected range with '..': {arg!r}")
+    parts = [p.strip() for p in arg.split("..")]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"Cannot parse range: {arg!r}")
+    return parts[0], parts[1]
+
+
+_CONVERT_FORMATS = frozenset({"to_text", "to_value", "to_binary", "to_ascii"})
+
+
+def _parse_convert_value(raw: str) -> tuple[str, dict[str, str]]:
+    """Parse a ``convert=`` kwarg value, returning *(format, text_opts)*.
+
+    Examples: ``to_value``, ``to_text(suppress_zero=0,exponential=1)``.
+    """
+    parsed = _parse_af_token(raw.strip())
+    if not isinstance(parsed, AfCall) or parsed.name not in _CONVERT_FORMATS:
+        raise ValueError(f"Cannot parse convert value: {raw!r}")
+
+    fmt = parsed.name[3:]  # "text", "value", "binary", "ascii"
+
+    if fmt != "text":
+        if parsed.args or parsed.kwargs:
+            raise ValueError(f"to_{fmt} takes no arguments: {raw!r}")
+        return fmt, {}
+
+    return "text", dict(parsed.kwargs)
+
+
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     """Convert a parsed AF call node to an encode-ready token."""
     name = call.name
@@ -146,11 +191,13 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
                 f"Coil {name!r} expects exactly 1 positional arg, got {len(call.args)}"
             )
         operand, range_end, immediate = _parse_coil_arg(call.args[0])
+        oneshot = call.kwargs.get("oneshot") == "1"
         return Coil(
             type=COIL_NAME_TO_TYPE[name],
             operand=operand,
             range_end=range_end,
             immediate=immediate,
+            oneshot=oneshot,
         )
 
     if name in ("on_delay", "off_delay"):
@@ -170,6 +217,72 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
             current=current,
             setpoint=setpoint,
             unit=unit,
+        )
+
+    if name == "copy":
+        if len(call.args) != 2:
+            raise ValueError(f"copy expects 2 positional args (source, dest), got {len(call.args)}")
+        source, destination = call.args
+        oneshot = call.kwargs.get("oneshot") == "1"
+
+        # Parse convert= kwarg
+        convert_raw = call.kwargs.get("convert", "")
+        if convert_raw:
+            fmt, text_opts = _parse_convert_value(convert_raw)
+        else:
+            fmt, text_opts = "none", {}
+
+        suppress_zero = text_opts.get("suppress_zero", "0")
+        exponential = text_opts.get("exponential", "0")
+        term_val = text_opts.get("termination_code", "0")
+        if term_val == "none":
+            term_val = "0"
+
+        return Copy(
+            source=source,
+            destination=destination,
+            format=fmt,
+            oneshot=oneshot,
+            suppress_zero=suppress_zero,
+            exponential=exponential,
+            termination_code=term_val,
+        )
+
+    if name == "blockcopy":
+        if len(call.args) != 2:
+            raise ValueError(
+                f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
+            )
+        src_start, src_end = _parse_range(call.args[0])
+        dest_start, dest_end = _parse_range(call.args[1])
+        oneshot = call.kwargs.get("oneshot") == "1"
+        convert_raw = call.kwargs.get("convert", "")
+        if convert_raw:
+            fmt, _ = _parse_convert_value(convert_raw)
+        else:
+            fmt = "none"
+        return BlockCopy(
+            source_start=src_start,
+            source_end=src_end,
+            dest_start=dest_start,
+            dest_end=dest_end,
+            format=fmt,
+            oneshot=oneshot,
+        )
+
+    if name == "fill":
+        if len(call.args) != 2:
+            raise ValueError(
+                f"fill expects 2 positional args (value, dest_range), got {len(call.args)}"
+            )
+        value = call.args[0]
+        dest_start, dest_end = _parse_range(call.args[1])
+        oneshot = call.kwargs.get("oneshot") == "1"
+        return Fill(
+            value=value,
+            dest_start=dest_start,
+            dest_end=dest_end,
+            oneshot=oneshot,
         )
 
     if name == "raw":
@@ -322,7 +435,7 @@ def strip_tall_padding(
 
     # Check if row 0 has a tall AF instruction.
     af0 = af_tokens[0]
-    is_tall = isinstance(af0, Timer)
+    is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
     if not is_tall:
         return logical_rows, condition_rows, af_tokens
 

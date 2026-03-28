@@ -10,7 +10,7 @@ import struct
 from dataclasses import dataclass
 from typing import Literal
 
-from ..model import InstructionType
+from ..model import ConditionInstruction, InstructionType
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -51,7 +51,7 @@ _COMPARE_TAGS = (0x3218, 0x6066, 0x6067, 0x21F7, 0x0000)
 
 
 @dataclass
-class CompareContact:
+class CompareContact(ConditionInstruction):
     """A comparison contact (EQ, NE, GT, LT, GE, LE).
 
     Occupies a condition column.  The binary class name is ``Compare``
@@ -101,34 +101,38 @@ class CompareContact:
             return f"T:{inner}"
         return inner
 
+    def cell_params(self) -> dict:
+        """Return ClickCell kwargs intrinsic to this instruction."""
+        return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
 
-# ---------------------------------------------------------------------------
-# Blob builder
-# ---------------------------------------------------------------------------
+    def build_blob(self) -> bytes:
+        """Build the instruction data blob for this compare contact cell."""
+        from ..binary_helpers import _tagged_field, _utf16le_null
+
+        type_marker = 0x2700 | InstructionType.COMPARE
+        field_count = 5
+        fields = [
+            self.func_code,
+            self.left,
+            self.right,
+            self.compare_type_idx,
+            "",
+        ]
+
+        out = bytearray()
+        out += _utf16le_null("Compare")
+        out += struct.pack("<I", type_marker)
+        out += b"\x01\x00"
+        out += struct.pack("<I", field_count)
+        for tag, value in zip(_COMPARE_TAGS, fields, strict=True):
+            out += _tagged_field(tag, value)
+        return bytes(out)
 
 
+# Module-level wrapper for backward compatibility.
 def build_blob(compare: CompareContact) -> bytes:
     """Build the instruction data blob for a compare contact cell."""
-    from ..cell import _tagged_field, _utf16le_null
-
-    type_marker = 0x2700 | InstructionType.COMPARE
-    field_count = 5
-    fields = [
-        compare.func_code,
-        compare.left,
-        compare.right,
-        compare.compare_type_idx,
-        "",
-    ]
-
-    out = bytearray()
-    out += _utf16le_null("Compare")
-    out += struct.pack("<I", type_marker)
-    out += b"\x01\x00"
-    out += struct.pack("<I", field_count)
-    for tag, value in zip(_COMPARE_TAGS, fields, strict=True):
-        out += _tagged_field(tag, value)
-    return bytes(out)
+    return compare.build_blob()
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +142,7 @@ def build_blob(compare: CompareContact) -> bytes:
 
 def parse_blob(raw: bytes) -> CompareContact | None:
     """Try to parse a CompareContact from an instruction blob."""
-    from ..decode import _parse_tagged_fields, _read_utf16le
+    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
 
     class_name, pos = _read_utf16le(raw, 0)
     if class_name != "Compare":

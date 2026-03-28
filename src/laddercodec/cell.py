@@ -15,15 +15,8 @@ from __future__ import annotations
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from .topology import CELL_SIZE, COLS_PER_ROW
-
-if TYPE_CHECKING:
-    from .instructions.coil import Coil
-    from .instructions.comparison import CompareContact
-    from .instructions.contact import Contact
-    from .instructions.timer import Timer
 
 # Instruction data starts at this offset in the cell header.
 _INSTR_DATA_OFFSET = 0x25
@@ -204,62 +197,6 @@ class ClickCell:
 
         # Instruction cell: header(37) + blob [+ af_summary] + tail(16).
         return bytes(header + self.blob + self.af_summary + tail)
-
-
-# ---------------------------------------------------------------------------
-# Shared blob encoding helpers (used by instructions/ modules)
-# ---------------------------------------------------------------------------
-
-
-def _utf16le_null(s: str) -> bytes:
-    """Encode *s* as UTF-16LE with a null terminator."""
-    return s.encode("utf-16-le") + b"\x00\x00"
-
-
-def _tagged_field(tag: int, value: str) -> bytes:
-    """Build ``[2B tag LE][FFFFFFFF sentinel][UTF-16LE null-terminated value]``."""
-    return struct.pack("<H", tag) + b"\xff\xff\xff\xff" + _utf16le_null(value)
-
-
-def _variant_tagged_field(tag: int, sub_marker: bytes, value: str) -> bytes:
-    """Build ``[2B tag LE][4B sub-marker][UTF-16LE null-terminated value]``."""
-    return struct.pack("<H", tag) + sub_marker + _utf16le_null(value)
-
-
-# ---------------------------------------------------------------------------
-# Instruction blob builders — delegate to instructions/ modules.
-#
-# These thin wrappers preserve the existing call sites in encode.py
-# and encode_multi.py.
-# ---------------------------------------------------------------------------
-
-
-def build_contact_blob(contact: Contact) -> bytes:
-    """Build the instruction data blob for a contact cell."""
-    from .instructions.contact import build_blob
-
-    return build_blob(contact)
-
-
-def build_coil_blob(coil: Coil) -> bytes:
-    """Build the instruction data blob for a coil cell."""
-    from .instructions.coil import build_blob
-
-    return build_blob(coil)
-
-
-def build_compare_blob(compare: CompareContact) -> bytes:
-    """Build the instruction data blob for a compare contact cell."""
-    from .instructions.comparison import build_blob
-
-    return build_blob(compare)
-
-
-def build_timer_blob(timer: Timer) -> bytes:
-    """Build the instruction data blob for a timer cell."""
-    from .instructions.timer import build_blob
-
-    return build_blob(timer)
 
 
 # ---------------------------------------------------------------------------

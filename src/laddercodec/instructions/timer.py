@@ -11,6 +11,8 @@ import struct
 from dataclasses import dataclass
 from typing import Literal
 
+from ..model import AfInstruction
+
 # ---------------------------------------------------------------------------
 # Func code tables
 # ---------------------------------------------------------------------------
@@ -39,7 +41,7 @@ _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
 
 @dataclass
-class Timer:
+class Timer(AfInstruction):
     """A timer instruction (on_delay / off_delay).
 
     Occupies the AF column.  The binary class name is ``Tmr``
@@ -115,46 +117,50 @@ class Timer:
     def to_csv(self) -> str:
         return f"{self.timer_type}({self.done_bit},{self.current},preset={self.setpoint},unit={self.unit})"
 
+    def cell_params(self) -> dict:
+        """Return ClickCell kwargs intrinsic to this instruction."""
+        return {"visual_rows": 3 if self.retained else 2}
 
-# ---------------------------------------------------------------------------
-# Blob builder
-# ---------------------------------------------------------------------------
+    def build_blob(self) -> bytes:
+        """Build the instruction data blob for this timer cell."""
+        from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field
+        from ..model import InstructionType
+
+        type_marker = 0x2700 | InstructionType.TIMER
+
+        out = bytearray()
+        out += _utf16le_null("Tmr")
+        out += struct.pack("<I", type_marker)
+        out += b"\x02\x00"  # part count (differs from contact/coil's 01 00)
+        out += b"\x01"  # sub-marker
+        out += struct.pack("<I", 9)  # field count
+
+        # Fields 0–5: standard tagged fields.
+        std_values = [
+            self.done_bit,
+            self.setpoint,
+            self.current,
+            self.unit_idx,
+            "0" if self.timer_type == "on_delay" else "1",
+            "1" if self.retained else "0",
+        ]
+        for tag, value in zip(_TIMER_STD_TAGS, std_values, strict=True):
+            out += _tagged_field(tag, value)
+
+        # Fields 6–7: variant format [2B tag][4B sub-marker][UTF-16LE value].
+        out += _variant_tagged_field(0x3A05, b"\x00\x00\x00\x00", self.enable_func_code)
+        out += _variant_tagged_field(0x3A05, b"\x01\x00\x00\x00", self.reset_func_code)
+
+        # Field 8: empty sentinel field.
+        out += _tagged_field(0x0000, "")
+
+        return bytes(out)
 
 
+# Module-level wrapper for backward compatibility.
 def build_blob(timer: Timer) -> bytes:
     """Build the instruction data blob for a timer cell."""
-    from ..cell import _tagged_field, _utf16le_null, _variant_tagged_field
-    from ..model import InstructionType
-
-    type_marker = 0x2700 | InstructionType.TIMER
-
-    out = bytearray()
-    out += _utf16le_null("Tmr")
-    out += struct.pack("<I", type_marker)
-    out += b"\x02\x00"  # part count (differs from contact/coil's 01 00)
-    out += b"\x01"  # sub-marker
-    out += struct.pack("<I", 9)  # field count
-
-    # Fields 0–5: standard tagged fields.
-    std_values = [
-        timer.done_bit,
-        timer.setpoint,
-        timer.current,
-        timer.unit_idx,
-        "0" if timer.timer_type == "on_delay" else "1",
-        "1" if timer.retained else "0",
-    ]
-    for tag, value in zip(_TIMER_STD_TAGS, std_values, strict=True):
-        out += _tagged_field(tag, value)
-
-    # Fields 6–7: variant format [2B tag][4B sub-marker][UTF-16LE value].
-    out += _variant_tagged_field(0x3A05, b"\x00\x00\x00\x00", timer.enable_func_code)
-    out += _variant_tagged_field(0x3A05, b"\x01\x00\x00\x00", timer.reset_func_code)
-
-    # Field 8: empty sentinel field.
-    out += _tagged_field(0x0000, "")
-
-    return bytes(out)
+    return timer.build_blob()
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +170,7 @@ def build_blob(timer: Timer) -> bytes:
 
 def parse_blob(raw: bytes) -> Timer | None:
     """Try to parse a Timer from an instruction blob."""
-    from ..decode import _read_utf16le
+    from ..binary_helpers import _read_utf16le
 
     class_name, pos = _read_utf16le(raw, 0)
     if class_name != "Tmr":

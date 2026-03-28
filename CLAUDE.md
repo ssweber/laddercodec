@@ -37,21 +37,23 @@ Instead:
 ```
 src/laddercodec/
 ├── __init__.py           # Public API: encode(), decode(), read_csv(), write_csv(), Rung, ...
-├── encode.py             # Encoder: encode() + internal encode_rung()
+├── encode.py             # Encoder: encode() + internal encode_rung(), constants, RTF helpers
 ├── encode_multi.py       # Multi-rung encoder: internal encode_rungs()
+├── _grid.py              # Shared grid-building: _validate_rung, _compute_rung_metadata, _build_rung_grid
+├── binary_helpers.py     # Shared binary primitives: UTF-16LE encode/decode, tagged fields
 ├── decode.py             # Decoder: decode() + internal decode_rung(), decode_rungs()
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
-├── model.py              # InstructionType enum, operand validation
-├── instructions/         # Instruction model + blob builders/parsers
+├── model.py              # InstructionType enum, operand validation, base classes (ConditionInstruction, AfInstruction)
+├── instructions/         # Instruction dataclasses + blob builders/parsers
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
-│   ├── contact_no.py     # Contact (NO/NC/immediate), func codes, blob builder/parser
-│   ├── edge.py           # Edge contacts (rise/fall), func codes, blob builder
-│   ├── compare.py        # CompareContact (==, !=, >, <, >=, <=), blob builder/parser
-│   ├── out.py            # Coil (out/latch/reset, range, immediate), blob builder/parser
-│   ├── tmr.py            # Timer (on_delay/off_delay, retentive), blob builder/parser
-│   └── raw.py            # RawInstruction (opaque blob passthrough), boundary detection
+│   ├── contact.py        # Contact (NO/NC/edge/immediate), build_blob(), cell_params(), parser
+│   ├── comparison.py     # CompareContact (==, !=, >, <, >=, <=), build_blob(), cell_params(), parser
+│   ├── coil.py           # Coil (out/latch/reset, range, immediate, oneshot), build_blob(), cell_params(), parser
+│   ├── timer.py          # Timer (on_delay/off_delay, retentive), build_blob(), cell_params(), parser
+│   ├── copy.py           # Copy (single/block/fill), BlockCopy, Fill — build_blob(), cell_params(), parser
+│   └── raw.py            # RawInstruction (opaque blob passthrough), build_blob(), cell_params()
 ├── csv/                  # CSV parsing subpackage
 │   ├── __init__.py       # read_csv, CSV_HEADER, CONDITION_COLUMNS
 │   ├── ast.py            # Typed AST (CanonicalRow, condition/AF nodes, RungAst)
@@ -67,14 +69,16 @@ src/laddercodec/
 
 ## Key Modules
 
-- **encode.py** — Encoder. Public API is `encode()` (accepts `Rung` or `list[Rung]`). Internal `encode_rung()` does the pipeline: allocate base buffer → build cell grid (wires, instructions, NOP) → insert comment payload at 0x0298 (grid pushes forward) → pad to page.
-- **encode_multi.py** — Multi-rung encoder. Internal `encode_rungs()`. Combines N rungs into one buffer with per-rung preambles and data rows.
+- **encode.py** — Encoder. Public API is `encode()` (accepts `Rung` or `list[Rung]`). Internal `encode_rung()` orchestrates: validate → compute metadata → build grid → insert comment → pad to page. Constants, RTF helpers, type aliases (`ConditionToken`, `AfToken`), and `_af_segment()` / `_compute_seg_boundaries()` live here.
+- **encode_multi.py** — Multi-rung encoder. Internal `encode_rungs()`. Combines N rungs into one buffer with per-rung preambles and data rows. Delegates grid building to `_grid.py`.
+- **_grid.py** — Shared grid-building functions used by both encoders. `_validate_rung()` validates dimensions/tokens, `_compute_rung_metadata()` returns a `RungMetadata` dataclass (instruction indices, AF summary, segment boundaries), `_build_rung_grid()` builds the cell grid for one rung.
+- **binary_helpers.py** — Shared binary serialization primitives. Encoding: `_utf16le_null()`, `_tagged_field()`, `_variant_tagged_field()`. Decoding: `_read_utf16le()`, `_parse_tagged_fields()`, `_parse_tagged_fields_verbose()` (returns tag IDs + handles variant sentinels). Used by all instruction modules and `devtools/inspect_bin.py`.
 - **decode.py** — Decoder. Public API is `decode()` (auto-detects single vs multi-rung). Returns `Rung` or `list[Rung]`. Walks the variable-length cell grid, parses instruction blobs into Contact/Coil/Timer domain objects, decodes RTF comments to markdown. Falls back to `RawInstruction` for unrecognised cell types.
 - **cell.py** — Cell object builders. `ClickCell` dataclass builds 0x25-byte header + blob + 16-byte tail. Also: `build_preamble_cell()`, `build_terminal_cell()`, `build_row()`.
 - **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, cell flag constants (+0x19 segment, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
-- **model.py** — `InstructionType` enum (0x2711–0x2718), operand validation.
-- **instructions/** — Instruction model classes (`Contact`, `Coil`, `CompareContact`, `Timer`, `RawInstruction`), func code tables, blob builders/parsers. Registry in `__init__.py` dispatches class name → module.
+- **model.py** — `InstructionType` enum (0x2711–0x2718), operand validation, `ConditionInstruction` and `AfInstruction` base classes. All instruction dataclasses inherit from one of these; the pipeline uses them for isinstance dispatch so new types are recognized automatically.
+- **instructions/** — Instruction dataclasses with `build_blob()` and `cell_params()` methods, func code tables, and blob parsers. Each dataclass knows how to serialize itself — the grid loop just calls `token.build_blob()` and `token.cell_params()`. Registry in `__init__.py` dispatches class name → module.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
 - **csv/converter.py** — RungAst → Rung converter. Handles pin rows (`.reset()` → retentive timers) and tall instruction auto-padding.
 - **csv/parser.py, writer.py, bundle.py, token_parser.py** — CSV parsing and writing. `parser.py` reads canonical CSV into AST; `writer.py` serializes Rung to CSV; `bundle.py` handles multi-file programs; `token_parser.py` parses condition/AF tokens.
@@ -153,7 +157,7 @@ The decoder (`decode.py`) reads Click clipboard binaries back into structured da
 **Decoded instruction types:**
 - Contacts: NO, NC, edge (rise/fall), immediate (NO/NC)
 - Comparison contacts: GT, GE, LT, LE, EQ, NE
-- Coils: out, latch, reset, immediate, range (e.g. `out(C1..C2)`)
+- Coils: out, latch, reset, immediate, range (e.g. `out(C1..C2)`), oneshot
 - Timers: on_delay, off_delay
 - Wire tokens: classified by (right, down) only — segment flag ignored (T, -, |, blank)
 - Comments: RTF → markdown round-trip
@@ -165,8 +169,7 @@ See [instruction blobs](docs/internals/instruction-blobs.md) for the binary blob
 ## Known Limitations (Not Yet Implemented)
 
 - Counters, math blocks, shift registers, drum sequencers
-- Copy/move/fill instructions
-- Full AF instruction set beyond coils and timers
+- Full AF instruction set beyond coils, timers, and copy family
 
 ## Development Approach
 
@@ -186,14 +189,14 @@ RE-first: understand the binary format thoroughly through native captures and by
 - **Comment max depends on row count.** Inserting > 1400-byte body is rejected outright. The practical per-row limit is determined by where `minimal_end + payload_len` crosses the next page boundary (e.g. 2-row: body ≤ 1324 bytes stays at 0x2000; 1325+ bumps to 0x3000).
 - **Native captures are the ground truth.** When something doesn't work, capture a native rung with the same shape and diff against synthetic.
 
-## Native Capture Workflow
+## Adding Instruction Support
 
-When adding support for new instruction types:
+When the user provides a `.bin` + `.csv` from a Click capture:
 
-1. **User builds test rungs** in Click Programming Software — one rung per instruction variant, combined into a single multi-rung program for efficient capture.
-2. **User prints to PDF** from Click and exports the clipboard binary using `clicknick-rung guided` or clipboard capture tooling.
-3. **Claude converts the PDF** using `uv run devtools/pdf_to_png.py <path>` to get page images, reads them to understand the rung layout.
-4. **Claude decodes the binary** using a scratchpad script (`uv run python scratchpad/<name>.py`) — write scripts to `scratchpad/` for iterative debugging, not inline bash.
-5. **Fix decoder issues** — new wire flags, class names, field layouts — until all rungs decode cleanly.
-6. **Native captures live in** `clicknick/devtools/captures/` (not in the laddercodec repo).
-7. **devtools/ scripts** (inspect, scan, debug) are committed to laddercodec for reuse.
+1. **Inspect the capture:** `uv run devtools/inspect_bin.py <file.bin>` — shows known instructions with `to_csv()` output, and RawInstruction/Unknown blobs with full tagged-field breakdown (tag IDs, sentinel types, values).
+2. **Identify what's new:** RawInstruction means the class name is recognized but the func code isn't. The field breakdown shows exactly which func code / field values differ from existing support.
+3. **Update the code:** add func codes, fields, or new instruction modules as needed. Update `csv/converter.py` to pass new kwargs through.
+4. **Update coverage CSV:** `tests/fixtures/coverage/main.csv` and `golden/<name>.csv` — use kwargs style for boolean flags (e.g. `oneshot=1`).
+5. **Verify:** `make test` + `make lint`.
+
+See [`docs/guides/adding-instructions.md`](docs/guides/adding-instructions.md) for the full guide.
