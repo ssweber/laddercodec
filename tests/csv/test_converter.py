@@ -494,6 +494,58 @@ class TestCounterRows:
         assert isinstance(conds[2][0], Contact)
         assert conds[2][0].operand == "C79"
 
+    def test_count_down_preserves_explicit_bridge_row(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C77"), "count_down(CT3,CTD3,preset=50)"),
+                ("", _wire_row("rise(C78)"), "NOP"),
+                ("", _wire_row("C79"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Counter)
+        assert afs[0].counter_type == "count_down"
+        assert afs[1] == "NOP"
+        assert afs[2] == ""
+        assert isinstance(conds[0][0], Contact)
+        assert conds[0][0].operand == "C77"
+        assert isinstance(conds[1][0], Contact)
+        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].operand == "C78"
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C79"
+
+    def test_count_down_accepts_visual_row1_layout(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C77"), ""),
+                ("", _wire_row("rise(C78)"), "count_down(CT3,CTD3,preset=50)"),
+                ("", _wire_row("C79"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        assert lr == 3
+        assert isinstance(afs[0], Counter)
+        assert afs[0].counter_type == "count_down"
+        assert afs[1] == "NOP"
+        assert afs[2] == ""
+        assert isinstance(conds[0][0], Contact)
+        assert conds[0][0].operand == "C77"
+        assert isinstance(conds[1][0], Contact)
+        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].operand == "C78"
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C79"
+
     def test_count_up_requires_reset_pin(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
         _write_csv(csv_path, [("R", _wire_row("rise(C80)"), "count_up(CT4,CTD4,preset=10)")])

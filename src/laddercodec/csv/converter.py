@@ -174,6 +174,8 @@ def convert_rung(
     parent_shift: Shift | None = None
     parent_drum: Drum | None = None
     counter_up_conditions: list[ConditionToken] | None = None
+    counter_top_conditions: list[ConditionToken] | None = None
+    counter_bridge_conditions: list[ConditionToken] | None = None
     counter_down_conditions: list[ConditionToken] | None = None
     counter_reset_conditions: list[ConditionToken] | None = None
     shift_data_conditions: list[ConditionToken] | None = None
@@ -300,10 +302,36 @@ def convert_rung(
 
         # Normal row — convert conditions.
         conds = [condition_node_to_token(n) for n in row.condition_nodes]
-        condition_rows.append(conds)
 
         # Convert AF token.
         token = af_node_to_token(af_node, strict=strict)
+        if (
+            parent_counter is None
+            and isinstance(token, Counter)
+            and token.counter_type == "count_down"
+            and row_idx > 0
+        ):
+            if len(condition_rows) != 1 or af_tokens != [""]:
+                raise ConvertError("count_down visual layout requires exactly one blank-AF top row")
+            counter_top_conditions = condition_rows.pop()
+            af_tokens.pop()
+            condition_rows.append(conds)
+            af_tokens.append(token)
+            parent_counter = token
+            counter_up_conditions = conds
+            continue
+
+        if (
+            parent_counter is not None
+            and parent_counter.counter_type == "count_down"
+            and row_idx > 0
+            and counter_bridge_conditions is None
+            and token in ("", "NOP")
+        ):
+            counter_bridge_conditions = conds
+            continue
+
+        condition_rows.append(conds)
         af_tokens.append(token)
         if row_idx == 0 and isinstance(af_node, AfCall) and af_node.name.upper() != "NOP":
             if isinstance(token, Timer):
@@ -368,7 +396,20 @@ def convert_rung(
         else:
             if counter_down_conditions is not None:
                 raise ConvertError("count_down does not support .down()")
-            condition_rows = [blank_row, counter_up_conditions, counter_reset_conditions]
+            if counter_top_conditions is not None:
+                condition_rows = [
+                    counter_top_conditions,
+                    counter_up_conditions,
+                    counter_reset_conditions,
+                ]
+            elif counter_bridge_conditions is not None:
+                condition_rows = [
+                    counter_up_conditions,
+                    counter_bridge_conditions,
+                    counter_reset_conditions,
+                ]
+            else:
+                condition_rows = [blank_row, counter_up_conditions, counter_reset_conditions]
             af_tokens = [parent_counter, "NOP", ""]
 
     # --- Shift row shaping ---

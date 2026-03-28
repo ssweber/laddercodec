@@ -11,7 +11,12 @@ tables live in :mod:`laddercodec.instructions`.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from enum import IntEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .decode import Rung
 
 # ---------------------------------------------------------------------------
 # Instruction base classes — used for isinstance dispatch
@@ -76,3 +81,25 @@ def _validate_operand(operand: str) -> str:
     if not OPERAND_RE.fullmatch(operand):
         raise ValueError(f"Invalid operand: {operand!r}")
     return operand
+
+
+# ---------------------------------------------------------------------------
+# Program / Project containers
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class Program:
+    """A single PLC program (main or subroutine) with its rungs."""
+
+    name: str
+    prog_idx: int
+    rungs: list[Rung] = field(default_factory=list)
+
+
+@dataclass
+class Project:
+    """A complete PLC project: main program plus subroutines."""
+
+    main: Program
+    subroutines: list[Program] = field(default_factory=list)

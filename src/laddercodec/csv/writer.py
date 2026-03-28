@@ -100,25 +100,25 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         for line in rung.comment.split("\n"):
             rows.append(["#", line])
 
-    # --- Determine timer retention / tall padding ---
-    af0 = rung.instructions[0] if rung.instructions else None
-    af0_family = get_af_family_for_token(af0) if isinstance(af0, AfInstruction) else None
-    family_name = af0_family.family_name if af0_family is not None else None
-    is_retained_timer = family_name == "timer" and isinstance(af0, Timer) and af0.retained
-    is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
-
     # Build working copies for potential stripping.
     condition_rows = list(rung.conditions)
     af_tokens = list(rung.instructions)
 
-    if family_name == "counter":
-        counter = cast(Counter, af0)
+    # Counters need custom CSV shaping. Native count_down decodes as AF row 0
+    # plus a NOP bridge row, but the truthful CSV view places count_down on the
+    # visual bridge row instead.
+    counter_row = next((idx for idx, af in enumerate(af_tokens) if isinstance(af, Counter)), None)
+    if counter_row is not None:
+        counter = cast(Counter, af_tokens[counter_row])
         if len(condition_rows) < 3 or len(af_tokens) < 3:
             raise WriterError(
                 f"{counter.counter_type} requires 3 decoded rows; got {len(condition_rows)}"
             )
 
         if counter.counter_type == "count_up":
+            if counter_row != 0:
+                raise WriterError("count_up must appear on decoded row 0")
+
             top_conditions = condition_rows[0]
             rows.append(["R"] + [_token_to_csv(c) for c in top_conditions] + [counter.to_csv()])
 
@@ -132,17 +132,29 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
 
             return rows
 
-        if af_tokens[1] != "NOP":
-            raise WriterError("count_down requires a NOP bridge row in the decoded rung")
+        if counter_row == 0:
+            if af_tokens[1] != "NOP":
+                raise WriterError("count_down requires a NOP bridge row in the decoded rung")
+        elif counter_row != 1:
+            raise WriterError("count_down must appear on decoded row 0 or row 1")
 
-        up_conditions = condition_rows[1]
-        rows.append(["R"] + [_token_to_csv(c) for c in up_conditions] + [counter.to_csv()])
+        top_conditions = condition_rows[0]
+        bridge_conditions = condition_rows[1]
+        rows.append(["R"] + [_token_to_csv(c) for c in top_conditions] + [""])
+        rows.append([""] + [_token_to_csv(c) for c in bridge_conditions] + [counter.to_csv()])
 
         if counter.reset_enabled:
             reset_conditions = condition_rows[2]
             rows.append([""] + [_token_to_csv(c) for c in reset_conditions] + [".reset()"])
 
         return rows
+
+    # --- Determine timer retention / tall padding ---
+    af0 = rung.instructions[0] if rung.instructions else None
+    af0_family = get_af_family_for_token(af0) if isinstance(af0, AfInstruction) else None
+    family_name = af0_family.family_name if af0_family is not None else None
+    is_retained_timer = family_name == "timer" and isinstance(af0, Timer) and af0.retained
+    is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
 
     if family_name == "shift":
         shift = cast(Shift, af0)

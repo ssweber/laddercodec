@@ -3,6 +3,7 @@
 from .csv import read_csv
 from .csv.writer import write_csv
 from .decode import Rung, decode
+from .decode_scr import decode_scr
 from .encode import encode
 from .instructions import (
     BlockCopy,
@@ -31,13 +32,17 @@ from .instructions import (
     Timer,
     Unpack,
 )
+from .model import Program, Project
 
 __all__ = [
     "encode",
     "decode",
+    "decode_scr",
     "read_csv",
     "write_csv",
     "Rung",
+    "Program",
+    "Project",
     "BlockCopy",
     "Call",
     "Contact",
