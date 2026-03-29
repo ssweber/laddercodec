@@ -5,6 +5,7 @@ import struct
 from pathlib import Path
 
 from laddercodec import decode
+from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
     _SCR_TAG_PARSE_SPECS,
@@ -14,12 +15,13 @@ from laddercodec.decode_program import (
     _parse_header,
     _parse_scr_tags,
     _parse_wiredown,
-    _scr_to_af,
-    _scr_to_raw_af,
     _tag_wire_type,
     decode_program,
 )
+from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.math import Math
+from laddercodec.instructions.raw import RAW_VISUAL_ROWS_KEY
+from laddercodec.instructions.raw import from_tags as raw_from_tags
 from laddercodec.instructions.timer import Timer
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
@@ -198,7 +200,7 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
             _SCR_TAG_PARSE_SPECS["Math"].stop_tags,
         )
     )
-    parsed = _scr_to_af(
+    parsed = from_tags_af(
         class_name,
         type_code,
         tags,
@@ -236,7 +238,7 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
             2,
         )
     )
-    parsed = _scr_to_af(
+    parsed = from_tags_af(
         class_name,
         type_code,
         tags,
@@ -316,7 +318,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
         len(raw),
         1,
     )
-    parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
+    parsed = raw_from_tags(class_name, type_code, tags, {RAW_VISUAL_ROWS_KEY: 1})
 
     assert parsed is not None
     assert (
@@ -362,7 +364,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
         len(raw),
         1,
     )
-    parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
+    parsed = raw_from_tags(class_name, type_code, tags, {RAW_VISUAL_ROWS_KEY: 1})
 
     assert parsed is not None
     assert (
@@ -463,6 +465,26 @@ def test_decode_program_matches_coverage_fixture():
     assert len(clip_rungs) == 114
     assert len(scr_rungs) == 114
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def _strip_blank_tail(lines: list[str]) -> list[str]:
+    """Remove trailing all-blank rows (CSV writer collapses spacer padding)."""
+    blank = "," * 30 + "|"
+    while lines and lines[-1] == blank:
+        lines = lines[:-1]
+    return lines
+
+
+def test_coverage_scr_and_bin_both_match_golden_csv():
+    csv_rungs = read_csv(_SCR_FIXTURE_DIR / "coverage.csv")
+    clip_rungs, scr_rungs = _load_fixture_pair("coverage")
+
+    csv_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in csv_rungs]
+    scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
+    bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
+
+    assert scr_lines == csv_lines
+    assert bin_lines == csv_lines
 
 
 def test_decode_program_matches_shift_scr_fixture():
@@ -778,21 +800,23 @@ def test_tag_wire_type_covers_all_implicit_tags():
     import inspect
     import re
 
-    # Gather source of all tag-consuming functions
+    # Gather source of all from_tags functions in instruction modules
+    from laddercodec.instructions import AF_FAMILY_SPECS, CONDITION_FAMILY_SPECS
+
     source_parts = []
-    for fn_name in ("_scr_to_condition", "_scr_to_af", "_scr_to_raw_af"):
-        fn = getattr(decode_program_module, fn_name)
-        source_parts.append(inspect.getsource(fn))
+    for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS):
+        if spec.from_tags is not None:
+            source_parts.append(inspect.getsource(spec.from_tags))
     source = "\n".join(source_parts)
 
-    # Extract tag constants from: tags.get(0x, 0x in tags, lens.get(0x,
-    # variant_strings.get(0x, variant_u16.get(0x, _raw_field(0x
+    # Extract tag constants from various accessor patterns
     tag_pattern = re.compile(
         r"(?:"
         r"tags\.get\(|"
         r"lens\.get\(|"
         r"variant_strings\.get\(|"
         r"variant_u16\.get\(|"
+        r"tag_byte_lens\b[^)]*\.get\(|"
         r"_raw_field\(|"
         r"_raw_empty_array_fields\("
         r")(0x[0-9A-Fa-f]{4})"

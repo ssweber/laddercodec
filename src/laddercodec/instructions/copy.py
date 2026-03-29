@@ -713,125 +713,144 @@ def build_blob(copy: Copy) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_COPY_TYPE_CODE = 0x2721
 
-def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
-    """Try to parse a Copy-family instruction from an instruction blob.
 
-    Handles single copy (0), block copy (1), fill (2), pack (3), and unpack (4).
-    """
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
-
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Copy":
-        return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip part count (01 00)
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 12:
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
+    """Construct a Copy-family instruction from tag data (shared by both decoders)."""
+    if class_name != "Copy" or type_code != _COPY_TYPE_CODE:
         return None
 
-    copy_type_idx = fields[6]
+    lens = tag_byte_lens or {}
 
-    if copy_type_idx == "0":
-        # --- Single copy ---
-        conv_type = fields[8]
-        opts = _CONVTYPE_TO_OPTS.get(conv_type)
+    source = tags.get(0x6074, "")
+    source_end = tags.get(0x6075, "")
+    destination = tags.get(0x6076, "")
+    destination_end = tags.get(0x6077, "")
+    oneshot = 0x11F8 in tags
+    copy_type = lens.get(0x2223, -1)  # -1 = absent (SCR omits when 0)
+    conv_type = lens.get(0x2227, 0)
+
+    # SCR may omit copy_type tag; infer from address presence.
+    if copy_type == -1:
+        if source_end and destination_end:
+            copy_type = 1
+        elif destination_end:
+            copy_type = 2
+        else:
+            copy_type = 0
+
+    if copy_type == 0:
+        if not source or not destination:
+            return None
+        opts = _CONVTYPE_TO_OPTS.get(str(conv_type))
         if opts is None:
             return None
         fmt, suppress_zero, exponential = opts
 
-        if fields[9] == "-1":
-            term_decimal = int(fields[10])
-            termination_code = f"${term_decimal:X}"
-        else:
-            termination_code = "0"
+        termination_code = "0"
+        term_char = tags.get(0x3216, "")
+        if (0x1221 in tags or 0x1201 in tags) and term_char:
+            termination_code = f"${int(term_char):X}"
 
         return Copy(
-            source=fields[0],
-            destination=fields[2],
+            source=source,
+            destination=destination,
             format=fmt,
-            oneshot=fields[5] == "-1",
+            oneshot=oneshot,
             suppress_zero=suppress_zero,
             exponential=exponential,
             termination_code=termination_code,
         )
 
-    if copy_type_idx == "1":
-        # --- Block copy ---
-        conv_type = fields[8]
-        opts = _CONVTYPE_TO_OPTS.get(conv_type)
-        if opts is None:
+    if copy_type == 1:
+        if not all([source, source_end, destination, destination_end]):
             return None
-        fmt = opts[0]  # only the format name; no text sub-options
-        if fmt not in _BLOCKCOPY_FORMATS:
+        fmt = {0: "none", 5: "value", 6: "ascii"}.get(conv_type)
+        if fmt is None:
             return None
-
         return BlockCopy(
-            source_start=fields[0],
-            source_end=fields[1],
-            dest_start=fields[2],
-            dest_end=fields[3],
+            source_start=source,
+            source_end=source_end,
+            dest_start=destination,
+            dest_end=destination_end,
             format=fmt,
-            oneshot=fields[5] == "-1",
+            oneshot=oneshot,
         )
 
-    if copy_type_idx == "2":
-        # --- Fill ---
+    if copy_type == 2:
+        if not all([source, destination, destination_end]):
+            return None
         return Fill(
-            value=fields[0],
-            dest_start=fields[2],
-            dest_end=fields[3],
-            oneshot=fields[5] == "-1",
+            value=source,
+            dest_start=destination,
+            dest_end=destination_end,
+            oneshot=oneshot,
         )
 
-    if copy_type_idx == "3":
-        # --- Pack ---
-        conv_type = fields[8]
-        if conv_type == _PACK_TEXT_CONVTYPE["default"]:
+    if copy_type == 3:
+        if not all([source, source_end, destination]):
+            return None
+        if conv_type == 9:
             pack_type = "text"
             allow_whitespace = False
-        elif conv_type == _PACK_TEXT_CONVTYPE["allow_whitespace"]:
+        elif conv_type == 10:
             pack_type = "text"
             allow_whitespace = True
-        elif conv_type == "0":
-            # Discriminate bits vs words by source address type.
-            pack_type = "bits" if fields[0].startswith("C") else "words"
+        elif conv_type == 0:
+            pack_type = "bits" if source.startswith("C") else "words"
             allow_whitespace = False
         else:
             return None
-
         return Pack(
-            source_start=fields[0],
-            source_end=fields[1],
-            destination=fields[2],
+            source_start=source,
+            source_end=source_end,
+            destination=destination,
             pack_type=pack_type,
             allow_whitespace=allow_whitespace,
-            oneshot=fields[5] == "-1",
+            oneshot=oneshot,
         )
 
-    if copy_type_idx == "4":
-        # --- Unpack ---
-        # Discriminate bits vs words by destination address type.
-        unpack_type = "bits" if fields[2].startswith("C") else "words"
-
+    if copy_type == 4:
+        if not all([source, destination, destination_end]):
+            return None
+        unpack_type = "bits" if destination.startswith("C") else "words"
         return Unpack(
-            source=fields[0],
-            dest_start=fields[2],
-            dest_end=fields[3],
+            source=source,
+            dest_start=destination,
+            dest_end=destination_end,
             unpack_type=unpack_type,
-            oneshot=fields[5] == "-1",
+            oneshot=oneshot,
         )
 
     return None
+
+
+# ---------------------------------------------------------------------------
+# Blob parser
+# ---------------------------------------------------------------------------
+
+
+def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
+    """Try to parse a Copy-family instruction from an instruction blob."""
+    from .raw import _decompose_blob, _fields_to_tag_dicts
+
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
@@ -935,6 +954,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Copy, BlockCopy, Fill, Pack, Unpack),
     binary_class_names=("Copy",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=(
         "copy",
         "blockcopy",

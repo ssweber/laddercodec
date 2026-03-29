@@ -264,78 +264,73 @@ def build_blob(drum: Drum) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_DRUM_TYPE_CODE = 0x271B
 
-def parse_blob(raw: bytes) -> Drum | None:
-    """Try to parse a Drum from an instruction blob."""
-    from ..binary_helpers import _read_utf16le
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Drum":
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Drum | None:
+    """Construct a Drum from tag data (shared by both decoders)."""
+    if class_name != "Drum" or type_code != _DRUM_TYPE_CODE:
         return None
 
-    if pos + 6 > len(raw):
+    lens = tag_byte_lens or {}
+    variant_u16 = variant_u16_tags or {}
+    variant_strings = variant_string_tags or {}
+
+    num_steps = int(tags.get(0x3203, "0") or "0")
+    num_outputs = int(tags.get(0x3204, "0") or "0")
+    current_step = tags.get(0x606E, "")
+    completion_flag = tags.get(0x6070, "")
+    if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
         return None
 
-    pos += 4  # skip type marker (0x271B)
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
+    outputs_by_idx = variant_strings.get(0x6873, {})
+    events_by_idx = variant_strings.get(0x6872, {})
+    bitmasks_by_idx = variant_u16.get(0x3A26, {})
 
-    if part_count < 4:
+    outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
+    events_or_presets = [events_by_idx.get(i, "") for i in range(num_steps)]
+    if any(not value for value in outputs) or any(not value for value in events_or_presets):
         return None
 
-    pos += part_count - 1  # skip extra bytes
+    pattern = [
+        [(bitmasks_by_idx.get(step_idx, 0) >> output_idx) & 1 for output_idx in range(num_outputs)]
+        for step_idx in range(num_steps)
+    ]
 
-    if pos + 4 > len(raw):
+    is_event = lens.get(0x2200, 0) == 1
+    # Also handle string-valued tag from clipboard path.
+    if tags.get(0x2200) == "1":
+        is_event = True
+
+    if is_event:
+        return Drum(
+            drum_kind="event",
+            outputs=outputs,
+            events_or_presets=events_or_presets,
+            pattern=pattern,
+            current_step=current_step,
+            completion_flag=completion_flag,
+            jog_enabled=0x1201 in tags,
+            jump_enabled=0x1202 in tags,
+            jump_target=tags.get(0x6071, ""),
+        )
+
+    unit = _DRUM_INDEX_TO_UNIT.get(tags.get(0x21F9, "0"), "Tms")
+    accumulator = tags.get(0x606F, "")
+    if not accumulator:
         return None
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    if field_count < 64:
-        return None
-
-    # Parse all fields (tag + 4-byte sentinel/sub + UTF-16LE value).
-    fields: list[str] = []
-    for _ in range(field_count):
-        if pos + 6 > len(raw):
-            break
-        pos += 2  # skip tag
-        pos += 4  # skip sentinel or sub-marker
-        value, pos = _read_utf16le(raw, pos)
-        fields.append(value)
-
-    if len(fields) < 64:
-        return None
-
-    # Extract field values.
-    is_event = fields[4] == "1"
-    unit_idx = fields[5]
-    num_steps = int(fields[6])
-    num_outputs = int(fields[7])
-    current_step = fields[8]
-    accumulator = fields[9]
-    completion_flag = fields[10]
-    jog_enabled = fields[11] == "-1"
-    jump_enabled = fields[12] == "-1"
-    jump_target = fields[13]
-
-    # Events/presets (fields 14-29, only num_steps used).
-    events_or_presets = [fields[14 + i] for i in range(num_steps)]
-
-    # Pattern bitmasks (fields 30-45).
-    bitmask_strs = [fields[30 + i] for i in range(16)]
-    pattern = _bitmasks_to_pattern(bitmask_strs, num_steps, num_outputs)
-
-    # Outputs (fields 46-61, only num_outputs used).
-    outputs = [fields[46 + i] for i in range(num_outputs)]
-
-    drum_kind: Literal["event", "time"] = "event" if is_event else "time"
-    unit = _DRUM_INDEX_TO_UNIT.get(unit_idx, "") if not is_event else ""
-
     return Drum(
-        drum_kind=drum_kind,
+        drum_kind="time",
         outputs=outputs,
         events_or_presets=events_or_presets,
         pattern=pattern,
@@ -343,10 +338,24 @@ def parse_blob(raw: bytes) -> Drum | None:
         completion_flag=completion_flag,
         accumulator=accumulator,
         unit=unit,
-        jog_enabled=jog_enabled,
-        jump_enabled=jump_enabled,
-        jump_target=jump_target,
     )
+
+
+# ---------------------------------------------------------------------------
+# Blob parser
+# ---------------------------------------------------------------------------
+
+
+def parse_blob(raw: bytes) -> Drum | None:
+    """Try to parse a Drum from an instruction blob."""
+    from .raw import _decompose_blob, _fields_to_tag_dicts
+
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Drum:
@@ -385,6 +394,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Drum,),
     binary_class_names=("Drum",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("event_drum", "time_drum"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset", ".jump", ".jog"),

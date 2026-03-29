@@ -182,47 +182,39 @@ class Search(AfInstruction):
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_SEARCH_TYPE_CODE = 0x2722
 
-def parse_blob(raw: bytes) -> Search | None:
-    """Try to parse a Search instruction from an instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Search":
-        return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip part count (01 00)
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 9:
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Search | None:
+    """Construct a Search from tag data (shared by both decoders)."""
+    if class_name != "Search" or type_code != _SEARCH_TYPE_CODE:
         return None
 
-    source = fields[0]
-    table_start = fields[1]
-    table_end = fields[2]
-    result = fields[3]
-    found = fields[4]
-    continuous = fields[5] == "-1"
-    func_code = fields[6]
-    oneshot = fields[7] == "-1"
+    lens = tag_byte_lens or {}
 
-    if func_code == _TEXT_FUNC:
-        comparison = "=="
-        # Strip quotes from text literal source
-        if source.startswith('"') and source.endswith('"'):
-            source = source[1:-1]
-    else:
-        comparison = _FUNC_TO_OP.get(func_code)
-        if comparison is None:
-            return None
+    source = tags.get(0x6065, "")
+    table_start = tags.get(0x6066, "")
+    table_end = tags.get(0x6067, "")
+    result = tags.get(0x6079, "")
+    found = tags.get(0x607A, "")
+    cmp_idx = str(lens.get(0x21F7, 0))
+    comparison = _CMP_CODE_TO_OP.get(cmp_idx)
+
+    if source.startswith('"') and source.endswith('"'):
+        source = source[1:-1]
+
+    if not all([source, table_start, table_end, result, found]) or comparison is None:
+        return None
 
     return Search(
         table_start=table_start,
@@ -231,9 +223,26 @@ def parse_blob(raw: bytes) -> Search | None:
         result=result,
         found=found,
         comparison=comparison,
-        continuous=continuous,
-        oneshot=oneshot,
+        continuous=0x1277 in tags,
+        oneshot=0x11F8 in tags,
     )
+
+
+# ---------------------------------------------------------------------------
+# Blob parser
+# ---------------------------------------------------------------------------
+
+
+def parse_blob(raw: bytes) -> Search | None:
+    """Try to parse a Search instruction from an instruction blob."""
+    from .raw import _decompose_blob, _fields_to_tag_dicts
+
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Search:
@@ -270,6 +279,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Search,),
     binary_class_names=("Search",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("search",),
     parse_csv_call=parse_af_call,
     min_csv_rows=2,

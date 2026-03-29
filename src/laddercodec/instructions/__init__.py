@@ -151,6 +151,50 @@ def parse_af_blob(
     return None
 
 
+def from_tags_condition(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> ConditionInstruction | None:
+    """Dispatch condition instruction construction through registered specs."""
+    for spec in CONDITION_FAMILY_SPECS:
+        if spec.from_tags is not None:
+            result = spec.from_tags(
+                class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+            )
+            if result is not None:
+                return result  # type: ignore[return-value]
+    return None
+
+
+def from_tags_af(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> AfInstruction | None:
+    """Dispatch AF instruction construction through registered specs.
+
+    Tries all AF family specs in order.  Raw families (Email, Home,
+    Velocity, Position) are handled by the raw spec at the end of the
+    list; caller must inject ``RAW_VISUAL_ROWS_KEY`` into
+    *tag_byte_lens* if visual_sub_rows is needed.
+    """
+    for spec in AF_FAMILY_SPECS:
+        if spec.from_tags is not None:
+            result = spec.from_tags(
+                class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+            )
+            if result is not None:
+                return result  # type: ignore[return-value]
+    return None
+
+
 __all__ = [
     "AF_FAMILY_SPECS",
     "CONDITION_FAMILY_SPECS",
@@ -186,6 +230,8 @@ __all__ = [
     "Shift",
     "Timer",
     "Unpack",
+    "from_tags_af",
+    "from_tags_condition",
     "get_af_family_by_csv_name",
     "get_af_family_for_token",
     "parse_af_blob",

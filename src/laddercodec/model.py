@@ -76,6 +76,19 @@ class InstructionType(IntEnum):
 OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")
 
 
+# Mapping from SCR type-code marker to InstructionType.
+TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
+    0x2711: InstructionType.CONTACT_NO,
+    0x2712: InstructionType.CONTACT_NC,
+    0x2713: InstructionType.CONTACT_EDGE,
+    0x2714: InstructionType.COMPARE,
+    0x2715: InstructionType.COIL_OUT,
+    0x2716: InstructionType.COIL_LATCH,
+    0x2717: InstructionType.COIL_RESET,
+    0x2718: InstructionType.TIMER,
+}
+
+
 def _validate_operand(operand: str) -> str:
     operand = operand.strip()
     if not OPERAND_RE.fullmatch(operand):

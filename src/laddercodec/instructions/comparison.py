@@ -40,6 +40,12 @@ COMPARE_OP_TO_TYPE_IDX: dict[str, str] = {
     "<=": "5",
 }
 
+#: Reverse: type index → operator (used by from_tags).
+_TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
+    v: k
+    for k, v in COMPARE_OP_TO_TYPE_IDX.items()  # type: ignore[misc]
+}
+
 # ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
@@ -137,38 +143,49 @@ def build_blob(compare: CompareContact) -> bytes:
 
 
 # ---------------------------------------------------------------------------
+# Shared from_tags factory
+# ---------------------------------------------------------------------------
+
+_COMPARE_TYPE_CODE = 0x2714
+
+
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> CompareContact | None:
+    """Construct a CompareContact from tag data (shared by both decoders)."""
+    if class_name != "Compare" or type_code != _COMPARE_TYPE_CODE:
+        return None
+    left = tags.get(0x6066, "")
+    right = tags.get(0x6067, "")
+    # Compare type is in tag_byte_lens (SCR byte encoding) or tags (clipboard string).
+    lens = tag_byte_lens or {}
+    type_idx = str(lens.get(0x21F7, 0))
+    op = _TYPE_IDX_TO_OP.get(type_idx)
+    if not left or not right or op is None:
+        return None
+    return CompareContact(op=op, left=left, right=right)
+
+
+# ---------------------------------------------------------------------------
 # Blob parser
 # ---------------------------------------------------------------------------
 
 
 def parse_blob(raw: bytes) -> CompareContact | None:
     """Try to parse a CompareContact from an instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Compare":
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
         return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip 01 00
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 3:
-        return None
-
-    func_code = fields[0]
-    left = fields[1]
-    right = fields[2]
-
-    op = COMPARE_FUNC_CODES.get(func_code)
-    if op is None:
-        return None
-
-    return CompareContact(op=op, left=left, right=right)
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 SPEC = ConditionInstructionFamilySpec(
@@ -176,4 +193,5 @@ SPEC = ConditionInstructionFamilySpec(
     instruction_types=(CompareContact,),
     binary_class_names=("Compare",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
 )

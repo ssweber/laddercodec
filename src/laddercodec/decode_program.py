@@ -17,33 +17,23 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass, field
-from typing import Literal, cast
+from typing import cast
 
+from .binary_helpers import _tag_wire_type
 from .decode import Rung, _decode_rtf
-from .instructions import INSTRUCTION_MODULES, RawInstruction
-from .instructions.call import Call
-from .instructions.coil import Coil
+from .instructions import (
+    INSTRUCTION_MODULES,
+    RawInstruction,
+    from_tags_af,
+    from_tags_condition,
+)
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
-from .instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from .instructions.counter import Counter
 from .instructions.drum import Drum
-from .instructions.end import End
-from .instructions.forloop import ForLoop, Next
-from .instructions.math import Math, _reconstruct_expression
-from .instructions.return_ import Return
-from .instructions.search import Search
-from .instructions.send_receive import (
-    _COM_PORT_MODE_INV,
-    ModbusAddress,
-    ModbusRtuTarget,
-    ModbusTcpTarget,
-    Receive,
-    Send,
-)
 from .instructions.shift import Shift
-from .instructions.timer import TIMER_UNITS, Timer
-from .model import InstructionType, Program
+from .instructions.timer import Timer
+from .model import Program
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -104,26 +94,7 @@ class _ScrRowTopologyBlock:
     continuation_start: int
 
 
-def _tag_wire_type(tag: int) -> str:
-    """Infer the wire type of a SCR tag from its high byte.
-
-    Returns one of: "flag", "byte", "u16", "string", "variant_u16",
-    "variant_string", or "unknown".
-    """
-    hi = (tag >> 8) & 0xFF
-    if hi in (0x11, 0x12):
-        return "flag"
-    if hi in (0x20, 0x21, 0x22):
-        return "byte"
-    if hi == 0x32:
-        return "u16"
-    if hi == 0x3A:
-        return "variant_u16"
-    if hi in (0x60, 0x61, 0x62):
-        return "string"
-    if hi == 0x68:
-        return "variant_string"
-    return "unknown"
+# _tag_wire_type is imported from binary_helpers.
 
 
 _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
@@ -334,28 +305,6 @@ def _parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
 # SCR blob → parsed instruction
 # ---------------------------------------------------------------------------
 
-# Type marker → InstructionType
-_TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
-    0x2711: InstructionType.CONTACT_NO,
-    0x2712: InstructionType.CONTACT_NC,
-    0x2713: InstructionType.CONTACT_EDGE,
-    0x2714: InstructionType.COMPARE,
-    0x2715: InstructionType.COIL_OUT,
-    0x2716: InstructionType.COIL_LATCH,
-    0x2717: InstructionType.COIL_RESET,
-    0x2718: InstructionType.TIMER,
-}
-
-# Compare type index → operator
-_COMPARE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
-    "0": "==",
-    "1": "!=",
-    "2": ">",
-    "3": "<",
-    "4": ">=",
-    "5": "<=",
-}
-
 
 def _parse_scr_tags(
     data: bytes,
@@ -479,620 +428,6 @@ def _parse_scr_tags(
     return class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
 
 
-def _scr_to_condition(
-    class_name: str,
-    type_code: int,
-    tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
-    variant_u16_tags: _ScrVariantU16Tags | None = None,
-    variant_string_tags: _ScrVariantStringTags | None = None,
-) -> Contact | CompareContact | None:
-    """Construct a condition instruction from SCR tag data."""
-    itype = _TYPE_CODE_TO_ITYPE.get(type_code)
-
-    if class_name == "ContactNO" and itype in (
-        InstructionType.CONTACT_NO,
-        InstructionType.CONTACT_NC,
-    ):
-        operand = tags.get(0x6065, "")
-        if not operand:
-            return None
-        immediate = 0x11F5 in tags
-        return Contact(type=itype, operand=operand, immediate=immediate)
-
-    if class_name == "Edge" and itype == InstructionType.CONTACT_EDGE:
-        operand = tags.get(0x6065, "")
-        if not operand:
-            return None
-        edge_kind = "fall" if 0x21F6 in tags else "rise"
-        return Contact(
-            type=InstructionType.CONTACT_EDGE,
-            operand=operand,
-            edge_kind=edge_kind,
-        )
-
-    if class_name == "Compare" and itype == InstructionType.COMPARE:
-        left = tags.get(0x6066, "")
-        right = tags.get(0x6067, "")
-        # SCR encodes compare type as byte length of tag 0x21F7 (absent=0)
-        lens = tag_byte_lens or {}
-        type_idx = str(lens.get(0x21F7, 0))
-        op = _COMPARE_IDX_TO_OP.get(type_idx)
-        if not left or not right or op is None:
-            return None
-        return CompareContact(op=op, left=left, right=right)
-
-    return None
-
-
-def _scr_to_af(
-    class_name: str,
-    type_code: int,
-    tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
-    variant_u16_tags: _ScrVariantU16Tags | None = None,
-    variant_string_tags: _ScrVariantStringTags | None = None,
-) -> (
-    Coil
-    | Timer
-    | Counter
-    | Copy
-    | BlockCopy
-    | Fill
-    | Pack
-    | Unpack
-    | Math
-    | Search
-    | Shift
-    | Drum
-    | Receive
-    | Send
-    | Call
-    | ForLoop
-    | Next
-    | End
-    | Return
-    | None
-):
-    """Construct an AF instruction from SCR tag data."""
-    itype = _TYPE_CODE_TO_ITYPE.get(type_code)
-    lens = tag_byte_lens or {}
-    variant_u16 = variant_u16_tags or {}
-    variant_strings = variant_string_tags or {}
-
-    if class_name in ("Out", "Latch", "Reset") and itype in (
-        InstructionType.COIL_OUT,
-        InstructionType.COIL_LATCH,
-        InstructionType.COIL_RESET,
-    ):
-        operand = tags.get(0x6066, "")
-        if not operand:
-            return None
-        range_end_val = tags.get(0x6067, "")
-        return Coil(
-            type=itype,
-            operand=operand,
-            range_end=range_end_val or None,
-            immediate=0x11F5 in tags,
-            oneshot=0x11F8 in tags,
-        )
-
-    if class_name == "Tmr" and itype == InstructionType.TIMER:
-        done_bit = tags.get(0x6068, "")
-        setpoint = tags.get(0x606A, "")
-        current = tags.get(0x6069, "")
-        unit_idx = tags.get(0x21F9, "0")  # default: Tms
-        unit = TIMER_UNITS.get(unit_idx)
-        if not done_bit or not current or not setpoint or unit is None:
-            return None
-        timer_type = "off_delay" if 0x21FA in tags else "on_delay"
-        return Timer(
-            timer_type=timer_type,
-            done_bit=done_bit,
-            current=current,
-            setpoint=setpoint,
-            unit=unit,
-            retained=0x21FB in tags,
-        )
-
-    if class_name == "Cnt" and type_code == 0x2719:
-        done_bit = tags.get(0x606B, "")
-        preset = tags.get(0x606A, "")
-        current = tags.get(0x606C, "")
-        mode = lens.get(0x21FC, 0)
-        variant = cast(
-            tuple[Literal["count_up", "count_down"], bool, bool] | None,
-            {
-                0: ("count_up", False, True),
-                1: ("count_down", False, True),
-                2: ("count_up", True, True),
-            }.get(mode),
-        )
-        if not all([done_bit, preset, current]) or variant is None:
-            return None
-        counter_type, down_enabled, reset_enabled = variant
-        return Counter(
-            counter_type=counter_type,
-            done_bit=done_bit,
-            current=current,
-            preset=preset,
-            down_enabled=down_enabled,
-            reset_enabled=reset_enabled,
-        )
-
-    if class_name == "Copy" and type_code == 0x2721:
-        source = tags.get(0x6074, "")
-        source_end = tags.get(0x6075, "")
-        destination = tags.get(0x6076, "")
-        destination_end = tags.get(0x6077, "")
-        oneshot = 0x11F8 in tags
-        copy_type = int(tags.get(0x2223, "0") or "0")
-        conv_type = int(tags.get(0x2227, "0") or "0")
-
-        if 0x2223 not in tags:
-            if source_end and destination_end:
-                copy_type = 1
-            elif destination_end:
-                copy_type = 2
-            else:
-                copy_type = 0
-
-        if copy_type == 0:
-            if not source or not destination:
-                return None
-            fmt = "none"
-            suppress_zero = "0"
-            exponential = "0"
-            if conv_type == 0:
-                pass
-            elif conv_type == 1:
-                fmt = "text"
-                suppress_zero = "1"
-            elif conv_type == 2:
-                fmt = "text"
-                suppress_zero = "0"
-            elif conv_type == 4:
-                fmt = "text"
-                suppress_zero = "1"
-                exponential = "1"
-            elif conv_type == 5:
-                fmt = "value"
-            elif conv_type == 6:
-                fmt = "ascii"
-            elif conv_type == 8:
-                fmt = "binary"
-            else:
-                return None
-
-            termination_code = "0"
-            term_char = tags.get(0x3216, "")
-            if (0x1221 in tags or 0x1201 in tags) and term_char:
-                termination_code = f"${int(term_char):X}"
-
-            return Copy(
-                source=source,
-                destination=destination,
-                format=fmt,
-                oneshot=oneshot,
-                suppress_zero=suppress_zero,
-                exponential=exponential,
-                termination_code=termination_code,
-            )
-
-        if copy_type == 1:
-            if not all([source, source_end, destination, destination_end]):
-                return None
-            fmt = {0: "none", 5: "value", 6: "ascii"}.get(conv_type)
-            if fmt is None:
-                return None
-            return BlockCopy(
-                source_start=source,
-                source_end=source_end,
-                dest_start=destination,
-                dest_end=destination_end,
-                format=fmt,
-                oneshot=oneshot,
-            )
-
-        if copy_type == 2:
-            if not all([source, destination, destination_end]):
-                return None
-            return Fill(
-                value=source,
-                dest_start=destination,
-                dest_end=destination_end,
-                oneshot=oneshot,
-            )
-
-        if copy_type == 3:
-            if not all([source, source_end, destination]):
-                return None
-            if conv_type == 9:
-                pack_type = "text"
-                allow_whitespace = False
-            elif conv_type == 10:
-                pack_type = "text"
-                allow_whitespace = True
-            elif conv_type == 0:
-                pack_type = "bits" if source.startswith("C") else "words"
-                allow_whitespace = False
-            else:
-                return None
-            return Pack(
-                source_start=source,
-                source_end=source_end,
-                destination=destination,
-                pack_type=pack_type,
-                allow_whitespace=allow_whitespace,
-                oneshot=oneshot,
-            )
-
-        if copy_type == 4:
-            if not all([source, destination, destination_end]):
-                return None
-            unpack_type = "bits" if destination.startswith("C") else "words"
-            return Unpack(
-                source=source,
-                dest_start=destination,
-                dest_end=destination_end,
-                unpack_type=unpack_type,
-                oneshot=oneshot,
-            )
-
-    if class_name == "SR" and type_code == 0x2720:
-        start_bit = tags.get(0x6066, "")
-        end_bit = tags.get(0x6067, "")
-        if not start_bit or not end_bit:
-            return None
-        return Shift(start_bit=start_bit, end_bit=end_bit)
-
-    if class_name == "Search" and type_code == 0x2722:
-        source = tags.get(0x6065, "")
-        table_start = tags.get(0x6066, "")
-        table_end = tags.get(0x6067, "")
-        result = tags.get(0x6079, "")
-        found = tags.get(0x607A, "")
-        cmp_idx = str(lens.get(0x21F7, 0))
-        comparison = _COMPARE_IDX_TO_OP.get(cmp_idx)
-        if source.startswith('"') and source.endswith('"'):
-            source = source[1:-1]
-        if not all([source, table_start, table_end, result, found]) or comparison is None:
-            return None
-        return Search(
-            table_start=table_start,
-            table_end=table_end,
-            source=source,
-            result=result,
-            found=found,
-            comparison=comparison,
-            continuous=0x1277 in tags,
-            oneshot=0x11F8 in tags,
-        )
-
-    if class_name == "Math" and type_code == 0x271A:
-        result = tags.get(0x6065, "")
-        expression = _reconstruct_expression(
-            tags.get(0x61FF, ""),
-            tags.get(0x61FD, ""),
-        ) or tags.get(0x6228, "")
-        if not result or not expression:
-            return None
-        return Math(
-            expression=expression,
-            result=result,
-            mode="hex" if 0x11FE in tags else "decimal",
-            oneshot=0x11F8 in tags,
-        )
-
-    if class_name == "Drum" and type_code == 0x271B:
-        num_steps = int(tags.get(0x3203, "0") or "0")
-        num_outputs = int(tags.get(0x3204, "0") or "0")
-        current_step = tags.get(0x606E, "")
-        completion_flag = tags.get(0x6070, "")
-        if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
-            return None
-
-        outputs_by_idx = variant_strings.get(0x6873, {})
-        events_by_idx = variant_strings.get(0x6872, {})
-        bitmasks_by_idx = variant_u16.get(0x3A26, {})
-
-        outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
-        events_or_presets = [events_by_idx.get(i, "") for i in range(num_steps)]
-        if any(not value for value in outputs) or any(not value for value in events_or_presets):
-            return None
-
-        pattern = [
-            [
-                (bitmasks_by_idx.get(step_idx, 0) >> output_idx) & 1
-                for output_idx in range(num_outputs)
-            ]
-            for step_idx in range(num_steps)
-        ]
-
-        if tags.get(0x2200, "0") == "1":
-            return Drum(
-                drum_kind="event",
-                outputs=outputs,
-                events_or_presets=events_or_presets,
-                pattern=pattern,
-                current_step=current_step,
-                completion_flag=completion_flag,
-                jog_enabled=0x1201 in tags,
-                jump_enabled=0x1202 in tags,
-                jump_target=tags.get(0x6071, ""),
-            )
-
-        unit = TIMER_UNITS.get(tags.get(0x21F9, "0"), "Tms")
-        accumulator = tags.get(0x606F, "")
-        if not accumulator:
-            return None
-        return Drum(
-            drum_kind="time",
-            outputs=outputs,
-            events_or_presets=events_or_presets,
-            pattern=pattern,
-            current_step=current_step,
-            completion_flag=completion_flag,
-            accumulator=accumulator,
-            unit=unit,
-        )
-
-    if class_name == "RD" and type_code == 0x2728:
-        protocol_mode = tags.get(0x220C, "0")
-        device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
-        if protocol_mode == "2":
-            target: ModbusRtuTarget | ModbusTcpTarget = ModbusTcpTarget(
-                name="tcp",
-                ip=tags.get(0x622B, ""),
-                port=int(tags.get(0x322C, "502") or "502"),
-                device_id=device_id,
-            )
-        else:
-            target = ModbusRtuTarget(
-                name="rtu",
-                com_port=_COM_PORT_MODE_INV.get(protocol_mode, "cpu2"),
-                device_id=device_id,
-            )
-
-        remote_start_raw = tags.get(0x6085, "")
-        dest = tags.get(0x607E, "")
-        if not remote_start_raw or not dest:
-            return None
-
-        address_type = tags.get(0x320F, "0")
-        fc_subtype = tags.get(0x2211, "0")
-        remote_start: str | ModbusAddress
-        if address_type == "2":
-            remote_start = remote_start_raw
-        elif address_type == "1":
-            register_type = {"0": "coil", "1": "discrete_input", "2": "holding", "3": "input"}.get(
-                fc_subtype, "holding"
-            )
-            remote_start = ModbusAddress(address=remote_start_raw, register_type=register_type)
-        else:
-            remote_start = ModbusAddress(address=remote_start_raw)
-
-        return Receive(
-            target=target,
-            remote_start=remote_start,
-            dest=dest,
-            quantity=int(tags.get(0x3210, "1") or "1"),
-            receiving=tags.get(0x607C, ""),
-            success=tags.get(0x607B, ""),
-            error=tags.get(0x607D, ""),
-            exception_response=tags.get(0x6083, ""),
-            word_swap=tags.get(0x221C, "1") == "0",
-        )
-
-    if class_name == "SD" and type_code == 0x2729:
-        protocol_mode = tags.get(0x220C, "0")
-        device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
-        if protocol_mode == "2":
-            target = ModbusTcpTarget(
-                name="tcp",
-                ip=tags.get(0x622B, ""),
-                port=int(tags.get(0x322C, "502") or "502"),
-                device_id=device_id,
-            )
-        else:
-            target = ModbusRtuTarget(
-                name="rtu",
-                com_port=_COM_PORT_MODE_INV.get(protocol_mode, "cpu2"),
-                device_id=device_id,
-            )
-
-        remote_start_raw = tags.get(0x6085, "")
-        source = tags.get(0x607E, "")
-        if not remote_start_raw or not source:
-            return None
-
-        address_type = tags.get(0x320F, "0")
-        fc_subtype = tags.get(0x2211, "0")
-        remote_start: str | ModbusAddress
-        if address_type == "2":
-            remote_start = remote_start_raw
-        elif address_type == "1":
-            register_type = {"0": "coil", "1": "holding", "2": "coil", "3": "holding"}.get(
-                fc_subtype, "holding"
-            )
-            remote_start = ModbusAddress(address=remote_start_raw, register_type=register_type)
-        else:
-            remote_start = ModbusAddress(address=remote_start_raw)
-
-        return Send(
-            target=target,
-            remote_start=remote_start,
-            source=source,
-            quantity=int(tags.get(0x3210, "1") or "1"),
-            sending=tags.get(0x607C, "") if 0x120A in tags else "",
-            success=tags.get(0x607B, "") if 0x1209 in tags else "",
-            error=tags.get(0x607D, "") if 0x120B in tags else "",
-            exception_response=tags.get(0x6083, "") if 0x121A in tags else "",
-            word_swap=tags.get(0x221C, "1") == "0",
-        )
-
-    if class_name == "Call" and type_code == 0x2723:
-        subroutine = tags.get(0x6208, "")
-        if not subroutine:
-            return None
-        return Call(subroutine=subroutine)
-
-    if class_name == "For" and type_code == 0x2725:
-        limit = tags.get(0x6065, "")
-        if not limit:
-            return None
-        return ForLoop(limit=limit, oneshot=0x11F8 in tags)
-
-    if class_name == "Next" and type_code == 0x2726:
-        return Next()
-
-    if class_name == "End" and type_code == 0x2727:
-        return End()
-
-    if class_name == "Return" and type_code == 0x2724:
-        return Return()
-
-    return None
-
-
-def _raw_field(tag: int, value: str) -> tuple[int, bytes, str]:
-    """Build a standard-sentinel raw field tuple."""
-    return tag, _RAW_STANDARD_SENTINEL, value
-
-
-def _raw_empty_array_fields(tag: int, count: int) -> list[tuple[int, bytes, str]]:
-    """Build compact array-style raw fields with sequential variant sentinels."""
-    return [(tag, struct.pack("<I", idx), "") for idx in range(count)]
-
-
-def _scr_to_raw_af(
-    class_name: str,
-    type_code: int,
-    tags: dict[int, str],
-    visual_sub_rows: int,
-) -> RawInstruction | None:
-    """Rehydrate sparse SCR AF blobs into clipboard-style RawInstruction blobs."""
-    from .instructions.raw import _compose_blob
-
-    fields: list[tuple[int, bytes, str]] | None = None
-
-    if class_name == "Email" and type_code == 0x2737:
-        fields = [
-            _raw_field(0x60A5, tags.get(0x60A5, "")),
-            _raw_field(0x60A6, tags.get(0x60A6, "")),
-            _raw_field(0x60A7, tags.get(0x60A7, "")),
-            _raw_field(0x2237, tags.get(0x2237) or "0"),
-            _raw_field(0x6235, tags.get(0x6235, "")),
-            _raw_field(0x6236, tags.get(0x6236, "")),
-            _raw_field(0x60AE, tags.get(0x60AE, "")),
-            _raw_field(0x60AF, tags.get(0x60AF, "")),
-            _raw_field(0x2206, tags.get(0x2206) or "0"),
-            _raw_field(0x2238, tags.get(0x2238) or "0"),
-            _raw_field(0x6217, tags.get(0x6217, "")),
-            _raw_field(0x622A, tags.get(0x622A, "")),
-            _raw_field(0x6081, tags.get(0x6081, "")),
-            _raw_field(0x6082, tags.get(0x6082, "")),
-            _raw_field(0x607C, tags.get(0x607C, "")),
-            _raw_field(0x607B, tags.get(0x607B, "")),
-            _raw_field(0x607D, tags.get(0x607D, "")),
-            _raw_field(0x6083, tags.get(0x6083, "")),
-            _raw_field(0x2239, tags.get(0x2239) or "0"),
-        ]
-        fields.extend(_raw_empty_array_fields(0x68B1, 250))
-        fields.extend(_raw_empty_array_fields(0x68B0, 250))
-        fields.extend(
-            [
-                _raw_field(0x20CA, tags.get(0x20CA) or "2"),
-                _raw_field(0x3218, tags.get(0x3218) or "9748"),
-                _raw_field(0x0000, ""),
-            ]
-        )
-
-    elif class_name == "Home" and type_code == 0x2734:
-        try:
-            home_variant = int(tags.get(0x222E, "0") or "0")
-        except ValueError:
-            home_variant = 0
-        fields = [
-            _raw_field(0x222D, tags.get(0x222D) or "0"),
-            _raw_field(0x222E, tags.get(0x222E) or "0"),
-            _raw_field(0x6096, tags.get(0x6096, "")),
-            _raw_field(0x6097, tags.get(0x6097, "")),
-            _raw_field(0x609E, tags.get(0x609E, "")),
-            _raw_field(0x609F, tags.get(0x609F, "")),
-            _raw_field(0x60A0, tags.get(0x60A0, "")),
-            _raw_field(0x609C, tags.get(0x609C, "")),
-            _raw_field(0x609D, tags.get(0x609D, "")),
-            _raw_field(0x222F, tags.get(0x222F) or "0"),
-            _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-            _raw_field(0x2230, tags.get(0x2230) or "0"),
-            _raw_field(0x60A1, tags.get(0x60A1, "")),
-            _raw_field(0x60A3, tags.get(0x60A3, "")),
-            _raw_field(0x60A4, tags.get(0x60A4, "")),
-            _raw_field(0x607B, tags.get(0x607B, "")),
-            _raw_field(0x607D, tags.get(0x607D, "")),
-            _raw_field(0x6083, tags.get(0x6083, "")),
-            _raw_field(0x2232, tags.get(0x2232) or "0"),
-            _raw_field(0x2233, tags.get(0x2233) or "0"),
-            _raw_field(0x3218, tags.get(0x3218) or str(9738 + home_variant)),
-            _raw_field(0x0000, ""),
-        ]
-
-    elif class_name == "Velocity" and type_code == 0x2735:
-        fields = [
-            _raw_field(0x222D, tags.get(0x222D) or "0"),
-            _raw_field(0x609B, tags.get(0x609B, "")),
-            _raw_field(0x609C, tags.get(0x609C, "")),
-            _raw_field(0x609D, tags.get(0x609D, "")),
-            _raw_field(0x222F, tags.get(0x222F) or "2"),
-            _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-            _raw_field(0x2231, tags.get(0x2231) or "0"),
-            _raw_field(0x60A2, tags.get(0x60A2, "")),
-            _raw_field(0x60A3, tags.get(0x60A3, "")),
-            _raw_field(0x60A4, tags.get(0x60A4, "")),
-            _raw_field(0x607B, tags.get(0x607B, "")),
-            _raw_field(0x607D, tags.get(0x607D, "")),
-            _raw_field(0x6083, tags.get(0x6083, "")),
-            _raw_field(0x3218, tags.get(0x3218) or "9744"),
-            _raw_field(0x0000, ""),
-        ]
-
-    elif class_name == "Position" and type_code == 0x2736:
-        fields = [
-            _raw_field(0x222D, tags.get(0x222D) or "0"),
-            _raw_field(0x6098, tags.get(0x6098, "")),
-            _raw_field(0x6099, tags.get(0x6099, "")),
-            _raw_field(0x609A, tags.get(0x609A, "")),
-            _raw_field(0x2206, tags.get(0x2206) or "0"),
-            _raw_field(0x609B, tags.get(0x609B, "")),
-            _raw_field(0x609C, tags.get(0x609C, "")),
-            _raw_field(0x609D, tags.get(0x609D, "")),
-            _raw_field(0x222F, tags.get(0x222F) or "2"),
-            _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-            _raw_field(0x2231, tags.get(0x2231) or "0"),
-            _raw_field(0x60A2, tags.get(0x60A2, "")),
-            _raw_field(0x60A3, tags.get(0x60A3, "")),
-            _raw_field(0x60A4, tags.get(0x60A4, "")),
-            _raw_field(0x607B, tags.get(0x607B, "")),
-            _raw_field(0x607D, tags.get(0x607D, "")),
-            _raw_field(0x6083, tags.get(0x6083, "")),
-            _raw_field(0x3218, tags.get(0x3218) or "9745"),
-            _raw_field(0x0000, ""),
-        ]
-
-    if fields is None:
-        return None
-
-    blob = _compose_blob(
-        class_name,
-        type_code,
-        visual_sub_rows,
-        bytes(range(max(0, visual_sub_rows - 1))),
-        fields,
-    )
-    return RawInstruction(class_name=class_name, blob=blob, part_count=visual_sub_rows)
-
-
 def _infer_af_visual_rows(
     class_name: str,
     type_code: int,
@@ -1103,7 +438,7 @@ def _infer_af_visual_rows(
     variant_string_tags: _ScrVariantStringTags,
 ) -> int:
     """Infer visual row count using parsed instruction metadata when possible."""
-    parsed_af = _scr_to_af(
+    parsed_af = from_tags_af(
         class_name,
         type_code,
         tags,
@@ -1538,7 +873,7 @@ def _build_topology_backed_rung(
     ) in section_instructions:
         if col != _CONDITION_COLUMNS:
             continue
-        parsed_af = _scr_to_af(
+        parsed_af = from_tags_af(
             class_name,
             type_code,
             tags,
@@ -1623,7 +958,7 @@ def _build_topology_backed_rung(
         ) in section_instructions:
             if col != _CONDITION_COLUMNS:
                 continue
-            parsed_af = _scr_to_af(
+            parsed_af = from_tags_af(
                 class_name,
                 type_code,
                 tags,
@@ -1733,7 +1068,7 @@ def _build_rung(
         if row < 0 or row >= logical_rows:
             continue
         if col < _CONDITION_COLUMNS:
-            parsed = _scr_to_condition(
+            parsed = from_tags_condition(
                 class_name,
                 type_code,
                 tags,
@@ -1747,22 +1082,21 @@ def _build_rung(
                 conditions[row][col] = UnknownCondition(raw=class_name.encode())
             instr_positions.add((row, col))
         elif col == _CONDITION_COLUMNS:
-            parsed_af = _scr_to_af(
+            from .instructions.raw import RAW_VISUAL_ROWS_KEY
+
+            af_lens = dict(tag_byte_lens) if tag_byte_lens else {}
+            af_lens[RAW_VISUAL_ROWS_KEY] = visual_sub_rows
+            parsed_af = from_tags_af(
                 class_name,
                 type_code,
                 tags,
-                tag_byte_lens,
+                af_lens,
                 variant_u16_tags,
                 variant_string_tags,
             )
             if parsed_af is not None:
                 instructions[row] = parsed_af
             else:
-                rehydrated_raw = _scr_to_raw_af(class_name, type_code, tags, visual_sub_rows)
-                if rehydrated_raw is not None:
-                    instructions[row] = rehydrated_raw
-                    continue
-
                 # Build a minimal RawInstruction from SCR tag data
                 from .instructions.raw import _compose_blob
 

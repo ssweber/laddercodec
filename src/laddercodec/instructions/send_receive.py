@@ -535,33 +535,136 @@ def _remote_start_to_csv(remote_start: str | ModbusAddress) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Shared from_tags factory
+# ---------------------------------------------------------------------------
+
+_RD_TYPE_CODE = 0x2728
+_SD_TYPE_CODE = 0x2729
+
+
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Receive | Send | None:
+    """Construct a Send or Receive from tag data (shared by both decoders)."""
+    if class_name == "RD" and type_code == _RD_TYPE_CODE:
+        return _from_tags_rd(tags, tag_byte_lens or {})
+    if class_name == "SD" and type_code == _SD_TYPE_CODE:
+        return _from_tags_sd(tags, tag_byte_lens or {})
+    return None
+
+
+def _build_target(
+    protocol_mode: str,
+    device_id: int,
+    tags: dict[int, str],
+) -> ModbusRtuTarget | ModbusTcpTarget:
+    if protocol_mode == "2":
+        return ModbusTcpTarget(
+            name="tcp",
+            ip=tags.get(0x622B, ""),
+            port=int(tags.get(0x322C, "502") or "502"),
+            device_id=device_id,
+        )
+    return ModbusRtuTarget(
+        name="rtu",
+        com_port=_COM_PORT_MODE_INV.get(protocol_mode, "cpu2"),
+        device_id=device_id,
+    )
+
+
+def _build_remote_start(
+    tags: dict[int, str],
+    lens: dict[int, int],
+    rd: bool,
+) -> str | ModbusAddress | None:
+    remote_start_raw = tags.get(0x6085, "")
+    if not remote_start_raw:
+        return None
+
+    address_type = tags.get(0x320F, "0")
+    fc_subtype = tags.get(0x2211, "0")
+
+    if address_type == "2":
+        return remote_start_raw
+    if address_type == "1":
+        if rd:
+            rt = {"0": "coil", "1": "discrete_input", "2": "holding", "3": "input"}.get(
+                fc_subtype, "holding"
+            )
+        else:
+            rt = {"0": "coil", "1": "holding", "2": "coil", "3": "holding"}.get(
+                fc_subtype, "holding"
+            )
+        return ModbusAddress(address=remote_start_raw, register_type=rt)
+    return ModbusAddress(address=remote_start_raw)
+
+
+def _from_tags_rd(tags: dict[int, str], lens: dict[int, int]) -> Receive | None:
+    protocol_mode = tags.get(0x220C, "0")
+    device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
+    target = _build_target(protocol_mode, device_id, tags)
+
+    remote_start = _build_remote_start(tags, lens, rd=True)
+    dest = tags.get(0x607E, "")
+    if remote_start is None or not dest:
+        return None
+
+    return Receive(
+        target=target,
+        remote_start=remote_start,
+        dest=dest,
+        quantity=int(tags.get(0x3210, "1") or "1"),
+        receiving=tags.get(0x607C, ""),
+        success=tags.get(0x607B, ""),
+        error=tags.get(0x607D, ""),
+        exception_response=tags.get(0x6083, ""),
+        word_swap=tags.get(0x221C, "1") == "0",
+    )
+
+
+def _from_tags_sd(tags: dict[int, str], lens: dict[int, int]) -> Send | None:
+    protocol_mode = tags.get(0x220C, "0")
+    device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
+    target = _build_target(protocol_mode, device_id, tags)
+
+    remote_start = _build_remote_start(tags, lens, rd=False)
+    source = tags.get(0x607E, "")
+    if remote_start is None or not source:
+        return None
+
+    return Send(
+        target=target,
+        remote_start=remote_start,
+        source=source,
+        quantity=int(tags.get(0x3210, "1") or "1"),
+        sending=tags.get(0x607C, "") if 0x120A in tags else "",
+        success=tags.get(0x607B, "") if 0x1209 in tags else "",
+        error=tags.get(0x607D, "") if 0x120B in tags else "",
+        exception_response=tags.get(0x6083, "") if 0x121A in tags else "",
+        word_swap=tags.get(0x221C, "1") == "0",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Blob parser
 # ---------------------------------------------------------------------------
 
 
 def parse_blob(raw: bytes) -> Receive | Send | None:
     """Parse an RD or SD instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields_verbose, _read_utf16le
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name not in ("RD", "SD"):
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
         return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip part count
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    # Must use _parse_tagged_fields_verbose because SD/RD padding fields
-    # (0x6889, 0x688F) use incrementing sentinels, not 0xFFFFFFFF.
-    verbose, _ = _parse_tagged_fields_verbose(raw, pos, field_count)
-    fields = [val for _, _, val in verbose]
-
-    if class_name == "RD":
-        return _parse_rd(fields)
-    return _parse_sd(fields)
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def _parse_rd(fields: list[str]) -> Receive | None:
@@ -819,6 +922,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Receive, Send),
     binary_class_names=("RD", "SD"),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("receive", "send"),
     parse_csv_call=parse_af_call,
     min_csv_rows=3,

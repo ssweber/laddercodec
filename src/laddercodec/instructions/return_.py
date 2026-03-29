@@ -56,37 +56,30 @@ def build_blob(ret: Return) -> bytes:
     return ret.build_blob()
 
 
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Return | None:
+    """Construct a Return instruction from tag data (shared by both decoders)."""
+    if class_name != "Return" or type_code != RETURN_TYPE_MARKER:
+        return None
+    return Return()
+
+
 def parse_blob(raw: bytes) -> Return | None:
     """Try to parse a Return instruction from an instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Return":
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
         return None
-    if pos + 10 > len(raw):
-        return None
-
-    type_marker = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    if type_marker != RETURN_TYPE_MARKER:
-        return None
-    if part_count != 1:
-        return None
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) != 2:
-        return None
-    if fields[0] != RETURN_FUNC_CODE:
-        return None
-    if fields[1] != "":
-        return None
-
-    return Return()
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Return:
@@ -101,6 +94,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Return,),
     binary_class_names=("Return",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("return",),
     parse_csv_call=parse_af_call,
 )

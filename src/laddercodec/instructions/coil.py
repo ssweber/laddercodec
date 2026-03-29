@@ -10,7 +10,7 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, _validate_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -189,47 +189,54 @@ def build_blob(coil: Coil) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
-_COIL_CLASSES = {"Out", "Latch", "Reset"}
+
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Coil | None:
+    """Construct a Coil from tag data (shared by both decoders)."""
+    itype = TYPE_CODE_TO_ITYPE.get(type_code)
+    if class_name not in ("Out", "Latch", "Reset") or itype not in (
+        InstructionType.COIL_OUT,
+        InstructionType.COIL_LATCH,
+        InstructionType.COIL_RESET,
+    ):
+        return None
+    operand = tags.get(0x6066, "")
+    if not operand:
+        return None
+    range_end_val = tags.get(0x6067, "")
+    return Coil(
+        type=itype,
+        operand=operand,
+        range_end=range_end_val or None,
+        immediate=0x11F5 in tags,
+        oneshot=0x11F8 in tags,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Blob parser
+# ---------------------------------------------------------------------------
 
 
 def parse_blob(raw: bytes) -> Coil | None:
     """Try to parse a Coil from an instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name not in _COIL_CLASSES:
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
         return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip unknown 01 00
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 5:
-        return None
-
-    operand = fields[0]
-    range_end = fields[1] if fields[1] else None
-    func_code = fields[4]
-
-    info = _FUNC_TO_COIL.get(func_code)
-    if info is None:
-        return None
-
-    itype, is_range, immediate, oneshot = info
-    return Coil(
-        type=itype,
-        operand=operand,
-        range_end=range_end if is_range else None,
-        immediate=immediate,
-        oneshot=oneshot,
-    )
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Coil:
@@ -242,6 +249,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Coil,),
     binary_class_names=("Out", "Latch", "Reset"),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("out", "latch", "reset"),
     parse_csv_call=parse_af_call,
 )

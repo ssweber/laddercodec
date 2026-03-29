@@ -137,6 +137,31 @@ class Next(AfInstruction):
         return bytes(out)
 
 
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> ForLoop | Next | None:
+    """Construct a ForLoop or Next from tag data (shared by both decoders)."""
+    if class_name == "Next" and type_code == NEXT_TYPE_MARKER:
+        return Next()
+
+    if class_name == "For" and type_code == FOR_TYPE_MARKER:
+        limit = tags.get(0x6065, "")
+        if not limit:
+            return None
+        oneshot = 0x11F8 in tags
+        try:
+            return ForLoop(limit=limit, oneshot=oneshot)
+        except ValueError:
+            return None
+
+    return None
+
+
 def _parse_for_blob(raw: bytes, pos: int) -> ForLoop | None:
     from ..binary_helpers import _parse_tagged_fields_verbose
 
@@ -251,6 +276,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(ForLoop, Next),
     binary_class_names=("For", "Next"),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("for", "next"),
     parse_csv_call=parse_af_call,
 )

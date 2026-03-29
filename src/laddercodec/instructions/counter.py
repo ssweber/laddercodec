@@ -155,88 +155,63 @@ def build_blob(counter: Counter) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_COUNTER_TYPE_CODE = 0x2719
 
-def parse_blob(raw: bytes) -> Counter | None:
-    """Try to parse a Counter from an instruction blob."""
-    from ..binary_helpers import _read_utf16le
+# Mode byte value → (counter_type, down_enabled, reset_enabled).
+_MODE_TO_VARIANT: dict[int, tuple[Literal["count_up", "count_down"], bool, bool]] = {
+    0: ("count_up", False, True),
+    1: ("count_down", False, True),
+    2: ("count_up", True, True),
+}
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Cnt":
+
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Counter | None:
+    """Construct a Counter from tag data (shared by both decoders)."""
+    if class_name != "Cnt" or type_code != _COUNTER_TYPE_CODE:
         return None
-    if pos + 6 > len(raw):
-        return None
-
-    pos += 4  # skip type marker (0x2719)
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-
-    if part_count != 3:
-        return None
-    if pos + (part_count - 1) > len(raw):
-        return None
-    pos += part_count - 1  # skip 01 02
-
-    if pos + 4 > len(raw):
-        return None
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    parsed_fields: list[tuple[int, bytes, str]] = []
-    for _ in range(field_count):
-        if pos + 6 > len(raw):
-            return None
-        tag = int.from_bytes(raw[pos : pos + 2], "little")
-        pos += 2
-        marker = raw[pos : pos + 4]
-        pos += 4
-        value, pos = _read_utf16le(raw, pos)
-        parsed_fields.append((tag, marker, value))
-
-    if len(parsed_fields) < 9:
-        return None
-
-    # Validate expected tag structure.
-    for idx, tag in enumerate(_COUNTER_STD_TAGS):
-        if parsed_fields[idx][0] != tag:
-            return None
-    if parsed_fields[5][0] != 0x3A05 or parsed_fields[5][1] != b"\x00\x00\x00\x00":
-        return None
-    if parsed_fields[6][0] != 0x3A05 or parsed_fields[6][1] != b"\x01\x00\x00\x00":
-        return None
-    if parsed_fields[7][0] != 0x3A05 or parsed_fields[7][1] != b"\x02\x00\x00\x00":
-        return None
-    if parsed_fields[8][0] != 0x0000:
-        return None
-
-    done_bit = parsed_fields[0][2]
-    preset = parsed_fields[1][2]
-    current = parsed_fields[2][2]
-    echoed_done = parsed_fields[3][2]
-
-    if echoed_done and echoed_done != done_bit:
-        return None
-
-    mode = parsed_fields[4][2]
-    up_fc = parsed_fields[5][2]
-    down_fc = parsed_fields[6][2]
-    reset_fc = parsed_fields[7][2]
-
-    variant = _ENCODING_TO_VARIANT.get((mode, up_fc, down_fc, reset_fc))
-    if variant is None:
+    done_bit = tags.get(0x606B, "")
+    preset = tags.get(0x606A, "")
+    current = tags.get(0x606C, "")
+    mode = (tag_byte_lens or {}).get(0x21FC, 0)
+    variant = _MODE_TO_VARIANT.get(mode)
+    if not all([done_bit, preset, current]) or variant is None:
         return None
     counter_type, down_enabled, reset_enabled = variant
-
     return Counter(
-        counter_type=cast(Literal["count_up", "count_down"], counter_type),
+        counter_type=counter_type,
         done_bit=done_bit,
         current=current,
         preset=preset,
         down_enabled=down_enabled,
         reset_enabled=reset_enabled,
     )
+
+
+# ---------------------------------------------------------------------------
+# Blob parser
+# ---------------------------------------------------------------------------
+
+
+def parse_blob(raw: bytes) -> Counter | None:
+    """Try to parse a Counter from an instruction blob."""
+    from .raw import _decompose_blob, _fields_to_tag_dicts
+
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Counter:
@@ -249,6 +224,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Counter,),
     binary_class_names=("Cnt",),
     parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("count_up", "count_down"),
     parse_csv_call=parse_af_call,
     pin_names=(".down", ".reset"),
