@@ -237,7 +237,7 @@ class Math(AfInstruction):
     def cell_params(self) -> dict:
         return {}
 
-    def build_blob(self) -> bytes:
+    def build_blob(self, *, show_nicknames: bool = False) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field
 
         operands = _extract_operands(self.expression)
@@ -265,7 +265,7 @@ class Math(AfInstruction):
         out += _tagged_field(_TAG_TEMPLATE_INTERNAL, template_internal)
         out += _tagged_field(_TAG_FORMULA_INTERNAL, formula_internal)
         out += _tagged_field(_TAG_FUNC_CODE, func_code)
-        out += _tagged_field(_TAG_NICKNAME_FLAG, "0")
+        out += _tagged_field(_TAG_NICKNAME_FLAG, "1" if show_nicknames else "0")
 
         # --- 500 operand slots (indexed sentinel) ---
         for i in range(_OPERAND_SLOTS):

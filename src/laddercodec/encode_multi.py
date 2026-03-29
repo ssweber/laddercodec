@@ -103,6 +103,8 @@ RungInput = tuple[int, Sequence[Sequence[ConditionToken]], Sequence[AfToken]]
 def encode_rungs(
     rungs: Sequence[RungInput],
     comments: Sequence[str | None] | None = None,
+    *,
+    show_nicknames: bool = False,
 ) -> bytes:
     """Combine N rungs into one multi-rung clipboard buffer.
 
@@ -185,6 +187,7 @@ def encode_rungs(
             rung_idx=r_idx,
             is_last_rung=is_last,
             single_rung=False,
+            show_nicknames=show_nicknames,
         )
 
         global_row += logical_rows

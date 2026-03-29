@@ -41,6 +41,16 @@ Field values are string-encoded even for numeric data (e.g. `"1000"` for a timer
 
 The encoder uses `Out` as the class name for all coil types; the type marker and func code determine the variant. The decoder also recognizes `Latch` and `Reset` class names from native Click captures.
 
+## Math nickname flag
+
+Math blobs contain a `nickname_flag` field (tag `0x2224`). When set to `"1"`,
+Click displays project-level tag names instead of raw addresses in the math
+formula. The flag is purely a display hint — the expression itself always
+stores concrete addresses.
+
+The `encode()` API exposes this via `show_nicknames=True`, which sets the flag
+on all math instructions in the buffer.
+
 ## AF summary block
 
 In single-rung buffers, when a rung has 2+ AF instruction cells, the **last** AF instruction cell gets an extra block appended between the blob and tail:
