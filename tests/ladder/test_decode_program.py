@@ -11,8 +11,8 @@ from laddercodec.decode_program import (
     _parse_extra_row_right_wires,
     _parse_header,
     _parse_scr_tags,
-    decode_program,
     _scr_to_af,
+    decode_program,
 )
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.timer import Timer
@@ -166,12 +166,14 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _parse_scr_tags(
-        raw,
-        0,
-        len(raw),
-        1,
-        _SCR_TAG_PARSE_SPECS["Math"],
+    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
+        _parse_scr_tags(
+            raw,
+            0,
+            len(raw),
+            1,
+            _SCR_TAG_PARSE_SPECS["Math"],
+        )
     )
     parsed = _scr_to_af(
         class_name,
@@ -203,12 +205,14 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _parse_scr_tags(
-        raw,
-        0,
-        len(raw),
-        2,
-        _SCR_TAG_PARSE_SPECS["Tmr"],
+    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
+        _parse_scr_tags(
+            raw,
+            0,
+            len(raw),
+            2,
+            _SCR_TAG_PARSE_SPECS["Tmr"],
+        )
     )
     parsed = _scr_to_af(
         class_name,
