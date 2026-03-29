@@ -153,9 +153,11 @@ def _make_template(expression: str, operands: list[str]) -> str:
 def _make_internal(expression: str) -> str:
     """Convert display-form expression to Click internal form.
 
-    Replaces spaces with ``#`` delimiters.
+    Replaces spaces with ``#`` delimiters and prefixes standalone
+    numeric literals with ``H`` (Click's internal normalization).
     """
-    return expression.replace(" ", "#")
+    tokens = expression.split(" ")
+    return "#".join(f"H{t}" if re.fullmatch(r"\d+", t) else t for t in tokens)
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
