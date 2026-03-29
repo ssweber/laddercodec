@@ -177,6 +177,53 @@ def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
     return raw.decode("utf-16-le").rstrip("\x00")
 
 
+def _skip_condition_column_family_table(data: bytes, cursor: int) -> int:
+    """Skip the fixed-width per-condition-column family table.
+
+    SCR stores ``cols_per_row`` first, then one UTF-16LE family code for each
+    condition column (A..AE). The AF/output column is not included, so a Click
+    program with 32 visible columns still serializes 31 family entries here.
+    """
+    if cursor + 2 > len(data):
+        return cursor
+
+    cols_per_row = struct.unpack_from("<H", data, cursor)[0]
+    cursor += 2
+
+    if 1 <= cols_per_row <= _CONDITION_COLUMNS + 1:
+        family_table_bytes = (cols_per_row - 1) * 2
+        if cursor + family_table_bytes <= len(data):
+            return cursor + family_table_bytes
+
+    # Fallback for malformed headers: consume a contiguous UTF-16LE ASCII table
+    # without assuming any specific family code such as "A".
+    while cursor + 1 < len(data) and data[cursor + 1] == 0 and 0x20 <= data[cursor] <= 0x7E:
+        cursor += 2
+
+    return cursor
+
+
+def _skip_initial_rtf_prelude(data: bytes, cursor: int) -> int:
+    """Skip the variable marker/length prelude that precedes the first RTF block.
+
+    The 7-byte prelude layout:
+      +0x00  (2B) — marker (observed: varies per file)
+      +0x02  (1B) — unidentified (always 0x0D in observations)
+      +0x03  (4B) — unknown uint32
+      +0x07  (4B) — RTF body length (uint32 LE)
+    We skip past the first 7 bytes so data_start points at the RTF length field.
+    """
+    if cursor + 11 > len(data) or data[cursor + 2] != 0x0D:
+        return cursor
+
+    rtf_len = struct.unpack_from("<I", data, cursor + 7)[0]
+    rtf_start = cursor + 11
+    if 0 < rtf_len <= len(data) - rtf_start and data[rtf_start : rtf_start + 6] == b"{\\rtf1":
+        return cursor + 7
+
+    return cursor
+
+
 def _parse_header(data: bytes) -> tuple[str, int, int]:
     """Parse SC-SCR file header.
 
@@ -190,16 +237,8 @@ def _parse_header(data: bytes) -> tuple[str, int, int]:
     name = _read_utf16le(data, 0x43, name_len)
     cursor = 0x43 + name_len
 
-    # Skip cols_per_row + extra header fields + column type entries ('A' u16)
-    cursor += 2
-    while cursor < len(data) - 1 and not (data[cursor] == 0x41 and data[cursor + 1] == 0x00):
-        cursor += 2
-    while cursor < len(data) - 1 and data[cursor] == 0x41 and data[cursor + 1] == 0x00:
-        cursor += 2
-
-    # Handle 0x90 prefix
-    if cursor < len(data) - 1 and data[cursor] == 0x90 and data[cursor + 1] == 0x00:
-        cursor += 7  # 2 (marker) + 1 (mystery) + 4 (u32)
+    cursor = _skip_condition_column_family_table(data, cursor)
+    cursor = _skip_initial_rtf_prelude(data, cursor)
 
     return name, prog_idx, cursor
 
@@ -212,7 +251,7 @@ def _parse_header(data: bytes) -> tuple[str, int, int]:
 def _parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
     """Parse SCR instruction blob at pos.
 
-    Returns (class_name, type_code, end_offset, next_pos, m1) or None.
+    Returns (class_name, type_code, end_offset, next_pos, visual_sub_rows) or None.
     """
     if pos >= len(data) - 20:
         return None
@@ -228,20 +267,29 @@ def _parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
         if not (0x2700 <= marker <= 0x2800):
             return None
 
+        # Embedded cell-header fields (matches clipboard cell offsets +0x09..+0x10):
+        #   after_type+0  (1B) — row_span (unused here)
+        #   after_type+1  (1B) — ??? (always 0x00 in observations)
+        #   after_type+2  (2B) — structural bytes
+        #   after_type+4  (2B) — instruction_index (unused here)
+        #   after_type+6  (1B) — visual_sub_rows (0x01 single-row, 0x02+ multi-row)
+        # Followed by visual_sub_rows sequential counting bytes, then end_offset.
         after_type = type_off + 2
         if after_type + 12 > len(data):
             return None
-        m1 = data[after_type + 6]
-        if not (1 <= m1 <= 8):
+        visual_sub_rows = data[after_type + 6]
+        if not (1 <= visual_sub_rows <= 8):
             return None
-        eo_pos = after_type + 7 + m1
+        eo_pos = after_type + 7 + visual_sub_rows
         if eo_pos + 4 > len(data):
             return None
+        # end_offset is the explicit blob boundary pointer — the same boundary
+        # that clipboard's find_blob_boundary() derives by scanning tag fields.
         end_offset = struct.unpack_from("<I", data, eo_pos)[0]
         if not (pos < end_offset < len(data)):
             return None
         next_pos = end_offset + 2
-        return text, marker, end_offset, next_pos, m1
+        return text, marker, end_offset, next_pos, visual_sub_rows
     except (UnicodeDecodeError, ValueError, struct.error):
         return None
 
@@ -277,7 +325,7 @@ def _parse_scr_tags(
     data: bytes,
     blob_start: int,
     end_offset: int,
-    m1: int,
+    visual_sub_rows: int,
     spec: _ScrTagParseSpec | None = None,
 ) -> tuple[str, int, dict[int, str], dict[int, int], _ScrVariantU16Tags, _ScrVariantStringTags]:
     """Parse SCR blob into scalar tags plus compact variant-tag collections."""
@@ -289,7 +337,9 @@ def _parse_scr_tags(
     pos += sl
     type_code = struct.unpack_from("<H", data, pos)[0]
     pos += 2
-    pos += 6 + 1 + m1 + 4  # skip zeros + m1 + counting bytes + end_offset
+    pos += (
+        6 + 1 + visual_sub_rows + 4
+    )  # skip cell-header + visual_sub_rows counting bytes + end_offset
 
     tags: dict[int, str] = {}
     tag_byte_lens: dict[int, int] = {}
@@ -875,7 +925,7 @@ def _scr_to_raw_af(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    m1: int,
+    visual_sub_rows: int,
 ) -> RawInstruction | None:
     """Rehydrate sparse SCR AF blobs into clipboard-style RawInstruction blobs."""
     from .instructions.raw import _compose_blob
@@ -992,18 +1042,18 @@ def _scr_to_raw_af(
     blob = _compose_blob(
         class_name,
         type_code,
-        m1,
-        bytes(range(max(0, m1 - 1))),
+        visual_sub_rows,
+        bytes(range(max(0, visual_sub_rows - 1))),
         fields,
     )
-    return RawInstruction(class_name=class_name, blob=blob, part_count=m1)
+    return RawInstruction(class_name=class_name, blob=blob, part_count=visual_sub_rows)
 
 
 def _infer_af_visual_rows(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    m1: int,
+    visual_sub_rows: int,
     tag_byte_lens: dict[int, int],
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
@@ -1022,7 +1072,7 @@ def _infer_af_visual_rows(
 
     family_spec = INSTRUCTION_MODULES.get(class_name)
     min_rows = int(getattr(family_spec, "min_csv_rows", 1))
-    return max(1, min_rows, m1)
+    return max(1, min_rows, visual_sub_rows)
 
 
 # ---------------------------------------------------------------------------
@@ -1081,18 +1131,18 @@ def _parse_section_instructions(
         if blob8:
             row_1based = data[cursor]
             col_idx = data[cursor + 1]
-            cls_name, typ, end_off, next_pos, m1 = blob8
+            cls_name, typ, end_off, next_pos, vsub = blob8
             spec = _SCR_TAG_PARSE_SPECS.get(cls_name)
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, m1, spec)
-            results.append((row_1based - 1, col_idx, cn, tc, tags, m1, tbl, v_u16, v_str))
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub, spec)
+            results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         elif blob9:
             row_1based = data[cursor + 1]
             col_idx = data[cursor + 2]
-            cls_name, typ, end_off, next_pos, m1 = blob9
+            cls_name, typ, end_off, next_pos, vsub = blob9
             spec = _SCR_TAG_PARSE_SPECS.get(cls_name)
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, m1, spec)
-            results.append((row_1based - 1, col_idx, cn, tc, tags, m1, tbl, v_u16, v_str))
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub, spec)
+            results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         else:
             break
@@ -1437,7 +1487,7 @@ def _build_topology_backed_rung(
         class_name,
         type_code,
         tags,
-        _m1,
+        _visual_sub_rows,
         tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
@@ -1474,7 +1524,9 @@ def _build_topology_backed_rung(
             if first_bridge_col is not None and first_bridge_col not in wiredown:
                 wiredown = dict(wiredown)
                 wiredown[first_bridge_col] = tuple(range(len(leading_rows)))
-            elif first_bridge_col is not None and len(wiredown[first_bridge_col]) < len(leading_rows):
+            elif first_bridge_col is not None and len(wiredown[first_bridge_col]) < len(
+                leading_rows
+            ):
                 wiredown = dict(wiredown)
                 wiredown[first_bridge_col] = tuple(
                     sorted(set(wiredown[first_bridge_col]) | set(range(len(leading_rows))))
@@ -1520,7 +1572,7 @@ def _build_topology_backed_rung(
             class_name,
             type_code,
             tags,
-            _m1,
+            _visual_sub_rows,
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
@@ -1629,7 +1681,7 @@ def _build_rung(
         class_name,
         type_code,
         tags,
-        m1,
+        visual_sub_rows,
         tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
@@ -1662,7 +1714,7 @@ def _build_rung(
             if parsed_af is not None:
                 instructions[row] = parsed_af
             else:
-                rehydrated_raw = _scr_to_raw_af(class_name, type_code, tags, m1)
+                rehydrated_raw = _scr_to_raw_af(class_name, type_code, tags, visual_sub_rows)
                 if rehydrated_raw is not None:
                     instructions[row] = rehydrated_raw
                     continue
@@ -1673,14 +1725,14 @@ def _build_rung(
                 blob = _compose_blob(
                     class_name,
                     type_code,
-                    m1,
-                    bytes(range(max(0, m1 - 1))),
+                    visual_sub_rows,
+                    bytes(range(max(0, visual_sub_rows - 1))),
                     [(t, _RAW_STANDARD_SENTINEL, v) for t, v in tags.items()],
                 )
                 instructions[row] = RawInstruction(
                     class_name=class_name,
                     blob=blob,
-                    part_count=m1,
+                    part_count=visual_sub_rows,
                 )
 
     if _CONDITION_COLUMNS in row0_flags and instructions[0] == "":
@@ -1819,7 +1871,7 @@ def decode_program(data: bytes) -> Program:
             class_name,
             type_code,
             tags,
-            _m1,
+            _visual_sub_rows,
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
@@ -1832,7 +1884,7 @@ def decode_program(data: bytes) -> Program:
                     class_name,
                     type_code,
                     tags,
-                    _m1,
+                    _visual_sub_rows,
                     tag_byte_lens,
                     variant_u16_tags,
                     variant_string_tags,
@@ -1885,7 +1937,7 @@ def decode_program(data: bytes) -> Program:
                     comment_rtf=empty_rtf_bytes,
                 )
             )
-            comment_start = empty_end
+            comment_start = empty_block.start
 
         # Normal rung with a row-topology block.
         logical_rows = max(1, topology_block.row_word - 1, inferred_rows)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import struct
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from laddercodec.decode_program import (
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.timer import Timer
 
+decode_program_module = importlib.import_module("laddercodec.decode_program")
 _SCR_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 _COL_NAMES = {
     idx: chr(ord("A") + idx) if idx < 26 else f"A{chr(ord('A') + idx - 26)}" if idx < 31 else "AF"
@@ -110,7 +112,7 @@ def _parse_row0_entry_order(data: bytes, block) -> tuple[int, ...]:
 def _compact_scr_blob(
     class_name: str,
     type_code: int,
-    m1: int,
+    visual_sub_rows: int,
     body: bytes,
 ) -> bytes:
     class_bytes = class_name.encode("utf-16-le") + b"\x00"
@@ -120,16 +122,17 @@ def _compact_scr_blob(
     header += type_code.to_bytes(2, "little")
     header += b"\x00" * 6
     header += b"\x01"
-    header += b"\x00" * m1
-    end_offset = 1 + len(class_bytes) + 2 + 6 + 1 + m1 + 4 + len(body)
+    header += b"\x00" * visual_sub_rows
+    end_offset = 1 + len(class_bytes) + 2 + 6 + 1 + visual_sub_rows + 4 + len(body)
     header += end_offset.to_bytes(4, "little")
     return bytes(header) + body
 
 
-def _rebase_compact_scr_blob(blob: bytes, blob_start: int, part_count: int) -> bytes:
+def _rebase_compact_scr_blob(blob: bytes, blob_start: int, visual_sub_rows: int) -> bytes:
+    """Rewrite end_offset to be relative to blob_start (visual_sub_rows == part_count in clipboard)."""
     rebased = bytearray(blob)
     str_len = rebased[0]
-    end_offset_pos = 1 + str_len + 2 + 6 + 1 + part_count
+    end_offset_pos = 1 + str_len + 2 + 6 + 1 + visual_sub_rows
     struct.pack_into("<I", rebased, end_offset_pos, blob_start + len(blob))
     return bytes(rebased)
 
@@ -314,8 +317,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
 
     assert parsed is not None
     assert (
-        parsed.to_csv()
-        == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
+        parsed.to_csv() == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
         "609c=DD102,609d=DD103,222f=0,11f5=0,2230=255,60a1=0,60a3=C102,60a4=,607b=C103,"
         "607d=,6083=,2232=0,2233=0,3218=9739,0000=)"
     )
@@ -473,6 +475,100 @@ def test_decode_program_matches_counter_scr_fixture():
 
     assert len(scr_rungs) == len(clip_rungs)
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def test_parse_header_skips_fixed_condition_family_table_without_a_sentinel():
+    scr_data = bytearray(b"\x00" * 0xC0)
+    scr_data[:8] = b"SC-SCR  "
+    struct.pack_into("<H", scr_data, 0x40, 1)
+
+    name_bytes = "Main Program".encode("utf-16-le") + b"\x00"
+    scr_data[0x42] = len(name_bytes)
+    scr_data[0x43 : 0x43 + len(name_bytes)] = name_bytes
+
+    cursor = 0x43 + len(name_bytes)
+    struct.pack_into("<H", scr_data, cursor, 32)
+    cursor += 2
+    for family_code in ["~", *["H"] * 30]:
+        struct.pack_into("<H", scr_data, cursor, ord(family_code))
+        cursor += 2
+
+    rtf = b"{\\rtf1 synthetic}"
+    scr_data[cursor : cursor + 7] = bytes.fromhex("9a010d08000000")
+    struct.pack_into("<I", scr_data, cursor + 7, len(rtf))
+    scr_data[cursor + 11 : cursor + 11 + len(rtf)] = rtf
+
+    assert _parse_header(bytes(scr_data)) == ("Main Program", 1, cursor + 7)
+
+
+def test_decode_program_keeps_comments_for_consecutive_empty_topology_rungs(monkeypatch):
+    empty_block_1 = decode_program_module._ScrRowTopologyBlock(
+        start=20,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=20,
+        continuation_start=20,
+    )
+    empty_block_2 = decode_program_module._ScrRowTopologyBlock(
+        start=50,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=50,
+        continuation_start=50,
+    )
+    main_block = decode_program_module._ScrRowTopologyBlock(
+        start=80,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=80,
+        continuation_start=80,
+    )
+    comment_calls: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(decode_program_module, "_parse_header", lambda data: ("Main Program", 1, 0))
+    monkeypatch.setattr(
+        decode_program_module, "_find_sections", lambda data, start: [(100, 1, 110)]
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_parse_section_instructions",
+        lambda data, sec_off, count: [],
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_find_row_topology_block",
+        lambda data, pos: main_block,
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_find_row_topology_blocks_between",
+        lambda data, start, end: [empty_block_1, empty_block_2],
+    )
+
+    def fake_find_rtf_comment(data, start, end):
+        comment_calls.append((start, end))
+        return None, f"comment {start}->{end}"
+
+    monkeypatch.setattr(decode_program_module, "_find_rtf_comment", fake_find_rtf_comment)
+    monkeypatch.setattr(
+        decode_program_module,
+        "_build_topology_backed_rung",
+        lambda **kwargs: kwargs["comment"],
+    )
+
+    program = decode_program_module.decode_program(b"")
+
+    assert comment_calls == [(0, 20), (20, 50), (50, 80)]
+    assert program.rungs == ["comment 0->20", "comment 20->50", "comment 50->80"]
 
 
 def test_parse_31_entry_row_topology_blocks_in_coverage_fixture():

@@ -55,6 +55,10 @@ def main() -> None:
     print(f"SCR  rungs: {len(scr_rungs)} (program: {program.name!r}, idx={program.prog_idx})")
 
     all_match = True
+    if len(clip_rungs) != len(scr_rungs):
+        all_match = False
+        print(f"Rung count mismatch: clip={len(clip_rungs)} scr={len(scr_rungs)}")
+
     for i in range(min(len(clip_rungs), len(scr_rungs))):
         cr = clip_rungs[i]
         sr = scr_rungs[i]
