@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
@@ -71,7 +71,7 @@ class Timer(AfInstruction):
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
             raise ValueError(f"Cannot parse timer: {token!r}")
-        timer_type: Literal["on_delay", "off_delay"] = m.group(1)  # type: ignore[assignment]
+        timer_type = cast(Literal["on_delay", "off_delay"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
