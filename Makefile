@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test upgrade build clean
+.PHONY: default install lint test golden coverage-golden upgrade build clean docs-serve docs-build docs-check
 
 default: install lint test
 
@@ -16,11 +16,25 @@ lint:
 test:
 	uv run pytest
 
+golden:
+	uv run devtools/golden.py
+
+coverage-golden:
+	uv run devtools/coverage_golden.py
+
 upgrade:
 	uv sync --upgrade
 
 build:
 	uv build
+
+docs-serve:
+	uv run --group docs mkdocs serve
+
+docs-build:
+	uv run --group docs mkdocs build --strict
+
+docs-check: docs-build
 
 # Improved Windows detection
 ifeq ($(OS),Windows_NT)

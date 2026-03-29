@@ -1,0 +1,3 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math__oneshot
+R,C68,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS68 * DS69,DS70,mode=decimal,oneshot=1)"

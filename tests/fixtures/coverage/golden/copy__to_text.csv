@@ -1,0 +1,3 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,copy__to_text
+R,C52,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"copy(DS12,TXT2,convert=to_text(suppress_zero=1,exponential=0,termination_code=none))"

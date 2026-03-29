@@ -9,7 +9,6 @@ from rich import print as rprint
 
 # Use Path objects to ensure slashes are correct for the current OS/Shell
 SRC_PATHS = [str(Path("src")), str(Path("tests")), str(Path("devtools"))]
-DOC_PATHS = [str(Path("README.md"))]
 
 # No emojis on legacy windows.
 reconfigure(emoji=not get_console().options.legacy_windows)
@@ -31,19 +30,13 @@ def main() -> int:
 
     errcount = 0
 
-    # 1. Spell check
-    if args.check:
-        errcount += run(["codespell", *SRC_PATHS, *DOC_PATHS])
-    else:
-        errcount += run(["codespell", "--write-changes", *SRC_PATHS, *DOC_PATHS])
-
-    # 2. Ruff Linter
+    # 1. Ruff Linter
     if args.check:
         errcount += run(["ruff", "check", *SRC_PATHS])
     else:
         errcount += run(["ruff", "check", "--fix", *SRC_PATHS])
 
-    # 3. Ruff Formatter
+    # 2. Ruff Formatter
     if args.check:
         errcount += run(["ruff", "format", "--check", *SRC_PATHS])
     else:

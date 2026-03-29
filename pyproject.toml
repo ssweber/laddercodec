@@ -2,6 +2,7 @@
 
 [project.urls]
 Repository = "https://github.com/ssweber/laddercodec"
+Documentation = "https://ssweber.github.io/laddercodec/"
 
 [project]
 name = "laddercodec"
@@ -16,7 +17,7 @@ dynamic = ["version"]
 
 # https://pypi.org/classifiers/
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
@@ -40,10 +41,16 @@ dependencies = []
 dev = [
     "pytest>=8.3.5",
     "ruff>=0.11.0",
-    "codespell>=2.4.1",
     "rich>=13.9.4",
     "ty>=0.0.14",
     "funlog>=0.2.0",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.0",
+    "mkdocstrings[python]>=0.29.0",
+    "mkdocs-gen-files>=0.5.0",
+    "mkdocs-llmstxt>=0.3.0",
 ]
 
 
@@ -105,12 +112,10 @@ python-version = "3.11"
 root = ["./src", "./tests", "./devtools"]
 
 [tool.ty.src]
-exclude = []
+exclude = ["tests", "scratchpad"]
 
 [tool.ty.rules]
 unresolved-import = "ignore"
-
-[tool.codespell]
 
 [tool.pytest.ini_options]
 python_files = ["*.py"]

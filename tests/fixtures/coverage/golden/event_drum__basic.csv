@@ -1,0 +1,4 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,event_drum__basic
+R,C182,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"event_drum(outputs=[C183,C184],events=[C185,C186],pattern=[[1,0],[0,1]],current_step=DS182,completion_flag=C187)"
+,C188,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,.reset()
