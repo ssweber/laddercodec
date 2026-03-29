@@ -97,6 +97,10 @@ Clipboard encoding/decoding, CSV I/O, and the root instruction models are
 `decode_program()` is **alpha**: it is already useful, but it is backed by fewer
 fixtures than the clipboard path and should be treated as a faster-moving API.
 
+`Email`, `Home`, `Position`, and `Velocity` currently remain unmodeled in the
+public DSL. They round-trip through `RawInstruction` / `raw(...)` passthrough
+today rather than dedicated typed instruction classes.
+
 ## Documentation
 
 Full docs: <https://ssweber.github.io/laddercodec/>
