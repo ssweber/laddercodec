@@ -62,7 +62,7 @@ class Timer(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
-        """Parse v2 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
+        """Parse v1 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
 
         Positional: done_bit, current.  Kwargs: preset, unit.
         Retained is never in the CSV — it's set by ``.reset()`` pin presence.

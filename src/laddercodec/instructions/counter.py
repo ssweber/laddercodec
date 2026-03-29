@@ -62,7 +62,7 @@ class Counter(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Counter:
-        """Parse v2 counter: ``count_up(CT1,CTD1,preset=100)``."""
+        """Parse v1 counter: ``count_up(CT1,CTD1,preset=100)``."""
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
