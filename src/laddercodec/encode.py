@@ -318,6 +318,8 @@ def encode_rung(
     condition_rows: Sequence[Sequence[ConditionToken]],
     af_tokens: Sequence[AfToken],
     comment: str | None = None,
+    *,
+    show_nicknames: bool = False,
 ) -> bytes:
     """Encode a ladder rung to binary payload.
 
@@ -376,6 +378,7 @@ def encode_rung(
         rung_idx=0,
         is_last_rung=True,
         single_rung=True,
+        show_nicknames=show_nicknames,
     )
 
     # --- Step 3: Assemble header + grid ---
@@ -405,7 +408,7 @@ def encode_rung(
     return _pad_to_page(out)
 
 
-def encode(rungs):
+def encode(rungs, *, show_nicknames: bool = False):
     """Encode one or more rungs to clipboard binary.
 
     Parameters
@@ -413,6 +416,11 @@ def encode(rungs):
     rungs:
         A single ``Rung`` object (single-rung encode) or a sequence of
         ``Rung`` objects (multi-rung encode).
+    show_nicknames:
+        When ``True``, sets the nickname display flag on math instructions
+        so Click shows project-level tag names instead of raw addresses.
+        The nicknames must already be loaded in the Click project before
+        pasting.
 
     Returns
     -------
@@ -422,10 +430,17 @@ def encode(rungs):
     from .decode import Rung  # lazy import to avoid circular
 
     if isinstance(rungs, Rung):
-        return encode_rung(rungs.logical_rows, rungs.conditions, rungs.instructions, rungs.comment)
+        return encode_rung(
+            rungs.logical_rows,
+            rungs.conditions,
+            rungs.instructions,
+            rungs.comment,
+            show_nicknames=show_nicknames,
+        )
     from .encode_multi import encode_rungs
 
     return encode_rungs(
         [(r.logical_rows, r.conditions, r.instructions) for r in rungs],
         comments=[r.comment for r in rungs],
+        show_nicknames=show_nicknames,
     )

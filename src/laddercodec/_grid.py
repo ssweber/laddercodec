@@ -176,6 +176,8 @@ def _build_rung_grid(
     rung_idx: int,
     is_last_rung: bool,
     single_rung: bool,
+    *,
+    show_nicknames: bool = False,
 ) -> bytearray:
     """Build the cell grid bytes for one rung.
 
@@ -252,7 +254,13 @@ def _build_rung_grid(
                 is_last_af = af_rows and local_row == af_rows[-1]
                 summary = meta.af_summary_block if is_last_af else b""
                 if isinstance(af, AfInstruction):
-                    blob = af.build_blob()
+                    from .instructions.math import Math
+
+                    blob = (
+                        af.build_blob(show_nicknames=show_nicknames)
+                        if isinstance(af, Math)
+                        else af.build_blob()
+                    )
                     params = af.cell_params()
                     is_multi_row = params.get("visual_rows", 1) > 1
                     cells.append(

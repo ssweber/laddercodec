@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
@@ -62,7 +62,7 @@ class Timer(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
-        """Parse v2 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
+        """Parse v1 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
 
         Positional: done_bit, current.  Kwargs: preset, unit.
         Retained is never in the CSV — it's set by ``.reset()`` pin presence.
@@ -71,7 +71,7 @@ class Timer(AfInstruction):
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
             raise ValueError(f"Cannot parse timer: {token!r}")
-        timer_type: Literal["on_delay", "off_delay"] = m.group(1)  # type: ignore[assignment]
+        timer_type = cast(Literal["on_delay", "off_delay"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):

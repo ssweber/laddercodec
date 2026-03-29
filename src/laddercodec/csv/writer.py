@@ -1,4 +1,4 @@
-"""CSV writer — Rung objects to CSV v2 format.
+"""CSV writer — Rung objects to CSV v1 format.
 
 Converts ``Rung`` objects (from ``decode()``) into canonical CSV files
 that round-trip through ``read_csv()`` and back to ``encode()``.

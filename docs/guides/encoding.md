@@ -167,6 +167,23 @@ rungs = [
 binary = encode(rungs)
 ```
 
+## Nickname Display
+
+Click can show project-level tag names (nicknames) instead of raw addresses
+in math instruction blocks. Pass `show_nicknames=True` to `encode()`:
+
+```python
+binary = encode(rungs, show_nicknames=True)
+```
+
+This sets the nickname display flag on every math instruction in the buffer.
+Click resolves the actual tag names from its own project nickname table — the
+codec doesn't need to know the mappings.
+
+The nicknames must already be loaded in the Click project before pasting.
+If a referenced address has no nickname, Click falls back to showing the
+raw address for that operand.
+
 ## Supported Instructions
 
 All standard Click instruction families are supported from the root package:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from ..model import ConditionInstruction, InstructionType, _validate_operand
 from .family import ConditionInstructionFamilySpec
@@ -100,7 +100,7 @@ class Contact(ConditionInstruction):
         if edge_match:
             if immediate:
                 raise ValueError("Immediate edge contacts are unsupported")
-            edge_kind: Literal["rise", "fall"] = edge_match.group(1)  # type: ignore[assignment]
+            edge_kind = cast(Literal["rise", "fall"], edge_match.group(1))
             operand = _validate_operand(edge_match.group(2).strip())
             return cls(
                 InstructionType.CONTACT_EDGE,

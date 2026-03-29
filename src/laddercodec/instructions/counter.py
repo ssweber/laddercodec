@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ..model import AfInstruction, InstructionType, _validate_operand
 from .family import AfInstructionFamilySpec
@@ -62,13 +62,13 @@ class Counter(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Counter:
-        """Parse v2 counter: ``count_up(CT1,CTD1,preset=100)``."""
+        """Parse v1 counter: ``count_up(CT1,CTD1,preset=100)``."""
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
             raise ValueError(f"Cannot parse counter: {token!r}")
 
-        counter_type: Literal["count_up", "count_down"] = m.group(1)  # type: ignore[assignment]
+        counter_type = cast(Literal["count_up", "count_down"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
@@ -230,7 +230,7 @@ def parse_blob(raw: bytes) -> Counter | None:
     counter_type, down_enabled, reset_enabled = variant
 
     return Counter(
-        counter_type=counter_type,  # type: ignore[arg-type]
+        counter_type=cast(Literal["count_up", "count_down"], counter_type),
         done_bit=done_bit,
         current=current,
         preset=preset,
