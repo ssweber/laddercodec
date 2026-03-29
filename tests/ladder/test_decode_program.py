@@ -16,6 +16,7 @@ from laddercodec.decode_program import (
     _parse_wiredown,
     _scr_to_af,
     _scr_to_raw_af,
+    _tag_wire_type,
     decode_program,
 )
 from laddercodec.instructions.math import Math
@@ -146,6 +147,10 @@ def _compact_scr_byte_field(tag: int, value: int) -> bytes:
     return tag.to_bytes(2, "little") + bytes([value])
 
 
+def _compact_scr_flag_field(tag: int) -> bytes:
+    return tag.to_bytes(2, "little")
+
+
 def _compact_scr_u16_field(tag: int, value: int) -> bytes:
     return tag.to_bytes(2, "little") + value.to_bytes(2, "little")
 
@@ -190,7 +195,7 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
             0,
             len(raw),
             1,
-            _SCR_TAG_PARSE_SPECS["Math"],
+            _SCR_TAG_PARSE_SPECS["Math"].stop_tags,
         )
     )
     parsed = _scr_to_af(
@@ -229,7 +234,6 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
             0,
             len(raw),
             2,
-            _SCR_TAG_PARSE_SPECS["Tmr"],
         )
     )
     parsed = _scr_to_af(
@@ -290,7 +294,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
                 _compact_scr_string_field(0x609C, "DD102"),
                 _compact_scr_string_field(0x609D, "DD103"),
                 _compact_scr_byte_field(0x222F, 0),
-                _compact_scr_byte_field(0x11F5, 0),
+                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2230, 255),
                 _compact_scr_string_field(0x60A1, "0"),
                 _compact_scr_string_field(0x60A3, "C102"),
@@ -311,7 +315,6 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
         0,
         len(raw),
         1,
-        _SCR_TAG_PARSE_SPECS["Home"],
     )
     parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
 
@@ -339,7 +342,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
                 _compact_scr_string_field(0x609C, "DD120"),
                 _compact_scr_string_field(0x609D, "DD121"),
                 _compact_scr_byte_field(0x222F, 2),
-                _compact_scr_byte_field(0x11F5, 0),
+                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2231, 0),
                 _compact_scr_string_field(0x60A2, ""),
                 _compact_scr_string_field(0x60A3, "C315"),
@@ -358,7 +361,6 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
         0,
         len(raw),
         1,
-        _SCR_TAG_PARSE_SPECS["Position"],
     )
     parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
 
@@ -734,3 +736,79 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
         )
         assert marker_pos is not None
         assert [sorted(cols) for cols in raw_rows] == expected_rows
+
+
+# ---------------------------------------------------------------------------
+# Phase 2: verify _tag_wire_type agrees with _SCR_TAG_PARSE_SPECS
+# ---------------------------------------------------------------------------
+
+
+def test_tag_wire_type_matches_spec_tables():
+    """Every tag in _SCR_TAG_PARSE_SPECS must agree with _tag_wire_type."""
+    violations: list[str] = []
+    for class_name, spec in _SCR_TAG_PARSE_SPECS.items():
+        for field_name, wire_type_label in (
+            ("byte_value_tags", "byte"),
+            ("u16_value_tags", "u16"),
+            ("flag_tags", "flag"),
+            ("variant_u16_tags", "variant_u16"),
+            ("variant_string_tags", "variant_string"),
+        ):
+            for tag in getattr(spec, field_name):
+                inferred = _tag_wire_type(tag)
+                if inferred != wire_type_label:
+                    violations.append(
+                        f"{class_name}.{field_name}: tag 0x{tag:04X} "
+                        f"→ _tag_wire_type={inferred!r}, expected {wire_type_label!r}"
+                    )
+        # stop_tags are a semantic override — the wire type is variant_string
+        # (0x68xx), but Math uses them to halt parsing. That's expected.
+    assert not violations, "Tag wire-type violations:\n" + "\n".join(violations)
+
+
+def test_tag_wire_type_covers_all_implicit_tags():
+    """Every tag constant used via tags.get / in tags / _raw_field must resolve to a known wire type.
+
+    The spec tables only list tags with non-default wire types. String tags
+    (0x60xx–0x62xx) are implicit — they work via the default fallback path in
+    _parse_scr_tags. This test ensures _tag_wire_type returns something other
+    than "unknown" for every tag referenced at a call site, so the dispatch
+    refactor won't silently drop them.
+    """
+    import inspect
+    import re
+
+    # Gather source of all tag-consuming functions
+    source_parts = []
+    for fn_name in ("_scr_to_condition", "_scr_to_af", "_scr_to_raw_af"):
+        fn = getattr(decode_program_module, fn_name)
+        source_parts.append(inspect.getsource(fn))
+    source = "\n".join(source_parts)
+
+    # Extract tag constants from: tags.get(0x, 0x in tags, lens.get(0x,
+    # variant_strings.get(0x, variant_u16.get(0x, _raw_field(0x
+    tag_pattern = re.compile(
+        r"(?:"
+        r"tags\.get\(|"
+        r"lens\.get\(|"
+        r"variant_strings\.get\(|"
+        r"variant_u16\.get\(|"
+        r"_raw_field\(|"
+        r"_raw_empty_array_fields\("
+        r")(0x[0-9A-Fa-f]{4})"
+        r"|"
+        r"(0x[0-9A-Fa-f]{4})\s+in\s+tags"
+    )
+    tag_ids: set[int] = set()
+    for m in tag_pattern.finditer(source):
+        hex_str = m.group(1) or m.group(2)
+        tag_ids.add(int(hex_str, 16))
+
+    # 0x0000 is the null terminator, not a real tag
+    tag_ids.discard(0x0000)
+
+    unknowns = sorted(t for t in tag_ids if _tag_wire_type(t) == "unknown")
+    assert not unknowns, (
+        "Tags used at call sites but _tag_wire_type returns 'unknown':\n"
+        + "\n".join(f"  0x{t:04X}" for t in unknowns)
+    )

@@ -60,7 +60,12 @@ _MAX_SECTION_INSTRUCTIONS = 512
 
 @dataclass(frozen=True)
 class _ScrTagParseSpec:
-    """SCR tag parsing rules for instruction families with non-standard tag shapes."""
+    """Legacy SCR tag parsing rules — retained for test imports only.
+
+    Wire-type dispatch now uses ``_tag_wire_type``.  Only ``stop_tags``
+    (semantic overrides that halt parsing) remain in use at runtime via
+    ``_SCR_STOP_TAGS``.
+    """
 
     byte_value_tags: frozenset[int] = field(default_factory=frozenset)
     u16_value_tags: frozenset[int] = field(default_factory=frozenset)
@@ -99,10 +104,33 @@ class _ScrRowTopologyBlock:
     continuation_start: int
 
 
+def _tag_wire_type(tag: int) -> str:
+    """Infer the wire type of a SCR tag from its high byte.
+
+    Returns one of: "flag", "byte", "u16", "string", "variant_u16",
+    "variant_string", or "unknown".
+    """
+    hi = (tag >> 8) & 0xFF
+    if hi in (0x11, 0x12):
+        return "flag"
+    if hi in (0x20, 0x21, 0x22):
+        return "byte"
+    if hi == 0x32:
+        return "u16"
+    if hi == 0x3A:
+        return "variant_u16"
+    if hi in (0x60, 0x61, 0x62):
+        return "string"
+    if hi == 0x68:
+        return "variant_string"
+    return "unknown"
+
+
 _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
     "Call": _ScrTagParseSpec(u16_value_tags=frozenset({0x3219})),
     "Copy": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x2206, 0x2223, 0x2227, 0x3216}),
+        byte_value_tags=frozenset({0x2206, 0x2223, 0x2227}),
+        u16_value_tags=frozenset({0x3216}),
         flag_tags=frozenset({0x11F8, 0x1201, 0x1221}),
     ),
     "Math": _ScrTagParseSpec(
@@ -126,8 +154,9 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         u16_value_tags=frozenset({0x3218}),
     ),
     "Home": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x11F5, 0x222D, 0x222E, 0x222F, 0x2230, 0x2232, 0x2233}),
+        byte_value_tags=frozenset({0x222D, 0x222E, 0x222F, 0x2230, 0x2232, 0x2233}),
         u16_value_tags=frozenset({0x3218}),
+        flag_tags=frozenset({0x11F5}),
     ),
     "RD": _ScrTagParseSpec(
         byte_value_tags=frozenset(
@@ -149,8 +178,9 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x121B, 0x121E, 0x121F, 0x1220}),
     ),
     "Position": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x11F5, 0x2206, 0x222D, 0x222F, 0x2231}),
+        byte_value_tags=frozenset({0x2206, 0x222D, 0x222F, 0x2231}),
         u16_value_tags=frozenset({0x3218}),
+        flag_tags=frozenset({0x11F5}),
     ),
     "SD": _ScrTagParseSpec(
         byte_value_tags=frozenset({0x220C, 0x220D, 0x2211, 0x2214, 0x2215, 0x221C, 0x2225, 0x223A}),
@@ -158,9 +188,15 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x1220, 0x1221}),
     ),
     "Velocity": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x11F5, 0x222D, 0x222F, 0x2231}),
+        byte_value_tags=frozenset({0x222D, 0x222F, 0x2231}),
         u16_value_tags=frozenset({0x3218}),
+        flag_tags=frozenset({0x11F5}),
     ),
+}
+
+# Runtime dispatch only needs stop_tags — wire type is inferred by _tag_wire_type.
+_SCR_STOP_TAGS: dict[str, frozenset[int]] = {
+    name: spec.stop_tags for name, spec in _SCR_TAG_PARSE_SPECS.items() if spec.stop_tags
 }
 
 
@@ -326,10 +362,13 @@ def _parse_scr_tags(
     blob_start: int,
     end_offset: int,
     visual_sub_rows: int,
-    spec: _ScrTagParseSpec | None = None,
+    stop_tags: frozenset[int] = frozenset(),
 ) -> tuple[str, int, dict[int, str], dict[int, int], _ScrVariantU16Tags, _ScrVariantStringTags]:
-    """Parse SCR blob into scalar tags plus compact variant-tag collections."""
-    spec = spec or _ScrTagParseSpec()
+    """Parse SCR blob into scalar tags plus compact variant-tag collections.
+
+    Wire type is inferred from each tag's high byte via ``_tag_wire_type``.
+    ``stop_tags`` is a semantic override that halts parsing (used by Math).
+    """
     pos = blob_start
     sl = data[pos]
     pos += 1
@@ -356,11 +395,13 @@ def _parse_scr_tags(
             tag_byte_lens[tag] = 0
             break
 
-        if tag in spec.stop_tags:
+        if tag in stop_tags:
             break
 
-        if tag in spec.variant_u16_tags:
-            entries: dict[int, int] = {}
+        wire = _tag_wire_type(tag)
+
+        if wire == "variant_u16":
+            entries_u16: dict[int, int] = {}
             while pos + 2 <= len(data):
                 sub_idx = struct.unpack_from("<H", data, pos)[0]
                 pos += 2
@@ -368,13 +409,13 @@ def _parse_scr_tags(
                     break
                 if pos + 2 > len(data):
                     break
-                entries[sub_idx] = struct.unpack_from("<H", data, pos)[0]
+                entries_u16[sub_idx] = struct.unpack_from("<H", data, pos)[0]
                 pos += 2
-            variant_u16_tags[tag] = entries
+            variant_u16_tags[tag] = entries_u16
             continue
 
-        if tag in spec.variant_string_tags:
-            entries: dict[int, str] = {}
+        if wire == "variant_string":
+            entries_str: dict[int, str] = {}
             while pos + 2 <= len(data):
                 sub_idx = struct.unpack_from("<H", data, pos)[0]
                 pos += 2
@@ -389,17 +430,19 @@ def _parse_scr_tags(
                 value_raw = data[pos : pos + str_len]
                 if len(value_raw) % 2 == 1:
                     value_raw = value_raw + b"\x00"
-                entries[sub_idx] = value_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
+                entries_str[sub_idx] = value_raw.decode("utf-16-le", errors="replace").rstrip(
+                    "\x00"
+                )
                 pos += str_len
-            variant_string_tags[tag] = entries
+            variant_string_tags[tag] = entries_str
             continue
 
-        if tag in spec.flag_tags:
+        if wire == "flag":
             tags[tag] = ""
             tag_byte_lens[tag] = 0
             continue
 
-        if tag in spec.u16_value_tags:
+        if wire == "u16":
             if pos + 2 > len(data):
                 break
             value = struct.unpack_from("<H", data, pos)[0]
@@ -408,7 +451,7 @@ def _parse_scr_tags(
             pos += 2
             continue
 
-        if tag in spec.byte_value_tags:
+        if wire == "byte":
             if pos + 1 > len(data):
                 break
             value = data[pos]
@@ -419,6 +462,7 @@ def _parse_scr_tags(
             pos += 1
             continue
 
+        # Default: length-prefixed UTF-16LE string (wire == "string" or "unknown")
         if pos + 1 > len(data):
             break
         str_len = data[pos]
@@ -428,8 +472,8 @@ def _parse_scr_tags(
         value_raw = data[pos : pos + str_len]
         if len(value_raw) % 2 == 1:
             value_raw = value_raw + b"\x00"
-        value = value_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
-        tags[tag] = value
+        str_value = value_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
+        tags[tag] = str_value
         tag_byte_lens[tag] = str_len
         pos += str_len
     return class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
@@ -1132,16 +1176,16 @@ def _parse_section_instructions(
             row_1based = data[cursor]
             col_idx = data[cursor + 1]
             cls_name, typ, end_off, next_pos, vsub = blob8
-            spec = _SCR_TAG_PARSE_SPECS.get(cls_name)
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub, spec)
+            stop = _SCR_STOP_TAGS.get(cls_name, frozenset())
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub, stop)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         elif blob9:
             row_1based = data[cursor + 1]
             col_idx = data[cursor + 2]
             cls_name, typ, end_off, next_pos, vsub = blob9
-            spec = _SCR_TAG_PARSE_SPECS.get(cls_name)
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub, spec)
+            stop = _SCR_STOP_TAGS.get(cls_name, frozenset())
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub, stop)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         else:
