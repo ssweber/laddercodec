@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import struct
 from pathlib import Path
 
 from laddercodec import decode
@@ -11,7 +12,9 @@ from laddercodec.decode_program import (
     _parse_extra_row_right_wires,
     _parse_header,
     _parse_scr_tags,
+    _parse_wiredown,
     _scr_to_af,
+    _scr_to_raw_af,
     decode_program,
 )
 from laddercodec.instructions.math import Math
@@ -123,6 +126,14 @@ def _compact_scr_blob(
     return bytes(header) + body
 
 
+def _rebase_compact_scr_blob(blob: bytes, blob_start: int, part_count: int) -> bytes:
+    rebased = bytearray(blob)
+    str_len = rebased[0]
+    end_offset_pos = 1 + str_len + 2 + 6 + 1 + part_count
+    struct.pack_into("<I", rebased, end_offset_pos, blob_start + len(blob))
+    return bytes(rebased)
+
+
 def _compact_scr_string_field(tag: int, value: str) -> bytes:
     encoded = value.encode("utf-16-le") + b"\x00"
     return tag.to_bytes(2, "little") + bytes([len(encoded)]) + encoded
@@ -130,6 +141,10 @@ def _compact_scr_string_field(tag: int, value: str) -> bytes:
 
 def _compact_scr_byte_field(tag: int, value: int) -> bytes:
     return tag.to_bytes(2, "little") + bytes([value])
+
+
+def _compact_scr_u16_field(tag: int, value: int) -> bytes:
+    return tag.to_bytes(2, "little") + value.to_bytes(2, "little")
 
 
 def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
@@ -230,6 +245,127 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         setpoint="DS588",
         unit="Ts",
         retained=True,
+    )
+
+
+def test_find_sections_accepts_large_instruction_counts():
+    blobs: list[bytes] = []
+    for idx in range(21):
+        raw_blob = _compact_scr_blob(
+            "ContactNO",
+            0x2711,
+            1,
+            _compact_scr_string_field(0x6065, f"C{idx + 1}") + (0x0000).to_bytes(2, "little"),
+        )
+        entry_start = 6 + sum(len(existing) for existing in blobs)
+        blob = _rebase_compact_scr_blob(raw_blob, entry_start + 8, 1)
+        blobs.append(bytes([1, idx % 31]) + b"\x00" * 6 + blob + b"\x00\x00")
+
+    section = struct.pack("<H", len(blobs)) + struct.pack("<I", 1) + b"".join(blobs)
+    assert _find_sections(section, start=0) == [(0, 21, len(section))]
+
+
+def test_parse_wiredown_uses_explicit_row_indices():
+    data = b"\x20\x00" + b"\x00\x00" + b"\x05\x00\x02\x03\x04\x05\x06" + b"\x00\x00"
+    assert _parse_wiredown(data, 0, len(data)) == {1: (1, 2, 3, 4, 5)}
+
+
+def test_parse_scr_tags_handles_compact_home_raw_fields():
+    raw = _compact_scr_blob(
+        "Home",
+        0x2734,
+        1,
+        b"".join(
+            [
+                _compact_scr_byte_field(0x222D, 1),
+                _compact_scr_byte_field(0x222E, 1),
+                _compact_scr_string_field(0x6096, "DD101"),
+                _compact_scr_string_field(0x6097, ""),
+                _compact_scr_string_field(0x609E, ""),
+                _compact_scr_string_field(0x609F, "X003"),
+                _compact_scr_string_field(0x60A0, ""),
+                _compact_scr_string_field(0x609C, "DD102"),
+                _compact_scr_string_field(0x609D, "DD103"),
+                _compact_scr_byte_field(0x222F, 0),
+                _compact_scr_byte_field(0x11F5, 0),
+                _compact_scr_byte_field(0x2230, 255),
+                _compact_scr_string_field(0x60A1, "0"),
+                _compact_scr_string_field(0x60A3, "C102"),
+                _compact_scr_string_field(0x60A4, ""),
+                _compact_scr_string_field(0x607B, "C103"),
+                _compact_scr_string_field(0x607D, ""),
+                _compact_scr_string_field(0x6083, ""),
+                _compact_scr_byte_field(0x2232, 0),
+                _compact_scr_byte_field(0x2233, 0),
+                _compact_scr_u16_field(0x3218, 9739),
+                (0x0000).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
+        _SCR_TAG_PARSE_SPECS["Home"],
+    )
+    parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
+
+    assert parsed is not None
+    assert (
+        parsed.to_csv()
+        == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
+        "609c=DD102,609d=DD103,222f=0,11f5=0,2230=255,60a1=0,60a3=C102,60a4=,607b=C103,"
+        "607d=,6083=,2232=0,2233=0,3218=9739,0000=)"
+    )
+
+
+def test_parse_scr_tags_handles_compact_position_raw_fields():
+    raw = _compact_scr_blob(
+        "Position",
+        0x2736,
+        1,
+        b"".join(
+            [
+                _compact_scr_byte_field(0x222D, 2),
+                _compact_scr_string_field(0x6098, "DD301"),
+                _compact_scr_string_field(0x6099, ""),
+                _compact_scr_string_field(0x609A, "DD304"),
+                _compact_scr_byte_field(0x2206, 0),
+                _compact_scr_string_field(0x609B, "DD119"),
+                _compact_scr_string_field(0x609C, "DD120"),
+                _compact_scr_string_field(0x609D, "DD121"),
+                _compact_scr_byte_field(0x222F, 2),
+                _compact_scr_byte_field(0x11F5, 0),
+                _compact_scr_byte_field(0x2231, 0),
+                _compact_scr_string_field(0x60A2, ""),
+                _compact_scr_string_field(0x60A3, "C315"),
+                _compact_scr_string_field(0x60A4, ""),
+                _compact_scr_string_field(0x607B, "C316"),
+                _compact_scr_string_field(0x607D, ""),
+                _compact_scr_string_field(0x6083, ""),
+                _compact_scr_u16_field(0x3218, 9745),
+                (0x0000).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
+        _SCR_TAG_PARSE_SPECS["Position"],
+    )
+    parsed = _scr_to_raw_af(class_name, type_code, tags, 1)
+
+    assert parsed is not None
+    assert (
+        parsed.to_csv()
+        == "raw(Position,0x2736,1,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
+        "609c=DD120,609d=DD121,222f=2,11f5=0,2231=0,60a2=,60a3=C315,60a4=,607b=C316,"
+        "607d=,6083=,3218=9745,0000=)"
     )
 
 

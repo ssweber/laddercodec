@@ -55,6 +55,7 @@ _ROW_TOPOLOGY_FLAG_ENTRY_COUNTS = frozenset({31, 32})
 _ROW_TOPOLOGY_PRELUDE_LEN_RANGE = range(8, 17)
 _CONDITION_COLUMNS = 31  # A..AE = cols 0..30; AF = col 31
 _RAW_STANDARD_SENTINEL = b"\xff\xff\xff\xff"
+_MAX_SECTION_INSTRUCTIONS = 512
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,14 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         variant_u16_tags=frozenset({0x3A05, 0x3A26}),
         variant_string_tags=frozenset({0x6872, 0x6873}),
     ),
+    "Email": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x20CA, 0x2206, 0x2237, 0x2238, 0x2239}),
+        u16_value_tags=frozenset({0x3218}),
+    ),
+    "Home": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x11F5, 0x222D, 0x222E, 0x222F, 0x2230, 0x2232, 0x2233}),
+        u16_value_tags=frozenset({0x3218}),
+    ),
     "RD": _ScrTagParseSpec(
         byte_value_tags=frozenset(
             {
@@ -139,10 +148,18 @@ _SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
         u16_value_tags=frozenset({0x320E, 0x320F, 0x3210, 0x3216, 0x3218, 0x322C}),
         flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x121B, 0x121E, 0x121F, 0x1220}),
     ),
+    "Position": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x11F5, 0x2206, 0x222D, 0x222F, 0x2231}),
+        u16_value_tags=frozenset({0x3218}),
+    ),
     "SD": _ScrTagParseSpec(
         byte_value_tags=frozenset({0x220C, 0x220D, 0x2211, 0x2214, 0x2215, 0x221C, 0x2225, 0x223A}),
         u16_value_tags=frozenset({0x320E, 0x320F, 0x3210, 0x3216, 0x3218, 0x322C}),
         flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x1220, 0x1221}),
+    ),
+    "Velocity": _ScrTagParseSpec(
+        byte_value_tags=frozenset({0x11F5, 0x222D, 0x222F, 0x2231}),
+        u16_value_tags=frozenset({0x3218}),
     ),
 }
 
@@ -898,6 +915,10 @@ def _scr_to_raw_af(
         )
 
     elif class_name == "Home" and type_code == 0x2734:
+        try:
+            home_variant = int(tags.get(0x222E, "0") or "0")
+        except ValueError:
+            home_variant = 0
         fields = [
             _raw_field(0x222D, tags.get(0x222D) or "0"),
             _raw_field(0x222E, tags.get(0x222E) or "0"),
@@ -919,7 +940,7 @@ def _scr_to_raw_af(
             _raw_field(0x6083, tags.get(0x6083, "")),
             _raw_field(0x2232, tags.get(0x2232) or "0"),
             _raw_field(0x2233, tags.get(0x2233) or "0"),
-            _raw_field(0x3218, tags.get(0x3218) or "9738"),
+            _raw_field(0x3218, tags.get(0x3218) or str(9738 + home_variant)),
             _raw_field(0x0000, ""),
         ]
 
@@ -1019,7 +1040,7 @@ def _find_sections(data: bytes, start: int) -> list[tuple[int, int, int]]:
     while i < len(data) - 5:
         count = struct.unpack_from("<H", data, i)[0]
         section_marker = struct.unpack_from("<I", data, i + 2)[0]
-        if 1 <= count <= 20 and 0 < section_marker < len(data):
+        if 1 <= count <= _MAX_SECTION_INSTRUCTIONS and 0 < section_marker < len(data):
             cursor = i + 6
             ok = True
             for _ in range(count):
@@ -1357,14 +1378,16 @@ def _find_0x0020_marker(data: bytes, start: int, end: int) -> int | None:
     return None
 
 
-def _parse_wiredown(data: bytes, marker_pos: int | None, rung_end: int) -> dict[int, int]:
+def _parse_wiredown(
+    data: bytes, marker_pos: int | None, rung_end: int
+) -> dict[int, tuple[int, ...]]:
     """Parse wire_down data from after the 0x0020 marker.
 
-    Returns {col_idx: depth} for columns with vertical wire going down.
+    Returns ``{col_idx: row_indices}`` for columns with vertical wire going down.
 
     Format: per-column entries starting from col 0:
-      depth 0: ``00 00`` (2 bytes) — no wire_down
-      depth N: ``[N] [00] [N bytes]`` — wire goes down N rows
+      no wire_down: ``00 00``
+      wire_down: ``[count] [00] [count bytes of 1-based row indices]``
     """
     if marker_pos is None:
         return {}
@@ -1372,22 +1395,25 @@ def _parse_wiredown(data: bytes, marker_pos: int | None, rung_end: int) -> dict[
     pos = marker_pos + 2
     end = rung_end
     col = 0
-    result: dict[int, int] = {}
+    result: dict[int, tuple[int, ...]] = {}
 
     while pos < end:
-        depth = data[pos]
-        if depth == 0:
+        count = data[pos]
+        if count == 0:
             # No wire_down: 2-byte entry (00 00)
             if pos + 1 < end and data[pos + 1] == 0:
                 pos += 2
                 col += 1
                 continue
             break  # End of data
-        # Wire_down: (depth + 2) bytes total
-        entry_len = depth + 2
+        entry_len = count + 2
         if pos + entry_len > end:
             break
-        result[col] = depth
+        rows = tuple(
+            sorted({row_idx - 1 for row_idx in data[pos + 2 : pos + entry_len] if row_idx > 0})
+        )
+        if rows:
+            result[col] = rows
         pos += entry_len
         col += 1
 
@@ -1447,10 +1473,12 @@ def _build_topology_backed_rung(
             )
             if first_bridge_col is not None and first_bridge_col not in wiredown:
                 wiredown = dict(wiredown)
-                wiredown[first_bridge_col] = len(leading_rows)
-            elif first_bridge_col is not None and wiredown[first_bridge_col] < len(leading_rows):
+                wiredown[first_bridge_col] = tuple(range(len(leading_rows)))
+            elif first_bridge_col is not None and len(wiredown[first_bridge_col]) < len(leading_rows):
                 wiredown = dict(wiredown)
-                wiredown[first_bridge_col] = len(leading_rows)
+                wiredown[first_bridge_col] = tuple(
+                    sorted(set(wiredown[first_bridge_col]) | set(range(len(leading_rows))))
+                )
 
         if leading_rows:
             row0_flags = {col: 1 for col in leading_rows[0]}
@@ -1580,7 +1608,7 @@ def _build_rung(
     section_instructions: list[_ScrSectionInstruction],
     row0_flags: dict[int, int],
     extra_rows_right_wires: list[set[int]],
-    wiredown: dict[int, int],
+    wiredown: dict[int, tuple[int, ...]],
     comment: str | None,
     comment_rtf: bytes | None,
 ) -> Rung:
@@ -1692,10 +1720,12 @@ def _build_rung(
                 conditions[row][col_idx] = "-"
 
     # 3. Apply wire_down (vertical wires going down)
-    for col, depth in wiredown.items():
+    for col, row_indices in wiredown.items():
         if col >= _CONDITION_COLUMNS:
             continue
-        for row in range(min(depth, logical_rows)):
+        for row in row_indices:
+            if not (0 <= row < logical_rows):
+                continue
             cell = conditions[row][col]
             if isinstance(cell, str):
                 if cell == "-":
