@@ -261,6 +261,9 @@ _RE_GROUP_UNDERLINE = re.compile(r"\{\\ul\s(.+?)\}", re.DOTALL)
 _RE_TOGGLE_BOLD = re.compile(r"\\b\s(.+?)\\b0", re.DOTALL)
 _RE_TOGGLE_ITALIC = re.compile(r"\\i\s(.+?)\\i0", re.DOTALL)
 _RE_TOGGLE_UNDERLINE = re.compile(r"\\ul\s(.+?)\\ulnone", re.DOTALL)
+# Color / highlight control words — stripped during decode (colors preserved in comment_rtf).
+_RE_CF = re.compile(r"\\cf\d+\s?")
+_RE_HIGHLIGHT = re.compile(r"\\(?:highlight|cb)\d+\s?")
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
@@ -313,6 +316,10 @@ def _decode_rtf(payload: bytes) -> str:
     # Strip RTF source line endings (CR/LF before \par are insignificant).
     body = body.replace("\r\n\\par ", "\\par ")
     body = body.replace("\r\\par ", "\\par ")
+
+    # Strip color / highlight control words (preserved losslessly in comment_rtf).
+    body = _RE_CF.sub("", body)
+    body = _RE_HIGHLIGHT.sub("", body)
 
     # RTF markup -> markdown.  Group-style first (more specific), then toggle.
     body = _RE_GROUP_BOLD.sub(r"**\1**", body)
