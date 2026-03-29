@@ -5,9 +5,10 @@
 (v2.60-v3.80).
 
 It is the binary codec layer behind
-[clicknick](https://github.com/ssweber/clicknick), and it is useful on its own
-if you want to generate Click clipboard payloads, inspect captured binaries, or
-decode `Scr*.tmp` program files.
+[clicknick](https://github.com/ssweber/clicknick), originally prototyped there
+and developed into a standalone library here. It is useful on its own if you want
+to generate Click clipboard payloads, inspect captured binaries, or decode
+`Scr*.tmp` program files.
 
 ## What It Does
 
