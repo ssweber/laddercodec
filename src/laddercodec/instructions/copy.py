@@ -837,20 +837,8 @@ def from_tags(
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# CSV parser
 # ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
-    """Try to parse a Copy-family instruction from an instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
@@ -953,7 +941,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="copy",
     instruction_types=(Copy, BlockCopy, Fill, Pack, Unpack),
     binary_class_names=("Copy",),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=(
         "copy",

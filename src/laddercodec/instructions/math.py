@@ -323,20 +323,8 @@ def from_tags(
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# CSV parser
 # ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> Math | None:
-    """Try to parse a Math instruction from an instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def parse_af_call(call: AfCall) -> Math:
@@ -367,7 +355,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="math",
     instruction_types=(Math,),
     binary_class_names=("Math",),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=("math",),
     parse_csv_call=parse_af_call,

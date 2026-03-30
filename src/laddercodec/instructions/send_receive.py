@@ -651,22 +651,6 @@ def _from_tags_sd(tags: dict[int, str], lens: dict[int, int]) -> Send | None:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
-# ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> Receive | Send | None:
-    """Parse an RD or SD instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
-
-
 def _parse_rd(fields: list[str]) -> Receive | None:
     if len(fields) < 40:
         return None
@@ -921,7 +905,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="send_receive",
     instruction_types=(Receive, Send),
     binary_class_names=("RD", "SD"),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=("receive", "send"),
     parse_csv_call=parse_af_call,

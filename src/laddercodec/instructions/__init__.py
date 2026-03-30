@@ -85,17 +85,6 @@ INSTRUCTION_MODULES = {
 }
 
 
-def _read_class_name(raw: bytes) -> str | None:
-    """Read the UTF-16LE class name prefix from an instruction blob."""
-    try:
-        end = raw.index(b"\x00\x00")
-        if end % 2 == 1:
-            end += 1
-        return raw[:end].decode("utf-16-le")
-    except (ValueError, UnicodeDecodeError):
-        return None
-
-
 def get_af_family_by_csv_name(name: str) -> AfInstructionFamilySpec | None:
     """Return the AF family spec for a CSV token name."""
     return _AF_CSV_TO_SPEC.get(name)
@@ -119,36 +108,37 @@ def parse_af_call(call: AfCall) -> AfInstruction | None:
 
 def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
     """Try to parse a condition-column instruction blob."""
-    class_name = _read_class_name(raw)
-    if class_name is None:
-        return None
+    import struct
 
-    spec = _CONDITION_BINARY_TO_SPEC.get(class_name)
-    if spec is None:
-        return None
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
-    result = spec.parse_blob(raw)
+    try:
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    result = from_tags_condition(
+        class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string
+    )
     if isinstance(result, (Contact, CompareContact)):
         return result
     return None
 
 
-def parse_af_blob(
-    raw: bytes,
-) -> AfInstruction | None:
+def parse_af_blob(raw: bytes) -> AfInstruction | None:
     """Try to parse an AF-column instruction blob."""
-    class_name = _read_class_name(raw)
-    if class_name is None:
-        return None
+    import struct
 
-    spec = _AF_BINARY_TO_SPEC.get(class_name)
-    if spec is None:
-        return None
+    from .raw import RAW_VISUAL_ROWS_KEY, _decompose_blob, _fields_to_tag_dicts
 
-    result = spec.parse_blob(raw)
-    if isinstance(result, AfInstruction):
-        return result
-    return None
+    try:
+        class_name, type_marker, part_count, _extra, fields = _decompose_blob(raw)
+    except (ValueError, struct.error):
+        return None
+    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    # Inject part_count so raw families can recover visual_sub_rows.
+    tag_byte_lens[RAW_VISUAL_ROWS_KEY] = part_count
+    return from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
 def from_tags_condition(

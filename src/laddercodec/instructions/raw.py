@@ -598,7 +598,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="raw",
     instruction_types=(RawInstruction,),
     binary_class_names=(),
-    parse_blob=lambda raw: None,
     from_tags=from_tags,
     csv_names=("raw",),
     parse_csv_call=parse_af_call,

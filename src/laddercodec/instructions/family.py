@@ -12,8 +12,6 @@ if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
 
-ConditionBlobParser = Callable[[bytes], ConditionInstruction | None]
-AfBlobParser = Callable[[bytes], AfInstruction | None]
 AfCallParser = Callable[["AfCall"], AfInstruction]
 
 # Signature for from_tags() factory functions.
@@ -37,7 +35,6 @@ class ConditionInstructionFamilySpec:
     family_name: str
     instruction_types: tuple[type[ConditionInstruction], ...]
     binary_class_names: tuple[str, ...]
-    parse_blob: ConditionBlobParser
     from_tags: FromTagsParser | None = None
 
 
@@ -48,7 +45,6 @@ class AfInstructionFamilySpec:
     family_name: str
     instruction_types: tuple[type[AfInstruction], ...]
     binary_class_names: tuple[str, ...]
-    parse_blob: AfBlobParser
     from_tags: FromTagsParser | None = None
     csv_names: tuple[str, ...] = ()
     parse_csv_call: AfCallParser | None = None

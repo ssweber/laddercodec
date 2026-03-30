@@ -78,18 +78,6 @@ def from_tags(
     return Call(subroutine=subroutine)
 
 
-def parse_blob(raw: bytes) -> Call | None:
-    """Try to parse a Call instruction from an instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
-
-
 def parse_af_call(call: AfCall) -> Call:
     """Parse an AF AST call into a Call."""
     return Call.from_csv_token(call.to_token())
@@ -99,7 +87,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="call",
     instruction_types=(Call,),
     binary_class_names=("Call",),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=("call",),
     parse_csv_call=parse_af_call,

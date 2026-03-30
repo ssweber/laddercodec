@@ -222,23 +222,6 @@ def from_tags(
     )
 
 
-# ---------------------------------------------------------------------------
-# Blob parser
-# ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> Coil | None:
-    """Try to parse a Coil from an instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
-
-
 def parse_af_call(call: AfCall) -> Coil:
     """Parse an AF AST call into a Coil."""
     return Coil.from_csv_token(call.to_token())
@@ -248,7 +231,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="coil",
     instruction_types=(Coil,),
     binary_class_names=("Out", "Latch", "Reset"),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=("out", "latch", "reset"),
     parse_csv_call=parse_af_call,

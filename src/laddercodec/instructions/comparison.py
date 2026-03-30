@@ -42,8 +42,12 @@ COMPARE_OP_TO_TYPE_IDX: dict[str, str] = {
 
 #: Reverse: type index → operator (used by from_tags).
 _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
-    v: k
-    for k, v in COMPARE_OP_TO_TYPE_IDX.items()  # type: ignore[misc]
+    "0": "==",
+    "1": "!=",
+    "2": ">",
+    "3": "<",
+    "4": ">=",
+    "5": "<=",
 }
 
 # ---------------------------------------------------------------------------
@@ -171,27 +175,9 @@ def from_tags(
     return CompareContact(op=op, left=left, right=right)
 
 
-# ---------------------------------------------------------------------------
-# Blob parser
-# ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> CompareContact | None:
-    """Try to parse a CompareContact from an instruction blob."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
-
-
 SPEC = ConditionInstructionFamilySpec(
     family_name="comparison",
     instruction_types=(CompareContact,),
     binary_class_names=("Compare",),
-    parse_blob=parse_blob,
     from_tags=from_tags,
 )

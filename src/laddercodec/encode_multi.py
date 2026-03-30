@@ -137,7 +137,7 @@ def encode_rungs(
 
     # Normalise comments to a list aligned with rungs.
     if comments is None:
-        comments_list: list[str | None] = [None] * N
+        comments_list: list[str | None] = [None for _ in range(N)]
     else:
         if len(comments) != N:
             raise ValueError(f"comments length ({len(comments)}) must match rungs length ({N})")

@@ -247,27 +247,9 @@ def from_tags(
     return None
 
 
-# ---------------------------------------------------------------------------
-# Blob parser
-# ---------------------------------------------------------------------------
-
-
-def parse_blob(raw: bytes) -> Contact | None:
-    """Try to parse a Contact from an instruction blob ("ContactNO" or "Edge")."""
-    from .raw import _decompose_blob, _fields_to_tag_dicts
-
-    try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
-    except (ValueError, struct.error):
-        return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
-
-
 SPEC = ConditionInstructionFamilySpec(
     family_name="contact",
     instruction_types=(Contact,),
     binary_class_names=("ContactNO", "Edge"),
-    parse_blob=parse_blob,
     from_tags=from_tags,
 )

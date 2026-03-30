@@ -30,8 +30,6 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     False: "9218",
     True: "9219",
 }
-_FUNC_CODE_TO_ONESHOT: dict[str, bool] = {v: k for k, v in _FOR_FUNC_CODES.items()}
-
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
 _FOR_LITERAL_RE = re.compile(r"^\d+$")
 
@@ -162,106 +160,9 @@ def from_tags(
     return None
 
 
-def _parse_for_blob(raw: bytes, pos: int) -> ForLoop | None:
-    from ..binary_helpers import _parse_tagged_fields_verbose
-
-    if pos + 10 > len(raw):
-        return None
-
-    type_marker = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    if type_marker != FOR_TYPE_MARKER or part_count != 1 or field_count != 4:
-        return None
-
-    fields, _ = _parse_tagged_fields_verbose(raw, pos, field_count)
-    if len(fields) != 4:
-        return None
-
-    for idx, tag in enumerate(_FOR_TAGS):
-        if fields[idx][0] != tag or fields[idx][1] != b"\xff\xff\xff\xff":
-            return None
-
-    limit = fields[0][2]
-    func_code = fields[1][2]
-    oneshot_raw = fields[2][2]
-    terminator = fields[3][2]
-
-    if terminator not in {"", "\ufffd"}:
-        return None
-
-    if oneshot_raw in {"-1", "1"}:
-        oneshot = True
-    elif oneshot_raw == "0":
-        oneshot = False
-    else:
-        return None
-
-    func_oneshot = _FUNC_CODE_TO_ONESHOT.get(func_code)
-    if func_oneshot is None:
-        return None
-    if func_oneshot != oneshot:
-        oneshot = func_oneshot
-
-    try:
-        return ForLoop(limit=limit, oneshot=oneshot)
-    except ValueError:
-        return None
-
-
-def _parse_next_blob(raw: bytes, pos: int) -> Next | None:
-    from ..binary_helpers import _read_utf16le
-
-    if pos + 10 > len(raw):
-        return None
-
-    type_marker = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    if type_marker != NEXT_TYPE_MARKER or part_count != 1 or field_count != 1:
-        return None
-    if pos + 6 > len(raw):
-        return None
-
-    tag = int.from_bytes(raw[pos : pos + 2], "little")
-    marker = raw[pos + 2 : pos + 6]
-    remainder = raw[pos + 6 :]
-    if tag != 0x0000 or marker != b"\xff\xff\xff\xff":
-        return None
-    if remainder in {b"", b"\x00", b"\x00\x00"}:
-        return Next()
-
-    # Some decoded AF slices include trailing tail bytes after the field value.
-    value, _ = _read_utf16le(raw, pos + 6)
-    if value not in {"", "\ufffd"}:
-        return None
-
-    return Next()
-
-
 def build_blob(obj: ForLoop | Next) -> bytes:
     """Build the instruction data blob for For/Next instructions."""
     return obj.build_blob()
-
-
-def parse_blob(raw: bytes) -> ForLoop | Next | None:
-    """Try to parse a ForLoop or Next instruction from an instruction blob."""
-    from ..binary_helpers import _read_utf16le
-
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name == "For":
-        return _parse_for_blob(raw, pos)
-    if class_name == "Next":
-        return _parse_next_blob(raw, pos)
-    return None
 
 
 def parse_af_call(call: AfCall) -> ForLoop | Next:
@@ -275,7 +176,6 @@ SPEC = AfInstructionFamilySpec(
     family_name="loop",
     instruction_types=(ForLoop, Next),
     binary_class_names=("For", "Next"),
-    parse_blob=parse_blob,
     from_tags=from_tags,
     csv_names=("for", "next"),
     parse_csv_call=parse_af_call,
