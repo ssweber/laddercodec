@@ -40,8 +40,6 @@ from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from ..csv.ast import AfCall
 
 # ---------------------------------------------------------------------------
@@ -422,144 +420,6 @@ class RawInstruction(AfInstruction):
         return cls(class_name=class_name, blob=blob, part_count=part_count)
 
 
-# ---------------------------------------------------------------------------
-# Shared from_tags factory (raw families: Email, Home, Velocity, Position)
-# ---------------------------------------------------------------------------
-
-#: Synthetic key in tag_byte_lens to carry visual_sub_rows through the
-#: standard from_tags signature.
-RAW_VISUAL_ROWS_KEY = 0xFFFF
-
-
-def _raw_field(tag: int, value: str) -> tuple[int, bytes, str]:
-    """Build a standard-sentinel raw field tuple."""
-    return tag, _STANDARD_SENTINEL, value
-
-
-def _raw_empty_array_fields(tag: int, count: int) -> list[tuple[int, bytes, str]]:
-    """Build compact array-style raw fields with sequential variant sentinels."""
-    return [(tag, struct.pack("<I", idx), "") for idx in range(count)]
-
-
-def _build_email_fields(tags: dict[int, str]) -> list[tuple[int, bytes, str]]:
-    fields = [
-        _raw_field(0x60A5, tags.get(0x60A5, "")),
-        _raw_field(0x60A6, tags.get(0x60A6, "")),
-        _raw_field(0x60A7, tags.get(0x60A7, "")),
-        _raw_field(0x2237, tags.get(0x2237) or "0"),
-        _raw_field(0x6235, tags.get(0x6235, "")),
-        _raw_field(0x6236, tags.get(0x6236, "")),
-        _raw_field(0x60AE, tags.get(0x60AE, "")),
-        _raw_field(0x60AF, tags.get(0x60AF, "")),
-        _raw_field(0x2206, tags.get(0x2206) or "0"),
-        _raw_field(0x2238, tags.get(0x2238) or "0"),
-        _raw_field(0x6217, tags.get(0x6217, "")),
-        _raw_field(0x622A, tags.get(0x622A, "")),
-        _raw_field(0x6081, tags.get(0x6081, "")),
-        _raw_field(0x6082, tags.get(0x6082, "")),
-        _raw_field(0x607C, tags.get(0x607C, "")),
-        _raw_field(0x607B, tags.get(0x607B, "")),
-        _raw_field(0x607D, tags.get(0x607D, "")),
-        _raw_field(0x6083, tags.get(0x6083, "")),
-        _raw_field(0x2239, tags.get(0x2239) or "0"),
-    ]
-    fields.extend(_raw_empty_array_fields(0x68B1, 250))
-    fields.extend(_raw_empty_array_fields(0x68B0, 250))
-    fields.extend(
-        [
-            _raw_field(0x20CA, tags.get(0x20CA) or "2"),
-            _raw_field(0x3218, tags.get(0x3218) or "9748"),
-            _raw_field(0x0000, ""),
-        ]
-    )
-    return fields
-
-
-def _build_home_fields(tags: dict[int, str]) -> list[tuple[int, bytes, str]]:
-    try:
-        home_variant = int(tags.get(0x222E, "0") or "0")
-    except ValueError:
-        home_variant = 0
-    return [
-        _raw_field(0x222D, tags.get(0x222D) or "0"),
-        _raw_field(0x222E, tags.get(0x222E) or "0"),
-        _raw_field(0x6096, tags.get(0x6096, "")),
-        _raw_field(0x6097, tags.get(0x6097, "")),
-        _raw_field(0x609E, tags.get(0x609E, "")),
-        _raw_field(0x609F, tags.get(0x609F, "")),
-        _raw_field(0x60A0, tags.get(0x60A0, "")),
-        _raw_field(0x609C, tags.get(0x609C, "")),
-        _raw_field(0x609D, tags.get(0x609D, "")),
-        _raw_field(0x222F, tags.get(0x222F) or "0"),
-        _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-        _raw_field(0x2230, tags.get(0x2230) or "0"),
-        _raw_field(0x60A1, tags.get(0x60A1, "")),
-        _raw_field(0x60A3, tags.get(0x60A3, "")),
-        _raw_field(0x60A4, tags.get(0x60A4, "")),
-        _raw_field(0x607B, tags.get(0x607B, "")),
-        _raw_field(0x607D, tags.get(0x607D, "")),
-        _raw_field(0x6083, tags.get(0x6083, "")),
-        _raw_field(0x2232, tags.get(0x2232) or "0"),
-        _raw_field(0x2233, tags.get(0x2233) or "0"),
-        _raw_field(0x3218, tags.get(0x3218) or str(9738 + home_variant)),
-        _raw_field(0x0000, ""),
-    ]
-
-
-def _build_velocity_fields(tags: dict[int, str]) -> list[tuple[int, bytes, str]]:
-    return [
-        _raw_field(0x222D, tags.get(0x222D) or "0"),
-        _raw_field(0x609B, tags.get(0x609B, "")),
-        _raw_field(0x609C, tags.get(0x609C, "")),
-        _raw_field(0x609D, tags.get(0x609D, "")),
-        _raw_field(0x222F, tags.get(0x222F) or "2"),
-        _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-        _raw_field(0x2231, tags.get(0x2231) or "0"),
-        _raw_field(0x60A2, tags.get(0x60A2, "")),
-        _raw_field(0x60A3, tags.get(0x60A3, "")),
-        _raw_field(0x60A4, tags.get(0x60A4, "")),
-        _raw_field(0x607B, tags.get(0x607B, "")),
-        _raw_field(0x607D, tags.get(0x607D, "")),
-        _raw_field(0x6083, tags.get(0x6083, "")),
-        _raw_field(0x3218, tags.get(0x3218) or "9744"),
-        _raw_field(0x0000, ""),
-    ]
-
-
-def _build_position_fields(tags: dict[int, str]) -> list[tuple[int, bytes, str]]:
-    return [
-        _raw_field(0x222D, tags.get(0x222D) or "0"),
-        _raw_field(0x6098, tags.get(0x6098, "")),
-        _raw_field(0x6099, tags.get(0x6099, "")),
-        _raw_field(0x609A, tags.get(0x609A, "")),
-        _raw_field(0x2206, tags.get(0x2206) or "0"),
-        _raw_field(0x609B, tags.get(0x609B, "")),
-        _raw_field(0x609C, tags.get(0x609C, "")),
-        _raw_field(0x609D, tags.get(0x609D, "")),
-        _raw_field(0x222F, tags.get(0x222F) or "2"),
-        _raw_field(0x11F5, tags.get(0x11F5) or "0"),
-        _raw_field(0x2231, tags.get(0x2231) or "0"),
-        _raw_field(0x60A2, tags.get(0x60A2, "")),
-        _raw_field(0x60A3, tags.get(0x60A3, "")),
-        _raw_field(0x60A4, tags.get(0x60A4, "")),
-        _raw_field(0x607B, tags.get(0x607B, "")),
-        _raw_field(0x607D, tags.get(0x607D, "")),
-        _raw_field(0x6083, tags.get(0x6083, "")),
-        _raw_field(0x3218, tags.get(0x3218) or "9745"),
-        _raw_field(0x0000, ""),
-    ]
-
-
-_RAW_FAMILY_BUILDERS: dict[
-    tuple[str, int], Callable[[dict[int, str]], list[tuple[int, bytes, str]]]
-] = {
-    ("Email", 0x2737): _build_email_fields,
-    ("Home", 0x2734): _build_home_fields,
-    ("Velocity", 0x2735): _build_velocity_fields,
-    ("Position", 0x2736): _build_position_fields,
-}
-
-
 def from_tags(
     class_name: str,
     type_code: int,
@@ -568,25 +428,13 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> RawInstruction | None:
-    """Construct a RawInstruction for known raw families from tag data.
+    """Raw from_tags always returns None.
 
-    Caller must inject ``RAW_VISUAL_ROWS_KEY`` into *tag_byte_lens*
-    to carry the visual_sub_rows value through the standard signature.
+    All previously-handled families (Email, Home, Velocity, Position)
+    now have their own modules.  Genuinely unrecognised class names
+    fall through to the caller's ``RawInstruction`` fallback.
     """
-    builder = _RAW_FAMILY_BUILDERS.get((class_name, type_code))
-    if builder is None:
-        return None
-    lens = tag_byte_lens or {}
-    visual_sub_rows = lens.get(RAW_VISUAL_ROWS_KEY, 1)
-    fields = builder(tags)
-    blob = _compose_blob(
-        class_name,
-        type_code,
-        visual_sub_rows,
-        bytes(range(max(0, visual_sub_rows - 1))),
-        fields,
-    )
-    return RawInstruction(class_name=class_name, blob=blob, part_count=visual_sub_rows)
+    return None
 
 
 def parse_af_call(call: AfCall) -> RawInstruction:

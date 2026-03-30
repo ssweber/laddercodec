@@ -16,7 +16,7 @@ values are identical to clipboard format — only the framing differs.
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import cast
 
 from .binary_helpers import _tag_wire_type
@@ -48,23 +48,6 @@ _RAW_STANDARD_SENTINEL = b"\xff\xff\xff\xff"
 _MAX_SECTION_INSTRUCTIONS = 512
 
 
-@dataclass(frozen=True)
-class _ScrTagParseSpec:
-    """Legacy SCR tag parsing rules — retained for test imports only.
-
-    Wire-type dispatch now uses ``_tag_wire_type``.  Only ``stop_tags``
-    (semantic overrides that halt parsing) remain in use at runtime via
-    ``_SCR_STOP_TAGS``.
-    """
-
-    byte_value_tags: frozenset[int] = field(default_factory=frozenset)
-    u16_value_tags: frozenset[int] = field(default_factory=frozenset)
-    flag_tags: frozenset[int] = field(default_factory=frozenset)
-    variant_u16_tags: frozenset[int] = field(default_factory=frozenset)
-    variant_string_tags: frozenset[int] = field(default_factory=frozenset)
-    stop_tags: frozenset[int] = field(default_factory=frozenset)
-
-
 _ScrVariantU16Tags = dict[int, dict[int, int]]
 _ScrVariantStringTags = dict[int, dict[int, str]]
 _ScrSectionInstruction = tuple[
@@ -92,83 +75,6 @@ class _ScrRowTopologyBlock:
     row0_flags: dict[int, int]
     flags_start: int
     continuation_start: int
-
-
-# _tag_wire_type is imported from binary_helpers.
-
-
-_SCR_TAG_PARSE_SPECS: dict[str, _ScrTagParseSpec] = {
-    "Call": _ScrTagParseSpec(u16_value_tags=frozenset({0x3219})),
-    "Copy": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x2206, 0x2223, 0x2227}),
-        u16_value_tags=frozenset({0x3216}),
-        flag_tags=frozenset({0x11F8, 0x1201, 0x1221}),
-    ),
-    "Math": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x2224}),
-        flag_tags=frozenset({0x11F8, 0x11FE}),
-        stop_tags=frozenset({0x6888, 0x688C}),
-    ),
-    "Tmr": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x21F9, 0x21FA, 0x21FB}),
-        variant_u16_tags=frozenset({0x3A05}),
-    ),
-    "Drum": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x2200, 0x21F9}),
-        u16_value_tags=frozenset({0x3203, 0x3204}),
-        flag_tags=frozenset({0x1201, 0x1202}),
-        variant_u16_tags=frozenset({0x3A05, 0x3A26}),
-        variant_string_tags=frozenset({0x6872, 0x6873}),
-    ),
-    "Email": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x20CA, 0x2206, 0x2237, 0x2238, 0x2239}),
-        u16_value_tags=frozenset({0x3218}),
-    ),
-    "Home": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x222D, 0x222E, 0x222F, 0x2230, 0x2232, 0x2233}),
-        u16_value_tags=frozenset({0x3218}),
-        flag_tags=frozenset({0x11F5}),
-    ),
-    "RD": _ScrTagParseSpec(
-        byte_value_tags=frozenset(
-            {
-                0x220C,
-                0x220D,
-                0x2211,
-                0x2212,
-                0x2213,
-                0x2214,
-                0x2215,
-                0x221C,
-                0x221D,
-                0x2225,
-                0x223A,
-            }
-        ),
-        u16_value_tags=frozenset({0x320E, 0x320F, 0x3210, 0x3216, 0x3218, 0x322C}),
-        flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x121B, 0x121E, 0x121F, 0x1220}),
-    ),
-    "Position": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x2206, 0x222D, 0x222F, 0x2231}),
-        u16_value_tags=frozenset({0x3218}),
-        flag_tags=frozenset({0x11F5}),
-    ),
-    "SD": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x220C, 0x220D, 0x2211, 0x2214, 0x2215, 0x221C, 0x2225, 0x223A}),
-        u16_value_tags=frozenset({0x320E, 0x320F, 0x3210, 0x3216, 0x3218, 0x322C}),
-        flag_tags=frozenset({0x1209, 0x120A, 0x120B, 0x121A, 0x1220, 0x1221}),
-    ),
-    "Velocity": _ScrTagParseSpec(
-        byte_value_tags=frozenset({0x222D, 0x222F, 0x2231}),
-        u16_value_tags=frozenset({0x3218}),
-        flag_tags=frozenset({0x11F5}),
-    ),
-}
-
-# Runtime dispatch only needs stop_tags — wire type is inferred by _tag_wire_type.
-_SCR_STOP_TAGS: dict[str, frozenset[int]] = {
-    name: spec.stop_tags for name, spec in _SCR_TAG_PARSE_SPECS.items() if spec.stop_tags
-}
 
 
 # ---------------------------------------------------------------------------
@@ -311,12 +217,10 @@ def _parse_scr_tags(
     blob_start: int,
     end_offset: int,
     visual_sub_rows: int,
-    stop_tags: frozenset[int] = frozenset(),
 ) -> tuple[str, int, dict[int, str], dict[int, int], _ScrVariantU16Tags, _ScrVariantStringTags]:
     """Parse SCR blob into scalar tags plus compact variant-tag collections.
 
     Wire type is inferred from each tag's high byte via ``_tag_wire_type``.
-    ``stop_tags`` is a semantic override that halts parsing (used by Math).
     """
     pos = blob_start
     sl = data[pos]
@@ -342,9 +246,6 @@ def _parse_scr_tags(
         if tag == 0x0000:
             tags[tag] = ""
             tag_byte_lens[tag] = 0
-            break
-
-        if tag in stop_tags:
             break
 
         wire = _tag_wire_type(tag)
@@ -511,16 +412,14 @@ def _parse_section_instructions(
             row_1based = data[cursor]
             col_idx = data[cursor + 1]
             cls_name, typ, end_off, next_pos, vsub = blob8
-            stop = _SCR_STOP_TAGS.get(cls_name, frozenset())
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub, stop)
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         elif blob9:
             row_1based = data[cursor + 1]
             col_idx = data[cursor + 2]
             cls_name, typ, end_off, next_pos, vsub = blob9
-            stop = _SCR_STOP_TAGS.get(cls_name, frozenset())
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub, stop)
+            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         else:
@@ -1082,15 +981,11 @@ def _build_rung(
                 conditions[row][col] = UnknownCondition(raw=class_name.encode())
             instr_positions.add((row, col))
         elif col == _CONDITION_COLUMNS:
-            from .instructions.raw import RAW_VISUAL_ROWS_KEY
-
-            af_lens = dict(tag_byte_lens) if tag_byte_lens else {}
-            af_lens[RAW_VISUAL_ROWS_KEY] = visual_sub_rows
             parsed_af = from_tags_af(
                 class_name,
                 type_code,
                 tags,
-                af_lens,
+                tag_byte_lens,
                 variant_u16_tags,
                 variant_string_tags,
             )

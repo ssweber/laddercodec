@@ -8,7 +8,6 @@ from laddercodec import decode
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
-    _SCR_TAG_PARSE_SPECS,
     _find_row_topology_block,
     _find_sections,
     _parse_extra_row_right_wires,
@@ -19,9 +18,9 @@ from laddercodec.decode_program import (
     decode_program,
 )
 from laddercodec.instructions import from_tags_af
+from laddercodec.instructions.home import from_tags as home_from_tags
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import RAW_VISUAL_ROWS_KEY
-from laddercodec.instructions.raw import from_tags as raw_from_tags
+from laddercodec.instructions.position import from_tags as position_from_tags
 from laddercodec.instructions.timer import Timer
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
@@ -197,7 +196,6 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
             0,
             len(raw),
             1,
-            _SCR_TAG_PARSE_SPECS["Math"].stop_tags,
         )
     )
     parsed = from_tags_af(
@@ -318,7 +316,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
         len(raw),
         1,
     )
-    parsed = raw_from_tags(class_name, type_code, tags, {RAW_VISUAL_ROWS_KEY: 1})
+    parsed = home_from_tags(class_name, type_code, tags)
 
     assert parsed is not None
     assert (
@@ -364,7 +362,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
         len(raw),
         1,
     )
-    parsed = raw_from_tags(class_name, type_code, tags, {RAW_VISUAL_ROWS_KEY: 1})
+    parsed = position_from_tags(class_name, type_code, tags)
 
     assert parsed is not None
     assert (
@@ -758,34 +756,6 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
         )
         assert marker_pos is not None
         assert [sorted(cols) for cols in raw_rows] == expected_rows
-
-
-# ---------------------------------------------------------------------------
-# Phase 2: verify _tag_wire_type agrees with _SCR_TAG_PARSE_SPECS
-# ---------------------------------------------------------------------------
-
-
-def test_tag_wire_type_matches_spec_tables():
-    """Every tag in _SCR_TAG_PARSE_SPECS must agree with _tag_wire_type."""
-    violations: list[str] = []
-    for class_name, spec in _SCR_TAG_PARSE_SPECS.items():
-        for field_name, wire_type_label in (
-            ("byte_value_tags", "byte"),
-            ("u16_value_tags", "u16"),
-            ("flag_tags", "flag"),
-            ("variant_u16_tags", "variant_u16"),
-            ("variant_string_tags", "variant_string"),
-        ):
-            for tag in getattr(spec, field_name):
-                inferred = _tag_wire_type(tag)
-                if inferred != wire_type_label:
-                    violations.append(
-                        f"{class_name}.{field_name}: tag 0x{tag:04X} "
-                        f"→ _tag_wire_type={inferred!r}, expected {wire_type_label!r}"
-                    )
-        # stop_tags are a semantic override — the wire type is variant_string
-        # (0x68xx), but Math uses them to halt parsing. That's expected.
-    assert not violations, "Tag wire-type violations:\n" + "\n".join(violations)
 
 
 def test_tag_wire_type_covers_all_implicit_tags():

@@ -12,15 +12,19 @@ from . import contact as contact_mod
 from . import copy as copy_mod
 from . import counter as counter_mod
 from . import drum as drum_mod
+from . import email as email_mod
 from . import end as end_mod
 from . import forloop as forloop_mod
+from . import home as home_mod
 from . import math as math_mod
+from . import position as position_mod
 from . import raw as raw_mod
 from . import return_ as return_mod
 from . import search as search_mod
 from . import send_receive as send_receive_mod
 from . import shift as shift_mod
 from . import timer as timer_mod
+from . import velocity as velocity_mod
 from .call import Call
 from .coil import Coil
 from .comparison import CompareContact
@@ -28,16 +32,20 @@ from .contact import Contact
 from .copy import BlockCopy, Copy, Fill, Pack, Unpack
 from .counter import Counter
 from .drum import Drum
+from .email import Email
 from .end import End
 from .family import AfInstructionFamilySpec, ConditionInstructionFamilySpec
 from .forloop import ForLoop, Next
+from .home import Home
 from .math import Math
+from .position import Position
 from .raw import RawInstruction
 from .return_ import Return
 from .search import Search
 from .send_receive import ModbusAddress, ModbusRtuTarget, ModbusTcpTarget, Receive, Send
 from .shift import Shift
 from .timer import Timer
+from .velocity import Velocity
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -62,6 +70,10 @@ AF_FAMILY_SPECS: tuple[AfInstructionFamilySpec, ...] = (
     end_mod.SPEC,
     return_mod.SPEC,
     send_receive_mod.SPEC,
+    email_mod.SPEC,
+    home_mod.SPEC,
+    velocity_mod.SPEC,
+    position_mod.SPEC,
     raw_mod.SPEC,
 )
 
@@ -129,15 +141,13 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
     """Try to parse an AF-column instruction blob."""
     import struct
 
-    from .raw import RAW_VISUAL_ROWS_KEY, _decompose_blob, _fields_to_tag_dicts
+    from .raw import _decompose_blob, _fields_to_tag_dicts
 
     try:
-        class_name, type_marker, part_count, _extra, fields = _decompose_blob(raw)
+        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
     except (ValueError, struct.error):
         return None
     tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    # Inject part_count so raw families can recover visual_sub_rows.
-    tag_byte_lens[RAW_VISUAL_ROWS_KEY] = part_count
     return from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
 
 
@@ -168,13 +178,7 @@ def from_tags_af(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> AfInstruction | None:
-    """Dispatch AF instruction construction through registered specs.
-
-    Tries all AF family specs in order.  Raw families (Email, Home,
-    Velocity, Position) are handled by the raw spec at the end of the
-    list; caller must inject ``RAW_VISUAL_ROWS_KEY`` into
-    *tag_byte_lens* if visual_sub_rows is needed.
-    """
+    """Dispatch AF instruction construction through registered specs."""
     for spec in AF_FAMILY_SPECS:
         if spec.from_tags is not None:
             result = spec.from_tags(
@@ -203,15 +207,18 @@ __all__ = [
     "Contact",
     "Copy",
     "Drum",
+    "Email",
     "End",
     "Fill",
     "ForLoop",
+    "Home",
     "Math",
     "ModbusAddress",
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Next",
     "Pack",
+    "Position",
     "RawInstruction",
     "Receive",
     "Return",
@@ -220,6 +227,7 @@ __all__ = [
     "Shift",
     "Timer",
     "Unpack",
+    "Velocity",
     "from_tags_af",
     "from_tags_condition",
     "get_af_family_by_csv_name",
