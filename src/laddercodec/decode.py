@@ -42,24 +42,11 @@ from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX, CONDITION_COLUMNS
 from .instructions import (
-    AfInstruction,
-    BlockCopy,
-    Coil,
-    CompareContact,
-    ConditionInstruction,
-    Contact,
-    Copy,
-    Counter,
-    End,
-    Fill,
-    ForLoop,
-    Next,
-    Pack,
+    AfToken,
+    ConditionToken,
     RawInstruction,
-    Return,
-    Shift,
-    Timer,
-    Unpack,
+    UnknownCondition,
+    UnknownInstruction,
     parse_af_blob,
     parse_condition_blob,
 )
@@ -83,55 +70,6 @@ from .topology import (
 
 class DecodeError(ValueError):
     """Raised when a clipboard binary cannot be decoded."""
-
-
-@dataclass
-class UnknownCondition:
-    """Instruction cell on a condition column (A..AE).
-
-    The wire flags (always ``(1,1,0)`` for contacts) are implicit.
-    ``raw`` carries the instruction-specific bytes from cell offset
-    ``+0x25`` to the cell boundary.
-    """
-
-    raw: bytes
-
-
-@dataclass
-class UnknownInstruction:
-    """Instruction cell on the AF column.
-
-    ``raw`` carries the instruction-specific bytes from cell offset
-    ``+0x25`` to the cell boundary.
-    """
-
-    raw: bytes
-
-
-#: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
-ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
-
-#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed AF instruction model,
-#: raw opaque blob, or unknown blob.
-AfToken = (
-    str
-    | Coil
-    | Timer
-    | Counter
-    | Copy
-    | BlockCopy
-    | Fill
-    | Pack
-    | Unpack
-    | ForLoop
-    | Next
-    | Shift
-    | End
-    | Return
-    | RawInstruction
-    | AfInstruction
-    | UnknownInstruction
-)
 
 
 @dataclass
@@ -422,25 +360,24 @@ def _find_row_end(data: bytes, search_from: int, row_byte: int) -> int:
 # Private helpers — data row decoding
 # ---------------------------------------------------------------------------
 
+# Per-cell boundary info: (cell_start, cell_end, has_instruction).
+_CellBound = tuple[int, int, bool]
 
-def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], AfToken, int]:
-    """Decode one grid data row by walking cells sequentially.
 
-    Handles both fixed-size wire cells (0x40 bytes) and variable-length
-    instruction cells.  Instruction cells are detected by a non-zero
-    byte at cell offset ``+0x25``.
+def _walk_row_cells(data: bytes, cursor: int) -> list[_CellBound]:
+    """Walk cells in a data row and return their byte boundaries.
 
-    Returns ``(conditions, af_token, actual_row_size)``.
+    Returns one ``(cell_start, cell_end, has_instr)`` tuple per column
+    (32 entries).  Handles both fixed-size wire cells (0x40 bytes) and
+    variable-length instruction cells.
     """
     row_byte = data[cursor + 0x05]
     pos = cursor
-    conditions: list[ConditionToken] = []
-    af_token: AfToken = ""
+    cells: list[_CellBound] = []
 
     for col in range(COLS_PER_ROW):
         has_instr = data[pos + _INSTR_DATA_OFFSET] != 0
 
-        # Determine cell boundary.
         if has_instr:
             # Use blob structure to find minimum scan start — large blobs
             # (e.g. Math at ~8KB) can contain byte patterns that fool the
@@ -463,6 +400,22 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
         else:
             next_pos = pos + CELL_SIZE
 
+        cells.append((pos, next_pos, has_instr))
+        pos = next_pos
+
+    return cells
+
+
+def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], AfToken, int]:
+    """Decode one grid data row by walking cells sequentially.
+
+    Returns ``(conditions, af_token, actual_row_size)``.
+    """
+    cell_bounds = _walk_row_cells(data, cursor)
+    conditions: list[ConditionToken] = []
+    af_token: AfToken = ""
+
+    for col, (pos, next_pos, has_instr) in enumerate(cell_bounds):
         if col < CONDITION_COLUMNS:
             if has_instr:
                 instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
@@ -505,9 +458,8 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
             else:
                 af_token = "NOP" if data[pos + 0x1D] == 1 else ""
 
-        pos = next_pos
-
-    return conditions, af_token, pos - cursor
+    last_end = cell_bounds[-1][1]
+    return conditions, af_token, last_end - cursor
 
 
 # ---------------------------------------------------------------------------
@@ -837,77 +789,33 @@ def inspect_cells(
                 f"Row {vis_row} out of range in rung {rung_idx} (have {len(row_cursors)} rows)"
             )
 
-        # Walk cells in the target row up to the requested column.
         row_cursor = row_cursors[vis_row]
-        row_byte = data[row_cursor + 0x05]
-        pos = row_cursor
-        for c in range(col_idx + 1):
-            has_instr = data[pos + _INSTR_DATA_OFFSET] != 0
-            if has_instr:
-                scan_from = pos + CELL_SIZE
-                try:
-                    instr_start = pos + _INSTR_DATA_OFFSET
-                    _, blob_end, _ = find_blob_boundary(data[instr_start:])
-                    blob_abs_end = instr_start + blob_end + CELL_TAIL_SIZE
-                    if blob_abs_end > scan_from:
-                        scan_from = blob_abs_end
-                except (ValueError, IndexError):
-                    pass
-                if c < COLS_PER_ROW - 1:
-                    next_pos = _find_next_cell(data, scan_from, c + 1, row_byte)
-                else:
-                    next_pos = _find_row_end(data, scan_from, row_byte)
-            else:
-                next_pos = pos + CELL_SIZE
+        cell_bounds = _walk_row_cells(data, row_cursor)
+        conditions, af_token, _ = _decode_data_row(data, row_cursor)
 
-            if c == col_idx:
-                cell_raw = bytes(data[pos:next_pos])
-                seg = data[pos + 0x19]  # segment flag (+0x19)
-                wr = data[pos + 0x1D]
-                wd = data[pos + 0x21]
+        pos, next_pos, _has_instr = cell_bounds[col_idx]
+        cell_raw = bytes(data[pos:next_pos])
+        seg = data[pos + 0x19]
+        wr = data[pos + 0x1D]
+        wd = data[pos + 0x21]
 
-                # Resolve the decoded token for context.
-                token: ConditionToken | AfToken | None = None
-                if col_idx < CONDITION_COLUMNS:
-                    if has_instr:
-                        instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
-                        parsed = parse_condition_blob(instr_raw)
-                        token = parsed if parsed is not None else UnknownCondition(raw=instr_raw)
-                    else:
-                        token = _FLAGS_TO_TOKEN.get((seg, wr, wd))
-                else:
-                    if has_instr:
-                        instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
-                        parsed_af = parse_af_blob(instr_raw)
-                        if parsed_af is not None:
-                            token = parsed_af
-                        else:
-                            try:
-                                cn, be, pc = find_blob_boundary(instr_raw)
-                                token = RawInstruction(
-                                    class_name=cn,
-                                    blob=instr_raw[:be],
-                                    part_count=pc,
-                                )
-                            except (ValueError, IndexError):
-                                token = UnknownInstruction(raw=instr_raw)
-                    else:
-                        token = "NOP" if data[pos + 0x1D] == 1 else ""
+        token: ConditionToken | AfToken | None
+        if col_idx < CONDITION_COLUMNS:
+            token = conditions[col_idx]
+        else:
+            token = af_token
 
-                results.append(
-                    CellDump(
-                        rung=rung_idx,
-                        row=vis_row,
-                        col=col_upper,
-                        offset=pos,
-                        size=next_pos - pos,
-                        raw=cell_raw,
-                        flags=(seg, wr, wd),
-                        token=token,
-                    )
-                )
-                break
-
-            pos = next_pos
+        results.append(
+            CellDump(
+                rung=rung_idx,
+                row=vis_row,
+                col=col_upper,
+                offset=pos,
+                size=next_pos - pos,
+                raw=cell_raw,
+                flags=(seg, wr, wd),
+                token=token,
+            )
+        )
 
     return results

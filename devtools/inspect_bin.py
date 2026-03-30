@@ -17,8 +17,14 @@ from pathlib import Path
 
 from laddercodec import decode
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose, _read_utf16le
-from laddercodec.decode import Rung, UnknownCondition, UnknownInstruction
-from laddercodec.instructions import AfInstruction, ConditionInstruction, RawInstruction
+from laddercodec.decode import Rung
+from laddercodec.instructions import (
+    AfInstruction,
+    ConditionInstruction,
+    RawInstruction,
+    UnknownCondition,
+    UnknownInstruction,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

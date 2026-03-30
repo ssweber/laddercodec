@@ -758,6 +758,43 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
         assert [sorted(cols) for cols in raw_rows] == expected_rows
 
 
+def test_forward_parser_agrees_with_brute_force_for_all_topology_blocks():
+    """The deterministic forward parser must agree with brute-force for every block."""
+    _forward_parse = decode_program_module._forward_parse_topology_block
+    _brute_force = decode_program_module._brute_force_topology_block
+    _PREFIX = decode_program_module._ROW_TOPOLOGY_PREFIX
+
+    for scr_path in sorted(_SCR_FIXTURE_DIR.glob("*.scr")):
+        scr_data = scr_path.read_bytes()
+        _name, _prog_idx, data_start = _parse_header(scr_data)
+        sections = _find_sections(scr_data, start=data_start)
+
+        for rung_idx, (sec_off, _count, _sec_end) in enumerate(sections):
+            block = _find_row_topology_block(scr_data, sec_off)
+            if block is None:
+                continue
+
+            pos = block.start
+            row_word = struct.unpack_from("<H", scr_data, pos)[0]
+            assert scr_data[pos + 2 : pos + 5] == _PREFIX
+            marker_scan_limit = min(len(scr_data), pos + 0x800)
+
+            forward_block = _forward_parse(scr_data, pos, row_word, marker_scan_limit)
+            brute_block = _brute_force(scr_data, pos, row_word, marker_scan_limit)
+
+            assert forward_block is not None, (
+                f"{scr_path.name} rung {rung_idx}: forward parser returned None"
+            )
+            assert brute_block is not None
+            assert forward_block.flags_start == brute_block.flags_start, (
+                f"{scr_path.name} rung {rung_idx}: "
+                f"forward={forward_block.flags_start} brute={brute_block.flags_start}"
+            )
+            assert forward_block.row0_flag_count == brute_block.row0_flag_count
+            assert forward_block.row0_flags == brute_block.row0_flags
+            assert forward_block.prelude == brute_block.prelude
+
+
 def test_tag_wire_type_covers_all_implicit_tags():
     """Every tag constant used via tags.get / in tags / _raw_field must resolve to a known wire type.
 

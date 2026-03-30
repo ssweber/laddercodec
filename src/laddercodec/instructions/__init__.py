@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..model import AfInstruction, ConditionInstruction
@@ -49,6 +50,60 @@ from .velocity import Velocity
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+
+# ---------------------------------------------------------------------------
+# Decode-side fallback types and token aliases
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class UnknownCondition:
+    """Instruction cell on a condition column (A..AE).
+
+    The wire flags (always ``(1,1,0)`` for contacts) are implicit.
+    ``raw`` carries the instruction-specific bytes from cell offset
+    ``+0x25`` to the cell boundary.
+    """
+
+    raw: bytes
+
+
+@dataclass
+class UnknownInstruction:
+    """Instruction cell on the AF column.
+
+    ``raw`` carries the instruction-specific bytes from cell offset
+    ``+0x25`` to the cell boundary.
+    """
+
+    raw: bytes
+
+
+#: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
+ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
+
+#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed AF instruction model,
+#: raw opaque blob, or unknown blob.
+AfToken = (
+    str
+    | Coil
+    | Timer
+    | Counter
+    | Copy
+    | BlockCopy
+    | Fill
+    | Pack
+    | Unpack
+    | ForLoop
+    | Next
+    | Shift
+    | End
+    | Return
+    | RawInstruction
+    | AfInstruction
+    | UnknownInstruction
+)
 
 
 CONDITION_FAMILY_SPECS: tuple[ConditionInstructionFamilySpec, ...] = (
@@ -191,7 +246,9 @@ def from_tags_af(
 
 __all__ = [
     "AF_FAMILY_SPECS",
+    "AfToken",
     "CONDITION_FAMILY_SPECS",
+    "ConditionToken",
     "INSTRUCTION_MODULES",
     "KNOWN_AF_NAMES",
     "KNOWN_PIN_NAMES",
@@ -226,6 +283,8 @@ __all__ = [
     "Send",
     "Shift",
     "Timer",
+    "UnknownCondition",
+    "UnknownInstruction",
     "Unpack",
     "Velocity",
     "from_tags_af",

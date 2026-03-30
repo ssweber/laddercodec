@@ -433,8 +433,148 @@ def _parse_section_instructions(
 # ---------------------------------------------------------------------------
 
 
+def _try_topology_at_flags_start(
+    data: bytes,
+    pos: int,
+    row_word: int,
+    flags_start: int,
+    marker_scan_limit: int,
+) -> _ScrRowTopologyBlock | None:
+    """Validate a candidate *flags_start* and build a topology block if valid.
+
+    The 3-byte trailer ``[af_segment] [entry_count] [00]`` must sit at
+    ``flags_start - 3``.  Returns ``None`` when any structural check fails.
+    """
+    af_segment = data[flags_start - 3]
+    flag_entry_count = data[flags_start - 2]
+    if data[flags_start - 1] != 0:
+        return None
+    if af_segment not in (0, 1) or not (1 <= flag_entry_count <= 32):
+        return None
+
+    if flags_start + flag_entry_count * 2 > len(data):
+        return None
+
+    # Validate row-0 flag table.
+    row0_flags: dict[int, int] = {}
+    ordered_cols: list[int] = []
+    for c in range(flag_entry_count):
+        off = flags_start + c * 2
+        seg_flag = data[off]
+        col_idx = data[off + 1]
+        if seg_flag not in (0, 1) or col_idx > _CONDITION_COLUMNS or col_idx in row0_flags:
+            return None
+        row0_flags[col_idx] = seg_flag
+        ordered_cols.append(col_idx)
+
+    # Check sorted-with-rotation order.
+    sorted_cols = sorted(ordered_cols)
+    for shift in range(flag_entry_count):
+        if ordered_cols == sorted_cols[shift:] + sorted_cols[:shift]:
+            break
+    else:
+        return None
+
+    # Parse leading-row blocks between the 5-byte header and the 3-byte trailer.
+    leading_rows_right_wires: list[set[int]] = []
+    aux_end = flags_start - 3
+    aux_pos = pos + 5
+    while aux_pos < aux_end:
+        parsed = _parse_extra_row_right_wire_block(data, aux_pos, aux_end)
+        if parsed is None:
+            break
+        right_columns, block_len = parsed
+        if right_columns:
+            leading_rows_right_wires.append(right_columns)
+        aux_pos += block_len
+
+    # Validate continuation rows + 0x20 marker.
+    continuation_start = flags_start + flag_entry_count * 2
+    marker_probe = continuation_start
+    for _ in range(max(0, row_word - 2)):
+        parsed = _parse_extra_row_right_wire_block(data, marker_probe, marker_scan_limit)
+        if parsed is None:
+            break
+        _right_columns, block_len = parsed
+        marker_probe += block_len
+
+    if marker_probe + 2 > marker_scan_limit or data[marker_probe : marker_probe + 2] != b"\x20\x00":
+        return None
+
+    return _ScrRowTopologyBlock(
+        start=pos,
+        row_word=row_word,
+        prelude=bytes(data[pos:flags_start]),
+        leading_rows_right_wires=leading_rows_right_wires,
+        row0_flag_count=flag_entry_count,
+        row0_flags=row0_flags,
+        flags_start=flags_start,
+        continuation_start=continuation_start,
+    )
+
+
+def _forward_parse_topology_block(
+    data: bytes,
+    pos: int,
+    row_word: int,
+    marker_scan_limit: int,
+) -> _ScrRowTopologyBlock | None:
+    """Try to determine *flags_start* deterministically by forward-parsing.
+
+    Parses leading-row wire blocks from ``pos+5`` forward.  At each step,
+    tries to interpret the current position as the 3-byte trailer
+    ``[af_segment] [entry_count] [00]`` and validates the full block.
+    Returns ``None`` if the forward parse cannot produce a valid block.
+    """
+    aux_pos = pos + 5
+    limit = min(len(data), pos + 0x40)
+
+    while aux_pos + 3 <= limit:
+        # Try to interpret current position as the 3-byte trailer.
+        candidate = _try_topology_at_flags_start(
+            data, pos, row_word, aux_pos + 3, marker_scan_limit
+        )
+        if candidate is not None:
+            return candidate
+
+        # Not a valid trailer — try parsing another wire block.
+        parsed = _parse_extra_row_right_wire_block(data, aux_pos, limit)
+        if parsed is None:
+            break
+        _, block_len = parsed
+        aux_pos += block_len
+
+    return None
+
+
+def _brute_force_topology_block(
+    data: bytes,
+    pos: int,
+    row_word: int,
+    marker_scan_limit: int,
+) -> _ScrRowTopologyBlock | None:
+    """Find best topology block by trying every candidate *flags_start*."""
+    best_block: _ScrRowTopologyBlock | None = None
+    best_score: tuple[int, int] | None = None
+    flags_scan_limit = min(len(data), pos + 0x40)
+
+    for flags_start in range(pos + 8, flags_scan_limit):
+        block = _try_topology_at_flags_start(data, pos, row_word, flags_start, marker_scan_limit)
+        if block is not None:
+            score = (block.row0_flag_count, -flags_start)
+            if best_score is None or score > best_score:
+                best_block = block
+                best_score = score
+
+    return best_block
+
+
 def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | None:
-    """Parse a row-topology block anchored by the ordered row-0 flag table."""
+    """Parse a row-topology block anchored by the ordered row-0 flag table.
+
+    Uses deterministic forward parsing through leading-row wire blocks,
+    falling back to brute-force scanning if forward parsing fails.
+    """
     if pos < 0 or pos + min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE) > len(data):
         return None
 
@@ -445,93 +585,15 @@ def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | N
     if data[pos + 2 : pos + 5] != _ROW_TOPOLOGY_PREFIX:
         return None
 
-    best_block: _ScrRowTopologyBlock | None = None
-    best_score: tuple[int, int] | None = None
-
-    # The three bytes immediately before the row-0 table are:
-    #   [af_segment] [entry_count] [00]
-    # and the bytes between the fixed 5-byte block header and that 3-byte
-    # trailer may contain zero or more sparse leading-row blocks.
-    flags_scan_limit = min(len(data), pos + 0x40)
     marker_scan_limit = min(len(data), pos + 0x800)
-    for flags_start in range(pos + 8, flags_scan_limit):
-        af_segment = data[flags_start - 3]
-        flag_entry_count = data[flags_start - 2]
-        if data[flags_start - 1] != 0:
-            continue
-        if af_segment not in (0, 1) or not (1 <= flag_entry_count <= 32):
-            continue
 
-        if flags_start + flag_entry_count * 2 > len(data):
-            continue
+    # Try deterministic forward parse first.
+    block = _forward_parse_topology_block(data, pos, row_word, marker_scan_limit)
+    if block is not None:
+        return block
 
-        row0_flags: dict[int, int] = {}
-        ordered_cols: list[int] = []
-        ok = True
-        for c in range(flag_entry_count):
-            off = flags_start + c * 2
-            seg_flag = data[off]
-            col_idx = data[off + 1]
-            if seg_flag not in (0, 1) or col_idx > _CONDITION_COLUMNS or col_idx in row0_flags:
-                ok = False
-                break
-            row0_flags[col_idx] = seg_flag
-            ordered_cols.append(col_idx)
-
-        if not ok:
-            continue
-
-        sorted_cols = sorted(ordered_cols)
-        for shift in range(flag_entry_count):
-            if ordered_cols == sorted_cols[shift:] + sorted_cols[:shift]:
-                break
-        else:
-            continue
-
-        leading_rows_right_wires: list[set[int]] = []
-        aux_start = pos + 5
-        aux_end = flags_start - 3
-        aux_pos = aux_start
-        while aux_pos < aux_end:
-            parsed = _parse_extra_row_right_wire_block(data, aux_pos, aux_end)
-            if parsed is None:
-                break
-            right_columns, block_len = parsed
-            if right_columns:
-                leading_rows_right_wires.append(right_columns)
-            aux_pos += block_len
-
-        continuation_start = flags_start + flag_entry_count * 2
-        marker_probe = continuation_start
-        for _ in range(max(0, row_word - 2)):
-            parsed = _parse_extra_row_right_wire_block(data, marker_probe, marker_scan_limit)
-            if parsed is None:
-                break
-            _right_columns, block_len = parsed
-            marker_probe += block_len
-
-        if (
-            marker_probe + 2 > marker_scan_limit
-            or data[marker_probe : marker_probe + 2] != b"\x20\x00"
-        ):
-            continue
-
-        block = _ScrRowTopologyBlock(
-            start=pos,
-            row_word=row_word,
-            prelude=bytes(data[pos:flags_start]),
-            leading_rows_right_wires=leading_rows_right_wires,
-            row0_flag_count=flag_entry_count,
-            row0_flags=row0_flags,
-            flags_start=flags_start,
-            continuation_start=continuation_start,
-        )
-        score = (flag_entry_count, -flags_start)
-        if best_score is None or score > best_score:
-            best_block = block
-            best_score = score
-
-    return best_block
+    # Brute-force fallback — should never trigger for well-formed data.
+    return _brute_force_topology_block(data, pos, row_word, marker_scan_limit)
 
 
 def _find_row_topology_block(
@@ -943,7 +1005,7 @@ def _build_rung(
     comment_rtf: bytes | None,
 ) -> Rung:
     """Build a Rung from parsed SCR components."""
-    from .decode import AfToken, ConditionToken, UnknownCondition
+    from .instructions import AfToken, ConditionToken, UnknownCondition
 
     # Initialize grids
     conditions: list[list[ConditionToken]] = [

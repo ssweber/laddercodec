@@ -31,11 +31,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
-from ..decode import (
-    Rung,
-    UnknownCondition,
-    UnknownInstruction,
-)
+from ..decode import Rung
 from ..instructions import (
     AfInstruction,
     ConditionInstruction,
@@ -43,6 +39,8 @@ from ..instructions import (
     Drum,
     Shift,
     Timer,
+    UnknownCondition,
+    UnknownInstruction,
     get_af_family_for_token,
 )
 from .contract import CSV_HEADER

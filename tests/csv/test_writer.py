@@ -23,7 +23,7 @@ from laddercodec.csv.writer import (
     WriterError,
     decoded_rung_to_rows,
 )
-from laddercodec.decode import UnknownInstruction
+from laddercodec.instructions import UnknownInstruction
 from laddercodec.model import InstructionType
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "ladder_captures" / "golden"
