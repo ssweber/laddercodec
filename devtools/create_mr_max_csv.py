@@ -9,7 +9,7 @@ from typing import cast
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
 from golden_io import GOLDEN_DIR, Rung, write_multi_rung_golden_csv
 
-from laddercodec.decode import ConditionToken
+from laddercodec.instructions import ConditionToken
 
 # 1400-byte comment body: "ABCDEFGHIJ" x 140
 comment_text = "ABCDEFGHIJ" * 140

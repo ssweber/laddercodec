@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import (
     _parse_tagged_fields_verbose,
+    _tag_wire_type,
     _tagged_field,
     _utf16le_null,
     _variant_tagged_field,
@@ -137,6 +138,67 @@ def _decompose_blob(
     pos += 4
     fields, _ = _parse_tagged_fields_verbose(blob, pos, field_count)
     return class_name, type_marker, part_count, extra_bytes, fields
+
+
+def _fields_to_tag_dicts(
+    fields: list[tuple[int, bytes, str]],
+) -> tuple[
+    dict[int, str],
+    dict[int, int],
+    dict[int, dict[int, int]],
+    dict[int, dict[int, str]],
+]:
+    """Convert verbose tagged-field list to SCR-style tag dicts.
+
+    Normalises clipboard conventions to match the SCR representation:
+
+    * **Flag tags** (``0x11xx``/``0x12xx``): clipboard value ``"-1"``
+      or ``"1"`` → present in *tags*; ``"0"`` → absent.
+    * **Byte tags** (``0x20xx``–``0x22xx``): stored in both *tags*
+      (string) and *tag_byte_lens* (int).
+    * **Variant-sentinel fields**: ``0x3Axx`` → *variant_u16_tags*,
+      ``0x68xx`` → *variant_string_tags*.
+
+    Returns ``(tags, tag_byte_lens, variant_u16_tags, variant_string_tags)``.
+    """
+    tags: dict[int, str] = {}
+    tag_byte_lens: dict[int, int] = {}
+    variant_u16_tags: dict[int, dict[int, int]] = {}
+    variant_string_tags: dict[int, dict[int, str]] = {}
+
+    for tag, sentinel, value in fields:
+        if sentinel == _STANDARD_SENTINEL:
+            wire = _tag_wire_type(tag)
+            if wire == "flag":
+                if value in ("-1", "1"):
+                    tags[tag] = ""
+                    tag_byte_lens[tag] = 0
+                # "0" / "" → absent (disabled)
+            elif wire == "byte":
+                tags[tag] = value
+                try:
+                    tag_byte_lens[tag] = int(value or "0")
+                except ValueError:
+                    tag_byte_lens[tag] = 0
+            else:
+                tags[tag] = value
+        else:
+            # Variant sentinel — the 4 bytes encode the array index.
+            idx = struct.unpack_from("<I", sentinel)[0]
+            wire = _tag_wire_type(tag)
+            if wire == "variant_u16":
+                try:
+                    int_val = int(value or "0")
+                except ValueError:
+                    int_val = 0
+                variant_u16_tags.setdefault(tag, {})[idx] = int_val
+            elif wire == "variant_string":
+                variant_string_tags.setdefault(tag, {})[idx] = value
+            else:
+                # Unknown variant — store as string tag (harmless).
+                tags[tag] = value
+
+    return tags, tag_byte_lens, variant_u16_tags, variant_string_tags
 
 
 def _compose_blob(
@@ -358,6 +420,23 @@ class RawInstruction(AfInstruction):
         return cls(class_name=class_name, blob=blob, part_count=part_count)
 
 
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> RawInstruction | None:
+    """Raw from_tags always returns None.
+
+    All previously-handled families (Email, Home, Velocity, Position)
+    now have their own modules.  Genuinely unrecognised class names
+    fall through to the caller's ``RawInstruction`` fallback.
+    """
+    return None
+
+
 def parse_af_call(call: AfCall) -> RawInstruction:
     """Parse an AF AST call into a RawInstruction."""
     return RawInstruction.from_csv_token(call.to_token())
@@ -367,7 +446,7 @@ SPEC = AfInstructionFamilySpec(
     family_name="raw",
     instruction_types=(RawInstruction,),
     binary_class_names=(),
-    parse_blob=lambda raw: None,
+    from_tags=from_tags,
     csv_names=("raw",),
     parse_csv_call=parse_af_call,
 )

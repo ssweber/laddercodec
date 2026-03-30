@@ -170,69 +170,34 @@ def build_blob(timer: Timer) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_TIMER_TYPE_CODE = 0x2718
 
-def parse_blob(raw: bytes) -> Timer | None:
-    """Try to parse a Timer from an instruction blob."""
-    from ..binary_helpers import _read_utf16le
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Tmr":
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Timer | None:
+    """Construct a Timer from tag data (shared by both decoders)."""
+    if class_name != "Tmr" or type_code != _TIMER_TYPE_CODE:
         return None
-    if pos + 6 > len(raw):
-        return None
-
-    pos += 4  # skip type marker (0x2718)
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-
-    if part_count < 2:
-        return None
-
-    pos += 1  # skip sub-marker (0x01)
-    if pos + 4 > len(raw):
-        return None
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields: list[str] = []
-    for _ in range(field_count):
-        if pos + 6 > len(raw):
-            break
-        pos += 2  # skip tag
-        if raw[pos : pos + 4] == b"\xff\xff\xff\xff":
-            pos += 4  # skip sentinel
-        else:
-            pos += 4  # skip sub-marker bytes
-        value, pos = _read_utf16le(raw, pos)
-        fields.append(value)
-
-    if len(fields) < 6:
-        return None
-
-    done_bit = fields[0]
-    setpoint = fields[1]
-    current = fields[2]
-    unit_idx = fields[3]
-    type_idx = fields[4]
-    retained_str = fields[5]
-
+    done_bit = tags.get(0x6068, "")
+    setpoint = tags.get(0x606A, "")
+    current = tags.get(0x6069, "")
+    unit_idx = tags.get(0x21F9, "0")
     unit = TIMER_UNITS.get(unit_idx)
-    if unit is None:
+    if not done_bit or not current or not setpoint or unit is None:
         return None
-
-    timer_type: str
-    if type_idx == "0":
-        timer_type = "on_delay"
-    elif type_idx == "1":
-        timer_type = "off_delay"
-    else:
-        return None
-
-    retained = retained_str == "1"
-
+    # SCR: 0x21FA absent = on_delay, present = off_delay.
+    # Clipboard: byte tag value 0 = on_delay, 1 = off_delay.
+    timer_type = "off_delay" if (tag_byte_lens or {}).get(0x21FA, 0) != 0 else "on_delay"
+    retained = (tag_byte_lens or {}).get(0x21FB, 0) != 0
     return Timer(
         timer_type=timer_type,
         done_bit=done_bit,
@@ -252,7 +217,7 @@ SPEC = AfInstructionFamilySpec(
     family_name="timer",
     instruction_types=(Timer,),
     binary_class_names=("Tmr",),
-    parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("on_delay", "off_delay"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset",),

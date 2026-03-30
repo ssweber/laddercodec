@@ -3,7 +3,8 @@ from __future__ import annotations
 import struct
 
 from laddercodec.binary_helpers import _tagged_field, _utf16le_null
-from laddercodec.instructions.math import _reconstruct_expression, parse_blob
+from laddercodec.instructions import parse_af_blob
+from laddercodec.instructions.math import _reconstruct_expression
 
 
 def _build_math_blob_with_nickname_and_display_literal() -> bytes:
@@ -33,7 +34,7 @@ def test_reconstruct_expression_handles_repeated_operands() -> None:
 
 
 def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form() -> None:
-    parsed = parse_blob(_build_math_blob_with_nickname_and_display_literal())
+    parsed = parse_af_blob(_build_math_blob_with_nickname_and_display_literal())
 
     assert parsed is not None
     assert parsed.expression == "DS123 + 200"

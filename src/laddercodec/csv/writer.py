@@ -31,11 +31,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
-from ..decode import (
-    Rung,
-    UnknownCondition,
-    UnknownInstruction,
-)
+from ..decode import Rung
 from ..instructions import (
     AfInstruction,
     ConditionInstruction,
@@ -43,6 +39,8 @@ from ..instructions import (
     Drum,
     Shift,
     Timer,
+    UnknownCondition,
+    UnknownInstruction,
     get_af_family_for_token,
 )
 from .contract import CSV_HEADER
@@ -83,6 +81,11 @@ def _is_blank_row(conditions: Sequence[object], af: object) -> bool:
     return all(c == "" for c in conditions)
 
 
+def _conditions_are_blank(conditions: Sequence[object]) -> bool:
+    """Return True when a row has no condition-side content at all."""
+    return all(c == "" for c in conditions)
+
+
 def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     """Convert a ``Rung`` to a list of CSV row lists.
 
@@ -105,8 +108,8 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     af_tokens = list(rung.instructions)
 
     # Counters need custom CSV shaping. Native count_down decodes as AF row 0
-    # plus a NOP bridge row, but the truthful CSV view places count_down on the
-    # visual bridge row instead.
+    # plus a NOP bridge row; when row 0 is truly empty we collapse that spacer
+    # row in CSV, but preserve any real row-above content.
     counter_row = next((idx for idx, af in enumerate(af_tokens) if isinstance(af, Counter)), None)
     if counter_row is not None:
         counter = cast(Counter, af_tokens[counter_row])
@@ -140,8 +143,11 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
 
         top_conditions = condition_rows[0]
         bridge_conditions = condition_rows[1]
-        rows.append(["R"] + [_token_to_csv(c) for c in top_conditions] + [""])
-        rows.append([""] + [_token_to_csv(c) for c in bridge_conditions] + [counter.to_csv()])
+        if _conditions_are_blank(top_conditions):
+            rows.append(["R"] + [_token_to_csv(c) for c in bridge_conditions] + [counter.to_csv()])
+        else:
+            rows.append(["R"] + [_token_to_csv(c) for c in top_conditions] + [""])
+            rows.append([""] + [_token_to_csv(c) for c in bridge_conditions] + [counter.to_csv()])
 
         if counter.reset_enabled:
             reset_conditions = condition_rows[2]

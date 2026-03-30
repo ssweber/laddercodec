@@ -76,3 +76,7 @@ For unknown instruction types, the blob boundary can be detected using the gener
 6. The blob ends after all fields are consumed
 
 The `RawInstruction` fallback uses this formula to capture the complete blob as opaque bytes, enabling round-trip for unsupported instruction types via `raw(ClassName,hex)` CSV tokens.
+
+At the moment, `Email`, `Home`, `Position`, and `Velocity` still deliberately
+travel through this raw path. They round-trip correctly, but they are not yet
+modeled as dedicated DSL instruction classes.

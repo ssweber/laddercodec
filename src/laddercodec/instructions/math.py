@@ -285,39 +285,34 @@ class Math(AfInstruction):
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_MATH_TYPE_CODE = 0x271A
 
-def parse_blob(raw: bytes) -> Math | None:
-    """Try to parse a Math instruction from an instruction blob."""
-    from ..binary_helpers import _parse_tagged_fields_verbose, _read_utf16le
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "Math":
-        return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip part count
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields, _ = _parse_tagged_fields_verbose(raw, pos, field_count)
-    if len(fields) < 9:
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Math | None:
+    """Construct a Math from tag data (shared by both decoders)."""
+    if class_name != "Math" or type_code != _MATH_TYPE_CODE:
         return None
 
-    result = fields[0][2]  # field[0] value
-    hex_flag = fields[1][2]  # field[1] value
-    oneshot_flag = fields[2][2]  # field[2] value
-    template_display = fields[3][2]  # field[3] value
-    formula_internal = fields[6][2]  # field[6] value
-    expression = _reconstruct_expression(template_display, formula_internal)
+    result = tags.get(0x6065, "")
+    expression = _reconstruct_expression(
+        tags.get(0x61FF, ""),
+        tags.get(0x61FD, ""),
+    ) or tags.get(0x6228, "")
+    if not result or not expression:
+        return None
 
-    # Determine mode from hex flag (more reliable than func code for unknown variants).
-    mode: Literal["decimal", "hex"] = "hex" if hex_flag == "-1" else "decimal"
-    oneshot = oneshot_flag == "-1"
+    mode: Literal["decimal", "hex"] = "hex" if 0x11FE in tags else "decimal"
+    oneshot = 0x11F8 in tags
 
     return Math(
         expression=expression,
@@ -325,6 +320,11 @@ def parse_blob(raw: bytes) -> Math | None:
         mode=mode,
         oneshot=oneshot,
     )
+
+
+# ---------------------------------------------------------------------------
+# CSV parser
+# ---------------------------------------------------------------------------
 
 
 def parse_af_call(call: AfCall) -> Math:
@@ -355,7 +355,7 @@ SPEC = AfInstructionFamilySpec(
     family_name="math",
     instruction_types=(Math,),
     binary_class_names=("Math",),
-    parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("math",),
     parse_csv_call=parse_af_call,
 )

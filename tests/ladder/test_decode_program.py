@@ -1,22 +1,29 @@
 from __future__ import annotations
 
+import importlib
+import struct
 from pathlib import Path
 
 from laddercodec import decode
+from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
-    _SCR_TAG_PARSE_SPECS,
     _find_row_topology_block,
     _find_sections,
     _parse_extra_row_right_wires,
     _parse_header,
     _parse_scr_tags,
-    _scr_to_af,
+    _parse_wiredown,
+    _tag_wire_type,
     decode_program,
 )
+from laddercodec.instructions import from_tags_af
+from laddercodec.instructions.home import from_tags as home_from_tags
 from laddercodec.instructions.math import Math
+from laddercodec.instructions.position import from_tags as position_from_tags
 from laddercodec.instructions.timer import Timer
 
+decode_program_module = importlib.import_module("laddercodec.decode_program")
 _SCR_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 _COL_NAMES = {
     idx: chr(ord("A") + idx) if idx < 26 else f"A{chr(ord('A') + idx - 26)}" if idx < 31 else "AF"
@@ -107,7 +114,7 @@ def _parse_row0_entry_order(data: bytes, block) -> tuple[int, ...]:
 def _compact_scr_blob(
     class_name: str,
     type_code: int,
-    m1: int,
+    visual_sub_rows: int,
     body: bytes,
 ) -> bytes:
     class_bytes = class_name.encode("utf-16-le") + b"\x00"
@@ -117,10 +124,19 @@ def _compact_scr_blob(
     header += type_code.to_bytes(2, "little")
     header += b"\x00" * 6
     header += b"\x01"
-    header += b"\x00" * m1
-    end_offset = 1 + len(class_bytes) + 2 + 6 + 1 + m1 + 4 + len(body)
+    header += b"\x00" * visual_sub_rows
+    end_offset = 1 + len(class_bytes) + 2 + 6 + 1 + visual_sub_rows + 4 + len(body)
     header += end_offset.to_bytes(4, "little")
     return bytes(header) + body
+
+
+def _rebase_compact_scr_blob(blob: bytes, blob_start: int, visual_sub_rows: int) -> bytes:
+    """Rewrite end_offset to be relative to blob_start (visual_sub_rows == part_count in clipboard)."""
+    rebased = bytearray(blob)
+    str_len = rebased[0]
+    end_offset_pos = 1 + str_len + 2 + 6 + 1 + visual_sub_rows
+    struct.pack_into("<I", rebased, end_offset_pos, blob_start + len(blob))
+    return bytes(rebased)
 
 
 def _compact_scr_string_field(tag: int, value: str) -> bytes:
@@ -130,6 +146,14 @@ def _compact_scr_string_field(tag: int, value: str) -> bytes:
 
 def _compact_scr_byte_field(tag: int, value: int) -> bytes:
     return tag.to_bytes(2, "little") + bytes([value])
+
+
+def _compact_scr_flag_field(tag: int) -> bytes:
+    return tag.to_bytes(2, "little")
+
+
+def _compact_scr_u16_field(tag: int, value: int) -> bytes:
+    return tag.to_bytes(2, "little") + value.to_bytes(2, "little")
 
 
 def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
@@ -172,10 +196,9 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
             0,
             len(raw),
             1,
-            _SCR_TAG_PARSE_SPECS["Math"],
         )
     )
-    parsed = _scr_to_af(
+    parsed = from_tags_af(
         class_name,
         type_code,
         tags,
@@ -211,10 +234,9 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
             0,
             len(raw),
             2,
-            _SCR_TAG_PARSE_SPECS["Tmr"],
         )
     )
-    parsed = _scr_to_af(
+    parsed = from_tags_af(
         class_name,
         type_code,
         tags,
@@ -230,6 +252,124 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         setpoint="DS588",
         unit="Ts",
         retained=True,
+    )
+
+
+def test_find_sections_accepts_large_instruction_counts():
+    blobs: list[bytes] = []
+    for idx in range(21):
+        raw_blob = _compact_scr_blob(
+            "ContactNO",
+            0x2711,
+            1,
+            _compact_scr_string_field(0x6065, f"C{idx + 1}") + (0x0000).to_bytes(2, "little"),
+        )
+        entry_start = 6 + sum(len(existing) for existing in blobs)
+        blob = _rebase_compact_scr_blob(raw_blob, entry_start + 8, 1)
+        blobs.append(bytes([1, idx % 31]) + b"\x00" * 6 + blob + b"\x00\x00")
+
+    section = struct.pack("<H", len(blobs)) + struct.pack("<I", 1) + b"".join(blobs)
+    assert _find_sections(section, start=0) == [(0, 21, len(section))]
+
+
+def test_parse_wiredown_uses_explicit_row_indices():
+    data = b"\x20\x00" + b"\x00\x00" + b"\x05\x00\x02\x03\x04\x05\x06" + b"\x00\x00"
+    assert _parse_wiredown(data, 0, len(data)) == {1: (1, 2, 3, 4, 5)}
+
+
+def test_parse_scr_tags_handles_compact_home_raw_fields():
+    raw = _compact_scr_blob(
+        "Home",
+        0x2734,
+        1,
+        b"".join(
+            [
+                _compact_scr_byte_field(0x222D, 1),
+                _compact_scr_byte_field(0x222E, 1),
+                _compact_scr_string_field(0x6096, "DD101"),
+                _compact_scr_string_field(0x6097, ""),
+                _compact_scr_string_field(0x609E, ""),
+                _compact_scr_string_field(0x609F, "X003"),
+                _compact_scr_string_field(0x60A0, ""),
+                _compact_scr_string_field(0x609C, "DD102"),
+                _compact_scr_string_field(0x609D, "DD103"),
+                _compact_scr_byte_field(0x222F, 0),
+                _compact_scr_flag_field(0x11F5),
+                _compact_scr_byte_field(0x2230, 255),
+                _compact_scr_string_field(0x60A1, "0"),
+                _compact_scr_string_field(0x60A3, "C102"),
+                _compact_scr_string_field(0x60A4, ""),
+                _compact_scr_string_field(0x607B, "C103"),
+                _compact_scr_string_field(0x607D, ""),
+                _compact_scr_string_field(0x6083, ""),
+                _compact_scr_byte_field(0x2232, 0),
+                _compact_scr_byte_field(0x2233, 0),
+                _compact_scr_u16_field(0x3218, 9739),
+                (0x0000).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
+    )
+    parsed = home_from_tags(class_name, type_code, tags)
+
+    assert parsed is not None
+    assert (
+        parsed.to_csv() == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
+        "609c=DD102,609d=DD103,222f=0,11f5=0,2230=255,60a1=0,60a3=C102,60a4=,607b=C103,"
+        "607d=,6083=,2232=0,2233=0,3218=9739,0000=)"
+    )
+
+
+def test_parse_scr_tags_handles_compact_position_raw_fields():
+    raw = _compact_scr_blob(
+        "Position",
+        0x2736,
+        1,
+        b"".join(
+            [
+                _compact_scr_byte_field(0x222D, 2),
+                _compact_scr_string_field(0x6098, "DD301"),
+                _compact_scr_string_field(0x6099, ""),
+                _compact_scr_string_field(0x609A, "DD304"),
+                _compact_scr_byte_field(0x2206, 0),
+                _compact_scr_string_field(0x609B, "DD119"),
+                _compact_scr_string_field(0x609C, "DD120"),
+                _compact_scr_string_field(0x609D, "DD121"),
+                _compact_scr_byte_field(0x222F, 2),
+                _compact_scr_flag_field(0x11F5),
+                _compact_scr_byte_field(0x2231, 0),
+                _compact_scr_string_field(0x60A2, ""),
+                _compact_scr_string_field(0x60A3, "C315"),
+                _compact_scr_string_field(0x60A4, ""),
+                _compact_scr_string_field(0x607B, "C316"),
+                _compact_scr_string_field(0x607D, ""),
+                _compact_scr_string_field(0x6083, ""),
+                _compact_scr_u16_field(0x3218, 9745),
+                (0x0000).to_bytes(2, "little"),
+            ]
+        ),
+    )
+
+    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
+    )
+    parsed = position_from_tags(class_name, type_code, tags)
+
+    assert parsed is not None
+    assert (
+        parsed.to_csv()
+        == "raw(Position,0x2736,1,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
+        "609c=DD120,609d=DD121,222f=2,11f5=0,2231=0,60a2=,60a3=C315,60a4=,607b=C316,"
+        "607d=,6083=,3218=9745,0000=)"
     )
 
 
@@ -325,6 +465,26 @@ def test_decode_program_matches_coverage_fixture():
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 
+def _strip_blank_tail(lines: list[str]) -> list[str]:
+    """Remove trailing all-blank rows (CSV writer collapses spacer padding)."""
+    blank = "," * 30 + "|"
+    while lines and lines[-1] == blank:
+        lines = lines[:-1]
+    return lines
+
+
+def test_coverage_scr_and_bin_both_match_golden_csv():
+    csv_rungs = read_csv(_SCR_FIXTURE_DIR / "coverage.csv")
+    clip_rungs, scr_rungs = _load_fixture_pair("coverage")
+
+    csv_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in csv_rungs]
+    scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
+    bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
+
+    assert scr_lines == csv_lines
+    assert bin_lines == csv_lines
+
+
 def test_decode_program_matches_shift_scr_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("shift_scr")
 
@@ -337,6 +497,100 @@ def test_decode_program_matches_counter_scr_fixture():
 
     assert len(scr_rungs) == len(clip_rungs)
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def test_parse_header_skips_fixed_condition_family_table_without_a_sentinel():
+    scr_data = bytearray(b"\x00" * 0xC0)
+    scr_data[:8] = b"SC-SCR  "
+    struct.pack_into("<H", scr_data, 0x40, 1)
+
+    name_bytes = "Main Program".encode("utf-16-le") + b"\x00"
+    scr_data[0x42] = len(name_bytes)
+    scr_data[0x43 : 0x43 + len(name_bytes)] = name_bytes
+
+    cursor = 0x43 + len(name_bytes)
+    struct.pack_into("<H", scr_data, cursor, 32)
+    cursor += 2
+    for family_code in ["~", *["H"] * 30]:
+        struct.pack_into("<H", scr_data, cursor, ord(family_code))
+        cursor += 2
+
+    rtf = b"{\\rtf1 synthetic}"
+    scr_data[cursor : cursor + 7] = bytes.fromhex("9a010d08000000")
+    struct.pack_into("<I", scr_data, cursor + 7, len(rtf))
+    scr_data[cursor + 11 : cursor + 11 + len(rtf)] = rtf
+
+    assert _parse_header(bytes(scr_data)) == ("Main Program", 1, cursor + 7)
+
+
+def test_decode_program_keeps_comments_for_consecutive_empty_topology_rungs(monkeypatch):
+    empty_block_1 = decode_program_module._ScrRowTopologyBlock(
+        start=20,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=20,
+        continuation_start=20,
+    )
+    empty_block_2 = decode_program_module._ScrRowTopologyBlock(
+        start=50,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=50,
+        continuation_start=50,
+    )
+    main_block = decode_program_module._ScrRowTopologyBlock(
+        start=80,
+        row_word=2,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=32,
+        row0_flags={},
+        flags_start=80,
+        continuation_start=80,
+    )
+    comment_calls: list[tuple[int, int]] = []
+
+    monkeypatch.setattr(decode_program_module, "_parse_header", lambda data: ("Main Program", 1, 0))
+    monkeypatch.setattr(
+        decode_program_module, "_find_sections", lambda data, start: [(100, 1, 110)]
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_parse_section_instructions",
+        lambda data, sec_off, count: [],
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_find_row_topology_block",
+        lambda data, pos: main_block,
+    )
+    monkeypatch.setattr(
+        decode_program_module,
+        "_find_row_topology_blocks_between",
+        lambda data, start, end: [empty_block_1, empty_block_2],
+    )
+
+    def fake_find_rtf_comment(data, start, end):
+        comment_calls.append((start, end))
+        return None, f"comment {start}->{end}"
+
+    monkeypatch.setattr(decode_program_module, "_find_rtf_comment", fake_find_rtf_comment)
+    monkeypatch.setattr(
+        decode_program_module,
+        "_build_topology_backed_rung",
+        lambda **kwargs: kwargs["comment"],
+    )
+
+    program = decode_program_module.decode_program(b"")
+
+    assert comment_calls == [(0, 20), (20, 50), (50, 80)]
+    assert program.rungs == ["comment 0->20", "comment 20->50", "comment 50->80"]
 
 
 def test_parse_31_entry_row_topology_blocks_in_coverage_fixture():
@@ -502,3 +756,90 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
         )
         assert marker_pos is not None
         assert [sorted(cols) for cols in raw_rows] == expected_rows
+
+
+def test_forward_parser_agrees_with_brute_force_for_all_topology_blocks():
+    """The deterministic forward parser must agree with brute-force for every block."""
+    _forward_parse = decode_program_module._forward_parse_topology_block
+    _brute_force = decode_program_module._brute_force_topology_block
+    _PREFIX = decode_program_module._ROW_TOPOLOGY_PREFIX
+
+    for scr_path in sorted(_SCR_FIXTURE_DIR.glob("*.scr")):
+        scr_data = scr_path.read_bytes()
+        _name, _prog_idx, data_start = _parse_header(scr_data)
+        sections = _find_sections(scr_data, start=data_start)
+
+        for rung_idx, (sec_off, _count, _sec_end) in enumerate(sections):
+            block = _find_row_topology_block(scr_data, sec_off)
+            if block is None:
+                continue
+
+            pos = block.start
+            row_word = struct.unpack_from("<H", scr_data, pos)[0]
+            assert scr_data[pos + 2 : pos + 5] == _PREFIX
+            marker_scan_limit = min(len(scr_data), pos + 0x800)
+
+            forward_block = _forward_parse(scr_data, pos, row_word, marker_scan_limit)
+            brute_block = _brute_force(scr_data, pos, row_word, marker_scan_limit)
+
+            assert forward_block is not None, (
+                f"{scr_path.name} rung {rung_idx}: forward parser returned None"
+            )
+            assert brute_block is not None
+            assert forward_block.flags_start == brute_block.flags_start, (
+                f"{scr_path.name} rung {rung_idx}: "
+                f"forward={forward_block.flags_start} brute={brute_block.flags_start}"
+            )
+            assert forward_block.row0_flag_count == brute_block.row0_flag_count
+            assert forward_block.row0_flags == brute_block.row0_flags
+            assert forward_block.prelude == brute_block.prelude
+
+
+def test_tag_wire_type_covers_all_implicit_tags():
+    """Every tag constant used via tags.get / in tags / _raw_field must resolve to a known wire type.
+
+    The spec tables only list tags with non-default wire types. String tags
+    (0x60xx–0x62xx) are implicit — they work via the default fallback path in
+    _parse_scr_tags. This test ensures _tag_wire_type returns something other
+    than "unknown" for every tag referenced at a call site, so the dispatch
+    refactor won't silently drop them.
+    """
+    import inspect
+    import re
+
+    # Gather source of all from_tags functions in instruction modules
+    from laddercodec.instructions import AF_FAMILY_SPECS, CONDITION_FAMILY_SPECS
+
+    source_parts = []
+    for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS):
+        if spec.from_tags is not None:
+            source_parts.append(inspect.getsource(spec.from_tags))
+    source = "\n".join(source_parts)
+
+    # Extract tag constants from various accessor patterns
+    tag_pattern = re.compile(
+        r"(?:"
+        r"tags\.get\(|"
+        r"lens\.get\(|"
+        r"variant_strings\.get\(|"
+        r"variant_u16\.get\(|"
+        r"tag_byte_lens\b[^)]*\.get\(|"
+        r"_raw_field\(|"
+        r"_raw_empty_array_fields\("
+        r")(0x[0-9A-Fa-f]{4})"
+        r"|"
+        r"(0x[0-9A-Fa-f]{4})\s+in\s+tags"
+    )
+    tag_ids: set[int] = set()
+    for m in tag_pattern.finditer(source):
+        hex_str = m.group(1) or m.group(2)
+        tag_ids.add(int(hex_str, 16))
+
+    # 0x0000 is the null terminator, not a real tag
+    tag_ids.discard(0x0000)
+
+    unknowns = sorted(t for t in tag_ids if _tag_wire_type(t) == "unknown")
+    assert not unknowns, (
+        "Tags used at call sites but _tag_wire_type returns 'unknown':\n"
+        + "\n".join(f"  0x{t:04X}" for t in unknowns)
+    )

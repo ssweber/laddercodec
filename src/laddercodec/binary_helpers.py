@@ -2,6 +2,7 @@
 
 Encoding helpers (UTF-16LE strings, tagged fields) used by instruction
 blob builders, and decoding helpers (read/parse) used by blob parsers.
+Wire-type classification for tag dispatch.
 """
 
 from __future__ import annotations
@@ -91,3 +92,32 @@ def _parse_tagged_fields_verbose(
         value, pos = _read_utf16le(raw, pos)
         fields.append((tag, sentinel, value))
     return fields, pos
+
+
+# ---------------------------------------------------------------------------
+# Wire-type classification
+# ---------------------------------------------------------------------------
+
+_STANDARD_SENTINEL = b"\xff\xff\xff\xff"
+
+
+def _tag_wire_type(tag: int) -> str:
+    """Infer the wire type of a SCR tag from its high byte.
+
+    Returns one of: "flag", "byte", "u16", "string", "variant_u16",
+    "variant_string", or "unknown".
+    """
+    hi = (tag >> 8) & 0xFF
+    if hi in (0x11, 0x12):
+        return "flag"
+    if hi in (0x20, 0x21, 0x22):
+        return "byte"
+    if hi == 0x32:
+        return "u16"
+    if hi == 0x3A:
+        return "variant_u16"
+    if hi in (0x60, 0x61, 0x62):
+        return "string"
+    if hi == 0x68:
+        return "variant_string"
+    return "unknown"

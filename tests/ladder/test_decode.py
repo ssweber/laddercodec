@@ -231,3 +231,23 @@ def test_rtf_decode_unescapes_backslash() -> None:
 def test_rtf_decode_strips_stray_cr() -> None:
     payload = _PREFIX + b"hello\rworld" + _SUFFIX
     assert _decode_rtf(payload) == "helloworld"
+
+
+def test_rtf_decode_strips_cf_color() -> None:
+    payload = _PREFIX + rb"\cf1 red text\cf0  normal" + _SUFFIX
+    assert _decode_rtf(payload) == "red text normal"
+
+
+def test_rtf_decode_strips_cf_with_bold() -> None:
+    payload = _PREFIX + rb"\cf2 {\b bold red}\cf0  plain" + _SUFFIX
+    assert _decode_rtf(payload) == "**bold red** plain"
+
+
+def test_rtf_decode_strips_highlight() -> None:
+    payload = _PREFIX + rb"\highlight1 highlighted\highlight0  normal" + _SUFFIX
+    assert _decode_rtf(payload) == "highlighted normal"
+
+
+def test_rtf_decode_strips_cb() -> None:
+    payload = _PREFIX + rb"\cb1 background\cb0  normal" + _SUFFIX
+    assert _decode_rtf(payload) == "background normal"

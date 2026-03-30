@@ -17,6 +17,10 @@ From the inspect output you'll see one of two cases:
 
 Tip: use the reported `class='...'` value. If the class name is already registered, you're likely adding a new variant; if it's new, you're likely adding a new instruction type.
 
+Note: `Email`, `Home`, `Position`, and `Velocity` are currently known enough
+to round-trip, but they still intentionally surface as `raw(...)` passthroughs
+until dedicated typed DSL models are added.
+
 ## Base classes
 
 All instruction dataclasses inherit from one of two base classes in `model.py`:

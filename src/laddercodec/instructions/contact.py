@@ -10,7 +10,7 @@ import struct
 from dataclasses import dataclass
 from typing import Literal, cast
 
-from ..model import ConditionInstruction, InstructionType, _validate_operand
+from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, _validate_operand
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -204,89 +204,52 @@ def build_blob(contact: Contact) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser — NO/NC
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
 
-def parse_blob(raw: bytes) -> Contact | None:
-    """Try to parse a Contact from an instruction blob ("ContactNO" or "Edge")."""
-    from ..binary_helpers import _parse_tagged_fields, _read_utf16le
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Contact | None:
+    """Construct a Contact from tag data (shared by both decoders)."""
+    itype = TYPE_CODE_TO_ITYPE.get(type_code)
 
-    class_name, pos = _read_utf16le(raw, 0)
+    if class_name == "ContactNO" and itype in (
+        InstructionType.CONTACT_NO,
+        InstructionType.CONTACT_NC,
+    ):
+        operand = tags.get(0x6065, "")
+        if not operand:
+            return None
+        immediate = 0x11F5 in tags
+        return Contact(type=itype, operand=operand, immediate=immediate)
 
-    if class_name == "Edge":
-        return _parse_edge_blob(raw, pos)
+    if class_name == "Edge" and itype == InstructionType.CONTACT_EDGE:
+        operand = tags.get(0x6065, "")
+        if not operand:
+            return None
+        # SCR: tag absent = rise, present = fall.
+        # Clipboard: tag always present, byte value 0 = rise, 1 = fall.
+        edge_kind: Literal["rise", "fall"] = (
+            "fall" if (tag_byte_lens or {}).get(0x21F6, 0) != 0 else "rise"
+        )
+        return Contact(
+            type=InstructionType.CONTACT_EDGE,
+            operand=operand,
+            edge_kind=edge_kind,
+        )
 
-    if class_name != "ContactNO":
-        return None
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip unknown 01 00
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 3:
-        return None
-
-    operand = fields[0]
-    func_code = fields[2]
-
-    info = _FUNC_TO_CONTACT.get(func_code)
-    if info is None:
-        return None
-
-    itype, immediate, edge_kind = info
-    return Contact(
-        type=itype,
-        operand=operand,
-        immediate=immediate,
-        edge_kind=edge_kind,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Blob parser — Edge
-# ---------------------------------------------------------------------------
-
-
-def _parse_edge_blob(raw: bytes, pos: int) -> Contact | None:
-    """Parse a Contact from an instruction blob starting with "Edge"."""
-    from ..binary_helpers import _parse_tagged_fields
-
-    if pos + 10 > len(raw):
-        return None
-
-    pos += 4  # skip type marker
-    pos += 2  # skip unknown 01 00
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-
-    fields = _parse_tagged_fields(raw, pos, field_count)
-    if len(fields) < 3:
-        return None
-
-    operand = fields[0]
-    func_code = fields[2]
-
-    info = _FUNC_TO_EDGE.get(func_code)
-    if info is None:
-        return None
-
-    itype, immediate, edge_kind = info
-    return Contact(
-        type=itype,
-        operand=operand,
-        immediate=immediate,
-        edge_kind=edge_kind,
-    )
+    return None
 
 
 SPEC = ConditionInstructionFamilySpec(
     family_name="contact",
     instruction_types=(Contact,),
     binary_class_names=("ContactNO", "Edge"),
-    parse_blob=parse_blob,
+    from_tags=from_tags,
 )

@@ -34,6 +34,9 @@ CELL_HORIZONTAL_RIGHT_OFFSET = 0x1D
 CELL_VERTICAL_DOWN_OFFSET = 0x21
 
 
+CONDITION_COLUMNS = COLS_PER_ROW - 1  # A..AE (31 columns)
+
+
 def cell_offset(row: int, column: int) -> int:
     if row < 0:
         raise ValueError(f"Row must be >= 0; got {row}")

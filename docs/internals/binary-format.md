@@ -165,3 +165,57 @@ payload_len = 0x1000 * ((rows + 1) // 2 + 1)
 ```
 
 This produces the correct buffer for any row count without needing 32 separate template files.
+
+## Instruction blob tag wire types
+
+Instruction blobs use tagged fields where each tag is a 2-byte LE value. The tag's **high byte** encodes the wire type — i.e. how many bytes follow the tag and how to interpret them:
+
+| High byte | Wire type | Payload |
+|---|---|---|
+| 0x11, 0x12 | flag | No payload (tag presence is the signal) |
+| 0x20, 0x21, 0x22 | byte | 1 byte |
+| 0x32 | u16 | 2 bytes (uint16 LE) |
+| 0x3A | variant_u16 | Sequence of `[uint16 index, uint16 value]` pairs, terminated by 0xFFFF |
+| 0x60, 0x61, 0x62 | string | `[1B length][UTF-16LE value]` |
+| 0x68 | variant_string | Sequence of `[uint16 index, 1B length, UTF-16LE value]` entries, terminated by 0xFFFF |
+
+This rule applies identically to both clipboard and SCR instruction blobs — the tag IDs, wire types, and operand values are the same in both formats. Only the framing differs (see below).
+
+## Clipboard vs SCR framing
+
+The instruction blob content (tag IDs, operand values, wire types) is **identical** between clipboard and SCR formats. The difference is how blobs are framed:
+
+**Clipboard:** blobs are embedded in the cell grid. Each instruction cell is a 0x25-byte cell header + blob + 16-byte cell tail. The blob boundary is found by scanning tagged fields (no explicit length). The 4-byte sentinel `FFFFFFFF` precedes each string value.
+
+**SCR (Scr\*.tmp):** blobs are stored in instruction sections with explicit framing. Each blob has embedded cell-header fields and an `end_offset` pointer:
+
+```
+[1B class_name_len][UTF-16LE class_name][2B type_code]
+[1B row_span][1B pad][2B structural][2B instr_index][1B visual_sub_rows]
+[visual_sub_rows counting bytes][4B end_offset]
+[tagged fields...]
+```
+
+The embedded fields at offsets +0 through +6 after the type code correspond to clipboard cell header offsets +0x09 through +0x10. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
+
+## SCR row-topology blocks
+
+SCR files store per-rung wire topology in structured blocks that precede each rung's instruction section. Each block encodes the right-wire and segment-flag data that clipboard stores per-cell in the grid.
+
+```
+[2B row_word][03 00 00]                    -- 5-byte header
+[leading-row wire blocks...]               -- rows before row 0 (count_down bridge)
+[1B af_segment][1B entry_count][00]        -- 3-byte trailer
+[entry_count x (1B seg_flag, 1B col_idx)]  -- row 0 flag table
+[continuation-row wire blocks...]          -- rows 1..N-1
+[20 00]                                    -- end marker
+[wire_down data]                           -- per-column vertical wire indices
+```
+
+Each continuation-row wire block:
+
+```
+[1B seg][1B right_count][00 00][pairs of (col_idx, next_seg)...][final_col]
+```
+
+The block is parsed forward: leading-row blocks are consumed until the 3-byte trailer is found, then the row-0 flag table, then continuation rows, then the `0x0020` marker, then wire-down data.

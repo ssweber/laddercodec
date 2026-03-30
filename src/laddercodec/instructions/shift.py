@@ -95,66 +95,33 @@ def build_blob(shift: Shift) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Blob parser
+# Shared from_tags factory
 # ---------------------------------------------------------------------------
 
+_SHIFT_TYPE_CODE = 0x2720
 
-def parse_blob(raw: bytes) -> Shift | None:
-    """Try to parse a Shift from an instruction blob."""
-    from ..binary_helpers import _read_utf16le
 
-    class_name, pos = _read_utf16le(raw, 0)
-    if class_name != "SR":
+def from_tags(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    tag_byte_lens: dict[int, int] | None = None,
+    variant_u16_tags: dict[int, dict[int, int]] | None = None,
+    variant_string_tags: dict[int, dict[int, str]] | None = None,
+) -> Shift | None:
+    """Construct a Shift from tag data (shared by both decoders)."""
+    if class_name != "SR" or type_code != _SHIFT_TYPE_CODE:
         return None
-    if pos + 10 > len(raw):
+    start_bit = tags.get(0x6066, "")
+    end_bit = tags.get(0x6067, "")
+    if not start_bit or not end_bit:
         return None
+    return Shift(start_bit=start_bit, end_bit=end_bit)
 
-    type_marker = int.from_bytes(raw[pos : pos + 4], "little")
-    if type_marker != (0x2700 | InstructionType.SHIFT):
-        return None
-    pos += 4
 
-    part_count = int.from_bytes(raw[pos : pos + 2], "little")
-    pos += 2
-    if part_count != 3:
-        return None
-
-    extra = part_count - 1
-    if pos + extra + 4 > len(raw):
-        return None
-    if raw[pos : pos + extra] != b"\x01\x02":
-        return None
-    pos += extra
-
-    field_count = int.from_bytes(raw[pos : pos + 4], "little")
-    pos += 4
-    if field_count < 6:
-        return None
-
-    parsed_fields: list[tuple[int, bytes, str]] = []
-    for _ in range(field_count):
-        if pos + 6 > len(raw):
-            return None
-        tag = int.from_bytes(raw[pos : pos + 2], "little")
-        pos += 2
-        marker = raw[pos : pos + 4]
-        pos += 4
-        value, pos = _read_utf16le(raw, pos)
-        parsed_fields.append((tag, marker, value))
-
-    if len(parsed_fields) < 6:
-        return None
-
-    if parsed_fields[0][0] != 0x6066 or parsed_fields[1][0] != 0x6067:
-        return None
-    for idx, marker in enumerate(_SHIFT_SUB_MARKERS):
-        field = parsed_fields[2 + idx]
-        if field[0] != 0x3A05 or field[1] != marker or field[2] != _SHIFT_FUNC_CODES[idx]:
-            return None
-    if parsed_fields[5][0] != 0x0000:
-        return None
-
-    return Shift(start_bit=parsed_fields[0][2], end_bit=parsed_fields[1][2])
+# ---------------------------------------------------------------------------
+# CSV parser
+# ---------------------------------------------------------------------------
 
 
 def parse_af_call(call: AfCall) -> Shift:
@@ -166,7 +133,7 @@ SPEC = AfInstructionFamilySpec(
     family_name="shift",
     instruction_types=(Shift,),
     binary_class_names=("SR",),
-    parse_blob=parse_blob,
+    from_tags=from_tags,
     csv_names=("shift",),
     parse_csv_call=parse_af_call,
     pin_names=(".clock", ".reset"),

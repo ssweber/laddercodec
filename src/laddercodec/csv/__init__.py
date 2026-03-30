@@ -13,7 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast
 
-from ..decode import AfToken, ConditionToken, Rung
+from ..decode import Rung
+from ..instructions import AfToken, ConditionToken
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import convert_rung
 from .parser import parse_csv_file

@@ -15,7 +15,6 @@ from .cell import ClickCell, build_row
 # Imports from encode.py — constants and helpers that stay there.
 from .encode import (
     _TOKEN_FLAGS,
-    CONDITION_COLUMNS,
     MAX_ROWS,
     MIN_ROWS,
     SUPPORTED_CONDITION_TOKENS,
@@ -27,7 +26,7 @@ from .encode import (
     _normalize_af,
 )
 from .instructions import AfInstruction, ConditionInstruction
-from .topology import COLS_PER_ROW
+from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
 # 5a: Shared validation

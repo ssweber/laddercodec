@@ -41,6 +41,11 @@ All standard Click instruction types are decoded into domain objects:
 
 Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline.
 
+At the moment, Click `Email`, `Home`, `Position`, and `Velocity` instructions
+also surface this way. They are supported for binary/SCR round-trip, but they
+are not yet modeled as dedicated DSL classes, so they currently emit
+`raw(...)` tokens.
+
 ### Wire tokens
 
 Wire cells are decoded into string tokens: `"-"`, `"|"`, `"T"`, or `""` (blank). The segment flag is ignored during decoding — only the right and down flags determine the token.

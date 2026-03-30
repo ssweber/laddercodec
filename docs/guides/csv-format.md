@@ -384,6 +384,8 @@ Producer may emit:
   fidelity. `ClassName` is the Click binary class name (unquoted) and `hex` is
   the raw blob as a hex string. Runtime no-op; preserved so CSV -> DSL -> CSV
   round-trips losslessly for unrecognized instruction types.
+  `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
+  path because they are not yet modeled as dedicated DSL instruction classes.
 
 Pin tokens:
 

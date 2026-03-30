@@ -23,7 +23,7 @@ from laddercodec.csv.writer import (
     WriterError,
     decoded_rung_to_rows,
 )
-from laddercodec.decode import UnknownInstruction
+from laddercodec.instructions import UnknownInstruction
 from laddercodec.model import InstructionType
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "ladder_captures" / "golden"
@@ -242,11 +242,11 @@ class TestDecodedRungToRows:
         )
 
         rows = decoded_rung_to_rows(rung)
-        assert len(rows) == 3
-        assert rows[0][32] == ""
-        assert rows[1][32] == "count_down(CT3,CTD3,preset=50)"
-        assert rows[1][1] == "rise(C78)"
-        assert rows[2][32] == ".reset()"
+        assert len(rows) == 2
+        assert rows[0][0] == "R"
+        assert rows[0][32] == "count_down(CT3,CTD3,preset=50)"
+        assert rows[0][1] == "rise(C78)"
+        assert rows[1][32] == ".reset()"
 
     def test_count_down_preserves_populated_top_row(self) -> None:
         counter = Counter(
@@ -273,6 +273,35 @@ class TestDecodedRungToRows:
         assert len(rows) == 3
         assert rows[0][32] == ""
         assert rows[0][1] == "C77"
+        assert rows[1][32] == "count_down(CT3,CTD3,preset=50)"
+        assert rows[1][1] == "rise(C78)"
+        assert rows[2][32] == ".reset()"
+
+    def test_count_down_preserves_wire_only_top_row(self) -> None:
+        counter = Counter(
+            counter_type="count_down",
+            done_bit="CT3",
+            current="CTD3",
+            preset="50",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [""] * 8 + ["|"] + [""] * 22,
+                [Contact(InstructionType.CONTACT_EDGE, "C78", edge_kind="rise")] + ["-"] * 30,
+                [Contact(InstructionType.CONTACT_NO, "C79")] + ["-"] * 30,
+            ],
+            instructions=[counter, "NOP", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 3
+        assert rows[0][32] == ""
+        assert rows[0][9] == "|"
         assert rows[1][32] == "count_down(CT3,CTD3,preset=50)"
         assert rows[1][1] == "rise(C78)"
         assert rows[2][32] == ".reset()"
