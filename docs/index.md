@@ -1,41 +1,47 @@
 # laddercodec
 
-Binary codec for AutomationDirect CLICK PLC ladder clipboard format.
+**Binary codec for AutomationDirect CLICK PLC ladder clipboard format.** Encodes and decodes the native clipboard binary used by [CLICK Programming Software](https://www.automationdirect.com/clickplcs). Tested against v2.60-v3.9x captures. Zero runtime dependencies.
 
-laddercodec encodes and decodes the native clipboard binary used by [CLICK Programming Software](https://www.automationdirect.com/clickplcs) (v2.60–v3.80). It's the codec layer that powers [clicknick](https://github.com/ssweber/clicknick).
+## Install
 
-## What it does
+```bash
+uv add laddercodec
+# or
+pip install laddercodec
+```
 
-- **Encode** — CSV rung descriptions → clipboard binary, ready to paste into Click
-- **Decode clipboard** — clipboard binary → structured data (contacts, coils, wires, comments)
-- **Decode program** — Click program files (`Scr*.tmp`) → full program with all rungs
-- **Round-trip** — `decode(encode(data)) == data` for all supported instruction types
-
-## Who it's for
-
-- **clicknick developers** — this is the codec clicknick uses under the hood
-- **Reverse engineers** — the [internals](internals/binary-format.md) section documents the binary format byte-by-byte
-- **Tool builders** — anyone generating or consuming Click clipboard data programmatically
+Requires Python 3.11+.
 
 ## Quick example
 
 ```python
 from laddercodec import read_csv, encode, decode
 
-# CSV → structured data → binary
+# CSV → binary (ready to paste into Click)
 rungs = read_csv("my_rung.csv")
 binary = encode(rungs[0])
 
 # Binary → structured data
-decoded = decode(binary)
-assert decoded.logical_rows == rungs[0].logical_rows
+rung = decode(binary)
+print(rung.logical_rows)
+print(rung.instructions)
 ```
 
-## Current status
+## What's included
 
-**Beta.** All standard Click instruction types are supported — contacts, coils, timers, counters, copy/fill/pack/unpack, math, shift registers, drums, search, flow control (call/return/end/for/next), and Modbus send/receive. See [supported instructions](guides/encoding.md#supported-instructions) for the full list.
+**[Encoder](guides/encoding.md)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, wire topologies, and styled comments.
 
-Program file decoding (`decode_program`) is **alpha** — functional but not yet extensively tested.
+**[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads Click's internal `Scr*.tmp` program files.
+
+**[CSV I/O](guides/csv-format.md)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
+
+**[Binary format docs](internals/binary-format.md)** — Byte-level reverse engineering of Click's clipboard and program file formats: buffer layout, cell grid, wire flags, instruction blobs, and multi-rung framing.
+
+## Status
+
+`laddercodec` is **beta** for clipboard encode/decode, CSV I/O, and `decode_program()`.
+
+`Email`, `Home`, `Position`, and `Velocity` still intentionally surface as `raw(...)` passthroughs so binary and SCR round-trips stay lossless while those families remain opaque.
 
 ## Guide overview
 
