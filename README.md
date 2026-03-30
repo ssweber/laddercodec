@@ -1,115 +1,67 @@
 # laddercodec
 
-`laddercodec` encodes and decodes the native ladder clipboard binary used by
-[AutomationDirect CLICK Programming Software](https://www.automationdirect.com/clickplcs)
-(v2.60-v3.80).
+**Binary codec for AutomationDirect CLICK PLC ladder clipboard format.** Encodes and decodes the native clipboard binary used by CLICK Programming Software (v2.60–v3.80). Zero runtime dependencies.
 
-It is the binary codec layer behind
-[clicknick](https://github.com/ssweber/clicknick), originally prototyped there
-and developed into a standalone library here. It is useful on its own if you want
-to generate Click clipboard payloads, inspect captured binaries, or decode
-`Scr*.tmp` program files.
-
-## What It Does
-
-- Encode `Rung` objects or canonical Click CSV into clipboard binary ready to paste into Click
-- Decode clipboard binary back into structured Python objects
-- Decode `Scr*.tmp` program files into `Program` objects with all rungs
-- Round-trip supported instruction families losslessly, with `RawInstruction` passthrough for unknown AF blobs
-- Ship with no runtime dependencies
+- Documentation: https://ssweber.github.io/laddercodec/
+- LLM docs index: https://ssweber.github.io/laddercodec/llms.txt
+- LLM full context: https://ssweber.github.io/laddercodec/llms-full.txt
 
 ## Install
 
 ```bash
+uv add laddercodec
+# or
 pip install laddercodec
 ```
 
-Or with `uv`:
+Requires Python 3.11+.
+
+## Quick example
+
+```python
+from laddercodec import read_csv, encode, decode
+
+# CSV → binary (ready to paste into Click)
+rungs = read_csv("my_rung.csv")
+binary = encode(rungs[0])
+
+# Binary → structured data
+rung = decode(binary)
+print(rung.logical_rows)
+print(rung.instructions)
+```
+
+## What's included
+
+**[Encoder](https://ssweber.github.io/laddercodec/guides/encoding/)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, wire topologies, and styled comments.
+
+**[Decoder](https://ssweber.github.io/laddercodec/guides/decoding/)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads Click's internal `Scr*.tmp` program files.
+
+**[CSV I/O](https://ssweber.github.io/laddercodec/guides/csv-format/)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
+
+**[Binary format docs](https://ssweber.github.io/laddercodec/internals/binary-format/)** — Byte-level reverse engineering of Click's clipboard and program file formats: buffer layout, cell grid, wire flags, instruction blobs, and multi-rung framing.
+
+## Learn more
+
+| | |
+|---|---|
+| [Quickstart](https://ssweber.github.io/laddercodec/getting-started/quickstart/) | Encode, decode, and round-trip your first rung |
+| [Encoding guide](https://ssweber.github.io/laddercodec/guides/encoding/) | Build rungs, wire tokens, instruction types, comments |
+| [Decoding guide](https://ssweber.github.io/laddercodec/guides/decoding/) | Structured decode, program files, round-trip identity |
+| [CSV format](https://ssweber.github.io/laddercodec/guides/csv-format/) | 33-column canonical format, bundle layout, topology rules |
+| [Adding instructions](https://ssweber.github.io/laddercodec/guides/adding-instructions/) | Extend the codec with new instruction types |
+| [API reference](https://ssweber.github.io/laddercodec/reference/) | Auto-generated from docstrings |
+
+## Development
 
 ```bash
-uv add laddercodec
+make install        # uv sync --all-extras --dev
+make test           # pytest
+make lint           # ruff + ty
+make golden         # regenerate .bin from .csv fixtures
+make docs-serve     # local docs dev server
+make                # all of the above
 ```
-
-## Quickstart
-
-The simplest path is CSV -> binary:
-
-```python
-from laddercodec import encode, read_csv
-
-rungs = read_csv("main.csv")
-binary = encode(rungs)
-
-with open("main.bin", "wb") as f:
-    f.write(binary)
-```
-
-You can also build rungs directly in code:
-
-```python
-from laddercodec import Coil, Contact, Rung, encode
-
-rung = Rung(
-    logical_rows=1,
-    conditions=[
-        [Contact.from_csv_token("X001")] + [""] * 30,
-    ],
-    instructions=[Coil.from_csv_token("out(Y001)")],
-    comment="Motor start circuit",
-)
-
-binary = encode(rung)
-```
-
-And decode captured binary back into structured data:
-
-```python
-from laddercodec import decode
-
-with open("capture.bin", "rb") as f:
-    decoded = decode(f.read())
-
-rungs = decoded if isinstance(decoded, list) else [decoded]
-print(rungs[0].logical_rows)
-print(rungs[0].comment)
-```
-
-## Public API
-
-The root package is the stable release surface:
-
-- Core functions: `encode`, `decode`, `decode_program`, `read_csv`, `write_csv`
-- Model types: `Rung`, `Program`, `Project`
-- Instruction types: `Contact`, `CompareContact`, `Coil`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`, `RawInstruction`
-
-Advanced helpers stay module-scoped on purpose:
-
-- `laddercodec.decode.decode_rung`
-- `laddercodec.decode.decode_rungs`
-- `laddercodec.decode.inspect_cells`
-- `laddercodec.csv.bundle.parse_bundle`
-
-## Status
-
-Clipboard encoding/decoding, CSV I/O, and the root instruction models are
-**beta**.
-
-`decode_program()` is **alpha**: it is already useful, but it is backed by fewer
-fixtures than the clipboard path and should be treated as a faster-moving API.
-
-`Email`, `Home`, `Position`, and `Velocity` currently remain unmodeled in the
-public DSL. They round-trip through `RawInstruction` / `raw(...)` passthrough
-today rather than dedicated typed instruction classes.
-
-## Documentation
-
-Full docs: <https://ssweber.github.io/laddercodec/>
-
-- Getting started: <https://ssweber.github.io/laddercodec/getting-started/installation/>
-- Encoding guide: <https://ssweber.github.io/laddercodec/guides/encoding/>
-- Decoding guide: <https://ssweber.github.io/laddercodec/guides/decoding/>
-- Binary format internals: <https://ssweber.github.io/laddercodec/internals/binary-format/>
-- API reference: <https://ssweber.github.io/laddercodec/reference/>
 
 ## License
 
