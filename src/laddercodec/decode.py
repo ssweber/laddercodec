@@ -26,10 +26,10 @@ cell offset ``+0x25`` (UTF-16LE class name, type marker, operand, func
 code).  Wire-only cells are exactly ``0x40`` bytes; instruction cells
 are larger.
 
-Known instruction types are decoded into ``Contact`` (condition columns)
-or ``Coil`` (AF column) domain objects from ``model.py``.  Unrecognised
-cells fall back to ``UnknownCondition`` / ``UnknownInstruction`` with
-raw bytes preserved.
+Known instruction types are decoded into domain objects (``Contact``,
+``Coil``, ``Timer``, etc.) from ``instructions/``.  Unrecognised cells
+fall back to ``UnknownCondition`` / ``UnknownInstruction`` with raw
+bytes preserved.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
-from .encode import _PREFIX, _SUFFIX, CONDITION_COLUMNS
+from .encode import _PREFIX, _SUFFIX
 from .instructions import (
     AfToken,
     ConditionToken,
@@ -55,6 +55,7 @@ from .topology import (
     CELL_SIZE,
     CELL_TAIL_SIZE,
     COLS_PER_ROW,
+    CONDITION_COLUMNS,
     GRID_FIRST_ROW_START,
     GRID_ROW_STRIDE,
     PREAMBLE_COMMENT_BODY,

@@ -19,7 +19,7 @@ import struct
 from dataclasses import dataclass
 from typing import cast
 
-from .binary_helpers import _tag_wire_type
+from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
 from .decode import Rung, _decode_rtf
 from .instructions import (
     INSTRUCTION_MODULES,
@@ -34,6 +34,7 @@ from .instructions.drum import Drum
 from .instructions.shift import Shift
 from .instructions.timer import Timer
 from .model import Program
+from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -43,8 +44,6 @@ _SCR_MAGIC = b"SC-SCR  "
 _ROW_TOPOLOGY_PREFIX = b"\x03\x00\x00"
 _ROW_TOPOLOGY_FLAG_ENTRY_COUNTS = frozenset({31, 32})
 _ROW_TOPOLOGY_PRELUDE_LEN_RANGE = range(8, 17)
-_CONDITION_COLUMNS = 31  # A..AE = cols 0..30; AF = col 31
-_RAW_STANDARD_SENTINEL = b"\xff\xff\xff\xff"
 _MAX_SECTION_INSTRUCTIONS = 512
 
 
@@ -629,22 +628,6 @@ def _find_row_topology_blocks_between(
     return blocks
 
 
-def _find_row_header(data: bytes, pos: int, max_lookback: int = 4096) -> int | None:
-    """Compatibility wrapper for callers that still expect a raw offset."""
-    block = _find_row_topology_block(data, pos, max_lookback=max_lookback)
-    return None if block is None else block.start
-
-
-def _is_row_header_at(data: bytes, pos: int) -> bool:
-    """Return True when *pos* points to a structurally valid row-topology block."""
-    return _parse_row_topology_block(data, pos) is not None
-
-
-def _find_row_headers_between(data: bytes, start: int, end: int) -> list[int]:
-    """Compatibility wrapper returning raw row-topology offsets."""
-    return [block.start for block in _find_row_topology_blocks_between(data, start, end)]
-
-
 def _find_rtf_comment(data: bytes, start: int, end: int) -> tuple[bytes | None, str | None]:
     """Find RTF comment between start and end.
 
@@ -1062,7 +1045,7 @@ def _build_rung(
                     type_code,
                     visual_sub_rows,
                     bytes(range(max(0, visual_sub_rows - 1))),
-                    [(t, _RAW_STANDARD_SENTINEL, v) for t, v in tags.items()],
+                    [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
                 )
                 instructions[row] = RawInstruction(
                     class_name=class_name,
