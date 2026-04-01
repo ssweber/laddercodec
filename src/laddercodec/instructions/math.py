@@ -121,20 +121,18 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 
 
 def _extract_operands(expression: str) -> list[str]:
-    """Extract unique operand addresses from *expression*, in order of appearance.
+    """Extract operand addresses from *expression*, in order of appearance.
 
+    Preserves duplicates — each occurrence gets its own operand slot.
     Skips reserved function names (``SIN``, ``MOD``, etc.) and hex
     literal suffixes.
     """
-    seen: set[str] = set()
     result: list[str] = []
     for m in _ADDR_RE.finditer(expression):
         addr = m.group(0)
         if addr.upper() in RESERVED_NAMES:
             continue
-        if addr not in seen:
-            seen.add(addr)
-            result.append(addr)
+        result.append(addr)
     return result
 
 
