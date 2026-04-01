@@ -41,9 +41,7 @@ dependencies = []
 dev = [
     "pytest>=8.3.5",
     "ruff>=0.11.0",
-    "rich>=13.9.4",
     "ty>=0.0.14",
-    "funlog>=0.2.0",
 ]
 docs = [
     "mkdocs>=1.6.1",
@@ -74,6 +72,8 @@ bump = true
 [tool.hatch.build.targets.wheel]
 packages = ["src/laddercodec"]
 
+[tool.uv]
+exclude-newer = "7 days"
 
 # ---- Settings ----
 

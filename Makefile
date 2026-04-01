@@ -8,7 +8,7 @@
 default: install lint test
 
 install:
-	uv sync --all-extras --dev
+	uv sync --locked --all-extras --dev
 
 lint:
 	uv run devtools/lint.py
@@ -23,7 +23,8 @@ coverage-golden:
 	uv run devtools/coverage_golden.py
 
 upgrade:
-	uv sync --upgrade
+	uv lock --upgrade
+	uv sync --locked --all-extras --dev
 
 build:
 	uv build
