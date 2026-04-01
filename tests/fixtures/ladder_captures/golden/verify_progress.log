@@ -40,3 +40,4 @@ mr-instr-2rung: worked
 mr-instr-cond__and: worked
 instr-timer-ret: worked
 instr-count_down-row0-data: worked
+instr-6row-multi-output: worked
