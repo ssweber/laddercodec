@@ -3,8 +3,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Use Path objects to ensure slashes are correct for the current OS/Shell
-SRC_PATHS = [str(Path("src")), str(Path("tests")), str(Path("devtools"))]
+# Use canonical absolute paths so ty behaves consistently on Windows regardless
+# of how cwd casing is typed (e.g., "Documents" vs "documents").
+PROJECT_ROOT = Path.cwd().resolve()
+SRC_PATHS = [
+    str(PROJECT_ROOT / "src"),
+    str(PROJECT_ROOT / "tests"),
+    str(PROJECT_ROOT / "devtools"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,7 +39,14 @@ def main() -> int:
     else:
         errcount += run(["ruff", "format", *SRC_PATHS])
 
-    errcount += run(["ty", "check"])
+    errcount += run(
+        [
+            "ty",
+            "check",
+            "--project",
+            str(PROJECT_ROOT),
+        ]
+    )
 
     print()
 
