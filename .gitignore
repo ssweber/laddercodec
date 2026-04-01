@@ -28,5 +28,3 @@ htmlcov/
 # Docs
 site/
 
-# uv
-uv.lock
