@@ -277,7 +277,7 @@ def _build_rung_grid(
                             wire_right=int(params.get("wire_right", 1)),
                             instr_index=meta.af_instr_indices[local_row],
                             blob=blob,
-                            row_span=logical_rows if is_multi_row else 1,
+                            row_span=params.get("visual_rows", 1),
                             visual_rows=params.get("visual_rows", 1),
                             af_summary=summary,
                         ).to_bytes()

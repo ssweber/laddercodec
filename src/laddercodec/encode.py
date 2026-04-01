@@ -436,6 +436,16 @@ def encode(rungs, *, show_nicknames: bool = False):
             rungs.comment,
             show_nicknames=show_nicknames,
         )
+    rungs = list(rungs)
+    if len(rungs) == 1:
+        r = rungs[0]
+        return encode_rung(
+            r.logical_rows,
+            r.conditions,
+            r.instructions,
+            r.comment,
+            show_nicknames=show_nicknames,
+        )
     from .encode_multi import encode_rungs
 
     return encode_rungs(
