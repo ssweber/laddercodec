@@ -47,7 +47,6 @@ print(rung.instructions)
 
 | Section | What's in it |
 |---|---|
-| [Getting Started](getting-started/installation.md) | Install and encode your first rung |
 | [Guides](guides/encoding.md) | Encoding, decoding, CSV format, adding new instruction types |
 | [Internals](internals/binary-format.md) | Binary format spec, wire rendering rules, instruction blob structure |
 | [API Reference](reference/index.md) | Auto-generated from docstrings |
