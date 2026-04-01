@@ -30,10 +30,10 @@ build:
 	uv build
 
 docs-serve:
-	uv run --group docs mkdocs serve
+	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs serve
 
 docs-build:
-	uv run --group docs mkdocs build --strict
+	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs build --strict
 
 docs-check: docs-build
 
