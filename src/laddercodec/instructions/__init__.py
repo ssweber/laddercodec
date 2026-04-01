@@ -221,7 +221,7 @@ def from_tags_condition(
                 class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
             )
             if result is not None:
-                return result  # type: ignore[return-value]
+                return result
     return None
 
 
@@ -240,7 +240,7 @@ def from_tags_af(
                 class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
             )
             if result is not None:
-                return result  # type: ignore[return-value]
+                return result
     return None
 
 

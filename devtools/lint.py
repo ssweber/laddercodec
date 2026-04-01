@@ -3,15 +3,14 @@ import subprocess
 import sys
 from pathlib import Path
 
-from funlog import log_calls
-from rich import get_console, reconfigure
-from rich import print as rprint
-
-# Use Path objects to ensure slashes are correct for the current OS/Shell
-SRC_PATHS = [str(Path("src")), str(Path("tests")), str(Path("devtools"))]
-
-# No emojis on legacy windows.
-reconfigure(emoji=not get_console().options.legacy_windows)
+# Use canonical absolute paths so ty behaves consistently on Windows regardless
+# of how cwd casing is typed (e.g., "Documents" vs "documents").
+PROJECT_ROOT = Path.cwd().resolve()
+SRC_PATHS = [
+    str(PROJECT_ROOT / "src"),
+    str(PROJECT_ROOT / "tests"),
+    str(PROJECT_ROOT / "devtools"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -26,53 +25,54 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    rprint()
+    print()
 
     errcount = 0
 
-    # 1. Ruff Linter
     if args.check:
         errcount += run(["ruff", "check", *SRC_PATHS])
     else:
         errcount += run(["ruff", "check", "--fix", *SRC_PATHS])
 
-    # 2. Ruff Formatter
     if args.check:
         errcount += run(["ruff", "format", "--check", *SRC_PATHS])
     else:
         errcount += run(["ruff", "format", *SRC_PATHS])
 
-    errcount += run(["ty", "check"])
+    errcount += run(
+        [
+            "ty",
+            "check",
+            "--project",
+            str(PROJECT_ROOT),
+        ]
+    )
 
-    rprint()
+    print()
 
     if errcount != 0:
-        rprint(f"[bold red]:x: Lint failed with {errcount} errors.[/bold red]")
+        print(f"Lint failed with {errcount} error(s).")
     else:
-        rprint("[bold green]:white_check_mark: Lint passed![/bold green]")
-    rprint()
+        print("Lint passed.")
+    print()
 
     return errcount
 
 
-@log_calls(level="warning", show_timing_only=True)
 def run(cmd: list[str]) -> int:
-    rprint()
-    # Join with native separators for display
-    display_cmd = " ".join(cmd)
-    rprint(f"[bold green]:arrow_forward: {display_cmd}[/bold green]")
+    print()
+    print(f"==> {' '.join(cmd)}")
 
-    errcount = 0
     try:
         subprocess.run(cmd, text=True, check=True)
-    except subprocess.CalledProcessError as e:
-        rprint(f"[bold red]Error: {e}[/bold red]")
-        errcount = 1
-    except FileNotFoundError as e:
-        rprint(f"[bold red]Executable not found: {e}[/bold red]")
-        errcount = 1
+    except subprocess.CalledProcessError as exc:
+        print(f"Error: {exc}")
+        return 1
+    except FileNotFoundError as exc:
+        print(f"Executable not found: {exc}")
+        return 1
 
-    return errcount
+    return 0
 
 
 if __name__ == "__main__":

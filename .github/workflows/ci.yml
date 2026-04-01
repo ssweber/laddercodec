@@ -35,7 +35,10 @@ jobs:
         run: uv python install
 
       - name: Install all dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --locked --all-extras --dev
+
+      - name: Report locked tool versions
+        run: uv run python -c "import importlib.metadata as md; print('ruff', md.version('ruff')); print('ty', md.version('ty'))"
 
       - name: Run linting (read-only checks)
         run: uv run python devtools/lint.py --check

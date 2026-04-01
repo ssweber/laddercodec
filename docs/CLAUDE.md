@@ -2,7 +2,7 @@
 
 ## What is laddercodec
 
-laddercodec is a pure-Python binary codec for the AutomationDirect CLICK PLC ladder clipboard format. It encodes and decodes the native clipboard binary used by CLICK Programming Software (v2.60–v3.80). Zero runtime dependencies. Consumed by clicknick (GUI editor) and tested via pyrung (simulation).
+laddercodec is a pure-Python binary codec for the AutomationDirect CLICK PLC ladder clipboard format. It encodes and decodes the native clipboard binary used by CLICK Programming Software. Tested against v2.60-v3.9x captures. Zero runtime dependencies. Consumed by clicknick (GUI editor) and tested via pyrung (simulation).
 
 ## Tone and style decisions
 

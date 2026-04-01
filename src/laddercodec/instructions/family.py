@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 AfCallParser = Callable[["AfCall"], AfInstruction]
 
 # Signature for from_tags() factory functions.
-FromTagsParser = Callable[
+ConditionFromTagsParser = Callable[
     [
         str,  # class_name
         int,  # type_code
@@ -24,7 +24,18 @@ FromTagsParser = Callable[
         dict[int, dict[int, int]] | None,  # variant_u16_tags
         dict[int, dict[int, str]] | None,  # variant_string_tags
     ],
-    ConditionInstruction | AfInstruction | None,
+    ConditionInstruction | None,
+]
+AfFromTagsParser = Callable[
+    [
+        str,  # class_name
+        int,  # type_code
+        dict[int, str],  # tags
+        dict[int, int] | None,  # tag_byte_lens
+        dict[int, dict[int, int]] | None,  # variant_u16_tags
+        dict[int, dict[int, str]] | None,  # variant_string_tags
+    ],
+    AfInstruction | None,
 ]
 
 
@@ -35,7 +46,7 @@ class ConditionInstructionFamilySpec:
     family_name: str
     instruction_types: tuple[type[ConditionInstruction], ...]
     binary_class_names: tuple[str, ...]
-    from_tags: FromTagsParser | None = None
+    from_tags: ConditionFromTagsParser | None = None
 
 
 @dataclass(frozen=True)
@@ -45,7 +56,7 @@ class AfInstructionFamilySpec:
     family_name: str
     instruction_types: tuple[type[AfInstruction], ...]
     binary_class_names: tuple[str, ...]
-    from_tags: FromTagsParser | None = None
+    from_tags: AfFromTagsParser | None = None
     csv_names: tuple[str, ...] = ()
     parse_csv_call: AfCallParser | None = None
     pin_names: tuple[str, ...] = ()

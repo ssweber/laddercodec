@@ -8,7 +8,7 @@
 default: install lint test
 
 install:
-	uv sync --all-extras --dev
+	uv sync --locked --all-extras --dev
 
 lint:
 	uv run devtools/lint.py
@@ -23,16 +23,17 @@ coverage-golden:
 	uv run devtools/coverage_golden.py
 
 upgrade:
-	uv sync --upgrade
+	uv lock --upgrade
+	uv sync --locked --all-extras --dev
 
 build:
 	uv build
 
 docs-serve:
-	uv run --group docs mkdocs serve
+	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs serve
 
 docs-build:
-	uv run --group docs mkdocs build --strict
+	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs build --strict
 
 docs-check: docs-build
 

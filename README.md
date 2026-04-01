@@ -1,6 +1,6 @@
 # laddercodec
 
-**Binary codec for AutomationDirect CLICK PLC ladder clipboard format.** Encodes and decodes the native clipboard binary used by CLICK Programming Software (v2.60–v3.80). Zero runtime dependencies.
+**Binary codec for AutomationDirect CLICK PLC ladder clipboard format.** Encodes and decodes the native clipboard binary used by CLICK Programming Software. Tested against v2.60-v3.9x captures. Zero runtime dependencies.
 
 - Documentation: https://ssweber.github.io/laddercodec/
 - LLM docs index: https://ssweber.github.io/laddercodec/llms.txt
@@ -40,6 +40,12 @@ print(rung.instructions)
 **[CSV I/O](https://ssweber.github.io/laddercodec/guides/csv-format/)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 
 **[Binary format docs](https://ssweber.github.io/laddercodec/internals/binary-format/)** — Byte-level reverse engineering of Click's clipboard and program file formats: buffer layout, cell grid, wire flags, instruction blobs, and multi-rung framing.
+
+## Status
+
+`laddercodec` is **beta** for clipboard encode/decode, CSV I/O, and `decode_program()`.
+
+`Email`, `Home`, `Position`, and `Velocity` still intentionally surface as `raw(...)` passthroughs so binary and SCR round-trips stay lossless while those families remain opaque.
 
 ## Learn more
 
