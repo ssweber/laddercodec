@@ -84,6 +84,8 @@ _HEADER_TAGS = (
 _OPERAND_SLOTS = 500
 _RESERVED_SLOTS = 500
 _TOTAL_FIELDS = 9 + _OPERAND_SLOTS + _RESERVED_SLOTS + 1  # 1010
+# Click's formula editor accepts at most 68 operands (DS1..DS68 tested);
+# the blob has 500 slots but the UI caps well before that.
 
 # ---------------------------------------------------------------------------
 # Expression tokenizer — extracts operands from a formula string
