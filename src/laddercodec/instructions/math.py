@@ -120,6 +120,14 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 )
 
 
+def _normalize_parens(expr: str) -> str:
+    """Ensure spaces around parentheses: ``(x)`` → ``( x )``."""
+    expr = re.sub(r"\(\s*", "( ", expr)
+    expr = re.sub(r"\s*\)", " )", expr)
+    # Collapse any double spaces introduced by already-spaced input.
+    return re.sub(r"  +", " ", expr).strip()
+
+
 def _extract_operands(expression: str) -> list[str]:
     """Extract operand addresses from *expression*, in order of appearance.
 
@@ -225,6 +233,9 @@ class Math(AfInstruction):
     mode: Literal["decimal", "hex"] = "decimal"
     oneshot: bool = False
 
+    def __post_init__(self) -> None:
+        self.expression = _normalize_parens(self.expression)
+
     def to_csv(self) -> str:
         parts = [self.expression, self.result]
         kw: list[str] = [f"mode={self.mode}"]
@@ -242,7 +253,15 @@ class Math(AfInstruction):
 
         # Build the 4 formula fields.
         template_display = _make_template(self.expression, operands)
-        formula_display = self.expression
+        if show_nicknames:
+            # Click expects operands wrapped as <?ADDR> (empty nickname form)
+            # when the nickname display flag is set.  Replace longer addresses
+            # first to avoid partial-match issues (e.g. DS10 before DS1).
+            formula_display = self.expression
+            for addr in sorted(operands, key=lambda s: -len(s)):
+                formula_display = formula_display.replace(addr, f"<?{addr}>")
+        else:
+            formula_display = self.expression
         template_internal = _make_internal(template_display)
         formula_internal = _make_internal(self.expression)
 
