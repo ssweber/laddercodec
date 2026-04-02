@@ -84,6 +84,8 @@ _HEADER_TAGS = (
 _OPERAND_SLOTS = 500
 _RESERVED_SLOTS = 500
 _TOTAL_FIELDS = 9 + _OPERAND_SLOTS + _RESERVED_SLOTS + 1  # 1010
+# Click's formula editor accepts at most 68 operands (DS1..DS68 tested);
+# the blob has 500 slots but the UI caps well before that.
 
 # ---------------------------------------------------------------------------
 # Expression tokenizer — extracts operands from a formula string
@@ -120,21 +122,27 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 )
 
 
-def _extract_operands(expression: str) -> list[str]:
-    """Extract unique operand addresses from *expression*, in order of appearance.
+def _normalize_parens(expr: str) -> str:
+    """Ensure spaces around parentheses: ``(x)`` → ``( x )``."""
+    expr = re.sub(r"\(\s*", "( ", expr)
+    expr = re.sub(r"\s*\)", " )", expr)
+    # Collapse any double spaces introduced by already-spaced input.
+    return re.sub(r"  +", " ", expr).strip()
 
+
+def _extract_operands(expression: str) -> list[str]:
+    """Extract operand addresses from *expression*, in order of appearance.
+
+    Preserves duplicates — each occurrence gets its own operand slot.
     Skips reserved function names (``SIN``, ``MOD``, etc.) and hex
     literal suffixes.
     """
-    seen: set[str] = set()
     result: list[str] = []
     for m in _ADDR_RE.finditer(expression):
         addr = m.group(0)
         if addr.upper() in RESERVED_NAMES:
             continue
-        if addr not in seen:
-            seen.add(addr)
-            result.append(addr)
+        result.append(addr)
     return result
 
 
@@ -227,6 +235,9 @@ class Math(AfInstruction):
     mode: Literal["decimal", "hex"] = "decimal"
     oneshot: bool = False
 
+    def __post_init__(self) -> None:
+        self.expression = _normalize_parens(self.expression)
+
     def to_csv(self) -> str:
         parts = [self.expression, self.result]
         kw: list[str] = [f"mode={self.mode}"]
@@ -244,7 +255,15 @@ class Math(AfInstruction):
 
         # Build the 4 formula fields.
         template_display = _make_template(self.expression, operands)
-        formula_display = self.expression
+        if show_nicknames:
+            # Click expects operands wrapped as <?ADDR> (empty nickname form)
+            # when the nickname display flag is set.  Replace longer addresses
+            # first to avoid partial-match issues (e.g. DS10 before DS1).
+            formula_display = self.expression
+            for addr in sorted(operands, key=lambda s: -len(s)):
+                formula_display = formula_display.replace(addr, f"<?{addr}>")
+        else:
+            formula_display = self.expression
         template_internal = _make_internal(template_display)
         formula_internal = _make_internal(self.expression)
 
