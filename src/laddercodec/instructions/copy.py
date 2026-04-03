@@ -20,7 +20,6 @@ understood — the termination encoding may need revisiting.
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -299,7 +298,7 @@ class Copy(AfInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this copy cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
         # Compute conversion_type (field[8]) and format_option (field[4]).
         if self.format == "text":
@@ -320,32 +319,26 @@ class Copy(AfInstruction):
             term_char = "0"
             term_flag = "0"
 
-        type_marker = 0x2721
-        field_count = 13
-        fields = [
-            self.source,  # [0]
-            "",  # [1] source_end (single = empty)
-            self.destination,  # [2]
-            "",  # [3] destination_end (single = empty)
-            field4,  # [4] format_option
-            "-1" if self.oneshot else "0",  # [5]
-            "0",  # [6] copy_type_idx (single)
-            self.func_code,  # [7]
-            conv_type,  # [8] conversion_type
-            term_flag,  # [9] termination_flag
-            term_char,  # [10] termination_char (decimal)
-            term_flag,  # [11] termination_flag2
-            "",  # [12] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Copy")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COPY_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
+        return _build_blob(
+            "Copy",
+            0x2721,
+            _COPY_TAGS,
+            [
+                self.source,  # [0]
+                "",  # [1] source_end (single = empty)
+                self.destination,  # [2]
+                "",  # [3] destination_end (single = empty)
+                field4,  # [4] format_option
+                "-1" if self.oneshot else "0",  # [5]
+                "0",  # [6] copy_type_idx (single)
+                self.func_code,  # [7]
+                conv_type,  # [8] conversion_type
+                term_flag,  # [9] termination_flag
+                term_char,  # [10] termination_char (decimal)
+                term_flag,  # [11] termination_flag2
+                "",  # [12] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -409,36 +402,30 @@ class BlockCopy(AfInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this block copy cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
         conv_type = _FORMAT_TO_CONVTYPE.get(self.format, "0")
 
-        type_marker = 0x2721
-        field_count = 13
-        fields = [
-            self.source_start,  # [0]
-            self.source_end,  # [1]
-            self.dest_start,  # [2]
-            self.dest_end,  # [3]
-            "0",  # [4] format_option
-            "-1" if self.oneshot else "0",  # [5]
-            "1",  # [6] copy_type_idx (block)
-            self.func_code,  # [7]
-            conv_type,  # [8] conversion_type
-            "0",  # [9] termination_flag
-            "0",  # [10] termination_char
-            "0",  # [11] termination_flag2
-            "",  # [12] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Copy")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COPY_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
+        return _build_blob(
+            "Copy",
+            0x2721,
+            _COPY_TAGS,
+            [
+                self.source_start,  # [0]
+                self.source_end,  # [1]
+                self.dest_start,  # [2]
+                self.dest_end,  # [3]
+                "0",  # [4] format_option
+                "-1" if self.oneshot else "0",  # [5]
+                "1",  # [6] copy_type_idx (block)
+                self.func_code,  # [7]
+                conv_type,  # [8] conversion_type
+                "0",  # [9] termination_flag
+                "0",  # [10] termination_char
+                "0",  # [11] termination_flag2
+                "",  # [12] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -487,34 +474,28 @@ class Fill(AfInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this fill cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        type_marker = 0x2721
-        field_count = 13
-        fields = [
-            self.value,  # [0]
-            "",  # [1] source_end (fill = empty)
-            self.dest_start,  # [2]
-            self.dest_end,  # [3]
-            "0",  # [4] format_option
-            "-1" if self.oneshot else "0",  # [5]
-            "2",  # [6] copy_type_idx (fill)
-            self.func_code,  # [7]
-            "0",  # [8] conversion_type
-            "0",  # [9] termination_flag
-            "0",  # [10] termination_char
-            "0",  # [11] termination_flag2
-            "",  # [12] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Copy")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COPY_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
+        return _build_blob(
+            "Copy",
+            0x2721,
+            _COPY_TAGS,
+            [
+                self.value,  # [0]
+                "",  # [1] source_end (fill = empty)
+                self.dest_start,  # [2]
+                self.dest_end,  # [3]
+                "0",  # [4] format_option
+                "-1" if self.oneshot else "0",  # [5]
+                "2",  # [6] copy_type_idx (fill)
+                self.func_code,  # [7]
+                "0",  # [8] conversion_type
+                "0",  # [9] termination_flag
+                "0",  # [10] termination_char
+                "0",  # [11] termination_flag2
+                "",  # [12] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +561,7 @@ class Pack(AfInstruction):
         return {"visual_rows": 2}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
         if self.pack_type == "text":
             if self.allow_whitespace:
@@ -593,32 +574,26 @@ class Pack(AfInstruction):
             conv_type = "0"
             field4 = "0"
 
-        type_marker = 0x2721
-        field_count = 13
-        fields = [
-            self.source_start,  # [0]
-            self.source_end,  # [1]
-            self.destination,  # [2]
-            "",  # [3] destination_end (pack = empty)
-            field4,  # [4] format_option
-            "-1" if self.oneshot else "0",  # [5]
-            "3",  # [6] copy_type_idx (pack)
-            self.func_code,  # [7]
-            conv_type,  # [8] conversion_type
-            "0",  # [9] termination_flag
-            "0",  # [10] termination_char
-            "0",  # [11] termination_flag2
-            "",  # [12] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Copy")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COPY_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
+        return _build_blob(
+            "Copy",
+            0x2721,
+            _COPY_TAGS,
+            [
+                self.source_start,  # [0]
+                self.source_end,  # [1]
+                self.destination,  # [2]
+                "",  # [3] destination_end (pack = empty)
+                field4,  # [4] format_option
+                "-1" if self.oneshot else "0",  # [5]
+                "3",  # [6] copy_type_idx (pack)
+                self.func_code,  # [7]
+                conv_type,  # [8] conversion_type
+                "0",  # [9] termination_flag
+                "0",  # [10] termination_char
+                "0",  # [11] termination_flag2
+                "",  # [12] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -676,40 +651,28 @@ class Unpack(AfInstruction):
         return {"visual_rows": 2}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        type_marker = 0x2721
-        field_count = 13
-        fields = [
-            self.source,  # [0]
-            "",  # [1] source_end (unpack = empty)
-            self.dest_start,  # [2]
-            self.dest_end,  # [3]
-            "0",  # [4] format_option
-            "-1" if self.oneshot else "0",  # [5]
-            "4",  # [6] copy_type_idx (unpack)
-            self.func_code,  # [7]
-            "0",  # [8] conversion_type
-            "0",  # [9] termination_flag
-            "0",  # [10] termination_char
-            "0",  # [11] termination_flag2
-            "",  # [12] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Copy")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COPY_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
-
-
-# Module-level wrapper for backward compatibility.
-def build_blob(copy: Copy) -> bytes:
-    """Build the instruction data blob for a copy cell."""
-    return copy.build_blob()
+        return _build_blob(
+            "Copy",
+            0x2721,
+            _COPY_TAGS,
+            [
+                self.source,  # [0]
+                "",  # [1] source_end (unpack = empty)
+                self.dest_start,  # [2]
+                self.dest_end,  # [3]
+                "0",  # [4] format_option
+                "-1" if self.oneshot else "0",  # [5]
+                "4",  # [6] copy_type_idx (unpack)
+                self.func_code,  # [7]
+                "0",  # [8] conversion_type
+                "0",  # [9] termination_flag
+                "0",  # [10] termination_char
+                "0",  # [11] termination_flag2
+                "",  # [12] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------

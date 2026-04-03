@@ -257,12 +257,6 @@ class Drum(AfInstruction):
         return bytes(out)
 
 
-# Module-level wrapper for backward compatibility.
-def build_blob(drum: Drum) -> bytes:
-    """Build the instruction data blob for a drum cell."""
-    return drum.build_blob()
-
-
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------

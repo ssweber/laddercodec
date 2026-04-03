@@ -6,7 +6,6 @@ Binary class name: ``"Return"``.
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -39,21 +38,14 @@ class Return(AfInstruction):
         return {}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        out = bytearray()
-        out += _utf16le_null("Return")
-        out += struct.pack("<I", RETURN_TYPE_MARKER)
-        out += b"\x01\x00"  # part_count
-        out += struct.pack("<I", 2)  # field_count
-        out += _tagged_field(_RETURN_TAGS[0], RETURN_FUNC_CODE)
-        out += _tagged_field(_RETURN_TAGS[1], "")
-        return bytes(out)
-
-
-def build_blob(ret: Return) -> bytes:
-    """Build the instruction data blob for a Return cell."""
-    return ret.build_blob()
+        return _build_blob(
+            "Return",
+            RETURN_TYPE_MARKER,
+            _RETURN_TAGS,
+            [RETURN_FUNC_CODE, ""],
+        )
 
 
 def from_tags(

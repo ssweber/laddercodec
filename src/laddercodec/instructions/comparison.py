@@ -6,7 +6,6 @@ Operators: EQ, NE, GT, LT, GE, LE.
 
 from __future__ import annotations
 
-import struct
 from dataclasses import dataclass
 from typing import Literal
 
@@ -118,32 +117,14 @@ class CompareContact(ConditionInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this compare contact cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        type_marker = 0x2700 | InstructionType.COMPARE
-        field_count = 5
-        fields = [
-            self.func_code,
-            self.left,
-            self.right,
-            self.compare_type_idx,
-            "",
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Compare")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COMPARE_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
-
-
-# Module-level wrapper for backward compatibility.
-def build_blob(compare: CompareContact) -> bytes:
-    """Build the instruction data blob for a compare contact cell."""
-    return compare.build_blob()
+        return _build_blob(
+            "Compare",
+            0x2700 | InstructionType.COMPARE,
+            _COMPARE_TAGS,
+            [self.func_code, self.left, self.right, self.compare_type_idx, ""],
+        )
 
 
 # ---------------------------------------------------------------------------

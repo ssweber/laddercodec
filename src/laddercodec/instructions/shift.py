@@ -88,12 +88,6 @@ class Shift(AfInstruction):
         return bytes(out)
 
 
-# Module-level wrapper for backward compatibility.
-def build_blob(shift: Shift) -> bytes:
-    """Build the instruction data blob for a shift register."""
-    return shift.build_blob()
-
-
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------

@@ -13,7 +13,6 @@ CSV forms:
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -92,18 +91,14 @@ class ForLoop(AfInstruction):
         return {}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        out = bytearray()
-        out += _utf16le_null("For")
-        out += struct.pack("<I", FOR_TYPE_MARKER)
-        out += b"\x01\x00"  # part_count
-        out += struct.pack("<I", 4)  # field_count
-        out += _tagged_field(_FOR_TAGS[0], self.limit)
-        out += _tagged_field(_FOR_TAGS[1], self.func_code)
-        out += _tagged_field(_FOR_TAGS[2], "-1" if self.oneshot else "0")
-        out += _tagged_field(_FOR_TAGS[3], "")
-        return bytes(out)
+        return _build_blob(
+            "For",
+            FOR_TYPE_MARKER,
+            _FOR_TAGS,
+            [self.limit, self.func_code, "-1" if self.oneshot else "0", ""],
+        )
 
 
 @dataclass
@@ -124,15 +119,9 @@ class Next(AfInstruction):
         return {}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        out = bytearray()
-        out += _utf16le_null("Next")
-        out += struct.pack("<I", NEXT_TYPE_MARKER)
-        out += b"\x01\x00"  # part_count
-        out += struct.pack("<I", 1)  # field_count
-        out += _tagged_field(0x0000, "")
-        return bytes(out)
+        return _build_blob("Next", NEXT_TYPE_MARKER, (0x0000,), [""])
 
 
 def from_tags(
@@ -158,11 +147,6 @@ def from_tags(
             return None
 
     return None
-
-
-def build_blob(obj: ForLoop | Next) -> bytes:
-    """Build the instruction data blob for For/Next instructions."""
-    return obj.build_blob()
 
 
 def parse_af_call(call: AfCall) -> ForLoop | Next:

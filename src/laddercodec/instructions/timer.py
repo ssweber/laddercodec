@@ -163,12 +163,6 @@ class Timer(AfInstruction):
         return bytes(out)
 
 
-# Module-level wrapper for backward compatibility.
-def build_blob(timer: Timer) -> bytes:
-    """Build the instruction data blob for a timer cell."""
-    return timer.build_blob()
-
-
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------
