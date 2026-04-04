@@ -1,3 +1,3 @@
 marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,receive__rtu_click_block – select FC 03 (Read Holding Registers)
+#,receive__rtu_click_block - select FC 03 (Read Holding Registers)
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusRtuTarget(name=""rtu"",com_port=""cpu2"",device_id=5),remote_start=""DS1"",dest=DS1..DS5,receiving=C1,success=C2,error=C3,exception_response=DS100)"

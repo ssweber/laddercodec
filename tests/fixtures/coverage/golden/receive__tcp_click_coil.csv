@@ -1,3 +1,3 @@
 marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,receive__tcp_click_coil – select FC 01 (Read Coil Status)
+#,receive__tcp_click_coil - select FC 01 (Read Coil Status)
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""C1"",dest=C11..C15,receiving=C1,success=C2,error=C3,exception_response=DS100)"
