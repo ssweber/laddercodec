@@ -288,7 +288,7 @@ def parse_af_token(token: str) -> AfNode:
         else:
             if in_kwargs:
                 raise ValueError(f"Positional arg after keyword arg in AF token: {token!r}")
-            positional.append(_decode_af_string_literal(seg))
+            positional.append(seg)
 
     return AfCall(
         name=name,

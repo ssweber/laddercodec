@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import OPERAND_RE, AfInstruction
+from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -125,7 +125,7 @@ class Search(AfInstruction):
 
     @property
     def _is_text_search(self) -> bool:
-        return not OPERAND_RE.fullmatch(self.source)
+        return self.source.startswith('"')
 
     @property
     def func_code(self) -> str:
@@ -148,11 +148,6 @@ class Search(AfInstruction):
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
 
-        if self._is_text_search:
-            source_field = f'"{self.source}"'
-        else:
-            source_field = self.source
-
         cmp_code = _OP_TO_CMP_CODE[self.comparison]
 
         return _build_blob(
@@ -160,7 +155,7 @@ class Search(AfInstruction):
             0x2722,
             _SEARCH_TAGS,
             [
-                source_field,  # [0]
+                self.source,  # [0]
                 self.table_start,  # [1]
                 self.table_end,  # [2]
                 self.result,  # [3]
@@ -202,9 +197,6 @@ def from_tags(
     found = tags.get(0x607A, "")
     cmp_idx = str(lens.get(0x21F7, 0))
     comparison = _CMP_CODE_TO_OP.get(cmp_idx)
-
-    if source.startswith('"') and source.endswith('"'):
-        source = source[1:-1]
 
     if not all([source, table_start, table_end, result, found]) or comparison is None:
         return None
