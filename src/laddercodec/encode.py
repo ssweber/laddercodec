@@ -101,7 +101,6 @@ from collections.abc import Sequence
 from .empty_multirow import synthesize_empty_multirow
 from .instructions import AfInstruction, ConditionInstruction
 from .topology import (
-    COLS_PER_ROW,
     GRID_FIRST_ROW_START,
     PREAMBLE_COMMENT_BODY,
     PREAMBLE_COMMENT_LENGTH,
@@ -116,8 +115,6 @@ from .topology import (
 PAYLOAD_LENGTH_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_LENGTH  # 0x0294
 PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 COMMENT_MAX_BYTES = 1400
-
-AF_COLUMN = COLS_PER_ROW - 1  # Column AF (index 31)
 
 MIN_ROWS = 1
 MAX_ROWS = 32

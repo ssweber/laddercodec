@@ -62,20 +62,6 @@ def _pattern_to_bitmasks(pattern: list[list[int]], num_steps: int) -> list[str]:
     return result
 
 
-def _bitmasks_to_pattern(
-    bitmask_strs: list[str], num_steps: int, num_outputs: int
-) -> list[list[int]]:
-    """Convert signed-int16 bitmask strings to pattern matrix."""
-    result: list[list[int]] = []
-    for step_idx in range(num_steps):
-        bm = int(bitmask_strs[step_idx])
-        if bm < 0:
-            bm += 65536
-        row = [(bm >> i) & 1 for i in range(num_outputs)]
-        result.append(row)
-    return result
-
-
 def _parse_simple_list(val: str) -> list[str]:
     """Parse ``"[a,b,c]"`` into a list of strings."""
     val = val.strip()
