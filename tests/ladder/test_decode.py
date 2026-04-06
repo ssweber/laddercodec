@@ -152,6 +152,11 @@ def test_rtf_decode_toggle_underline() -> None:
     assert _decode_rtf(payload) == "__Hello__"
 
 
+def test_rtf_decode_tab_control() -> None:
+    payload = _PREFIX + rb"Col1\tab Col2" + _SUFFIX
+    assert _decode_rtf(payload) == "Col1\tCol2"
+
+
 # -- DecodedRung preserves raw RTF --
 
 
@@ -251,3 +256,8 @@ def test_rtf_decode_strips_highlight() -> None:
 def test_rtf_decode_strips_cb() -> None:
     payload = _PREFIX + rb"\cb1 background\cb0  normal" + _SUFFIX
     assert _decode_rtf(payload) == "background normal"
+
+
+def test_rtf_decode_ignores_stray_style_reset_after_group() -> None:
+    payload = _PREFIX + rb"{\b bold}\b0  plain" + _SUFFIX
+    assert _decode_rtf(payload) == "**bold** plain"
