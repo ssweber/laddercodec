@@ -39,6 +39,7 @@ from ..instructions import (
     ConditionToken,
     Counter,
     Drum,
+    RawInstruction,
     Shift,
     Timer,
     UnknownCondition,
@@ -322,6 +323,23 @@ def _display_token(token: object) -> str:
         return repr(token)
 
 
+def _af_tokens_match(expected: object, actual: object) -> bool:
+    """Return True when AF tokens are semantically equivalent for CSV replay."""
+    if expected == actual:
+        return True
+
+    if not isinstance(expected, AfInstruction) or not isinstance(actual, AfInstruction):
+        return False
+
+    if not isinstance(expected, RawInstruction) and not isinstance(actual, RawInstruction):
+        return False
+
+    return (
+        expected.build_blob() == actual.build_blob()
+        and expected.cell_params() == actual.cell_params()
+    )
+
+
 def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
     """Round-trip emitted CSV rows back into a decoded-style ``Rung``."""
     try:
@@ -373,7 +391,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
         zip(rung.instructions, rebuilt.instructions, strict=True),
         start=1,
     ):
-        if expected != actual:
+        if not _af_tokens_match(expected, actual):
             raise WriterError(
                 "CSV round-trip validation failed: "
                 f"AF mismatch at row {row_idx}: "
