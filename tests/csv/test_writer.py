@@ -40,6 +40,21 @@ def _golden_paths() -> list[Path]:
     return [b for b in bins if b.with_suffix(".csv").exists()]
 
 
+def _blank_conditions() -> list[object]:
+    """Return one all-blank decoded condition row."""
+    return [""] * 31
+
+
+def _contact_row(operand: str) -> list[object]:
+    """Return a simple NO-contact row with trailing wires."""
+    return [Contact(InstructionType.CONTACT_NO, operand)] + ["-"] * 30
+
+
+def _edge_row(operand: str) -> list[object]:
+    """Return a simple rising-edge contact row with trailing wires."""
+    return [Contact(InstructionType.CONTACT_EDGE, operand, edge_kind="rise")] + ["-"] * 30
+
+
 # ---------------------------------------------------------------------------
 # Round-trip: golden.bin → decode → CSV → read_csv → compare
 # ---------------------------------------------------------------------------
@@ -306,6 +321,78 @@ class TestDecodedRungToRows:
         assert rows[1][1] == "rise(C78)"
         assert rows[2][32] == ".reset()"
 
+    def test_count_up_then_retained_timer_emits_both_blocks(self) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT5",
+            current="CTD5",
+            preset="100",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T5", "TD5", "10", "Tm", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _edge_row("C81"),
+                _blank_conditions(),
+                _contact_row("C82"),
+                _contact_row("C83"),
+                _contact_row("C84"),
+            ],
+            instructions=[counter, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 4
+        assert [row[32] for row in rows] == [
+            "count_up(CT5,CTD5,preset=100)",
+            ".reset()",
+            "on_delay(T5,TD5,preset=10,unit=Tm)",
+            ".reset()",
+        ]
+        assert rows[1][1] == "C82"
+        assert rows[3][1] == "C84"
+
+    def test_count_down_then_retained_timer_preserves_bridge_shape(self) -> None:
+        counter = Counter(
+            counter_type="count_down",
+            done_bit="CT6",
+            current="CTD6",
+            preset="25",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T6", "TD6", "20", "Ts", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C85"),
+                _edge_row("C86"),
+                _contact_row("C87"),
+                _contact_row("C88"),
+                _contact_row("C89"),
+            ],
+            instructions=[counter, "NOP", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 5
+        assert [row[32] for row in rows] == [
+            "",
+            "count_down(CT6,CTD6,preset=25)",
+            ".reset()",
+            "on_delay(T6,TD6,preset=20,unit=Ts)",
+            ".reset()",
+        ]
+        assert rows[0][1] == "C85"
+        assert rows[1][1] == "rise(C86)"
+        assert rows[4][1] == "C89"
+
     def test_shift_emits_clock_and_reset_pins(self) -> None:
         shift = Shift("C99", "C106")
         rung = Rung(
@@ -325,6 +412,34 @@ class TestDecodedRungToRows:
         assert rows[0][32] == "shift(C99..C106)"
         assert rows[1][32] == ".clock()"
         assert rows[2][32] == ".reset()"
+
+    def test_shift_then_timer_preserves_nonblank_timer_continuation(self) -> None:
+        shift = Shift("C99", "C106")
+        timer = Timer("on_delay", "T7", "TD7", "30", "Tms", retained=False)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C90"),
+                _contact_row("C91"),
+                _contact_row("C92"),
+                _contact_row("C93"),
+                _contact_row("C94"),
+            ],
+            instructions=[shift, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 5
+        assert [row[32] for row in rows] == [
+            "shift(C99..C106)",
+            ".clock()",
+            ".reset()",
+            "on_delay(T7,TD7,preset=30,unit=Tms)",
+            "",
+        ]
+        assert rows[4][1] == "C94"
 
     def test_shift_requires_three_rows(self) -> None:
         shift = Shift("C99", "C106")
@@ -389,3 +504,71 @@ class TestDecodedRungToRows:
         )
         with pytest.raises(WriterError):
             decoded_rung_to_rows(rung)
+
+
+class TestMultiPinnedRoundTrip:
+    def test_count_up_then_retained_timer_roundtrip(self, tmp_path: Path) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT8",
+            current="CTD8",
+            preset="100",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T8", "TD8", "10", "Tm", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _edge_row("C95"),
+                _blank_conditions(),
+                _contact_row("C96"),
+                _contact_row("C97"),
+                _contact_row("C98"),
+            ],
+            instructions=[counter, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        out_csv = tmp_path / "count-up-timer.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == 5
+        assert isinstance(round_tripped.instructions[0], Counter)
+        assert isinstance(round_tripped.instructions[3], Timer)
+        assert round_tripped.instructions[3].retained is True
+        assert isinstance(round_tripped.conditions[2][0], Contact)
+        assert round_tripped.conditions[2][0].operand == "C96"
+        assert isinstance(round_tripped.conditions[4][0], Contact)
+        assert round_tripped.conditions[4][0].operand == "C98"
+
+    def test_shift_then_timer_roundtrip_preserves_blank_timer_row(self, tmp_path: Path) -> None:
+        shift = Shift("C120", "C127")
+        timer = Timer("on_delay", "T9", "TD9", "50", "Tms", retained=False)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C99"),
+                _contact_row("C100"),
+                _contact_row("C101"),
+                _contact_row("C102"),
+                _contact_row("C103"),
+            ],
+            instructions=[shift, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        out_csv = tmp_path / "shift-timer.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == 5
+        assert isinstance(round_tripped.instructions[0], Shift)
+        assert isinstance(round_tripped.instructions[3], Timer)
+        assert round_tripped.instructions[3].retained is False
+        assert round_tripped.instructions[4] == ""
+        assert isinstance(round_tripped.conditions[4][0], Contact)
+        assert round_tripped.conditions[4][0].operand == "C103"
