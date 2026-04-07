@@ -29,11 +29,14 @@ from __future__ import annotations
 import csv as csv_mod
 from collections.abc import Sequence
 from pathlib import Path
+from typing import cast
 
 from ..decode import Rung
 from ..instructions import (
     AfInstruction,
+    AfToken,
     ConditionInstruction,
+    ConditionToken,
     Counter,
     Drum,
     Shift,
@@ -331,8 +334,8 @@ def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
 
     return Rung(
         logical_rows=logical_rows,
-        conditions=conditions,
-        instructions=instructions,
+        conditions=cast(list[list[ConditionToken]], conditions),
+        instructions=cast(list[AfToken], instructions),
         comment=comment,
         comment_rtf=None,
     )
