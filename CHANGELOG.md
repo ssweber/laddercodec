@@ -1,8 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.1.4
 
 ### Fixed
+- **CSV**: preserve multi-row AF round-trips, including pinned/tall AF blocks
+  away from row 0, multiple tall blocks in one rung, and generic tall
+  continuation rows
+- **Encode**: suppress AF summary data when a rung contains multi-row AFs,
+  avoiding grid misalignment and Click paste crashes
+- **SCR decode**: restore omitted wiring for generic tall AF continuation rows
 - **CSV writer**: fail loudly when emitted CSV rows lose decoded rung
   semantics by reparsing writer output and checking for row, condition, or AF
   mismatches before writing to disk
