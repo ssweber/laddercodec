@@ -23,7 +23,15 @@ from laddercodec.csv.writer import (
     WriterError,
     decoded_rung_to_rows,
 )
-from laddercodec.instructions import UnknownInstruction
+from laddercodec.instructions import (
+    Copy,
+    ModbusRtuTarget,
+    RawInstruction,
+    Receive,
+    Search,
+    Send,
+    UnknownInstruction,
+)
 from laddercodec.model import InstructionType
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "ladder_captures" / "golden"
@@ -53,6 +61,47 @@ def _contact_row(operand: str) -> list[object]:
 def _edge_row(operand: str) -> list[object]:
     """Return a simple rising-edge contact row with trailing wires."""
     return [Contact(InstructionType.CONTACT_EDGE, operand, edge_kind="rise")] + ["-"] * 30
+
+
+def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
+    """Return representative non-pinned tall AF instructions."""
+    return [
+        pytest.param(Copy("DS7", "DS8"), 2, id="copy"),
+        pytest.param(Search("DS72", "DS81", "DS71", "DS82", "C81", "=="), 2, id="search"),
+        pytest.param(
+            Send(
+                ModbusRtuTarget("rtu", "cpu2", 5),
+                "DS1",
+                "DS1",
+                1,
+                "C1",
+                "C2",
+                "C3",
+                "DS100",
+            ),
+            3,
+            id="send",
+        ),
+        pytest.param(
+            Receive(
+                ModbusRtuTarget("rtu", "cpu2", 5),
+                "DS1",
+                "DS1",
+                1,
+                "C1",
+                "C2",
+                "C3",
+                "DS100",
+            ),
+            3,
+            id="receive",
+        ),
+        pytest.param(
+            RawInstruction.from_csv_token("raw(X,0x2711,3,0000=)"),
+            3,
+            id="raw",
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -504,6 +553,74 @@ class TestDecodedRungToRows:
         )
         with pytest.raises(WriterError):
             decoded_rung_to_rows(rung)
+
+
+class TestGenericTallRoundTrip:
+    @pytest.mark.parametrize(("af", "visual_rows"), _generic_tall_af_cases())
+    def test_later_tall_block_at_end_roundtrips(
+        self,
+        tmp_path: Path,
+        af: object,
+        visual_rows: int,
+    ) -> None:
+        lead = Coil(InstructionType.COIL_OUT, "Y900")
+        rung = Rung(
+            logical_rows=visual_rows + 1,
+            conditions=[
+                _contact_row("C200"),
+                _contact_row("C201"),
+                *[_blank_conditions() for _ in range(visual_rows - 1)],
+            ],
+            instructions=[lead, af, *([""] * (visual_rows - 1))],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 2
+        assert [row[32] for row in rows] == ["out(Y900)", af.to_csv()]
+
+        out_csv = tmp_path / f"later-tall-end-{type(af).__name__}.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == rung.logical_rows
+        assert round_tripped.conditions == rung.conditions
+        assert round_tripped.instructions == rung.instructions
+
+    @pytest.mark.parametrize(("af", "visual_rows"), _generic_tall_af_cases())
+    def test_later_tall_block_before_following_af_roundtrips(
+        self,
+        tmp_path: Path,
+        af: object,
+        visual_rows: int,
+    ) -> None:
+        lead = Coil(InstructionType.COIL_OUT, "Y901")
+        tail = Coil(InstructionType.COIL_OUT, "Y902")
+        rung = Rung(
+            logical_rows=visual_rows + 2,
+            conditions=[
+                _contact_row("C210"),
+                _contact_row("C211"),
+                *[_blank_conditions() for _ in range(visual_rows - 1)],
+                _contact_row("C212"),
+            ],
+            instructions=[lead, af, *([""] * (visual_rows - 1)), tail],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 3
+        assert [row[32] for row in rows] == ["out(Y901)", af.to_csv(), "out(Y902)"]
+
+        out_csv = tmp_path / f"later-tall-mid-{type(af).__name__}.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == rung.logical_rows
+        assert round_tripped.conditions == rung.conditions
+        assert round_tripped.instructions == rung.instructions
 
 
 class TestMultiPinnedRoundTrip:

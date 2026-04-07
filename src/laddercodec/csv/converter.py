@@ -145,9 +145,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
 
     family = get_af_family_for_token(token)
     visual_rows = _af_visual_rows(token)
-    if family is not None and (
-        family.family_name in _PINNED_BLOCK_FAMILIES or visual_rows > 1
-    ):
+    if family is not None and (family.family_name in _PINNED_BLOCK_FAMILIES or visual_rows > 1):
         return _ParsedRow(
             conditions=conds,
             kind="block_main",
@@ -625,48 +623,3 @@ def convert_rung(
 
     logical_rows = len(condition_rows)
     return logical_rows, condition_rows, af_tokens, comment
-
-
-# ---------------------------------------------------------------------------
-# Decode-side: strip blank padding rows from tall instructions
-# ---------------------------------------------------------------------------
-
-
-def _is_blank_row(
-    conditions: list[object],
-    af: object,
-) -> bool:
-    """Return True if all conditions are blank and AF is blank."""
-    if af != "":
-        return False
-    return all(c == "" for c in conditions)
-
-
-def strip_tall_padding(
-    logical_rows: int,
-    condition_rows: list[list[object]],
-    af_tokens: list[object],
-) -> tuple[int, list[list[object]], list[object]]:
-    """Remove trailing blank rows that are just visual padding for tall instructions.
-
-    After decoding, a timer rung may have a trailing all-blank row that
-    exists only because the timer cell is visually tall.  This function
-    strips such rows so the decoded output matches the user's CSV input.
-
-    Rows with any content (wires, contacts, etc.) are kept.
-    """
-    if logical_rows < 2:
-        return logical_rows, condition_rows, af_tokens
-
-    # Check if row 0 has a tall AF instruction.
-    af0 = af_tokens[0]
-    is_tall = isinstance(af0, AfInstruction) and af0.cell_params().get("visual_rows", 1) > 1
-    if not is_tall:
-        return logical_rows, condition_rows, af_tokens
-
-    # Strip trailing blank rows (from the end, in case of future >2-row tall).
-    while len(condition_rows) > 1 and _is_blank_row(condition_rows[-1], af_tokens[-1]):
-        condition_rows = condition_rows[:-1]
-        af_tokens = af_tokens[:-1]
-
-    return len(condition_rows), condition_rows, af_tokens

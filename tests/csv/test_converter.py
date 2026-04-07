@@ -22,7 +22,6 @@ from laddercodec.csv.converter import (
     af_node_to_token,
     condition_node_to_token,
     convert_rung,
-    strip_tall_padding,
 )
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.instructions import (
@@ -248,57 +247,6 @@ class TestPinRows:
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="Unknown pin"):
             convert_rung(rung)
-
-
-class TestStripTallPadding:
-    def test_strips_blank_trailing_row(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [""] * 31,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 1
-        assert len(new_conds) == 1
-        assert len(new_afs) == 1
-
-    def test_keeps_row_with_wires(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            ["-"] * 31,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2  # kept because row has wires
-
-    def test_keeps_row_with_contacts(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=True)
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [Contact(InstructionType.CONTACT_NO, "X002")] + ["-"] * 30,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2
-
-    def test_no_strip_for_non_timer(self) -> None:
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [""] * 31,
-        ]
-        afs: list[object] = [coil, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2  # not a tall instruction, no strip
-
-    def test_single_row_passthrough(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30]
-        afs: list[object] = [timer]
-        lr, new_conds, new_afs = strip_tall_padding(1, conds, afs)
-        assert lr == 1
 
 
 class TestConditionNodeToToken:
