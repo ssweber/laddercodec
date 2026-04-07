@@ -1,3 +1,3 @@
 marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,receive__tcp_click_wordswap – Word Swap checkbox ON (32-bit DD addresses)
+#,receive__tcp_click_wordswap - Word Swap checkbox ON (32-bit DD addresses)
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DD1..DD5,receiving=C1,success=C2,error=C3,exception_response=DS100,word_swap=1)"

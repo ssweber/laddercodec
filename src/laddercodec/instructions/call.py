@@ -6,7 +6,6 @@ Binary class name: ``"Call"``.
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -42,23 +41,14 @@ class Call(AfInstruction):
         return {}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        out = bytearray()
-        out += _utf16le_null("Call")
-        out += struct.pack("<I", CALL_TYPE_MARKER)
-        out += b"\x01\x00"  # part_count
-        out += struct.pack("<I", 4)  # field_count
-        out += _tagged_field(_CALL_TAGS[0], "0")
-        out += _tagged_field(_CALL_TAGS[1], self.subroutine)
-        out += _tagged_field(_CALL_TAGS[2], CALL_FUNC_CODE)
-        out += _tagged_field(_CALL_TAGS[3], "")
-        return bytes(out)
-
-
-def build_blob(call: Call) -> bytes:
-    """Build the instruction data blob for a Call cell."""
-    return call.build_blob()
+        return _build_blob(
+            "Call",
+            CALL_TYPE_MARKER,
+            _CALL_TAGS,
+            ["0", self.subroutine, CALL_FUNC_CODE, ""],
+        )
 
 
 def from_tags(

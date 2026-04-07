@@ -1,3 +1,3 @@
 marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
-#,send__success_off – success flag disabled
+#,send__success_off - success flag disabled
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"send(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""C1"",source=C11,sending=C1,error=C3,exception_response=DS100)"

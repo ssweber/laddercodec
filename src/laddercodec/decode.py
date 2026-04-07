@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
@@ -191,18 +191,32 @@ _PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 # Instruction data starts at this offset within a cell.
 _INSTR_DATA_OFFSET = 0x25
 
-# RTF body -> markdown patterns.
-# Group-style (our encoder output): {\b text}
-_RE_GROUP_BOLD = re.compile(r"\{\\b\s(.+?)\}", re.DOTALL)
-_RE_GROUP_ITALIC = re.compile(r"\{\\i\s(.+?)\}", re.DOTALL)
-_RE_GROUP_UNDERLINE = re.compile(r"\{\\ul\s(.+?)\}", re.DOTALL)
-# Toggle-style (Click native): \b text\b0 / \ul text\ulnone
-_RE_TOGGLE_BOLD = re.compile(r"\\b\s(.+?)\\b0", re.DOTALL)
-_RE_TOGGLE_ITALIC = re.compile(r"\\i\s(.+?)\\i0", re.DOTALL)
-_RE_TOGGLE_UNDERLINE = re.compile(r"\\ul\s(.+?)\\ulnone", re.DOTALL)
-# Color / highlight control words — stripped during decode (colors preserved in comment_rtf).
-_RE_CF = re.compile(r"\\cf\d+\s?")
-_RE_HIGHLIGHT = re.compile(r"\\(?:highlight|cb)\d+\s?")
+
+@dataclass(frozen=True)
+class _RtfStyle:
+    """Inline style state for markdown-emitting RTF decode."""
+
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+
+
+@dataclass
+class _RtfGroupState:
+    """Current RTF group state."""
+
+    style: _RtfStyle
+    skip_destination: bool = False
+    unicode_skip: int = 1
+
+
+_RTF_STYLE_MARKERS: tuple[tuple[str, str], ...] = (
+    ("bold", "**"),
+    ("italic", "*"),
+    ("underline", "__"),
+)
+
+_RTF_ANSI_CPG_RE = re.compile(rb"\\ansicpg(\d+)")
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
@@ -222,11 +236,129 @@ def _validate_buffer(data: bytes) -> None:
         )
 
 
+def _emit_rtf_style_transition(out: list[str], current: _RtfStyle, target: _RtfStyle) -> _RtfStyle:
+    """Emit markdown markers needed to move from ``current`` to ``target``."""
+    if current == target:
+        return current
+
+    for attr, marker in reversed(_RTF_STYLE_MARKERS):
+        if getattr(current, attr) and not getattr(target, attr):
+            out.append(marker)
+
+    for attr, marker in _RTF_STYLE_MARKERS:
+        if getattr(target, attr) and not getattr(current, attr):
+            out.append(marker)
+
+    return target
+
+
+def _append_rtf_text(
+    out: list[str], render_style: _RtfStyle, target_style: _RtfStyle, text: str
+) -> _RtfStyle:
+    """Append visible text, opening/closing markdown markers as needed."""
+    if not text:
+        return render_style
+
+    render_style = _emit_rtf_style_transition(out, render_style, target_style)
+    out.append(text)
+    return render_style
+
+
+def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
+    """Parse one RTF control sequence starting at ``body[i] == '\\'``."""
+    n = len(body)
+    if i + 1 >= n:
+        return None, None, n
+
+    ch = body[i + 1]
+    if ch in "\\{}'~_-*":
+        return ch, None, i + 2
+
+    if not ch.isalpha():
+        return ch, None, i + 2
+
+    j = i + 1
+    while j < n and body[j].isalpha():
+        j += 1
+    word = body[i + 1 : j]
+
+    sign = 1
+    if j < n and body[j] in "+-":
+        if body[j] == "-":
+            sign = -1
+        j += 1
+
+    digits_start = j
+    while j < n and body[j].isdigit():
+        j += 1
+    arg = sign * int(body[digits_start:j]) if j > digits_start else None
+
+    if j < n and body[j] == " ":
+        j += 1
+
+    return word, arg, j
+
+
+def _assert_rtf_ansicpg_1252(payload: bytes, body_start: int) -> None:
+    """Reject RTF payloads that declare a non-cp1252 ANSI code page."""
+    match = _RTF_ANSI_CPG_RE.search(payload[:body_start])
+    if match is None:
+        raise DecodeError("Cannot locate RTF code page: missing \\ansicpg in prefix")
+
+    codepage = match.group(1)
+    if codepage != b"1252":
+        value = codepage.decode("ascii", errors="replace")
+        raise DecodeError(
+            f"Unsupported RTF code page: expected \\ansicpg1252, got \\ansicpg{value}"
+        )
+
+
+def _decode_rtf_unicode_char(arg: int | None) -> str:
+    """Decode one RTF ``\\u`` argument using the signed 16-bit rules."""
+    if arg is None:
+        return ""
+
+    codepoint = arg if arg >= 0 else arg + 0x10000
+    if not (0 <= codepoint <= 0x10FFFF):
+        return ""
+
+    try:
+        return chr(codepoint)
+    except ValueError:
+        return ""
+
+
+def _skip_rtf_fallback_chars(body: str, i: int, count: int) -> int:
+    """Skip the ANSI fallback chars that follow an RTF ``\\u`` control."""
+    remaining = max(count, 0)
+    n = len(body)
+
+    while remaining > 0 and i < n:
+        if body[i] in "\r\n":
+            i += 1
+            continue
+
+        if body[i] == "\\":
+            control, _, next_i = _parse_rtf_control(body, i)
+            if control == "'" and i + 4 <= n:
+                i += 4
+            else:
+                i = next_i
+            remaining -= 1
+            continue
+
+        i += 1
+        remaining -= 1
+
+    return i
+
+
 def _decode_rtf(payload: bytes) -> str:
     """Convert an RTF comment payload to markdown text.
 
     Strips the RTF envelope (prefix/suffix), decodes the cp1252 body,
-    and converts RTF inline styles back to markdown.
+    then tokenizes the body so control words are treated as structure
+    instead of leaking through as literal text.
     """
     # Strip envelope.
     if payload.startswith(_PREFIX):
@@ -241,6 +373,8 @@ def _decode_rtf(payload: bytes) -> str:
             raise DecodeError("Cannot locate RTF body: no space after \\fs marker")
         body_start = space + 1
 
+    _assert_rtf_ansicpg_1252(payload, body_start)
+
     if payload.endswith(_SUFFIX):
         body_end = len(payload) - len(_SUFFIX)
     else:
@@ -252,34 +386,97 @@ def _decode_rtf(payload: bytes) -> str:
 
     body = payload[body_start:body_end].decode("cp1252")
 
-    # Strip RTF source line endings (CR/LF before \par are insignificant).
-    body = body.replace("\r\n\\par ", "\\par ")
-    body = body.replace("\r\\par ", "\\par ")
+    stack = [_RtfGroupState(style=_RtfStyle())]
+    render_style = _RtfStyle()
+    out: list[str] = []
+    i = 0
 
-    # Strip color / highlight control words (preserved losslessly in comment_rtf).
-    body = _RE_CF.sub("", body)
-    body = _RE_HIGHLIGHT.sub("", body)
+    while i < len(body):
+        group = stack[-1]
+        ch = body[i]
 
-    # RTF markup -> markdown.  Group-style first (more specific), then toggle.
-    body = _RE_GROUP_BOLD.sub(r"**\1**", body)
-    body = _RE_GROUP_ITALIC.sub(r"*\1*", body)
-    body = _RE_GROUP_UNDERLINE.sub(r"__\1__", body)
-    body = _RE_TOGGLE_BOLD.sub(r"**\1**", body)
-    body = _RE_TOGGLE_ITALIC.sub(r"*\1*", body)
-    body = _RE_TOGGLE_UNDERLINE.sub(r"__\1__", body)
+        if ch == "{":
+            stack.append(
+                _RtfGroupState(
+                    style=group.style,
+                    skip_destination=group.skip_destination,
+                    unicode_skip=group.unicode_skip,
+                )
+            )
+            i += 1
+            continue
 
-    # Line breaks.
-    body = body.replace("\\par ", "\n")
+        if ch == "}":
+            if len(stack) > 1:
+                stack.pop()
+            i += 1
+            continue
 
-    # Unescape RTF special characters.
-    body = body.replace("\\{", "{")
-    body = body.replace("\\}", "}")
-    body = body.replace("\\\\", "\\")
+        if ch == "\\":
+            control, arg, next_i = _parse_rtf_control(body, i)
+            group = stack[-1]
 
-    # Strip any remaining stray CR.
-    body = body.replace("\r", "")
+            if control in {"\\", "{", "}"}:
+                if not group.skip_destination:
+                    render_style = _append_rtf_text(out, render_style, group.style, control)
+            elif control == "'":
+                if next_i <= len(body) and i + 4 <= len(body):
+                    hex_digits = body[i + 2 : i + 4]
+                    try:
+                        text = bytes([int(hex_digits, 16)]).decode("cp1252")
+                    except ValueError:
+                        text = ""
+                    if text and not group.skip_destination:
+                        render_style = _append_rtf_text(out, render_style, group.style, text)
+                    next_i = i + 4
+            elif control == "~":
+                if not group.skip_destination:
+                    render_style = _append_rtf_text(out, render_style, group.style, " ")
+            elif control == "_":
+                if not group.skip_destination:
+                    render_style = _append_rtf_text(out, render_style, group.style, "-")
+            elif control == "-":
+                if not group.skip_destination:
+                    render_style = _append_rtf_text(out, render_style, group.style, "-")
+            elif control == "*":
+                group.skip_destination = True
+            elif isinstance(control, str):
+                if control == "b":
+                    group.style = replace(group.style, bold=arg != 0 if arg is not None else True)
+                elif control == "i":
+                    group.style = replace(group.style, italic=arg != 0 if arg is not None else True)
+                elif control == "ul":
+                    group.style = replace(
+                        group.style, underline=arg != 0 if arg is not None else True
+                    )
+                elif control == "ulnone":
+                    group.style = replace(group.style, underline=False)
+                elif control == "plain":
+                    group.style = _RtfStyle()
+                elif control == "uc":
+                    if arg is not None:
+                        group.unicode_skip = max(arg, 0)
+                elif control == "u":
+                    if arg is not None and not group.skip_destination:
+                        text = _decode_rtf_unicode_char(arg)
+                        render_style = _append_rtf_text(out, render_style, group.style, text)
+                    next_i = _skip_rtf_fallback_chars(body, next_i, group.unicode_skip)
+                elif control in {"par", "line"}:
+                    if not group.skip_destination:
+                        render_style = _append_rtf_text(out, render_style, group.style, "\n")
+                elif control == "tab":
+                    if not group.skip_destination:
+                        render_style = _append_rtf_text(out, render_style, group.style, "\t")
 
-    return body
+            i = next_i
+            continue
+
+        if ch not in "\r\n" and not group.skip_destination:
+            render_style = _append_rtf_text(out, render_style, group.style, ch)
+        i += 1
+
+    _emit_rtf_style_transition(out, render_style, _RtfStyle())
+    return "".join(out)
 
 
 def _read_rung0_comment(data: bytes) -> tuple[bytes | None, int]:

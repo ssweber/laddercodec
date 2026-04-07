@@ -95,12 +95,12 @@ naturally — no fixed-offset assumptions in the grid.
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Sequence
 
 from .empty_multirow import synthesize_empty_multirow
 from .instructions import AfInstruction, ConditionInstruction
 from .topology import (
-    COLS_PER_ROW,
     GRID_FIRST_ROW_START,
     PREAMBLE_COMMENT_BODY,
     PREAMBLE_COMMENT_LENGTH,
@@ -115,8 +115,6 @@ from .topology import (
 PAYLOAD_LENGTH_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_LENGTH  # 0x0294
 PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 COMMENT_MAX_BYTES = 1400
-
-AF_COLUMN = COLS_PER_ROW - 1  # Column AF (index 31)
 
 MIN_ROWS = 1
 MAX_ROWS = 32
@@ -158,6 +156,46 @@ _RE_ITALIC_UNDER = re.compile(r"(?<!\w)_(.+?)_(?!\w)", re.DOTALL)
 
 
 # ---------------------------------------------------------------------------
+# ASCII sanitization
+# ---------------------------------------------------------------------------
+
+_ASCII_SUBSTITUTIONS: dict[str, str] = {
+    "\u2014": "-",  # em-dash
+    "\u2013": "-",  # en-dash
+    "\u2192": "->",  # →
+    "\u2190": "<-",  # ←
+    "\u2265": ">=",  # ≥
+    "\u2264": "<=",  # ≤
+    "\u2260": "!=",  # ≠
+    "\u201c": '"',  # left double curly quote
+    "\u201d": '"',  # right double curly quote
+    "\u2018": "'",  # left single curly quote
+    "\u2019": "'",  # right single curly quote
+}
+
+
+def _sanitize_to_ascii(text: str) -> str:
+    """Replace non-ASCII characters with ASCII equivalents.
+
+    Applies explicit substitutions for common Unicode symbols, then
+    NFKD-normalises remaining non-ASCII to strip diacritics.  Anything
+    still outside ASCII is replaced with ``?``.
+    """
+    for src, dst in _ASCII_SUBSTITUTIONS.items():
+        text = text.replace(src, dst)
+    text = unicodedata.normalize("NFKD", text)
+    out: list[str] = []
+    for ch in text:
+        if ord(ch) < 128:
+            out.append(ch)
+        elif unicodedata.category(ch).startswith("M"):
+            pass  # drop combining marks (accents stripped by NFKD)
+        else:
+            out.append("?")
+    return "".join(out)
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -176,6 +214,7 @@ def _build_rtf_body(text: str) -> str:
     RTF special characters (``\\``, ``{``, ``}``) in the plain text are
     escaped before markdown conversion so they pass through safely.
     """
+    text = _sanitize_to_ascii(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     # Escape RTF special characters (order matters: backslash first).
     text = text.replace("\\", "\\\\")

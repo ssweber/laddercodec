@@ -148,12 +148,6 @@ class Counter(AfInstruction):
         return bytes(out)
 
 
-# Module-level wrapper for backward compatibility.
-def build_blob(counter: Counter) -> bytes:
-    """Build the instruction data blob for a counter cell."""
-    return counter.build_blob()
-
-
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------

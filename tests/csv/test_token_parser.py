@@ -18,14 +18,14 @@ from laddercodec.csv.token_parser import parse_af_token, parse_condition_token
 @pytest.mark.parametrize(
     ("token", "expected"),
     [
-        ('call("normal")', "normal"),
-        ('call("has""quote")', 'has"quote'),
-        ('call("two""mid""quotes")', 'two"mid"quotes'),
-        ('call("")', ""),
-        ('call("no special chars")', "no special chars"),
+        ('call("normal")', '"normal"'),
+        ('call("has""quote")', '"has""quote"'),
+        ('call("two""mid""quotes")', '"two""mid""quotes"'),
+        ('call("")', '""'),
+        ('call("no special chars")', '"no special chars"'),
     ],
 )
-def test_parse_af_token_decodes_quoted_string_args(token: str, expected: str) -> None:
+def test_parse_af_token_preserves_quoted_string_args(token: str, expected: str) -> None:
     af = parse_af_token(token)
     assert isinstance(af, AfCall)
     assert af.name == "call"
@@ -41,13 +41,13 @@ def test_parse_af_token_keeps_non_string_args() -> None:
 def test_parse_af_token_handles_quoted_commas() -> None:
     af = parse_af_token('send(X001,"a,b",100)')
     assert isinstance(af, AfCall)
-    assert af.args == ("X001", "a,b", "100")
+    assert af.args == ("X001", '"a,b"', "100")
 
 
 def test_parse_af_token_treats_backslash_as_literal_character() -> None:
     af = parse_af_token('call("host\\name")')
     assert isinstance(af, AfCall)
-    assert af.args == ("host\\name",)
+    assert af.args == ('"host\\name"',)
 
 
 @pytest.mark.parametrize(

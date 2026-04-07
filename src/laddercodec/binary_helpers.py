@@ -29,6 +29,23 @@ def _variant_tagged_field(tag: int, sub_marker: bytes, value: str) -> bytes:
     return struct.pack("<H", tag) + sub_marker + _utf16le_null(value)
 
 
+def _build_blob(
+    class_name: str,
+    type_marker: int,
+    tags: tuple[int, ...],
+    fields: list[str],
+) -> bytes:
+    """Build a standard instruction blob: class name + type marker + part=1 + tagged fields."""
+    out = bytearray()
+    out += _utf16le_null(class_name)
+    out += struct.pack("<I", type_marker)
+    out += b"\x01\x00"
+    out += struct.pack("<I", len(fields))
+    for tag, value in zip(tags, fields, strict=True):
+        out += _tagged_field(tag, value)
+    return bytes(out)
+
+
 # ---------------------------------------------------------------------------
 # Decoding helpers
 # ---------------------------------------------------------------------------

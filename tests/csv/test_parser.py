@@ -180,4 +180,4 @@ def test_csv_reader_then_af_parser_decodes_doubled_quotes(tmp_path: Path) -> Non
     af = row.af_node
     assert isinstance(af, AfCall)
     assert af.name == "call"
-    assert af.args == ('my"sub',)
+    assert af.args == ('"my""sub"',)

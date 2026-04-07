@@ -23,11 +23,10 @@ Field layout (10 fields):
 
 from __future__ import annotations
 
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import OPERAND_RE, AfInstruction
+from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -126,7 +125,7 @@ class Search(AfInstruction):
 
     @property
     def _is_text_search(self) -> bool:
-        return not OPERAND_RE.fullmatch(self.source)
+        return self.source.startswith('"')
 
     @property
     def func_code(self) -> str:
@@ -147,38 +146,27 @@ class Search(AfInstruction):
         return {"visual_rows": 2}
 
     def build_blob(self) -> bytes:
-        from ..binary_helpers import _tagged_field, _utf16le_null
-
-        if self._is_text_search:
-            source_field = f'"{self.source}"'
-        else:
-            source_field = self.source
+        from ..binary_helpers import _build_blob
 
         cmp_code = _OP_TO_CMP_CODE[self.comparison]
 
-        type_marker = 0x2722
-        field_count = 10
-        fields = [
-            source_field,  # [0]
-            self.table_start,  # [1]
-            self.table_end,  # [2]
-            self.result,  # [3]
-            self.found,  # [4]
-            "-1" if self.continuous else "0",  # [5]
-            self.func_code,  # [6]
-            "-1" if self.oneshot else "0",  # [7]
-            cmp_code,  # [8]
-            "",  # [9] terminator
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Search")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"  # part count
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_SEARCH_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
+        return _build_blob(
+            "Search",
+            0x2722,
+            _SEARCH_TAGS,
+            [
+                self.source,  # [0]
+                self.table_start,  # [1]
+                self.table_end,  # [2]
+                self.result,  # [3]
+                self.found,  # [4]
+                "-1" if self.continuous else "0",  # [5]
+                self.func_code,  # [6]
+                "-1" if self.oneshot else "0",  # [7]
+                cmp_code,  # [8]
+                "",  # [9] terminator
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -209,9 +197,6 @@ def from_tags(
     found = tags.get(0x607A, "")
     cmp_idx = str(lens.get(0x21F7, 0))
     comparison = _CMP_CODE_TO_OP.get(cmp_idx)
-
-    if source.startswith('"') and source.endswith('"'):
-        source = source[1:-1]
 
     if not all([source, table_start, table_end, result, found]) or comparison is None:
         return None

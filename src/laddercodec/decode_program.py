@@ -410,14 +410,14 @@ def _parse_section_instructions(
         if blob8:
             row_1based = data[cursor]
             col_idx = data[cursor + 1]
-            cls_name, typ, end_off, next_pos, vsub = blob8
+            cls_name, _, end_off, next_pos, vsub = blob8
             cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
         elif blob9:
             row_1based = data[cursor + 1]
             col_idx = data[cursor + 2]
-            cls_name, typ, end_off, next_pos, vsub = blob9
+            cls_name, _, end_off, next_pos, vsub = blob9
             cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub)
             results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
             cursor = next_pos
@@ -645,17 +645,6 @@ def _find_rtf_comment(data: bytes, start: int, end: int) -> tuple[bytes | None, 
                         comment = None
                     return rtf_bytes, comment
     return None, None
-
-
-def _parse_row0_flags(data: bytes, rh: int) -> tuple[dict[int, int], int, int]:
-    """Parse the variable-length row 0 flag block.
-
-    Returns ``({col_idx: flag}, header_len, block_len)``.
-    """
-    block = _parse_row_topology_block(data, rh)
-    if block is None:
-        raise ValueError(f"Invalid row header at offset {rh}")
-    return dict(block.row0_flags), len(block.prelude), block.row0_flag_count * 2
 
 
 def _parse_extra_row_right_wire_block(

@@ -34,6 +34,7 @@ auto-appended so ``encode_rung()`` receives the correct ``logical_rows``.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import cast
 
 from ..encode import AfToken, ConditionToken
@@ -201,27 +202,13 @@ def convert_rung(
                     if parent_counter.counter_type != "count_up":
                         raise ConvertError(".down() is only valid for count_up()")
                     counter_down_conditions = conds
-                    parent_counter = Counter(
-                        counter_type=parent_counter.counter_type,
-                        done_bit=parent_counter.done_bit,
-                        current=parent_counter.current,
-                        preset=parent_counter.preset,
-                        down_enabled=True,
-                        reset_enabled=parent_counter.reset_enabled,
-                    )
+                    parent_counter = replace(parent_counter, down_enabled=True)
                     af_tokens[0] = parent_counter
                     continue
 
                 if pin_name == ".reset":
                     counter_reset_conditions = conds
-                    parent_counter = Counter(
-                        counter_type=parent_counter.counter_type,
-                        done_bit=parent_counter.done_bit,
-                        current=parent_counter.current,
-                        preset=parent_counter.preset,
-                        down_enabled=parent_counter.down_enabled,
-                        reset_enabled=True,
-                    )
+                    parent_counter = replace(parent_counter, reset_enabled=True)
                     af_tokens[0] = parent_counter
                     continue
 
@@ -235,36 +222,12 @@ def convert_rung(
                     continue
                 if pin_name == ".jump":
                     jump_target = af_node.args[0] if af_node.args else ""
-                    parent_drum = Drum(
-                        drum_kind=parent_drum.drum_kind,
-                        outputs=parent_drum.outputs,
-                        events_or_presets=parent_drum.events_or_presets,
-                        pattern=parent_drum.pattern,
-                        current_step=parent_drum.current_step,
-                        completion_flag=parent_drum.completion_flag,
-                        accumulator=parent_drum.accumulator,
-                        unit=parent_drum.unit,
-                        jog_enabled=parent_drum.jog_enabled,
-                        jump_enabled=True,
-                        jump_target=jump_target,
-                    )
+                    parent_drum = replace(parent_drum, jump_enabled=True, jump_target=jump_target)
                     af_tokens[0] = parent_drum
                     drum_jump_conditions = conds
                     continue
                 if pin_name == ".jog":
-                    parent_drum = Drum(
-                        drum_kind=parent_drum.drum_kind,
-                        outputs=parent_drum.outputs,
-                        events_or_presets=parent_drum.events_or_presets,
-                        pattern=parent_drum.pattern,
-                        current_step=parent_drum.current_step,
-                        completion_flag=parent_drum.completion_flag,
-                        accumulator=parent_drum.accumulator,
-                        unit=parent_drum.unit,
-                        jog_enabled=True,
-                        jump_enabled=parent_drum.jump_enabled,
-                        jump_target=parent_drum.jump_target,
-                    )
+                    parent_drum = replace(parent_drum, jog_enabled=True)
                     af_tokens[0] = parent_drum
                     drum_jog_conditions = conds
                     continue
@@ -283,14 +246,7 @@ def convert_rung(
 
             if pin_name in _RETENTIVE_PINS and parent_timer is not None:
                 # .reset() makes the parent timer retentive.
-                parent_timer = Timer(
-                    timer_type=parent_timer.timer_type,
-                    done_bit=parent_timer.done_bit,
-                    current=parent_timer.current,
-                    setpoint=parent_timer.setpoint,
-                    unit=parent_timer.unit,
-                    retained=True,
-                )
+                parent_timer = replace(parent_timer, retained=True)
                 # Update af_tokens[0] with the modified timer.
                 af_tokens[0] = parent_timer
 

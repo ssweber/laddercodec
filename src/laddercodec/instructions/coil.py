@@ -6,7 +6,6 @@ Binary class name: ``"Out"`` (for out, latch, and reset).
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -159,33 +158,21 @@ class Coil(AfInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this coil cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
-        type_marker = 0x2700 | self.type
-        field_count = 6
-        fields = [
-            self.operand,
-            self.range_end or "",
-            "-1" if self.oneshot else "0",
-            "1" if self.immediate else "0",
-            self.func_code,
-            "",
-        ]
-
-        out = bytearray()
-        out += _utf16le_null("Out")
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(_COIL_TAGS, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
-
-
-# Module-level wrapper for backward compatibility.
-def build_blob(coil: Coil) -> bytes:
-    """Build the instruction data blob for a coil cell."""
-    return coil.build_blob()
+        return _build_blob(
+            "Out",
+            0x2700 | self.type,
+            _COIL_TAGS,
+            [
+                self.operand,
+                self.range_end or "",
+                "-1" if self.oneshot else "0",
+                "1" if self.immediate else "0",
+                self.func_code,
+                "",
+            ],
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -152,6 +152,32 @@ def test_rtf_decode_toggle_underline() -> None:
     assert _decode_rtf(payload) == "__Hello__"
 
 
+def test_rtf_decode_tab_control() -> None:
+    payload = _PREFIX + rb"Col1\tab Col2" + _SUFFIX
+    assert _decode_rtf(payload) == "Col1\tCol2"
+
+
+def test_rtf_decode_rejects_non_1252_ansicpg() -> None:
+    payload = _PREFIX.replace(b"\\ansicpg1252", b"\\ansicpg1251", 1) + b"Hello" + _SUFFIX
+    with pytest.raises(DecodeError, match="ansicpg1252"):
+        _decode_rtf(payload)
+
+
+def test_rtf_decode_unicode_escape_skips_ascii_fallback() -> None:
+    payload = _PREFIX + rb"\u8217?" + _SUFFIX
+    assert _decode_rtf(payload) == "\u2019"
+
+
+def test_rtf_decode_unicode_escape_skips_hex_fallback() -> None:
+    payload = _PREFIX + rb"\u8217\'92" + _SUFFIX
+    assert _decode_rtf(payload) == "\u2019"
+
+
+def test_rtf_decode_unicode_escape_signed_16bit_arg() -> None:
+    payload = _PREFIX + rb"\u-24679?" + _SUFFIX
+    assert _decode_rtf(payload) == "\u9f99"
+
+
 # -- DecodedRung preserves raw RTF --
 
 
@@ -251,3 +277,8 @@ def test_rtf_decode_strips_highlight() -> None:
 def test_rtf_decode_strips_cb() -> None:
     payload = _PREFIX + rb"\cb1 background\cb0  normal" + _SUFFIX
     assert _decode_rtf(payload) == "background normal"
+
+
+def test_rtf_decode_ignores_stray_style_reset_after_group() -> None:
+    payload = _PREFIX + rb"{\b bold}\b0  plain" + _SUFFIX
+    assert _decode_rtf(payload) == "**bold** plain"

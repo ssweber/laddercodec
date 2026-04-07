@@ -6,7 +6,6 @@ Binary class names: ``"ContactNO"`` (for NO and NC), ``"Edge"`` (for rise/fall).
 from __future__ import annotations
 
 import re
-import struct
 from dataclasses import dataclass
 from typing import Literal, cast
 
@@ -147,60 +146,24 @@ class Contact(ConditionInstruction):
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this contact cell."""
-        from ..binary_helpers import _tagged_field, _utf16le_null
+        from ..binary_helpers import _build_blob
 
         if self.type == InstructionType.CONTACT_EDGE:
-            return _build_edge_blob(self)
+            field1 = "0" if self.edge_kind == "rise" else "1"
+            return _build_blob(
+                "Edge",
+                0x2700 | self.type,
+                _EDGE_TAGS,
+                [self.operand, field1, self.func_code, ""],
+            )
 
-        class_name = "ContactNO"
-        tags = _CONTACT_NO_TAGS
         field1 = "1" if self.immediate else "0"
-
-        type_marker = 0x2700 | self.type
-        field_count = 4
-        fields = [self.operand, field1, self.func_code, ""]
-
-        out = bytearray()
-        out += _utf16le_null(class_name)
-        out += struct.pack("<I", type_marker)
-        out += b"\x01\x00"
-        out += struct.pack("<I", field_count)
-        for tag, value in zip(tags, fields, strict=True):
-            out += _tagged_field(tag, value)
-        return bytes(out)
-
-
-# ---------------------------------------------------------------------------
-# Blob builder — Edge (private helper)
-# ---------------------------------------------------------------------------
-
-
-def _build_edge_blob(contact: Contact) -> bytes:
-    """Build the instruction data blob for an edge contact cell."""
-    from ..binary_helpers import _tagged_field, _utf16le_null
-
-    class_name = "Edge"
-    tags = _EDGE_TAGS
-    field1 = "0" if contact.edge_kind == "rise" else "1"
-
-    type_marker = 0x2700 | contact.type
-    field_count = 4
-    fields = [contact.operand, field1, contact.func_code, ""]
-
-    out = bytearray()
-    out += _utf16le_null(class_name)
-    out += struct.pack("<I", type_marker)
-    out += b"\x01\x00"
-    out += struct.pack("<I", field_count)
-    for tag, value in zip(tags, fields, strict=True):
-        out += _tagged_field(tag, value)
-    return bytes(out)
-
-
-# Module-level wrapper for backward compatibility.
-def build_blob(contact: Contact) -> bytes:
-    """Build the instruction data blob for a contact cell."""
-    return contact.build_blob()
+        return _build_blob(
+            "ContactNO",
+            0x2700 | self.type,
+            _CONTACT_NO_TAGS,
+            [self.operand, field1, self.func_code, ""],
+        )
 
 
 # ---------------------------------------------------------------------------

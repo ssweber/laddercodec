@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import Coil, CompareContact, Contact, Return, Timer, decode, encode, read_csv
-from laddercodec.encode import encode_rung
+from laddercodec.encode import _sanitize_to_ascii, encode_rung
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
 
@@ -339,3 +339,43 @@ class TestInstructionRoundTrip:
             d = decode(buf)
             t = d.instructions[0]
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"
+
+
+# -- ASCII sanitization --
+
+
+class TestSanitizeToAscii:
+    def test_dashes(self) -> None:
+        assert _sanitize_to_ascii("a\u2014b\u2013c") == "a-b-c"
+
+    def test_arrows(self) -> None:
+        assert _sanitize_to_ascii("\u2192") == "->"
+        assert _sanitize_to_ascii("\u2190") == "<-"
+
+    def test_math_operators(self) -> None:
+        assert _sanitize_to_ascii("\u2265") == ">="
+        assert _sanitize_to_ascii("\u2264") == "<="
+        assert _sanitize_to_ascii("\u2260") == "!="
+
+    def test_curly_quotes(self) -> None:
+        assert _sanitize_to_ascii("\u201chello\u201d") == '"hello"'
+        assert _sanitize_to_ascii("\u2018hi\u2019") == "'hi'"
+
+    def test_accented_chars(self) -> None:
+        assert _sanitize_to_ascii("caf\u00e9") == "cafe"
+        assert _sanitize_to_ascii("na\u00efve") == "naive"
+
+    def test_unknown_non_ascii_replaced(self) -> None:
+        assert _sanitize_to_ascii("\u4e16\u754c") == "??"
+
+    def test_pure_ascii_unchanged(self) -> None:
+        assert _sanitize_to_ascii("hello world 123!") == "hello world 123!"
+
+    def test_combined(self) -> None:
+        assert _sanitize_to_ascii("\u201cval\u201d \u2265 10") == '"val" >= 10'
+
+    def test_comment_round_trip(self) -> None:
+        """Encode a rung with non-ASCII comment, decode, verify sanitized."""
+        buf = encode_rung(1, [_empty()], [""], comment="\u201chello\u201d \u2014 world")
+        d = decode(buf)
+        assert d.comment == '"hello" - world'
