@@ -137,10 +137,17 @@ def _compute_rung_metadata(
             idx += 1
 
     # AF summary block — needed on the last AF instruction cell when 2+ AFs
-    # (single-rung only; multi-rung does not use af_summary).
+    # are all single-row (single-rung only; multi-rung does not use
+    # af_summary).  Suppressed when any AF is multi-row (e.g. retained
+    # timer with reset pin) — native captures omit it in that case.
     af_summary_block = b""
     af_rows = sorted(af_instr_indices.keys())
-    if single_rung and len(af_rows) >= 2:
+    any_multi_row_af = any(
+        af_tokens[r].cell_params().get("visual_rows", 1) > 1
+        for r in af_rows
+        if isinstance(af_tokens[r], AfInstruction)
+    )
+    if single_rung and len(af_rows) >= 2 and not any_multi_row_af:
         af_entries: list[tuple[int, int, bool]] = []
         for r in af_rows:
             cond_count = sum(1 for t in condition_rows[r] if isinstance(t, ConditionInstruction))

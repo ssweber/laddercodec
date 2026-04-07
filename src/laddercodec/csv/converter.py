@@ -174,6 +174,7 @@ def convert_rung(
     parent_counter: Counter | None = None
     parent_shift: Shift | None = None
     parent_drum: Drum | None = None
+    parent_af_idx: int | None = None
     counter_up_conditions: list[ConditionToken] | None = None
     counter_top_conditions: list[ConditionToken] | None = None
     counter_bridge_conditions: list[ConditionToken] | None = None
@@ -203,13 +204,13 @@ def convert_rung(
                         raise ConvertError(".down() is only valid for count_up()")
                     counter_down_conditions = conds
                     parent_counter = replace(parent_counter, down_enabled=True)
-                    af_tokens[0] = parent_counter
+                    af_tokens[parent_af_idx] = parent_counter
                     continue
 
                 if pin_name == ".reset":
                     counter_reset_conditions = conds
                     parent_counter = replace(parent_counter, reset_enabled=True)
-                    af_tokens[0] = parent_counter
+                    af_tokens[parent_af_idx] = parent_counter
                     continue
 
                 raise ConvertError(
@@ -223,12 +224,12 @@ def convert_rung(
                 if pin_name == ".jump":
                     jump_target = af_node.args[0] if af_node.args else ""
                     parent_drum = replace(parent_drum, jump_enabled=True, jump_target=jump_target)
-                    af_tokens[0] = parent_drum
+                    af_tokens[parent_af_idx] = parent_drum
                     drum_jump_conditions = conds
                     continue
                 if pin_name == ".jog":
                     parent_drum = replace(parent_drum, jog_enabled=True)
-                    af_tokens[0] = parent_drum
+                    af_tokens[parent_af_idx] = parent_drum
                     drum_jog_conditions = conds
                     continue
                 raise ConvertError(
@@ -247,8 +248,7 @@ def convert_rung(
             if pin_name in _RETENTIVE_PINS and parent_timer is not None:
                 # .reset() makes the parent timer retentive.
                 parent_timer = replace(parent_timer, retained=True)
-                # Update af_tokens[0] with the modified timer.
-                af_tokens[0] = parent_timer
+                af_tokens[parent_af_idx] = parent_timer
 
             # Pin row contributes its conditions/wires as a normal data row,
             # but the AF token becomes blank (no separate instruction).
@@ -274,6 +274,7 @@ def convert_rung(
             condition_rows.append(conds)
             af_tokens.append(token)
             parent_counter = token
+            parent_af_idx = len(af_tokens) - 1
             counter_up_conditions = conds
             continue
 
@@ -289,17 +290,21 @@ def convert_rung(
 
         condition_rows.append(conds)
         af_tokens.append(token)
-        if row_idx == 0 and isinstance(af_node, AfCall) and af_node.name.upper() != "NOP":
-            if isinstance(token, Timer):
+        if isinstance(af_node, AfCall) and af_node.name.upper() != "NOP":
+            if isinstance(token, Timer) and parent_timer is None:
                 parent_timer = token
-            if isinstance(token, Counter):
+                parent_af_idx = len(af_tokens) - 1
+            if isinstance(token, Counter) and parent_counter is None:
                 parent_counter = token
+                parent_af_idx = len(af_tokens) - 1
                 counter_up_conditions = conds
-            if isinstance(token, Shift):
+            if isinstance(token, Shift) and parent_shift is None:
                 parent_shift = token
+                parent_af_idx = len(af_tokens) - 1
                 shift_data_conditions = conds
-            if isinstance(token, Drum):
+            if isinstance(token, Drum) and parent_drum is None:
                 parent_drum = token
+                parent_af_idx = len(af_tokens) - 1
 
     # --- Drum row shaping ---
     if parent_drum is not None:
