@@ -10,6 +10,7 @@ from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
     _find_row_topology_block,
     _find_sections,
+    _implied_modifier_row_offsets,
     _parse_extra_row_right_wires,
     _parse_header,
     _parse_scr_tags,
@@ -18,10 +19,15 @@ from laddercodec.decode_program import (
     decode_program,
 )
 from laddercodec.instructions import from_tags_af
+from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.home import from_tags as home_from_tags
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.position import from_tags as position_from_tags
+from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.search import Search
+from laddercodec.instructions.send_receive import ModbusRtuTarget, Receive
 from laddercodec.instructions.timer import Timer
+from laddercodec.model import InstructionType
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
 _SCR_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
@@ -165,6 +171,23 @@ def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
     return bytes(out)
 
 
+def _section_instruction_from_token(row: int, col: int, token) -> tuple:
+    blob = token.build_blob()
+    class_name, type_code, part_count, _extra_bytes, fields = _decompose_blob(blob)
+    tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _fields_to_tag_dicts(fields)
+    return (
+        row,
+        col,
+        class_name,
+        type_code,
+        tags,
+        part_count,
+        tag_byte_lens,
+        variant_u16_tags,
+        variant_string_tags,
+    )
+
+
 def test_decode_program_matches_or_topology_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("or_topology")
 
@@ -275,6 +298,117 @@ def test_find_sections_accepts_large_instruction_counts():
 def test_parse_wiredown_uses_explicit_row_indices():
     data = b"\x20\x00" + b"\x00\x00" + b"\x05\x00\x02\x03\x04\x05\x06" + b"\x00\x00"
     assert _parse_wiredown(data, 0, len(data)) == {1: (1, 2, 3, 4, 5)}
+
+
+def test_implied_modifier_row_offsets_include_generic_tall_af_continuations():
+    receive = Receive(
+        target=ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1),
+        remote_start="DS1",
+        dest="DS10",
+        quantity=1,
+        receiving="",
+        success="",
+        error="",
+        exception_response="",
+    )
+
+    assert _implied_modifier_row_offsets(Search("DS2", "DS11", "DS1", "DS12", "C1", "==")) == {1}
+    assert _implied_modifier_row_offsets(receive) == {1, 2}
+    assert _implied_modifier_row_offsets(
+        RawInstruction(class_name="Mystery", blob=b"", part_count=4)
+    ) == {
+        1,
+        2,
+        3,
+    }
+
+
+def test_build_topology_backed_rung_reconstructs_omitted_generic_tall_row_with_junction():
+    topology_block = decode_program_module._ScrRowTopologyBlock(
+        start=0,
+        row_word=3,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=0,
+        row0_flags={},
+        flags_start=0,
+        continuation_start=0,
+    )
+    section_instructions = [
+        _section_instruction_from_token(
+            0,
+            31,
+            Search("DS2", "DS11", "DS1", "DS12", "C1", "=="),
+        ),
+        _section_instruction_from_token(
+            1,
+            0,
+            Contact(InstructionType.CONTACT_NO, "C10"),
+        ),
+    ]
+    data = bytes([0x20, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02])
+
+    rung = decode_program_module._build_topology_backed_rung(
+        data=data,
+        topology_block=topology_block,
+        rung_end=len(data),
+        logical_rows=2,
+        section_instructions=section_instructions,
+        comment=None,
+        comment_rtf=None,
+    )
+
+    assert isinstance(rung.conditions[1][0], Contact)
+    assert rung.conditions[1][0].operand == "C10"
+    assert rung.conditions[1][1] == "T"
+    assert all(cell == "-" for cell in rung.conditions[1][2:])
+
+
+def test_build_topology_backed_rung_reconstructs_all_omitted_receive_rows():
+    topology_block = decode_program_module._ScrRowTopologyBlock(
+        start=0,
+        row_word=4,
+        prelude=b"",
+        leading_rows_right_wires=[],
+        row0_flag_count=0,
+        row0_flags={},
+        flags_start=0,
+        continuation_start=0,
+    )
+    receive = Receive(
+        target=ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1),
+        remote_start="DS1",
+        dest="DS10",
+        quantity=1,
+        receiving="",
+        success="",
+        error="",
+        exception_response="",
+    )
+    section_instructions = [
+        _section_instruction_from_token(0, 31, receive),
+        _section_instruction_from_token(1, 0, Contact(InstructionType.CONTACT_NO, "C11")),
+        _section_instruction_from_token(2, 2, Contact(InstructionType.CONTACT_NO, "C12")),
+    ]
+    data = b"\x20\x00"
+
+    rung = decode_program_module._build_topology_backed_rung(
+        data=data,
+        topology_block=topology_block,
+        rung_end=len(data),
+        logical_rows=3,
+        section_instructions=section_instructions,
+        comment=None,
+        comment_rtf=None,
+    )
+
+    assert isinstance(rung.instructions[0], Receive)
+    assert isinstance(rung.conditions[1][0], Contact)
+    assert all(cell == "-" for cell in rung.conditions[1][1:])
+    assert rung.conditions[2][0] == ""
+    assert rung.conditions[2][1] == ""
+    assert isinstance(rung.conditions[2][2], Contact)
+    assert all(cell == "-" for cell in rung.conditions[2][3:])
 
 
 def test_parse_scr_tags_handles_compact_home_raw_fields():
