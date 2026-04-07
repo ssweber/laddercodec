@@ -24,6 +24,7 @@ from .decode import Rung, _decode_rtf
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
+    UnknownInstruction,
     from_tags_af,
     from_tags_condition,
     get_af_family_for_token,
@@ -34,7 +35,7 @@ from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.shift import Shift
 from .instructions.timer import Timer
-from .model import Program
+from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -926,7 +927,7 @@ def _build_topology_backed_rung(
 # ---------------------------------------------------------------------------
 
 
-def _implied_modifier_row_offsets(af: object) -> set[int]:
+def _implied_modifier_row_offsets(af: AfInstruction | UnknownInstruction) -> set[int]:
     """Return AF-relative row offsets whose horizontal path may be omitted in SCR.
 
     Click can store ``count=0`` or omit continuation-row topology blocks for
@@ -963,8 +964,11 @@ def _implied_modifier_row_offsets(af: object) -> set[int]:
                 rows.add(3)
         return rows
 
+    if isinstance(af, UnknownInstruction):
+        return set()
+
     family = get_af_family_for_token(af)
-    if family is not None and not family.pin_names and hasattr(af, "cell_params"):
+    if family is not None and not family.pin_names:
         visual_rows = max(1, int(af.cell_params().get("visual_rows", 1)))
         if visual_rows > 1:
             return set(range(1, visual_rows))
