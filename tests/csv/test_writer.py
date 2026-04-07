@@ -8,8 +8,10 @@ import pytest
 
 from laddercodec import (
     Coil,
+    CompareContact,
     Contact,
     Counter,
+    Drum,
     ForLoop,
     Next,
     Rung,
@@ -21,9 +23,18 @@ from laddercodec import (
 )
 from laddercodec.csv.writer import (
     WriterError,
+    _validate_roundtrip,
     decoded_rung_to_rows,
 )
-from laddercodec.instructions import UnknownInstruction
+from laddercodec.instructions import (
+    Copy,
+    ModbusRtuTarget,
+    RawInstruction,
+    Receive,
+    Search,
+    Send,
+    UnknownInstruction,
+)
 from laddercodec.model import InstructionType
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "ladder_captures" / "golden"
@@ -38,6 +49,82 @@ def _golden_paths() -> list[Path]:
     """Return all golden .bin files that have a matching .csv."""
     bins = sorted(GOLDEN_DIR.glob("*.bin"))
     return [b for b in bins if b.with_suffix(".csv").exists()]
+
+
+def _blank_conditions() -> list[object]:
+    """Return one all-blank decoded condition row."""
+    return [""] * 31
+
+
+def _contact_row(operand: str) -> list[object]:
+    """Return a simple NO-contact row with trailing wires."""
+    return [Contact(InstructionType.CONTACT_NO, operand)] + ["-"] * 30
+
+
+def _edge_row(operand: str) -> list[object]:
+    """Return a simple rising-edge contact row with trailing wires."""
+    return [Contact(InstructionType.CONTACT_EDGE, operand, edge_kind="rise")] + ["-"] * 30
+
+
+def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
+    """Return representative non-pinned tall AF instructions."""
+    return [
+        pytest.param(Copy("DS7", "DS8"), 2, id="copy"),
+        pytest.param(Search("DS72", "DS81", "DS71", "DS82", "C81", "=="), 2, id="search"),
+        pytest.param(
+            Send(
+                ModbusRtuTarget("rtu", "cpu2", 5),
+                "DS1",
+                "DS1",
+                1,
+                "C1",
+                "C2",
+                "C3",
+                "DS100",
+            ),
+            3,
+            id="send",
+        ),
+        pytest.param(
+            Receive(
+                ModbusRtuTarget("rtu", "cpu2", 5),
+                "DS1",
+                "DS1",
+                1,
+                "C1",
+                "C2",
+                "C3",
+                "DS100",
+            ),
+            3,
+            id="receive",
+        ),
+        pytest.param(
+            RawInstruction.from_csv_token("raw(X,0x2711,3,0000=)"),
+            3,
+            id="raw",
+        ),
+    ]
+
+
+def _search_continuation_row() -> list[object]:
+    """Return a nonblank continuation row with comparison and wire geometry."""
+    return [CompareContact("==", "DS300", "1", wire_down=True), "T", "|"] + [""] * 28
+
+
+def _event_drum() -> Drum:
+    """Return a compact event drum that exercises reset/jump/jog pin rows."""
+    return Drum(
+        drum_kind="event",
+        outputs=["Y10", "Y11"],
+        events_or_presets=["C10", "C11"],
+        pattern=[[1, 0], [0, 1]],
+        current_step="DS10",
+        completion_flag="C12",
+        jog_enabled=True,
+        jump_enabled=True,
+        jump_target="DS11",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +393,78 @@ class TestDecodedRungToRows:
         assert rows[1][1] == "rise(C78)"
         assert rows[2][32] == ".reset()"
 
+    def test_count_up_then_retained_timer_emits_both_blocks(self) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT5",
+            current="CTD5",
+            preset="100",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T5", "TD5", "10", "Tm", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _edge_row("C81"),
+                _blank_conditions(),
+                _contact_row("C82"),
+                _contact_row("C83"),
+                _contact_row("C84"),
+            ],
+            instructions=[counter, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 4
+        assert [row[32] for row in rows] == [
+            "count_up(CT5,CTD5,preset=100)",
+            ".reset()",
+            "on_delay(T5,TD5,preset=10,unit=Tm)",
+            ".reset()",
+        ]
+        assert rows[1][1] == "C82"
+        assert rows[3][1] == "C84"
+
+    def test_count_down_then_retained_timer_preserves_bridge_shape(self) -> None:
+        counter = Counter(
+            counter_type="count_down",
+            done_bit="CT6",
+            current="CTD6",
+            preset="25",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T6", "TD6", "20", "Ts", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C85"),
+                _edge_row("C86"),
+                _contact_row("C87"),
+                _contact_row("C88"),
+                _contact_row("C89"),
+            ],
+            instructions=[counter, "NOP", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 5
+        assert [row[32] for row in rows] == [
+            "",
+            "count_down(CT6,CTD6,preset=25)",
+            ".reset()",
+            "on_delay(T6,TD6,preset=20,unit=Ts)",
+            ".reset()",
+        ]
+        assert rows[0][1] == "C85"
+        assert rows[1][1] == "rise(C86)"
+        assert rows[4][1] == "C89"
+
     def test_shift_emits_clock_and_reset_pins(self) -> None:
         shift = Shift("C99", "C106")
         rung = Rung(
@@ -325,6 +484,34 @@ class TestDecodedRungToRows:
         assert rows[0][32] == "shift(C99..C106)"
         assert rows[1][32] == ".clock()"
         assert rows[2][32] == ".reset()"
+
+    def test_shift_then_timer_preserves_nonblank_timer_continuation(self) -> None:
+        shift = Shift("C99", "C106")
+        timer = Timer("on_delay", "T7", "TD7", "30", "Tms", retained=False)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C90"),
+                _contact_row("C91"),
+                _contact_row("C92"),
+                _contact_row("C93"),
+                _contact_row("C94"),
+            ],
+            instructions=[shift, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 5
+        assert [row[32] for row in rows] == [
+            "shift(C99..C106)",
+            ".clock()",
+            ".reset()",
+            "on_delay(T7,TD7,preset=30,unit=Tms)",
+            "",
+        ]
+        assert rows[4][1] == "C94"
 
     def test_shift_requires_three_rows(self) -> None:
         shift = Shift("C99", "C106")
@@ -389,3 +576,297 @@ class TestDecodedRungToRows:
         )
         with pytest.raises(WriterError):
             decoded_rung_to_rows(rung)
+
+
+class TestGenericTallRoundTrip:
+    @pytest.mark.parametrize(("af", "visual_rows"), _generic_tall_af_cases())
+    def test_later_tall_block_at_end_roundtrips(
+        self,
+        tmp_path: Path,
+        af: object,
+        visual_rows: int,
+    ) -> None:
+        lead = Coil(InstructionType.COIL_OUT, "Y900")
+        rung = Rung(
+            logical_rows=visual_rows + 1,
+            conditions=[
+                _contact_row("C200"),
+                _contact_row("C201"),
+                *[_blank_conditions() for _ in range(visual_rows - 1)],
+            ],
+            instructions=[lead, af, *([""] * (visual_rows - 1))],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 2
+        assert [row[32] for row in rows] == ["out(Y900)", af.to_csv()]
+
+        out_csv = tmp_path / f"later-tall-end-{type(af).__name__}.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == rung.logical_rows
+        assert round_tripped.conditions == rung.conditions
+        assert round_tripped.instructions == rung.instructions
+
+    @pytest.mark.parametrize(("af", "visual_rows"), _generic_tall_af_cases())
+    def test_later_tall_block_before_following_af_roundtrips(
+        self,
+        tmp_path: Path,
+        af: object,
+        visual_rows: int,
+    ) -> None:
+        lead = Coil(InstructionType.COIL_OUT, "Y901")
+        tail = Coil(InstructionType.COIL_OUT, "Y902")
+        rung = Rung(
+            logical_rows=visual_rows + 2,
+            conditions=[
+                _contact_row("C210"),
+                _contact_row("C211"),
+                *[_blank_conditions() for _ in range(visual_rows - 1)],
+                _contact_row("C212"),
+            ],
+            instructions=[lead, af, *([""] * (visual_rows - 1)), tail],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 3
+        assert [row[32] for row in rows] == ["out(Y901)", af.to_csv(), "out(Y902)"]
+
+        out_csv = tmp_path / f"later-tall-mid-{type(af).__name__}.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == rung.logical_rows
+        assert round_tripped.conditions == rung.conditions
+        assert round_tripped.instructions == rung.instructions
+
+
+class TestMultiPinnedRoundTrip:
+    def test_count_up_then_retained_timer_roundtrip(self, tmp_path: Path) -> None:
+        counter = Counter(
+            counter_type="count_up",
+            done_bit="CT8",
+            current="CTD8",
+            preset="100",
+            down_enabled=False,
+            reset_enabled=True,
+        )
+        timer = Timer("on_delay", "T8", "TD8", "10", "Tm", retained=True)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _edge_row("C95"),
+                _blank_conditions(),
+                _contact_row("C96"),
+                _contact_row("C97"),
+                _contact_row("C98"),
+            ],
+            instructions=[counter, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        out_csv = tmp_path / "count-up-timer.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == 5
+        assert isinstance(round_tripped.instructions[0], Counter)
+        assert isinstance(round_tripped.instructions[3], Timer)
+        assert round_tripped.instructions[3].retained is True
+        assert isinstance(round_tripped.conditions[2][0], Contact)
+        assert round_tripped.conditions[2][0].operand == "C96"
+        assert isinstance(round_tripped.conditions[4][0], Contact)
+        assert round_tripped.conditions[4][0].operand == "C98"
+
+    def test_shift_then_timer_roundtrip_preserves_blank_timer_row(self, tmp_path: Path) -> None:
+        shift = Shift("C120", "C127")
+        timer = Timer("on_delay", "T9", "TD9", "50", "Tms", retained=False)
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C99"),
+                _contact_row("C100"),
+                _contact_row("C101"),
+                _contact_row("C102"),
+                _contact_row("C103"),
+            ],
+            instructions=[shift, "", "", timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        out_csv = tmp_path / "shift-timer.csv"
+        write_csv(out_csv, [rung])
+        [round_tripped] = read_csv(out_csv)
+
+        assert round_tripped.logical_rows == 5
+        assert isinstance(round_tripped.instructions[0], Shift)
+        assert isinstance(round_tripped.instructions[3], Timer)
+        assert round_tripped.instructions[3].retained is False
+        assert round_tripped.instructions[4] == ""
+        assert isinstance(round_tripped.conditions[4][0], Contact)
+        assert round_tripped.conditions[4][0].operand == "C103"
+
+
+class TestRoundTripValidator:
+    def test_accepts_retained_timer(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C300"),
+                _contact_row("C301"),
+            ],
+            instructions=[Timer("on_delay", "T30", "TD30", "10", "Tm", retained=True), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_count_down_bridge_shape(self) -> None:
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                _contact_row("C302"),
+                _edge_row("C303"),
+                _contact_row("C304"),
+            ],
+            instructions=[
+                Counter(
+                    counter_type="count_down",
+                    done_bit="CT30",
+                    current="CTD30",
+                    preset="50",
+                    down_enabled=False,
+                    reset_enabled=True,
+                ),
+                "NOP",
+                "",
+            ],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_generic_tall_continuation_with_comparison_and_t(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C305"),
+                _search_continuation_row(),
+            ],
+            instructions=[Search("DS72", "DS81", "DS71", "DS82", "C81", "=="), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_drum_pin_rows(self) -> None:
+        rung = Rung(
+            logical_rows=4,
+            conditions=[
+                _contact_row("C306"),
+                _contact_row("C307"),
+                _contact_row("C308"),
+                _contact_row("C309"),
+            ],
+            instructions=[_event_drum(), "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_raises_on_missing_retained_timer_reset_pin(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C310"),
+                _contact_row("C311"),
+            ],
+            instructions=[Timer("on_delay", "T31", "TD31", "20", "Tm", retained=True), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[1][32] = ""
+
+        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_count_down_top_row_contact(self) -> None:
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                _contact_row("C312"),
+                _edge_row("C313"),
+                _contact_row("C314"),
+            ],
+            instructions=[
+                Counter(
+                    counter_type="count_down",
+                    done_bit="CT31",
+                    current="CTD31",
+                    preset="75",
+                    down_enabled=False,
+                    reset_enabled=True,
+                ),
+                "NOP",
+                "",
+            ],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[0][1] = ""
+
+        with pytest.raises(WriterError, match=r"condition mismatch at row 1 col A"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_generic_tall_continuation_comparison(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C315"),
+                _search_continuation_row(),
+            ],
+            instructions=[Search("DS90", "DS99", "DS89", "DS100", "C316", "=="), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[1][1] = ""
+
+        with pytest.raises(WriterError, match=r"condition mismatch at row 2 col A"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_drum_jump_pin(self) -> None:
+        rung = Rung(
+            logical_rows=4,
+            conditions=[
+                _contact_row("C317"),
+                _contact_row("C318"),
+                _contact_row("C319"),
+                _contact_row("C320"),
+            ],
+            instructions=[_event_drum(), "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[2][32] = ""
+
+        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+            _validate_roundtrip(rung, rows)

@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 _TYPE_CODE = 0x2736
 _CLASS_NAME = "Position"
-_FIELD_COUNT = 18
+_FIELD_COUNT = 19
 
 # ---------------------------------------------------------------------------
 # Shared field extraction

@@ -24,8 +24,10 @@ from .decode import Rung, _decode_rtf
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
+    UnknownInstruction,
     from_tags_af,
     from_tags_condition,
+    get_af_family_for_token,
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
@@ -33,7 +35,7 @@ from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.shift import Shift
 from .instructions.timer import Timer
-from .model import Program
+from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -925,13 +927,16 @@ def _build_topology_backed_rung(
 # ---------------------------------------------------------------------------
 
 
-def _implied_modifier_row_offsets(af: object) -> set[int]:
-    """Return AF-relative row offsets whose logic path may be omitted in SCR.
+def _implied_modifier_row_offsets(af: AfInstruction | UnknownInstruction) -> set[int]:
+    """Return AF-relative row offsets whose horizontal path may be omitted in SCR.
 
     Click can store ``count=0`` or omit continuation-row topology blocks for
-    some AF modifier rows even when the visible rung still carries logic across
-    that row. The AF blob does still tell us which visual sub-rows are actual
-    logic inputs, so we restrict implied dash fill to those known pin rows.
+    some tall-AF continuation rows even when the visible rung still carries
+    logic across that row. Pinned families still use hand-tuned offsets so
+    optional pin rows only opt in when the AF state says that pin is active.
+    Non-pinned tall families (copy/search/send_receive/raw) expose plain
+    continuation rows instead, so every visual continuation row can carry logic
+    when Click suppresses its explicit topology block.
     """
     if isinstance(af, Shift):
         return {1, 2}
@@ -958,6 +963,15 @@ def _implied_modifier_row_offsets(af: object) -> set[int]:
             if af.jog_enabled:
                 rows.add(3)
         return rows
+
+    if isinstance(af, UnknownInstruction):
+        return set()
+
+    family = get_af_family_for_token(af)
+    if family is not None and not family.pin_names:
+        visual_rows = max(1, int(af.cell_params().get("visual_rows", 1)))
+        if visual_rows > 1:
+            return set(range(1, visual_rows))
 
     return set()
 
@@ -1104,8 +1118,9 @@ def _build_rung(
             if 0 < row < logical_rows:
                 implied_modifier_rows.add(row)
 
-    # 4. Targeted fallback for modifier rows whose topology Click omits from
-    #    SCR even though the AF blob says that visual sub-row accepts logic.
+    # 4. Fallback for logic-carrying continuation rows whose topology Click
+    #    omits from SCR. Rebuild the implied horizontal path and merge any
+    #    pre-parsed wire_down markers into T-junctions.
     for row in sorted(implied_modifier_rows):
         explicit_right_wires = row - 1 < len(extra_rows_right_wires) and bool(
             extra_rows_right_wires[row - 1]
@@ -1113,19 +1128,20 @@ def _build_rung(
         if explicit_right_wires:
             continue
 
-        rightmost = -1
+        leftmost = None
         for col in range(_CONDITION_COLUMNS):
             if conditions[row][col] != "":
-                rightmost = col
-        if rightmost < 0:
+                leftmost = col
+                break
+        if leftmost is None:
             continue
 
-        for col in range(rightmost + 1, _CONDITION_COLUMNS):
-            if conditions[row][col] != "":
-                continue
-            if row > 0 and conditions[row - 1][col] == "|":
-                continue
-            conditions[row][col] = "-"
+        for col in range(leftmost, _CONDITION_COLUMNS):
+            cell = conditions[row][col]
+            if cell == "":
+                conditions[row][col] = "-"
+            elif cell == "|":
+                conditions[row][col] = "T"
 
     return Rung(
         logical_rows=logical_rows,

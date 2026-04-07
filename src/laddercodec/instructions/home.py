@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 _TYPE_CODE = 0x2734
 _CLASS_NAME = "Home"
-_FIELD_COUNT = 21
+_FIELD_COUNT = 22
 
 # ---------------------------------------------------------------------------
 # Shared field extraction

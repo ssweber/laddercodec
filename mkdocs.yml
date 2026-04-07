@@ -13,6 +13,7 @@ nav:
       - Decoding: guides/decoding.md
       - CSV Format: guides/csv-format.md
       - Adding Instructions: guides/adding-instructions.md
+      - Troubleshooting: guides/troubleshooting.md
   - Internals:
       - Binary Format: internals/binary-format.md
       - Wire Rendering: internals/wire-rendering.md

@@ -22,7 +22,6 @@ from laddercodec.csv.converter import (
     af_node_to_token,
     condition_node_to_token,
     convert_rung,
-    strip_tall_padding,
 )
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.instructions import (
@@ -34,6 +33,7 @@ from laddercodec.instructions import (
     Next,
     RawInstruction,
     Return,
+    Search,
     Shift,
     Timer,
 )
@@ -134,6 +134,48 @@ class TestTimerAutopad:
         assert all(c == "-" for c in conds[1])  # user wires preserved
 
 
+class TestGenericTallRows:
+    def test_search_inserts_blank_continuation_before_following_af(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C10"), "search(DS72..DS81 == DS71,result=DS82,found=C81)"),
+                ("", _wire_row("C11"), "out(Y001)"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+
+        assert lr == 3
+        assert isinstance(afs[0], Search)
+        assert afs[1] == ""
+        assert isinstance(afs[2], Coil)
+        assert all(c == "" for c in conds[1])
+        assert isinstance(conds[2][0], Contact)
+        assert conds[2][0].operand == "C11"
+
+    def test_search_later_in_rung_auto_adds_trailing_blank_row(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C12"), "out(Y002)"),
+                ("", _wire_row("C13"), "search(DS90..DS99 == DS89,result=DS100,found=C14)"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+
+        assert lr == 3
+        assert isinstance(afs[0], Coil)
+        assert isinstance(afs[1], Search)
+        assert afs[2] == ""
+        assert all(c == "" for c in conds[2])
+
+
 class TestPinRows:
     def test_reset_makes_timer_retentive(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
@@ -205,57 +247,6 @@ class TestPinRows:
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="Unknown pin"):
             convert_rung(rung)
-
-
-class TestStripTallPadding:
-    def test_strips_blank_trailing_row(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [""] * 31,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 1
-        assert len(new_conds) == 1
-        assert len(new_afs) == 1
-
-    def test_keeps_row_with_wires(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            ["-"] * 31,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2  # kept because row has wires
-
-    def test_keeps_row_with_contacts(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=True)
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [Contact(InstructionType.CONTACT_NO, "X002")] + ["-"] * 30,
-        ]
-        afs: list[object] = [timer, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2
-
-    def test_no_strip_for_non_timer(self) -> None:
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
-        conds = [
-            [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
-            [""] * 31,
-        ]
-        afs: list[object] = [coil, ""]
-        lr, new_conds, new_afs = strip_tall_padding(2, conds, afs)
-        assert lr == 2  # not a tall instruction, no strip
-
-    def test_single_row_passthrough(self) -> None:
-        timer = Timer("on_delay", "T1", "TD1", "1000", "Tms")
-        conds = [[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30]
-        afs: list[object] = [timer]
-        lr, new_conds, new_afs = strip_tall_padding(1, conds, afs)
-        assert lr == 1
 
 
 class TestConditionNodeToToken:
