@@ -171,8 +171,24 @@ def _start_active_block(
     )
 
 
+def _max_continuations(block: _ActiveBlock) -> int:
+    """Maximum number of continuation rows a block type can absorb."""
+    if isinstance(block.token, Timer):
+        return 1
+    if isinstance(block.token, Counter):
+        return 2
+    if isinstance(block.token, Shift):
+        return 2
+    if isinstance(block.token, Drum):
+        return 3
+    return 0
+
+
 def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
     """Consume a continuation row for the active block when it belongs there."""
+    if len(block.continuations) >= _max_continuations(block):
+        return False
+
     if row.kind == "blank":
         block.continuations.append(row)
         return True
@@ -217,9 +233,6 @@ def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
 def _finalize_timer_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
     """Expand one timer block back to its decoded 2-row span."""
     timer = cast(Timer, block.token)
-    if len(block.continuations) > 1:
-        raise ConvertError("Timer block uses more than one continuation row")
-
     continuation_conditions = _blank_condition_row()
     if block.continuations:
         continuation = block.continuations[0]
@@ -261,7 +274,6 @@ def _finalize_count_up_block(
         if reset_conditions is None:
             reset_conditions = row.conditions
             continue
-        raise ConvertError("count_up block uses more than two continuation rows")
 
     if not counter.reset_enabled:
         raise ConvertError(f"{counter.counter_type} requires a .reset() pin row")
@@ -306,7 +318,6 @@ def _finalize_count_down_block(
         if reset_conditions is None:
             reset_conditions = row.conditions
             continue
-        raise ConvertError("count_down block uses more than two continuation rows")
 
     if not counter.reset_enabled:
         raise ConvertError(f"{counter.counter_type} requires a .reset() pin row")
@@ -371,7 +382,6 @@ def _finalize_shift_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken
         if reset_conditions is None:
             reset_conditions = row.conditions
             continue
-        raise ConvertError("Shift block uses more than two continuation rows")
 
     if clock_conditions is None:
         clock_conditions = _blank_condition_row()
@@ -416,7 +426,6 @@ def _finalize_drum_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]
         if jog_conditions is None:
             jog_conditions = row.conditions
             continue
-        raise ConvertError("Drum block uses more than three continuation rows")
 
     if reset_conditions is None:
         raise ConvertError("Drum requires a .reset() pin row")
