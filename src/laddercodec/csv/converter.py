@@ -61,6 +61,7 @@ from .ast import (
     GenericCondition,
     HorizontalWire,
     JunctionDownWire,
+    RowAst,
     RungAst,
     VerticalPassThroughWire,
 )
@@ -109,7 +110,7 @@ def _blank_condition_row() -> list[ConditionToken]:
     return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
 
 
-def _parse_rung_row(row: object, *, strict: bool) -> _ParsedRow:
+def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     """Convert one parsed CSV row into tokens plus AF-row classification."""
     conds = [condition_node_to_token(n) for n in row.condition_nodes]
     af_node = row.af_node

@@ -134,11 +134,11 @@ def _emit_timer_block(
 
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], timer)
     if timer.retained:
-        data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 1], ".reset()")
-    else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 1]
+        data_row_count = _append_data_row(
+            rows, data_row_count, condition_rows[start + 1], ".reset()"
         )
+    else:
+        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 1])
     return data_row_count, 2
 
 
@@ -168,7 +168,9 @@ def _emit_counter_block(
         )
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], counter)
         if counter.down_enabled:
-            data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 1], ".down()")
+            data_row_count = _append_data_row(
+                rows, data_row_count, condition_rows[start + 1], ".down()"
+            )
         else:
             data_row_count = _emit_blank_continuation(
                 rows, data_row_count, condition_rows[start + 1]
@@ -203,9 +205,7 @@ def _emit_counter_block(
             rows, data_row_count, condition_rows[start + 2], ".reset()"
         )
     else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 2]
-        )
+        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 2])
     return data_row_count, 3
 
 
@@ -273,15 +273,11 @@ def _emit_drum_block(
             f".jump({drum.jump_target})",
         )
     else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 2]
-        )
+        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 2])
     if drum.jog_enabled:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 3], ".jog()")
     else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 3]
-        )
+        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 3])
     return data_row_count, 4
 
 

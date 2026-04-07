@@ -41,3 +41,4 @@ instr-3row-or: worked
 instr-3row-scatter: worked
 instr-timer-ret: worked
 instr-coil-timer-ret: worked
+instr-6row-multi-output: worked
