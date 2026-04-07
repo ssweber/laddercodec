@@ -191,6 +191,7 @@ _PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 # Instruction data starts at this offset within a cell.
 _INSTR_DATA_OFFSET = 0x25
 
+
 @dataclass(frozen=True)
 class _RtfStyle:
     """Inline style state for markdown-emitting RTF decode."""
@@ -215,7 +216,7 @@ _RTF_STYLE_MARKERS: tuple[tuple[str, str], ...] = (
     ("underline", "__"),
 )
 
-_RTF_ANSI_CPG_RE = re.compile(br"\\ansicpg(\d+)")
+_RTF_ANSI_CPG_RE = re.compile(rb"\\ansicpg(\d+)")
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
@@ -235,9 +236,7 @@ def _validate_buffer(data: bytes) -> None:
         )
 
 
-def _emit_rtf_style_transition(
-    out: list[str], current: _RtfStyle, target: _RtfStyle
-) -> _RtfStyle:
+def _emit_rtf_style_transition(out: list[str], current: _RtfStyle, target: _RtfStyle) -> _RtfStyle:
     """Emit markdown markers needed to move from ``current`` to ``target``."""
     if current == target:
         return current
@@ -447,7 +446,9 @@ def _decode_rtf(payload: bytes) -> str:
                 elif control == "i":
                     group.style = replace(group.style, italic=arg != 0 if arg is not None else True)
                 elif control == "ul":
-                    group.style = replace(group.style, underline=arg != 0 if arg is not None else True)
+                    group.style = replace(
+                        group.style, underline=arg != 0 if arg is not None else True
+                    )
                 elif control == "ulnone":
                     group.style = replace(group.style, underline=False)
                 elif control == "plain":
