@@ -157,6 +157,27 @@ def test_rtf_decode_tab_control() -> None:
     assert _decode_rtf(payload) == "Col1\tCol2"
 
 
+def test_rtf_decode_rejects_non_1252_ansicpg() -> None:
+    payload = _PREFIX.replace(b"\\ansicpg1252", b"\\ansicpg1251", 1) + b"Hello" + _SUFFIX
+    with pytest.raises(DecodeError, match="ansicpg1252"):
+        _decode_rtf(payload)
+
+
+def test_rtf_decode_unicode_escape_skips_ascii_fallback() -> None:
+    payload = _PREFIX + rb"\u8217?" + _SUFFIX
+    assert _decode_rtf(payload) == "\u2019"
+
+
+def test_rtf_decode_unicode_escape_skips_hex_fallback() -> None:
+    payload = _PREFIX + rb"\u8217\'92" + _SUFFIX
+    assert _decode_rtf(payload) == "\u2019"
+
+
+def test_rtf_decode_unicode_escape_signed_16bit_arg() -> None:
+    payload = _PREFIX + rb"\u-24679?" + _SUFFIX
+    assert _decode_rtf(payload) == "\u9f99"
+
+
 # -- DecodedRung preserves raw RTF --
 
 

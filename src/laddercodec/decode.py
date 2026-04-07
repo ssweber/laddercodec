@@ -34,6 +34,7 @@ bytes preserved.
 
 from __future__ import annotations
 
+import re
 import struct
 from dataclasses import dataclass, replace
 
@@ -205,6 +206,7 @@ class _RtfGroupState:
 
     style: _RtfStyle
     skip_destination: bool = False
+    unicode_skip: int = 1
 
 
 _RTF_STYLE_MARKERS: tuple[tuple[str, str], ...] = (
@@ -212,6 +214,8 @@ _RTF_STYLE_MARKERS: tuple[tuple[str, str], ...] = (
     ("italic", "*"),
     ("underline", "__"),
 )
+
+_RTF_ANSI_CPG_RE = re.compile(br"\\ansicpg(\d+)")
 
 # Max bytes to scan forward when searching for a cell boundary.
 _CELL_SCAN_LIMIT = 0x200
@@ -296,6 +300,60 @@ def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
     return word, arg, j
 
 
+def _assert_rtf_ansicpg_1252(payload: bytes, body_start: int) -> None:
+    """Reject RTF payloads that declare a non-cp1252 ANSI code page."""
+    match = _RTF_ANSI_CPG_RE.search(payload[:body_start])
+    if match is None:
+        raise DecodeError("Cannot locate RTF code page: missing \\ansicpg in prefix")
+
+    codepage = match.group(1)
+    if codepage != b"1252":
+        value = codepage.decode("ascii", errors="replace")
+        raise DecodeError(
+            f"Unsupported RTF code page: expected \\ansicpg1252, got \\ansicpg{value}"
+        )
+
+
+def _decode_rtf_unicode_char(arg: int | None) -> str:
+    """Decode one RTF ``\\u`` argument using the signed 16-bit rules."""
+    if arg is None:
+        return ""
+
+    codepoint = arg if arg >= 0 else arg + 0x10000
+    if not (0 <= codepoint <= 0x10FFFF):
+        return ""
+
+    try:
+        return chr(codepoint)
+    except ValueError:
+        return ""
+
+
+def _skip_rtf_fallback_chars(body: str, i: int, count: int) -> int:
+    """Skip the ANSI fallback chars that follow an RTF ``\\u`` control."""
+    remaining = max(count, 0)
+    n = len(body)
+
+    while remaining > 0 and i < n:
+        if body[i] in "\r\n":
+            i += 1
+            continue
+
+        if body[i] == "\\":
+            control, _, next_i = _parse_rtf_control(body, i)
+            if control == "'" and i + 4 <= n:
+                i += 4
+            else:
+                i = next_i
+            remaining -= 1
+            continue
+
+        i += 1
+        remaining -= 1
+
+    return i
+
+
 def _decode_rtf(payload: bytes) -> str:
     """Convert an RTF comment payload to markdown text.
 
@@ -315,6 +373,8 @@ def _decode_rtf(payload: bytes) -> str:
         if space == -1:
             raise DecodeError("Cannot locate RTF body: no space after \\fs marker")
         body_start = space + 1
+
+    _assert_rtf_ansicpg_1252(payload, body_start)
 
     if payload.endswith(_SUFFIX):
         body_end = len(payload) - len(_SUFFIX)
@@ -341,6 +401,7 @@ def _decode_rtf(payload: bytes) -> str:
                 _RtfGroupState(
                     style=group.style,
                     skip_destination=group.skip_destination,
+                    unicode_skip=group.unicode_skip,
                 )
             )
             i += 1
@@ -391,6 +452,14 @@ def _decode_rtf(payload: bytes) -> str:
                     group.style = replace(group.style, underline=False)
                 elif control == "plain":
                     group.style = _RtfStyle()
+                elif control == "uc":
+                    if arg is not None:
+                        group.unicode_skip = max(arg, 0)
+                elif control == "u":
+                    if arg is not None and not group.skip_destination:
+                        text = _decode_rtf_unicode_char(arg)
+                        render_style = _append_rtf_text(out, render_style, group.style, text)
+                    next_i = _skip_rtf_fallback_chars(body, next_i, group.unicode_skip)
                 elif control in {"par", "line"}:
                     if not group.skip_destination:
                         render_style = _append_rtf_text(out, render_style, group.style, "\n")
