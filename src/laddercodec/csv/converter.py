@@ -7,8 +7,11 @@ tuple consumed by ``encode_rung()``.  Handles:
 - AF token conversion (coils, timers, NOP)
 - Pin continuation rows (``.reset()``, ``.down()``, etc.) — absorbed into
   the parent instruction rather than emitted as separate rows
-- Auto-padding: tall AF instructions (timers, counters) get a blank
-  continuation row appended when the user provides only one row
+- Multi-row AF instructions: pinned families (timers, counters, shift,
+  drum) absorb their continuation rows; other tall AF instructions keep
+  blank-AF continuation rows as part of the same visual block
+- Auto-padding: tall AF instructions get blank continuation rows
+  appended when the user omits them
 
 Pin rows
 --------
@@ -27,9 +30,10 @@ contributes its conditions/wires as the reset-enable branch.  It does
 Tall instructions
 -----------------
 
-Some AF instructions occupy more than one grid row visually (timers = 2).
-If the user CSV has only the instruction row, a blank padding row is
-auto-appended so ``encode_rung()`` receives the correct ``logical_rows``.
+Some AF instructions occupy more than one grid row visually (timers = 2,
+search/copy = 2, send/receive = 3, etc.).  If the user CSV omits blank
+continuation rows, they are auto-appended so ``encode_rung()`` receives
+the correct ``logical_rows``.
 """
 
 from __future__ import annotations
@@ -79,7 +83,7 @@ _RETENTIVE_PINS = frozenset({".reset"})
 # ---------------------------------------------------------------------------
 
 CONDITION_COLUMNS = 31
-_BLOCK_FAMILIES = frozenset({"timer", "counter", "shift", "drum"})
+_PINNED_BLOCK_FAMILIES = frozenset({"timer", "counter", "shift", "drum"})
 
 
 @dataclass
@@ -98,8 +102,8 @@ class _ParsedRow:
 class _ActiveBlock:
     """A multi-row AF block that is still gathering continuation rows."""
 
-    family_name: str
-    token: Timer | Counter | Shift | Drum
+    family_name: str | None
+    token: AfInstruction
     main_conditions: list[ConditionToken]
     leading_blank_conditions: list[ConditionToken] | None = None
     continuations: list[_ParsedRow] = field(default_factory=list)
@@ -108,6 +112,13 @@ class _ActiveBlock:
 def _blank_condition_row() -> list[ConditionToken]:
     """Return one all-blank condition row."""
     return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+
+
+def _af_visual_rows(token: AfToken) -> int:
+    """Return the AF token's visual row count."""
+    if isinstance(token, AfInstruction):
+        return max(1, int(token.cell_params().get("visual_rows", 1)))
+    return 1
 
 
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
@@ -133,12 +144,21 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
         return _ParsedRow(conditions=conds, kind="nop", token="NOP")
 
     family = get_af_family_for_token(token)
-    if family is not None and family.family_name in _BLOCK_FAMILIES:
+    visual_rows = _af_visual_rows(token)
+    if family is not None and (
+        family.family_name in _PINNED_BLOCK_FAMILIES or visual_rows > 1
+    ):
         return _ParsedRow(
             conditions=conds,
             kind="block_main",
             token=token,
             family_name=family.family_name,
+        )
+    if visual_rows > 1:
+        return _ParsedRow(
+            conditions=conds,
+            kind="block_main",
+            token=token,
         )
     return _ParsedRow(conditions=conds, kind="main", token=token)
 
@@ -161,10 +181,10 @@ def _start_active_block(
     leading_blank_conditions: list[ConditionToken] | None = None,
 ) -> _ActiveBlock:
     """Create a new active multi-row AF block from its main AF row."""
-    if not isinstance(row.token, (Timer, Counter, Shift, Drum)):
-        raise AssertionError("block_main row must carry a timer/counter/shift/drum token")
+    if not isinstance(row.token, AfInstruction):
+        raise AssertionError("block_main row must carry an AF instruction token")
     return _ActiveBlock(
-        family_name=cast(str, row.family_name),
+        family_name=row.family_name,
         token=row.token,
         main_conditions=row.conditions,
         leading_blank_conditions=leading_blank_conditions,
@@ -173,15 +193,7 @@ def _start_active_block(
 
 def _max_continuations(block: _ActiveBlock) -> int:
     """Maximum number of continuation rows a block type can absorb."""
-    if isinstance(block.token, Timer):
-        return 1
-    if isinstance(block.token, Counter):
-        return 2
-    if isinstance(block.token, Shift):
-        return 2
-    if isinstance(block.token, Drum):
-        return 3
-    return 0
+    return max(0, _af_visual_rows(block.token) - 1)
 
 
 def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
@@ -443,6 +455,24 @@ def _finalize_drum_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]
     ], [drum, "", "", ""]
 
 
+def _finalize_generic_tall_block(
+    block: _ActiveBlock,
+) -> tuple[list[list[ConditionToken]], list[AfToken]]:
+    """Expand a non-pinned tall AF block to its full visual row span."""
+    visual_rows = _af_visual_rows(block.token)
+    condition_rows = [block.main_conditions]
+    af_tokens: list[AfToken] = [block.token]
+
+    for offset in range(visual_rows - 1):
+        if offset < len(block.continuations):
+            condition_rows.append(block.continuations[offset].conditions)
+        else:
+            condition_rows.append(_blank_condition_row())
+        af_tokens.append("")
+
+    return condition_rows, af_tokens
+
+
 def _finalize_active_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
     """Expand the current active block into decode-ready rows/tokens."""
     if isinstance(block.token, Timer):
@@ -453,7 +483,7 @@ def _finalize_active_block(block: _ActiveBlock) -> tuple[list[list[ConditionToke
         return _finalize_shift_block(block)
     if isinstance(block.token, Drum):
         return _finalize_drum_block(block)
-    raise AssertionError(f"Unsupported active block token: {type(block.token).__name__}")
+    return _finalize_generic_tall_block(block)
 
 
 def condition_node_to_token(node: object) -> ConditionToken:
