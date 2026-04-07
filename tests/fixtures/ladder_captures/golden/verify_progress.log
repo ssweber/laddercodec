@@ -42,3 +42,4 @@ instr-3row-scatter: worked
 instr-timer-ret: worked
 instr-coil-timer-ret: worked
 instr-6row-multi-output: worked
+instr-copy-multirow-2af: worked
