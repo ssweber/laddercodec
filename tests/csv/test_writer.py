@@ -8,8 +8,10 @@ import pytest
 
 from laddercodec import (
     Coil,
+    CompareContact,
     Contact,
     Counter,
+    Drum,
     ForLoop,
     Next,
     Rung,
@@ -21,6 +23,7 @@ from laddercodec import (
 )
 from laddercodec.csv.writer import (
     WriterError,
+    _validate_roundtrip,
     decoded_rung_to_rows,
 )
 from laddercodec.instructions import (
@@ -102,6 +105,26 @@ def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
             id="raw",
         ),
     ]
+
+
+def _search_continuation_row() -> list[object]:
+    """Return a nonblank continuation row with comparison and wire geometry."""
+    return [CompareContact("==", "DS300", "1", wire_down=True), "T", "|"] + [""] * 28
+
+
+def _event_drum() -> Drum:
+    """Return a compact event drum that exercises reset/jump/jog pin rows."""
+    return Drum(
+        drum_kind="event",
+        outputs=["Y10", "Y11"],
+        events_or_presets=["C10", "C11"],
+        pattern=[[1, 0], [0, 1]],
+        current_step="DS10",
+        completion_flag="C12",
+        jog_enabled=True,
+        jump_enabled=True,
+        jump_target="DS11",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -689,3 +712,161 @@ class TestMultiPinnedRoundTrip:
         assert round_tripped.instructions[4] == ""
         assert isinstance(round_tripped.conditions[4][0], Contact)
         assert round_tripped.conditions[4][0].operand == "C103"
+
+
+class TestRoundTripValidator:
+    def test_accepts_retained_timer(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C300"),
+                _contact_row("C301"),
+            ],
+            instructions=[Timer("on_delay", "T30", "TD30", "10", "Tm", retained=True), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_count_down_bridge_shape(self) -> None:
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                _contact_row("C302"),
+                _edge_row("C303"),
+                _contact_row("C304"),
+            ],
+            instructions=[
+                Counter(
+                    counter_type="count_down",
+                    done_bit="CT30",
+                    current="CTD30",
+                    preset="50",
+                    down_enabled=False,
+                    reset_enabled=True,
+                ),
+                "NOP",
+                "",
+            ],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_generic_tall_continuation_with_comparison_and_t(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C305"),
+                _search_continuation_row(),
+            ],
+            instructions=[Search("DS72", "DS81", "DS71", "DS82", "C81", "=="), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_accepts_drum_pin_rows(self) -> None:
+        rung = Rung(
+            logical_rows=4,
+            conditions=[
+                _contact_row("C306"),
+                _contact_row("C307"),
+                _contact_row("C308"),
+                _contact_row("C309"),
+            ],
+            instructions=[_event_drum(), "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        _validate_roundtrip(rung, decoded_rung_to_rows(rung))
+
+    def test_raises_on_missing_retained_timer_reset_pin(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C310"),
+                _contact_row("C311"),
+            ],
+            instructions=[Timer("on_delay", "T31", "TD31", "20", "Tm", retained=True), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[1][32] = ""
+
+        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_count_down_top_row_contact(self) -> None:
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                _contact_row("C312"),
+                _edge_row("C313"),
+                _contact_row("C314"),
+            ],
+            instructions=[
+                Counter(
+                    counter_type="count_down",
+                    done_bit="CT31",
+                    current="CTD31",
+                    preset="75",
+                    down_enabled=False,
+                    reset_enabled=True,
+                ),
+                "NOP",
+                "",
+            ],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[0][1] = ""
+
+        with pytest.raises(WriterError, match=r"condition mismatch at row 1 col A"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_generic_tall_continuation_comparison(self) -> None:
+        rung = Rung(
+            logical_rows=2,
+            conditions=[
+                _contact_row("C315"),
+                _search_continuation_row(),
+            ],
+            instructions=[Search("DS90", "DS99", "DS89", "DS100", "C316", "=="), ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[1][1] = ""
+
+        with pytest.raises(WriterError, match=r"condition mismatch at row 2 col A"):
+            _validate_roundtrip(rung, rows)
+
+    def test_raises_on_missing_drum_jump_pin(self) -> None:
+        rung = Rung(
+            logical_rows=4,
+            conditions=[
+                _contact_row("C317"),
+                _contact_row("C318"),
+                _contact_row("C319"),
+                _contact_row("C320"),
+            ],
+            instructions=[_event_drum(), "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rows[2][32] = ""
+
+        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+            _validate_roundtrip(rung, rows)

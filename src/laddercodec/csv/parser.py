@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
@@ -86,6 +87,17 @@ def _segment_rungs(rows: tuple[RowAst, ...]) -> tuple[RungAst, ...]:
         rungs.append(RungAst(comment_rows=tuple(current_comments), rows=tuple(current)))
 
     return tuple(rungs)
+
+
+def _parse_single_rung_rows(row_fields: Sequence[Sequence[str]]) -> RungAst:
+    """Parse in-memory canonical row fields into exactly one ``RungAst``."""
+    rows = tuple(_row_ast(_canonical_row_from_fields(list(fields))) for fields in row_fields)
+    rungs = _segment_rungs(rows)
+    if not rungs:
+        raise ValueError("Expected one rung in emitted CSV rows; got none")
+    if len(rungs) != 1:
+        raise ValueError(f"Expected one rung in emitted CSV rows; got {len(rungs)}")
+    return rungs[0]
 
 
 def _load_canonical_rows(path: Path) -> tuple[CanonicalRow, ...]:

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **CSV writer**: fail loudly when emitted CSV rows lose decoded rung
+  semantics by reparsing writer output and checking for row, condition, or AF
+  mismatches before writing to disk
+
 ## 0.1.3
 
 ### Fixed

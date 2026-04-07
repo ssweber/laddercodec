@@ -42,7 +42,9 @@ from ..instructions import (
     UnknownInstruction,
     get_af_family_for_token,
 )
-from .contract import CSV_HEADER
+from .contract import CONDITION_COLUMNS, CSV_HEADER
+from .converter import convert_rung
+from .parser import _parse_single_rung_rows
 
 
 class WriterError(ValueError):
@@ -309,6 +311,73 @@ def _emit_generic_tall_block(
     return data_row_count, visual_rows
 
 
+def _display_token(token: object) -> str:
+    """Return a compact user-facing representation for mismatch errors."""
+    try:
+        return repr(_token_to_csv(token))
+    except WriterError:
+        return repr(token)
+
+
+def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
+    """Round-trip emitted CSV rows back into a decoded-style ``Rung``."""
+    try:
+        rung_ast = _parse_single_rung_rows(rows)
+        logical_rows, conditions, instructions, comment = convert_rung(rung_ast)
+    except (TypeError, ValueError) as exc:
+        raise WriterError(
+            f"CSV round-trip validation failed: emitted rows do not reparse: {exc}"
+        ) from exc
+
+    return Rung(
+        logical_rows=logical_rows,
+        conditions=conditions,
+        instructions=instructions,
+        comment=comment,
+        comment_rtf=None,
+    )
+
+
+def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
+    """Fail loudly when emitted CSV rows lose information from the decoded rung."""
+    rebuilt = _rebuild_rung_from_rows(rows)
+
+    if rebuilt.logical_rows != rung.logical_rows:
+        raise WriterError(
+            "CSV round-trip validation failed: "
+            f"logical row count mismatch: expected {rung.logical_rows}, got {rebuilt.logical_rows}"
+        )
+
+    if rebuilt.comment != rung.comment:
+        raise WriterError(
+            "CSV round-trip validation failed: "
+            f"comment mismatch: expected {rung.comment!r}, got {rebuilt.comment!r}"
+        )
+
+    for row_idx, (expected_row, actual_row) in enumerate(
+        zip(rung.conditions, rebuilt.conditions, strict=True),
+        start=1,
+    ):
+        for col_idx, (expected, actual) in enumerate(zip(expected_row, actual_row, strict=True)):
+            if expected != actual:
+                raise WriterError(
+                    "CSV round-trip validation failed: "
+                    f"condition mismatch at row {row_idx} col {CONDITION_COLUMNS[col_idx]}: "
+                    f"expected {_display_token(expected)}, got {_display_token(actual)}"
+                )
+
+    for row_idx, (expected, actual) in enumerate(
+        zip(rung.instructions, rebuilt.instructions, strict=True),
+        start=1,
+    ):
+        if expected != actual:
+            raise WriterError(
+                "CSV round-trip validation failed: "
+                f"AF mismatch at row {row_idx}: "
+                f"expected {_display_token(expected)}, got {_display_token(actual)}"
+            )
+
+
 def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     """Convert a ``Rung`` to a list of CSV row lists.
 
@@ -379,6 +448,7 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[row_idx], af)
         row_idx += consumed
 
+    _validate_roundtrip(rung, rows)
     return rows
 
 
