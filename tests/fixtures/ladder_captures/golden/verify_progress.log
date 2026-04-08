@@ -43,3 +43,4 @@ instr-coil-timer-ret: worked
 instr-6row-multi-output: worked
 instr-copy-multirow-2af: worked
 instr-3row-branch: worked
+instr-copy-multirow-2af-T: worked

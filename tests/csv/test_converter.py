@@ -19,6 +19,7 @@ from laddercodec.csv.ast import (
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import (
     ConvertError,
+    _hydrate_wire_continuations,
     af_node_to_token,
     condition_node_to_token,
     convert_rung,
@@ -660,3 +661,82 @@ class TestConvertRungStrict:
         assert lr == 2
         assert afs[0] == ""
         assert afs[1] == ""
+
+
+class TestHydrateWireContinuations:
+    def test_pipe_added_under_T_non_A_column(self) -> None:
+        """T in column B propagates | to the blank cell below."""
+        rows = [
+            ["", "T"] + [""] * 29,
+            [""] * 31,
+            [""] * 31,
+        ]
+        _hydrate_wire_continuations(rows)
+        assert rows[1][1] == "|"
+        assert rows[2][1] == ""  # last row never written to
+
+    def test_pipe_propagates_multi_row(self) -> None:
+        """| from hydration continues propagating downward."""
+        rows = [
+            ["", "", "T"] + [""] * 28,
+            [""] * 31,
+            [""] * 31,
+            [""] * 31,
+        ]
+        _hydrate_wire_continuations(rows)
+        assert rows[1][2] == "|"
+        assert rows[2][2] == "|"  # propagated from row 1's newly-added |
+        assert rows[3][2] == ""  # last row untouched
+
+    def test_does_not_overwrite_existing_content(self) -> None:
+        """Only blank cells get hydrated."""
+        rows = [
+            ["", "T"] + [""] * 29,
+            ["", "-"] + [""] * 29,
+            [""] * 31,
+        ]
+        _hydrate_wire_continuations(rows)
+        assert rows[1][1] == "-"  # preserved, not overwritten
+
+    def test_two_row_rung_is_noop(self) -> None:
+        """With only 2 rows, hydration does nothing (no safe target row)."""
+        rows = [
+            ["", "T"] + [""] * 29,
+            [""] * 31,
+        ]
+        _hydrate_wire_continuations(rows)
+        assert rows[1][1] == ""  # unchanged — last row, not eligible
+
+    def test_existing_pipe_also_propagates(self) -> None:
+        """| in the source row also propagates downward, not just T."""
+        rows = [
+            ["", "|"] + [""] * 29,
+            [""] * 31,
+            [""] * 31,
+        ]
+        _hydrate_wire_continuations(rows)
+        assert rows[1][1] == "|"
+
+    def test_timer_autopad_hydrates_T_wire(self, tmp_path: Path) -> None:
+        """Full converter round-trip: timer with T wire in non-A column."""
+        csv_path = tmp_path / "main.csv"
+        row0 = [""] * len(CONDITION_COLUMNS)
+        row0[0] = "X001"
+        row0[1] = "T"
+        for i in range(2, len(CONDITION_COLUMNS)):
+            row0[i] = "-"
+        _write_csv(
+            csv_path,
+            [
+                ("R", row0, "on_delay(T1,TD1,preset=1000,unit=Tms)"),
+                ("", _wire_row("X002"), "out(Y001)"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, conds, afs, _ = convert_rung(rung)
+        # Timer auto-pads to 2 rows, plus the coil row = 3 total
+        assert lr == 3
+        # T in col B (index 1) on row 0 should hydrate | on row 1
+        assert conds[0][1] == "T"
+        assert conds[1][1] == "|"
