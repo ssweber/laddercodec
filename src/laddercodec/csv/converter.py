@@ -131,7 +131,12 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
     After block finalization and auto-padding, padding rows are all-blank.
     This pass restores vertical wire continuity: wherever row *R* has a
     ``T`` (junction-down) or ``|`` (vertical pass-through), row *R+1*
-    gets a ``|`` if the cell is currently blank.
+    gets a ``|`` if the cell is currently blank — unless a horizontal wire
+    from the left already connects to that junction.
+
+    A vertical wire terminates when ``(R+1, C-1)`` carries a horizontal
+    path (anything other than ``""`` or ``"|"``), because the horizontal
+    wire auto-snaps to the vertical endpoint above.
 
     Iterates top-to-bottom so multi-row vertical runs propagate correctly.
     Stops one row short of the last row — vertical tokens on the last row
@@ -143,6 +148,11 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
         for col_idx in range(len(condition_rows[row_idx])):
             token = condition_rows[row_idx][col_idx]
             if token in ("T", "|") and condition_rows[row_idx + 1][col_idx] == "":
+                # Check if a horizontal wire from the left already connects here.
+                if col_idx > 0:
+                    left = condition_rows[row_idx + 1][col_idx - 1]
+                    if left not in ("", "|"):
+                        continue  # horizontal path snaps to vertical — no | needed
                 condition_rows[row_idx + 1][col_idx] = cast(ConditionToken, "|")
 
 
