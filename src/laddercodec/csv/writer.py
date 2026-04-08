@@ -20,8 +20,10 @@ from the timer's second grid row (which carried the reset-enable branch).
 Tall instruction padding
 ------------------------
 
-Non-retained timers have a trailing blank row for visual height.  This row
-is stripped before writing — the forward path's auto-padding restores it.
+Tall AF instructions have trailing padding rows for visual height.  Padding
+rows — those containing only blank cells and vertical pass-through wires
+(``|``) — are stripped before writing.  The forward path's auto-padding and
+wire-continuation hydration restores them.
 """
 
 from __future__ import annotations
@@ -79,16 +81,15 @@ def _token_to_csv(token: object) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _is_blank_row(conditions: Sequence[object], af: object) -> bool:
-    """Return True if all conditions are blank/empty and AF is blank."""
-    if af != "":
-        return False
-    return all(c == "" for c in conditions)
+def _is_padding_row(conditions: Sequence[object]) -> bool:
+    """Return True when a row is pure tall-instruction padding.
 
-
-def _conditions_are_blank(conditions: Sequence[object]) -> bool:
-    """Return True when a row has no condition-side content at all."""
-    return all(c == "" for c in conditions)
+    Padding rows contain only blank cells and vertical pass-through
+    wires (``|``).  The ``|`` tokens are reconstructable from ``T``
+    tokens in the row above, so they can be stripped on write and
+    restored on read.
+    """
+    return all(c in ("", "|") for c in conditions)
 
 
 def _append_data_row(
@@ -109,7 +110,7 @@ def _emit_blank_continuation(
     conditions: Sequence[object],
 ) -> int:
     """Emit a blank-AF continuation row only when it carries geometry."""
-    if _conditions_are_blank(conditions):
+    if _is_padding_row(conditions):
         return data_row_count
     return _append_data_row(rows, data_row_count, conditions, "")
 
@@ -200,7 +201,7 @@ def _emit_counter_block(
 
     counter_conditions = condition_rows[start]
     bridge_conditions = condition_rows[start + 1]
-    if _conditions_are_blank(counter_conditions):
+    if all(c == "" for c in counter_conditions):
         data_row_count = _append_data_row(rows, data_row_count, bridge_conditions, counter)
     else:
         data_row_count = _append_data_row(rows, data_row_count, counter_conditions, "")
