@@ -646,6 +646,65 @@ class TestGenericTallRoundTrip:
         assert round_tripped.instructions == rung.instructions
 
 
+class TestDehydrateHydrateWires:
+    def test_T_wire_pipe_dehydrate_hydrate_roundtrip(self, tmp_path: Path) -> None:
+        """Padding row with | under T is stripped by writer, restored by converter."""
+        search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                [Contact(InstructionType.CONTACT_NO, "C10"), "T"] + ["-"] * 29,
+                ["", "|"] + [""] * 29,
+                [Contact(InstructionType.CONTACT_NO, "C11")] + ["-"] * 30,
+            ],
+            instructions=[search, "", Coil(InstructionType.COIL_OUT, "Y001")],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        # Writer dehydrates: padding row (only blank + |) is stripped
+        rows = decoded_rung_to_rows(rung)
+        assert len(rows) == 2
+        assert rows[0][2] == "T"  # T preserved in col B
+
+        # Full round-trip: hydration restores | under T
+        out = tmp_path / "t-wire.csv"
+        write_csv(out, [rung])
+        [rt] = read_csv(out)
+
+        assert rt.logical_rows == 3
+        assert rt.conditions[0][1] == "T"
+        assert rt.conditions[1][1] == "|"  # hydrated back
+
+    def test_multi_column_T_wires_roundtrip(self, tmp_path: Path) -> None:
+        """Multiple T wires in different non-A columns all hydrate correctly."""
+        search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
+        conds_row0 = [Contact(InstructionType.CONTACT_NO, "C20")] + ["-"] * 30
+        conds_row0[5] = "T"  # col F
+        conds_row0[15] = "T"  # col P
+        rung = Rung(
+            logical_rows=3,
+            conditions=[
+                conds_row0,
+                ["", "", "", "", "", "|"] + [""] * 9 + ["|"] + [""] * 15,
+                [Contact(InstructionType.CONTACT_NO, "C21")] + ["-"] * 30,
+            ],
+            instructions=[search, "", Coil(InstructionType.COIL_OUT, "Y002")],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        out = tmp_path / "multi-t-wire.csv"
+        write_csv(out, [rung])
+        [rt] = read_csv(out)
+
+        assert rt.logical_rows == 3
+        assert rt.conditions[0][5] == "T"
+        assert rt.conditions[0][15] == "T"
+        assert rt.conditions[1][5] == "|"  # hydrated
+        assert rt.conditions[1][15] == "|"  # hydrated
+
+
 class TestMultiPinnedRoundTrip:
     def test_count_up_then_retained_timer_roundtrip(self, tmp_path: Path) -> None:
         counter = Counter(

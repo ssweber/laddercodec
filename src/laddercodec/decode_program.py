@@ -44,7 +44,6 @@ from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 _SCR_MAGIC = b"SC-SCR  "
 _ROW_TOPOLOGY_PREFIX = b"\x03\x00\x00"
-_ROW_TOPOLOGY_FLAG_ENTRY_COUNTS = frozenset({31, 32})
 _ROW_TOPOLOGY_PRELUDE_LEN_RANGE = range(8, 17)
 _MAX_SECTION_INSTRUCTIONS = 512
 
@@ -548,34 +547,8 @@ def _forward_parse_topology_block(
     return None
 
 
-def _brute_force_topology_block(
-    data: bytes,
-    pos: int,
-    row_word: int,
-    marker_scan_limit: int,
-) -> _ScrRowTopologyBlock | None:
-    """Find best topology block by trying every candidate *flags_start*."""
-    best_block: _ScrRowTopologyBlock | None = None
-    best_score: tuple[int, int] | None = None
-    flags_scan_limit = min(len(data), pos + 0x40)
-
-    for flags_start in range(pos + 8, flags_scan_limit):
-        block = _try_topology_at_flags_start(data, pos, row_word, flags_start, marker_scan_limit)
-        if block is not None:
-            score = (block.row0_flag_count, -flags_start)
-            if best_score is None or score > best_score:
-                best_block = block
-                best_score = score
-
-    return best_block
-
-
 def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | None:
-    """Parse a row-topology block anchored by the ordered row-0 flag table.
-
-    Uses deterministic forward parsing through leading-row wire blocks,
-    falling back to brute-force scanning if forward parsing fails.
-    """
+    """Parse a row-topology block via deterministic forward parsing."""
     if pos < 0 or pos + min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE) > len(data):
         return None
 
@@ -587,44 +560,26 @@ def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | N
         return None
 
     marker_scan_limit = min(len(data), pos + 0x800)
-
-    # Try deterministic forward parse first.
-    block = _forward_parse_topology_block(data, pos, row_word, marker_scan_limit)
-    if block is not None:
-        return block
-
-    # Brute-force fallback — should never trigger for well-formed data.
-    return _brute_force_topology_block(data, pos, row_word, marker_scan_limit)
+    return _forward_parse_topology_block(data, pos, row_word, marker_scan_limit)
 
 
-def _find_row_topology_block(
-    data: bytes, pos: int, max_lookback: int = 4096
-) -> _ScrRowTopologyBlock | None:
-    """Find the nearest row-topology block before ``pos``."""
-    start = max(0, pos - max_lookback)
-    for i in range(pos - min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE), start - 1, -1):
-        block = _parse_row_topology_block(data, i)
-        if block is not None:
-            return block
-    return None
-
-
-def _find_row_topology_blocks_between(
+def _find_all_row_topology_blocks(
     data: bytes,
     start: int,
-    end: int,
 ) -> list[_ScrRowTopologyBlock]:
-    """Find row-topology blocks whose starts fall within ``[start, end)``."""
+    """Forward-scan all topology blocks from ``start`` to end of ``data``.
+
+    Skips past each found block's full extent (``continuation_start``),
+    preventing false positives from flag-table tail bytes.
+    """
     blocks: list[_ScrRowTopologyBlock] = []
     pos = max(0, start)
-    last_start = -1
+    end = len(data)
     while pos < end:
         block = _parse_row_topology_block(data, pos)
-        if block is not None and block.start < end:
-            if block.start != last_start:
-                blocks.append(block)
-                last_start = block.start
-            pos = block.flags_start
+        if block is not None:
+            blocks.append(block)
+            pos = block.continuation_start
             continue
         pos += 1
     return blocks
@@ -1181,13 +1136,22 @@ def decode_program(data: bytes) -> Program:
     if not sections:
         return Program(name=name, prog_idx=prog_idx, rungs=[])
 
+    # Forward-scan all topology blocks once.  Skipping past each block's
+    # full extent (continuation_start) prevents false positives from
+    # flag-table tail bytes that coincidentally match the prefix.
+    all_topo_blocks = _find_all_row_topology_blocks(data, data_start)
+
+    # Assign topology blocks to sections by position.  For each section,
+    # blocks whose start falls in [prev_sec_end, sec_off) belong to it:
+    # earlier ones are empty rungs, the last one is the section's header.
+    topo_idx = 0
+
     rungs: list[Rung] = []
     prev_sec_end = data_start
 
     for sec_off, count, sec_end in sections:
         section_instrs = _parse_section_instructions(data, sec_off, count)
         inferred_rows = 1
-        has_condition_cells = False
         for (
             row,
             col,
@@ -1200,8 +1164,6 @@ def decode_program(data: bytes) -> Program:
             variant_string_tags,
         ) in section_instrs:
             inferred_rows = max(inferred_rows, row + 1)
-            if col < _CONDITION_COLUMNS:
-                has_condition_cells = True
             if col == _CONDITION_COLUMNS:
                 visual_rows = _infer_af_visual_rows(
                     class_name,
@@ -1214,11 +1176,18 @@ def decode_program(data: bytes) -> Program:
                 )
                 inferred_rows = max(inferred_rows, row + visual_rows)
 
-        # Find nearest row-topology block before this section.
-        topology_block = _find_row_topology_block(data, sec_off)
-        headerless = topology_block is None or (
-            topology_block.start < prev_sec_end and inferred_rows == 1 and not has_condition_cells
-        )
+        # Collect topology blocks in [prev_sec_end, sec_off).
+        region_blocks: list[_ScrRowTopologyBlock] = []
+        while topo_idx < len(all_topo_blocks) and all_topo_blocks[topo_idx].start < sec_off:
+            if all_topo_blocks[topo_idx].start >= prev_sec_end:
+                region_blocks.append(all_topo_blocks[topo_idx])
+            topo_idx += 1
+
+        # Last block in the region (if any) is the section's topology header.
+        topology_block = region_blocks[-1] if region_blocks else None
+        empty_blocks = region_blocks[:-1] if region_blocks else []
+
+        headerless = topology_block is None
         if headerless:
             # Headerless rung (e.g. next() after for()) — single row, all wired
             rtf_bytes, comment = _find_rtf_comment(data, prev_sec_end, sec_off)
@@ -1237,13 +1206,10 @@ def decode_program(data: bytes) -> Program:
 
         assert topology_block is not None
         comment_start = prev_sec_end
-        empty_topology_blocks = _find_row_topology_blocks_between(
-            data, prev_sec_end, topology_block.start
-        )
-        for idx, empty_block in enumerate(empty_topology_blocks):
+        for idx, empty_block in enumerate(empty_blocks):
             empty_end = (
-                empty_topology_blocks[idx + 1].start
-                if idx + 1 < len(empty_topology_blocks)
+                empty_blocks[idx + 1].start
+                if idx + 1 < len(empty_blocks)
                 else topology_block.start
             )
             empty_rtf_bytes, empty_comment = _find_rtf_comment(

@@ -1,13 +1,31 @@
 # Changelog
 
+## 0.1.6
+
+### Fixed
+- **SCR decode**: replace backward/brute-force topology block scanning with a
+  single forward pass, fixing false positive matches from flag-table tail bytes
+  that caused spurious empty rungs with inflated row counts
+
+## 0.1.5
+
+### Changed
+- **Encode**: remove AF summary block — Click accepts multi-AF rungs without
+  it, eliminating complex gating logic
+- **CSV**: consolidate tall-instruction padding into shared hydrate/dehydrate
+  helpers in converter and writer
+
+### Added
+- **Devtools**: `combine_coverage.py` — combine random coverage fixtures into
+  a single multi-row rung for paste smoke-testing
+- **Devtools**: `coverage_golden.py` now regenerates all bins unconditionally
+
 ## 0.1.4
 
 ### Fixed
 - **CSV**: preserve multi-row AF round-trips, including pinned/tall AF blocks
   away from row 0, multiple tall blocks in one rung, and generic tall
   continuation rows
-- **Encode**: suppress AF summary data when a rung contains multi-row AFs,
-  avoiding grid misalignment and Click paste crashes
 - **SCR decode**: restore omitted wiring for generic tall AF continuation rows
 - **CSV writer**: fail loudly when emitted CSV rows lose decoded rung
   semantics by reparsing writer output and checking for row, condition, or AF

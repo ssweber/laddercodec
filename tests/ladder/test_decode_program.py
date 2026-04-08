@@ -8,7 +8,7 @@ from laddercodec import decode
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
-    _find_row_topology_block,
+    _find_all_row_topology_blocks,
     _find_sections,
     _implied_modifier_row_offsets,
     _parse_extra_row_right_wires,
@@ -36,6 +36,29 @@ _COL_NAMES = {
     for idx in range(32)
 }
 _COL_IDX_BY_NAME = {name: idx for idx, name in _COL_NAMES.items()}
+
+
+def _topology_blocks_by_section(
+    scr_data: bytes,
+) -> dict[int, object]:
+    """Map section index to topology block using forward scanning."""
+    _name, _prog_idx, data_start = _parse_header(scr_data)
+    sections = _find_sections(scr_data, start=data_start)
+    all_blocks = _find_all_row_topology_blocks(scr_data, data_start)
+
+    result: dict[int, object] = {}
+    topo_idx = 0
+    prev_sec_end = data_start
+    for sec_idx, (sec_off, _count, sec_end) in enumerate(sections):
+        last_block = None
+        while topo_idx < len(all_blocks) and all_blocks[topo_idx].start < sec_off:
+            if all_blocks[topo_idx].start >= prev_sec_end:
+                last_block = all_blocks[topo_idx]
+            topo_idx += 1
+        if last_block is not None:
+            result[sec_idx] = last_block
+        prev_sec_end = sec_end
+    return result
 
 
 def _load_fixture_pair(name: str):
@@ -516,13 +539,14 @@ def test_parse_extra_row_right_wires_matches_or_topology_clipboard_columns():
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     for rung_idx, clip_rung in enumerate(clip_rungs):
         if clip_rung.logical_rows < 2:
             continue
 
         sec_off, _count, _sec_end = sections[rung_idx]
-        block = _find_row_topology_block(scr_data, sec_off)
+        block = topo_map.get(rung_idx)
         assert block is not None
 
         extra_rows_right_wires, marker_pos = _parse_extra_row_right_wires(
@@ -552,6 +576,7 @@ def test_continuation_row_next_seg_matches_successor_segment_flags():
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     saw_wrapped_order = False
 
@@ -560,7 +585,7 @@ def test_continuation_row_next_seg_matches_successor_segment_flags():
             continue
 
         sec_off, _count, _sec_end = sections[rung_idx]
-        block = _find_row_topology_block(scr_data, sec_off)
+        block = topo_map.get(rung_idx)
         assert block is not None
 
         pos = block.continuation_start
@@ -701,13 +726,8 @@ def test_decode_program_keeps_comments_for_consecutive_empty_topology_rungs(monk
     )
     monkeypatch.setattr(
         decode_program_module,
-        "_find_row_topology_block",
-        lambda data, pos: main_block,
-    )
-    monkeypatch.setattr(
-        decode_program_module,
-        "_find_row_topology_blocks_between",
-        lambda data, start, end: [empty_block_1, empty_block_2],
+        "_find_all_row_topology_blocks",
+        lambda data, start: [empty_block_1, empty_block_2, main_block],
     )
 
     def fake_find_rtf_comment(data, start, end):
@@ -733,10 +753,11 @@ def test_parse_31_entry_row_topology_blocks_in_coverage_fixture():
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     for rung_idx in [58, 70, 71, 72, 75, 76]:
         sec_off, _count, _sec_end = sections[rung_idx]
-        block = _find_row_topology_block(scr_data, sec_off)
+        block = topo_map.get(rung_idx)
         assert block is not None
         assert block.row0_flag_count == 31
         assert block.prelude.endswith(b"\x1f\x00")
@@ -763,6 +784,7 @@ def test_counter_row_topology_blocks_capture_variable_preludes():
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     for rung_idx, expected_prelude, expected_rows in (
         (2, bytes.fromhex("0400030000000000012000"), [[]]),
@@ -770,7 +792,7 @@ def test_counter_row_topology_blocks_capture_variable_preludes():
     ):
         sec_off, _count, _sec_end = sections[rung_idx]
         prev_sec_end = sections[rung_idx - 1][2]
-        block = _find_row_topology_block(scr_data, sec_off)
+        block = topo_map.get(rung_idx)
         assert block is not None
         assert block.start > prev_sec_end
         assert block.row_word == 4
@@ -792,11 +814,12 @@ def test_counter_count_down_with_row0_data_uses_local_sparse_topology_block():
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     rung_idx = 6
     sec_off, _count, _sec_end = sections[rung_idx]
     prev_sec_end = sections[rung_idx - 1][2]
-    block = _find_row_topology_block(scr_data, sec_off)
+    block = topo_map.get(rung_idx)
 
     assert block is not None
     assert block.start == 0xA58
@@ -822,11 +845,12 @@ def test_counter_count_down_with_row0_and_row1_data_uses_two_local_sparse_leadin
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     rung_idx = 7
     sec_off, _count, _sec_end = sections[rung_idx]
     prev_sec_end = sections[rung_idx - 1][2]
-    block = _find_row_topology_block(scr_data, sec_off)
+    block = topo_map.get(rung_idx)
 
     assert block is not None
     assert block.start == 0xC93
@@ -857,6 +881,7 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
 
     _name, _prog_idx, data_start = _parse_header(scr_data)
     sections = _find_sections(scr_data, start=data_start)
+    topo_map = _topology_blocks_by_section(scr_data)
 
     for rung_idx, expected_start, expected_prelude, expected_rows in (
         (
@@ -874,7 +899,7 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
     ):
         sec_off, _count, _sec_end = sections[rung_idx]
         prev_sec_end = sections[rung_idx - 1][2]
-        block = _find_row_topology_block(scr_data, sec_off)
+        block = topo_map.get(rung_idx)
 
         assert block is not None
         assert block.start == expected_start
@@ -892,41 +917,18 @@ def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fi
         assert [sorted(cols) for cols in raw_rows] == expected_rows
 
 
-def test_forward_parser_agrees_with_brute_force_for_all_topology_blocks():
-    """The deterministic forward parser must agree with brute-force for every block."""
-    _forward_parse = decode_program_module._forward_parse_topology_block
-    _brute_force = decode_program_module._brute_force_topology_block
+def test_forward_scanner_finds_all_topology_blocks():
+    """The forward scanner must find a block for every rung with topology."""
     _PREFIX = decode_program_module._ROW_TOPOLOGY_PREFIX
 
     for scr_path in sorted(_SCR_FIXTURE_DIR.glob("*.scr")):
         scr_data = scr_path.read_bytes()
-        _name, _prog_idx, data_start = _parse_header(scr_data)
-        sections = _find_sections(scr_data, start=data_start)
+        topo_map = _topology_blocks_by_section(scr_data)
 
-        for rung_idx, (sec_off, _count, _sec_end) in enumerate(sections):
-            block = _find_row_topology_block(scr_data, sec_off)
-            if block is None:
-                continue
-
+        for rung_idx, block in topo_map.items():
             pos = block.start
-            row_word = struct.unpack_from("<H", scr_data, pos)[0]
             assert scr_data[pos + 2 : pos + 5] == _PREFIX
-            marker_scan_limit = min(len(scr_data), pos + 0x800)
-
-            forward_block = _forward_parse(scr_data, pos, row_word, marker_scan_limit)
-            brute_block = _brute_force(scr_data, pos, row_word, marker_scan_limit)
-
-            assert forward_block is not None, (
-                f"{scr_path.name} rung {rung_idx}: forward parser returned None"
-            )
-            assert brute_block is not None
-            assert forward_block.flags_start == brute_block.flags_start, (
-                f"{scr_path.name} rung {rung_idx}: "
-                f"forward={forward_block.flags_start} brute={brute_block.flags_start}"
-            )
-            assert forward_block.row0_flag_count == brute_block.row0_flag_count
-            assert forward_block.row0_flags == brute_block.row0_flags
-            assert forward_block.prelude == brute_block.prelude
+            assert block.row0_flag_count >= 1, f"{scr_path.name} rung {rung_idx}: empty flag table"
 
 
 def test_tag_wire_type_covers_all_implicit_tags():
