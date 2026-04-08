@@ -77,7 +77,7 @@ The cell header is 0x25 (37) bytes. Key fields:
 
 After the header: instruction blob (variable length), then a 16-byte tail.
 
-**Size differences** are the most important signal. If a cell is 32 bytes larger in your output, you're probably emitting an AF summary block that shouldn't be there — or vice versa.
+**Size differences** are the most important signal. If a cell has unexpected extra bytes, the blob length formula is probably wrong for that instruction type.
 
 **Flag differences** (segment, wire_right, wire_down) can cause visual corruption but usually don't crash Click.
 
@@ -94,14 +94,6 @@ Raw `xxd` / hex diffs of the two binaries are nearly useless because:
 `inspect_cells` handles all of this — it walks the variable-length grid correctly and gives you per-cell structural data.
 
 ## Known pitfalls
-
-### AF summary block
-
-When a single-rung buffer has 2+ AF instructions, the encoder appends a 32-byte summary block to the last AF cell. **This summary must be suppressed when any AF is multi-row** (e.g. a retained timer with a `.reset()` pin row).
-
-The summary is built by `_build_af_summary()` in `encode.py` and gated by `_compute_rung_metadata()` in `_grid.py`. If your rung has a mix of single-row AFs (coils, copies) and multi-row AFs (timers), check that the summary isn't being emitted.
-
-Symptom: the last AF instruction cell is ~32 bytes larger than in the native capture. Click crashes on paste because the extra bytes misalign the rest of the grid.
 
 ### Tall instruction visual_rows
 

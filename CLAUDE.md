@@ -72,7 +72,7 @@ src/laddercodec/
 
 - **encode.py** — Encoder. Public API is `encode()` (accepts `Rung` or `list[Rung]`). Internal `encode_rung()` orchestrates: validate → compute metadata → build grid → insert comment → pad to page. Constants, RTF helpers, type aliases (`ConditionToken`, `AfToken`), and `_af_segment()` / `_compute_seg_boundaries()` live here.
 - **encode_multi.py** — Multi-rung encoder. Internal `encode_rungs()`. Combines N rungs into one buffer with per-rung preambles and data rows. Delegates grid building to `_grid.py`.
-- **_grid.py** — Shared grid-building functions used by both encoders. `_validate_rung()` validates dimensions/tokens, `_compute_rung_metadata()` returns a `RungMetadata` dataclass (instruction indices, AF summary, segment boundaries), `_build_rung_grid()` builds the cell grid for one rung.
+- **_grid.py** — Shared grid-building functions used by both encoders. `_validate_rung()` validates dimensions/tokens, `_compute_rung_metadata()` returns a `RungMetadata` dataclass (instruction indices, segment boundaries), `_build_rung_grid()` builds the cell grid for one rung.
 - **binary_helpers.py** — Shared binary serialization primitives. Encoding: `_utf16le_null()`, `_tagged_field()`, `_variant_tagged_field()`. Decoding: `_read_utf16le()`, `_parse_tagged_fields()`, `_parse_tagged_fields_verbose()` (returns tag IDs + handles variant sentinels). Used by all instruction modules and `devtools/inspect_bin.py`.
 - **decode.py** — Decoder. Public API is `decode()` (auto-detects single vs multi-rung). Returns `Rung` or `list[Rung]`. Walks the variable-length cell grid, parses instruction blobs into Contact/Coil/Timer domain objects, decodes RTF comments to markdown. Falls back to `RawInstruction` for unrecognised cell types.
 - **decode_program.py** — Program file decoder. Public API is `decode_program()`. Reads `Scr*.tmp` files (Click's internal format, ~17x smaller than clipboard) and returns a `Program` with name, index, and decoded rungs. Same instruction parsing as `decode.py` but different framing.
@@ -128,7 +128,7 @@ Quick reference: three flag bytes per cell — segment (+0x19), right (+0x1D), d
 
 ## Instruction Blobs
 
-Full spec: [`docs/internals/instruction-blobs.md`](docs/internals/instruction-blobs.md) — blob structure, class names, field layouts, AF summary block.
+Full spec: [`docs/internals/instruction-blobs.md`](docs/internals/instruction-blobs.md) — blob structure, class names, field layouts.
 
 ## Current Encoder State
 

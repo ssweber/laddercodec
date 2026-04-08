@@ -177,7 +177,7 @@ def encode_rungs(
     for r_idx, (logical_rows, condition_rows, af_tokens) in enumerate(rungs):
         is_last = r_idx == N - 1
 
-        meta = _compute_rung_metadata(logical_rows, condition_rows, af_tokens, single_rung=False)
+        meta = _compute_rung_metadata(logical_rows, condition_rows, af_tokens)
         grid += _build_rung_grid(
             logical_rows,
             condition_rows,

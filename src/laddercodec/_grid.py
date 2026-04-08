@@ -21,7 +21,6 @@ from .encode import (
     AfToken,
     ConditionToken,
     _af_segment,
-    _build_af_summary,
     _compute_seg_boundaries,
     _normalize_af,
 )
@@ -98,7 +97,6 @@ class RungMetadata:
     total_instr_count: int
     cond_instr_indices: dict[tuple[int, int], int]
     af_instr_indices: dict[int, int]
-    af_summary_block: bytes
     seg_boundaries: list[int] | None
 
 
@@ -106,13 +104,8 @@ def _compute_rung_metadata(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
     af_tokens: Sequence[AfToken],
-    *,
-    single_rung: bool = True,
 ) -> RungMetadata:
-    """Compute instruction indices, summary block, and segment boundaries.
-
-    The AF summary block is only computed for single-rung buffers.
-    """
+    """Compute instruction indices and segment boundaries."""
     rung_has_instructions = any(
         isinstance(t, ConditionInstruction) for row in condition_rows for t in row
     ) or any(isinstance(af, AfInstruction) for af in af_tokens)
@@ -136,26 +129,6 @@ def _compute_rung_metadata(
             af_instr_indices[row_idx] = idx
             idx += 1
 
-    # AF summary block — needed on the last AF instruction cell when 2+ AFs
-    # are all single-row (single-rung only; multi-rung does not use
-    # af_summary).  Suppressed when any AF is multi-row (e.g. retained
-    # timer with reset pin) — native captures omit it in that case.
-    af_summary_block = b""
-    af_rows = sorted(af_instr_indices.keys())
-    any_multi_row_af = any(
-        tok.cell_params().get("visual_rows", 1) > 1
-        for r in af_rows
-        if isinstance((tok := af_tokens[r]), AfInstruction)
-    )
-    if single_rung and len(af_rows) >= 2 and not any_multi_row_af:
-        af_entries: list[tuple[int, int, bool]] = []
-        for r in af_rows:
-            cond_count = sum(1 for t in condition_rows[r] if isinstance(t, ConditionInstruction))
-            instrs_on_row = cond_count + 1  # +1 for the AF instruction itself
-            row_has_contact = cond_count > 0
-            af_entries.append((af_instr_indices[r], instrs_on_row, row_has_contact))
-        af_summary_block = _build_af_summary(total_instr_count, len(af_rows), af_entries)
-
     seg_boundaries = _compute_seg_boundaries(condition_rows) if rung_has_instructions else None
 
     return RungMetadata(
@@ -163,7 +136,6 @@ def _compute_rung_metadata(
         total_instr_count=total_instr_count,
         cond_instr_indices=cond_instr_indices,
         af_instr_indices=af_instr_indices,
-        af_summary_block=af_summary_block,
         seg_boundaries=seg_boundaries,
     )
 
@@ -190,7 +162,6 @@ def _build_rung_grid(
     Returns the concatenated grid rows as a bytearray.
     """
     grid = bytearray()
-    af_rows = sorted(meta.af_instr_indices.keys())
 
     for local_row in range(logical_rows):
         g = global_row_start + local_row
@@ -257,8 +228,6 @@ def _build_rung_grid(
                         ).to_bytes()
                     )
             else:  # AF column (col 31)
-                is_last_af = af_rows and local_row == af_rows[-1]
-                summary = meta.af_summary_block if is_last_af else b""
                 if isinstance(af, AfInstruction):
                     from .instructions.math import Math
 
@@ -286,7 +255,6 @@ def _build_rung_grid(
                             blob=blob,
                             row_span=params.get("visual_rows", 1),
                             visual_rows=params.get("visual_rows", 1),
-                            af_summary=summary,
                         ).to_bytes()
                     )
                 else:

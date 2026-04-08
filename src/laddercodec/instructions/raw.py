@@ -66,7 +66,7 @@ def find_blob_boundary(raw: bytes) -> tuple[str, int, int]:
     """Find the end of the instruction blob in *raw* bytes.
 
     *raw* is everything from cell offset +0x25 to the next cell boundary
-    (i.e. blob + optional af_summary + 16-byte tail).
+    (i.e. blob + 16-byte tail).
 
     Returns ``(class_name, blob_end_offset, part_count)``.  The clean
     blob is ``raw[:blob_end_offset]``.
@@ -336,7 +336,7 @@ class RawInstruction(AfInstruction):
         the blob for CSV readability; also present inside *blob*.
     blob:
         Full instruction blob bytes (from cell offset +0x25 to the end
-        of tagged fields, excluding tail and af_summary).
+        of tagged fields, excluding tail).
     part_count:
         Number of parts (1 = single-row, >1 = multi-row).  Derived from
         the blob during construction.
