@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.7
+
+### Fixed
+- **SCR decode**: skip pure vertical pass-through rows in implied modifier
+  row fallback, preventing `|` → `T` and blank → `-` corruption on
+  continuation rows
+- **CSV converter**: recognize `Contact`/`CompareContact` objects with
+  `wire_down=True` during wire hydration, not just bare string tokens
+
+### Changed
+- **SCR decode**: remove `_implied_modifier_row_offsets` fallback — SCR
+  continuation row topology already encodes per-row horizontal connectivity
+  explicitly, verified across 883 rungs in 47 SCR files
+
 ## 0.1.6
 
 ### Fixed

@@ -50,7 +50,9 @@ def main() -> None:
             differ += 1
 
     print()
-    print(f"Total: {len(clipboard_files)} pairs — {identical} identical, {differ} differ, {missing} missing base")
+    print(
+        f"Total: {len(clipboard_files)} pairs — {identical} identical, {differ} differ, {missing} missing base"
+    )
     sys.exit(1 if differ or missing else 0)
 
 
