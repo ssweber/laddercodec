@@ -1075,7 +1075,8 @@ def _build_rung(
 
     # 4. Fallback for logic-carrying continuation rows whose topology Click
     #    omits from SCR. Rebuild the implied horizontal path and merge any
-    #    pre-parsed wire_down markers into T-junctions.
+    #    pre-parsed wire_down markers into T-junctions.  Skip rows that
+    #    contain only vertical pass-through wires (no logic path).
     for row in sorted(implied_modifier_rows):
         explicit_right_wires = row - 1 < len(extra_rows_right_wires) and bool(
             extra_rows_right_wires[row - 1]
@@ -1084,11 +1085,15 @@ def _build_rung(
             continue
 
         leftmost = None
+        has_non_vertical = False
         for col in range(_CONDITION_COLUMNS):
-            if conditions[row][col] != "":
-                leftmost = col
-                break
-        if leftmost is None:
+            cell = conditions[row][col]
+            if cell != "":
+                if leftmost is None:
+                    leftmost = col
+                if cell != "|":
+                    has_non_vertical = True
+        if leftmost is None or not has_non_vertical:
             continue
 
         for col in range(leftmost, _CONDITION_COLUMNS):
