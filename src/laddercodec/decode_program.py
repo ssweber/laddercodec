@@ -24,18 +24,13 @@ from .decode import Rung, _decode_rtf
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
-    UnknownInstruction,
     from_tags_af,
     from_tags_condition,
-    get_af_family_for_token,
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
 from .instructions.counter import Counter
-from .instructions.drum import Drum
-from .instructions.shift import Shift
-from .instructions.timer import Timer
-from .model import AfInstruction, Program
+from .model import Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -878,60 +873,6 @@ def _build_topology_backed_rung(
 
 
 # ---------------------------------------------------------------------------
-# Modifier-row inference
-# ---------------------------------------------------------------------------
-
-
-def _implied_modifier_row_offsets(af: AfInstruction | UnknownInstruction) -> set[int]:
-    """Return AF-relative row offsets whose horizontal path may be omitted in SCR.
-
-    Click can store ``count=0`` or omit continuation-row topology blocks for
-    some tall-AF continuation rows even when the visible rung still carries
-    logic across that row. Pinned families still use hand-tuned offsets so
-    optional pin rows only opt in when the AF state says that pin is active.
-    Non-pinned tall families (copy/search/send_receive/raw) expose plain
-    continuation rows instead, so every visual continuation row can carry logic
-    when Click suppresses its explicit topology block.
-    """
-    if isinstance(af, Shift):
-        return {1, 2}
-
-    if isinstance(af, Timer):
-        return {1} if af.retained else set()
-
-    if isinstance(af, Counter):
-        if af.counter_type == "count_down":
-            return {1, 2} if af.reset_enabled else {1}
-
-        rows: set[int] = set()
-        if af.down_enabled:
-            rows.add(1)
-        if af.reset_enabled:
-            rows.add(2)
-        return rows
-
-    if isinstance(af, Drum):
-        rows = {1}
-        if af.drum_kind == "event":
-            if af.jump_enabled:
-                rows.add(2)
-            if af.jog_enabled:
-                rows.add(3)
-        return rows
-
-    if isinstance(af, UnknownInstruction):
-        return set()
-
-    family = get_af_family_for_token(af)
-    if family is not None and not family.pin_names:
-        visual_rows = max(1, int(af.cell_params().get("visual_rows", 1)))
-        if visual_rows > 1:
-            return set(range(1, visual_rows))
-
-    return set()
-
-
-# ---------------------------------------------------------------------------
 # Rung construction
 # ---------------------------------------------------------------------------
 
@@ -1063,40 +1004,6 @@ def _build_rung(
                 # "T" or "|" already set — keep as is
             elif isinstance(cell, (Contact, CompareContact)):
                 cell.wire_down = True
-
-    implied_modifier_rows: set[int] = set()
-    for af_row, af in enumerate(instructions):
-        if isinstance(af, str):
-            continue
-        for row_offset in _implied_modifier_row_offsets(af):
-            row = af_row + row_offset
-            if 0 < row < logical_rows:
-                implied_modifier_rows.add(row)
-
-    # 4. Fallback for logic-carrying continuation rows whose topology Click
-    #    omits from SCR. Rebuild the implied horizontal path and merge any
-    #    pre-parsed wire_down markers into T-junctions.
-    for row in sorted(implied_modifier_rows):
-        explicit_right_wires = row - 1 < len(extra_rows_right_wires) and bool(
-            extra_rows_right_wires[row - 1]
-        )
-        if explicit_right_wires:
-            continue
-
-        leftmost = None
-        for col in range(_CONDITION_COLUMNS):
-            if conditions[row][col] != "":
-                leftmost = col
-                break
-        if leftmost is None:
-            continue
-
-        for col in range(leftmost, _CONDITION_COLUMNS):
-            cell = conditions[row][col]
-            if cell == "":
-                conditions[row][col] = "-"
-            elif cell == "|":
-                conditions[row][col] = "T"
 
     return Rung(
         logical_rows=logical_rows,
