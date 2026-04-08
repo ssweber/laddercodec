@@ -67,11 +67,6 @@ class ClickCell:
     row_span: int = 1
     visual_rows: int = 1
 
-    # AF summary block — appended between blob and tail on the LAST AF
-    # instruction cell when the rung has 2+ AF instructions.  Pre-built
-    # by the encoder; this module just splices it in.
-    af_summary: bytes = b""
-
     def build_header(self) -> bytearray:
         """Build the 0x25 (37-byte) structured header."""
         header = bytearray(_INSTR_DATA_OFFSET)
@@ -122,14 +117,7 @@ class ClickCell:
         """Build the 16-byte tail with dynamic rung index."""
         tail = bytearray(16)
 
-        if self.af_summary:
-            # Modified tail for the last AF instruction cell when a summary
-            # block is present (single-rung only; multi-rung does not use
-            # af_summary).  Confirmed via native capture (instr-3row-branch).
-            tail[3] = 0x01
-            tail[12] = 0x01
-            tail[15] = 0x01
-        elif self.blob:
+        if self.blob:
             # Instruction cell tail — always has marker, dynamic rung_idx.
             # Condition-side (col < 31): tail[13] = local_row + 1.
             # AF-side (col 31): single-rung and multi-rung use different
@@ -195,8 +183,8 @@ class ClickCell:
             padding = bytes(CELL_SIZE - _INSTR_DATA_OFFSET - 16)
             return bytes(header + padding + tail)
 
-        # Instruction cell: header(37) + blob [+ af_summary] + tail(16).
-        return bytes(header + self.blob + self.af_summary + tail)
+        # Instruction cell: header(37) + blob + tail(16).
+        return bytes(header + self.blob + tail)
 
 
 # ---------------------------------------------------------------------------

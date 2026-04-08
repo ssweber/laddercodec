@@ -247,55 +247,6 @@ def _normalize_af(token: AfToken) -> str:
     raise ValueError(f"Unsupported AF token: {token!r}")
 
 
-def _build_af_summary(
-    total_instr_count: int,
-    af_count: int,
-    af_entries: list[tuple[int, int, bool]],
-) -> bytes:
-    """Build the AF instruction summary block for the last AF cell.
-
-    Appended between the blob and tail on the last AF instruction cell
-    when the rung has 2+ AF instructions.  Confirmed via native capture
-    (instr-3row-branch).
-
-    Parameters
-    ----------
-    total_instr_count:
-        Total number of instructions (conditions + AFs) in the rung.
-    af_count:
-        Number of AF instruction cells in the rung.
-    af_entries:
-        One tuple per AF instruction, ordered by row:
-        ``(instr_index, instrs_on_row, row_has_contact)``.
-        ``instrs_on_row`` = count of all instructions on this AF's row.
-        ``row_has_contact`` = True if a Contact/CompareContact is on this row.
-
-    Structure (40 bytes for 3 AFs)::
-
-        12 zero bytes
-        uint32 LE total_instr_count
-        af_count × 8-byte entries (diagonal pattern):
-            entry[af_idx] = left_value
-            entry[af_idx + af_count] = right_value (1 if row has contact)
-        where left_value:
-            non-last AF: total_instr_count - instr_index
-            last AF: instrs_on_row
-    """
-    block = bytearray(12)  # zero header
-    block += total_instr_count.to_bytes(4, "little")
-
-    for af_idx, (instr_index, instrs_on_row, row_has_contact) in enumerate(af_entries):
-        entry = bytearray(8)
-        is_last_af = af_idx == af_count - 1
-        left = instrs_on_row if is_last_af else total_instr_count - instr_index
-        entry[af_idx] = left & 0xFF
-        if row_has_contact:
-            entry[af_idx + af_count] = 1
-        block += entry
-
-    return bytes(block)
-
-
 def _compute_seg_boundaries(
     condition_rows: Sequence[Sequence[ConditionToken]],
 ) -> list[int]:

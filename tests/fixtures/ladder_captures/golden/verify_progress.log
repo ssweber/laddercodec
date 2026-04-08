@@ -35,7 +35,6 @@ mr-instr-2rung: worked
 mr-instr-cond__and: worked
 instr-count_down-row0-data: worked
 instr-2row-spread: worked
-instr-3row-branch: worked
 instr-3row-or-colA: worked
 instr-3row-or: worked
 instr-3row-scatter: worked
@@ -43,3 +42,4 @@ instr-timer-ret: worked
 instr-coil-timer-ret: worked
 instr-6row-multi-output: worked
 instr-copy-multirow-2af: worked
+instr-3row-branch: worked

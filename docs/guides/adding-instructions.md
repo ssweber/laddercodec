@@ -158,25 +158,34 @@ make test && make lint
 
 ## Coverage testing
 
-Coverage golden fixtures live in `tests/fixtures/coverage/golden/`. Each fixture is a hand-written CSV (`<rung_id>.csv`) paired with a Click-captured binary (`<rung_id>.bin`).
+Coverage golden fixtures live in `tests/fixtures/coverage/golden/`. Each fixture is a hand-written CSV (`<rung_id>.csv`) paired with a generated binary (`<rung_id>.bin`).
 
 ### Adding a fixture
 
 1. Create `tests/fixtures/coverage/golden/<rung_id>.csv` by hand — one rung per file, 33-column canonical format.
-2. Capture the golden binary via Click paste round-trip using `clicknick-rung guided`.
-3. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded CSV against captured bytes.
+2. Run `make coverage-golden` to generate the `.bin` from the CSV.
+3. Paste-verify in Click using `clicknick-rung guided`.
+4. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded output to golden binaries.
 
-### Regenerating coverage bins from verified fixtures
-
-When you want to refresh coverage bins from the current encoder, use:
+### Regenerating coverage bins
 
 ```bash
 make coverage-golden
 ```
 
-This command reads `tests/fixtures/coverage/golden/verify_progress.log`, selects only fixture IDs marked `: worked`, regenerates those `.bin` files, and removes non-worked coverage `.bin` files.
+Regenerates all `.bin` files from `.csv` sources and prunes the verify log for changed/deleted fixtures. Same workflow as `make golden` for ladder fixtures.
 
-Use this for bulk refresh/sync. For native Click fidelity checks, keep using capture round-trips for the specific fixture.
+### Smoke-testing combined fixtures
+
+To quickly test multiple instruction types together in a single rung:
+
+```bash
+uv run devtools/combine_coverage.py          # 4 random fixtures
+uv run devtools/combine_coverage.py -n 6     # 6 random fixtures
+uv run devtools/combine_coverage.py --seed 42 # reproducible pick
+```
+
+This picks N random coverage CSVs, stacks their data rows into one multi-row rung, and writes `devtools/combined.csv` + `devtools/combined.bin` for paste-testing.
 
 ## Clicknick compatibility
 

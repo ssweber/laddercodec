@@ -1,10 +1,7 @@
-"""Manage coverage CSV/BIN fixtures based on verify_progress.log.
+"""Manage coverage golden CSV/BIN fixtures.
 
-Behavior:
-    - Parse tests/fixtures/coverage/golden/verify_progress.log
-    - Select only fixture stems marked as ``worked``
-    - Generate ``.bin`` files for those stems from their ``.csv``
-    - Remove any existing ``.bin`` whose stem is not marked ``worked``
+Regenerates all .bin files from .csv sources and prunes the verify log
+for changed/deleted fixtures.
 
 Usage:
     uv run devtools/coverage_golden.py
@@ -12,7 +9,7 @@ Usage:
 
 from __future__ import annotations
 
-import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,20 +21,6 @@ from laddercodec.encode_multi import encode_rungs
 ROOT = Path(__file__).resolve().parent.parent
 GOLDEN_DIR = ROOT / "tests" / "fixtures" / "coverage" / "golden"
 VERIFY_LOG = GOLDEN_DIR / "verify_progress.log"
-
-_WORKED_RE = re.compile(r"^([A-Za-z0-9_]+):\s*worked\s*$")
-
-
-def _worked_stems_from_log(path: Path) -> list[str]:
-    if not path.exists():
-        raise FileNotFoundError(f"Missing verify log: {path}")
-
-    stems: list[str] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        m = _WORKED_RE.match(line.strip())
-        if m:
-            stems.append(m.group(1))
-    return sorted(set(stems))
 
 
 def _encode_csv(csv_path: Path) -> bytes:
@@ -67,51 +50,90 @@ def _encode_csv(csv_path: Path) -> bytes:
     return encode_rungs(rung_inputs, comments=comments)
 
 
-def sync() -> int:
-    worked_stems = _worked_stems_from_log(VERIFY_LOG)
-    if not worked_stems:
-        print(f"No 'worked' fixtures found in {VERIFY_LOG}")
-        return 1
+def generate() -> None:
+    csv_files = sorted(GOLDEN_DIR.glob("*.csv"))
+    if not csv_files:
+        print(f"No CSV files found in {GOLDEN_DIR}")
+        sys.exit(1)
 
-    print(f"Generating coverage bins for {len(worked_stems)} worked fixture(s):")
-
-    missing_csv: list[str] = []
-    generated = 0
-    for stem in worked_stems:
-        csv_path = GOLDEN_DIR / f"{stem}.csv"
-        if not csv_path.exists():
-            missing_csv.append(stem)
-            continue
-
+    print(f"Generating coverage bins from {len(csv_files)} CSV files:")
+    for csv_path in csv_files:
         encoded = _encode_csv(csv_path)
-        bin_path = GOLDEN_DIR / f"{stem}.bin"
+        bin_path = csv_path.with_suffix(".bin")
         bin_path.write_bytes(encoded)
-        generated += 1
         print(f"  {csv_path.name} -> {bin_path.name} ({len(encoded):,} bytes)")
 
-    if missing_csv:
-        print("\nMissing CSV files for worked fixtures:")
-        for stem in missing_csv:
-            print(f"  {stem}.csv")
-        return 1
+    print(f"\nDone. {len(csv_files)} fixtures generated.")
 
-    worked_set = set(worked_stems)
-    stale_bins = sorted(p for p in GOLDEN_DIR.glob("*.bin") if p.stem not in worked_set)
-    if stale_bins:
-        print(f"\nRemoving {len(stale_bins)} non-worked .bin fixture(s):")
-        for p in stale_bins:
+
+def prune() -> None:
+    csv_stems = {p.stem for p in GOLDEN_DIR.glob("*.csv")}
+
+    # --- Delete orphaned .bin (no matching .csv) ---
+    orphaned = sorted(p for p in GOLDEN_DIR.glob("*.bin") if p.stem not in csv_stems)
+    if orphaned:
+        print(f"Deleting {len(orphaned)} orphaned .bin files:")
+        for p in orphaned:
             print(f"  {p.name}")
             p.unlink()
 
-    print(f"\nDone. Generated {generated} coverage bin fixture(s).")
-    return 0
+    # --- Prune verify_progress.log ---
+    if not VERIFY_LOG.exists():
+        print("No verify_progress.log found — nothing to prune.")
+        return
+
+    # Find .bin files with uncommitted changes
+    result = subprocess.run(
+        ["git", "diff", "--name-only", "--", "tests/fixtures/coverage/golden/*.bin"],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    changed_stems = {
+        Path(line.strip()).stem for line in result.stdout.strip().split("\n") if line.strip()
+    }
+
+    lines = VERIFY_LOG.read_text().splitlines(keepends=True)
+    kept: list[str] = []
+    removed: list[str] = []
+
+    for line in lines:
+        if line.startswith("#") or not line.strip():
+            continue
+        name = line.split(":")[0].strip()
+        if name in changed_stems or name not in csv_stems:
+            removed.append(name)
+        else:
+            kept.append(line)
+
+    with open(VERIFY_LOG, "w", encoding="utf-8") as f:
+        f.write("# verify_progress.log — tracks Click paste verification status\n")
+        for line in kept:
+            f.write(line if line.endswith("\n") else line + "\n")
+
+    verified = sum(1 for ln in kept if ln.strip())
+    total = len(csv_stems)
+    unverified = total - verified
+
+    if removed:
+        print(f"Pruned {len(removed)} entries from verify_progress.log:")
+        for name in sorted(removed):
+            print(f"  {name}")
+
+    print(f"\nVerification status: {verified}/{total} verified, {unverified} unverified")
+    if unverified:
+        verified_names = {ln.split(":")[0].strip() for ln in kept if ln.strip()}
+        for name in sorted(csv_stems - verified_names):
+            print(f"  UNVERIFIED: {name}")
 
 
 def main() -> None:
     if len(sys.argv) > 1:
         print("Usage: uv run devtools/coverage_golden.py")
         raise SystemExit(2)
-    raise SystemExit(sync())
+    generate()
+    print()
+    prune()
 
 
 if __name__ == "__main__":

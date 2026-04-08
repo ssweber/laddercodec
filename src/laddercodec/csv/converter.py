@@ -34,6 +34,10 @@ Some AF instructions occupy more than one grid row visually (timers = 2,
 search/copy = 2, send/receive = 3, etc.).  If the user CSV omits blank
 continuation rows, they are auto-appended so ``encode_rung()`` receives
 the correct ``logical_rows``.
+
+After padding, a wire-continuation hydration pass propagates ``T`` and
+``|`` tokens downward into blank cells, restoring vertical wire continuity
+that was stripped by the writer's dehydration pass.
 """
 
 from __future__ import annotations
@@ -119,6 +123,27 @@ def _af_visual_rows(token: AfToken) -> int:
     if isinstance(token, AfInstruction):
         return max(1, int(token.cell_params().get("visual_rows", 1)))
     return 1
+
+
+def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> None:
+    """Propagate ``T`` / ``|`` tokens downward into blank cells (in-place).
+
+    After block finalization and auto-padding, padding rows are all-blank.
+    This pass restores vertical wire continuity: wherever row *R* has a
+    ``T`` (junction-down) or ``|`` (vertical pass-through), row *R+1*
+    gets a ``|`` if the cell is currently blank.
+
+    Iterates top-to-bottom so multi-row vertical runs propagate correctly.
+    Stops one row short of the last row — vertical tokens on the last row
+    are invalid (they would point to a nonexistent row below).
+    """
+    # range(len - 2): iterate rows 0..N-3, writing to rows 1..N-2.
+    # Row N-1 (last) is never written to.
+    for row_idx in range(len(condition_rows) - 2):
+        for col_idx in range(len(condition_rows[row_idx])):
+            token = condition_rows[row_idx][col_idx]
+            if token in ("T", "|") and condition_rows[row_idx + 1][col_idx] == "":
+                condition_rows[row_idx + 1][col_idx] = cast(ConditionToken, "|")
 
 
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
@@ -612,14 +637,17 @@ def convert_rung(
 
     _flush_plain_rows(plain_rows, condition_rows, af_tokens)
 
-    # --- Auto-pad for tall instructions ---
-    af0 = af_tokens[0] if af_tokens else ""
-    if isinstance(af0, AfInstruction):
-        spec = get_af_family_for_token(af0)
-        min_rows = spec.min_csv_rows if spec is not None else 1
-        while len(condition_rows) < min_rows:
-            condition_rows.append(cast(list[ConditionToken], [""] * CONDITION_COLUMNS))
-            af_tokens.append("")
+    # --- Auto-pad for tall instructions (any row, not just row 0) ---
+    for i in range(len(af_tokens)):
+        af_i = af_tokens[i]
+        if isinstance(af_i, AfInstruction):
+            needed = i + _af_visual_rows(af_i)
+            while len(condition_rows) < needed:
+                condition_rows.append(_blank_condition_row())
+                af_tokens.append("")
+
+    # --- Hydrate wire continuations ---
+    _hydrate_wire_continuations(condition_rows)
 
     logical_rows = len(condition_rows)
     return logical_rows, condition_rows, af_tokens, comment

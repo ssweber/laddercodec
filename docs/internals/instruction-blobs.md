@@ -51,19 +51,6 @@ stores concrete addresses.
 The `encode()` API exposes this via `show_nicknames=True`, which sets the flag
 on all math instructions in the buffer.
 
-## AF summary block
-
-In single-rung buffers, when a rung has 2+ AF instruction cells, the **last** AF instruction cell gets an extra block appended between the blob and tail:
-
-1. 12 zero bytes (header padding)
-2. `uint32 LE` total instruction count
-3. `af_count * 8`-byte entries in a diagonal pattern:
-   - `entry[af_idx] = left_value` (total_instr_count - instr_index for non-last; instrs_on_row for last)
-   - `entry[af_idx + af_count] = 1` if row has a condition contact
-4. Modified 16-byte tail: `tail[3]=1, tail[12]=1, tail[15]=1`
-
-This block replaces the instruction count that would normally go on an AF data cell (`tail[12] = total_instr_count`) when no AF data cell exists (all rows have AF instructions).
-
 ## Blob boundary detection
 
 For unknown instruction types, the blob boundary can be detected using the generic multi-part formula:
