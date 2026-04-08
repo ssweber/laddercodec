@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6
+
+### Fixed
+- **SCR decode**: replace backward/brute-force topology block scanning with a
+  single forward pass, fixing false positive matches from flag-table tail bytes
+  that caused spurious empty rungs with inflated row counts
+
 ## 0.1.5
 
 ### Changed
