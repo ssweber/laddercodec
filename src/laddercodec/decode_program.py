@@ -1208,9 +1208,7 @@ def decode_program(data: bytes) -> Program:
         comment_start = prev_sec_end
         for idx, empty_block in enumerate(empty_blocks):
             empty_end = (
-                empty_blocks[idx + 1].start
-                if idx + 1 < len(empty_blocks)
-                else topology_block.start
+                empty_blocks[idx + 1].start if idx + 1 < len(empty_blocks) else topology_block.start
             )
             empty_rtf_bytes, empty_comment = _find_rtf_comment(
                 data, comment_start, empty_block.start
