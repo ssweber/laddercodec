@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.8
+
+### Fixed
+- **CSV writer**: downgrade trailing blank row mismatch from error to warning
+  when a tall instruction's stripped continuation absorbs extra blank rows on
+  read-back — fixes `WriterError` on rungs with blank rows beyond an
+  instruction's visual height
+
 ## 0.1.7
 
 ### Fixed
