@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Performance
+- **SCR decode**: use `bytes.find()` for topology block scanning instead of
+  byte-by-byte iteration — reduces `_parse_row_topology_block` calls by 99.6%
+- **SCR decode**: cache `len(data)` and precomputed constants in hot loops,
+  eliminating ~560K redundant `len()`/`min()` calls per batch
+- Overall `decode_program()` throughput improved ~48% on a 43-file / 758-rung
+  program
+
 ## 0.1.8
 
 ### Fixed
