@@ -21,6 +21,11 @@ from .topology import CELL_SIZE, COLS_PER_ROW
 # Instruction data starts at this offset in the cell header.
 _INSTR_DATA_OFFSET = 0x25
 
+# Pre-compiled struct for the 37-byte cell header (single pack replaces 8 calls).
+# Layout: pad(1) col(u32) row(u32) span(u8) vis(u8) 0(u8) extra(u8)
+#         instr_idx(i32) 1(u32) contact(u32) seg(u32) right(u32) down(u32)
+_HEADER_STRUCT = struct.Struct("<xIIBBBBiIIIII")
+
 
 # ---------------------------------------------------------------------------
 # Unified cell builder
@@ -67,37 +72,21 @@ class ClickCell:
     row_span: int = 1
     visual_rows: int = 1
 
-    def build_header(self) -> bytearray:
+    def build_header(self) -> bytes:
         """Build the 0x25 (37-byte) structured header."""
-        header = bytearray(_INSTR_DATA_OFFSET)
-
-        # 32-bit LE Column Index and Row Index
-        header[0x01:0x05] = struct.pack("<I", self.col)
-        header[0x05:0x09] = struct.pack("<I", self.global_row + 1)
-
-        # 8-bit structural bytes
+        # 8-bit structural bytes at +0x09..+0x0C
         if self.row_span > 1:
             # Multi-row AF instruction (timer): +0x09 = row span,
             # +0x0A = visual sub-rows, +0x0B stays 0x00 (no 0xFD marker).
-            header[0x09] = self.row_span
-            header[0x0A] = self.visual_rows
+            b09, b0a, b0c = self.row_span, self.visual_rows, 0
         elif self.blob or self.rung_has_instructions:
             # Instruction cell or wire cell in an instruction-bearing rung.
             # Native Click writes +0x0B=0x00, +0x0C=0x00 for these cells
             # (confirmed via native captures: 1rung_2rows, instr-cond__and).
-            header[0x09] = 0x01
-            header[0x0A] = 0x01
+            b09, b0a, b0c = 1, 1, 0
         else:
             # Pure wire/data cell in a wire-only rung: +0x0C = 0x01
-            header[0x09] = 0x01
-            header[0x0A] = 0x01
-            header[0x0C] = 0x01
-
-        # 32-bit LE Instruction Index (-1 packs to 0xFFFFFFFF for data cells)
-        header[0x0D:0x11] = struct.pack("<i", self.instr_index)
-
-        # 32-bit LE Structural Flag (always 1)
-        header[0x11:0x15] = struct.pack("<I", 1)
+            b09, b0a, b0c = 1, 1, 1
 
         # 32-bit LE Wire & Logic Flags
         if self.blob:
@@ -106,12 +95,20 @@ class ClickCell:
             contact_flag = self.nop_enable
         right_flag = self.af_nop if self.af_nop else self.wire_right
 
-        header[0x15:0x19] = struct.pack("<I", contact_flag)
-        header[0x19:0x1D] = struct.pack("<I", self.segment)
-        header[0x1D:0x21] = struct.pack("<I", right_flag)
-        header[0x21:0x25] = struct.pack("<I", self.wire_down)
-
-        return header
+        return _HEADER_STRUCT.pack(
+            self.col,
+            self.global_row + 1,
+            b09,
+            b0a,
+            0,
+            b0c,
+            self.instr_index,
+            1,
+            contact_flag,
+            self.segment,
+            right_flag,
+            self.wire_down,
+        )
 
     def build_tail(self) -> bytearray:
         """Build the 16-byte tail with dynamic rung index."""

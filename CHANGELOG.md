@@ -1,14 +1,18 @@
 # Changelog
 
+<!-- Style guide: one sentence per entry. Describe the user-visible effect, not the
+     implementation. Group related fixes/features into a single entry when they share
+     a theme. Breaking changes and migration steps can be longer — users need the
+     specifics. Detail belongs in commit messages and PR descriptions, not here.
+
+     Review and condense before release — entries accumulate during development and
+     should be edited into shape before moving from Unreleased to a version heading. -->
+
 ## Unreleased
 
 ### Performance
-- **SCR decode**: use `bytes.find()` for topology block scanning instead of
-  byte-by-byte iteration — reduces `_parse_row_topology_block` calls by 99.6%
-- **SCR decode**: cache `len(data)` and precomputed constants in hot loops,
-  eliminating ~560K redundant `len()`/`min()` calls per batch
-- Overall `decode_program()` throughput improved ~48% on a 43-file / 758-rung
-  program
+- `decode_program()` is ~48% faster — topology block scanning uses `bytes.find()` instead of byte-by-byte iteration, and hot loops cache `len(data)` and precomputed constants.
+- `encode()` is ~35% faster — cell headers use a single pre-compiled `struct.Struct.pack` instead of 8 separate calls, and Math blobs use pre-computed empty slot bytes instead of 1000 per-instruction loop iterations.
 
 ## 0.1.8
 
