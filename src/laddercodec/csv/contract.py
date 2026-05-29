@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import re
+
 MARKER_COLUMN = "marker"
 OUTPUT_COLUMN = "AF"
 COMMENT_MARKER = "#"
+
+# Rung-start marker: ``R`` optionally followed by a 1-based decimal index
+# (``R``, ``R1``, ``R2``, ...).  The index is decorative and ignored on read.
+_RUNG_MARKER_RE = re.compile(r"R\d*")
 
 
 def _excel_column_name(index_1_based: int) -> str:
@@ -21,8 +27,13 @@ CSV_HEADER = (MARKER_COLUMN, *CONDITION_COLUMNS, OUTPUT_COLUMN)
 TOTAL_COLUMNS = len(CSV_HEADER)
 
 
+def is_rung_marker(value: str) -> bool:
+    """Return True for a rung-start marker: ``R`` with optional 1-based index."""
+    return _RUNG_MARKER_RE.fullmatch(value) is not None
+
+
 def is_valid_marker(value: str) -> bool:
-    return value in {"R", "", COMMENT_MARKER}
+    return value in {"", COMMENT_MARKER} or is_rung_marker(value)
 
 
 def validate_header(fields: list[str]) -> None:

@@ -6,6 +6,7 @@ from laddercodec.csv.contract import (
     CONDITION_COLUMNS,
     CSV_HEADER,
     TOTAL_COLUMNS,
+    is_rung_marker,
     is_valid_marker,
     validate_header,
 )
@@ -41,7 +42,37 @@ def test_parse_row_requires_33_columns() -> None:
         ("#", True),
         ("X", False),
         ("r", False),
+        ("R1", True),
+        ("R2", True),
+        ("R12", True),
+        ("R0", True),
+        ("RR", False),
+        ("R-1", False),
+        ("R1a", False),
+        ("1", False),
     ],
 )
 def test_marker_validation(value: str, expected: bool) -> None:
     assert is_valid_marker(value) is expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("R", True),
+        ("R1", True),
+        ("R5", True),
+        ("R0", True),
+        ("R12", True),
+        ("", False),
+        ("#", False),
+        ("X", False),
+        ("r", False),
+        ("RR", False),
+        ("R-1", False),
+        ("R1a", False),
+        ("1", False),
+    ],
+)
+def test_is_rung_marker(value: str, expected: bool) -> None:
+    assert is_rung_marker(value) is expected

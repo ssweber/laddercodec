@@ -498,6 +498,8 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
 def write_csv(
     path: Path | str,
     rungs: list[Rung],
+    *,
+    index: bool = False,
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
@@ -508,6 +510,12 @@ def write_csv(
     rungs:
         One or more decoded rungs (from ``decode_rung()`` or
         ``decode_rungs()``).
+    index:
+        When ``True``, the per-rung ``R`` marker is replaced with a 1-based
+        sequential index (``R1``, ``R2``, ``R3``, ...) counting across the
+        whole file.  The default (``False``) emits a plain ``R``.  Indexed
+        files still round-trip through ``read_csv()`` — the digits are
+        decorative and ignored on read.
 
     Raises
     ------
@@ -518,6 +526,8 @@ def write_csv(
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
-        for rung in rungs:
+        for rung_number, rung in enumerate(rungs, start=1):  # start=1 → first rung is R1
             for row in decoded_rung_to_rows(rung):
+                if index and row and row[0] == "R":
+                    row = [f"R{rung_number}", *row[1:]]
                 writer.writerow(row)
