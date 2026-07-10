@@ -280,11 +280,17 @@ def _emit_drum_block(
             f".jump({drum.jump_target})",
         )
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 2])
+        # Drum continuation rows are positional.  Omitting an empty jump row
+        # lets a later blank-AF row slide into the jump/jog slot on reparse.
+        data_row_count = _append_data_row(
+            rows, data_row_count, condition_rows[start + 2], ""
+        )
     if drum.jog_enabled:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 3], ".jog()")
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 3])
+        data_row_count = _append_data_row(
+            rows, data_row_count, condition_rows[start + 3], ""
+        )
     return data_row_count, 4
 
 
