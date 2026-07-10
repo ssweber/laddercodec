@@ -1,4 +1,4 @@
-"""Drum â€” event drum and time drum instructions (type marker 0x271B).
+"""Drum — event drum and time drum instructions (type marker 0x271B).
 
 Binary class name: ``"Drum"``.
 Drum types: event_drum (event-driven), time_drum (time-driven).
@@ -27,13 +27,13 @@ _EVENT_FC_NO_JOG = (8491, 8492, 8493)
 # Event drum: jog group (base, reset, jump, jog)
 _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
-# Time drum: unit â†’ (base, reset)
+# Time drum: unit → (base, reset)
 _TIME_FC: dict[str, tuple[int, int]] = {
     "Tms": (8455, 8456),
     "Td": (8484, 8485),
 }
 
-# Time unit name â†’ index string (same convention as Timer).
+# Time unit name → index string (same convention as Timer).
 _DRUM_UNIT_TO_INDEX: dict[str, str] = {
     "Tms": "0",
     "Ts": "1",
@@ -370,4 +370,3 @@ SPEC = AfInstructionFamilySpec(
     pin_names=(".reset", ".jump", ".jog"),
     min_csv_rows=4,
 )
-
