@@ -1,4 +1,4 @@
-"""Tests for laddercodec.csv.writer — Rung → CSV round-trip."""
+"""Tests for laddercodec.csv.writer â€” Rung â†’ CSV round-trip."""
 
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ def _event_drum() -> Drum:
 
 
 # ---------------------------------------------------------------------------
-# Round-trip: golden.bin → decode → CSV → read_csv → compare
+# Round-trip: golden.bin â†’ decode â†’ CSV â†’ read_csv â†’ compare
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,7 @@ class TestGoldenRoundTrip:
 
 class TestDecodedRungToRows:
     def test_simple_contact_coil(self) -> None:
-        """Single row: contact → wire → coil."""
+        """Single row: contact â†’ wire â†’ coil."""
         rung = Rung(
             logical_rows=1,
             conditions=[[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30],
@@ -240,6 +240,30 @@ class TestDecodedRungToRows:
         assert rows[0][32] == "on_delay(T3,TD3,preset=10,unit=Tm)"
         assert rows[1][0] == ""
         assert rows[1][32] == ".reset()"
+
+    @pytest.mark.parametrize("unit", ["Ts", "Tm", "Th"])
+    def test_time_drum_known_unit_roundtrips_to_csv(self, unit: str) -> None:
+        drum = Drum(
+            drum_kind="time",
+            outputs=["C206", "C207"],
+            events_or_presets=["100", "200"],
+            pattern=[[1, 0], [0, 1]],
+            current_step="DS186",
+            completion_flag="C213",
+            accumulator="TD5",
+            unit=unit,
+        )
+        rung = Rung(
+            logical_rows=4,
+            conditions=[_contact_row("C210"), *([_blank_conditions()] * 3)],
+            instructions=[drum, "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+
+        assert f"unit={unit}" in rows[0][32]
 
     def test_nop(self) -> None:
         """NOP token serializes correctly."""
@@ -929,3 +953,4 @@ class TestRoundTripValidator:
 
         with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
             _validate_roundtrip(rung, rows)
+
