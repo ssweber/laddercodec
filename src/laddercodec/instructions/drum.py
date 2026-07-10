@@ -1,4 +1,4 @@
-"""Drum — event drum and time drum instructions (type marker 0x271B).
+"""Drum â€” event drum and time drum instructions (type marker 0x271B).
 
 Binary class name: ``"Drum"``.
 Drum types: event_drum (event-driven), time_drum (time-driven).
@@ -27,13 +27,13 @@ _EVENT_FC_NO_JOG = (8491, 8492, 8493)
 # Event drum: jog group (base, reset, jump, jog)
 _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
-# Time drum: unit → (base, reset)
+# Time drum: unit â†’ (base, reset)
 _TIME_FC: dict[str, tuple[int, int]] = {
     "Tms": (8455, 8456),
     "Td": (8484, 8485),
 }
 
-# Time unit name → index string (same convention as Timer).
+# Time unit name â†’ index string (same convention as Timer).
 _DRUM_UNIT_TO_INDEX: dict[str, str] = {
     "Tms": "0",
     "Ts": "1",
@@ -342,7 +342,10 @@ def parse_af_call(call: AfCall) -> Drum:
         events_or_presets = _parse_simple_list(call.kwargs.get("presets", "[]"))
         accumulator = call.kwargs.get("accumulator", "")
         unit = call.kwargs.get("unit", "")
-        if unit not in _TIME_FC:
+        # CSV parsing and round-trip validation do not build a binary blob.
+        # Accept every unit the decoder can emit, even when binary encoding for
+        # that unit is not implemented in ``_TIME_FC`` yet.
+        if unit not in _DRUM_UNIT_TO_INDEX:
             raise ValueError(f"Unsupported time drum unit: {unit!r}")
 
     return Drum(
@@ -367,3 +370,4 @@ SPEC = AfInstructionFamilySpec(
     pin_names=(".reset", ".jump", ".jog"),
     min_csv_rows=4,
 )
+
