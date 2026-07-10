@@ -726,7 +726,7 @@ class TestHydrateWireContinuations:
             [""] * 31,
         ]
         _hydrate_wire_continuations(rows)
-        assert rows[1][1] == ""  # unchanged â€” last row, not eligible
+        assert rows[1][1] == ""  # unchanged — last row, not eligible
 
     def test_existing_pipe_also_propagates(self) -> None:
         """| in the source row also propagates downward, not just T."""
@@ -761,4 +761,3 @@ class TestHydrateWireContinuations:
         # T in col B (index 1) on row 0 should hydrate | on row 1
         assert conds[0][1] == "T"
         assert conds[1][1] == "|"
-
