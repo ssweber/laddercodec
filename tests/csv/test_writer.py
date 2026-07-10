@@ -23,6 +23,7 @@ from laddercodec import (
 )
 from laddercodec.csv.writer import (
     WriterError,
+    _rebuild_rung_from_rows,
     _validate_roundtrip,
     decoded_rung_to_rows,
 )
@@ -264,6 +265,37 @@ class TestDecodedRungToRows:
         rows = decoded_rung_to_rows(rung)
 
         assert f"unit={unit}" in rows[0][32]
+
+    def test_time_drum_preserves_blank_pin_slots_before_following_rows(self) -> None:
+        drum = Drum(
+            drum_kind="time",
+            outputs=["C1056", "C1057"],
+            events_or_presets=["10", "600"],
+            pattern=[[1, 0], [0, 1]],
+            current_step="DS6",
+            completion_flag="C109",
+            accumulator="TD4",
+            unit="Ts",
+        )
+        rung = Rung(
+            logical_rows=5,
+            conditions=[
+                _contact_row("C108"),
+                _contact_row("C109"),
+                _blank_conditions(),
+                _contact_row("C110"),
+                _contact_row("C111"),
+            ],
+            instructions=[drum, "", "", "", ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        rebuilt = _rebuild_rung_from_rows(rows)
+
+        assert rebuilt.logical_rows == 5
+        assert rebuilt.conditions == rung.conditions
 
     def test_nop(self) -> None:
         """NOP token serializes correctly."""
