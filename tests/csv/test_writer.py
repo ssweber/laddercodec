@@ -1,4 +1,4 @@
-"""Tests for laddercodec.csv.writer â€” Rung â†’ CSV round-trip."""
+"""Tests for laddercodec.csv.writer — Rung → CSV round-trip."""
 
 from __future__ import annotations
 
@@ -128,7 +128,7 @@ def _event_drum() -> Drum:
 
 
 # ---------------------------------------------------------------------------
-# Round-trip: golden.bin â†’ decode â†’ CSV â†’ read_csv â†’ compare
+# Round-trip: golden.bin → decode → CSV → read_csv → compare
 # ---------------------------------------------------------------------------
 
 
@@ -173,7 +173,7 @@ class TestGoldenRoundTrip:
 
 class TestDecodedRungToRows:
     def test_simple_contact_coil(self) -> None:
-        """Single row: contact â†’ wire â†’ coil."""
+        """Single row: contact → wire → coil."""
         rung = Rung(
             logical_rows=1,
             conditions=[[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30],
@@ -953,4 +953,3 @@ class TestRoundTripValidator:
 
         with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
             _validate_roundtrip(rung, rows)
-
