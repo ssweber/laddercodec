@@ -30,6 +30,7 @@ from laddercodec.instructions import (
     CompareContact,
     Contact,
     Counter,
+    Drum,
     ForLoop,
     Next,
     RawInstruction,
@@ -335,6 +336,26 @@ class TestAfNodeToToken:
         with pytest.raises(ValueError, match="Unknown timer unit"):
             af_node_to_token(node)
 
+    @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
+    def test_time_drum_accepts_known_unit(self, unit: str) -> None:
+        node = AfCall(
+            name="time_drum",
+            args=(),
+            known=True,
+            kwargs={
+                "outputs": "[C211,C212]",
+                "presets": "[100,200]",
+                "unit": unit,
+                "pattern": "[[1,0],[0,1]]",
+                "current_step": "DS186",
+                "accumulator": "TD5",
+                "completion_flag": "C213",
+            },
+        )
+        result = af_node_to_token(node)
+        assert isinstance(result, Drum)
+        assert result.unit == unit
+
     def test_time_drum_rejects_unsupported_unit(self) -> None:
         node = AfCall(
             name="time_drum",
@@ -343,7 +364,7 @@ class TestAfNodeToToken:
             kwargs={
                 "outputs": "[C211,C212]",
                 "presets": "[100,200]",
-                "unit": "Ts",
+                "unit": "BadUnit",
                 "pattern": "[[1,0],[0,1]]",
                 "current_step": "DS186",
                 "accumulator": "TD5",

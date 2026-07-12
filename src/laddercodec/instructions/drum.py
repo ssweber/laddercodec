@@ -27,9 +27,14 @@ _EVENT_FC_NO_JOG = (8491, 8492, 8493)
 # Event drum: jog group (base, reset, jump, jog)
 _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
-# Time drum: unit → (base, reset)
+# Time drum: unit → (base, reset) func codes for the no-jog group.
+# Captured from native Click (timer_and_drums.bin, rungs 5-10).  reset = base+1;
+# blocks stride by 7 except Td (+8; code 8483 is skipped/reserved).
 _TIME_FC: dict[str, tuple[int, int]] = {
     "Tms": (8455, 8456),
+    "Ts": (8462, 8463),
+    "Tm": (8469, 8470),
+    "Th": (8476, 8477),
     "Td": (8484, 8485),
 }
 
@@ -115,7 +120,7 @@ class Drum(AfInstruction):
     current_step: str = ""
     completion_flag: str = ""
     accumulator: str = ""  # TD address (time drum only)
-    unit: str = ""  # "Tms" or "Td" (time drum only)
+    unit: str = ""  # "Tms"/"Ts"/"Tm"/"Th"/"Td" (time drum only)
     jog_enabled: bool = False
     jump_enabled: bool = False
     jump_target: str = ""  # DS address
@@ -169,7 +174,18 @@ class Drum(AfInstruction):
         fc = _TIME_FC.get(self.unit)
         if fc is None:
             raise ValueError(f"Unsupported time drum unit: {self.unit!r}")
-        return [str(fc[0]), str(fc[1]), "0", "0"]
+        # Each time unit reserves a 7-code block, same shape as event drums:
+        # no-jog group (base, reset, jump) then jog group (base, reset, jump, jog).
+        block_base = fc[0]
+        if self.jog_enabled:
+            base, reset = block_base + 3, block_base + 4
+            jump = block_base + 5 if self.jump_enabled else 0
+            jog = block_base + 6
+        else:
+            base, reset = block_base, block_base + 1
+            jump = block_base + 2 if self.jump_enabled else 0
+            jog = 0
+        return [str(base), str(reset), str(jump), str(jog)]
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this drum cell."""
@@ -266,16 +282,25 @@ def from_tags(
     variant_u16 = variant_u16_tags or {}
     variant_strings = variant_string_tags or {}
 
-    num_steps = int(tags.get(0x3203, "0") or "0")
-    num_outputs = int(tags.get(0x3204, "0") or "0")
     current_step = tags.get(0x606E, "")
     completion_flag = tags.get(0x6070, "")
-    if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
-        return None
 
     outputs_by_idx = variant_strings.get(0x6873, {})
     events_by_idx = variant_strings.get(0x6872, {})
     bitmasks_by_idx = variant_u16.get(0x3A26, {})
+
+    # The clipboard blob always carries explicit step/output counts, but Click's
+    # SCR (Scr*.tmp) format omits 0x3203/0x3204 when the count is 1.  Fall back to
+    # the highest populated variant slot so single-step drums still decode.
+    num_steps = int(tags.get(0x3203, "0") or "0")
+    if num_steps <= 0 and events_by_idx:
+        num_steps = max(events_by_idx) + 1
+    num_outputs = int(tags.get(0x3204, "0") or "0")
+    if num_outputs <= 0 and outputs_by_idx:
+        num_outputs = max(outputs_by_idx) + 1
+
+    if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
+        return None
 
     outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
     events_or_presets = [events_by_idx.get(i, "") for i in range(num_steps)]
@@ -318,6 +343,9 @@ def from_tags(
         completion_flag=completion_flag,
         accumulator=accumulator,
         unit=unit,
+        jog_enabled=0x1201 in tags,
+        jump_enabled=0x1202 in tags,
+        jump_target=tags.get(0x6071, ""),
     )
 
 
