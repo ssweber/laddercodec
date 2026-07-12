@@ -282,3 +282,55 @@ def test_rtf_decode_strips_cb() -> None:
 def test_rtf_decode_ignores_stray_style_reset_after_group() -> None:
     payload = _PREFIX + rb"{\b bold}\b0  plain" + _SUFFIX
     assert _decode_rtf(payload) == "**bold** plain"
+
+
+# -- Stray-NOP dropping inside tall-instruction spans --
+
+
+def _make_time_drum():
+    from laddercodec import Drum
+
+    return Drum(
+        drum_kind="time",
+        outputs=["C2"],
+        events_or_presets=["1"],
+        pattern=[[0]],
+        current_step="DS1",
+        completion_flag="C1",
+        accumulator="TD1",
+        unit="Td",
+    )
+
+
+def test_drop_tall_span_nops_clears_nop_inside_drum() -> None:
+    """A stray NOP on a drum continuation row (editing cruft) is dropped."""
+    from laddercodec.decode import _drop_tall_span_nops
+
+    instrs = [_make_time_drum(), "NOP", "", ""]
+    _drop_tall_span_nops(instrs)
+    assert instrs[1] == ""
+
+
+def test_drop_tall_span_nops_keeps_count_down_bridge() -> None:
+    """count_down's NOP bridge row is genuine and must be preserved."""
+    from laddercodec import Counter
+    from laddercodec.decode import _drop_tall_span_nops
+
+    counter = Counter(
+        counter_type="count_down",
+        done_bit="CT1",
+        current="CTD1",
+        preset="10",
+    )
+    instrs = [counter, "NOP", ""]
+    _drop_tall_span_nops(instrs)
+    assert instrs[1] == "NOP"
+
+
+def test_drop_tall_span_nops_keeps_standalone_nop() -> None:
+    """A NOP not inside any tall-instruction span is left alone."""
+    from laddercodec.decode import _drop_tall_span_nops
+
+    instrs = ["", "NOP", ""]
+    _drop_tall_span_nops(instrs)
+    assert instrs[1] == "NOP"

@@ -42,8 +42,10 @@ from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
 from .instructions import (
+    AfInstruction,
     AfToken,
     ConditionToken,
+    Counter,
     RawInstruction,
     UnknownCondition,
     UnknownInstruction,
@@ -851,6 +853,7 @@ def _decode_single(
         conds, af, _ = _decode_data_row(data, cursor)
         conditions.append(conds)
         instructions.append(af)
+    _drop_tall_span_nops(instructions)
 
     comment: str | None = None
     if rung0_rtf is not None:
@@ -894,6 +897,25 @@ def _decode_multi(
     return rungs
 
 
+def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
+    """Clear stray NOPs that fall inside a tall instruction's row span.
+
+    An AF instruction owns ``visual_rows`` grid rows.  A NOP on one of its
+    continuation rows is editing cruft — e.g. a NOP left stranded when the
+    user inserts a row above it — not a real op, so drop it.  count_down is
+    exempt: its NOP bridge row is a genuine part of the instruction.
+    """
+    for i, af in enumerate(instructions):
+        if not isinstance(af, AfInstruction):
+            continue
+        if isinstance(af, Counter) and af.counter_type == "count_down":
+            continue
+        span = int(af.cell_params().get("visual_rows", 1))
+        for j in range(i + 1, min(i + span, len(instructions))):
+            if instructions[j] == "NOP":
+                instructions[j] = ""
+
+
 def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> Rung:
     """Build a Rung from a list of data-row cursors."""
     conditions: list[list[ConditionToken]] = []
@@ -902,6 +924,7 @@ def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> Rung
         conds, af, _ = _decode_data_row(data, cursor)
         conditions.append(conds)
         instructions.append(af)
+    _drop_tall_span_nops(instructions)
 
     comment: str | None = None
     if rtf is not None:
