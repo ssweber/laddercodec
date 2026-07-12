@@ -104,13 +104,32 @@ def _append_data_row(
     return data_row_count + 1
 
 
+def _followed_by_floating_row(af_tokens: Sequence[object], span_end: int) -> bool:
+    """True when a blank-AF row sits just below a tall instruction's span.
+
+    Such a row would be absorbed into the instruction's continuation slots on
+    reparse, so the instruction's trailing padding must stay positional rather
+    than dehydrated — otherwise the following content floats up.  A real AF
+    instruction (or the end of the rung) anchors the position, so dehydration
+    is safe there.
+    """
+    return span_end < len(af_tokens) and af_tokens[span_end] == ""
+
+
 def _emit_blank_continuation(
     rows: list[list[str]],
     data_row_count: int,
     conditions: Sequence[object],
+    keep_positional: bool = False,
 ) -> int:
-    """Emit a blank-AF continuation row only when it carries geometry."""
-    if _is_padding_row(conditions):
+    """Emit a blank-AF continuation row.
+
+    Trailing padding (blank cells and ``|`` pass-through wires) is dehydrated —
+    the reparser rebuilds it from the instruction's visual height.  But when a
+    blank-AF row follows the instruction's span (``keep_positional``), the row
+    is emitted so following content keeps its position on reparse.
+    """
+    if not keep_positional and _is_padding_row(conditions):
         return data_row_count
     return _append_data_row(rows, data_row_count, conditions, "")
 
@@ -139,13 +158,16 @@ def _emit_timer_block(
         message="timer continuation row must be blank AF",
     )
 
+    keep = _followed_by_floating_row(af_tokens, start + 2)
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], timer)
     if timer.retained:
         data_row_count = _append_data_row(
             rows, data_row_count, condition_rows[start + 1], ".reset()"
         )
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 1])
+        data_row_count = _emit_blank_continuation(
+            rows, data_row_count, condition_rows[start + 1], keep
+        )
     return data_row_count, 2
 
 
@@ -164,6 +186,7 @@ def _emit_counter_block(
             f"{counter.counter_type} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
+    keep = _followed_by_floating_row(af_tokens, start + 3)
     if counter.counter_type == "count_up":
         _require_blank_af(
             af_tokens[start + 1],
@@ -180,7 +203,7 @@ def _emit_counter_block(
             )
         else:
             data_row_count = _emit_blank_continuation(
-                rows, data_row_count, condition_rows[start + 1]
+                rows, data_row_count, condition_rows[start + 1], keep
             )
         if counter.reset_enabled:
             data_row_count = _append_data_row(
@@ -188,7 +211,7 @@ def _emit_counter_block(
             )
         else:
             data_row_count = _emit_blank_continuation(
-                rows, data_row_count, condition_rows[start + 2]
+                rows, data_row_count, condition_rows[start + 2], keep
             )
         return data_row_count, 3
 
@@ -212,7 +235,9 @@ def _emit_counter_block(
             rows, data_row_count, condition_rows[start + 2], ".reset()"
         )
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 2])
+        data_row_count = _emit_blank_continuation(
+            rows, data_row_count, condition_rows[start + 2], keep
+        )
     return data_row_count, 3
 
 
@@ -270,6 +295,7 @@ def _emit_drum_block(
         message="drum .jog() row must be blank AF",
     )
 
+    keep = _followed_by_floating_row(af_tokens, start + 4)
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], drum)
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 1], ".reset()")
     if drum.jump_enabled:
@@ -280,11 +306,15 @@ def _emit_drum_block(
             f".jump({drum.jump_target})",
         )
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 2])
+        data_row_count = _emit_blank_continuation(
+            rows, data_row_count, condition_rows[start + 2], keep
+        )
     if drum.jog_enabled:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 3], ".jog()")
     else:
-        data_row_count = _emit_blank_continuation(rows, data_row_count, condition_rows[start + 3])
+        data_row_count = _emit_blank_continuation(
+            rows, data_row_count, condition_rows[start + 3], keep
+        )
     return data_row_count, 4
 
 
@@ -304,6 +334,7 @@ def _emit_generic_tall_block(
             f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
+    keep = _followed_by_floating_row(af_tokens, start + visual_rows)
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], af)
     for offset in range(1, visual_rows):
         _require_blank_af(
@@ -311,7 +342,7 @@ def _emit_generic_tall_block(
             message=f"{type(af).__name__} continuation row must be blank AF",
         )
         data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + offset]
+            rows, data_row_count, condition_rows[start + offset], keep
         )
     return data_row_count, visual_rows
 

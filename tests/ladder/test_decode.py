@@ -334,3 +334,24 @@ def test_drop_tall_span_nops_keeps_standalone_nop() -> None:
     instrs = ["", "NOP", ""]
     _drop_tall_span_nops(instrs)
     assert instrs[1] == "NOP"
+
+
+def test_drum_with_parallel_branch_roundtrips() -> None:
+    """A drum with a parallel input branch running past its body
+    (``T`` → ``|`` … → ``X002``) keeps every row positional through CSV,
+    instead of collapsing ``X002`` up into the drum's jog slot."""
+    from laddercodec.instructions import Drum
+    from laddercodec.csv.writer import _rebuild_rung_from_rows, decoded_rung_to_rows
+
+    bin_path = GOLDEN_DIR.parent / "drum_weird_branch.bin"
+    result = decode(bin_path.read_bytes())
+    rung = result[0] if isinstance(result, list) else result
+
+    assert rung.logical_rows == 7
+    assert isinstance(rung.instructions[0], Drum)
+    assert rung.conditions[6][1].to_csv() == "X002"  # bottom row, below the drum body
+
+    rows = decoded_rung_to_rows(rung)
+    rebuilt = _rebuild_rung_from_rows(rows)
+    assert rebuilt.logical_rows == 7
+    assert rebuilt.conditions == rung.conditions
