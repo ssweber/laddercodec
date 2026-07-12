@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 from .ast import CanonicalRow, ParsedCsvFileAst, RowAst, RungAst
-from .contract import TOTAL_COLUMNS, is_valid_marker, validate_header
+from .contract import TOTAL_COLUMNS, is_rung_marker, is_valid_marker, validate_header
 from .token_parser import parse_af_token, parse_condition_token
 
 
@@ -24,7 +24,9 @@ def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | 
 def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
     marker = fields[0].strip() if fields else ""
     if not is_valid_marker(marker):
-        raise ValueError(f"Invalid marker {marker!r}; expected 'R', '#', or blank")
+        raise ValueError(
+            f"Invalid marker {marker!r}; expected 'R' (optionally indexed, e.g. R1), '#', or blank"
+        )
 
     # Comment rows may be short (just marker + text); pad to full width.
     # Preserve whitespace in column A for code-style comments (indentation).
@@ -67,7 +69,7 @@ def _segment_rungs(rows: tuple[RowAst, ...]) -> tuple[RungAst, ...]:
             pending_comments.append(row)
             continue
 
-        if row.canonical.marker == "R":
+        if is_rung_marker(row.canonical.marker):
             if current:
                 rungs.append(RungAst(comment_rows=tuple(current_comments), rows=tuple(current)))
             current = [row]

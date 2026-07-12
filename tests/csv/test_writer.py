@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
@@ -929,3 +930,100 @@ class TestRoundTripValidator:
 
         with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
             _validate_roundtrip(rung, rows)
+
+
+# ---------------------------------------------------------------------------
+# Indexed rung markers (write_csv index=True)
+# ---------------------------------------------------------------------------
+
+
+def _markers(path: Path) -> list[str]:
+    """Return the marker column of every data/comment row in a written CSV."""
+    with path.open(encoding="utf-8", newline="") as f:
+        reader = csv.reader(f)
+        next(reader)  # skip header
+        return [row[0] for row in reader if row]
+
+
+def _simple_rung(operand: str, coil: str) -> Rung:
+    """A single-row NO-contact → coil rung."""
+    return Rung(
+        logical_rows=1,
+        conditions=[[Contact(InstructionType.CONTACT_NO, operand)] + ["-"] * 30],
+        instructions=[Coil(InstructionType.COIL_OUT, coil)],
+        comment_rtf=None,
+        comment=None,
+    )
+
+
+class TestIndexedMarkers:
+    def test_index_true_emits_sequential_rung_markers(self, tmp_path: Path) -> None:
+        rungs = [
+            _simple_rung("X001", "Y001"),
+            _simple_rung("X002", "Y002"),
+            _simple_rung("X003", "Y003"),
+        ]
+        out = tmp_path / "indexed.csv"
+        write_csv(out, rungs, index=True)
+        assert _markers(out) == ["R1", "R2", "R3"]
+
+    def test_index_false_default_emits_plain_R(self, tmp_path: Path) -> None:
+        rungs = [_simple_rung("X001", "Y001"), _simple_rung("X002", "Y002")]
+        default_out = tmp_path / "default.csv"
+        explicit_out = tmp_path / "explicit.csv"
+        write_csv(default_out, rungs)
+        write_csv(explicit_out, rungs, index=False)
+
+        assert _markers(default_out) == ["R", "R"]
+        assert default_out.read_bytes() == explicit_out.read_bytes()
+
+    def test_index_true_indexes_only_first_row_of_multirow_rung(self, tmp_path: Path) -> None:
+        timer = Timer("on_delay", "T3", "TD3", "10", "Tm", retained=True)
+        multirow = Rung(
+            logical_rows=2,
+            conditions=[
+                [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
+                ["-"] * 31,
+            ],
+            instructions=[timer, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+        out = tmp_path / "multirow.csv"
+        write_csv(out, [multirow, _simple_rung("X002", "Y002")], index=True)
+        # First rung: data row R1, retained .reset() continuation stays blank.
+        # Second rung: R2.
+        assert _markers(out) == ["R1", "", "R2"]
+
+    def test_index_true_leaves_comment_rows_untouched(self, tmp_path: Path) -> None:
+        commented = Rung(
+            logical_rows=1,
+            conditions=[[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30],
+            instructions=[Coil(InstructionType.COIL_OUT, "Y001")],
+            comment_rtf=None,
+            comment="Line 1\nLine 2",
+        )
+        out = tmp_path / "comment.csv"
+        write_csv(out, [commented], index=True)
+        assert _markers(out) == ["#", "#", "R1"]
+
+    def test_index_true_roundtrips_via_read_csv(self, tmp_path: Path) -> None:
+        rungs = [
+            _simple_rung("X001", "Y001"),
+            _simple_rung("X002", "Y002"),
+            _simple_rung("X003", "Y003"),
+        ]
+        indexed = tmp_path / "indexed.csv"
+        plain = tmp_path / "plain.csv"
+        write_csv(indexed, rungs, index=True)
+        write_csv(plain, rungs, index=False)
+
+        from_indexed = read_csv(indexed)
+        from_plain = read_csv(plain)
+
+        assert len(from_indexed) == len(from_plain) == 3
+        for rt_indexed, rt_plain in zip(from_indexed, from_plain, strict=True):
+            assert rt_indexed.logical_rows == rt_plain.logical_rows
+            assert rt_indexed.conditions == rt_plain.conditions
+            assert rt_indexed.instructions == rt_plain.instructions
+            assert rt_indexed.comment == rt_plain.comment

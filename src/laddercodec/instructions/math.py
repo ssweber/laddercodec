@@ -87,6 +87,16 @@ _TOTAL_FIELDS = 9 + _OPERAND_SLOTS + _RESERVED_SLOTS + 1  # 1010
 # Click's formula editor accepts at most 68 operands (DS1..DS68 tested);
 # the blob has 500 slots but the UI caps well before that.
 
+# Pre-computed empty slot bytes: each slot is [2B tag LE][4B index LE][00 00].
+# Avoids 1000 _variant_tagged_field() calls per Math instruction.
+_SLOT_EMPTY_SIZE = 8
+_EMPTY_OPERAND_BYTES = b"".join(
+    struct.pack("<HI", _TAG_OPERAND, i) + b"\x00\x00" for i in range(_OPERAND_SLOTS)
+)
+_EMPTY_RESERVED_BYTES = b"".join(
+    struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(_RESERVED_SLOTS)
+)
+
 # ---------------------------------------------------------------------------
 # Expression tokenizer — extracts operands from a formula string
 # ---------------------------------------------------------------------------
@@ -287,15 +297,14 @@ class Math(AfInstruction):
         out += _tagged_field(_TAG_NICKNAME_FLAG, "1" if show_nicknames else "0")
 
         # --- 500 operand slots (indexed sentinel) ---
-        for i in range(_OPERAND_SLOTS):
-            value = operands[i] if i < len(operands) else ""
+        n_ops = len(operands)
+        for i in range(n_ops):
             sentinel = struct.pack("<I", i)
-            out += _variant_tagged_field(_TAG_OPERAND, sentinel, value)
+            out += _variant_tagged_field(_TAG_OPERAND, sentinel, operands[i])
+        out += _EMPTY_OPERAND_BYTES[n_ops * _SLOT_EMPTY_SIZE :]
 
         # --- 500 reserved slots (indexed sentinel, always empty) ---
-        for i in range(_RESERVED_SLOTS):
-            sentinel = struct.pack("<I", i)
-            out += _variant_tagged_field(_TAG_RESERVED, sentinel, "")
+        out += _EMPTY_RESERVED_BYTES
 
         # --- Terminator ---
         out += _tagged_field(_TAG_TERMINATOR, "")

@@ -53,6 +53,42 @@ def test_canonical_parse_and_rung_segmentation(tmp_path: Path) -> None:
     assert parsed.rungs[1].rows[0].canonical.marker == "R"
 
 
+def test_indexed_markers_segment_rungs(tmp_path: Path) -> None:
+    csv_path = tmp_path / "main.csv"
+    _write_canonical(
+        csv_path,
+        [
+            ("R1", _mk_conditions({0: "X001", 1: "-"}), "out(Y001)"),
+            ("", _mk_conditions({0: "X002", 1: "-"}), ".reset()"),
+            ("R2", _mk_conditions({0: "~X003"}), "reset(Y002)"),
+        ],
+    )
+
+    parsed = parse_csv_file(csv_path, syntax="canonical")
+    assert len(parsed.rungs) == 2
+    # The index digits are preserved verbatim on the canonical row.
+    assert parsed.rungs[0].rows[0].canonical.marker == "R1"
+    assert parsed.rungs[0].rows[1].canonical.marker == ""
+    assert parsed.rungs[1].rows[0].canonical.marker == "R2"
+
+
+def test_indexed_comment_attaches_to_indexed_rung(tmp_path: Path) -> None:
+    csv_path = tmp_path / "main.csv"
+    _write_canonical(
+        csv_path,
+        [
+            ("#", ["Indexed rung comment", *[""] * (len(CONDITION_COLUMNS) - 1)], ""),
+            ("R1", _mk_conditions({0: "X001", 1: "-"}), "out(Y001)"),
+        ],
+    )
+
+    parsed = parse_csv_file(csv_path, syntax="canonical")
+    assert len(parsed.rungs) == 1
+    assert [row.canonical.comment_text for row in parsed.rungs[0].comment_rows] == [
+        "Indexed rung comment"
+    ]
+
+
 def test_comment_rows_attach_to_following_rung(tmp_path: Path) -> None:
     csv_path = tmp_path / "main.csv"
     _write_canonical(

@@ -1,5 +1,28 @@
 # Changelog
 
+<!-- Style guide: one sentence per entry. Describe the user-visible effect, not the
+     implementation. Group related fixes/features into a single entry when they share
+     a theme. Breaking changes and migration steps can be longer — users need the
+     specifics. Detail belongs in commit messages and PR descriptions, not here.
+
+     Review and condense before release — entries accumulate during development and
+     should be edited into shape before moving from Unreleased to a version heading. -->
+
+## 0.1.9
+
+### Added
+- **Time drums**: encode and decode all five time bases (`Tms`/`Ts`/`Tm`/`Th`/`Td`), plus jog and jump, matching event drums.
+- **CSV writer**: `write_csv(path, rungs, index=True)` emits 1-based sequential rung markers (`R1`, `R2`, `R3`, …) instead of plain `R`; readers accept `R` optionally followed by digits, so indexed files still round-trip.
+
+### Fixed
+- **Drum decode**: single-step event and time drums now decode from `Scr*.tmp` files instead of falling back to `RawInstruction`.
+- **Drum decode**: a stray NOP stranded on a drum's pin row is dropped instead of surfacing as a spurious `NOP` that broke `write_csv`.
+- **CSV writer**: a tall instruction (drum, timer, counter, …) with a wire branch or content running below its body keeps its rows positional instead of collapsing the following rows up, fixing `WriterError`/lost geometry on those rungs.
+
+### Performance
+- `decode_program()` is ~48% faster — topology block scanning uses `bytes.find()` instead of byte-by-byte iteration, and hot loops cache `len(data)` and precomputed constants.
+- `encode()` is ~35% faster — cell headers use a single pre-compiled `struct.Struct.pack` instead of 8 separate calls, and Math blobs use pre-computed empty slot bytes instead of 1000 per-instruction loop iterations.
+
 ## 0.1.8
 
 ### Fixed

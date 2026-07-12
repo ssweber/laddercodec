@@ -6,7 +6,7 @@ used by `laddercodec` CSV tooling and by `pyrung.click.to_ladder()`.
 Relevant entry points:
 
 - `laddercodec.read_csv(path)`
-- `laddercodec.write_csv(path, rungs)`
+- `laddercodec.write_csv(path, rungs, *, index=False)`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
 - `pyrung.click.to_ladder(program, tag_map)`
 - `pyrung.click.LadderBundle.write(directory)`
@@ -58,6 +58,9 @@ marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
 
 - `marker`:
   - `R` => first row of a rung
+  - `R<n>` (e.g. `R1`, `R2`) => first row of a rung, with an optional 1-based
+    index. `write_csv(path, rungs, index=True)` emits these; the index is
+    decorative and ignored on read.
   - `""` (blank) => continuation row of current rung
   - `#` => comment row
 - `AF`:
@@ -66,8 +69,8 @@ marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
 
 Rung segmentation rule for consumers:
 
-- A rung starts at each row with `marker == "R"` and continues until the next
-  `R` or EOF.
+- A rung starts at each row whose `marker` is `R` optionally followed by digits
+  (`R`, `R1`, `R2`, ...) and continues until the next such marker or EOF.
 
 ## Comment rows
 
@@ -464,4 +467,4 @@ On any issue:
 3. Treat `AF` as an opaque canonical token string unless your decoder
    intentionally parses token grammar.
 4. Treat unknown future token names as extension points (fail closed if strict).
-5. Segment rungs by `marker == "R"`.
+5. Segment rungs by a `marker` of `R` optionally followed by digits (`R`, `R1`, `R2`, ...).

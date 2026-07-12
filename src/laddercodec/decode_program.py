@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
-from .decode import Rung, _decode_rtf
+from .decode import Rung, _decode_rtf, _drop_tall_span_nops
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
@@ -40,6 +40,7 @@ from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 _SCR_MAGIC = b"SC-SCR  "
 _ROW_TOPOLOGY_PREFIX = b"\x03\x00\x00"
 _ROW_TOPOLOGY_PRELUDE_LEN_RANGE = range(8, 17)
+_ROW_TOPOLOGY_MIN_PRELUDE = 8  # min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE), avoid recomputing
 _MAX_SECTION_INSTRUCTIONS = 512
 
 
@@ -156,15 +157,17 @@ def _parse_header(data: bytes) -> tuple[str, int, int]:
 # ---------------------------------------------------------------------------
 
 
-def _parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
+def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, int, int] | None:
     """Parse SCR instruction blob at pos.
 
     Returns (class_name, type_code, end_offset, next_pos, visual_sub_rows) or None.
     """
-    if pos >= len(data) - 20:
+    if not data_len:
+        data_len = len(data)
+    if pos >= data_len - 20:
         return None
     sl = data[pos]
-    if not (3 <= sl <= 60 and pos + 1 + sl + 2 <= len(data)):
+    if not (3 <= sl <= 60 and pos + 1 + sl + 2 <= data_len):
         return None
     try:
         text = _read_utf16le(data, pos + 1, sl)
@@ -183,18 +186,18 @@ def _parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
         #   after_type+6  (1B) — visual_sub_rows (0x01 single-row, 0x02+ multi-row)
         # Followed by visual_sub_rows sequential counting bytes, then end_offset.
         after_type = type_off + 2
-        if after_type + 12 > len(data):
+        if after_type + 12 > data_len:
             return None
         visual_sub_rows = data[after_type + 6]
         if not (1 <= visual_sub_rows <= 8):
             return None
         eo_pos = after_type + 7 + visual_sub_rows
-        if eo_pos + 4 > len(data):
+        if eo_pos + 4 > data_len:
             return None
         # end_offset is the explicit blob boundary pointer — the same boundary
         # that clipboard's find_blob_boundary() derives by scanning tag fields.
         end_offset = struct.unpack_from("<I", data, eo_pos)[0]
-        if not (pos < end_offset < len(data)):
+        if not (pos < end_offset < data_len):
             return None
         next_pos = end_offset + 2
         return text, marker, end_offset, next_pos, visual_sub_rows
@@ -362,19 +365,21 @@ def _find_sections(data: bytes, start: int) -> list[tuple[int, int, int]]:
     """
     sections: list[tuple[int, int, int]] = []
     i = start
-    while i < len(data) - 5:
+    data_len = len(data)
+    end = data_len - 5
+    while i < end:
         count = struct.unpack_from("<H", data, i)[0]
         section_marker = struct.unpack_from("<I", data, i + 2)[0]
-        if 1 <= count <= _MAX_SECTION_INSTRUCTIONS and 0 < section_marker < len(data):
+        if 1 <= count <= _MAX_SECTION_INSTRUCTIONS and 0 < section_marker < data_len:
             cursor = i + 6
             ok = True
             for _ in range(count):
-                if cursor + 9 > len(data):
+                if cursor + 9 > data_len:
                     ok = False
                     break
-                blob = _parse_blob(data, cursor + 8)
+                blob = _parse_blob(data, cursor + 8, data_len)
                 if not blob:
-                    blob = _parse_blob(data, cursor + 9)
+                    blob = _parse_blob(data, cursor + 9, data_len)
                 if not blob:
                     ok = False
                     break
@@ -542,9 +547,13 @@ def _forward_parse_topology_block(
     return None
 
 
-def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | None:
+def _parse_row_topology_block(
+    data: bytes, pos: int, data_len: int = 0
+) -> _ScrRowTopologyBlock | None:
     """Parse a row-topology block via deterministic forward parsing."""
-    if pos < 0 or pos + min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE) > len(data):
+    if not data_len:
+        data_len = len(data)
+    if pos < 0 or pos + _ROW_TOPOLOGY_MIN_PRELUDE > data_len:
         return None
 
     row_word = struct.unpack_from("<H", data, pos)[0]
@@ -554,7 +563,7 @@ def _parse_row_topology_block(data: bytes, pos: int) -> _ScrRowTopologyBlock | N
     if data[pos + 2 : pos + 5] != _ROW_TOPOLOGY_PREFIX:
         return None
 
-    marker_scan_limit = min(len(data), pos + 0x800)
+    marker_scan_limit = min(data_len, pos + 0x800)
     return _forward_parse_topology_block(data, pos, row_word, marker_scan_limit)
 
 
@@ -564,19 +573,26 @@ def _find_all_row_topology_blocks(
 ) -> list[_ScrRowTopologyBlock]:
     """Forward-scan all topology blocks from ``start`` to end of ``data``.
 
-    Skips past each found block's full extent (``continuation_start``),
-    preventing false positives from flag-table tail bytes.
+    Uses ``bytes.find()`` on the 3-byte prefix at offset +2 to skip
+    non-candidate positions, then validates the full block structure.
     """
     blocks: list[_ScrRowTopologyBlock] = []
     pos = max(0, start)
-    end = len(data)
-    while pos < end:
-        block = _parse_row_topology_block(data, pos)
+    data_len = len(data)
+    while True:
+        idx = data.find(_ROW_TOPOLOGY_PREFIX, pos + 2)
+        if idx < 0:
+            break
+        candidate = idx - 2
+        if candidate < pos:
+            pos = idx + 1
+            continue
+        block = _parse_row_topology_block(data, candidate, data_len)
         if block is not None:
             blocks.append(block)
             pos = block.continuation_start
-            continue
-        pos += 1
+        else:
+            pos = idx + 1
     return blocks
 
 
@@ -1004,6 +1020,10 @@ def _build_rung(
                 # "T" or "|" already set — keep as is
             elif isinstance(cell, (Contact, CompareContact)):
                 cell.wire_down = True
+
+    # Drop stray NOPs that land inside a tall instruction's row span (e.g. a
+    # NOP left stranded on a drum pin row) — same rule as the clipboard decoder.
+    _drop_tall_span_nops(instructions)
 
     return Rung(
         logical_rows=logical_rows,
