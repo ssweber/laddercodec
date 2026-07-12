@@ -340,8 +340,8 @@ def test_drum_with_parallel_branch_roundtrips() -> None:
     """A drum with a parallel input branch running past its body
     (``T`` → ``|`` … → ``X002``) keeps every row positional through CSV,
     instead of collapsing ``X002`` up into the drum's jog slot."""
-    from laddercodec.instructions import Drum
     from laddercodec.csv.writer import _rebuild_rung_from_rows, decoded_rung_to_rows
+    from laddercodec.instructions import Drum
 
     bin_path = GOLDEN_DIR.parent / "drum_weird_branch.bin"
     result = decode(bin_path.read_bytes())
