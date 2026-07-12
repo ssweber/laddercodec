@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
-from .decode import Rung, _decode_rtf
+from .decode import Rung, _decode_rtf, _drop_tall_span_nops
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
@@ -1020,6 +1020,10 @@ def _build_rung(
                 # "T" or "|" already set — keep as is
             elif isinstance(cell, (Contact, CompareContact)):
                 cell.wire_down = True
+
+    # Drop stray NOPs that land inside a tall instruction's row span (e.g. a
+    # NOP left stranded on a drum pin row) — same rule as the clipboard decoder.
+    _drop_tall_span_nops(instructions)
 
     return Rung(
         logical_rows=logical_rows,
