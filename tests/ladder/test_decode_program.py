@@ -542,6 +542,33 @@ def test_decode_program_matches_counter_scr_fixture():
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 
+def test_time_drums_scr_and_bin_both_match_golden_csv():
+    """Time drums across all units + jog/jump, a T-wire branch, and a drum
+    carrying a stray pin-row NOP: SCR, clipboard, and golden CSV all agree."""
+    csv_rungs = read_csv(_SCR_FIXTURE_DIR / "time_drums.csv")
+    clip_rungs, scr_rungs = _load_fixture_pair("time_drums")
+
+    csv_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in csv_rungs]
+    scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
+    bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
+
+    assert len(scr_rungs) == 15
+    assert scr_lines == csv_lines
+    assert bin_lines == csv_lines
+
+
+def test_time_drums_scr_drops_stray_pin_row_nop():
+    """The drum built with a stranded reset-row NOP decodes to drum + T-wire +
+    .reset() pin, with the stray NOP dropped rather than surfaced."""
+    from laddercodec.instructions import Drum
+
+    _clip, scr_rungs = _load_fixture_pair("time_drums")
+    rung = scr_rungs[14]
+    assert isinstance(rung.instructions[0], Drum)
+    assert rung.conditions[0][1] == "T"  # column B branch wire preserved
+    assert "NOP" not in rung.instructions  # stray editing-cruft NOP dropped
+
+
 def test_parse_header_skips_fixed_condition_family_table_without_a_sentinel():
     scr_data = bytearray(b"\x00" * 0xC0)
     scr_data[:8] = b"SC-SCR  "
