@@ -198,24 +198,54 @@ The instruction blob content (tag IDs, operand values, wire types) is **identica
 
 The embedded fields at offsets +0 through +6 after the type code correspond to clipboard cell header offsets +0x09 through +0x10. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
 
+The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
+
+## SCR rung records
+
+An SCR file is a header followed by one rung record per rung, in order, parseable with a single forward cursor:
+
+```
+RUNG = [2B rung_index]        -- 1-based ordinal; asserted sequential
+       [4B rtf_len][rtf body] -- comment; rtf_len = 0 means none
+       TOPOLOGY               -- row-topology block (below)
+       [2B instr_count]       -- 0 = empty rung (nothing follows)
+       [4B section_marker]    -- only when instr_count > 0
+       instr_count x ENTRY    -- 8-byte header + blob (see framing above)
+ENTRY  = [1B row_1based][1B col][1B b2][1B b3][1B entry_seq][3B 00] + blob
+```
+
+Rung 0 carries a 7-byte file prelude instead of `rung_index`: `[2B file_marker][0d][4B total_rung_records]`. `file_marker` equals the per-file `section_marker` constant (opaque; validation magic only), and `total_rung_records` counts every rung record in the file.
+
+Programs end with 1–4 ordinary content-less rungs (the empty editor rungs below the last programmed rung; some carry a fully-wired row) — the decoder drops trailing records with no instructions and no comment. Files with `prog_idx == 1` (the main program) carry a 2-byte tail after the last record; subroutines end exactly at the last record.
+
 ## SCR row-topology blocks
 
 SCR files store per-rung wire topology in structured blocks that precede each rung's instruction section. Each block encodes the right-wire and segment-flag data that clipboard stores per-cell in the grid.
 
 ```
-[2B row_word][03 00 00]                    -- 5-byte header
-[leading-row wire blocks...]               -- rows before row 0 (count_down bridge)
-[1B af_segment][1B entry_count][00]        -- 3-byte trailer
-[entry_count x (1B seg_flag, 1B col_idx)]  -- row 0 flag table
-[continuation-row wire blocks...]          -- rows 1..N-1
-[20 00]                                    -- end marker
-[wire_down data]                           -- per-column vertical wire indices
+[2B row_word][03 00 00]         -- 5-byte header; row_word = stored rows + 1
+{ row block } x (row_word - 1)  -- one per grid row, in row order (row 0 first)
+[20 00]                         -- end marker
+[wire-down table]               -- exactly 32 column entries (see below)
 ```
 
-Each continuation-row wire block:
+Every row block — including row 0's — has the same uniform format:
 
 ```
-[1B seg][1B right_count][00 00][pairs of (col_idx, next_seg)...][final_col]
+[1B flag][1B count][00]  +  count x ([1B seg][1B col])
 ```
 
-The block is parsed forward: leading-row blocks are consumed until the 3-byte trailer is found, then the row-0 flag table, then continuation rows, then the `0x0020` marker, then wire-down data.
+- `flag` — the +0x19 segment flag of the row's AF (col 31) cell. 1 for normal output/coil/NOP rows, 0 for tall segment-0 instructions (timer/counter/drum).
+- `count` — number of right-wired cells on the row (condition cells plus AF when present). `count = 0` is an empty row: the 3-byte block `[flag][00][00]`.
+- Each entry pairs a cell's +0x19 segment flag with its column index (0–31, 31 = AF). Entries are **placement-ordered** — the column sequence is usually ascending but not guaranteed (native captures include orders like `[6,1,0,3,2,4,5]`), so columns must be treated as a set.
+
+A row block whose entries include col 0 with every condition-cell seg = 1 carries the grid-row-0 signature (row 0 is exempt from the per-row segment boundary). SCR can retain orphaned wire rows *above* the true row 0 — editor debris under a tall instruction box — which Click's own clipboard copy omits; the decoder drops non-empty stored rows preceding the first row with the row-0 signature.
+
+The wire-down table after the `20 00` marker has exactly one entry per column 0–31:
+
+```
+no down wires: [00 00]
+down wires:    [1B count][00][count x 1-based row index]
+```
+
+This table is the SCR serialization of the per-cell down flag (+0x21) that clipboard stores on each cell — it lists every down wire, including those carried by contact cells (rendered as a `T:` prefix, see [wire rendering](wire-rendering.md)). It is therefore a superset of the visible `T`/`|` wire tokens.

@@ -21,7 +21,7 @@ Wire tokens are classified by (right, down) only — the segment flag is indepen
 | 1 | 1 | `T` | Branch junction (right + down) |
 | 0 | 0 | *(blank)* | No wire |
 
-Instruction cells (contacts, coils) also set right=1 — they behave like horizontal wires with instruction data layered on top.
+Instruction cells (contacts, coils) also set right=1 — they behave like horizontal wires with instruction data layered on top. A contact cell can additionally set down=1 (a branch rooted directly under the contact): since right is already 1, that's the T shape, and the CSV renders it as a `T:` prefix on the contact token (e.g. `T:C1204`), mapping to `wire_down=True` on `Contact`/`CompareContact`.
 
 ## Left-edge rendering
 
