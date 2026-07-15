@@ -4,16 +4,18 @@ import importlib
 import struct
 from pathlib import Path
 
+import pytest
+
 from laddercodec import decode
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
     _find_all_row_topology_blocks,
     _find_sections,
-    _parse_extra_row_right_wires,
     _parse_header,
+    _parse_row_block,
     _parse_scr_tags,
-    _parse_wiredown,
+    _parse_wiredown_table,
     _tag_wire_type,
     decode_program,
 )
@@ -101,38 +103,23 @@ def _right_wire_columns(rung, row_idx: int) -> list[int]:
     return right_columns
 
 
-def _parse_extra_row_right_wire_detail(
-    data: bytes,
-    start: int,
-) -> tuple[tuple[int, ...], dict[int, int], int]:
-    """Return serialized continuation-row columns plus per-entry next_seg values."""
-    assert data[start] == 0
-    right_count = data[start + 1]
-    block_len = right_count * 2 + 3
+def _row_block_details(data: bytes, block) -> list[tuple[int, list[tuple[int, int]]]]:
+    """Re-parse a topology block's row blocks as (flag, [(seg, col), ...]).
 
-    if right_count == 0:
-        return (), {}, block_len
-
-    body = data[start + 2 : start + block_len]
-    assert body[:2] == b"\x00\x00"
-
-    pair_bytes = body[2:-1]
-    assert len(pair_bytes) == (right_count - 1) * 2
-
-    ordered_columns: list[int] = []
-    next_seg_by_col: dict[int, int] = {}
-    for i in range(0, len(pair_bytes), 2):
-        col_idx = pair_bytes[i]
-        next_seg = pair_bytes[i + 1]
-        ordered_columns.append(col_idx)
-        next_seg_by_col[col_idx] = next_seg
-
-    ordered_columns.append(body[-1])
-    return tuple(ordered_columns), next_seg_by_col, block_len
-
-
-def _parse_row0_entry_order(data: bytes, block) -> tuple[int, ...]:
-    return tuple(data[block.flags_start + i * 2 + 1] for i in range(block.row0_flag_count))
+    Preserves the native serialized entry order, unlike the set-based parser.
+    """
+    pos = block.start + 5
+    details: list[tuple[int, list[tuple[int, int]]]] = []
+    for _ in range(block.row_word - 1):
+        flag = data[pos]
+        count = data[pos + 1]
+        assert data[pos + 2] == 0
+        pos += 3
+        entries = [(data[pos + i * 2], data[pos + i * 2 + 1]) for i in range(count)]
+        pos += count * 2
+        details.append((flag, entries))
+    assert data[pos : pos + 2] == b"\x20\x00"
+    return details
 
 
 def _compact_scr_blob(
@@ -313,9 +300,38 @@ def test_find_sections_accepts_large_instruction_counts():
     assert _find_sections(section, start=0) == [(0, 21, len(section))]
 
 
-def test_parse_wiredown_uses_explicit_row_indices():
-    data = b"\x20\x00" + b"\x00\x00" + b"\x05\x00\x02\x03\x04\x05\x06" + b"\x00\x00"
-    assert _parse_wiredown(data, 0, len(data)) == {1: (1, 2, 3, 4, 5)}
+def test_parse_wiredown_table_uses_explicit_row_indices():
+    data = b"\x00\x00" + b"\x05\x00\x02\x03\x04\x05\x06" + b"\x00\x00" * 30
+    assert _parse_wiredown_table(data, 0, len(data)) == ({1: (1, 2, 3, 4, 5)}, len(data))
+
+
+def test_parse_wiredown_table_requires_all_32_columns():
+    data = b"\x00\x00" * 31  # one column entry short
+    assert _parse_wiredown_table(data, 0, len(data)) is None
+
+
+def test_parse_row_block_accepts_seg1_first_entry():
+    # AlmHistorian regression: a continuation row whose first right-wired cell
+    # carries segment flag 1 (`00 01 00 | 01 00` = flag=0, count=1, entry
+    # seg=1 col=0).  The old framing demanded `00 00` after the count and
+    # rejected the whole topology block, silently dropping the rung's wires.
+    data = bytes.fromhex("0001000100")
+    assert _parse_row_block(data, 0, len(data)) == ({0}, True, 5)
+
+
+def test_parse_row_block_empty_row():
+    data = bytes.fromhex("010000")
+    assert _parse_row_block(data, 0, len(data)) == (set(), False, 3)
+
+
+def test_parse_row_block_row0_signature():
+    # col 0 present + all condition segs 1 (col-31 seg exempt) = grid row 0;
+    # a seg-0 condition cell breaks the signature.
+    data = bytes.fromhex("01 03 00 01 00 01 01 01 1f")
+    assert _parse_row_block(data, 0, len(data)) == ({0, 1, 31}, True, 9)
+
+    data = bytes.fromhex("01 03 00 01 00 00 01 01 1f")
+    assert _parse_row_block(data, 0, len(data)) == ({0, 1, 31}, False, 9)
 
 
 def test_parse_scr_tags_handles_compact_home_raw_fields():
@@ -414,52 +430,39 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
     )
 
 
-def test_parse_extra_row_right_wires_matches_or_topology_clipboard_columns():
+def test_topology_row_blocks_match_or_topology_clipboard_columns():
     scr_data = (_SCR_FIXTURE_DIR / "or_topology.scr").read_bytes()
     clip_data = (_SCR_FIXTURE_DIR / "or_topology.bin").read_bytes()
 
     clip_result = decode(clip_data)
     clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
 
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
     topo_map = _topology_blocks_by_section(scr_data)
 
     for rung_idx, clip_rung in enumerate(clip_rungs):
         if clip_rung.logical_rows < 2:
             continue
 
-        sec_off, _count, _sec_end = sections[rung_idx]
         block = topo_map.get(rung_idx)
         assert block is not None
-
-        extra_rows_right_wires, marker_pos = _parse_extra_row_right_wires(
-            scr_data,
-            block.continuation_start,
-            sec_off,
-            clip_rung.logical_rows - 1,
-        )
+        assert len(block.rows_right_cols) == clip_rung.logical_rows
 
         expected = [
             sorted(_right_wire_columns(clip_rung, row_idx))
-            for row_idx in range(1, clip_rung.logical_rows)
+            for row_idx in range(clip_rung.logical_rows)
         ]
-        actual = [sorted(cols) for cols in extra_rows_right_wires]
+        actual = [sorted(cols) for cols in block.rows_right_cols]
 
         assert actual == expected
-        assert marker_pos is not None
-        assert scr_data[marker_pos : marker_pos + 2] == b"\x20\x00"
 
 
-def test_continuation_row_next_seg_matches_successor_segment_flags():
+def test_row_block_seg_flags_match_clipboard_segment_flags():
     scr_data = (_SCR_FIXTURE_DIR / "or_topology.scr").read_bytes()
     clip_data = (_SCR_FIXTURE_DIR / "or_topology.bin").read_bytes()
 
     clip_result = decode(clip_data)
     clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
 
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
     topo_map = _topology_blocks_by_section(scr_data)
 
     saw_wrapped_order = False
@@ -468,24 +471,18 @@ def test_continuation_row_next_seg_matches_successor_segment_flags():
         if clip_rung.logical_rows < 2:
             continue
 
-        sec_off, _count, _sec_end = sections[rung_idx]
         block = topo_map.get(rung_idx)
         assert block is not None
 
-        pos = block.continuation_start
-        for row_idx in range(1, clip_rung.logical_rows):
-            ordered_columns, next_seg_by_col, block_len = _parse_extra_row_right_wire_detail(
-                scr_data, pos
-            )
-            pos += block_len
-
-            expected_columns = tuple(_right_wire_columns(clip_rung, row_idx))
+        for row_idx, (_flag, entries) in enumerate(_row_block_details(scr_data, block)):
+            ordered_columns = [col for _seg, col in entries]
+            expected_columns = _right_wire_columns(clip_rung, row_idx)
             assert set(ordered_columns) == set(expected_columns)
 
-            if not ordered_columns:
+            if not entries:
                 continue
 
-            if ordered_columns != tuple(sorted(ordered_columns)):
+            if ordered_columns != sorted(ordered_columns):
                 saw_wrapped_order = True
 
             cell_dumps = inspect_cells(
@@ -494,8 +491,9 @@ def test_continuation_row_next_seg_matches_successor_segment_flags():
             )
             seg_by_col = {_COL_IDX_BY_NAME[cell.col]: cell.flags[0] for cell in cell_dumps}
 
-            for current_col, next_col in zip(ordered_columns, ordered_columns[1:], strict=False):
-                assert next_seg_by_col[current_col] == seg_by_col[next_col]
+            # Each entry's seg byte is that cell's own +0x19 segment flag.
+            for seg, col in entries:
+                assert seg == seg_by_col[col]
 
     assert saw_wrapped_order
 
@@ -593,239 +591,120 @@ def test_parse_header_skips_fixed_condition_family_table_without_a_sentinel():
     assert _parse_header(bytes(scr_data)) == ("Main Program", 1, cursor + 7)
 
 
-def test_decode_program_keeps_comments_for_consecutive_empty_topology_rungs(monkeypatch):
-    empty_block_1 = decode_program_module._ScrRowTopologyBlock(
-        start=20,
-        row_word=2,
-        prelude=b"",
-        leading_rows_right_wires=[],
-        row0_flag_count=32,
-        row0_flags={},
-        flags_start=20,
-        continuation_start=20,
-    )
-    empty_block_2 = decode_program_module._ScrRowTopologyBlock(
-        start=50,
-        row_word=2,
-        prelude=b"",
-        leading_rows_right_wires=[],
-        row0_flag_count=32,
-        row0_flags={},
-        flags_start=50,
-        continuation_start=50,
-    )
-    main_block = decode_program_module._ScrRowTopologyBlock(
-        start=80,
-        row_word=2,
-        prelude=b"",
-        leading_rows_right_wires=[],
-        row0_flag_count=32,
-        row0_flags={},
-        flags_start=80,
-        continuation_start=80,
-    )
-    comment_calls: list[tuple[int, int]] = []
-
-    monkeypatch.setattr(decode_program_module, "_parse_header", lambda data: ("Main Program", 1, 0))
-    monkeypatch.setattr(
-        decode_program_module, "_find_sections", lambda data, start: [(100, 1, 110)]
-    )
-    monkeypatch.setattr(
-        decode_program_module,
-        "_parse_section_instructions",
-        lambda data, sec_off, count: [],
-    )
-    monkeypatch.setattr(
-        decode_program_module,
-        "_find_all_row_topology_blocks",
-        lambda data, start: [empty_block_1, empty_block_2, main_block],
+def _synthetic_rtf(text: str) -> bytes:
+    return (
+        b"{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033"
+        b"{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\r\n"
+        b"\\viewkind4\\uc1\\pard\\fs20 " + text.encode("ascii") + b"\r\n\\par }\r\n"
     )
 
-    def fake_find_rtf_comment(data, start, end):
-        comment_calls.append((start, end))
-        return None, f"comment {start}->{end}"
 
-    monkeypatch.setattr(decode_program_module, "_find_rtf_comment", fake_find_rtf_comment)
-    monkeypatch.setattr(
-        decode_program_module,
-        "_build_topology_backed_rung",
-        lambda **kwargs: kwargs["comment"],
-    )
+def _synthetic_scr(rung_comments: list[str | None]) -> bytes:
+    """Build a minimal subroutine SCR of empty rungs with the given comments."""
+    buf = bytearray(b"SC-SCR  ")
+    buf += b"\x00" * (0x40 - len(buf))
+    buf += struct.pack("<H", 2)  # prog_idx (subroutine: no file tail)
+    name_bytes = "Synth".encode("utf-16-le") + b"\x00"
+    buf.append(len(name_bytes))
+    buf += name_bytes
+    buf += struct.pack("<H", 32)  # cols_per_row
+    buf += struct.pack("<H", ord("H")) * 31  # condition-family table
 
-    program = decode_program_module.decode_program(b"")
+    # Rung-0 file prelude: [u16 file_marker][0d][u32 total rung records]
+    buf += struct.pack("<H", 144) + b"\x0d" + struct.pack("<I", len(rung_comments))
 
-    assert comment_calls == [(0, 20), (20, 50), (50, 80)]
-    assert program.rungs == ["comment 0->20", "comment 20->50", "comment 50->80"]
+    for index, comment in enumerate(rung_comments):
+        if index > 0:
+            buf += struct.pack("<H", index)
+        rtf = _synthetic_rtf(comment) if comment is not None else b""
+        buf += struct.pack("<I", len(rtf)) + rtf
+        # Topology: row_word=2, one empty row block, end marker, 32-col wiredown
+        buf += struct.pack("<H", 2) + b"\x03\x00\x00" + b"\x01\x00\x00"
+        buf += b"\x20\x00" + b"\x00" * 64
+        buf += b"\x00\x00"  # instr_count = 0 (empty rung)
+    return bytes(buf)
 
 
-def test_parse_31_entry_row_topology_blocks_in_coverage_fixture():
+def test_decode_program_keeps_comments_for_consecutive_empty_rungs():
+    data = _synthetic_scr(["first", "second", "third", None])
+
+    program = decode_program(data)
+
+    # The trailing comment-less record is a placeholder and is dropped; the
+    # commented empty rungs are real and keep their own comments.
+    assert program.name == "Synth"
+    assert [r.comment for r in program.rungs] == ["first", "second", "third"]
+    assert all(r.logical_rows == 1 for r in program.rungs)
+
+
+def test_decode_program_rejects_corrupt_rung_index():
+    data = bytearray(_synthetic_scr(["first", None, None]))
+    # Corrupt the second rung's index word (locate it: first rung record ends
+    # after its 00 00 count; the next two bytes are the u16 index == 1).
+    idx_pos = data.index(struct.pack("<H", 1) + b"\x00\x00\x00\x00\x02\x00\x03\x00\x00")
+    struct.pack_into("<H", data, idx_pos, 9)
+
+    with pytest.raises(ValueError, match="rung index mismatch"):
+        decode_program(bytes(data))
+
+
+def test_topology_row_blocks_match_coverage_clipboard_columns():
     scr_data = (_SCR_FIXTURE_DIR / "coverage.scr").read_bytes()
     clip_rungs, _scr_rungs = _load_fixture_pair("coverage")
 
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
     topo_map = _topology_blocks_by_section(scr_data)
 
+    # Rungs whose row-0 block has 31 entries (col A occupied, no AF wire).
     for rung_idx in [58, 70, 71, 72, 75, 76]:
-        sec_off, _count, _sec_end = sections[rung_idx]
         block = topo_map.get(rung_idx)
         assert block is not None
-        assert block.row0_flag_count == 31
-        assert block.prelude.endswith(b"\x1f\x00")
-
-        raw_rows, marker_pos = _parse_extra_row_right_wires(
-            scr_data,
-            block.continuation_start,
-            sec_off,
-            clip_rungs[rung_idx].logical_rows - 1,
-        )
-        assert marker_pos is not None
-        assert len(raw_rows) == clip_rungs[rung_idx].logical_rows - 1
+        assert len(block.rows_right_cols[0]) == 31
+        assert len(block.rows_right_cols) == clip_rungs[rung_idx].logical_rows
 
         expected_rows = [
             sorted(_right_wire_columns(clip_rungs[rung_idx], row_idx))
             for row_idx in range(1, clip_rungs[rung_idx].logical_rows)
         ]
-        actual_rows = [sorted(cols) for cols in raw_rows]
+        actual_rows = [sorted(cols) for cols in block.rows_right_cols[1:]]
         assert actual_rows == expected_rows
 
 
-def test_counter_row_topology_blocks_capture_variable_preludes():
+def test_count_down_topology_blocks_use_uniform_row_blocks():
+    """count_down counter rungs need no special-casing: their stored row
+    blocks map 1:1 to grid rows (AF row simply carries flag=0)."""
     scr_data = (_SCR_FIXTURE_DIR / "counter_scr.scr").read_bytes()
 
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
     topo_map = _topology_blocks_by_section(scr_data)
 
-    for rung_idx, expected_prelude, expected_rows in (
-        (2, bytes.fromhex("0400030000000000012000"), [[]]),
-        (3, bytes.fromhex("0400030000010000002000"), [list(range(31))]),
+    for rung_idx, expected_start, expected_rows in (
+        (2, None, [set(), set(range(32)), set()]),
+        (3, None, [set(), set(range(32)), set(range(31))]),
+        (6, 0xA58, [set(range(7)), set(range(7, 32)), set(range(31))]),
+        (7, 0xC93, [set(range(7)), set(range(7)), set(range(7, 32)), set(range(31))]),
     ):
-        sec_off, _count, _sec_end = sections[rung_idx]
-        prev_sec_end = sections[rung_idx - 1][2]
         block = topo_map.get(rung_idx)
         assert block is not None
-        assert block.start > prev_sec_end
-        assert block.row_word == 4
-        assert block.row0_flag_count == 32
-        assert block.prelude == expected_prelude
-
-        raw_rows, marker_pos = _parse_extra_row_right_wires(
-            scr_data,
-            block.continuation_start,
-            sec_off,
-            2,
-        )
-        assert marker_pos is not None
-        assert [sorted(cols) for cols in raw_rows] == expected_rows
+        if expected_start is not None:
+            assert block.start == expected_start
+        assert block.row_word == len(expected_rows) + 1
+        assert [set(cols) for cols in block.rows_right_cols] == expected_rows
 
 
-def test_counter_count_down_with_row0_data_uses_local_sparse_topology_block():
-    scr_data = (_SCR_FIXTURE_DIR / "counter_scr.scr").read_bytes()
+def test_topology_row_block_entries_can_use_wrapped_order():
+    """Entry order is placement-ordered, not ascending: these native captures
+    store row-0 columns as [6,1,0,3,2,4,5] and [1..31,0]."""
+    counter_data = (_SCR_FIXTURE_DIR / "counter_scr.scr").read_bytes()
+    counter_map = _topology_blocks_by_section(counter_data)
+    block = counter_map[6]
+    _flag, entries = _row_block_details(counter_data, block)[0]
+    assert [col for _seg, col in entries] == [6, 1, 0, 3, 2, 4, 5]
 
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
-    topo_map = _topology_blocks_by_section(scr_data)
-
-    rung_idx = 6
-    sec_off, _count, _sec_end = sections[rung_idx]
-    prev_sec_end = sections[rung_idx - 1][2]
-    block = topo_map.get(rung_idx)
-
-    assert block is not None
-    assert block.start == 0xA58
-    assert block.start > prev_sec_end
-    assert block.row_word == 4
-    assert block.prelude == bytes.fromhex("04000300000007000006000100000003000200040005011900")
-    assert block.row0_flag_count == 25
-    assert _parse_row0_entry_order(scr_data, block) == tuple(range(7, 32))
-    assert [sorted(cols) for cols in block.leading_rows_right_wires] == [list(range(7))]
-
-    raw_rows, marker_pos = _parse_extra_row_right_wires(
-        scr_data,
-        block.continuation_start,
-        sec_off,
-        2,
-    )
-    assert marker_pos is not None
-    assert [sorted(cols) for cols in raw_rows] == [list(range(31))]
-
-
-def test_counter_count_down_with_row0_and_row1_data_uses_two_local_sparse_leading_rows():
-    scr_data = (_SCR_FIXTURE_DIR / "counter_scr.scr").read_bytes()
-
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
-    topo_map = _topology_blocks_by_section(scr_data)
-
-    rung_idx = 7
-    sec_off, _count, _sec_end = sections[rung_idx]
-    prev_sec_end = sections[rung_idx - 1][2]
-    block = topo_map.get(rung_idx)
-
-    assert block is not None
-    assert block.start == 0xC93
-    assert block.start > prev_sec_end
-    assert block.row_word == 5
-    assert block.prelude == bytes.fromhex(
-        "050003000000070000000001000200030004000500060107000000000100020003000400050006001900"
-    )
-    assert block.row0_flag_count == 25
-    assert _parse_row0_entry_order(scr_data, block) == tuple(range(7, 32))
-    assert [sorted(cols) for cols in block.leading_rows_right_wires] == [
-        list(range(7)),
-        list(range(7)),
-    ]
-
-    raw_rows, marker_pos = _parse_extra_row_right_wires(
-        scr_data,
-        block.continuation_start,
-        sec_off,
-        3,
-    )
-    assert marker_pos is not None
-    assert [sorted(cols) for cols in raw_rows] == [list(range(31))]
-
-
-def test_counter_topology_blocks_can_use_local_wrapped_row0_order_in_coverage_fixture():
-    scr_data = (_SCR_FIXTURE_DIR / "coverage.scr").read_bytes()
-
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
-    topo_map = _topology_blocks_by_section(scr_data)
-
-    for rung_idx, expected_start, expected_prelude, expected_rows in (
-        (
-            48,
-            0x4DBB,
-            bytes.fromhex("0400030000012000"),
-            [list(range(31)), list(range(31))],
-        ),
-        (
-            49,
-            0x5050,
-            bytes.fromhex("0400030000000000012000"),
-            [list(range(31))],
-        ),
-    ):
-        sec_off, _count, _sec_end = sections[rung_idx]
-        prev_sec_end = sections[rung_idx - 1][2]
-        block = topo_map.get(rung_idx)
-
-        assert block is not None
-        assert block.start == expected_start
-        assert block.start > prev_sec_end
-        assert block.prelude == expected_prelude
-        assert _parse_row0_entry_order(scr_data, block) == tuple(range(1, 32)) + (0,)
-
-        raw_rows, marker_pos = _parse_extra_row_right_wires(
-            scr_data,
-            block.continuation_start,
-            sec_off,
-            2,
-        )
-        assert marker_pos is not None
-        assert [sorted(cols) for cols in raw_rows] == expected_rows
+    coverage_data = (_SCR_FIXTURE_DIR / "coverage.scr").read_bytes()
+    coverage_map = _topology_blocks_by_section(coverage_data)
+    for rung_idx, wrapped_row in ((48, 0), (49, 1)):
+        block = coverage_map[rung_idx]
+        _flag, entries = _row_block_details(coverage_data, block)[wrapped_row]
+        assert [col for _seg, col in entries] == [*range(1, 32), 0]
 
 
 def test_forward_scanner_finds_all_topology_blocks():
@@ -839,7 +718,9 @@ def test_forward_scanner_finds_all_topology_blocks():
         for rung_idx, block in topo_map.items():
             pos = block.start
             assert scr_data[pos + 2 : pos + 5] == _PREFIX
-            assert block.row0_flag_count >= 1, f"{scr_path.name} rung {rung_idx}: empty flag table"
+            assert len(block.rows_right_cols) == block.row_word - 1, (
+                f"{scr_path.name} rung {rung_idx}: row block count mismatch"
+            )
 
 
 def test_tag_wire_type_covers_all_implicit_tags():

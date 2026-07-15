@@ -98,6 +98,7 @@ tests/
 │   ├── test_decode.py       # decode() tests
 │   ├── test_decode_multi.py # decode() multi-rung tests
 │   ├── test_decode_program.py # decode_program() program file tests
+│   ├── test_decode_program_tumbler.py # 34 real programs: scr decode == clipboard CSV
 │   ├── test_verify_status.py # Golden verification status check
 │   ├── test_model.py        # InstructionType, operand validation
 │   └── test_empty_multirow.py  # Payload synthesis for rows 1..32
@@ -109,10 +110,12 @@ tests/
 │   ├── test_token_parser.py # Condition + AF token parsing
 │   └── test_writer.py       # CSV writer tests
 └── fixtures/
-    └── ladder_captures/golden/  # Golden CSV/BIN fixtures
+    ├── ladder_captures/golden/  # Golden CSV/BIN fixtures
+    ├── scr_captures/            # Scr program files + clipboard bins (decode_program)
+    └── tumbler/                 # 34 real programs: <name>.scr + <name>.clipboard.{bin,csv}
 ```
 
-Golden fixtures verified through Click paste round-trip.
+Golden fixtures verified through Click paste round-trip. The tumbler fixture pairs each Click internal program file (`.scr`) with a clipboard capture of the same program; `devtools/compare_csv.py <dir>` compares `<name>.csv` (scr decode) against `<name>.clipboard.csv` ground truth.
 
 ## Binary Format
 
@@ -157,7 +160,7 @@ All tested shapes pass Click round-trip (verified via paste → copy-back):
 
 The clipboard decoder (`decode.py`) reads Click clipboard binaries back into structured data. Validated against a 37-rung native capture covering all basic instruction types.
 
-The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against 114-rung coverage fixture plus shift and counter programs.
+The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against the 114-rung coverage fixture, shift/counter/drum programs, and the 34-program tumbler fixture (byte-identical CSV vs clipboard captures). Row topology uses the uniform row-block framing documented in `docs/internals/binary-format.md` §"SCR row-topology blocks".
 
 **All standard Click instruction types decoded natively:**
 - Contacts: NO, NC, edge (rise/fall), immediate (NO/NC)

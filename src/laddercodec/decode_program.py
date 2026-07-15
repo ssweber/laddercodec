@@ -29,7 +29,6 @@ from .instructions import (
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
-from .instructions.counter import Counter
 from .model import Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
@@ -39,8 +38,7 @@ from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 _SCR_MAGIC = b"SC-SCR  "
 _ROW_TOPOLOGY_PREFIX = b"\x03\x00\x00"
-_ROW_TOPOLOGY_PRELUDE_LEN_RANGE = range(8, 17)
-_ROW_TOPOLOGY_MIN_PRELUDE = 8  # min(_ROW_TOPOLOGY_PRELUDE_LEN_RANGE), avoid recomputing
+_ROW_TOPOLOGY_END_MARKER = b"\x20\x00"
 _MAX_SECTION_INSTRUCTIONS = 512
 
 
@@ -61,16 +59,28 @@ _ScrSectionInstruction = tuple[
 
 @dataclass(frozen=True)
 class _ScrRowTopologyBlock:
-    """Structural row-topology record that precedes a rung's instruction section."""
+    """Structural row-topology record that precedes a rung's instruction section.
+
+    Uniform framing (verified against all native captures)::
+
+        [row_word u16] [03 00 00]
+          (row_word - 1) row blocks, one per grid row, each:
+            [flag u8] [count u8] [00]  +  count x ([seg u8] [col u8])
+        [20 00]
+        32-column wire-down table
+
+    ``flag``/``seg`` are the clipboard +0x19 segment flags (flag = the row's
+    AF cell, seg = that condition cell).  Entries are placement-ordered — the
+    column sequence is not guaranteed ascending — so columns are kept as sets.
+    A count-0 row block is an empty grid row.
+    """
 
     start: int
     row_word: int
-    prelude: bytes
-    leading_rows_right_wires: list[set[int]]
-    row0_flag_count: int
-    row0_flags: dict[int, int]
-    flags_start: int
-    continuation_start: int
+    rows_right_cols: tuple[frozenset[int], ...]  # index 0 = grid row 0
+    rows_row0_like: tuple[bool, ...]  # per row: carries the grid-row-0 signature
+    wiredown: dict[int, tuple[int, ...]]
+    end: int  # first byte after the wire-down table
 
 
 # ---------------------------------------------------------------------------
@@ -433,127 +443,77 @@ def _parse_section_instructions(
 # ---------------------------------------------------------------------------
 
 
-def _try_topology_at_flags_start(
-    data: bytes,
-    pos: int,
-    row_word: int,
-    flags_start: int,
-    marker_scan_limit: int,
-) -> _ScrRowTopologyBlock | None:
-    """Validate a candidate *flags_start* and build a topology block if valid.
+def _parse_row_block(data: bytes, pos: int, data_len: int) -> tuple[set[int], bool, int] | None:
+    """Parse one uniform row block: ``[flag][count][00]`` + count x ``[seg][col]``.
 
-    The 3-byte trailer ``[af_segment] [entry_count] [00]`` must sit at
-    ``flags_start - 3``.  Returns ``None`` when any structural check fails.
+    Returns ``(right_wired_cols, row0_like, next_pos)`` or ``None`` on any
+    structural mismatch.  Entries are placement-ordered — columns are
+    collected as a set.
+
+    ``row0_like`` is the grid-row-0 signature: the row reaches the power rail
+    (col 0 present) and every condition cell carries segment flag 1 (grid row
+    0 is exempt from the per-row segment boundary, so only a true row 0 looks
+    like this — continuation rows connected to the rail get seg=0 left of the
+    boundary).
     """
-    af_segment = data[flags_start - 3]
-    flag_entry_count = data[flags_start - 2]
-    if data[flags_start - 1] != 0:
+    if pos + 3 > data_len:
         return None
-    if af_segment not in (0, 1) or not (1 <= flag_entry_count <= 32):
+    flag = data[pos]
+    count = data[pos + 1]
+    if flag not in (0, 1) or data[pos + 2] != 0 or count > _CONDITION_COLUMNS + 1:
+        return None
+    entries_end = pos + 3 + count * 2
+    if entries_end > data_len:
         return None
 
-    if flags_start + flag_entry_count * 2 > len(data):
-        return None
-
-    # Validate row-0 flag table.
-    row0_flags: dict[int, int] = {}
-    ordered_cols: list[int] = []
-    for c in range(flag_entry_count):
-        off = flags_start + c * 2
-        seg_flag = data[off]
-        col_idx = data[off + 1]
-        if seg_flag not in (0, 1) or col_idx > _CONDITION_COLUMNS or col_idx in row0_flags:
+    cols: set[int] = set()
+    all_condition_segs_set = True
+    for off in range(pos + 3, entries_end, 2):
+        seg = data[off]
+        col = data[off + 1]
+        if seg not in (0, 1) or col > _CONDITION_COLUMNS or col in cols:
             return None
-        row0_flags[col_idx] = seg_flag
-        ordered_cols.append(col_idx)
-
-    # Check sorted-with-rotation order.
-    sorted_cols = sorted(ordered_cols)
-    for shift in range(flag_entry_count):
-        if ordered_cols == sorted_cols[shift:] + sorted_cols[:shift]:
-            break
-    else:
-        return None
-
-    # Parse leading-row blocks between the 5-byte header and the 3-byte trailer.
-    leading_rows_right_wires: list[set[int]] = []
-    aux_end = flags_start - 3
-    aux_pos = pos + 5
-    while aux_pos < aux_end:
-        parsed = _parse_extra_row_right_wire_block(data, aux_pos, aux_end)
-        if parsed is None:
-            break
-        right_columns, block_len = parsed
-        if right_columns:
-            leading_rows_right_wires.append(right_columns)
-        aux_pos += block_len
-
-    # Validate continuation rows + 0x20 marker.
-    continuation_start = flags_start + flag_entry_count * 2
-    marker_probe = continuation_start
-    for _ in range(max(0, row_word - 2)):
-        parsed = _parse_extra_row_right_wire_block(data, marker_probe, marker_scan_limit)
-        if parsed is None:
-            break
-        _right_columns, block_len = parsed
-        marker_probe += block_len
-
-    if marker_probe + 2 > marker_scan_limit or data[marker_probe : marker_probe + 2] != b"\x20\x00":
-        return None
-
-    return _ScrRowTopologyBlock(
-        start=pos,
-        row_word=row_word,
-        prelude=bytes(data[pos:flags_start]),
-        leading_rows_right_wires=leading_rows_right_wires,
-        row0_flag_count=flag_entry_count,
-        row0_flags=row0_flags,
-        flags_start=flags_start,
-        continuation_start=continuation_start,
-    )
+        if col < _CONDITION_COLUMNS and seg == 0:
+            all_condition_segs_set = False
+        cols.add(col)
+    row0_like = 0 in cols and all_condition_segs_set
+    return cols, row0_like, entries_end
 
 
-def _forward_parse_topology_block(
-    data: bytes,
-    pos: int,
-    row_word: int,
-    marker_scan_limit: int,
-) -> _ScrRowTopologyBlock | None:
-    """Try to determine *flags_start* deterministically by forward-parsing.
+def _parse_wiredown_table(
+    data: bytes, pos: int, data_len: int
+) -> tuple[dict[int, tuple[int, ...]], int] | None:
+    """Parse the 32-column wire-down table that follows the ``20 00`` marker.
 
-    Parses leading-row wire blocks from ``pos+5`` forward.  At each step,
-    tries to interpret the current position as the 3-byte trailer
-    ``[af_segment] [entry_count] [00]`` and validates the full block.
-    Returns ``None`` if the forward parse cannot produce a valid block.
+    Exactly one entry per column 0..31: ``00 00`` (no down wires) or
+    ``[count][00][count x 1-based row index]``.  Returns
+    ``({col: row_indices}, end)`` or ``None`` on structural mismatch.
     """
-    aux_pos = pos + 5
-    limit = min(len(data), pos + 0x40)
-
-    while aux_pos + 3 <= limit:
-        # Try to interpret current position as the 3-byte trailer.
-        candidate = _try_topology_at_flags_start(
-            data, pos, row_word, aux_pos + 3, marker_scan_limit
-        )
-        if candidate is not None:
-            return candidate
-
-        # Not a valid trailer — try parsing another wire block.
-        parsed = _parse_extra_row_right_wire_block(data, aux_pos, limit)
-        if parsed is None:
-            break
-        _, block_len = parsed
-        aux_pos += block_len
-
-    return None
+    result: dict[int, tuple[int, ...]] = {}
+    for col in range(_CONDITION_COLUMNS + 1):
+        if pos + 2 > data_len:
+            return None
+        count = data[pos]
+        if data[pos + 1] != 0:
+            return None
+        pos += 2
+        if count:
+            if pos + count > data_len:
+                return None
+            rows = tuple(sorted({b - 1 for b in data[pos : pos + count] if b > 0}))
+            if rows:
+                result[col] = rows
+            pos += count
+    return result, pos
 
 
 def _parse_row_topology_block(
     data: bytes, pos: int, data_len: int = 0
 ) -> _ScrRowTopologyBlock | None:
-    """Parse a row-topology block via deterministic forward parsing."""
+    """Parse a full row-topology block (header, row blocks, marker, wiredown)."""
     if not data_len:
         data_len = len(data)
-    if pos < 0 or pos + _ROW_TOPOLOGY_MIN_PRELUDE > data_len:
+    if pos < 0 or pos + 7 > data_len:
         return None
 
     row_word = struct.unpack_from("<H", data, pos)[0]
@@ -563,8 +523,33 @@ def _parse_row_topology_block(
     if data[pos + 2 : pos + 5] != _ROW_TOPOLOGY_PREFIX:
         return None
 
-    marker_scan_limit = min(data_len, pos + 0x800)
-    return _forward_parse_topology_block(data, pos, row_word, marker_scan_limit)
+    cursor = pos + 5
+    rows: list[frozenset[int]] = []
+    row0_like: list[bool] = []
+    for _ in range(row_word - 1):
+        parsed = _parse_row_block(data, cursor, data_len)
+        if parsed is None:
+            return None
+        cols, is_row0_like, cursor = parsed
+        rows.append(frozenset(cols))
+        row0_like.append(is_row0_like)
+
+    if data[cursor : cursor + 2] != _ROW_TOPOLOGY_END_MARKER:
+        return None
+
+    parsed_wd = _parse_wiredown_table(data, cursor + 2, data_len)
+    if parsed_wd is None:
+        return None
+    wiredown, end = parsed_wd
+
+    return _ScrRowTopologyBlock(
+        start=pos,
+        row_word=row_word,
+        rows_right_cols=tuple(rows),
+        rows_row0_like=tuple(row0_like),
+        wiredown=wiredown,
+        end=end,
+    )
 
 
 def _find_all_row_topology_blocks(
@@ -590,298 +575,227 @@ def _find_all_row_topology_blocks(
         block = _parse_row_topology_block(data, candidate, data_len)
         if block is not None:
             blocks.append(block)
-            pos = block.continuation_start
+            pos = block.end
         else:
             pos = idx + 1
     return blocks
 
 
-def _find_rtf_comment(data: bytes, start: int, end: int) -> tuple[bytes | None, str | None]:
-    """Find RTF comment between start and end.
+# ---------------------------------------------------------------------------
+# Linear rung-record walk
+# ---------------------------------------------------------------------------
+#
+# Per-rung grammar (single forward cursor, no scanning):
+#
+#   RUNG = [u16 rung_index (1-based ordinal; rung 0 has the file prelude
+#           [u16 file_marker][0d][u32 total_rung_records] instead)]
+#          [u32 rtf_len][rtf body]
+#          TOPOLOGY                        (see _parse_row_topology_block)
+#          [u16 instr_count]               (0 = empty rung, else section follows)
+#          [u32 section_marker] + entries  (only when instr_count > 0)
+#
+# Entry advance is trailer-aware: the byte at each blob's end_offset is a
+# trailer length (0 or 1), so the next entry starts at
+# ``end_offset + 2 + data[end_offset]``.
+# Files whose prog_idx == 1 (the main program) end with a 2-byte tail after
+# the last rung record; subroutines end exactly at the last record.
 
-    Returns (rtf_bytes, markdown_text) or (None, None).
+
+@dataclass(frozen=True)
+class _ScrRungRecord:
+    """One rung record from the linear walk."""
+
+    comment: str | None
+    comment_rtf: bytes | None
+    topology: _ScrRowTopologyBlock | None  # None only for skipped trailing debris
+    instructions: list[_ScrSectionInstruction]
+
+
+def _locate_rung0_rtf_field(data: bytes, data_start: int) -> tuple[int, int | None]:
+    """Locate rung 0's ``[u32 rtf_len]`` field and the total rung-record count.
+
+    ``_parse_header`` leaves ``data_start`` either at the 7-byte rung-0 file
+    prelude ``[u16 file_marker][0d][u32 total_rung_records]`` (when rung 0 has
+    no comment) or just past it (comment present).  Returns
+    ``(rtf_len_pos, total_rung_records | None)``.
     """
-    for i in range(end - 2, start - 1, -1):
-        if data[i : i + 6] == b"{\\rtf1":
-            if i >= 4:
-                rtf_len = struct.unpack_from("<I", data, i - 4)[0]
-                if rtf_len > 0 and i + rtf_len <= len(data):
-                    rtf_bytes = bytes(data[i : i + rtf_len])
-                    try:
-                        comment = _decode_rtf(rtf_bytes)
-                    except Exception:
-                        comment = None
-                    return rtf_bytes, comment
-    return None, None
+    if data_start + 7 <= len(data) and data[data_start + 2] == 0x0D:
+        return data_start + 7, struct.unpack_from("<I", data, data_start + 3)[0]
+    if data_start >= 7 and data[data_start - 5] == 0x0D:
+        return data_start, struct.unpack_from("<I", data, data_start - 4)[0]
+    return data_start, None
 
 
-def _parse_extra_row_right_wire_block(
-    data: bytes,
-    start: int,
-    end: int,
-) -> tuple[set[int], int] | None:
-    """Parse one continuation-row topology block.
+def _parse_section_entries(
+    data: bytes, pos: int, count: int, data_len: int
+) -> tuple[list[_ScrSectionInstruction], int] | None:
+    """Parse ``count`` instruction entries; returns (instructions, end_pos).
 
-    SCR stores rows 1..N-1 as variable-length blocks:
-
-    ``00 [count] 00 00 [col next_seg]... [final_col]``
-
-    where ``count`` is the number of cells on that row that have a right wire
-    (condition cells plus AF, when present). The stored column order is a
-    native serialized order, not always ascending. For each non-final entry,
-    ``next_seg`` matches the clipboard segment flag (+0x19) of the next
-    serialized right-wire cell. We still only need the explicit column set for
-    token reconstruction, but the extra byte explains why the row blocks cannot
-    be treated as a plain sorted column list.
+    Each entry is a fixed 8-byte header followed by a blob whose explicit
+    ``end_offset`` plus the 1-byte trailer length at that offset determine the
+    next entry position.
     """
-    if start + 3 > end or data[start] not in (0x00, 0x01):
-        return None
-
-    right_count = data[start + 1]
-    block_len = right_count * 2 + 3
-    if start + block_len > end:
-        return None
-
-    if right_count == 0:
-        return set(), block_len
-
-    body = data[start + 2 : start + block_len]
-    if len(body) < 3 or body[:2] != b"\x00\x00":
-        return None
-
-    pairs = body[2:-1]
-    if len(pairs) != (right_count - 1) * 2:
-        return None
-
-    right_columns: set[int] = set()
-    for i in range(0, len(pairs), 2):
-        col_idx = pairs[i]
-        next_seg = pairs[i + 1]
-        if col_idx > _CONDITION_COLUMNS or next_seg not in (0, 1):
+    results: list[_ScrSectionInstruction] = []
+    cursor = pos
+    for _ in range(count):
+        if cursor + 9 > data_len:
             return None
-        right_columns.add(col_idx)
+        blob = _parse_blob(data, cursor + 8, data_len)
+        if blob is None:
+            return None
+        row_1based = data[cursor]
+        col_idx = data[cursor + 1]
+        _cls, _marker, end_off, _next, vsub = blob
+        cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
+        results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
 
-    final_col = body[-1]
-    if final_col > _CONDITION_COLUMNS:
-        return None
-    right_columns.add(final_col)
+        trailer_len = data[end_off]
+        if trailer_len > 8:
+            return None
+        cursor = end_off + 2 + trailer_len
+    return results, cursor
 
-    return right_columns, block_len
 
+def _resync_trailing_rung(data: bytes, pos: int, next_index: int, limit: int) -> int | None:
+    """Bounded resync past trailing editor debris.
 
-def _parse_extra_row_right_wires(
-    data: bytes, start: int, end: int, num_extra_rows: int
-) -> tuple[list[set[int]], int | None]:
-    """Parse continuation-row topology blocks before the 0x0020 marker.
-
-    Returns ``(rows_right_wires, marker_pos)`` where each row entry is the set
-    of columns whose cells carry a right wire on that continuation row.
+    Native captures can contain one malformed topology-like block among the
+    trailing placeholder rungs (observed once: a ``03 20 00`` marker instead
+    of ``03 00 00``).  Search forward for the next rung prefix
+    ``[u16 next_index][u32 rtf_len=0]`` followed by a valid topology block.
     """
-    rows_right_wires: list[set[int]] = []
-    pos = start
-
-    for _ in range(num_extra_rows):
-        parsed = _parse_extra_row_right_wire_block(data, pos, end)
-        if parsed is None:
-            break
-        right_columns, block_len = parsed
-        rows_right_wires.append(right_columns)
-        pos += block_len
-
-    marker_pos = pos if pos + 2 <= end and data[pos : pos + 2] == b"\x20\x00" else None
-    if marker_pos is None:
-        marker_pos = _find_0x0020_marker(data, pos, end)
-
-    return rows_right_wires, marker_pos
+    needle = struct.pack("<H", next_index) + b"\x00\x00\x00\x00"
+    search = pos
+    while True:
+        found = data.find(needle, search, limit)
+        if found < 0:
+            return None
+        if _parse_row_topology_block(data, found + 6, len(data)) is not None:
+            return found
+        search = found + 1
 
 
-# ---------------------------------------------------------------------------
-# Wire-down parsing
-# ---------------------------------------------------------------------------
+def _walk_rung_records(data: bytes, prog_idx: int, data_start: int) -> list[_ScrRungRecord]:
+    """Walk all rung records with a single forward cursor."""
+    data_len = len(data)
+    pos, total_rungs = _locate_rung0_rtf_field(data, data_start)
+    limit = data_len - (2 if prog_idx == 1 else 0)
 
+    records: list[_ScrRungRecord] = []
+    index = 0
+    while pos < limit:
+        if index > 0:
+            if pos + 6 > limit:
+                raise ValueError(f"truncated rung prefix at 0x{pos:X} (rung {index})")
+            got = struct.unpack_from("<H", data, pos)[0]
+            if got != index:
+                raise ValueError(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
+            pos += 2
 
-def _find_0x0020_marker(data: bytes, start: int, end: int) -> int | None:
-    """Find the 0x0020 marker between start and end."""
-    for i in range(start, end - 1):
-        if data[i] == 0x20 and data[i + 1] == 0x00:
-            return i
-    return None
+        rtf_len = struct.unpack_from("<I", data, pos)[0]
+        pos += 4
+        comment: str | None = None
+        rtf_bytes: bytes | None = None
+        if rtf_len:
+            if pos + rtf_len > limit or data[pos : pos + 6] != b"{\\rtf1":
+                raise ValueError(f"invalid rung comment at 0x{pos:X} (rung {index})")
+            rtf_bytes = bytes(data[pos : pos + rtf_len])
+            try:
+                comment = _decode_rtf(rtf_bytes)
+            except Exception:
+                comment = None
+            pos += rtf_len
 
+        block = _parse_row_topology_block(data, pos, data_len)
+        if block is None:
+            resync = _resync_trailing_rung(data, pos, index + 1, limit)
+            if resync is None:
+                raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
+            records.append(_ScrRungRecord(comment, rtf_bytes, None, []))
+            pos = resync
+            index += 1
+            continue
+        pos = block.end
 
-def _parse_wiredown(
-    data: bytes, marker_pos: int | None, rung_end: int
-) -> dict[int, tuple[int, ...]]:
-    """Parse wire_down data from after the 0x0020 marker.
+        if pos + 2 > limit:
+            raise ValueError(f"truncated section count at 0x{pos:X} (rung {index})")
+        count = struct.unpack_from("<H", data, pos)[0]
+        pos += 2
+        instructions: list[_ScrSectionInstruction] = []
+        if count:
+            if count > _MAX_SECTION_INSTRUCTIONS or pos + 4 > limit:
+                raise ValueError(f"invalid section header at 0x{pos - 2:X} (rung {index})")
+            pos += 4  # section_marker: opaque per-file constant
+            parsed = _parse_section_entries(data, pos, count, data_len)
+            if parsed is None:
+                raise ValueError(f"unparseable section entries at 0x{pos:X} (rung {index})")
+            instructions, pos = parsed
 
-    Returns ``{col_idx: row_indices}`` for columns with vertical wire going down.
+        records.append(_ScrRungRecord(comment, rtf_bytes, block, instructions))
+        index += 1
 
-    Format: per-column entries starting from col 0:
-      no wire_down: ``00 00``
-      wire_down: ``[count] [00] [count bytes of 1-based row indices]``
-    """
-    if marker_pos is None:
-        return {}
-
-    pos = marker_pos + 2
-    end = rung_end
-    col = 0
-    result: dict[int, tuple[int, ...]] = {}
-
-    while pos < end:
-        count = data[pos]
-        if count == 0:
-            # No wire_down: 2-byte entry (00 00)
-            if pos + 1 < end and data[pos + 1] == 0:
-                pos += 2
-                col += 1
-                continue
-            break  # End of data
-        entry_len = count + 2
-        if pos + entry_len > end:
-            break
-        rows = tuple(
-            sorted({row_idx - 1 for row_idx in data[pos + 2 : pos + entry_len] if row_idx > 0})
+    if pos != limit:
+        raise ValueError(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
+    if total_rungs is not None and len(records) != total_rungs:
+        raise ValueError(
+            f"rung record count mismatch: walked {len(records)}, header says {total_rungs}"
         )
-        if rows:
-            result[col] = rows
-        pos += entry_len
-        col += 1
+    return records
 
-    return result
+
+def _is_trailing_placeholder(record: _ScrRungRecord) -> bool:
+    """Trailing content-less rung: no instructions and no comment.
+
+    Click programs keep 1..4 ordinary empty rungs in the editor below the
+    last programmed rung (some carry a fully-wired row).  They are real rung
+    records, but content-less — only instructions or a comment make a
+    trailing record worth emitting.
+    """
+    return not record.instructions and record.comment is None
 
 
 def _build_topology_backed_rung(
-    data: bytes,
     topology_block: _ScrRowTopologyBlock,
-    rung_end: int,
     logical_rows: int,
     section_instructions: list[_ScrSectionInstruction],
     comment: str | None,
     comment_rtf: bytes | None,
 ) -> Rung:
-    """Parse structural row data for a topology-backed rung and build the Rung object."""
-    parsed_count_down = False
-    for (
-        _row,
-        col,
-        class_name,
-        type_code,
-        tags,
-        _visual_sub_rows,
-        tag_byte_lens,
-        variant_u16_tags,
-        variant_string_tags,
-    ) in section_instructions:
-        if col != _CONDITION_COLUMNS:
-            continue
-        parsed_af = from_tags_af(
-            class_name,
-            type_code,
-            tags,
-            tag_byte_lens,
-            variant_u16_tags,
-            variant_string_tags,
-        )
-        if isinstance(parsed_af, Counter) and parsed_af.counter_type == "count_down":
-            parsed_count_down = True
+    """Build the Rung object for a rung with a parsed row-topology block.
+
+    Row block *i* maps directly to grid row *i* — no reshuffling.  count_down
+    counters and drums need no special handling: their AF-row block simply
+    carries flag=0 and the bridge/pin row is a normal stored row.
+
+    One exception: SCR can retain orphaned wire rows *above* the true grid
+    row 0 (editor debris under a tall instruction box, observed in native
+    drum captures).  The true row 0 is identified by its grid-row-0 segment
+    signature (see ``_parse_row_block``); non-empty stored rows preceding it
+    are dropped, and wire-down row indices shift accordingly.  Click's own
+    clipboard copy of such rungs omits these rows.
+    """
+    rows = topology_block.rows_right_cols
+    wiredown = topology_block.wiredown
+
+    junk_rows = 0
+    for idx, is_row0_like in enumerate(topology_block.rows_row0_like):
+        if is_row0_like:
+            junk_rows = idx
             break
+    if junk_rows and all(rows[i] for i in range(junk_rows)):
+        rows = rows[junk_rows:]
+        wiredown = {
+            col: shifted
+            for col, row_indices in wiredown.items()
+            if (shifted := tuple(r - junk_rows for r in row_indices if r >= junk_rows))
+        }
 
-    if parsed_count_down:
-        leading_rows = list(topology_block.leading_rows_right_wires)
-        extra_rows_right_wires, marker_pos = _parse_extra_row_right_wires(
-            data,
-            topology_block.continuation_start,
-            rung_end,
-            max(0, logical_rows - (len(leading_rows) + 1)),
-        )
-        wiredown = _parse_wiredown(data, marker_pos, rung_end)
-        bridge_right_wires = set(topology_block.row0_flags)
-        if leading_rows and bridge_right_wires:
-            first_bridge_col = min(
-                (col for col in bridge_right_wires if col < _CONDITION_COLUMNS),
-                default=None,
-            )
-            if first_bridge_col is not None and first_bridge_col not in wiredown:
-                wiredown = dict(wiredown)
-                wiredown[first_bridge_col] = tuple(range(len(leading_rows)))
-            elif first_bridge_col is not None and len(wiredown[first_bridge_col]) < len(
-                leading_rows
-            ):
-                wiredown = dict(wiredown)
-                wiredown[first_bridge_col] = tuple(
-                    sorted(set(wiredown[first_bridge_col]) | set(range(len(leading_rows))))
-                )
-
-        if leading_rows:
-            row0_flags = {col: 1 for col in leading_rows[0]}
-            build_extra_rows = list(leading_rows[1:])
-        else:
-            row0_flags = {}
-            build_extra_rows = []
-
-        build_extra_rows.append(bridge_right_wires)
-        build_extra_rows.extend(extra_rows_right_wires)
-
-        return _build_rung(
-            logical_rows=logical_rows,
-            section_instructions=section_instructions,
-            row0_flags=row0_flags,
-            extra_rows_right_wires=build_extra_rows,
-            wiredown=wiredown,
-            comment=comment,
-            comment_rtf=comment_rtf,
-        )
-
-    extra_rows_right_wires, marker_pos = _parse_extra_row_right_wires(
-        data,
-        topology_block.continuation_start,
-        rung_end,
-        logical_rows - 1,
-    )
-    wiredown = _parse_wiredown(data, marker_pos, rung_end)
-    row0_flags = dict(topology_block.row0_flags)
-
-    # Native SCR can omit continuation-row topology for modifier rows even when
-    # the AF blob says that visual sub-row still accepts logic.
-    stored_topology_rows = 1 + len(extra_rows_right_wires)
-    compact_count_down = False
-    if len(topology_block.prelude) > 8 and stored_topology_rows < logical_rows:
-        for (
-            _row,
-            col,
-            class_name,
-            type_code,
-            tags,
-            _visual_sub_rows,
-            tag_byte_lens,
-            variant_u16_tags,
-            variant_string_tags,
-        ) in section_instructions:
-            if col != _CONDITION_COLUMNS:
-                continue
-            parsed_af = from_tags_af(
-                class_name,
-                type_code,
-                tags,
-                tag_byte_lens,
-                variant_u16_tags,
-                variant_string_tags,
-            )
-            if isinstance(parsed_af, Counter) and parsed_af.counter_type == "count_down":
-                compact_count_down = True
-                break
-
-    if compact_count_down:
-        shifted_rows = [set(row0_flags)]
-        shifted_rows.extend(extra_rows_right_wires)
-        extra_rows_right_wires = shifted_rows[: logical_rows - 1]
-        row0_flags = {}
-
+    row0 = rows[0] if rows else frozenset()
     return _build_rung(
         logical_rows=logical_rows,
         section_instructions=section_instructions,
-        row0_flags=row0_flags,
-        extra_rows_right_wires=extra_rows_right_wires,
+        row0_flags=dict.fromkeys(row0, 1),
+        extra_rows_right_wires=[set(r) for r in rows[1:]],
         wiredown=wiredown,
         comment=comment,
         comment_rtf=comment_rtf,
@@ -968,6 +882,8 @@ def _build_rung(
                     part_count=visual_sub_rows,
                 )
 
+    # A stored row whose block carries an AF right-wire but no real AF
+    # instruction is a NOP (this includes count_down / drum bridge rows).
     if _CONDITION_COLUMNS in row0_flags and instructions[0] == "":
         instructions[0] = "NOP"
     for row_idx, right_wires in enumerate(extra_rows_right_wires, start=1):
@@ -975,15 +891,6 @@ def _build_rung(
             break
         if _CONDITION_COLUMNS in right_wires and instructions[row_idx] == "":
             instructions[row_idx] = "NOP"
-
-    # Native count_down uses a NOP bridge row between the AF row and reset row.
-    for row, af in enumerate(instructions[:-1]):
-        if (
-            isinstance(af, Counter)
-            and af.counter_type == "count_down"
-            and instructions[row + 1] == ""
-        ):
-            instructions[row + 1] = "NOP"
 
     # 2. Apply horizontal wire flags from flag blocks
     # Row 0: use row0_flags
@@ -1058,26 +965,19 @@ def decode_program(data: bytes) -> Program:
         If the file cannot be parsed.
     """
     name, prog_idx, data_start = _parse_header(data)
-    sections = _find_sections(data, start=data_start)
+    records = _walk_rung_records(data, prog_idx, data_start)
 
-    if not sections:
-        return Program(name=name, prog_idx=prog_idx, rungs=[])
-
-    # Forward-scan all topology blocks once.  Skipping past each block's
-    # full extent (continuation_start) prevents false positives from
-    # flag-table tail bytes that coincidentally match the prefix.
-    all_topo_blocks = _find_all_row_topology_blocks(data, data_start)
-
-    # Assign topology blocks to sections by position.  For each section,
-    # blocks whose start falls in [prev_sec_end, sec_off) belong to it:
-    # earlier ones are empty rungs, the last one is the section's header.
-    topo_idx = 0
+    # Drop trailing content-less rungs — the ordinary empty rungs Click keeps
+    # below the last programmed rung (a rung-scoped clipboard copy excludes
+    # them too).
+    while records and _is_trailing_placeholder(records[-1]):
+        records.pop()
 
     rungs: list[Rung] = []
-    prev_sec_end = data_start
+    for record in records:
+        if record.topology is None:
+            continue  # skipped trailing debris that wasn't last
 
-    for sec_off, count, sec_end in sections:
-        section_instrs = _parse_section_instructions(data, sec_off, count)
         inferred_rows = 1
         for (
             row,
@@ -1089,7 +989,7 @@ def decode_program(data: bytes) -> Program:
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
-        ) in section_instrs:
+        ) in record.instructions:
             inferred_rows = max(inferred_rows, row + 1)
             if col == _CONDITION_COLUMNS:
                 visual_rows = _infer_af_visual_rows(
@@ -1103,72 +1003,14 @@ def decode_program(data: bytes) -> Program:
                 )
                 inferred_rows = max(inferred_rows, row + visual_rows)
 
-        # Collect topology blocks in [prev_sec_end, sec_off).
-        region_blocks: list[_ScrRowTopologyBlock] = []
-        while topo_idx < len(all_topo_blocks) and all_topo_blocks[topo_idx].start < sec_off:
-            if all_topo_blocks[topo_idx].start >= prev_sec_end:
-                region_blocks.append(all_topo_blocks[topo_idx])
-            topo_idx += 1
-
-        # Last block in the region (if any) is the section's topology header.
-        topology_block = region_blocks[-1] if region_blocks else None
-        empty_blocks = region_blocks[:-1] if region_blocks else []
-
-        headerless = topology_block is None
-        if headerless:
-            # Headerless rung (e.g. next() after for()) — single row, all wired
-            rtf_bytes, comment = _find_rtf_comment(data, prev_sec_end, sec_off)
-            rung = _build_rung(
-                logical_rows=inferred_rows,
-                section_instructions=section_instrs,
-                row0_flags={c: 1 for c in range(32)},  # all wired
-                extra_rows_right_wires=[],
-                wiredown={},
-                comment=comment,
-                comment_rtf=rtf_bytes,
+        rungs.append(
+            _build_topology_backed_rung(
+                topology_block=record.topology,
+                logical_rows=max(1, record.topology.row_word - 1, inferred_rows),
+                section_instructions=record.instructions,
+                comment=record.comment,
+                comment_rtf=record.comment_rtf,
             )
-            rungs.append(rung)
-            prev_sec_end = sec_end
-            continue
-
-        assert topology_block is not None
-        comment_start = prev_sec_end
-        for idx, empty_block in enumerate(empty_blocks):
-            empty_end = (
-                empty_blocks[idx + 1].start if idx + 1 < len(empty_blocks) else topology_block.start
-            )
-            empty_rtf_bytes, empty_comment = _find_rtf_comment(
-                data, comment_start, empty_block.start
-            )
-            rungs.append(
-                _build_topology_backed_rung(
-                    data=data,
-                    topology_block=empty_block,
-                    rung_end=empty_end,
-                    logical_rows=max(1, empty_block.row_word - 1),
-                    section_instructions=[],
-                    comment=empty_comment,
-                    comment_rtf=empty_rtf_bytes,
-                )
-            )
-            comment_start = empty_block.start
-
-        # Normal rung with a row-topology block.
-        logical_rows = max(1, topology_block.row_word - 1, inferred_rows)
-
-        # Find RTF comment
-        rtf_bytes, comment = _find_rtf_comment(data, comment_start, topology_block.start)
-
-        rung = _build_topology_backed_rung(
-            data=data,
-            topology_block=topology_block,
-            rung_end=sec_off,
-            logical_rows=logical_rows,
-            section_instructions=section_instrs,
-            comment=comment,
-            comment_rtf=rtf_bytes,
         )
-        rungs.append(rung)
-        prev_sec_end = sec_end
 
     return Program(name=name, prog_idx=prog_idx, rungs=rungs)
