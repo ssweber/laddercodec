@@ -10,13 +10,13 @@ from laddercodec import decode
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
-    _find_all_row_topology_blocks,
-    _find_sections,
     _parse_header,
     _parse_row_block,
     _parse_scr_tags,
+    _parse_section_entries,
     _parse_wiredown_table,
     _tag_wire_type,
+    _walk_rung_records,
     decode_program,
 )
 from laddercodec.instructions import from_tags_af
@@ -38,24 +38,10 @@ _COL_IDX_BY_NAME = {name: idx for idx, name in _COL_NAMES.items()}
 def _topology_blocks_by_section(
     scr_data: bytes,
 ) -> dict[int, object]:
-    """Map section index to topology block using forward scanning."""
-    _name, _prog_idx, data_start = _parse_header(scr_data)
-    sections = _find_sections(scr_data, start=data_start)
-    all_blocks = _find_all_row_topology_blocks(scr_data, data_start)
-
-    result: dict[int, object] = {}
-    topo_idx = 0
-    prev_sec_end = data_start
-    for sec_idx, (sec_off, _count, sec_end) in enumerate(sections):
-        last_block = None
-        while topo_idx < len(all_blocks) and all_blocks[topo_idx].start < sec_off:
-            if all_blocks[topo_idx].start >= prev_sec_end:
-                last_block = all_blocks[topo_idx]
-            topo_idx += 1
-        if last_block is not None:
-            result[sec_idx] = last_block
-        prev_sec_end = sec_end
-    return result
+    """Map section index (nth rung with instructions) to its topology block."""
+    _name, prog_idx, data_start = _parse_header(scr_data)
+    records = _walk_rung_records(scr_data, prog_idx, data_start)
+    return {idx: record.topology for idx, record in enumerate(r for r in records if r.instructions)}
 
 
 def _load_fixture_pair(name: str):
@@ -283,7 +269,7 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
     )
 
 
-def test_find_sections_accepts_large_instruction_counts():
+def test_parse_section_entries_accepts_large_instruction_counts():
     blobs: list[bytes] = []
     for idx in range(21):
         raw_blob = _compact_scr_blob(
@@ -297,7 +283,13 @@ def test_find_sections_accepts_large_instruction_counts():
         blobs.append(bytes([1, idx % 31]) + b"\x00" * 6 + blob + b"\x00\x00")
 
     section = struct.pack("<H", len(blobs)) + struct.pack("<I", 1) + b"".join(blobs)
-    assert _find_sections(section, start=0) == [(0, 21, len(section))]
+    parsed = _parse_section_entries(section, 6, 21, len(section))
+    assert parsed is not None
+    instructions, end_pos = parsed
+    assert end_pos == len(section)
+    assert [(row, col, name) for row, col, name, *_ in instructions] == [
+        (0, idx % 31, "ContactNO") for idx in range(21)
+    ]
 
 
 def test_parse_wiredown_table_uses_explicit_row_indices():
@@ -707,8 +699,8 @@ def test_topology_row_block_entries_can_use_wrapped_order():
         assert [col for _seg, col in entries] == [*range(1, 32), 0]
 
 
-def test_forward_scanner_finds_all_topology_blocks():
-    """The forward scanner must find a block for every rung with topology."""
+def test_rung_walk_yields_a_topology_block_for_every_section():
+    """Every instruction rung must carry a structurally valid topology block."""
     _PREFIX = decode_program_module._ROW_TOPOLOGY_PREFIX
 
     for scr_path in sorted(_SCR_FIXTURE_DIR.glob("*.scr")):

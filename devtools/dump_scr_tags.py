@@ -25,20 +25,14 @@ def main() -> None:
         print(f"\nRung {si}:")
         cursor = sec_off + 6
         for ii in range(count):
-            blob8 = _parse_blob(data, cursor + 8)
-            blob9 = _parse_blob(data, cursor + 9)
-            if blob8:
-                row = data[cursor]
-                col = data[cursor + 1]
-                blob_start = cursor + 8
-                cls, typ, end_off, next_pos, m1 = blob8
-            elif blob9:
-                row = data[cursor + 1]
-                col = data[cursor + 2]
-                blob_start = cursor + 9
-                cls, typ, end_off, next_pos, m1 = blob9
-            else:
+            blob = _parse_blob(data, cursor + 8)
+            if not blob:
                 break
+            row = data[cursor]
+            col = data[cursor + 1]
+            blob_start = cursor + 8
+            cls, typ, end_off, m1 = blob
+            next_pos = end_off + 2 + data[end_off]  # trailer-aware advance
 
             # Parse tagged fields
             pos = blob_start

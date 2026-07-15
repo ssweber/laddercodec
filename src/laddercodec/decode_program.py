@@ -167,10 +167,10 @@ def _parse_header(data: bytes) -> tuple[str, int, int]:
 # ---------------------------------------------------------------------------
 
 
-def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, int, int] | None:
+def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, int] | None:
     """Parse SCR instruction blob at pos.
 
-    Returns (class_name, type_code, end_offset, next_pos, visual_sub_rows) or None.
+    Returns (class_name, type_code, end_offset, visual_sub_rows) or None.
     """
     if not data_len:
         data_len = len(data)
@@ -209,8 +209,7 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         end_offset = struct.unpack_from("<I", data, eo_pos)[0]
         if not (pos < end_offset < data_len):
             return None
-        next_pos = end_offset + 2
-        return text, marker, end_offset, next_pos, visual_sub_rows
+        return text, marker, end_offset, visual_sub_rows
     except (UnicodeDecodeError, ValueError, struct.error):
         return None
 
@@ -364,82 +363,7 @@ def _infer_af_visual_rows(
 
 
 # ---------------------------------------------------------------------------
-# Instruction section scanning
-# ---------------------------------------------------------------------------
-
-
-def _find_sections(data: bytes, start: int) -> list[tuple[int, int, int]]:
-    """Find all valid instruction sections.
-
-    Returns sorted list of (offset, instr_count, end_pos).
-    """
-    sections: list[tuple[int, int, int]] = []
-    i = start
-    data_len = len(data)
-    end = data_len - 5
-    while i < end:
-        count = struct.unpack_from("<H", data, i)[0]
-        section_marker = struct.unpack_from("<I", data, i + 2)[0]
-        if 1 <= count <= _MAX_SECTION_INSTRUCTIONS and 0 < section_marker < data_len:
-            cursor = i + 6
-            ok = True
-            for _ in range(count):
-                if cursor + 9 > data_len:
-                    ok = False
-                    break
-                blob = _parse_blob(data, cursor + 8, data_len)
-                if not blob:
-                    blob = _parse_blob(data, cursor + 9, data_len)
-                if not blob:
-                    ok = False
-                    break
-                cursor = blob[3]
-            if ok:
-                sections.append((i, count, cursor))
-                i = cursor
-                continue
-        i += 1
-    return sections
-
-
-def _parse_section_instructions(
-    data: bytes,
-    sec_off: int,
-    count: int,
-) -> list[_ScrSectionInstruction]:
-    """Parse all instruction blobs in a section.
-
-    Returns parsed SCR instruction tuples with scalar and variant tag data.
-    """
-    results: list[_ScrSectionInstruction] = []
-    cursor = sec_off + 6
-
-    for _ in range(count):
-        blob8 = _parse_blob(data, cursor + 8)
-        blob9 = _parse_blob(data, cursor + 9)
-
-        if blob8:
-            row_1based = data[cursor]
-            col_idx = data[cursor + 1]
-            cls_name, _, end_off, next_pos, vsub = blob8
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
-            results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
-            cursor = next_pos
-        elif blob9:
-            row_1based = data[cursor + 1]
-            col_idx = data[cursor + 2]
-            cls_name, _, end_off, next_pos, vsub = blob9
-            cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 9, end_off, vsub)
-            results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
-            cursor = next_pos
-        else:
-            break
-
-    return results
-
-
-# ---------------------------------------------------------------------------
-# Row topology, RTF comment, flag block parsing
+# Row topology parsing
 # ---------------------------------------------------------------------------
 
 
@@ -552,35 +476,6 @@ def _parse_row_topology_block(
     )
 
 
-def _find_all_row_topology_blocks(
-    data: bytes,
-    start: int,
-) -> list[_ScrRowTopologyBlock]:
-    """Forward-scan all topology blocks from ``start`` to end of ``data``.
-
-    Uses ``bytes.find()`` on the 3-byte prefix at offset +2 to skip
-    non-candidate positions, then validates the full block structure.
-    """
-    blocks: list[_ScrRowTopologyBlock] = []
-    pos = max(0, start)
-    data_len = len(data)
-    while True:
-        idx = data.find(_ROW_TOPOLOGY_PREFIX, pos + 2)
-        if idx < 0:
-            break
-        candidate = idx - 2
-        if candidate < pos:
-            pos = idx + 1
-            continue
-        block = _parse_row_topology_block(data, candidate, data_len)
-        if block is not None:
-            blocks.append(block)
-            pos = block.end
-        else:
-            pos = idx + 1
-    return blocks
-
-
 # ---------------------------------------------------------------------------
 # Linear rung-record walk
 # ---------------------------------------------------------------------------
@@ -645,7 +540,7 @@ def _parse_section_entries(
             return None
         row_1based = data[cursor]
         col_idx = data[cursor + 1]
-        _cls, _marker, end_off, _next, vsub = blob
+        _cls, _marker, end_off, vsub = blob
         cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
         results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
 
