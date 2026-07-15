@@ -1,6 +1,9 @@
 """Compare {slug}.csv against {slug}.clipboard.csv in a directory.
 
-Reports which pairs are identical and which differ.
+Reports which pairs are identical and which differ.  Rung markers are
+normalized before comparison (indexed ``R1``/``R2`` vs plain ``R``), since
+scr-derived bundles are written with ``index=True`` while clipboard saves
+are not.
 
 Usage:
     uv run devtools/compare_csv.py <directory>
@@ -8,8 +11,16 @@ Usage:
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
+
+_INDEXED_MARKER = re.compile(r"^R\d+(?=,)")
+
+
+def _normalized_lines(path: Path) -> list[str]:
+    text = path.read_text(encoding="utf-8")
+    return [_INDEXED_MARKER.sub("R", line) for line in text.splitlines()]
 
 
 def main() -> None:
@@ -42,7 +53,7 @@ def main() -> None:
             missing += 1
             continue
 
-        if base_path.read_bytes() == clip_path.read_bytes():
+        if _normalized_lines(base_path) == _normalized_lines(clip_path):
             print(f"  IDENTICAL  {slug}")
             identical += 1
         else:
