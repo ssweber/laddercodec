@@ -606,6 +606,8 @@ def _build_remote_start(
 
 def _from_tags_rd(tags: dict[int, str], lens: dict[int, int]) -> Receive | None:
     protocol_mode = tags.get(0x220C, "0")
+    # SCR blobs elide fields at their class default. Receive's device_id
+    # default is 1; Send's is 0 (see _from_tags_sd).
     device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
     target = _build_target(protocol_mode, device_id, tags)
 
@@ -629,7 +631,10 @@ def _from_tags_rd(tags: dict[int, str], lens: dict[int, int]) -> Receive | None:
 
 def _from_tags_sd(tags: dict[int, str], lens: dict[int, int]) -> Send | None:
     protocol_mode = tags.get(0x220C, "0")
-    device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
+    # SCR blobs elide fields at their class default, and Send's device_id
+    # default is 0 (a Send at device_id 0 stores no 0x320E/0x60B2 tag, while
+    # one at 1 stores both — verified against a native scr+clipboard pair).
+    device_id = int(tags.get(0x320E, tags.get(0x60B2, "0")) or "0")
     target = _build_target(protocol_mode, device_id, tags)
 
     remote_start = _build_remote_start(tags, lens, rd=False)

@@ -1027,3 +1027,90 @@ class TestIndexedMarkers:
             assert rt_indexed.conditions == rt_plain.conditions
             assert rt_indexed.instructions == rt_plain.instructions
             assert rt_indexed.comment == rt_plain.comment
+
+
+# ---------------------------------------------------------------------------
+# Floating rows below pinned-instruction spans
+# ---------------------------------------------------------------------------
+
+
+def _cells(marker: str, cells: dict[int, str], af: str, fill: str = "-") -> list[str]:
+    """Build one 33-column CSV data row from sparse condition cells."""
+    return [marker] + [cells.get(i, fill) for i in range(31)] + [af]
+
+
+def _floating_leg_rows(*span_rows: list[str]) -> list[list[str]]:
+    """Append a floating OR-leg row (contact joining a T on the row above)."""
+    return [*span_rows, _cells("", {0: "C1"}, "", fill="")]
+
+
+_FLOATING_CASES = [
+    pytest.param(
+        _floating_leg_rows(
+            _cells("R", {0: "X001"}, "on_delay(T1,TD1,preset=5000,unit=Tms)"),
+            _cells("", {0: "rise(C2)", 1: "T"}, ".reset()"),
+        ),
+        id="timer_retained",
+    ),
+    pytest.param(
+        _floating_leg_rows(
+            _cells("R", {0: "X001"}, "count_up(CT1,CTD1,preset=60)"),
+            _cells("", {0: "rise(C2)", 1: "T"}, ".reset()"),
+        ),
+        id="count_up_reset_dehydrated",
+    ),
+    pytest.param(
+        _floating_leg_rows(
+            _cells("R", {0: "X001"}, "count_up(CT1,CTD1,preset=60)"),
+            _cells("", {0: "X002"}, ".down()"),
+            _cells("", {0: "rise(C2)", 1: "T"}, ".reset()"),
+        ),
+        id="count_up_down_and_reset",
+    ),
+    pytest.param(
+        _floating_leg_rows(
+            _cells("R", {0: "X001"}, "count_down(CT3,CTD3,preset=50)"),
+            _cells("", {0: "rise(C2)", 1: "T"}, ".reset()"),
+        ),
+        id="count_down",
+    ),
+    pytest.param(
+        _floating_leg_rows(
+            _cells("R", {0: "X001"}, "shift(C99..C106)"),
+            _cells("", {0: "X002"}, ".clock()"),
+            _cells("", {0: "rise(C2)", 1: "T"}, ".reset()"),
+        ),
+        id="shift",
+    ),
+]
+
+
+class TestFloatingRowBelowPinnedSpan:
+    """A floating OR-leg row below a pinned instruction's span must survive
+    CSV -> encode -> decode -> CSV without moving onto a span row, and the
+    writer's emission must equal the canonical input (unused span padding
+    dehydrated, pin rows adjacent)."""
+
+    @pytest.mark.parametrize("data_rows", _FLOATING_CASES)
+    def test_round_trip_preserves_geometry(
+        self, data_rows: list[list[str]], tmp_path: Path
+    ) -> None:
+        from laddercodec import encode
+        from laddercodec.csv import CSV_HEADER
+
+        src = tmp_path / "case.csv"
+        with src.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow(CSV_HEADER)
+            writer.writerows(data_rows)
+
+        rungs = read_csv(src)
+        assert len(rungs) == 1
+
+        # Writer emission is canonical: identical to the hand-written rows.
+        assert decoded_rung_to_rows(rungs[0]) == data_rows
+
+        # Binary round-trip preserves the same emission.
+        decoded = decode(encode(rungs))
+        decoded_list = decoded if isinstance(decoded, list) else [decoded]
+        assert decoded_rung_to_rows(decoded_list[0]) == data_rows

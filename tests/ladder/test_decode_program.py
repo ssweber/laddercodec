@@ -24,6 +24,13 @@ from laddercodec.instructions.home import from_tags as home_from_tags
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.position import from_tags as position_from_tags
 from laddercodec.instructions.raw import _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.send_receive import (
+    _RD_TYPE_CODE,
+    _SD_TYPE_CODE,
+    Receive,
+    Send,
+)
+from laddercodec.instructions.send_receive import from_tags as send_receive_from_tags
 from laddercodec.instructions.timer import Timer
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
@@ -530,6 +537,34 @@ def test_decode_program_matches_counter_scr_fixture():
 
     assert len(scr_rungs) == len(clip_rungs)
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def test_send_receive_elided_device_id_defaults():
+    """SCR blobs elide fields at their class default, and the defaults differ
+    per class: a Send with no 0x320E/0x60B2 tag is device_id 0, a Receive is
+    device_id 1.  Verified against a native scr+clipboard pair where a Send at
+    device_id 0 stored no tag while one at 1 stored both."""
+    base = {
+        0x220C: "2",  # protocol: modbus tcp
+        0x320F: "2",  # remote_start address type: raw string
+        0x6085: "DS12",  # remote_start
+        0x607E: "DS3",  # source / dest
+        0x622B: "10.0.0.9",
+    }
+
+    send = send_receive_from_tags("SD", _SD_TYPE_CODE, dict(base), {})
+    assert isinstance(send, Send)
+    assert send.target.device_id == 0
+
+    receive = send_receive_from_tags("RD", _RD_TYPE_CODE, dict(base), {})
+    assert isinstance(receive, Receive)
+    assert receive.target.device_id == 1
+
+    explicit = dict(base) | {0x320E: "5"}
+    send = send_receive_from_tags("SD", _SD_TYPE_CODE, explicit, {})
+    receive = send_receive_from_tags("RD", _RD_TYPE_CODE, explicit, {})
+    assert send is not None and send.target.device_id == 5
+    assert receive is not None and receive.target.device_id == 5
 
 
 def test_time_drums_scr_and_bin_both_match_golden_csv():
