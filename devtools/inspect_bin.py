@@ -150,12 +150,12 @@ def main() -> None:
         print(f"{'=' * 60}")
 
         result = decode(data)
-        if isinstance(result, list):
+        if isinstance(result, Rung):
+            _print_rung(result, 0)
+        else:
             print(f"  Multi-rung: {len(result)} rungs")
             for i, rung in enumerate(result):
                 _print_rung(rung, i)
-        else:
-            _print_rung(result, 0)
 
 
 if __name__ == "__main__":
