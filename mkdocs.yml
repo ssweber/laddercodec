@@ -24,6 +24,10 @@ nav:
       - CSV I/O API: reference/api/csv.md
       - Instructions API: reference/api/instructions.md
 
+not_in_nav: |
+  AGENTS.md
+  CLAUDE.md
+
 plugins:
   - search
   - gen-files:

@@ -40,9 +40,9 @@ dependencies = []
 [dependency-groups]
 dev = [
     "pytest>=8.3.5",
-    "ruff>=0.11.0",
+    "ruff>=0.16.0",
     "striprtf>=0.0.29",
-    "ty>=0.0.14",
+    "ty>=0.0.65",
 ]
 docs = [
     "mkdocs>=1.6.1,<2",
@@ -74,12 +74,15 @@ bump = true
 packages = ["src/laddercodec"]
 
 [tool.uv]
+required-version = ">=0.11.29"
 exclude-newer = "7 days"
+exclude-newer-package = { ty = "0 days" }
 
 # ---- Settings ----
 
 [tool.ruff]
 line-length = 100
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = [
@@ -113,7 +116,7 @@ python-version = "3.11"
 root = ["./src", "./tests", "./devtools"]
 
 [tool.ty.src]
-exclude = ["tests", "scratchpad"]
+exclude = ["tests", "scratchpad", "devtools/pdf_to_png.py"]
 
 [tool.ty.rules]
 unresolved-import = "ignore"

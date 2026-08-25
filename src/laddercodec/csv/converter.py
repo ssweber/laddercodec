@@ -240,6 +240,15 @@ def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
     if len(block.continuations) >= _max_continuations(block):
         return False
 
+    # .reset() occupies the last row of a counter/shift span, so nothing after
+    # it belongs to the block — following rows are floating rows below the
+    # span (e.g. the OR-leg of the reset branch).  This is what lets the
+    # writer dehydrate an unused .down() row above the .reset() pin.
+    if isinstance(block.token, (Counter, Shift)) and any(
+        c.kind == "pin" and c.pin_name == ".reset" for c in block.continuations
+    ):
+        return False
+
     if row.kind == "blank":
         block.continuations.append(row)
         return True

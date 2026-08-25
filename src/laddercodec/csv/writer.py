@@ -201,6 +201,13 @@ def _emit_counter_block(
             data_row_count = _append_data_row(
                 rows, data_row_count, condition_rows[start + 1], ".down()"
             )
+        elif counter.reset_enabled:
+            # The unused .down() row is always empty padding, and the .reset()
+            # pin row anchors any following floating rows on reparse — so the
+            # empty row always dehydrates, even above a floating row.
+            data_row_count = _emit_blank_continuation(
+                rows, data_row_count, condition_rows[start + 1]
+            )
         else:
             data_row_count = _emit_blank_continuation(
                 rows, data_row_count, condition_rows[start + 1], keep
