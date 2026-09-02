@@ -115,7 +115,7 @@ No explicit `+` topology token is emitted.
 
 ## Vertical topology
 
-OR conditions (`any_of`), multi-output stacking, and `branch()` conditions all
+OR conditions (`Or()`), multi-output stacking, and `branch()` conditions all
 use continuation rows within a rung. These mechanisms share the same vertical
 space - OR branch rows double as multi-output and branch rows.
 
@@ -173,11 +173,11 @@ merge/split columns even when their own column has no marker below.
   conditions. Shared AND-prefix contacts from earlier columns are not repeated.
 - Each continuation row has at most one AF token or is blank in AF.
 
-## `any_of(...)` OR expansion
+## `Or(...)` expansion
 
 ### Simple OR at power rail
 
-`any_of(X001, X002, X003)`:
+`Or(X001, X002, X003)`:
 
 ```text
      A      B     ...   AF
@@ -191,7 +191,7 @@ blank.
 
 ### Mid-rung OR
 
-`X001, any_of(X002, C1)`:
+`X001, Or(X002, C1)`:
 
 ```text
      A      B       C     ...   AF
@@ -204,7 +204,7 @@ blank. Shared AND-prefix (`X001`) appears only on the first row.
 
 ### Series ORs
 
-`any_of(X001, X002), any_of(C1, C2)`:
+`Or(X001, X002), Or(C1, C2)`:
 
 ```text
      A      B     C      D     ...   AF
@@ -261,7 +261,7 @@ When a rung has both OR conditions and multiple outputs/branches, they share the
 same set of continuation rows. The OR branches provide the rows needed for the
 outputs.
 
-`X001, any_of(X002, X003, X004)` -> `out(Y001)`, `branch(C1): out(Y002)`,
+`X001, Or(X002, X003, X004)` -> `out(Y001)`, `branch(C1): out(Y002)`,
 `out(Y003)`:
 
 ```text
