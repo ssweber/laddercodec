@@ -1,7 +1,7 @@
 site_name: laddercodec
 site_description: Documentation for laddercodec
 repo_url: https://github.com/ssweber/laddercodec
-site_url: https://ssweber.github.io/laddercodec/
+site_url: https://pyrung.com/laddercodec/
 
 theme:
   name: material
