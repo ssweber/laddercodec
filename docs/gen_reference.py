@@ -1,4 +1,4 @@
-"""Generate curated MkDocs API reference pages for laddercodec public exports."""
+"""Generate curated API reference pages for laddercodec public exports."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 
-import mkdocs_gen_files
-
 PACKAGE = "laddercodec"
+DOCS_DIR = Path(__file__).parent
 
 
 @dataclass(frozen=True)
@@ -109,9 +108,9 @@ def _write_reference_page(page: ReferencePage) -> None:
         lines.append(f"::: {PACKAGE}.{symbol}")
         lines.append("")
 
-    with mkdocs_gen_files.open(doc_rel_path, "w") as fd:
-        fd.write("\n".join(lines).rstrip() + "\n")
-    mkdocs_gen_files.set_edit_path(doc_rel_path, Path("docs/gen_reference.py"))
+    destination = DOCS_DIR / doc_rel_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 def _write_index() -> None:
@@ -133,9 +132,9 @@ def _write_index() -> None:
         for page in advanced_pages:
             lines.append(f"- [{page.title}](api/{page.slug}.md)")
 
-    with mkdocs_gen_files.open("reference/index.md", "w") as fd:
-        fd.write("\n".join(lines).rstrip() + "\n")
-    mkdocs_gen_files.set_edit_path("reference/index.md", Path("docs/gen_reference.py"))
+    destination = DOCS_DIR / "reference/index.md"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
 _validate_manifest()
