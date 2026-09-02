@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test golden coverage-golden upgrade build clean docs-serve docs-build docs-check
+.PHONY: default install lint test golden coverage-golden upgrade build clean docs-generate docs-serve docs-build docs-check
 
 default: install lint test
 
@@ -29,11 +29,17 @@ upgrade:
 build:
 	uv build
 
-docs-serve:
-	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs serve
+docs-generate:
+	uv run --group docs python docs/gen_reference.py
 
-docs-build:
-	DISABLE_MKDOCS_2_WARNING=true uv run --group docs mkdocs build --strict
+docs-serve: docs-generate
+	uv run --group docs zensical serve
+
+docs-build: docs-generate
+	uv run --group docs zensical build --clean --strict
+	uv run --group docs python .github/scripts/prune_public_site.py site
+	uv run --group docs python docs/gen_llms.py site
+	uv run --group docs python .github/scripts/check_public_site.py site
 
 docs-check: docs-build
 

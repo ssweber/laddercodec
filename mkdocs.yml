@@ -24,15 +24,14 @@ nav:
       - CSV I/O API: reference/api/csv.md
       - Instructions API: reference/api/instructions.md
 
-not_in_nav: |
+exclude_docs: |
   AGENTS.md
   CLAUDE.md
+  gen_reference.py
+  gen_llms.py
 
 plugins:
   - search
-  - gen-files:
-      scripts:
-        - docs/gen_reference.py
   - mkdocstrings:
       handlers:
         python:
@@ -48,13 +47,14 @@ plugins:
             show_root_heading: true
             show_signature_annotations: true
             show_source: false
-  - llmstxt:
-      full_output: llms-full.txt
-      sections:
-        Guides:
-          - guides/*.md
-        Internals:
-          - internals/*.md
-        API Reference:
-          - reference/index.md
-          - reference/api/*.md
+
+extra:
+  llmstxt:
+    sections:
+      Guides:
+        - guides/*.md
+      Internals:
+        - internals/*.md
+      API Reference:
+        - reference/index.md
+        - reference/api/*.md
