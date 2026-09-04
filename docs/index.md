@@ -1,6 +1,8 @@
 # laddercodec
 
-**Binary codec for AutomationDirect CLICK PLC ladder clipboard format.** Encodes and decodes the native clipboard binary used by [CLICK Programming Software](https://www.automationdirect.com/clickplcs). Tested against v2.60-v3.9x captures. Zero runtime dependencies.
+**The codec for CLICK's clipboard format.** When you copy a rung in [CLICK Programming Software](https://www.automationdirect.com/clickplcs), the clipboard holds an undocumented binary. laddercodec decodes it into Python objects and encodes them back, byte for byte. Tested against v2.60 to v3.9x captures. Zero runtime dependencies.
+
+It's the layer [ClickNick](https://pyrung.com/clicknick/) pastes through, and it's useful on its own if you want to generate CLICK clipboard payloads, inspect captured binaries, or decode `Scr*.tmp` program files.
 
 ## Install
 
