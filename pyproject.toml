@@ -2,7 +2,7 @@
 
 [project.urls]
 Repository = "https://github.com/ssweber/laddercodec"
-Documentation = "https://ssweber.github.io/laddercodec/"
+Documentation = "https://pyrung.com/laddercodec/"
 
 [project]
 name = "laddercodec"
