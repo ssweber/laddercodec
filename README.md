@@ -1,8 +1,8 @@
 # laddercodec
 
-**The codec for CLICK's clipboard format.** When you copy a rung in CLICK Programming Software, the clipboard holds an undocumented binary. laddercodec decodes it into Python objects and encodes them back, byte for byte. Tested against v2.60 to v3.9x captures. Zero runtime dependencies.
+**The compatibility layer for CLICK ladder data.** laddercodec reads and writes CLICK's native representations and enables reliable round-tripping between CLICK and the pyrung/ClickNick toolchain. Tested against v2.60 to v3.9x captures. Zero runtime dependencies.
 
-It's the layer [ClickNick](https://pyrung.com/clicknick/) pastes through, and it's useful on its own if you want to generate CLICK clipboard payloads, inspect captured binaries, or decode `Scr*.tmp` program files.
+It's the layer [ClickNick](https://pyrung.com/clicknick/) pastes through, and it's useful on its own to convert between CLICK ladder data, Python objects, and CSV.
 
 - Documentation: https://pyrung.com/laddercodec/
 - LLM docs index: https://pyrung.com/laddercodec/llms.txt
@@ -37,17 +37,17 @@ print(rung.instructions)
 
 **[Encoder](https://pyrung.com/laddercodec/guides/encoding/)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, wire topologies, and styled comments.
 
-**[Decoder](https://pyrung.com/laddercodec/guides/decoding/)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads Click's internal `Scr*.tmp` program files.
+**[Decoder](https://pyrung.com/laddercodec/guides/decoding/)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files.
 
 **[CSV I/O](https://pyrung.com/laddercodec/guides/csv-format/)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 
-**[Binary format docs](https://pyrung.com/laddercodec/internals/binary-format/)** — Byte-level reverse engineering of Click's clipboard and program file formats: buffer layout, cell grid, wire flags, instruction blobs, and multi-rung framing.
+**[CLICK format reference](https://pyrung.com/laddercodec/internals/binary-format/)** — Technical reference for CLICK's native clipboard and program representations, including binary layouts and instruction records.
 
 ## Status
 
 `laddercodec` is **beta** for clipboard encode/decode, CSV I/O, and `decode_program()`.
 
-`Email`, `Home`, `Position`, and `Velocity` still intentionally surface as `raw(...)` passthroughs so binary and SCR round-trips stay lossless while those families remain opaque.
+`Email`, `Home`, `Position`, and `Velocity` still intentionally surface as `raw(...)` passthroughs so clipboard and program data round-trips stay lossless while those families remain opaque.
 
 ## Learn more
 
