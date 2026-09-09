@@ -30,6 +30,9 @@ exclude_docs: |
   gen_reference.py
   gen_llms.py
 
+extra_css:
+  - stylesheets/extra.css
+
 plugins:
   - search
   - mkdocstrings:
