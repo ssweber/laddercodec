@@ -23,7 +23,7 @@ _INSTR_DATA_OFFSET = 0x25
 
 # Pre-compiled struct for the 37-byte cell header (single pack replaces 8 calls).
 # Layout: pad(1) col(u32) row(u32) span(u8) vis(u8) 0(u8) extra(u8)
-#         instr_idx(i32) 1(u32) contact(u32) seg(u32) right(u32) down(u32)
+#         instr_idx(i32) 1(u32) row_start(u32) seg(u32) right(u32) down(u32)
 _HEADER_STRUCT = struct.Struct("<xIIBBBBiIIIII")
 
 
@@ -58,7 +58,7 @@ class ClickCell:
     segment: int = 0
     wire_right: int = 0
     wire_down: int = 0
-    nop_enable: int = 0
+    row_start_flag: int = 0
     af_nop: int = 0
 
     # Instruction (empty = data cell)
@@ -88,11 +88,14 @@ class ClickCell:
             # Pure wire/data cell in a wire-only rung: +0x0C = 0x01
             b09, b0a, b0c = 1, 1, 1
 
+        # Native +0x15 comes from the stored row's low flag bit, only at A.
+        # These rules construct the encoder's canonical state; Rung does not
+        # retain native row flags. Contacts/NOPs are not its complete meaning.
         # 32-bit LE Wire & Logic Flags
         if self.blob:
-            contact_flag = 1 if (self.is_contact and self.col == 0 and self.local_row == 0) else 0
+            row_start = 1 if (self.is_contact and self.col == 0 and self.local_row == 0) else 0
         else:
-            contact_flag = self.nop_enable
+            row_start = self.row_start_flag
         right_flag = self.af_nop if self.af_nop else self.wire_right
 
         return _HEADER_STRUCT.pack(
@@ -104,7 +107,7 @@ class ClickCell:
             b0c,
             self.instr_index,
             1,
-            contact_flag,
+            row_start,
             self.segment,
             right_flag,
             self.wire_down,

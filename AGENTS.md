@@ -115,7 +115,7 @@ tests/
     └── tumbler/                 # 34 real programs: <name>.scr + <name>.clipboard.{bin,csv}
 ```
 
-Golden fixtures verified through Click paste round-trip. The tumbler fixture pairs each Click internal program file (`.scr`) with a clipboard capture of the same program; `devtools/compare_csv.py <dir>` compares `<name>.csv` (scr decode) against `<name>.clipboard.csv` ground truth.
+Ladder golden fixtures are verified through Click paste round-trip. In `scr_captures`, `time_drums.bin` is synthetic (see that directory's README); do not use its differences from SCR as evidence of native cleanup. The tumbler fixture pairs each Click internal program file (`.scr`) with a clipboard capture of the same program; `devtools/compare_csv.py <dir>` compares `<name>.csv` (scr decode) against `<name>.clipboard.csv` ground truth.
 
 ## Binary Format
 
@@ -127,7 +127,7 @@ Quick reference: three regions — program header (0x0254), payload region (0x02
 
 Full spec: [`docs/internals/wire-rendering.md`](docs/internals/wire-rendering.md) — flag bytes, left-edge rendering, segment flag boundary rules.
 
-Quick reference: three flag bytes per cell — segment (+0x19), right (+0x1D), down (+0x21). Wire tokens classified by (right, down) only. Segment flag boundary computed per-row. Row 0 exempt.
+Quick reference: three flag bytes per cell — segment (+0x19), right (+0x1D), down (+0x21). Wire tokens classified by (right, down) only. Segment flag boundary computed per-row. The encoder treats row 0 as exempt; native segment flags retain editing history.
 
 ## Instruction Blobs
 
@@ -160,7 +160,7 @@ All tested shapes pass Click round-trip (verified via paste → copy-back):
 
 The clipboard decoder (`decode.py`) reads Click clipboard binaries back into structured data. Validated against a 37-rung native capture covering all basic instruction types.
 
-The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against the 114-rung coverage fixture, shift/counter/drum programs, and the 34-program tumbler fixture (byte-identical CSV vs clipboard captures). Row topology uses the uniform row-block framing documented in `docs/internals/binary-format.md` §"SCR row-topology blocks".
+The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against the 114-rung coverage fixture, shift/counter/drum programs, and the 34-program tumbler fixture (byte-identical CSV vs clipboard captures). SCR headers use counted numeric widths and independent display flags. Every counted topology row, including the special first row, is parsed without recovery; ordinary stored wire rows are preserved. Row topology uses the uniform row-block framing documented in `docs/internals/binary-format.md` §"SCR row-topology blocks".
 
 **All standard Click instruction types decoded natively:**
 - Contacts: NO, NC, edge (rise/fall), immediate (NO/NC)

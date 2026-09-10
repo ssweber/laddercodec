@@ -286,7 +286,10 @@ def _compute_seg_boundaries(
 
 
 def _af_segment(row_idx: int, is_multi_row: bool, single_rung: bool) -> int:
-    """Compute the segment flag for an AF instruction cell.
+    """Construct the canonical segment flag for an AF instruction cell.
+
+    Native CLICK copies a stored per-entry bit; these generation conventions
+    do not describe native serialization or preserve arbitrary editing history.
 
     - Multi-row AF (Timer, multi-part Raw): always 0.
     - Multi-rung (all AF types): always 0.

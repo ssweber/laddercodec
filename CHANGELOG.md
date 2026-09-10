@@ -8,6 +8,18 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
+## Unreleased
+
+### Fixed
+- **SCR decode**: parse counted column widths, independent display flags, and all stored rows so valid populated special rows no longer trigger recovery, and malformed records fail without silently skipping a rung.
+- **SCR decode**: preserve wire rows preceding a later rail-connected row; the old deletion rule relied on a synthetic time-drum BIN, so rungs 13 and 14 of that native SCR now retain their stored geometry.
+
+### Added
+- **Native drum regression fixtures**: preserve the original NOP's wire row and a branch above it after row insertion and drum placement, with native SCR/clipboard and CSV comparisons.
+
+### Documentation
+- Correct SCR flag meanings and fixture provenance, and distinguish native persisted flags from the encoder's construction conventions.
+
 ## 0.2.1 (2026-08-25)
 
 ### Fixed
@@ -23,7 +35,7 @@
 ### Fixed
 - **SCR decode**: correct the row-topology block framing — every row (including row 0) uses one uniform block format, fixing branch rungs whose wires (`T`/`|`/`-`) were silently dropped whenever a continuation row's first right-wired cell carried segment flag 1.
 - **SCR decode**: accept placement-ordered flag-table entries — native captures store columns out of order (e.g. `[6,1,0,3,2,4,5]`), which the old sorted-order validation rejected.
-- **SCR decode**: drop orphaned editor-debris wire rows stored above a rung's true row 0 (observed under drum boxes), matching what Click's own clipboard copy produces.
+- **SCR decode**: introduced deletion of presumed orphan wire rows above a later rail-connected row; the claimed native clipboard agreement was based on a synthetic fixture, and this behavior is reversed in Unreleased.
 
 ### Changed
 - **SCR decode**: replace the heuristic topology parser (leading-row guessing, count_down special cases, end-marker scanning) with a deterministic parser derived from the verified format — see `docs/internals/binary-format.md` §"SCR row-topology blocks" for the spec.

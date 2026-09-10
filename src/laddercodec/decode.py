@@ -79,6 +79,10 @@ class DecodeError(ValueError):
 class Rung:
     """Structured rung data — used for both decode output and encode input.
 
+    This is a semantic model: native row/segment flags and editing history
+    are not retained. Re-encoding constructs canonical flags rather than
+    promising byte-identical preservation of a native capture.
+
     Attributes
     ----------
     logical_rows:
