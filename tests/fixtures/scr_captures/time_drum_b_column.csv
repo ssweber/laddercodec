@@ -1,0 +1,4 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,One row inserted above a NOP; drum placed on the new top row. Upper row wired B?AE with A blank; vertical at B connects to the original wired row below.
+R1,,T,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],current_step=DS1,accumulator=TD1,completion_flag=C1)"
+,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,.reset()

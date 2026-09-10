@@ -12,9 +12,11 @@ from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
     _parse_header,
     _parse_row_block,
+    _parse_row_topology_block,
     _parse_scr_tags,
     _parse_section_entries,
     _parse_wiredown_table,
+    _ScrRow,
     _tag_wire_type,
     _walk_rung_records,
     decode_program,
@@ -46,8 +48,7 @@ def _topology_blocks_by_section(
     scr_data: bytes,
 ) -> dict[int, object]:
     """Map section index (nth rung with instructions) to its topology block."""
-    _name, prog_idx, data_start = _parse_header(scr_data)
-    records = _walk_rung_records(scr_data, prog_idx, data_start)
+    records = _walk_rung_records(scr_data, _parse_header(scr_data))
     return {idx: record.topology for idx, record in enumerate(r for r in records if r.instructions)}
 
 
@@ -99,14 +100,15 @@ def _right_wire_columns(rung, row_idx: int) -> list[int]:
 def _row_block_details(data: bytes, block) -> list[tuple[int, list[tuple[int, int]]]]:
     """Re-parse a topology block's row blocks as (flag, [(seg, col), ...]).
 
-    Preserves the native serialized entry order, unlike the set-based parser.
+    Check the counted byte framing independently of the parsed row objects.
     """
-    pos = block.start + 5
+    pos = block.start + 2
+    first_count = struct.unpack_from("<H", data, pos + 1)[0]
+    pos += 3 + first_count * 2
     details: list[tuple[int, list[tuple[int, int]]]] = []
     for _ in range(block.row_word - 1):
         flag = data[pos]
-        count = data[pos + 1]
-        assert data[pos + 2] == 0
+        count = struct.unpack_from("<H", data, pos + 1)[0]
         pos += 3
         entries = [(data[pos + i * 2], data[pos + i * 2 + 1]) for i in range(count)]
         pos += count * 2
@@ -315,22 +317,37 @@ def test_parse_row_block_accepts_seg1_first_entry():
     # seg=1 col=0).  The old framing demanded `00 00` after the count and
     # rejected the whole topology block, silently dropping the rung's wires.
     data = bytes.fromhex("0001000100")
-    assert _parse_row_block(data, 0, len(data)) == ({0}, True, 5)
+    assert _parse_row_block(data, 0, len(data)) == (_ScrRow(0, ((1, 0),)), 5)
 
 
 def test_parse_row_block_empty_row():
     data = bytes.fromhex("010000")
-    assert _parse_row_block(data, 0, len(data)) == (set(), False, 3)
+    assert _parse_row_block(data, 0, len(data)) == (_ScrRow(1, ()), 3)
 
 
-def test_parse_row_block_row0_signature():
-    # col 0 present + all condition segs 1 (col-31 seg exempt) = grid row 0;
-    # a seg-0 condition cell breaks the signature.
-    data = bytes.fromhex("01 03 00 01 00 01 01 01 1f")
-    assert _parse_row_block(data, 0, len(data)) == ({0, 1, 31}, True, 9)
+def test_parse_row_block_preserves_flags_and_segment_bits():
+    # Row flags and per-entry segments are independent; neither identifies
+    # visual row zero. The first special row can carry flags 3 and entries.
+    data = bytes.fromhex("03 03 00 01 1f 01 00 00 01")
+    assert _parse_row_block(data, 0, len(data)) == (
+        _ScrRow(3, ((1, 31), (1, 0), (0, 1))),
+        9,
+    )
 
-    data = bytes.fromhex("01 03 00 01 00 00 01 01 1f")
-    assert _parse_row_block(data, 0, len(data)) == ({0, 1, 31}, False, 9)
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "01 01 01",  # u16 count 257, not a count of 1 with ignored padding
+        "01 02 00 01 00",  # truncated entries
+        "01 02 00 01 00 00 00",  # duplicate column
+        "01 01 00 02 00",  # unsupported entry flag
+        "04 00 00",  # unsupported row flag
+    ],
+)
+def test_parse_row_block_rejects_invalid_records(raw):
+    data = bytes.fromhex(raw)
+    assert _parse_row_block(data, 0, len(data)) is None
 
 
 def test_parse_scr_tags_handles_compact_home_raw_fields():
@@ -521,8 +538,8 @@ def test_coverage_scr_and_bin_both_match_golden_csv():
     scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
     bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
 
-    assert scr_lines == csv_lines
     assert bin_lines == csv_lines
+    assert scr_lines == csv_lines
 
 
 def test_decode_program_matches_shift_scr_fixture():
@@ -567,9 +584,8 @@ def test_send_receive_elided_device_id_defaults():
     assert receive is not None and receive.target.device_id == 5
 
 
-def test_time_drums_scr_and_bin_both_match_golden_csv():
-    """Time drums across all units + jog/jump, a T-wire branch, and a drum
-    carrying a stray pin-row NOP: SCR, clipboard, and golden CSV all agree."""
+def test_time_drums_synthetic_bin_matches_canonical_csv():
+    """The BIN is generated, not a native clipboard capture (be211ee)."""
     csv_rungs = read_csv(_SCR_FIXTURE_DIR / "time_drums.csv")
     clip_rungs, scr_rungs = _load_fixture_pair("time_drums")
 
@@ -578,8 +594,9 @@ def test_time_drums_scr_and_bin_both_match_golden_csv():
     bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
 
     assert len(scr_rungs) == 15
-    assert scr_lines == csv_lines
     assert bin_lines == csv_lines
+    # Native stored wires above later rail rows must survive decoding.
+    assert [i for i in range(15) if scr_lines[i] != csv_lines[i]] == [12, 13]
 
 
 def test_time_drums_scr_drops_stray_pin_row_nop():
@@ -594,28 +611,24 @@ def test_time_drums_scr_drops_stray_pin_row_nop():
     assert "NOP" not in rung.instructions  # stray editing-cruft NOP dropped
 
 
-def test_parse_header_skips_fixed_condition_family_table_without_a_sentinel():
-    scr_data = bytearray(b"\x00" * 0xC0)
-    scr_data[:8] = b"SC-SCR  "
-    struct.pack_into("<H", scr_data, 0x40, 1)
-
-    name_bytes = "Main Program".encode("utf-16-le") + b"\x00"
-    scr_data[0x42] = len(name_bytes)
-    scr_data[0x43 : 0x43 + len(name_bytes)] = name_bytes
-
-    cursor = 0x43 + len(name_bytes)
-    struct.pack_into("<H", scr_data, cursor, 32)
-    cursor += 2
-    for family_code in ["~", *["H"] * 30]:
-        struct.pack_into("<H", scr_data, cursor, ord(family_code))
-        cursor += 2
-
-    rtf = b"{\\rtf1 synthetic}"
-    scr_data[cursor : cursor + 7] = bytes.fromhex("9a010d08000000")
-    struct.pack_into("<I", scr_data, cursor + 7, len(rtf))
-    scr_data[cursor + 11 : cursor + 11 + len(rtf)] = rtf
-
-    assert _parse_header(bytes(scr_data)) == ("Main Program", 1, cursor + 7)
+@pytest.mark.parametrize("flags", [*range(16), 0x80])
+@pytest.mark.parametrize("comment", [None, "first"])
+def test_parse_header_uses_numeric_widths_and_independent_flags(flags, comment):
+    data = bytearray(_synthetic_scr([comment]))
+    widths_pos = 0x43 + data[0x42] + 2
+    widths = (300, *([72] * 30), 410)
+    struct.pack_into("<32H", data, widths_pos, *widths)
+    data[widths_pos + 64] = flags
+    header = _parse_header(bytes(data))
+    assert header.name == "Synth"
+    assert header.prog_idx == 2
+    assert header.column_widths == widths
+    assert header.display_flags == flags
+    assert header.rung_count == 1
+    assert header.rungs_start == widths_pos + 67
+    assert len(_walk_rung_records(bytes(data), header)) == 1
+    program = decode_program(bytes(data))
+    assert [r.comment for r in program.rungs] == ([] if comment is None else [comment])
 
 
 def _synthetic_rtf(text: str) -> bytes:
@@ -635,17 +648,14 @@ def _synthetic_scr(rung_comments: list[str | None]) -> bytes:
     buf.append(len(name_bytes))
     buf += name_bytes
     buf += struct.pack("<H", 32)  # cols_per_row
-    buf += struct.pack("<H", ord("H")) * 31  # condition-family table
-
-    # Rung-0 file prelude: [u16 file_marker][0d][u32 total rung records]
-    buf += struct.pack("<H", 144) + b"\x0d" + struct.pack("<I", len(rung_comments))
+    buf += struct.pack("<H", 72) * 31 + struct.pack("<H", 144)  # column widths
+    buf += b"\x0d" + struct.pack("<H", len(rung_comments))  # display flags, rung count
 
     for index, comment in enumerate(rung_comments):
-        if index > 0:
-            buf += struct.pack("<H", index)
+        buf += struct.pack("<H", index)  # includes rung zero
         rtf = _synthetic_rtf(comment) if comment is not None else b""
         buf += struct.pack("<I", len(rtf)) + rtf
-        # Topology: row_word=2, one empty row block, end marker, 32-col wiredown
+        # Two counted rows (special + ordinary), then 32 counted down lists
         buf += struct.pack("<H", 2) + b"\x03\x00\x00" + b"\x01\x00\x00"
         buf += b"\x20\x00" + b"\x00" * 64
         buf += b"\x00\x00"  # instr_count = 0 (empty rung)
@@ -698,7 +708,7 @@ def test_topology_row_blocks_match_coverage_clipboard_columns():
 
 def test_count_down_topology_blocks_use_uniform_row_blocks():
     """count_down counter rungs need no special-casing: their stored row
-    blocks map 1:1 to grid rows (AF row simply carries flag=0)."""
+    ordinary blocks map 1:1 to grid rows, independently of row flags."""
     scr_data = (_SCR_FIXTURE_DIR / "counter_scr.scr").read_bytes()
 
     topo_map = _topology_blocks_by_section(scr_data)
@@ -736,15 +746,12 @@ def test_topology_row_block_entries_can_use_wrapped_order():
 
 def test_rung_walk_yields_a_topology_block_for_every_section():
     """Every instruction rung must carry a structurally valid topology block."""
-    _PREFIX = decode_program_module._ROW_TOPOLOGY_PREFIX
-
     for scr_path in sorted(_SCR_FIXTURE_DIR.glob("*.scr")):
         scr_data = scr_path.read_bytes()
         topo_map = _topology_blocks_by_section(scr_data)
 
         for rung_idx, block in topo_map.items():
-            pos = block.start
-            assert scr_data[pos + 2 : pos + 5] == _PREFIX
+            assert block.stored_rows[0].flags == 3
             assert len(block.rows_right_cols) == block.row_word - 1, (
                 f"{scr_path.name} rung {rung_idx}: row block count mismatch"
             )
@@ -798,3 +805,226 @@ def test_tag_wire_type_covers_all_implicit_tags():
         "Tags used at call sites but _tag_wire_type returns 'unknown':\n"
         + "\n".join(f"  0x{t:04X}" for t in unknowns)
     )
+
+
+def test_native_time_drums_preserves_rows_above_later_rail_rows():
+    program = decode_program((_SCR_FIXTURE_DIR / "time_drums.scr").read_bytes())
+    for index, preceding_rows in ((12, 1), (13, 2)):
+        rung = program.rungs[index]
+        assert rung.logical_rows == 4
+        for row in range(preceding_rows):
+            assert rung.conditions[row] == ["", "T", *(["-"] * 29)]
+        assert rung.conditions[preceding_rows] == ["-"] * 31
+        # Wires remain positional; the drum itself is still on stored row 1.
+        assert rung.instructions[0].__class__.__name__ == "Drum"
+        assert "NOP" not in rung.instructions
+
+
+def test_rotate_populated_special_row_is_a_real_record():
+    path = _SCR_FIXTURE_DIR.parent / "tumbler/subroutines/Rotate.scr"
+    data = path.read_bytes()
+    header = _parse_header(data)
+    records = _walk_rung_records(data, header)
+    assert len(records) == header.rung_count
+    block = records[24].topology
+    assert block.start == 0x3858
+    assert block.stored_rows[0].flags == 3
+    assert block.stored_rows[0].right_cols == frozenset(range(32))
+    assert block.stored_rows[0].entries[-1] == (0, 31)
+    assert block.rows_right_cols == (frozenset(range(32)),)
+    assert records[24].instructions == []
+    assert records[25].topology.start > block.end
+
+
+def test_corrupt_topology_is_not_skipped_before_a_valid_rung():
+    data = bytearray(_synthetic_scr([None, "must not recover here"]))
+    header = _parse_header(data)
+    # Invalid row count in rung zero; later rung framing is still valid.
+    struct.pack_into("<H", data, header.rungs_start + 6, 0)
+    with pytest.raises(ValueError, match=r"unparseable rung topology.*rung 0"):
+        decode_program(bytes(data))
+
+
+@pytest.mark.parametrize("index", [0, 1])
+def test_declared_rung_indices_include_zero(index):
+    data = bytearray(_synthetic_scr([None, None]))
+    header = _parse_header(data)
+    records = _walk_rung_records(data, header)
+    prefix = header.rungs_start if index == 0 else records[0].topology.end + 2
+    struct.pack_into("<H", data, prefix, 42)
+    with pytest.raises(ValueError, match="rung index mismatch"):
+        decode_program(bytes(data))
+
+
+@pytest.mark.parametrize("count", [0, 1, 3, 256])
+def test_declared_rung_count_is_enforced(count):
+    data = bytearray(_synthetic_scr([None, None]))
+    header = _parse_header(data)
+    struct.pack_into("<H", data, header.rungs_start - 2, count)
+    with pytest.raises(ValueError, match="rung walk ended|truncated rung prefix"):
+        decode_program(bytes(data))
+
+
+def test_truncated_headers_and_rung_prefixes_raise_value_error():
+    data = _synthetic_scr([None])
+    header = _parse_header(data)
+    for end in range(header.rungs_start + 6):
+        with pytest.raises(ValueError):
+            decode_program(data[:end])
+
+
+def test_down_lists_use_u16_counts_and_validate_row_indices():
+    # A high count byte must not be mistaken for fixed padding.
+    data = struct.pack("<H", 256) + bytes([1]) * 256
+    assert _parse_wiredown_table(data, 0, len(data), 1, 2) == ({0: (0,)}, len(data))
+    assert _parse_wiredown_table(data[:-1], 0, len(data) - 1, 1, 2) is None
+    for index in (0, 2):
+        bad = struct.pack("<H", 1) + bytes([index])
+        assert _parse_wiredown_table(bad, 0, len(bad), 1, 2) is None
+
+
+def test_topology_column_count_is_a_count_not_an_end_marker():
+    data = bytes.fromhex("02 00 03 00 00 01 01 00 01 00 01 00 00 00")
+    block = _parse_row_topology_block(data, 0)
+    assert block is not None
+    assert block.column_count == 1
+    assert block.end == len(data)
+    assert block.rows_right_cols == (frozenset({0}),)
+    assert _parse_row_topology_block(data[:-1], 0) is None
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "coverage",
+        "counter_scr",
+        "or_topology",
+        "shift_scr",
+        "time_drum_insert_rows",
+        "time_drum_b_column",
+    ],
+)
+def test_native_row_and_entry_flags_map_to_clipboard(name):
+    path = _SCR_FIXTURE_DIR / f"{name}.scr"
+    data = path.read_bytes()
+    binary = path.with_suffix(".bin").read_bytes()
+    records = _walk_rung_records(data, _parse_header(data))
+    rungs = decode(binary)
+    if not isinstance(rungs, list):
+        rungs = [rungs]
+    requests = [
+        (i, row, col)
+        for i, rung in enumerate(rungs)
+        for row in range(rung.logical_rows)
+        for col in ("A", "B", "AF")
+    ]
+    for cell in inspect_cells(binary, requests):
+        block = records[cell.rung].topology
+        stored = block.stored_rows[cell.row + 1]
+        col = _COL_IDX_BY_NAME[cell.col]
+        entries = {c: seg for seg, c in stored.entries}
+        assert cell.raw[0x15] == (stored.flags & 1 if col == 0 else 0)
+        assert cell.flags == (
+            entries.get(col, 0),
+            int(col in entries),
+            int(cell.row in block.wiredown.get(col, ())),
+        )
+
+
+def test_native_drum_inserted_rows_keep_the_original_nop_wire(tmp_path):
+    """Same-state native capture: the original row survives drum placement.
+
+    Rung 1 is a normal drum; rungs 2/3 insert one/two rows above a NOP before
+    placing the drum on top. The screenshot shows the horizontal wire at
+    the original row's new position. There is no standalone NOP instruction
+    in SCR: it is the unoccupied AF right-wire beneath the drum's span.
+    """
+    from laddercodec import write_csv
+    from laddercodec.instructions import Drum
+
+    base = _SCR_FIXTURE_DIR / "time_drum_insert_rows"
+    data = base.with_suffix(".scr").read_bytes()
+    binary = base.with_suffix(".bin").read_bytes()
+    records = _walk_rung_records(data, _parse_header(data))
+    clipboard, scr = _load_fixture_pair(base.name)
+    assert scr == clipboard
+    assert len(scr) == 3
+    assert len(records) == 4  # includes CLICK's trailing empty editor rung
+
+    for wire_row, rung in enumerate(scr):
+        record = records[wire_row]
+        assert len(record.instructions) == 1
+        assert record.instructions[0][:3] == (0, 31, "Drum")
+        assert isinstance(rung.instructions[0], Drum)
+        assert rung.logical_rows == 4
+        assert rung.conditions == [["-"] * 31 if row == wire_row else [""] * 31 for row in range(4)]
+        assert "NOP" not in rung.instructions  # semantic tall-span suppression
+        assert record.topology.wiredown == {}
+        for row, stored in enumerate(record.topology.stored_rows[1:]):
+            assert stored.flags == int(row == wire_row)
+            assert stored.entries == (
+                tuple((1, col) for col in range(32)) if row == wire_row else ()
+            )
+
+        # CellDump exposes row decoding before tall-span NOP suppression.
+        drum_cell, wire_af, wire_a = inspect_cells(
+            binary,
+            [(wire_row, 0, "AF"), (wire_row, wire_row, "AF"), (wire_row, wire_row, "A")],
+        )
+        assert isinstance(drum_cell.token, Drum)
+        assert drum_cell.flags == ((1, 1, 0) if wire_row == 0 else (0, 0, 0))
+        assert wire_af.flags == (1, 1, 0)
+        assert wire_a.raw[0x15] == 1
+        if wire_row:
+            assert wire_af.token == "NOP"
+
+    expected_csv = base.with_suffix(".csv").read_text(encoding="utf-8")
+    for label, rungs in (("scr", scr), ("clipboard", clipboard)):
+        output = tmp_path / f"{label}.csv"
+        write_csv(output, rungs, index=True)
+        assert output.read_text(encoding="utf-8") == expected_csv
+
+
+def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
+    """A later all-segment-1 rail row does not make preceding wires debris."""
+    from laddercodec import write_csv
+    from laddercodec.instructions import Drum
+
+    base = _SCR_FIXTURE_DIR / "time_drum_b_column"
+    data = base.with_suffix(".scr").read_bytes()
+    binary = base.with_suffix(".bin").read_bytes()
+    clipboard, scr = _load_fixture_pair(base.name)
+    assert scr == clipboard
+    assert len(scr) == 1
+    rung = scr[0]
+    assert rung.logical_rows == 4
+    assert rung.conditions == [
+        ["", "T", *(["-"] * 29)],
+        ["-"] * 31,
+        [""] * 31,
+        [""] * 31,
+    ]
+    assert isinstance(rung.instructions[0], Drum)
+    assert rung.instructions[1:] == ["", "", ""]
+
+    block = _walk_rung_records(data, _parse_header(data))[0].topology
+    upper, original = block.stored_rows[1:3]
+    # These are the precise features the removed row-deletion rule used:
+    # a nonempty row before a rail-connected row with every segment bit set.
+    assert upper.flags == 0
+    assert upper.entries == ((0, 1), *tuple((1, col) for col in range(2, 31)))
+    assert original.flags == 1
+    assert original.entries == tuple((1, col) for col in range(32))
+    assert block.wiredown == {1: (0,)}
+
+    upper_b, original_af = inspect_cells(binary, [(0, 0, "B"), (0, 1, "AF")])
+    assert upper_b.flags == (0, 1, 1)
+    assert original_af.flags == (1, 1, 0)
+    assert original_af.token == "NOP"  # covered by the drum in semantic output
+
+    for label, rungs in (("scr", scr), ("clipboard", clipboard)):
+        output = tmp_path / f"{label}.csv"
+        write_csv(output, rungs, index=True)
+        assert output.read_text(encoding="utf-8") == base.with_suffix(".csv").read_text(
+            encoding="utf-8"
+        )

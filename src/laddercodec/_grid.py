@@ -217,7 +217,7 @@ def _build_rung_grid(
                             segment=seg,
                             wire_right=right,
                             wire_down=down,
-                            nop_enable=1
+                            row_start_flag=1
                             if (
                                 has_nop
                                 and local_row > 0

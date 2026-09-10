@@ -70,7 +70,7 @@ The cell header is 0x25 (37) bytes. Key fields:
 | +0x09 | row_span | How many grid rows this cell occupies |
 | +0x0A | visual_rows | Visual sub-row count (1 = normal, 2 = timer, 3 = retained timer) |
 | +0x0D | instr_index | 4-byte LE signed. `-1` (0xFFFFFFFF) for data cells |
-| +0x15 | contact_flag | 4-byte LE |
+| +0x15 | row_start_flag (column A) | 4-byte LE |
 | +0x19 | segment | 4-byte LE — load-bearing flag |
 | +0x1D | wire_right | 4-byte LE |
 | +0x21 | wire_down | 4-byte LE |

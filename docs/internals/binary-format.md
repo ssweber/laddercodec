@@ -110,7 +110,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x0B–0x0C | 2B | Structural: +0x0C = 0x01 in wire-only rungs, 0x00 in instruction-bearing rungs |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |
-| +0x15 | 4B | Enable/contact flag (uint32 LE) |
+| +0x15 | 4B | Row-start flag: stored row bit 0 at column A, zero elsewhere (uint32 LE) |
 | +0x19 | 4B | Segment flag (uint32 LE) |
 | +0x1D | 4B | Right flag (uint32 LE) |
 | +0x21 | 4B | Down flag (uint32 LE) |
@@ -200,52 +200,93 @@ The embedded fields at offsets +0 through +6 after the type code correspond to c
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 
+## SCR header
+
+After the `SC-SCR  ` magic and opaque header bytes, offset `0x40` holds the u16 program index. Offset `0x42` is the byte length of the following UTF-16LE name. Immediately after the name:
+
+```
+[u16 column_count]
+column_count x [u16 numeric column_width]  -- includes AF
+[u8 display_flags]
+[u16 rung_count]
+rung_count x RUNG
+```
+
+Widths resembling UTF-16 letters are numeric widths, not condition-family codes. The final width belongs to AF; it is not a file marker. The display byte contains independent settings:
+
+| Mask | Setting |
+|---|---|
+| `0x01` | Nicknames |
+| `0x02` | Address Comments |
+| `0x04` | Rung Comments |
+| `0x08` | Freeze Pane Coil Area |
+
+The common value `0x0D` enables nicknames, rung comments, and the frozen coil area. It is not a delimiter. Header parsing retains the byte internally without requiring a particular setting; the public `Program` model exposes the name, index, and semantic rungs, not editor display settings.
+
 ## SCR rung records
 
-An SCR file is a header followed by one rung record per rung, in order, parseable with a single forward cursor:
+Every rung, including rung zero, has the same framing:
 
 ```
-RUNG = [2B rung_index]        -- 1-based ordinal; asserted sequential
-       [4B rtf_len][rtf body] -- comment; rtf_len = 0 means none
-       TOPOLOGY               -- row-topology block (below)
-       [2B instr_count]       -- 0 = empty rung (nothing follows)
-       [4B section_marker]    -- only when instr_count > 0
-       instr_count x ENTRY    -- 8-byte header + blob (see framing above)
-ENTRY  = [1B row_1based][1B col][1B b2][1B b3][1B entry_seq][3B 00] + blob
+RUNG = [u16 rung_index]       -- zero-based ordinal, asserted sequential
+       [u32 rtf_len][rtf body]
+       TOPOLOGY
+       [u16 instr_count]     -- 0 = no instruction section
+       [u32 section_marker]  -- only when instr_count > 0; opaque
+       instr_count x ENTRY
+ENTRY = [u8 stored_row][u8 col][u8 b2][u8 b3][u8 entry_seq][3B opaque] + blob
 ```
 
-Rung 0 carries a 7-byte file prelude instead of `rung_index`: `[2B file_marker][0d][4B total_rung_records]`. `file_marker` equals the per-file `section_marker` constant (opaque; validation magic only), and `total_rung_records` counts every rung record in the file.
+Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
-Programs end with 1–4 ordinary content-less rungs (the empty editor rungs below the last programmed rung; some carry a fully-wired row) — the decoder drops trailing records with no instructions and no comment. Files with `prog_idx == 1` (the main program) carry a 2-byte tail after the last record; subroutines end exactly at the last record.
+Files with `prog_idx == 1` have a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing raises an offset-bearing error; it never searches for a later rung to resume decoding.
+
+CLICK keeps trailing content-less editor rungs, sometimes fully wired. The decoder parses them and then omits trailing records with neither instructions nor a raw comment. This existing semantic-output policy is separate from structural parsing.
 
 ## SCR row-topology blocks
 
-SCR files store per-rung wire topology in structured blocks that precede each rung's instruction section. Each block encodes the right-wire and segment-flag data that clipboard stores per-cell in the grid.
-
 ```
-[2B row_word][03 00 00]         -- 5-byte header; row_word = stored rows + 1
-{ row block } x (row_word - 1)  -- one per grid row, in row order (row 0 first)
-[20 00]                         -- end marker
-[wire-down table]               -- exactly 32 column entries (see below)
-```
+[u16 stored_row_count]       -- includes the special first row
+stored_row_count x ROW
+[u16 down_column_count]     -- normally 32; a count, not an end marker
+down_column_count x DOWN_LIST
 
-Every row block — including row 0's — has the same uniform format:
+ROW = [u8 row_flags][u16 entry_count]
+      entry_count x [u8 segment][u8 column]
 
-```
-[1B flag][1B count][00]  +  count x ([1B seg][1B col])
+DOWN_LIST = [u16 count][count x u8 stored_row_index]
 ```
 
-- `flag` — the +0x19 segment flag of the row's AF (col 31) cell. 1 for normal output/coil/NOP rows, 0 for tall segment-0 instructions (timer/counter/drum).
-- `count` — number of right-wired cells on the row (condition cells plus AF when present). `count = 0` is an empty row: the 3-byte block `[flag][00][00]`.
-- Each entry pairs a cell's +0x19 segment flag with its column index (0–31, 31 = AF). Entries are **placement-ordered** — the column sequence is usually ascending but not guaranteed (native captures include orders like `[6,1,0,3,2,4,5]`), so columns must be treated as a set.
+The first stored row is the comment/preamble row. CLICK initializes it with flags 3 and the next ordinary row with flags 1. `03 00 00` means flags 3 and zero entries; `03 20 00` means flags 3 and 32 entries. Both are ordinary instances of the counted grammar. The latter occurs in `tumbler/subroutines/Rotate.scr`, where the former decoder incorrectly invoked recovery.
 
-A row block whose entries include col 0 with every condition-cell seg = 1 carries the grid-row-0 signature (row 0 is exempt from the per-row segment boundary). SCR can retain orphaned wire rows *above* the true row 0 — editor debris under a tall instruction box — which Click's own clipboard copy omits; the decoder drops non-empty stored rows preceding the first row with the row-0 signature.
+Rows retain their flags and placement-ordered entries in the internal parser. Native column orders include `[6,1,0,3,2,4,5]`; order must not be required to ascend. The semantic rung builder uses the column set for wire presence.
 
-The wire-down table after the `20 00` marker has exactly one entry per column 0–31:
+| SCR data | Clipboard field | Meaning established by native writer |
+|---|---|---|
+| Ordinary row flags bit 0 | `+0x15` | Set only in column A when the row bit is set |
+| Entry segment bit 0 | `+0x19` | Copy the persisted bit for that column |
+| Column occurs in row entries | `+0x1D` | Right wire is present |
+| Row occurs in column's down list | `+0x21` | Down wire is present |
 
-```
-no down wires: [00 00]
-down wires:    [1B count][00][count x 1-based row index]
-```
+The row flag is **not** the AF segment flag. Row flags bit 1 is also serialized; the special first row has this bit set, but its complete editing semantics remain uncharacterized. The parser accepts both low row bits. Entry flags currently support bit 0.
 
-This table is the SCR serialization of the per-cell down flag (+0x21) that clipboard stores on each cell — it lists every down wire, including those carried by contact cells (rendered as a `T:` prefix, see [wire rendering](wire-rendering.md)). It is therefore a superset of the visible `T`/`|` wire tokens.
+Down lists refer to stored row indices starting at one. The decoder subtracts one to obtain ordinary grid coordinates, and rejects zero or out-of-range references. These lists include down wires carried by contact cells, so they cover more than visible `T`/`|` wire tokens.
+
+### Stored rows and canonical output
+
+Ordinary stored rows map directly to grid rows. The decoder preserves their positions and horizontal and vertical connections. Row and segment flags do not determine whether a row exists.
+
+Instruction placement is separate from stored wire entries: an instruction can occupy a cell without a right-wire entry. An AF right-wire becomes a `NOP` only when no instruction occupies or covers that cell. Covered NOPs are omitted from the decoded instructions; the surrounding wiring remains.
+
+The public `Rung` model retains instructions and wire geometry, but does not retain raw row or segment flags. Re-encoding constructs flags using the conventions in [wire rendering](wire-rendering.md), so it does not preserve every byte of native editor state. Trailing records without instructions or comments are omitted from the decoded program.
+
+### Native evidence
+
+These corrections were checked against CLICK Ver3.92's native x86 `CLICK.exe` on 2026-09-10 (SHA-256 `E31A8130BC6D6261BAC841AF3062DAB70DD68B4307A1B3B58DA37F994C6FE13A`). Addresses are preferred-image virtual addresses, image base `0x400000`:
+
+- Program writer `0x5A77F0`: numeric widths at `0x5A791C` with scaling at `0x5A794B`; display bits at `0x5A79D5`; u16 rung count backpatch at `0x5A7B9B`; u16 rung indices at `0x5A7AD0`.
+- Display toggle handlers `0x5BF360/0x5BF430/0x5BF500/0x5B1A00` toggle the four serialized fields. MFC command IDs `0x8036/0x802D/0x8095/0x8090` and executable string resources supply the setting names above.
+- Rung serializer `0x61C540`: stored row count at `0x61C637`, row flags at `0x61C66F`, u16 entry counts at `0x61C6DD`, pair bytes at `0x61C754/0x61C795`, down-column count at `0x61C7F7`.
+- Clipboard writer `0x5BC2F0`: row-bit/column-A tests at `0x5BC4DB/0x5BC4E1`, entry bit at `0x5BC54B`, right presence at `0x5BC552`, down-list matching from `0x5BC5B4`. Native record origins are eight bytes before this document's clipboard cell origins.
+
+The investigation walked 39 SCR files / 704 records without resynchronization. Comparing four flag mappings at 46,208 cell positions found no mismatches outside the synthetic time_drums pair. These are static-binary and fixture results, not a new live paste/reopen validation. `InstCtl_Drum.dll` confirms a four-row instruction footprint; it does not establish the disputed row-removal behavior.

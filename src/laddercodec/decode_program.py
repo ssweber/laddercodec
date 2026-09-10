@@ -37,8 +37,6 @@ from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 # ---------------------------------------------------------------------------
 
 _SCR_MAGIC = b"SC-SCR  "
-_ROW_TOPOLOGY_PREFIX = b"\x03\x00\x00"
-_ROW_TOPOLOGY_END_MARKER = b"\x20\x00"
 _MAX_SECTION_INSTRUCTIONS = 512
 
 
@@ -58,29 +56,50 @@ _ScrSectionInstruction = tuple[
 
 
 @dataclass(frozen=True)
+class _ScrRow:
+    """Stored row flags and placement-ordered (segment, column) wire entries."""
+
+    flags: int
+    entries: tuple[tuple[int, int], ...]
+
+    @property
+    def right_cols(self) -> frozenset[int]:
+        return frozenset(col for _segment, col in self.entries)
+
+
+@dataclass(frozen=True)
 class _ScrRowTopologyBlock:
-    """Structural row-topology record that precedes a rung's instruction section.
+    """Counted rows, including the special first row, followed by down lists.
 
-    Uniform framing (verified against all native captures)::
-
-        [row_word u16] [03 00 00]
-          (row_word - 1) row blocks, one per grid row, each:
-            [flag u8] [count u8] [00]  +  count x ([seg u8] [col u8])
-        [20 00]
-        32-column wire-down table
-
-    ``flag``/``seg`` are the clipboard +0x19 segment flags (flag = the row's
-    AF cell, seg = that condition cell).  Entries are placement-ordered — the
-    column sequence is not guaranteed ascending — so columns are kept as sets.
-    A count-0 row block is an empty grid row.
+    Row flags bit 0 maps to column A's clipboard +0x15 field; entry bit 0
+    maps to +0x19. Entry presence supplies +0x1D. The first stored row is the
+    comment/preamble row, not a fixed three-byte prefix.
     """
 
     start: int
-    row_word: int
-    rows_right_cols: tuple[frozenset[int], ...]  # index 0 = grid row 0
-    rows_row0_like: tuple[bool, ...]  # per row: carries the grid-row-0 signature
-    wiredown: dict[int, tuple[int, ...]]
-    end: int  # first byte after the wire-down table
+    stored_rows: tuple[_ScrRow, ...]
+    column_count: int
+    wiredown: dict[int, tuple[int, ...]]  # ordinary grid row indices, zero-based
+    end: int
+
+    @property
+    def row_word(self) -> int:
+        return len(self.stored_rows)
+
+    @property
+    def rows_right_cols(self) -> tuple[frozenset[int], ...]:
+        return tuple(row.right_cols for row in self.stored_rows[1:])
+
+
+@dataclass(frozen=True)
+class _ScrHeader:
+    name: str
+    prog_idx: int
+    column_widths: tuple[int, ...]
+    # Bits: nicknames, address comments, rung comments, freeze coil area.
+    display_flags: int
+    rung_count: int
+    rungs_start: int  # the u16 index of rung zero
 
 
 # ---------------------------------------------------------------------------
@@ -96,70 +115,33 @@ def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
     return raw.decode("utf-16-le").rstrip("\x00")
 
 
-def _skip_condition_column_family_table(data: bytes, cursor: int) -> int:
-    """Skip the fixed-width per-condition-column family table.
-
-    SCR stores ``cols_per_row`` first, then one UTF-16LE family code for each
-    condition column (A..AE). The AF/output column is not included, so a Click
-    program with 32 visible columns still serializes 31 family entries here.
-    """
-    if cursor + 2 > len(data):
-        return cursor
-
-    cols_per_row = struct.unpack_from("<H", data, cursor)[0]
-    cursor += 2
-
-    if 1 <= cols_per_row <= _CONDITION_COLUMNS + 1:
-        family_table_bytes = (cols_per_row - 1) * 2
-        if cursor + family_table_bytes <= len(data):
-            return cursor + family_table_bytes
-
-    # Fallback for malformed headers: consume a contiguous UTF-16LE ASCII table
-    # without assuming any specific family code such as "A".
-    while cursor + 1 < len(data) and data[cursor + 1] == 0 and 0x20 <= data[cursor] <= 0x7E:
-        cursor += 2
-
-    return cursor
-
-
-def _skip_initial_rtf_prelude(data: bytes, cursor: int) -> int:
-    """Skip the variable marker/length prelude that precedes the first RTF block.
-
-    The 7-byte prelude layout:
-      +0x00  (2B) — marker (observed: varies per file)
-      +0x02  (1B) — unidentified (always 0x0D in observations)
-      +0x03  (4B) — unknown uint32
-      +0x07  (4B) — RTF body length (uint32 LE)
-    We skip past the first 7 bytes so data_start points at the RTF length field.
-    """
-    if cursor + 11 > len(data) or data[cursor + 2] != 0x0D:
-        return cursor
-
-    rtf_len = struct.unpack_from("<I", data, cursor + 7)[0]
-    rtf_start = cursor + 11
-    if 0 < rtf_len <= len(data) - rtf_start and data[rtf_start : rtf_start + 6] == b"{\\rtf1":
-        return cursor + 7
-
-    return cursor
-
-
-def _parse_header(data: bytes) -> tuple[str, int, int]:
-    """Parse SC-SCR file header.
-
-    Returns (program_name, prog_idx, data_start).
-    """
-    if len(data) < 0x50 or data[:8] != _SCR_MAGIC:
+def _parse_header(data: bytes) -> _ScrHeader:
+    """Read counted numeric widths, display flags, and the u16 rung count."""
+    if len(data) < 0x43 or data[:8] != _SCR_MAGIC:
         raise ValueError(f"Not an SC-SCR file (magic: {data[:8]!r})")
 
     prog_idx = struct.unpack_from("<H", data, 0x40)[0]
     name_len = data[0x42]
-    name = _read_utf16le(data, 0x43, name_len)
     cursor = 0x43 + name_len
-
-    cursor = _skip_condition_column_family_table(data, cursor)
-    cursor = _skip_initial_rtf_prelude(data, cursor)
-
-    return name, prog_idx, cursor
+    if cursor + 2 > len(data):
+        raise ValueError("truncated SCR name or column count")
+    name = _read_utf16le(data, 0x43, name_len)
+    column_count = struct.unpack_from("<H", data, cursor)[0]
+    cursor += 2
+    if not 1 <= column_count <= _CONDITION_COLUMNS + 1:
+        raise ValueError(f"unsupported SCR column count: {column_count}")
+    widths_end = cursor + 2 * column_count
+    if widths_end + 3 > len(data):
+        raise ValueError("truncated SCR column widths or display header")
+    widths = struct.unpack_from(f"<{column_count}H", data, cursor)
+    return _ScrHeader(
+        name=name,
+        prog_idx=prog_idx,
+        column_widths=widths,
+        display_flags=data[widths_end],
+        rung_count=struct.unpack_from("<H", data, widths_end + 1)[0],
+        rungs_start=widths_end + 3,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -367,158 +349,114 @@ def _infer_af_visual_rows(
 # ---------------------------------------------------------------------------
 
 
-def _parse_row_block(data: bytes, pos: int, data_len: int) -> tuple[set[int], bool, int] | None:
-    """Parse one uniform row block: ``[flag][count][00]`` + count x ``[seg][col]``.
-
-    Returns ``(right_wired_cols, row0_like, next_pos)`` or ``None`` on any
-    structural mismatch.  Entries are placement-ordered — columns are
-    collected as a set.
-
-    ``row0_like`` is the grid-row-0 signature: the row reaches the power rail
-    (col 0 present) and every condition cell carries segment flag 1 (grid row
-    0 is exempt from the per-row segment boundary, so only a true row 0 looks
-    like this — continuation rows connected to the rail get seg=0 left of the
-    boundary).
-    """
-    if pos + 3 > data_len:
+def _parse_row_block(data: bytes, pos: int, data_len: int) -> tuple[_ScrRow, int] | None:
+    """Read flags u8, count u16, and count (segment u8, column u8) pairs."""
+    if pos < 0 or pos + 3 > data_len:
         return None
-    flag = data[pos]
-    count = data[pos + 1]
-    if flag not in (0, 1) or data[pos + 2] != 0 or count > _CONDITION_COLUMNS + 1:
+    flags = data[pos]
+    count = struct.unpack_from("<H", data, pos + 1)[0]
+    if flags & ~3 or count > _CONDITION_COLUMNS + 1:
         return None
-    entries_end = pos + 3 + count * 2
-    if entries_end > data_len:
+    end = pos + 3 + count * 2
+    if end > data_len:
         return None
-
-    cols: set[int] = set()
-    all_condition_segs_set = True
-    for off in range(pos + 3, entries_end, 2):
-        seg = data[off]
-        col = data[off + 1]
-        if seg not in (0, 1) or col > _CONDITION_COLUMNS or col in cols:
+    entries: list[tuple[int, int]] = []
+    seen: set[int] = set()
+    for off in range(pos + 3, end, 2):
+        segment, col = data[off : off + 2]
+        if segment not in (0, 1) or col > _CONDITION_COLUMNS or col in seen:
             return None
-        if col < _CONDITION_COLUMNS and seg == 0:
-            all_condition_segs_set = False
-        cols.add(col)
-    row0_like = 0 in cols and all_condition_segs_set
-    return cols, row0_like, entries_end
+        entries.append((segment, col))
+        seen.add(col)
+    return _ScrRow(flags, tuple(entries)), end
 
 
 def _parse_wiredown_table(
-    data: bytes, pos: int, data_len: int
+    data: bytes,
+    pos: int,
+    data_len: int,
+    column_count: int = 32,
+    stored_row_count: int | None = None,
 ) -> tuple[dict[int, tuple[int, ...]], int] | None:
-    """Parse the 32-column wire-down table that follows the ``20 00`` marker.
+    """Read a u16 count and that many stored-row index bytes per column.
 
-    Exactly one entry per column 0..31: ``00 00`` (no down wires) or
-    ``[count][00][count x 1-based row index]``.  Returns
-    ``({col: row_indices}, end)`` or ``None`` on structural mismatch.
+    Stored row zero is special. Down lists refer to ordinary rows starting
+    at one; convert them to zero-based grid coordinates.
     """
     result: dict[int, tuple[int, ...]] = {}
-    for col in range(_CONDITION_COLUMNS + 1):
+    for col in range(column_count):
         if pos + 2 > data_len:
             return None
-        count = data[pos]
-        if data[pos + 1] != 0:
-            return None
+        count = struct.unpack_from("<H", data, pos)[0]
         pos += 2
-        if count:
-            if pos + count > data_len:
-                return None
-            rows = tuple(sorted({b - 1 for b in data[pos : pos + count] if b > 0}))
-            if rows:
-                result[col] = rows
-            pos += count
+        if pos + count > data_len:
+            return None
+        indices = data[pos : pos + count]
+        if any(r == 0 or (stored_row_count is not None and r >= stored_row_count) for r in indices):
+            return None
+        if indices:
+            result[col] = tuple(sorted({r - 1 for r in indices}))
+        pos += count
     return result, pos
 
 
 def _parse_row_topology_block(
-    data: bytes, pos: int, data_len: int = 0
+    data: bytes,
+    pos: int,
+    data_len: int = 0,
 ) -> _ScrRowTopologyBlock | None:
-    """Parse a full row-topology block (header, row blocks, marker, wiredown)."""
+    """Read every counted row, then the counted column down lists."""
     if not data_len:
         data_len = len(data)
-    if pos < 0 or pos + 7 > data_len:
+    if pos < 0 or pos + 2 > data_len:
         return None
-
-    row_word = struct.unpack_from("<H", data, pos)[0]
-    if not 2 <= row_word <= 33:
+    stored_row_count = struct.unpack_from("<H", data, pos)[0]
+    if not 2 <= stored_row_count <= 33:
         return None
-
-    if data[pos + 2 : pos + 5] != _ROW_TOPOLOGY_PREFIX:
-        return None
-
-    cursor = pos + 5
-    rows: list[frozenset[int]] = []
-    row0_like: list[bool] = []
-    for _ in range(row_word - 1):
+    cursor = pos + 2
+    rows: list[_ScrRow] = []
+    for _ in range(stored_row_count):
         parsed = _parse_row_block(data, cursor, data_len)
         if parsed is None:
             return None
-        cols, is_row0_like, cursor = parsed
-        rows.append(frozenset(cols))
-        row0_like.append(is_row0_like)
-
-    if data[cursor : cursor + 2] != _ROW_TOPOLOGY_END_MARKER:
+        row, cursor = parsed
+        rows.append(row)
+    if cursor + 2 > data_len:
         return None
-
-    parsed_wd = _parse_wiredown_table(data, cursor + 2, data_len)
+    column_count = struct.unpack_from("<H", data, cursor)[0]
+    if not 1 <= column_count <= _CONDITION_COLUMNS + 1:
+        return None
+    if any(col >= column_count for row in rows for _seg, col in row.entries):
+        return None
+    parsed_wd = _parse_wiredown_table(
+        data,
+        cursor + 2,
+        data_len,
+        column_count,
+        stored_row_count,
+    )
     if parsed_wd is None:
         return None
     wiredown, end = parsed_wd
-
-    return _ScrRowTopologyBlock(
-        start=pos,
-        row_word=row_word,
-        rows_right_cols=tuple(rows),
-        rows_row0_like=tuple(row0_like),
-        wiredown=wiredown,
-        end=end,
-    )
+    return _ScrRowTopologyBlock(pos, tuple(rows), column_count, wiredown, end)
 
 
 # ---------------------------------------------------------------------------
 # Linear rung-record walk
 # ---------------------------------------------------------------------------
-#
-# Per-rung grammar (single forward cursor, no scanning):
-#
-#   RUNG = [u16 rung_index (1-based ordinal; rung 0 has the file prelude
-#           [u16 file_marker][0d][u32 total_rung_records] instead)]
-#          [u32 rtf_len][rtf body]
-#          TOPOLOGY                        (see _parse_row_topology_block)
-#          [u16 instr_count]               (0 = empty rung, else section follows)
-#          [u32 section_marker] + entries  (only when instr_count > 0)
-#
-# Entry advance is trailer-aware: the byte at each blob's end_offset is a
-# trailer length (0 or 1), so the next entry starts at
-# ``end_offset + 2 + data[end_offset]``.
-# Files whose prog_idx == 1 (the main program) end with a 2-byte tail after
-# the last rung record; subroutines end exactly at the last record.
+# Every rung, including zero: u16 index, u32 RTF length, RTF body, topology,
+# u16 instruction count, then (if nonempty) u32 section marker and entries.
+# Main programs (prog_idx == 1) have a two-byte file tail.
 
 
 @dataclass(frozen=True)
 class _ScrRungRecord:
-    """One rung record from the linear walk."""
+    """One complete rung record from the linear walk."""
 
     comment: str | None
     comment_rtf: bytes | None
-    topology: _ScrRowTopologyBlock | None  # None only for skipped trailing debris
+    topology: _ScrRowTopologyBlock
     instructions: list[_ScrSectionInstruction]
-
-
-def _locate_rung0_rtf_field(data: bytes, data_start: int) -> tuple[int, int | None]:
-    """Locate rung 0's ``[u32 rtf_len]`` field and the total rung-record count.
-
-    ``_parse_header`` leaves ``data_start`` either at the 7-byte rung-0 file
-    prelude ``[u16 file_marker][0d][u32 total_rung_records]`` (when rung 0 has
-    no comment) or just past it (comment present).  Returns
-    ``(rtf_len_pos, total_rung_records | None)``.
-    """
-    if data_start + 7 <= len(data) and data[data_start + 2] == 0x0D:
-        return data_start + 7, struct.unpack_from("<I", data, data_start + 3)[0]
-    if data_start >= 7 and data[data_start - 5] == 0x0D:
-        return data_start, struct.unpack_from("<I", data, data_start - 4)[0]
-    return data_start, None
 
 
 def _parse_section_entries(
@@ -548,44 +486,23 @@ def _parse_section_entries(
         if trailer_len > 8:
             return None
         cursor = end_off + 2 + trailer_len
+        if cursor > data_len:
+            return None
     return results, cursor
 
 
-def _resync_trailing_rung(data: bytes, pos: int, next_index: int, limit: int) -> int | None:
-    """Bounded resync past trailing editor debris.
-
-    Native captures can contain one malformed topology-like block among the
-    trailing placeholder rungs (observed once: a ``03 20 00`` marker instead
-    of ``03 00 00``).  Search forward for the next rung prefix
-    ``[u16 next_index][u32 rtf_len=0]`` followed by a valid topology block.
-    """
-    needle = struct.pack("<H", next_index) + b"\x00\x00\x00\x00"
-    search = pos
-    while True:
-        found = data.find(needle, search, limit)
-        if found < 0:
-            return None
-        if _parse_row_topology_block(data, found + 6, len(data)) is not None:
-            return found
-        search = found + 1
-
-
-def _walk_rung_records(data: bytes, prog_idx: int, data_start: int) -> list[_ScrRungRecord]:
-    """Walk all rung records with a single forward cursor."""
-    data_len = len(data)
-    pos, total_rungs = _locate_rung0_rtf_field(data, data_start)
-    limit = data_len - (2 if prog_idx == 1 else 0)
-
+def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
+    """Walk the declared records; reject malformed framing without resync."""
+    pos = header.rungs_start
+    limit = len(data) - (2 if header.prog_idx == 1 else 0)
     records: list[_ScrRungRecord] = []
-    index = 0
-    while pos < limit:
-        if index > 0:
-            if pos + 6 > limit:
-                raise ValueError(f"truncated rung prefix at 0x{pos:X} (rung {index})")
-            got = struct.unpack_from("<H", data, pos)[0]
-            if got != index:
-                raise ValueError(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
-            pos += 2
+    for index in range(header.rung_count):
+        if pos + 6 > limit:
+            raise ValueError(f"truncated rung prefix at 0x{pos:X} (rung {index})")
+        got = struct.unpack_from("<H", data, pos)[0]
+        if got != index:
+            raise ValueError(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
+        pos += 2
 
         rtf_len = struct.unpack_from("<I", data, pos)[0]
         pos += 4
@@ -601,15 +518,11 @@ def _walk_rung_records(data: bytes, prog_idx: int, data_start: int) -> list[_Scr
                 comment = None
             pos += rtf_len
 
-        block = _parse_row_topology_block(data, pos, data_len)
+        block = _parse_row_topology_block(data, pos, limit)
         if block is None:
-            resync = _resync_trailing_rung(data, pos, index + 1, limit)
-            if resync is None:
-                raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
-            records.append(_ScrRungRecord(comment, rtf_bytes, None, []))
-            pos = resync
-            index += 1
-            continue
+            raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
+        if block.column_count != len(header.column_widths):
+            raise ValueError(f"column count mismatch at 0x{pos:X} (rung {index})")
         pos = block.end
 
         if pos + 2 > limit:
@@ -621,20 +534,15 @@ def _walk_rung_records(data: bytes, prog_idx: int, data_start: int) -> list[_Scr
             if count > _MAX_SECTION_INSTRUCTIONS or pos + 4 > limit:
                 raise ValueError(f"invalid section header at 0x{pos - 2:X} (rung {index})")
             pos += 4  # section_marker: opaque per-file constant
-            parsed = _parse_section_entries(data, pos, count, data_len)
+            parsed = _parse_section_entries(data, pos, count, limit)
             if parsed is None:
                 raise ValueError(f"unparseable section entries at 0x{pos:X} (rung {index})")
             instructions, pos = parsed
 
         records.append(_ScrRungRecord(comment, rtf_bytes, block, instructions))
-        index += 1
 
     if pos != limit:
         raise ValueError(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
-    if total_rungs is not None and len(records) != total_rungs:
-        raise ValueError(
-            f"rung record count mismatch: walked {len(records)}, header says {total_rungs}"
-        )
     return records
 
 
@@ -646,7 +554,7 @@ def _is_trailing_placeholder(record: _ScrRungRecord) -> bool:
     records, but content-less — only instructions or a comment make a
     trailing record worth emitting.
     """
-    return not record.instructions and record.comment is None
+    return not record.instructions and record.comment_rtf is None
 
 
 def _build_topology_backed_rung(
@@ -656,34 +564,14 @@ def _build_topology_backed_rung(
     comment: str | None,
     comment_rtf: bytes | None,
 ) -> Rung:
-    """Build the Rung object for a rung with a parsed row-topology block.
+    """Map ordinary stored rows directly to grid rows.
 
-    Row block *i* maps directly to grid row *i* — no reshuffling.  count_down
-    counters and drums need no special handling: their AF-row block simply
-    carries flag=0 and the bridge/pin row is a normal stored row.
-
-    One exception: SCR can retain orphaned wire rows *above* the true grid
-    row 0 (editor debris under a tall instruction box, observed in native
-    drum captures).  The true row 0 is identified by its grid-row-0 segment
-    signature (see ``_parse_row_block``); non-empty stored rows preceding it
-    are dropped, and wire-down row indices shift accordingly.  Click's own
-    clipboard copy of such rungs omits these rows.
+    Preserve wires above later rail-connected rows. Segment patterns depend
+    on editing history and cannot establish that an earlier row is debris.
+    The semantic Rung model does not retain raw row/segment flags.
     """
     rows = topology_block.rows_right_cols
     wiredown = topology_block.wiredown
-
-    junk_rows = 0
-    for idx, is_row0_like in enumerate(topology_block.rows_row0_like):
-        if is_row0_like:
-            junk_rows = idx
-            break
-    if junk_rows and all(rows[i] for i in range(junk_rows)):
-        rows = rows[junk_rows:]
-        wiredown = {
-            col: shifted
-            for col, row_indices in wiredown.items()
-            if (shifted := tuple(r - junk_rows for r in row_indices if r >= junk_rows))
-        }
 
     row0 = rows[0] if rows else frozenset()
     return _build_rung(
@@ -859,8 +747,8 @@ def decode_program(data: bytes) -> Program:
     ValueError
         If the file cannot be parsed.
     """
-    name, prog_idx, data_start = _parse_header(data)
-    records = _walk_rung_records(data, prog_idx, data_start)
+    header = _parse_header(data)
+    records = _walk_rung_records(data, header)
 
     # Drop trailing content-less rungs — the ordinary empty rungs Click keeps
     # below the last programmed rung (a rung-scoped clipboard copy excludes
@@ -870,9 +758,6 @@ def decode_program(data: bytes) -> Program:
 
     rungs: list[Rung] = []
     for record in records:
-        if record.topology is None:
-            continue  # skipped trailing debris that wasn't last
-
         inferred_rows = 1
         for (
             row,
@@ -908,4 +793,4 @@ def decode_program(data: bytes) -> Program:
             )
         )
 
-    return Program(name=name, prog_idx=prog_idx, rungs=rungs)
+    return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)
