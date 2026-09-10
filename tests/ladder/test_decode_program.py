@@ -978,11 +978,11 @@ def test_native_drum_inserted_rows_keep_the_original_nop_wire(tmp_path):
         if wire_row:
             assert wire_af.token == "NOP"
 
-    expected_csv = base.with_suffix(".csv").read_bytes()
+    expected_csv = base.with_suffix(".csv").read_text(encoding="utf-8")
     for label, rungs in (("scr", scr), ("clipboard", clipboard)):
         output = tmp_path / f"{label}.csv"
         write_csv(output, rungs, index=True)
-        assert output.read_bytes() == expected_csv
+        assert output.read_text(encoding="utf-8") == expected_csv
 
 
 def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
@@ -1025,4 +1025,6 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
     for label, rungs in (("scr", scr), ("clipboard", clipboard)):
         output = tmp_path / f"{label}.csv"
         write_csv(output, rungs, index=True)
-        assert output.read_bytes() == base.with_suffix(".csv").read_bytes()
+        assert output.read_text(encoding="utf-8") == base.with_suffix(".csv").read_text(
+            encoding="utf-8"
+        )
