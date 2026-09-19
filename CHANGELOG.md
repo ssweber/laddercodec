@@ -8,6 +8,12 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
+## Unreleased
+
+### Added
+- **Experimental Productivity support**: inspect native project archives and ladder XML, preserve unchanged files exactly, and rewrite edited entries with validated content checksums; application reopen verification is pending.
+- **Productivity research tools**: capture clipboard data and inspect installed instruction classes and JAXB serialization without adding runtime dependencies.
+
 ## 0.2.2 (2026-09-10)
 
 ### Fixed

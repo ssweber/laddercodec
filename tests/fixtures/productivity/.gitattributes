@@ -1,0 +1,3 @@
+# Preserve native captures and serializer output exactly on every platform.
+two-button-latch/** -text whitespace=cr-at-eol
+generated/*.xml -text

@@ -1,0 +1,25 @@
+{
+  "capture_date": "2026-09-19",
+  "source_name": "EP-MISC-005-PxK.adpro",
+  "legacy_archive_sha256": "24536a5722c826bfce0adf86d44c49c65a9596caaaa98f8717b8f2703c3fe5f9",
+  "legacy_header_hex": "adc03000",
+  "legacy_archive_preserved": false,
+  "current_archive_sha256": "b1054e3db2cd0c5c4482c430746b3797c67717c08f9e27242db7956ea9257064",
+  "current_header_hex": "adc03002",
+  "native_files": {
+    "two-button-latch/clipboard-manifest.json": "132609ee4b07af9ebc807f7df7aec76ff1cfd6e63ed9787c73edf968caf987d5",
+    "two-button-latch/project-4.7.2.4.adpro": "b1054e3db2cd0c5c4482c430746b3797c67717c08f9e27242db7956ea9257064",
+    "two-button-latch/rung-4.7.2.4.clipboard.bin": "a752e34534a11ed469a2ee5333047734274ac7567864f088ba1ce7ee14ce6fd1",
+    "two-button-latch/legacy-3.12.1/program.act": "fb025dd427796fc1a69668771c093634ab90d15c0a49cc0702019ffb95ae4556",
+    "two-button-latch/legacy-3.12.1/program.adv": "cde50c0dad07cec25fbaf618912123add0795870451a748e9595851361593670",
+    "two-button-latch/legacy-3.12.1/program.cfg": "1d0f4266d3a9973920f1ba2bddcd4a772c26c910bedbe946e924dcc3a71b2ade",
+    "two-button-latch/legacy-3.12.1/program.dat": "4b8f8c5f766b069b5d29fc7acaeb613baf1b5371c76a37a31db0641885545430",
+    "two-button-latch/legacy-3.12.1/program.for": "7850e617d242fe90d4fc2ebaa521347772eae06059d2b3dead79e81935494e3f",
+    "two-button-latch/legacy-3.12.1/program.pld": "a0f508babe70f172eaca0a1d207cd38e830ae2b2e63f54937522c8bafa48d0f3",
+    "two-button-latch/legacy-3.12.1/program.prj": "af5cc40f94f8c4ccfbfe6ac3507016f8ea0b35a794b12180ec1f32e46d3cfd86",
+    "two-button-latch/legacy-3.12.1/program.rol": "be3e33a09d2a90d627991c194661dc2153709eb8da02a178bf0d76dccf62680a",
+    "two-button-latch/legacy-3.12.1/program.tag": "e8ebc5e613a8078b13c3c3b99a556250bd949937e9f095798eef4041c081587f",
+    "two-button-latch/legacy-3.12.1/program.uds": "8d6014806440822f3823b87f3eae41e8ba76d089e6405e1aa19ca8728ba3be7c",
+    "two-button-latch/legacy-3.12.1/task/T1.rll": "328d125ddc747ce0e22cf4513bf86cd1314397d61c1642f484271f2b345f486c"
+  }
+}

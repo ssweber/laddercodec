@@ -1,0 +1,21 @@
+{
+  "owner_pid": 0,
+  "formats": [
+    {
+      "id": 49940,
+      "name": "JAVA_DATAFLAVOR:application/x-java-serialized-object; class=com.adc.common.datatransfer.n",
+      "size": 6709,
+      "file": "format-49940.bin",
+      "sha256": "a752e34534a11ed469a2ee5333047734274ac7567864f088ba1ce7ee14ce6fd1",
+      "head": "aced000573720023636f6d2e6164632e617070732e7061632e656469746f722e6c61646465722e61622462de5148cb9d3bea490200024c00036275657400124c6a6176612f7574696c2f566563746f723b4c000362756674000f4c6a6176612f"
+    },
+    {
+      "id": 50006,
+      "name": "JAVA_DATAFLAVOR:application/x-java-serialized-object; class=com.adc.common.datatransfer.i",
+      "size": 6709,
+      "file": "format-50006.bin",
+      "sha256": "a752e34534a11ed469a2ee5333047734274ac7567864f088ba1ce7ee14ce6fd1",
+      "head": "aced000573720023636f6d2e6164632e617070732e7061632e656469746f722e6c61646465722e61622462de5148cb9d3bea490200024c00036275657400124c6a6176612f7574696c2f566563746f723b4c000362756674000f4c6a6176612f"
+    }
+  ]
+}

@@ -73,3 +73,14 @@ make                # all of the above
 ## License
 
 [MPL-2.0](LICENSE)
+
+## Experimental Productivity support
+
+`laddercodec.productivity` reads the observed Productivity `.adpro` ZIP/XML
+formats and writes edited archives with updated checksums. Unchanged archives
+round-trip byte-for-byte; unrelated and opaque entry contents are preserved.
+The existing top-level API remains CLICK-specific. Generated Productivity
+projects have not yet been verified by reopening them in the application.
+
+See [Productivity research and usage](docs/productivity/index.md) for the API,
+native fixture provenance, and local JAR inspection tools.

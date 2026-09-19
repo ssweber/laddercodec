@@ -18,6 +18,7 @@ nav:
       - Binary Format: internals/binary-format.md
       - Wire Rendering: internals/wire-rendering.md
       - Instruction Blobs: internals/instruction-blobs.md
+  - Productivity (Experimental): productivity/index.md
   - API Reference:
       - Overview: reference/index.md
       - Codec API: reference/api/codec.md

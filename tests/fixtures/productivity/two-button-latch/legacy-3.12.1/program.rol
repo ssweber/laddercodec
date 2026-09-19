@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?><HMIPermissionsManager xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><permissionsData xsi:type="map"><type>java.util.HashMap</type></permissionsData></HMIPermissionsManager>

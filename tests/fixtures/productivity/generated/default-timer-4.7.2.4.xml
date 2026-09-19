@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<instruction xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="adcInstSTMR">
+    <comment></comment>
+    <inUse>false</inUse>
+    <indexSymbolsMap xsi:type="map">
+        <type>java.util.HashMap</type>
+    </indexSymbolsMap>
+    <isEnabled>true</isEnabled>
+    <isInUdiDef>false</isInUdiDef>
+    <isValid>false</isValid>
+    <usingStructure>false</usingStructure>
+    <delaySetting>0</delaySetting>
+    <startStop>false</startStop>
+    <timeBase>centiSecond</timeBase>
+</instruction>

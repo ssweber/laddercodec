@@ -71,3 +71,21 @@ clean:
 	$(RM) .mypy_cache/
 	$(RM) .venv/
 	$(FIND_PYCACHE)
+
+# Productivity research helpers; ARGS are passed to the selected tool.
+.PHONY: productivity-java productivity-inspect productivity-capture productivity-clipboard
+productivity-java:
+	uv run python devtools/productivity/run_java.py $(ARGS)
+
+productivity-inspect:
+	uv run python devtools/productivity/inspect_project.py $(ARGS)
+
+productivity-capture:
+	uv run python devtools/productivity/capture_clipboard.py $(ARGS)
+
+productivity-clipboard:
+	uv run python devtools/productivity/read_java_stream.py $(ARGS)
+
+.PHONY: productivity-example
+productivity-example:
+	uv run python devtools/productivity/make_example.py
