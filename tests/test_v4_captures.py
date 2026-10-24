@@ -1,7 +1,7 @@
 """CLICK v4 captures: every labelled rung's comment says what it should decode to.
 
 Each ``fixtures/v4_captures/<group>.bin`` is a multi-rung copy-back from CLICK v4.
-The stubs come from pyrung (``pyrung/scratchpad/click-v4/captures/v4_capture.py``);
+The stubs are built with pyrung by ``scratchpad/click-v4/captures/v4_capture.py``;
 a labelled rung's comment is
 
     line 1      the rung id

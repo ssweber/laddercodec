@@ -44,6 +44,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "Contact",
             "CompareContact",
             "Coil",
+            "OutVariant",
             "Timer",
             "Counter",
             "Copy",
