@@ -13,6 +13,8 @@
 ### Fixed
 - **Math encode**: formulas are written the way Click's editor writes them (`ABS ( x )`, `RAND ( a , b )` in its infix internal form, range interiors listed), so pasted ABS and RAND formulas no longer raise a Math instruction error in CLICK v4.
 - **Coil decode**: an Out coil with a func code laddercodec does not know falls through to `raw(Out,...)` instead of silently decoding as a plain `out(...)`.
+- **Drum decode**: a CLICK v4 Time & Event drum decodes as `raw(Drum,...)`. Before, one with an event on every step decoded as a plain `time_drum` with its events as presets.
+- **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes (`01 02 03` for a drum, not `00 01 02`), so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
 
 ### Added
 - **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.

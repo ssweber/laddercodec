@@ -393,6 +393,12 @@ class TestAfNodeToToken:
         assert result.class_name == "X"
         assert result.blob == bytes.fromhex(blob_hex)
 
+    def test_raw_fields_token_keeps_multipart_extras(self) -> None:
+        # Click numbers part extras from 1 (a timer's part count 2 is followed by 01).
+        timer_blob = Timer.from_csv_token("on_delay(T1,TD1,preset=1000,unit=Tms)").build_blob()
+        raw = RawInstruction(class_name="Tmr", blob=timer_blob, part_count=2)
+        assert RawInstruction.from_csv_token(raw.to_csv()).blob == timer_blob
+
     def test_counter(self) -> None:
         node = AfCall(
             name="count_up",

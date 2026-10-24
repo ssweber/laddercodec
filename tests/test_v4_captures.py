@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
-from laddercodec.csv.writer import decoded_rung_to_rows
+from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.out_variant import OutVariant
@@ -54,6 +54,12 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     if any(token.startswith("raw(") for token in af_tokens):
         pytest.xfail(f"not decoded yet: {af_tokens}")
     assert af_tokens == expected
+
+
+@pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
+def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
+    """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
+    write_csv(tmp_path / f"{bin_path.stem}.csv", _decode_file(bin_path))
 
 
 # ---------------------------------------------------------------------------

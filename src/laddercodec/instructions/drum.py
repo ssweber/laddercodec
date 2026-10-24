@@ -278,6 +278,12 @@ def from_tags(
     if class_name != "Drum" or type_code != _DRUM_TYPE_CODE:
         return None
 
+    # Tag 0x2200 is the drum base: absent/0 time, 1 event.  CLICK v4's Time & Event
+    # base (2) keeps events in 0x6872 and presets in 0x6891; it must fall through to
+    # RawInstruction, not decode its events as time presets.
+    if tags.get(0x2200, "") not in ("", "0", "1"):
+        return None
+
     lens = tag_byte_lens or {}
     variant_u16 = variant_u16_tags or {}
     variant_strings = variant_string_tags or {}

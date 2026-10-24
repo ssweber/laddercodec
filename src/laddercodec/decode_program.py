@@ -656,7 +656,7 @@ def _build_rung(
                     class_name,
                     type_code,
                     visual_sub_rows,
-                    bytes(range(max(0, visual_sub_rows - 1))),
+                    bytes(range(1, max(1, visual_sub_rows))),
                     [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
                 )
                 instructions[row] = RawInstruction(
