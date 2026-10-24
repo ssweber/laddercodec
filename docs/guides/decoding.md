@@ -35,7 +35,7 @@ All standard Click instruction types are decoded into domain objects:
 - **Copy family** → `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`
 - **Math** → `Math` (decimal/hex expressions)
 - **Shift registers** → `Shift`
-- **Drum sequencers** → `Drum` (event/time)
+- **Drum sequencers** → `Drum` (event, time, and CLICK v4 time & event)
 - **Table search** → `Search`
 - **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`
 - **Modbus** → `Send`, `Receive`

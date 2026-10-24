@@ -22,8 +22,10 @@ import pytest
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode
+from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.out_variant import OutVariant
+from laddercodec.instructions.raw import _decompose_blob
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
 
@@ -133,6 +135,39 @@ def test_out_variant_blobs_match_native() -> None:
     for variant, start in zip(variants, starts, strict=True):
         blob = variant.build_blob()
         assert buf[start : start + len(blob)] == blob, variant.to_csv()
+
+
+def test_time_event_drum_blobs_match_native() -> None:
+    """Every time & event drum CLICK wrote re-encodes field for field, 0x428A aside.
+
+    0x428A is unexplained: Click wrote -1 for four drums and -2 for drum__te_ds;
+    the encoder writes -1, which Click also fills in for a pasted drum lacking it.
+    """
+    buf = (CAPTURE_DIR / "drum.bin").read_bytes()
+    drums = [
+        token
+        for rung in _decode_file(CAPTURE_DIR / "drum.bin")
+        for token in rung.instructions
+        if isinstance(token, Drum)
+    ]
+    needle = "Drum".encode("utf-16-le") + b"\x00\x00"
+    starts = []
+    i = -1
+    while (i := buf.find(needle, i + 1)) != -1:
+        starts.append(i)
+    checked = 0
+    for drum, start in zip(drums, starts, strict=True):
+        if drum.drum_kind != "time_event":
+            continue
+        blob = drum.build_blob()
+        *head, native_fields = _decompose_blob(buf[start : start + len(blob)])
+        *encoded_head, fields = _decompose_blob(blob)
+        assert encoded_head == head
+        assert [f for f in fields if f[0] != 0x428A] == [
+            f for f in native_fields if f[0] != 0x428A
+        ], drum.to_csv()
+        checked += 1
+    assert checked == 5
 
 
 def test_out_variant_is_not_a_plain_coil() -> None:

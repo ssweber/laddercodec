@@ -74,6 +74,31 @@ Each phase stores only its accumulator; Click claims the `T` of the same number
 with it. Timed is the one AF instruction whose cell header has more visual
 sub-rows (`+0x0A`) than rows spanned (`+0x09`).
 
+## Time & Event drum (CLICK v4)
+
+A drum's base is tag `0x2200`: `0` time, `1` event, `2` time & event. Any other
+value decodes as `raw(Drum,...)`. Source: `drum.py`.
+
+CLICK v4 copies every drum back with 82 fields: the 63 v3 fields, then 16 preset
+slots (`0x6891`), `0x428A`, `0x6068` and the terminator. The encoder writes the
+82-field layout for time & event drums only. Time and event drums keep the
+64-field v3 layout, which CLICK v4 still accepts.
+
+| Tag | Time & event drum |
+|---|---|
+| `0x6872` ×16 | events (blank for a step without one) |
+| `0x6891` ×16 | presets (blank for a step without one) |
+| `0x6068` | done bit of the accumulator's timer (`TD101` → `T101`) |
+| `0x428A` | `-1` as written by the encoder; see below |
+| `0x3A05` ×4 | func codes; no-jog base Tms 10503, Ts 10510, Tm 10517, Th 10524, Td 10532 |
+
+The func codes have the same 7-code block shape as the time drum (base, reset,
+jump, then jog group +3..+6) and the same Td skip.
+
+`0x428A` looks like leftover editor state. Click fills in `-1` for a pasted drum
+that lacks the field. A time drum switched to Time & Event and back came out
+`-4`, with new func codes (Tms 10247/10248 where the v3 table has 8455/8456).
+
 ## Math formulas
 
 A Math blob (class `Math`, type 0x271A) always has 1010 tagged fields: 9 header
