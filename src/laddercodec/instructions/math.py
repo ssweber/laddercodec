@@ -10,7 +10,8 @@ The binary blob is always 1010 tagged fields:
 
 - 9 header fields (result, flags, formula strings, func code)
 - 500 operand slots (tag 0x6888, indexed sentinel)
-- 500 reserved slots (tag 0x688C, indexed sentinel, always empty)
+- 500 reserved slots (tag 0x688C, indexed sentinel): interior addresses of each ``A : B`` range
+  (CLICK v4 copies back 5000 reserved slots; 500 pastes into both v3 and v4)
 - 1 terminator (tag 0x0000)
 
 CSV token format::
@@ -133,11 +134,33 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 
 
 def _normalize_parens(expr: str) -> str:
-    """Ensure spaces around parentheses: ``(x)`` → ``( x )``."""
-    expr = re.sub(r"\(\s*", "( ", expr)
-    expr = re.sub(r"\s*\)", " )", expr)
+    """Space parens, commas and range colons the way Click's formula editor does.
+
+    ``ABS(x)`` → ``ABS ( x )``, ``RAND(1,100)`` → ``RAND ( 1 , 100 )``,
+    ``SUM(DS1:DS9)`` → ``SUM ( DS1 : DS9 )``.  Click splits the internal
+    form on these spaces, so ``ABS(`` would be a single unknown token.
+    """
+    expr = re.sub(r"\s*([(),:])\s*", r" \1 ", expr)
     # Collapse any double spaces introduced by already-spaced input.
     return re.sub(r"  +", " ", expr).strip()
+
+
+#: ``ADDR : ADDR`` range inside a formula (e.g. ``DS1401 : DS1410``).
+_RANGE_RE = re.compile(r"\b([A-Z]+)(\d+) : \1(\d+)\b")
+
+
+def _range_interiors(expression: str) -> list[str]:
+    """Addresses strictly inside each ``A : B`` range, ranges in order.
+
+    Click lists them in the reserved slots (tag ``0x688C``): the endpoints
+    are ordinary operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.
+    """
+    interiors: list[str] = []
+    for m in _RANGE_RE.finditer(expression):
+        prefix, start, end = m.group(1), m.group(2), m.group(3)
+        width = len(start) if start.startswith("0") else 0
+        interiors.extend(f"{prefix}{n:0{width}d}" for n in range(int(start) + 1, int(end)))
+    return interiors
 
 
 def _extract_operands(expression: str) -> list[str]:
@@ -173,9 +196,24 @@ def _make_internal(expression: str) -> str:
 
     Replaces spaces with ``#`` delimiters and prefixes standalone
     numeric literals with ``H`` (Click's internal normalization).
+    ``RAND ( a , b )`` is stored infix as ``a#RAND#b``, with a trailing
+    ``#`` when it ends the formula (``H1#RAND#H100#``,
+    ``H1#RAND#H10#+#DS1``).
     """
     tokens = expression.split(" ")
-    return "#".join(f"H{t}" if re.fullmatch(r"\d+", t) else t for t in tokens)
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        group = tokens[i : i + 6]
+        if len(group) == 6 and group[0] == "RAND" and group[1::2] == ["(", ",", ")"]:
+            out += [group[2], "RAND", group[4]]
+            i += 6
+            if i == len(tokens):
+                out.append("")
+            continue
+        out.append(tokens[i])
+        i += 1
+    return "#".join(f"H{t}" if re.fullmatch(r"\d+", t) else t for t in out)
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
@@ -303,8 +341,16 @@ class Math(AfInstruction):
             out += _variant_tagged_field(_TAG_OPERAND, sentinel, operands[i])
         out += _EMPTY_OPERAND_BYTES[n_ops * _SLOT_EMPTY_SIZE :]
 
-        # --- 500 reserved slots (indexed sentinel, always empty) ---
-        out += _EMPTY_RESERVED_BYTES
+        # --- 500 reserved slots: the interior addresses of each range ---
+        interiors = _range_interiors(self.expression)
+        if len(interiors) > _RESERVED_SLOTS:
+            raise ValueError(
+                f"math ranges span {len(interiors)} interior addresses; "
+                f"the blob holds {_RESERVED_SLOTS}"
+            )
+        for i, addr in enumerate(interiors):
+            out += _variant_tagged_field(_TAG_RESERVED, struct.pack("<I", i), addr)
+        out += _EMPTY_RESERVED_BYTES[len(interiors) * _SLOT_EMPTY_SIZE :]
 
         # --- Terminator ---
         out += _tagged_field(_TAG_TERMINATOR, "")

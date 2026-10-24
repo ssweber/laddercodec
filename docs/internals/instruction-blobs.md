@@ -41,6 +41,45 @@ Field values are string-encoded even for numeric data (e.g. `"1000"` for a timer
 
 The encoder uses `Out` as the class name for all coil types; the type marker and func code determine the variant. The decoder also recognizes `Latch` and `Reset` class names from native Click captures.
 
+## Math formulas
+
+A Math blob (class `Math`, type 0x271A) always has 1010 tagged fields: 9 header
+fields, 500 operand slots (tag `0x6888`), 500 reserved slots (tag `0x688C`) and
+a terminator. Source: `math.py`.
+
+The formula appears four times in the header:
+
+| Tag | Field | Example for `SUM ( DS1 : DS3 ) + 5` |
+|---|---|---|
+| `0x61FF` | template, display | `SUM ( @ : @ ) + 5` |
+| `0x6228` | formula, display | `SUM ( DS1 : DS3 ) + 5` |
+| `0x6229` | template, internal | `SUM#(#@#:#@#)#+#H5` |
+| `0x61FD` | formula, internal | `SUM#(#DS1#:#DS3#)#+#H5` |
+
+- **Display form** is spaced the way Click's formula editor spaces it: one space
+  on each side of every operator, paren, comma and range colon (`ABS ( x )`,
+  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)` to this form.
+- **Internal form** is the display form with spaces replaced by `#` and each
+  bare decimal literal prefixed with `H`. Click splits it on `#`, so an
+  unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
+  raises a Math instruction error.
+- **RAND** is stored infix in the internal form: `RAND ( a , b )` becomes
+  `a#RAND#b`, followed by a trailing `#` when RAND ends the formula
+  (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`). The display form keeps the function
+  call.
+
+### Operand and reserved slots
+
+Each slot is `[2B tag][4B index LE][UTF-16LE value]`, and an empty slot is just
+a null terminator. Operand slots hold every address in the formula, in order,
+duplicates included. Reserved slots hold the interior addresses of each
+`A : B` range, ranges in order. The endpoints are ordinary operands, so
+`SUM ( DS201 : DS300 )` stores DS201 and DS300 as operands and DS202..DS299 in
+the reserved slots.
+
+CLICK v4 copies Math back with 5000 reserved slots, not 500. A 500-slot blob
+still pastes into both v3 and v4, so the encoder keeps 500.
+
 ## Math nickname flag
 
 Math blobs contain a `nickname_flag` field (tag `0x2224`). When set to `"1"`,

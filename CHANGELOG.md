@@ -8,6 +8,15 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
+## Unreleased
+
+### Fixed
+- **Math encode**: formulas are written the way Click's editor writes them (`ABS ( x )`, `RAND ( a , b )` in its infix internal form, range interiors listed), so pasted ABS and RAND formulas no longer raise a Math instruction error in CLICK v4.
+- **Coil decode**: a CLICK v4 Out variant (toggle, debounce, flasher, timed) decodes as `raw(Out,...)` instead of silently as a plain `out(...)`.
+
+### Added
+- **CLICK v4 capture fixtures**: math aggregates (MAX/MIN/MDN/AVG, SUM over bits, ABS, RAND) decode to the token in each rung's comment, and Click-written math blobs match the encoder field for field.
+
 ## 0.2.2 (2026-09-10)
 
 ### Fixed

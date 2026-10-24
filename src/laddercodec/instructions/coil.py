@@ -199,6 +199,12 @@ def from_tags(
     operand = tags.get(0x6066, "")
     if not operand:
         return None
+    # CLICK v4's Out variants (toggle, debounce, flasher, timed) share class "Out" and
+    # type 0x2715; an unknown func code must fall through to RawInstruction, not decode
+    # as a plain coil.
+    func_code = tags.get(0x3218)
+    if func_code is not None and func_code not in _FUNC_TO_COIL:
+        return None
     range_end_val = tags.get(0x6067, "")
     return Coil(
         type=itype,
