@@ -254,7 +254,7 @@ def _build_rung_grid(
                             instr_index=meta.af_instr_indices[local_row],
                             blob=blob,
                             row_span=params.get("visual_rows", 1),
-                            visual_rows=params.get("visual_rows", 1),
+                            visual_rows=params.get("sub_rows", params.get("visual_rows", 1)),
                         ).to_bytes()
                     )
                 else:

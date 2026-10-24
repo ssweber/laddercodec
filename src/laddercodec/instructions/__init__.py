@@ -18,6 +18,7 @@ from . import end as end_mod
 from . import forloop as forloop_mod
 from . import home as home_mod
 from . import math as math_mod
+from . import out_variant as out_variant_mod
 from . import position as position_mod
 from . import raw as raw_mod
 from . import return_ as return_mod
@@ -39,6 +40,7 @@ from .family import AfInstructionFamilySpec, ConditionInstructionFamilySpec
 from .forloop import ForLoop, Next
 from .home import Home
 from .math import Math
+from .out_variant import OutVariant
 from .position import Position
 from .raw import RawInstruction
 from .return_ import Return
@@ -88,6 +90,7 @@ ConditionToken = str | Contact | CompareContact | ConditionInstruction | Unknown
 AfToken = (
     str
     | Coil
+    | OutVariant
     | Timer
     | Counter
     | Copy
@@ -113,6 +116,7 @@ CONDITION_FAMILY_SPECS: tuple[ConditionInstructionFamilySpec, ...] = (
 
 AF_FAMILY_SPECS: tuple[AfInstructionFamilySpec, ...] = (
     coil_mod.SPEC,
+    out_variant_mod.SPEC,
     timer_mod.SPEC,
     counter_mod.SPEC,
     copy_mod.SPEC,
@@ -274,6 +278,7 @@ __all__ = [
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Next",
+    "OutVariant",
     "Pack",
     "Position",
     "RawInstruction",

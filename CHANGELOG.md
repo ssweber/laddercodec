@@ -12,9 +12,10 @@
 
 ### Fixed
 - **Math encode**: formulas are written the way Click's editor writes them (`ABS ( x )`, `RAND ( a , b )` in its infix internal form, range interiors listed), so pasted ABS and RAND formulas no longer raise a Math instruction error in CLICK v4.
-- **Coil decode**: a CLICK v4 Out variant (toggle, debounce, flasher, timed) decodes as `raw(Out,...)` instead of silently as a plain `out(...)`.
+- **Coil decode**: an Out coil with a func code laddercodec does not know falls through to `raw(Out,...)` instead of silently decoding as a plain `out(...)`.
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **CLICK v4 capture fixtures**: math aggregates (MAX/MIN/MDN/AVG, SUM over bits, ABS, RAND) decode to the token in each rung's comment, and Click-written math blobs match the encoder field for field.
 
 ## 0.2.2 (2026-09-10)
@@ -24,6 +25,7 @@
 - **SCR decode**: preserve branch wiring above a later rail-connected row instead of deleting the branch and shifting the lower wire upward.
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Native drum regression fixtures**: preserve the original NOP's wire row and a branch above it after row insertion and drum placement, with native SCR/clipboard and CSV comparisons.
 
 ### Documentation
@@ -37,6 +39,7 @@
 - **CSV read**: rows after a counter/shift `.reset()` pin row stay below the instruction's span instead of being absorbed into it, which misplaced a floating OR-leg onto the unused `.down()` row.
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Tests**: synthetic regression coverage for default-elided Send/Receive fields and for floating OR-leg rows below every pinned instruction span (timer, count_up, count_down, shift).
 
 ## 0.2.0
@@ -51,12 +54,14 @@
 - **SCR decode**: `decode_program()` now parses rung records with a single forward cursor — comments, topology, and instructions are read from explicit lengths and counts instead of scanning for signatures, so comments attach to their own rung by construction and malformed files fail loudly with the byte offset (see §"SCR rung records" in the binary format doc).
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Tumbler fixture**: 34 real Click programs (`tests/fixtures/tumbler/`), each pairing the internal `.scr` program file with a clipboard capture of the same program; `decode_program()` output is regression-tested byte-identical against the clipboard CSVs.
 - **Devtools**: `compare_csv.py` normalizes `R` vs `R1`/`R2` rung markers before comparing, so scr-derived and clipboard-saved CSVs diff cleanly.
 
 ## 0.1.9
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Time drums**: encode and decode all five time bases (`Tms`/`Ts`/`Tm`/`Th`/`Td`), plus jog and jump, matching event drums.
 - **CSV writer**: `write_csv(path, rungs, index=True)` emits 1-based sequential rung markers (`R1`, `R2`, `R3`, …) instead of plain `R`; readers accept `R` optionally followed by digits, so indexed files still round-trip.
 
@@ -107,6 +112,7 @@
   helpers in converter and writer
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Devtools**: `combine_coverage.py` — combine random coverage fixtures into
   a single multi-row rung for paste smoke-testing
 - **Devtools**: `coverage_golden.py` now regenerates all bins unconditionally
@@ -136,6 +142,7 @@
   removing the strip-on-decode/re-add-on-encode anti-pattern
 
 ### Added
+- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
 - **Encode**: auto-sanitize non-ASCII characters (curly quotes, em-dashes,
   arrows, etc.) in rung comments before RTF conversion via NFKD normalization
 

@@ -52,6 +52,7 @@ src/laddercodec/
 │   ├── contact.py        # Contact (NO/NC/edge/immediate), build_blob(), cell_params(), parser
 │   ├── comparison.py     # CompareContact (==, !=, >, <, >=, <=), build_blob(), cell_params(), parser
 │   ├── coil.py           # Coil (out/latch/reset, range, immediate, oneshot), build_blob(), cell_params(), parser
+│   ├── out_variant.py    # OutVariant (CLICK v4 toggle/debounce/flasher/timed), build_blob(), cell_params(), parser
 │   ├── timer.py          # Timer (on_delay/off_delay, retentive), build_blob(), cell_params(), parser
 │   ├── copy.py           # Copy (single/block/fill), BlockCopy, Fill — build_blob(), cell_params(), parser
 │   └── raw.py            # RawInstruction (opaque blob passthrough), build_blob(), cell_params()

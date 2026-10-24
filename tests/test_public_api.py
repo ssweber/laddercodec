@@ -54,6 +54,7 @@ EXPECTED_ROOT_EXPORTS = (
     "CompareContact",
     "Counter",
     "Coil",
+    "OutVariant",
     "Drum",
     "Copy",
     "End",

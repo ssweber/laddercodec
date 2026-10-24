@@ -23,7 +23,7 @@ from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import decoded_rung_to_rows
 from laddercodec.decode import Rung, decode
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import RawInstruction
+from laddercodec.instructions.out_variant import OutVariant
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
 
@@ -109,9 +109,31 @@ def test_math_blob_fields_match_native(file: str, index: int) -> None:
     assert slots == native_slots
 
 
+def test_out_variant_blobs_match_native() -> None:
+    """Every toggle/debounce/flasher/timed CLICK wrote re-encodes to the same blob bytes."""
+    buf = (CAPTURE_DIR / "out.bin").read_bytes()
+    variants = [
+        token
+        for rung in _decode_file(CAPTURE_DIR / "out.bin")
+        for token in rung.instructions
+        if isinstance(token, OutVariant)
+    ]
+    needle = "Out".encode("utf-16-le") + b"\x00\x00"
+    starts = []
+    i = -1
+    while (i := buf.find(needle, i + 1)) != -1:
+        starts.append(i)
+    assert len(variants) == len(starts) == 18
+    for variant, start in zip(variants, starts, strict=True):
+        blob = variant.build_blob()
+        assert buf[start : start + len(blob)] == blob, variant.to_csv()
+
+
 def test_out_variant_is_not_a_plain_coil() -> None:
     """A debounce (class ``Out``, func code 8226) must not decode as ``out(C1)``."""
     rung = _decode_file(CAPTURE_DIR / "out_debounce_example.bin")[0]
     af = next(token for token in rung.instructions if token not in ("", "NOP"))
-    assert isinstance(af, RawInstruction)
-    assert af.to_csv().startswith("raw(Out,")
+    assert isinstance(af, OutVariant)
+    assert (
+        af.to_csv() == "debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=100,unit=Tms)"
+    )

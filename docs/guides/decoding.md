@@ -29,6 +29,7 @@ All standard Click instruction types are decoded into domain objects:
 - **Contacts** → `Contact` (NO, NC, edge, immediate)
 - **Comparison contacts** → `CompareContact` (==, !=, >, <, >=, <=)
 - **Coils** → `Coil` (out, latch, reset, immediate, range, oneshot)
+- **CLICK v4 Out variants** → `OutVariant` (toggle, debounce, flasher, timed)
 - **Timers** → `Timer` (on_delay, off_delay, retentive)
 - **Counters** → `Counter` (count_up, count_down)
 - **Copy family** → `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`

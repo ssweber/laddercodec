@@ -41,6 +41,39 @@ Field values are string-encoded even for numeric data (e.g. `"1000"` for a timer
 
 The encoder uses `Out` as the class name for all coil types; the type marker and func code determine the variant. The decoder also recognizes `Latch` and `Reset` class names from native Click captures.
 
+## Out variants (CLICK v4)
+
+CLICK v4's toggle, debounce, flasher and timed coils are `Out` blobs with type
+marker 0x2715, the same as a plain `out`. They carry 15 fields, and only the
+func code separates them from plain coils. An `Out` blob whose func code is in
+neither table decodes as `raw(Out,...)`. Source: `out_variant.py`.
+
+| Tag | Field |
+|---|---|
+| `0x6066` | target |
+| `0x6067` | range end (always empty) |
+| `0x60B3` / `0x60B4` | on preset / on accumulator (`TD`) |
+| `0x60B5` / `0x60B6` | off preset / off accumulator (debounce, flasher) |
+| `0x11F8` | oneshot (always `0`) |
+| `0x11F5` | immediate (toggle) |
+| `0x1246` | `1` for toggle |
+| `0x1247` | maintained (timed) |
+| `0x21F9` | time unit: 0 ms, 1 s, 2 min |
+| `0x2248` | variant: 0 toggle, 1 debounce, 2 flasher, 3 timed |
+| `0x3218` | func code |
+| `0x20CA` | always `2` |
+
+| Variant | Func codes | Units | Rows (`+0x09` / `+0x0A`) |
+|---|---|---|---|
+| toggle | 8224, immediate 8225 | — | 1 / 1 |
+| debounce | 8226 ms, 8227 s | ms, s | 3 / 3 |
+| flasher | 8228 ms, 8229 s | ms, s | 3 / 3 |
+| timed | 8230–8232 ms/s/min, maintained 8233–8235 | ms, s, min | 2 / 3 |
+
+Each phase stores only its accumulator; Click claims the `T` of the same number
+with it. Timed is the one AF instruction whose cell header has more visual
+sub-rows (`+0x0A`) than rows spanned (`+0x09`).
+
 ## Math formulas
 
 A Math blob (class `Math`, type 0x271A) always has 1010 tagged fields: 9 header
