@@ -45,6 +45,8 @@ EXPECTED_ROOT_EXPORTS = (
     "decode_program",
     "read_csv",
     "write_csv",
+    "find_v4_only",
+    "is_v4_only",
     "Rung",
     "Program",
     "Project",

@@ -43,6 +43,7 @@ src/laddercodec/
 ├── binary_helpers.py     # Shared binary primitives: UTF-16LE encode/decode, tagged fields
 ├── decode.py             # Decoder: decode() + internal decode_rung(), decode_rungs()
 ├── decode_program.py     # Program file decoder: decode_program() — Scr*.tmp to Program
+├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis

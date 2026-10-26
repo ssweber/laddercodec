@@ -26,7 +26,16 @@ PAGES: tuple[ReferencePage, ...] = (
         title="Codec API",
         tier="Stable Core",
         summary="Encode and decode Click clipboard binary and program files.",
-        symbols=("encode", "decode", "decode_program", "Rung", "Program", "Project"),
+        symbols=(
+            "encode",
+            "decode",
+            "decode_program",
+            "Rung",
+            "Program",
+            "Project",
+            "find_v4_only",
+            "is_v4_only",
+        ),
     ),
     ReferencePage(
         slug="csv",

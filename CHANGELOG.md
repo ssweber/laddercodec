@@ -17,6 +17,7 @@
 - **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes (`01 02 03` for a drum, not `00 01 02`), so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
 
 ### Added
+- **CLICK v4 check**: `find_v4_only(rungs)` lists the instructions an older CLICK would silently change on paste (Break/Continue, Out variants, time & event drums, v4 math functions and SUM over bits), and `is_v4_only()` checks one.
 - **CLICK v4 Break and Continue**: `break()` and `continue()` decode and encode as `Break` and `Continue`, exported from the root package. Before, both decoded as `next()`. Click-written blobs re-encode byte for byte.
 - **CLICK v4 Time & Event drum**: `time_event_drum(outputs=[...],presets=[1000,None,DS1],events=[None,C1,C2],unit=Tms,...)` decodes and encodes as `Drum(drum_kind="time_event")`, with the same `.reset()` / `.jump()` / `.jog()` pin rows as the other drums. `None` marks a step without a preset or event. Click-written drums re-encode field for field.
 - **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.

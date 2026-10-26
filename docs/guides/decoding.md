@@ -110,6 +110,23 @@ The returned `Program` dataclass has:
 
 Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs, so you can pass them to `encode()`, `write_csv()`, or any other API that accepts `Rung` objects.
 
+## Check for CLICK v4 instructions
+
+An older CLICK pastes v4 rungs without complaint and changes them: Break and
+Continue come back as plain Next, which closes the loop early. Check before
+pasting into a pre-v4 CLICK:
+
+```python
+from laddercodec import find_v4_only
+
+for index, instruction in find_v4_only(rungs):
+    print(f"rung {index}: {instruction.to_csv()} needs CLICK v4")
+```
+
+v4-only: `Break`, `Continue`, `OutVariant`, a time & event `Drum`, and `Math`
+using MAX, MIN, MDN, AVG, ABS, RAND, or SUM over a bit range. `is_v4_only()`
+checks a single instruction.
+
 ## Round-trip identity
 
 For all supported instruction types:
