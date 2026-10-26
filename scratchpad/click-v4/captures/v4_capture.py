@@ -265,11 +265,11 @@ _math("math__composed",
 # randint isn't built yet (feature 6): the body is a stand-in, the token is a guess at
 # CLICK's spelling.  The capture's decoded formula is the answer.
 _math("math__rand_const", lambda: calc(a("DS1412"), a("DS1508")),
-      af="math(RAND(1,100),DS1508,mode=decimal)")
+      af="math(RAND ( 1 , 100 ),DS1508,mode=decimal)")
 _math("math__rand_reg", lambda: calc(a("DD111"), a("DD205")),
-      af="math(RAND(DD111,DD112),DD205,mode=decimal)")
+      af="math(RAND ( DD111 , DD112 ),DD205,mode=decimal)")
 _math("math__rand_hex", lambda: calc(a("DH105"), a("DH205")),
-      af="math(RAND(DH105,DH106),DH205,mode=hex)")
+      af="math(RAND ( DH105 , DH106 ),DH205,mode=hex)")
 
 
 # ---------------------------------------------------------------------------
@@ -382,23 +382,6 @@ def _export(case: Case, body: Callable[[], object] | None, text: str | None) -> 
     return rows
 
 
-_MATH_RE = re.compile(r"math\((.*)(,[A-Z]+\d+,mode=\w+(?:,oneshot=1)?\))")
-
-
-def _click_formula(token: str) -> str:
-    """CLICK spells a call ``NAME ( a , b )``: spaces around each paren and separator.
-
-    Seen natively as ``SUM ( DS301 : DS350 )`` and ``RAND ( DD111 , DD112 )``.
-    pyrung renders ``ABS(x)``; the capture decodes to CLICK's spelling.
-    """
-    match = _MATH_RE.fullmatch(token)
-    if match is None:
-        return token
-    formula = re.sub(r"\s*([(),:])\s*", r" \1 ", match.group(1))
-    formula = re.sub(r"  +", " ", formula).strip()
-    return f"math({formula}{match.group(2)}"
-
-
 _DONE_KW_RE = re.compile(r",(?:on|off)_done=T\d+")
 
 
@@ -412,7 +395,7 @@ def _click_out_variant(token: str) -> str:
 
 def _af_tokens(rows: list[list[str]]) -> list[str]:
     return [
-        _click_out_variant(_click_formula(row[-1]))
+        _click_out_variant(row[-1])
         for row in rows
         if row[0] != "#" and row[-1]
     ]
