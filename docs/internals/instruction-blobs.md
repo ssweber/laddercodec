@@ -99,6 +99,23 @@ jump, then jog group +3..+6) and the same Td skip.
 that lacks the field. A time drum switched to Time & Event and back came out
 `-4`, with new func codes (Tms 10247/10248 where the v3 table has 8455/8456).
 
+## Break and Continue (CLICK v4)
+
+Break and Continue are class `Next` (type 0x2726), told apart by the func code in
+tag `0x3218`. Source: `forloop.py`.
+
+| `0x3218` | Instruction |
+|---|---|
+| absent | `next()`: v3 writes Next with the terminator field only |
+| `9220` | `next()`: CLICK v4 writes the func code |
+| `9232` | `continue()` |
+| `9233` | `break()` |
+
+Any other func code decodes as `raw(Next,...)`. Break and Continue are encoded
+with the two fields Click writes; `next()` keeps the one-field v3 form. Each
+version accepts either Next on paste and copies back its own: v3 drops `9220`,
+v4 adds it.
+
 ## Math formulas
 
 A Math blob (class `Math`, type 0x271A) always has 1010 tagged fields: 9 header

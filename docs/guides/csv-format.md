@@ -308,7 +308,9 @@ writer contract:
 `forloop(count, oneshot=...)` lowers to:
 
 1. `for(count)` or `for(count,oneshot=1)` row (`marker=R`)
-2. Body instruction rows (`marker=R` per emitted body instruction row)
+2. Body rungs (`marker=R` each): a bare body instruction is a wire-only rung; a
+   body rung with contacts keeps them, and holds `break()` / `continue()`
+   (CLICK v4). A nested loop is its own `for` .. `next()` run, up to three deep.
 3. Closing `next()` row (`marker=R`)
 
 ## Subroutine tail guarantee
@@ -383,6 +385,7 @@ Producer may emit:
 - `return()`
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
+- `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
 - `raw(ClassName,hex)` - opaque instruction passthrough for binary round-trip
   fidelity. `ClassName` is the Click binary class name (unquoted) and `hex` is
   the raw blob as a hex string. Runtime no-op; preserved so CSV -> DSL -> CSV

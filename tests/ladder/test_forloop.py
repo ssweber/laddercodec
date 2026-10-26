@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from laddercodec.instructions import ForLoop, Next, parse_af_blob
+from laddercodec.binary_helpers import _build_blob
+from laddercodec.instructions import Break, Continue, ForLoop, Next, parse_af_blob
+from laddercodec.instructions.forloop import NEXT_TYPE_MARKER
 
 
 class TestForLoopBlobRoundTrip:
@@ -25,6 +27,28 @@ class TestForLoopBlobRoundTrip:
         parsed = parse_af_blob(instr.build_blob())
         assert isinstance(parsed, Next)
         assert parsed.to_csv() == "next()"
+
+
+class TestLoopExits:
+    """CLICK v4 Break/Continue share class ``Next``; the func code (0x3218) tells them apart."""
+
+    def test_break_round_trip(self) -> None:
+        parsed = parse_af_blob(Break().build_blob())
+        assert isinstance(parsed, Break)
+        assert parsed.to_csv() == "break()"
+
+    def test_continue_round_trip(self) -> None:
+        parsed = parse_af_blob(Continue().build_blob())
+        assert isinstance(parsed, Continue)
+        assert parsed.to_csv() == "continue()"
+
+    def test_v4_next_func_code_is_next(self) -> None:
+        blob = _build_blob("Next", NEXT_TYPE_MARKER, (0x3218, 0x0000), ["9220", ""])
+        assert isinstance(parse_af_blob(blob), Next)
+
+    def test_unknown_func_code_is_not_next(self) -> None:
+        blob = _build_blob("Next", NEXT_TYPE_MARKER, (0x3218, 0x0000), ["9299", ""])
+        assert not isinstance(parse_af_blob(blob), (Next, Break, Continue))
 
 
 class TestNativeBlobParsing:

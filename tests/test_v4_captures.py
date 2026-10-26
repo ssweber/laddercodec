@@ -23,6 +23,7 @@ from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode
 from laddercodec.instructions.drum import Drum
+from laddercodec.instructions.forloop import Break, Continue
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import _decompose_blob
@@ -168,6 +169,30 @@ def test_time_event_drum_blobs_match_native() -> None:
         ], drum.to_csv()
         checked += 1
     assert checked == 5
+
+
+def test_loop_exit_blobs_match_native() -> None:
+    """Break and Continue are class ``Next`` with func codes 9233 / 9232 (a v4 Next is 9220).
+
+    ``loop_exits.bin`` was typed in CLICK v4: for(1), C1 Break, C2 Continue, Next.
+    """
+    path = CAPTURE_DIR / "loop_exits.bin"
+    buf = path.read_bytes()
+    rows = [row for rung in _decode_file(path) for row in decoded_rung_to_rows(rung)]
+    assert [(row[1], row[-1]) for row in rows if row[0] != "#"] == [
+        ("-", "for(1,oneshot=0)"),
+        ("C1", "break()"),
+        ("C2", "continue()"),
+        ("-", "next()"),
+    ]
+    needle = "Next".encode("utf-16-le") + b"\x00\x00"
+    starts = []
+    i = -1
+    while (i := buf.find(needle, i + 1)) != -1:
+        starts.append(i)
+    for exit_token, start in zip((Break(), Continue()), starts[:2], strict=True):
+        blob = exit_token.build_blob()
+        assert buf[start : start + len(blob)] == blob, exit_token.to_csv()
 
 
 def test_out_variant_is_not_a_plain_coil() -> None:

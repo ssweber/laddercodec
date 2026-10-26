@@ -40,11 +40,15 @@ from pyrung import (
     TagType,
     Timer,
     Word,
+    break_loop,
     calc,
     comment,
+    continue_loop,
     debounce,
     flasher,
+    forloop,
     immediate,
+    out,
     time_drum,
     time_event_drum,
     timed,
@@ -104,6 +108,8 @@ class Case:
     stub: Callable[[], object] | None = None
     #: AF tokens pyrung can't produce yet (``randint``); replace the exported ones.
     af_override: tuple[str, ...] | None = None
+    #: The case exports several rungs (For .. Next): label each rung, ``<id>/<k>``.
+    per_rung: bool = False
 
 
 def REAL() -> None:  # sentinel: the stub is the real instruction
@@ -266,7 +272,87 @@ _math("math__rand_hex", lambda: calc(a("DH105"), a("DH205")),
       af="math(RAND(DH105,DH106),DH205,mode=hex)")
 
 
-GROUPS = {"out": OUT, "drum": DRUM, "math": MATH}
+# ---------------------------------------------------------------------------
+# For/Next: rung contacts C1901+, body contacts C1921+, outputs C1941+, DS1601+.
+# Each case is several rungs (For, body rungs, Next), each labelled <id>/<k>.
+# Break and Continue are pasted as NOP on their contacted rung.
+# ---------------------------------------------------------------------------
+
+LOOP: list[Case] = []
+
+
+def _loop(id: str):
+    def register(body: Callable[[], None]) -> Callable[[], None]:
+        n = len(LOOP) + 1
+        LOOP.append(Case(id, lambda: [a(f"C{1900 + n}")], body, REAL, per_rung=True))
+        return body
+
+    return register
+
+
+def _bump(address: str) -> None:
+    calc(a(address) + 1, a(address))
+
+
+@_loop("loop__body_contact")
+def _() -> None:
+    with forloop(3):
+        out(a("C1941"))
+        with Rung(a("C1921")):
+            out(a("C1942"))
+            _bump("DS1601")
+
+
+@_loop("loop__break")
+def _() -> None:
+    with forloop(5):
+        _bump("DS1602")
+        with Rung(a("C1922")):
+            break_loop()
+        _bump("DS1603")
+
+
+@_loop("loop__continue")
+def _() -> None:
+    with forloop(5):
+        _bump("DS1604")
+        with Rung(a("C1923")):
+            continue_loop()
+        _bump("DS1605")
+
+
+@_loop("loop__break_compare")
+def _() -> None:
+    with forloop(a("DS1606")):
+        _bump("DS1607")
+        with Rung(a("DS1607") >= 3):
+            break_loop()
+
+
+@_loop("loop__continue_nc_oneshot")
+def _() -> None:
+    with forloop(4, oneshot=True):
+        with Rung(~a("C1924")):
+            continue_loop()
+        _bump("DS1608")
+
+
+@_loop("loop__nested3")
+def _() -> None:
+    with forloop(2, oneshot=True):
+        _bump("DS1609")
+        with forloop(3):
+            _bump("DS1610")
+            with Rung(a("C1925")):
+                continue_loop()
+            with forloop(a("DS1611")):
+                _bump("DS1612")
+                with Rung(a("C1926")):
+                    break_loop()
+            _bump("DS1613")
+
+
+GROUPS = {"out": OUT, "drum": DRUM, "math": MATH, "loop": LOOP}
 
 
 # ---------------------------------------------------------------------------
@@ -342,11 +428,45 @@ def _apply_override(rows: list[list[str]], case: Case) -> list[list[str]]:
     return rows
 
 
+_FOR_RE = re.compile(r"for\(([^,]+)\)")
+_LOOP_EXITS = {"break()": "NOP", "continue()": "NOP"}
+
+
+def _split_rungs(rows: list[list[str]]) -> list[list[list[str]]]:
+    rungs: list[list[list[str]]] = []
+    for row in rows:
+        if row[0] == "R":
+            rungs.append([])
+        rungs[-1].append(row)
+    return rungs
+
+
+def _labelled_rungs(case: Case, rows: list[list[str]], stub: bool) -> list[list[str]]:
+    """Each rung of a multi-rung case gets its own comment: ``<id>/<k>``, then its AF tokens.
+
+    laddercodec writes the default ``oneshot=0`` on ``for``; the comment says what it decodes to.
+    """
+    out_rows: list[list[str]] = []
+    for k, rung in enumerate(_split_rungs(rows), start=1):
+        tokens = [_FOR_RE.sub(r"for(\1,oneshot=0)", token) for token in _af_tokens(rung)]
+        out_rows += [["#", line] for line in (f"{case.id}/{k}", *tokens)]
+        for row in rung:
+            if stub and row[-1] in _LOOP_EXITS:
+                row = [*row[:-1], _LOOP_EXITS[row[-1]]]
+            out_rows.append(row)
+    return out_rows
+
+
 def build_group(cases: list[Case]) -> tuple[list[list[str]], list[list[str]]]:
     header = None
     stubs: list[list[str]] = []
     expected: list[list[str]] = []
     for case in cases:
+        if case.per_rung:
+            rows = _export(case, case.real, None)
+            expected += _labelled_rungs(case, rows, stub=False)
+            stubs += _labelled_rungs(case, rows, stub=True)
+            continue
         real_rows = _apply_override(_export(case, case.real, None), case)
         text = "\n".join([case.id, *_af_tokens(real_rows)])
         expected += _apply_override(_export(case, case.real, text), case)

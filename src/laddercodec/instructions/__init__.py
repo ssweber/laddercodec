@@ -37,7 +37,7 @@ from .drum import Drum
 from .email import Email
 from .end import End
 from .family import AfInstructionFamilySpec, ConditionInstructionFamilySpec
-from .forloop import ForLoop, Next
+from .forloop import Break, Continue, ForLoop, Next
 from .home import Home
 from .math import Math
 from .out_variant import OutVariant
@@ -100,6 +100,8 @@ AfToken = (
     | Unpack
     | ForLoop
     | Next
+    | Break
+    | Continue
     | Shift
     | End
     | Return
@@ -278,6 +280,8 @@ __all__ = [
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Next",
+    "Break",
+    "Continue",
     "OutVariant",
     "Pack",
     "Position",

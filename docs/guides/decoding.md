@@ -37,7 +37,7 @@ All standard Click instruction types are decoded into domain objects:
 - **Shift registers** → `Shift`
 - **Drum sequencers** → `Drum` (event, time, and CLICK v4 time & event)
 - **Table search** → `Search`
-- **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`
+- **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue` (CLICK v4)
 - **Modbus** → `Send`, `Receive`
 
 Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline.

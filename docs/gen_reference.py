@@ -61,6 +61,8 @@ PAGES: tuple[ReferencePage, ...] = (
             "End",
             "ForLoop",
             "Next",
+            "Break",
+            "Continue",
             "Send",
             "Receive",
             "ModbusAddress",

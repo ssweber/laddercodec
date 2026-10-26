@@ -7,10 +7,12 @@ from .decode_program import decode_program
 from .encode import encode
 from .instructions import (
     BlockCopy,
+    Break,
     Call,
     Coil,
     CompareContact,
     Contact,
+    Continue,
     Copy,
     Counter,
     Drum,
@@ -58,6 +60,8 @@ __all__ = [
     "ForLoop",
     "Math",
     "Next",
+    "Break",
+    "Continue",
     "ModbusAddress",
     "ModbusRtuTarget",
     "ModbusTcpTarget",

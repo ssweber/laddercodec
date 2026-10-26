@@ -62,6 +62,8 @@ EXPECTED_ROOT_EXPORTS = (
     "ForLoop",
     "Math",
     "Next",
+    "Break",
+    "Continue",
     "ModbusAddress",
     "ModbusRtuTarget",
     "ModbusTcpTarget",
