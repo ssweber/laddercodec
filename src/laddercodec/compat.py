@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 #: Math functions added in CLICK v4.  SUM is older, but not over a bit range.
 _V4_MATH_RE = re.compile(r"\b(?:MAX|MIN|MDN|AVG|ABS|RAND)\s*\(")
 _V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)\d+\s*:")
+#: A drum preset that names a register rather than a literal duration.
+_ADDRESS_RE = re.compile(r"[A-Z]+\d+")
 
 
 def is_v4_only(instruction: object) -> bool:
@@ -30,6 +32,9 @@ def is_v4_only(instruction: object) -> bool:
     if isinstance(instruction, (Break, Continue, OutVariant)):
         return True
     if isinstance(instruction, Drum):
+        # Time & Event drums are v4, and so are time drum durations read from a register.
+        if instruction.drum_kind == "time":
+            return any(_ADDRESS_RE.fullmatch(preset) for preset in instruction.events_or_presets)
         return instruction.drum_kind == "time_event"
     if isinstance(instruction, Math):
         expression = instruction.expression

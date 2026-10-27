@@ -42,6 +42,8 @@ def test_v4_captures_are_flagged() -> None:
         "drum__te_jog_jump",
         "drum__te_hour",
         "drum__te_day",
+        "drum__time_ds",
+        "drum__time_ds_mixed",
     }
     assert _flagged_ids(captures / "loop_exits.bin") == {"break", "continue"}
 

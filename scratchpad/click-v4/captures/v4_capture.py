@@ -54,7 +54,7 @@ from pyrung import (
     timed,
     toggle,
 )
-from pyrung.click import ClickBlocks, LadderExportError, TagMap, pyrung_to_ladder
+from pyrung.click import ClickBlocks, TagMap, pyrung_to_ladder
 
 HERE = Path(__file__).resolve().parent
 
@@ -68,7 +68,6 @@ _ADDR_RE = re.compile(r"([A-Z]+)(\d+)")
 
 _tags: dict[str, Any] = {}
 _mapping: list[Any] = []
-_skipped_checks: dict[str, set[str]] = {}
 
 # The Out variants own T1..T40 / TD1..TD40 (C0112: a coil claims its whole timer number).
 TIMER_COUNT = 40
@@ -369,13 +368,7 @@ def _export(case: Case, body: Callable[[], object] | None, text: str | None) -> 
             if body is not None:
                 body()
     mapping = TagMap(_mapping, include_system=False)
-    try:
-        bundle = pyrung_to_ladder(logic, mapping)
-    except LadderExportError as exc:
-        # The precheck still treats v3-only findings (register drum durations) as errors.
-        codes = sorted(set(re.findall(r"CLK_[A-Z_]+", str(exc))))
-        _skipped_checks.setdefault(case.id, set()).update(codes)
-        bundle = pyrung_to_ladder(logic, mapping, validate=False)
+    bundle = pyrung_to_ladder(logic, mapping)
     rows = [list(row) for row in bundle.main_rows[1:]]
     while rows and rows[-1][-1] == "end()":
         rows.pop()
