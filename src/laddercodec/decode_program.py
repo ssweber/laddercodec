@@ -24,12 +24,13 @@ from .decode import Rung, _decode_rtf, _drop_tall_span_nops
 from .instructions import (
     INSTRUCTION_MODULES,
     RawInstruction,
+    _with_pin_rows,
     from_tags_af,
     from_tags_condition,
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
-from .model import Program
+from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -48,7 +49,7 @@ _ScrSectionInstruction = tuple[
     str,
     int,
     dict[int, str],
-    int,
+    bytes,  # part rows, 1-based, main row first
     dict[int, int],
     _ScrVariantU16Tags,
     _ScrVariantStringTags,
@@ -149,10 +150,12 @@ def _parse_header(data: bytes) -> _ScrHeader:
 # ---------------------------------------------------------------------------
 
 
-def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, int] | None:
+def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, bytes] | None:
     """Parse SCR instruction blob at pos.
 
-    Returns (class_name, type_code, end_offset, visual_sub_rows) or None.
+    Returns (class_name, type_code, end_offset, part_rows) or None.  ``part_rows``
+    holds one 1-based row per part, main row first (``01 02 03 04`` for a drum;
+    OR legs under a pin push the later parts down, e.g. ``01 02 04 05``).
     """
     if not data_len:
         data_len = len(data)
@@ -176,7 +179,7 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         #   after_type+2  (2B) — structural bytes
         #   after_type+4  (2B) — instruction_index (unused here)
         #   after_type+6  (1B) — visual_sub_rows (0x01 single-row, 0x02+ multi-row)
-        # Followed by visual_sub_rows sequential counting bytes, then end_offset.
+        # Followed by visual_sub_rows part-row bytes, then end_offset.
         after_type = type_off + 2
         if after_type + 12 > data_len:
             return None
@@ -191,7 +194,7 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         end_offset = struct.unpack_from("<I", data, eo_pos)[0]
         if not (pos < end_offset < data_len):
             return None
-        return text, marker, end_offset, visual_sub_rows
+        return text, marker, end_offset, data[after_type + 7 : eo_pos]
     except (UnicodeDecodeError, ValueError, struct.error):
         return None
 
@@ -318,20 +321,51 @@ def _parse_scr_tags(
     return class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
 
 
+def _clipboard_part_rows(part_rows: bytes) -> bytes:
+    """SCR part rows as the clipboard blob's extra bytes (rows below the main part).
+
+    SCR rows are the parts' 1-based rung rows: a count_down whose main part
+    sits on rung row 1 stores ``02 03 04``.
+    """
+    return bytes(row - part_rows[0] for row in part_rows[1:])
+
+
+def _scr_af(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    part_rows: bytes,
+    tag_byte_lens: dict[int, int],
+    variant_u16_tags: _ScrVariantU16Tags,
+    variant_string_tags: _ScrVariantStringTags,
+) -> AfInstruction | None:
+    """Build an AF instruction from SCR tags, with each pin on its stored row."""
+    parsed_af = from_tags_af(
+        class_name,
+        type_code,
+        tags,
+        tag_byte_lens,
+        variant_u16_tags,
+        variant_string_tags,
+    )
+    return _with_pin_rows(parsed_af, _clipboard_part_rows(part_rows))
+
+
 def _infer_af_visual_rows(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    visual_sub_rows: int,
+    part_rows: bytes,
     tag_byte_lens: dict[int, int],
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
 ) -> int:
     """Infer visual row count using parsed instruction metadata when possible."""
-    parsed_af = from_tags_af(
+    parsed_af = _scr_af(
         class_name,
         type_code,
         tags,
+        part_rows,
         tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
@@ -341,7 +375,7 @@ def _infer_af_visual_rows(
 
     family_spec = INSTRUCTION_MODULES.get(class_name)
     min_rows = int(getattr(family_spec, "min_csv_rows", 1))
-    return max(1, min_rows, visual_sub_rows)
+    return max(1, min_rows, len(part_rows))
 
 
 # ---------------------------------------------------------------------------
@@ -478,9 +512,9 @@ def _parse_section_entries(
             return None
         row_1based = data[cursor]
         col_idx = data[cursor + 1]
-        _cls, _marker, end_off, vsub = blob
-        cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, vsub)
-        results.append((row_1based - 1, col_idx, cn, tc, tags, vsub, tbl, v_u16, v_str))
+        _cls, _marker, end_off, part_rows = blob
+        cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, len(part_rows))
+        results.append((row_1based - 1, col_idx, cn, tc, tags, part_rows, tbl, v_u16, v_str))
 
         trailer_len = data[end_off]
         if trailer_len > 8:
@@ -616,7 +650,7 @@ def _build_rung(
         class_name,
         type_code,
         tags,
-        visual_sub_rows,
+        part_rows,
         tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
@@ -638,10 +672,11 @@ def _build_rung(
                 conditions[row][col] = UnknownCondition(raw=class_name.encode())
             instr_positions.add((row, col))
         elif col == _CONDITION_COLUMNS:
-            parsed_af = from_tags_af(
+            parsed_af = _scr_af(
                 class_name,
                 type_code,
                 tags,
+                part_rows,
                 tag_byte_lens,
                 variant_u16_tags,
                 variant_string_tags,
@@ -655,14 +690,14 @@ def _build_rung(
                 blob = _compose_blob(
                     class_name,
                     type_code,
-                    visual_sub_rows,
-                    bytes(range(1, max(1, visual_sub_rows))),
+                    len(part_rows),
+                    _clipboard_part_rows(part_rows),
                     [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
                 )
                 instructions[row] = RawInstruction(
                     class_name=class_name,
                     blob=blob,
-                    part_count=visual_sub_rows,
+                    part_count=len(part_rows),
                 )
 
     # A stored row whose block carries an AF right-wire but no real AF
@@ -765,7 +800,7 @@ def decode_program(data: bytes) -> Program:
             class_name,
             type_code,
             tags,
-            _visual_sub_rows,
+            part_rows,
             tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
@@ -776,7 +811,7 @@ def decode_program(data: bytes) -> Program:
                     class_name,
                     type_code,
                     tags,
-                    _visual_sub_rows,
+                    part_rows,
                     tag_byte_lens,
                     variant_u16_tags,
                     variant_string_tags,

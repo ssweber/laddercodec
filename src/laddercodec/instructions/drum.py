@@ -5,7 +5,8 @@ Drum types: event_drum (event-driven), time_drum (time-driven), and CLICK v4's
 time_event_drum (each step ends on its preset time and/or its event).
 Event and time drums use the 64-field v3 blob; time & event drums use v4's
 82-field blob (16 preset slots ``0x6891``, ``0x428A``, timer done bit ``0x6068``).
-4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3).
+4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3), more when OR
+legs under a pin push the later pins down (``pin_rows``, the blob's part bytes).
 """
 
 from __future__ import annotations
@@ -140,8 +141,8 @@ class Drum(AfInstruction):
     """A drum sequencer instruction (event_drum / time_drum / time_event_drum).
 
     Occupies the AF column.  The binary class name is ``Drum``
-    (type marker 0x271B).  Each drum rung takes 4 grid rows:
-    row 0 = main, row 1 = reset, row 2 = jump, row 3 = jog.
+    (type marker 0x271B).  A drum takes at least 4 grid rows: row 0 = main,
+    then reset, jump and jog at ``pin_rows`` (1, 2, 3 unless OR legs grow it).
 
     ``events_or_presets`` holds the events of an event drum and the presets of a
     time or time & event drum; ``events`` holds a time & event drum's events.
@@ -160,6 +161,9 @@ class Drum(AfInstruction):
     jump_enabled: bool = False
     jump_target: str = ""  # DS address
     events: list[str] = field(default_factory=list)  # time & event drum only
+    #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
+    #: a pin push the later pins down; an unused pin keeps its row.
+    pin_rows: tuple[int, int, int] = (1, 2, 3)
 
     @property
     def num_outputs(self) -> int:
@@ -204,7 +208,8 @@ class Drum(AfInstruction):
         )
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 4}
+        # +0x0A keeps the base height when OR legs grow the box (pins.bin).
+        return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 4}
 
     def _compute_func_codes(self) -> list[str]:
         """Return the 4 func-code slot values [base, reset, jump, jog]."""
@@ -247,7 +252,7 @@ class Drum(AfInstruction):
         out += _utf16le_null("Drum")
         out += struct.pack("<I", type_marker)
         out += struct.pack("<H", 4)  # part count
-        out += b"\x01\x02\x03"  # extra bytes (part_count - 1 = 3)
+        out += bytes(self.pin_rows)  # extra bytes: each pin's row
         time_event = self.drum_kind == "time_event"
         out += struct.pack("<I", 82 if time_event else 64)  # field count
 

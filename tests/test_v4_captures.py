@@ -19,16 +19,20 @@ from pathlib import Path
 
 import pytest
 
+from laddercodec import encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
-from laddercodec.decode import Rung, decode
+from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.instructions.shift import Shift
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
+COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
 def _decode_file(path: Path) -> list[Rung]:
@@ -169,6 +173,52 @@ def test_time_event_drum_blobs_match_native() -> None:
         ], drum.to_csv()
         checked += 1
     assert checked == 5
+
+
+#: Each pin's row in pins.bin, built in CLICK from ``stubs/pins.csv``.  drum_reset_or3 was
+#: built as C1059 OR (C1060 AND C1061): its one leg row sits on the unused jump pin's row.
+_PIN_ROWS = {
+    "pins__drum_reset_or": (1, 3, 4),
+    "pins__drum_reset_or3": (1, 2, 3),
+    "pins__drum_jump_or": (1, 2, 4),
+    "pins__drum_all_or": (1, 3, 5),
+    "pins__count_up_down_or": (1, 3),
+    "pins__shift_clock_or": (1, 3),
+}
+
+
+def _af_cell_shape(data: bytes, rung: int) -> tuple[int, int, bytes]:
+    """Row 0 AF cell of a rung: ``(+0x09 rows spanned, +0x0A sub-rows, part bytes)``."""
+    cell = inspect_cells(data, [(rung, 0, "AF")])[0]
+    _, _, _, extra, _ = _decompose_blob(cell.raw[0x25:-0x10])
+    return cell.raw[0x09], cell.raw[0x0A], extra
+
+
+def test_pin_rows_reencode_like_native() -> None:
+    """OR legs under a pin push the later pins down: the part bytes hold each pin's row,
+    +0x09 grows to the last pin's row + 1, and +0x0A keeps the base height."""
+    native = (CAPTURE_DIR / "pins.bin").read_bytes()
+    rungs = _decode_file(CAPTURE_DIR / "pins.bin")
+    assert len(rungs) == len(_PIN_ROWS)
+    encoded = encode(rungs)
+    for index, rung in enumerate(rungs):
+        rung_id = (rung.comment or "").split("\n")[0]
+        af = rung.instructions[0]
+        assert isinstance(af, (Counter, Drum, Shift))
+        assert af.pin_rows == _PIN_ROWS[rung_id], rung_id
+        assert _af_cell_shape(encoded, index) == _af_cell_shape(native, index), rung_id
+
+
+def test_pin_rows_from_pyrung_csv() -> None:
+    """pyrung's export (pin under its legs) reads back to the rows CLICK gave them."""
+    rungs = read_csv(COVERAGE_GOLDEN / "pins__v4.csv")
+    for rung in rungs:
+        rung_id = (rung.comment or "").split("\n")[0]
+        if rung_id == "pins__drum_reset_or3":  # two leg rows in pyrung's form
+            continue
+        af = rung.instructions[0]
+        assert isinstance(af, (Counter, Drum, Shift))
+        assert af.pin_rows == _PIN_ROWS[rung_id], rung_id
 
 
 def test_loop_exit_blobs_match_native() -> None:

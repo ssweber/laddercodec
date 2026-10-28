@@ -12,10 +12,19 @@ All instruction blobs follow the same pattern:
 [UTF-16LE class name, null-terminated]
 [type marker: uint32 LE, high byte always 0x27]
 [part count: uint16 LE (0x01 for contacts/coils, 0x02 for timers)]
-[extra bytes: (part_count - 1) bytes, if part_count > 1]
+[extra bytes: (part_count - 1) bytes, if part_count > 1 — each later part's row]
 [field count: uint32 LE]
 [tagged fields...]
 ```
+
+### Part rows
+
+A tall instruction's extra bytes give the row, below the main row, of each later
+part: `01` for a timer's reset, `01 02` for a counter (down, reset) or shift
+(clock, reset), `01 02 03` for a drum (reset, jump, jog). OR legs under a pin
+push the later parts down, and CLICK grows the box: a drum with one leg under
+reset is `01 03 04`. The AF cell's `+0x09` becomes the last part's row + 1;
+`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`).
 
 ### Tagged fields
 

@@ -628,6 +628,43 @@ class TestShiftRows:
         with pytest.raises(ConvertError, match="not supported for shift"):
             convert_rung(rung)
 
+    def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        leg = _blank()
+        leg[0] = "C98"
+        clock = _wire_row("C97")
+        clock[1] = "T"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", clock, ".clock()"),
+                ("", leg, ""),
+                ("", _wire_row("C95"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, _, afs, _ = convert_rung(rung)
+        assert lr == 4
+        assert isinstance(afs[0], Shift)
+        assert afs[0].pin_rows == (1, 3)
+
+    def test_shift_rejects_pins_out_of_order(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".reset()"),
+                ("", _wire_row("C98"), ".clock()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ConvertError, match="out of order"):
+            convert_rung(rung)
+
 
 class TestForLoopRows:
     def test_multirung_for_and_next_stay_separate(self, tmp_path: Path) -> None:

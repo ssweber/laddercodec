@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from ..model import AfInstruction, ConditionInstruction
@@ -205,11 +205,19 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
     from .raw import _decompose_blob, _fields_to_tag_dicts
 
     try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+        class_name, type_marker, _part_count, extra, fields = _decompose_blob(raw)
     except (ValueError, struct.error):
         return None
     tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
+    parsed = from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
+    return _with_pin_rows(parsed, extra)
+
+
+def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
+    """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
+    if not isinstance(parsed, (Counter, Drum, Shift)) or len(extra) != len(parsed.pin_rows):
+        return parsed
+    return replace(parsed, pin_rows=tuple(extra))
 
 
 def from_tags_condition(

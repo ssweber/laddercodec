@@ -171,6 +171,64 @@ def _emit_timer_block(
     return data_row_count, 2
 
 
+def _emit_gap(
+    rows: list[list[str]],
+    data_row_count: int,
+    gap: Sequence[Sequence[object]],
+    unused_pins: int,
+    keep_positional: bool,
+) -> int:
+    """Emit the rows between two pins (or after the last one) of a pinned block.
+
+    On reparse, leg rows land right under the pin above and unused pins are
+    re-padded below them.  So when the gap is no taller than its unused pins,
+    trailing padding dehydrates; a taller gap (legs pushed the next pin down)
+    stays positional, padding included.
+    """
+    last = max((i for i, row in enumerate(gap) if not _is_padding_row(row)), default=-1)
+    if keep_positional or len(gap) > unused_pins:
+        last = len(gap) - 1
+    for row in gap[: last + 1]:
+        data_row_count = _append_data_row(rows, data_row_count, row, "")
+    return data_row_count
+
+
+def _emit_pinned_block(
+    rows: list[list[str]],
+    data_row_count: int,
+    condition_rows: Sequence[Sequence[object]],
+    af_tokens: Sequence[object],
+    start: int,
+    af: Counter | Drum | Shift,
+    pins: Sequence[str | None],
+) -> tuple[int, int]:
+    """Emit a block whose pins sit at ``af.pin_rows``; ``pins`` labels each (None: unused)."""
+    name = af.to_csv().split("(", 1)[0]
+    height = af.pin_rows[-1] + 1
+    needed = start + height
+    if len(condition_rows) < needed or len(af_tokens) < needed:
+        raise WriterError(f"{name} requires {needed} decoded rows; got {len(condition_rows)}")
+    for offset in range(1, height):
+        _require_blank_af(af_tokens[start + offset], message=f"{name} pin rows must be blank AF")
+
+    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], af)
+    prev, unused = 0, 0
+    for pin_row, label in zip(af.pin_rows, pins, strict=True):
+        if label is None:
+            unused += 1
+            continue
+        gap = condition_rows[start + prev + 1 : start + pin_row]
+        data_row_count = _emit_gap(rows, data_row_count, gap, unused, False)
+        data_row_count = _append_data_row(
+            rows, data_row_count, condition_rows[start + pin_row], label
+        )
+        prev, unused = pin_row, 0
+    gap = condition_rows[start + prev + 1 : needed]
+    keep = _followed_by_floating_row(af_tokens, needed)
+    data_row_count = _emit_gap(rows, data_row_count, gap, unused, keep)
+    return data_row_count, height
+
+
 def _emit_counter_block(
     rows: list[list[str]],
     data_row_count: int,
@@ -180,6 +238,15 @@ def _emit_counter_block(
     counter: Counter,
 ) -> tuple[int, int]:
     """Emit one counter block and return ``(new_count, consumed_rows)``."""
+    if counter.counter_type == "count_up":
+        pins = (
+            ".down()" if counter.down_enabled else None,
+            ".reset()" if counter.reset_enabled else None,
+        )
+        return _emit_pinned_block(
+            rows, data_row_count, condition_rows, af_tokens, start, counter, pins
+        )
+
     needed = start + 3
     if len(condition_rows) < needed or len(af_tokens) < needed:
         raise WriterError(
@@ -187,41 +254,6 @@ def _emit_counter_block(
         )
 
     keep = _followed_by_floating_row(af_tokens, start + 3)
-    if counter.counter_type == "count_up":
-        _require_blank_af(
-            af_tokens[start + 1],
-            message="count_up continuation row must be blank AF",
-        )
-        _require_blank_af(
-            af_tokens[start + 2],
-            message="count_up reset row must be blank AF",
-        )
-        data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], counter)
-        if counter.down_enabled:
-            data_row_count = _append_data_row(
-                rows, data_row_count, condition_rows[start + 1], ".down()"
-            )
-        elif counter.reset_enabled:
-            # The unused .down() row is always empty padding, and the .reset()
-            # pin row anchors any following floating rows on reparse — so the
-            # empty row always dehydrates, even above a floating row.
-            data_row_count = _emit_blank_continuation(
-                rows, data_row_count, condition_rows[start + 1]
-            )
-        else:
-            data_row_count = _emit_blank_continuation(
-                rows, data_row_count, condition_rows[start + 1], keep
-            )
-        if counter.reset_enabled:
-            data_row_count = _append_data_row(
-                rows, data_row_count, condition_rows[start + 2], ".reset()"
-            )
-        else:
-            data_row_count = _emit_blank_continuation(
-                rows, data_row_count, condition_rows[start + 2], keep
-            )
-        return data_row_count, 3
-
     if af_tokens[start + 1] != "NOP":
         raise WriterError("count_down requires a NOP bridge row after the counter")
     _require_blank_af(
@@ -257,23 +289,9 @@ def _emit_shift_block(
     shift: Shift,
 ) -> tuple[int, int]:
     """Emit one shift block and return ``(new_count, consumed_rows)``."""
-    needed = start + 3
-    if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(f"shift requires {needed} decoded rows; got {len(condition_rows)}")
-
-    _require_blank_af(
-        af_tokens[start + 1],
-        message="shift .clock() row must be blank AF",
+    return _emit_pinned_block(
+        rows, data_row_count, condition_rows, af_tokens, start, shift, (".clock()", ".reset()")
     )
-    _require_blank_af(
-        af_tokens[start + 2],
-        message="shift .reset() row must be blank AF",
-    )
-
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], shift)
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 1], ".clock()")
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 2], ".reset()")
-    return data_row_count, 3
 
 
 def _emit_drum_block(
@@ -285,44 +303,12 @@ def _emit_drum_block(
     drum: Drum,
 ) -> tuple[int, int]:
     """Emit one drum block and return ``(new_count, consumed_rows)``."""
-    needed = start + 4
-    if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(f"Drum requires {needed} decoded rows; got {len(condition_rows)}")
-
-    _require_blank_af(
-        af_tokens[start + 1],
-        message="drum .reset() row must be blank AF",
+    pins = (
+        ".reset()",
+        f".jump({drum.jump_target})" if drum.jump_enabled else None,
+        ".jog()" if drum.jog_enabled else None,
     )
-    _require_blank_af(
-        af_tokens[start + 2],
-        message="drum .jump() row must be blank AF",
-    )
-    _require_blank_af(
-        af_tokens[start + 3],
-        message="drum .jog() row must be blank AF",
-    )
-
-    keep = _followed_by_floating_row(af_tokens, start + 4)
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], drum)
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 1], ".reset()")
-    if drum.jump_enabled:
-        data_row_count = _append_data_row(
-            rows,
-            data_row_count,
-            condition_rows[start + 2],
-            f".jump({drum.jump_target})",
-        )
-    else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 2], keep
-        )
-    if drum.jog_enabled:
-        data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + 3], ".jog()")
-    else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 3], keep
-        )
-    return data_row_count, 4
+    return _emit_pinned_block(rows, data_row_count, condition_rows, af_tokens, start, drum, pins)
 
 
 def _emit_generic_tall_block(

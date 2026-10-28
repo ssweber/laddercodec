@@ -41,6 +41,9 @@ class Shift(AfInstruction):
 
     start_bit: str
     end_bit: str
+    #: Rows of the clock and reset inputs below the main row.  OR legs under
+    #: ``.clock()`` push ``.reset()`` down.
+    pin_rows: tuple[int, int] = (1, 2)
 
     @classmethod
     def from_csv_token(cls, token: str) -> Shift:
@@ -66,7 +69,7 @@ class Shift(AfInstruction):
         return f"shift({self.start_bit}..{self.end_bit})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 3}
+        return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 3}
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this shift register."""
@@ -78,7 +81,7 @@ class Shift(AfInstruction):
         out += _utf16le_null("SR")
         out += struct.pack("<I", type_marker)
         out += b"\x03\x00"  # part count
-        out += b"\x01\x02"  # extra part bytes
+        out += bytes(self.pin_rows)  # extra part bytes: each pin's row
         out += struct.pack("<I", 6)  # field count
         out += _tagged_field(0x6066, self.start_bit)
         out += _tagged_field(0x6067, self.end_bit)

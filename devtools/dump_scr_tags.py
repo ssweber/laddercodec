@@ -31,7 +31,8 @@ def main() -> None:
             row = data[cursor]
             col = data[cursor + 1]
             blob_start = cursor + 8
-            cls, typ, end_off, m1 = blob
+            cls, typ, end_off, part_rows = blob
+            m1 = len(part_rows)
             next_pos = end_off + 2 + data[end_off]  # trailer-aware advance
 
             # Parse tagged fields

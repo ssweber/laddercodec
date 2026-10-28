@@ -556,6 +556,27 @@ def test_decode_program_matches_counter_scr_fixture():
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 
+def test_decode_program_pin_rows_match_pasted_golden():
+    """OR legs under a pin push the later pins down; SCR stores each part's rung row.
+
+    ``pins.scr`` is CLICK's program file after pasting the ``pins__v4`` coverage golden.
+    """
+    golden = _SCR_FIXTURE_DIR.parents[0] / "coverage" / "golden" / "pins__v4.bin"
+    clip_rungs = decode(golden.read_bytes())
+    assert isinstance(clip_rungs, list)
+    scr_rungs = decode_program((_SCR_FIXTURE_DIR / "pins.scr").read_bytes()).rungs
+
+    assert [r.instructions[0].pin_rows for r in scr_rungs] == [  # type: ignore[union-attr]
+        (1, 3, 4),
+        (1, 2, 4),
+        (1, 2, 4),
+        (1, 3, 5),
+        (1, 3),
+        (1, 3),
+    ]
+    assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
 def test_send_receive_elided_device_id_defaults():
     """SCR blobs elide fields at their class default, and the defaults differ
     per class: a Send with no 0x320E/0x60B2 tag is device_id 0, a Receive is

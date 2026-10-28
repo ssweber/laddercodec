@@ -293,6 +293,22 @@ Builder side conditions are emitted as continuation rows with dot tokens in `AF`
 Pin rows are independent left-rail paths, not AND-chained through the parent
 output row conditions.
 
+Pins go in a fixed order (`count_up`: down, reset; `shift`: clock, reset;
+drums: reset, jump, jog). Rows without an AF token between two pins are OR legs
+of the pin above, and they push the later pins down. CLICK grows the box to
+match:
+
+```csv
+R,C1,-,...,-,"time_drum(...)"
+,C2,T,-,...,-,.reset()
+,C3,,...,,
+,C4,-,...,-,.jump(DS2)
+```
+
+Here `.jump()` is on row 3, not row 2. An unused pin still takes the row after
+the previous pin, and a leg may sit on that row. Legs under the last pin sit
+below the box.
+
 ## Parsing conveniences
 
 `laddercodec.read_csv()` accepts a few parsing conveniences beyond the canonical

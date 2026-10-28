@@ -59,6 +59,9 @@ class Counter(AfInstruction):
     preset: str
     down_enabled: bool = False
     reset_enabled: bool = False
+    #: Rows of the down and reset inputs below the main row.  OR legs under
+    #: ``.down()`` push ``.reset()`` down (count_up only).
+    pin_rows: tuple[int, int] = (1, 2)
 
     @classmethod
     def from_csv_token(cls, token: str) -> Counter:
@@ -110,7 +113,8 @@ class Counter(AfInstruction):
 
     def cell_params(self) -> dict:
         return {
-            "visual_rows": 3,
+            "visual_rows": self.pin_rows[-1] + 1,
+            "sub_rows": 3,
             # Native count_down AF row 0 stores +0x1D=0 (while count_up uses 1).
             "wire_right": 0 if self.counter_type == "count_down" else 1,
         }
@@ -127,7 +131,7 @@ class Counter(AfInstruction):
         out += _utf16le_null("Cnt")
         out += struct.pack("<I", type_marker)
         out += b"\x03\x00"  # part count
-        out += b"\x01\x02"  # extra part bytes
+        out += bytes(self.pin_rows)  # extra part bytes: each pin's row
         out += struct.pack("<I", 9)  # field count
 
         std_values = [
