@@ -305,9 +305,11 @@ R,C1,-,...,-,"time_drum(...)"
 ,C4,-,...,-,.jump(DS2)
 ```
 
-Here `.jump()` is on row 3, not row 2. An unused pin still takes the row after
-the previous pin, and a leg may sit on that row. Legs under the last pin sit
-below the box.
+Here `.jump()` is on row 3, not row 2. An unused pin still takes a row of its
+own, below the legs of the pin above it: with Jump off, `.reset()` with one leg
+then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK lays out a leg
+added with Insert Row the same way). Blank rows just above the next pin are read
+as the unused pins' rows, not legs. Legs under the last pin sit below the box.
 
 ## Parsing conveniences
 

@@ -104,6 +104,12 @@ slots (`0x6891`), `0x428A`, `0x6068` and the terminator. The encoder writes the
 The func codes have the same 7-code block shape as the time drum (base, reset,
 jump, then jog group +3..+6) and the same Td skip.
 
+In every drum the codes run consecutively over the enabled pins. With Jump off,
+Jog takes Jump's code: event `8494, 8495, 0, 8496`, not `8497`. CLICK v3
+accepts the skipped code. CLICK v4 pastes it, then fails the syntax check with
+C000A ("All inputs of the box instruction must originate from the same branch")
+until the drum is reopened and OK'd (`v4_captures/drum_jog.bin`).
+
 `0x428A` looks like leftover editor state. Click fills in `-1` for a pasted drum
 that lacks the field. A time drum switched to Time & Event and back came out
 `-4`, with new func codes (Tms 10247/10248 where the v3 table has 8455/8456).

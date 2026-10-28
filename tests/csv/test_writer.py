@@ -928,7 +928,8 @@ class TestRoundTripValidator:
         rows = decoded_rung_to_rows(rung)
         rows[2][32] = ""
 
-        with pytest.raises(WriterError, match=r"AF mismatch at row 1"):
+        # The orphaned jump row now reads as a reset leg, pushing the unused jump down.
+        with pytest.raises(WriterError, match=r"round-trip validation failed"):
             _validate_roundtrip(rung, rows)
 
 

@@ -212,12 +212,18 @@ class Drum(AfInstruction):
         return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 4}
 
     def _compute_func_codes(self) -> list[str]:
-        """Return the 4 func-code slot values [base, reset, jump, jog]."""
+        """Return the 4 func-code slot values [base, reset, jump, jog].
+
+        Codes run consecutively over the enabled pins: with jump off, jog takes
+        the code jump would have had (8496, not 8497).  CLICK v3 accepts either;
+        v4's syntax check rejects the gap with C000A ("All inputs of the box
+        instruction must originate from the same branch").
+        """
         if self.drum_kind == "event":
             if self.jog_enabled:
                 base, reset = _EVENT_FC_JOG[0], _EVENT_FC_JOG[1]
                 jump = _EVENT_FC_JOG[2] if self.jump_enabled else 0
-                jog = _EVENT_FC_JOG[3]
+                jog = _EVENT_FC_JOG[3] if self.jump_enabled else _EVENT_FC_JOG[2]
             else:
                 base, reset = _EVENT_FC_NO_JOG[0], _EVENT_FC_NO_JOG[1]
                 jump = _EVENT_FC_NO_JOG[2] if self.jump_enabled else 0
@@ -234,7 +240,7 @@ class Drum(AfInstruction):
         if self.jog_enabled:
             base, reset = block_base + 3, block_base + 4
             jump = block_base + 5 if self.jump_enabled else 0
-            jog = block_base + 6
+            jog = block_base + 6 if self.jump_enabled else block_base + 5
         else:
             base, reset = block_base, block_base + 1
             jump = block_base + 2 if self.jump_enabled else 0

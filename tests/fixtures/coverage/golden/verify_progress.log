@@ -73,7 +73,6 @@ search__oneshot: worked
 call__basic: worked
 event_drum__basic: worked
 event_drum__full: worked
-event_drum__jog: worked
 event_drum__jump: worked
 event_drum__max: worked
 time_drum__basic: worked
@@ -108,4 +107,3 @@ math__v4: worked
 out__v4: worked
 drum__v4: worked
 loop__v4: worked
-pins__v4: worked

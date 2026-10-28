@@ -559,7 +559,10 @@ def test_decode_program_matches_counter_scr_fixture():
 def test_decode_program_pin_rows_match_pasted_golden():
     """OR legs under a pin push the later pins down; SCR stores each part's rung row.
 
-    ``pins.scr`` is CLICK's program file after pasting the ``pins__v4`` coverage golden.
+    ``pins.scr`` is CLICK's program file after pasting the ``pins__v4`` coverage golden,
+    from before an unused pin's row moved below the legs above it: its drum_reset_or3
+    (index 1) still has the two Reset legs sharing the unused Jump row, (1, 2, 4), where
+    the golden now has (1, 4, 5).  Recapture pins.scr to compare that rung too.
     """
     golden = _SCR_FIXTURE_DIR.parents[0] / "coverage" / "golden" / "pins__v4.bin"
     clip_rungs = decode(golden.read_bytes())
@@ -574,7 +577,10 @@ def test_decode_program_pin_rows_match_pasted_golden():
         (1, 3),
         (1, 3),
     ]
-    assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+    same = [i for i in range(len(clip_rungs)) if i != 1]
+    assert [_rung_to_lines(scr_rungs[i]) for i in same] == [
+        _rung_to_lines(clip_rungs[i]) for i in same
+    ]
 
 
 def test_send_receive_elided_device_id_defaults():

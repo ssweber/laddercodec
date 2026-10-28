@@ -21,7 +21,7 @@ import pytest
 
 from laddercodec import encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
-from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
+from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
@@ -53,9 +53,30 @@ def _load_labelled() -> list[tuple[str, Rung]]:
 _LABELLED = _load_labelled()
 
 
+def _leg_on_unused_pin_row(rung: Rung) -> bool:
+    """A pinned box whose unused pin's row holds a leg of the pin above.
+
+    CLICK leaves that layout when a leg is drawn into the row an unused pin
+    already has, instead of an inserted one.  CSV can't express it: on read,
+    an unused pin's row goes below the legs.
+    """
+    af = rung.instructions[0]
+    if not isinstance(af, Drum):
+        return False
+    used = (True, af.jump_enabled, af.jog_enabled)
+    return any(
+        not on and any(c != "" for c in rung.conditions[row])
+        for row, on in zip(af.pin_rows, used, strict=True)
+    )
+
+
 @pytest.mark.parametrize("rung", [r for _, r in _LABELLED], ids=[cid for cid, _ in _LABELLED])
 def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     expected = (rung.comment or "").split("\n")[1:]
+    if _leg_on_unused_pin_row(rung):
+        with pytest.raises(WriterError):
+            decoded_rung_to_rows(rung)
+        return
     rows = decoded_rung_to_rows(rung)
     af_tokens = [row[-1] for row in rows if row[0] != "#" and row[-1]]
     if any(token.startswith("raw(") for token in af_tokens):
@@ -66,7 +87,8 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
 @pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
-    write_csv(tmp_path / f"{bin_path.stem}.csv", _decode_file(bin_path))
+    rungs = [r for r in _decode_file(bin_path) if not _leg_on_unused_pin_row(r)]
+    write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +195,35 @@ def test_time_event_drum_blobs_match_native() -> None:
         ], drum.to_csv()
         checked += 1
     assert checked == 5
+
+
+def test_drum_func_codes_match_native() -> None:
+    """Drum func codes run consecutively over the enabled pins.
+
+    ``drum_jog.bin``: event Reset + Jog, time (ms) Reset + Jog, event Reset + Jump, each
+    reopened and OK'd in CLICK v4.  With Jump off, Jog takes Jump's code (8496, 8460);
+    the next code up passes a paste but fails v4's check with C000A.
+    """
+    buf = (CAPTURE_DIR / "drum_jog.bin").read_bytes()
+    drums = [r.instructions[0] for r in _decode_file(CAPTURE_DIR / "drum_jog.bin")]
+    needle = "Drum".encode("utf-16-le") + b"\x00\x00"
+    starts = []
+    i = -1
+    while (i := buf.find(needle, i + 1)) != -1:
+        starts.append(i)
+    codes = []
+    for drum, start in zip(drums, starts, strict=True):
+        assert isinstance(drum, Drum)
+        *_, native_fields = _decompose_blob(buf[start:])
+        *_, fields = _decompose_blob(drum.build_blob())
+        native = [f for f in native_fields if f[0] == 0x3A05]
+        assert [f for f in fields if f[0] == 0x3A05] == native, drum.to_csv()
+        codes.append([f[2] for f in native])
+    assert codes == [
+        ["8494", "8495", "0", "8496"],
+        ["8458", "8459", "0", "8460"],
+        ["8491", "8492", "8493", "0"],
+    ]
 
 
 #: Each pin's row in pins.bin, built in CLICK from ``stubs/pins.csv``.  drum_reset_or3 was

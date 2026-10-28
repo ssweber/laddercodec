@@ -118,6 +118,10 @@ def _blank_condition_row() -> list[ConditionToken]:
     return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
 
 
+def _is_blank_row(conditions: list[ConditionToken]) -> bool:
+    return all(c == "" for c in conditions)
+
+
 def _af_visual_rows(token: AfToken) -> int:
     """Return the AF token's visual row count."""
     if isinstance(token, AfInstruction):
@@ -346,10 +350,12 @@ def _finalize_pinned_block(
 ) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
     """Lay out a pinned block, placing each pin on its own row.
 
-    Rows between pins are OR legs of the pin above.  A pin sits on the row
-    after its legs, and at least one row below the previous pin; an unused
-    pin keeps that row (a leg of the pin above may share it).  The box ends
-    at the last pin's row.  Absorbed rows past it are returned as the tail.
+    Rows between pins are OR legs of the pin above.  An unused pin still
+    takes a row of its own, below those legs (as CLICK lays out a leg added
+    with Insert Row: Reset 1, leg 2, unused Jump 3, Jog 4).  Blank rows just
+    above the next pin are read as the unused pins' rows, not legs.  Unused
+    pins after the last used one sit directly under it, and the box ends at
+    the last pin's row; absorbed rows past it are returned as the tail.
     """
     token = block.token
     rows = [block.main_conditions]
@@ -357,20 +363,27 @@ def _finalize_pinned_block(
     pins: dict[str, _ParsedRow] = {}
     pending = list(block.continuations)
     prev = 0
+    unused = 0
     for slot in order:
         j = next((i for i, row in enumerate(pending) if row.kind == "pin"), None)
         if j is None or pending[j].pin_name != slot:
-            prev += 1
-            pin_rows.append(prev)
+            unused += 1
             continue
-        rows.extend(row.conditions for row in pending[:j])
-        while len(rows) <= prev:
-            rows.append(_blank_condition_row())
+        gap = pending[:j]
+        blank = 0
+        while blank < min(unused, len(gap)) and _is_blank_row(gap[-1 - blank].conditions):
+            blank += 1
+        rows.extend(row.conditions for row in gap)
+        rows.extend(_blank_condition_row() for _ in range(unused - blank))
+        pin_rows.extend(range(len(rows) - unused, len(rows)))
         prev = len(rows)
         rows.append(pending[j].conditions)
         pin_rows.append(prev)
         pins[slot] = pending[j]
         pending = pending[j + 1 :]
+        unused = 0
+    pin_rows.extend(range(prev + 1, prev + 1 + unused))
+    prev += unused
 
     height = prev + 1
     tail: list[_ParsedRow] = []
