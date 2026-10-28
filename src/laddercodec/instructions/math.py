@@ -194,8 +194,11 @@ def _make_template(expression: str, operands: list[str]) -> str:
 def _make_internal(expression: str) -> str:
     """Convert display-form expression to Click internal form.
 
-    Replaces spaces with ``#`` delimiters and prefixes standalone
-    numeric literals with ``H`` (Click's internal normalization).
+    Replaces spaces with ``#`` delimiters and normalizes literals the way
+    Click does: a decimal integer gets an ``H`` prefix (``200`` → ``H200``),
+    a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
+    seen when a pasted Math with ``Ah`` left as typed was reopened and OK'd
+    in CLICK v4, which then passed its syntax check).
     ``RAND ( a , b )`` is stored infix as ``a#RAND#b``, with a trailing
     ``#`` when it ends the formula (``H1#RAND#H100#``,
     ``H1#RAND#H10#+#DS1``).
@@ -213,7 +216,15 @@ def _make_internal(expression: str) -> str:
             continue
         out.append(tokens[i])
         i += 1
-    return "#".join(f"H{t}" if re.fullmatch(r"\d+", t) else t for t in out)
+    return "#".join(_internal_literal(t) for t in out)
+
+
+def _internal_literal(token: str) -> str:
+    if re.fullmatch(r"\d+", token):
+        return f"H{token}"
+    if re.fullmatch(r"[0-9A-Fa-f]+h", token):
+        return f"UH{int(token[:-1], 16)}"
+    return token
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
