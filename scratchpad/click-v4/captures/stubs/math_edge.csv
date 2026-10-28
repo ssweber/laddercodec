@@ -1,0 +1,92 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math_edge__dec_int16_max
+#,"math(DS2301 + 32767,DS2401,mode=decimal)"
+R,C2301,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS2301 + 32767,DS2401,mode=decimal)"
+#,math_edge__dec_int16_over
+#,"math(DS2301 + 32768,DS2402,mode=decimal)"
+R,C2302,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS2301 + 32768,DS2402,mode=decimal)"
+#,math_edge__dec_int32_max
+#,"math(DD2301 + 2147483647,DD2403,mode=decimal)"
+R,C2303,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DD2301 + 2147483647,DD2403,mode=decimal)"
+#,math_edge__dec_int32_over
+#,"math(DD2301 + 2147483648,DD2404,mode=decimal)"
+R,C2304,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DD2301 + 2147483648,DD2404,mode=decimal)"
+#,math_edge__dec_zero
+#,"math(DS2301 * 0,DS2405,mode=decimal)"
+R,C2305,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS2301 * 0,DS2405,mode=decimal)"
+#,math_edge__dec_leading_zero
+#,"math(DS2301 + 007,DS2406,mode=decimal)"
+R,C2306,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS2301 + 007,DS2406,mode=decimal)"
+#,math_edge__dec_negative_rhs
+#,"math(DS2301 + -5,DS2407,mode=decimal)"
+R,C2307,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS2301 + -5,DS2407,mode=decimal)"
+#,math_edge__dec_negative_lhs
+#,"math(-5 + DS2301,DS2408,mode=decimal)"
+R,C2308,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(-5 + DS2301,DS2408,mode=decimal)"
+#,math_edge__dec_literal_only
+#,"math(5 + 3,DS2409,mode=decimal)"
+R,C2309,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(5 + 3,DS2409,mode=decimal)"
+#,math_edge__real_simple
+#,"math(DF2301 + 3.14,DF2410,mode=decimal)"
+R,C2310,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 + 3.14,DF2410,mode=decimal)"
+#,math_edge__real_half
+#,"math(DF2301 * 0.5,DF2411,mode=decimal)"
+R,C2311,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * 0.5,DF2411,mode=decimal)"
+#,math_edge__real_no_leading_digit
+#,"math(DF2301 * .5,DF2412,mode=decimal)"
+R,C2312,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * .5,DF2412,mode=decimal)"
+#,math_edge__real_trailing_zero
+#,"math(DF2301 + 100.0,DF2413,mode=decimal)"
+R,C2313,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 + 100.0,DF2413,mode=decimal)"
+#,math_edge__real_exp_neg
+#,"math(DF2301 * 1.0E-10,DF2414,mode=decimal)"
+R,C2314,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * 1.0E-10,DF2414,mode=decimal)"
+#,math_edge__real_exp_lower
+#,"math(DF2301 * 1.5e+10,DF2415,mode=decimal)"
+R,C2315,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * 1.5e+10,DF2415,mode=decimal)"
+#,math_edge__real_exp_no_point
+#,"math(DF2301 * 1E5,DF2416,mode=decimal)"
+R,C2316,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * 1E5,DF2416,mode=decimal)"
+#,math_edge__real_max_7_digits
+#,"math(DF2301 + 3.402823E+38,DF2417,mode=decimal)"
+R,C2317,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 + 3.402823E+38,DF2417,mode=decimal)"
+#,math_edge__real_max_9_digits
+#,"math(DF2301 + 3.40282347E+38,DF2418,mode=decimal)"
+R,C2318,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 + 3.40282347E+38,DF2418,mode=decimal)"
+#,math_edge__real_8_digits
+#,"math(DF2301 + 16777215.0,DF2419,mode=decimal)"
+R,C2319,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 + 16777215.0,DF2419,mode=decimal)"
+#,math_edge__real_pi
+#,"math(DF2301 * PI,DF2420,mode=decimal)"
+R,C2320,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF2301 * PI,DF2420,mode=decimal)"
+#,math_edge__real_func_literal
+#,"math(SQRT ( 2.0 ),DF2421,mode=decimal)"
+R,C2321,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SQRT ( 2.0 ),DF2421,mode=decimal)"
+#,math_edge__hex_zero
+#,"math(DH2301 + 0h,DH2422,mode=hex)"
+R,C2322,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + 0h,DH2422,mode=hex)"
+#,math_edge__hex_one
+#,"math(DH2301 + 1h,DH2423,mode=hex)"
+R,C2323,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + 1h,DH2423,mode=hex)"
+#,math_edge__hex_ffff
+#,"math(DH2301 + FFFFh,DH2424,mode=hex)"
+R,C2324,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + FFFFh,DH2424,mode=hex)"
+#,math_edge__hex_over_16_bits
+#,"math(DH2301 + 10000h,DH2425,mode=hex)"
+R,C2325,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + 10000h,DH2425,mode=hex)"
+#,math_edge__hex_lowercase
+#,"math(DH2301 + ffh,DH2426,mode=hex)"
+R,C2326,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + ffh,DH2426,mode=hex)"
+#,math_edge__hex_leading_zero
+#,"math(DH2301 + 00FFh,DH2427,mode=hex)"
+R,C2327,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + 00FFh,DH2427,mode=hex)"
+#,math_edge__hex_multi_digit
+#,"math(DH2301 AND AB59h,DH2428,mode=hex)"
+R,C2328,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 AND AB59h,DH2428,mode=hex)"
+#,math_edge__hex_in_function
+#,"math(LSH ( DH2301 , 1h ),DH2429,mode=hex)"
+R,C2329,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH2301 , 1h ),DH2429,mode=hex)"
+#,math_edge__hex_bare_decimal
+#,"math(DH2301 + 1,DH2430,mode=hex)"
+R,C2330,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH2301 + 1,DH2430,mode=hex)"
+R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,end()
