@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import csv
 import re
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -32,8 +33,10 @@ from pathlib import Path
 from pyrung import (
     Block,
     Bool,
+    Counter,
     Dint,
     Int,
+    Or,
     Program,
     Real,
     Rung,
@@ -44,11 +47,13 @@ from pyrung import (
     calc,
     comment,
     continue_loop,
+    count_up,
     debounce,
     flasher,
     forloop,
     immediate,
     out,
+    shift,
     time_drum,
     time_event_drum,
     timed,
@@ -351,7 +356,66 @@ def _() -> None:
             _bump("DS1613")
 
 
-GROUPS = {"out": OUT, "drum": DRUM, "math": MATH, "loop": LOOP}
+# ---------------------------------------------------------------------------
+# Pin rows with OR legs: case n has enable C(1042+8n) and pin contacts the next 7 up,
+# drum output C102n, step DS170n, acc TD11n, done C103n; jump step DS1710; counter
+# CT1; shift bits C1041..C1048.  The stub has each pin wired from its first contact
+# only: add the other legs in CLICK (insert a row under the pin, OR the contact in).
+# ---------------------------------------------------------------------------
+
+Counters = Counter.clone("CapCounters", count=2)
+_mapping.append(Counters._blocks["Done"].map_to(ct.select(1, 2)))
+_mapping.append(Counters._blocks["Acc"].map_to(ctd.select(1, 2)))
+
+
+def _pin(n: int, k: int) -> Any:
+    return a(f"C{1042 + 8 * n + k}")
+
+
+def _any(n: int, *ks: int) -> Any:
+    """Pin input: the OR of contacts k.. (the real rung), or just the first (the stub)."""
+    return Or(*(_pin(n, k) for k in ks))
+
+
+def _pin_drum(n: int):
+    return time_drum(
+        outputs=[a(f"C{1020 + n}")],
+        presets=[1000],
+        unit="ms",
+        pattern=[[1]],
+        current_step=a(f"DS{1700 + n}"),
+        accumulator=a(f"TD{110 + n}"),
+        completion_flag=a(f"C{1030 + n}"),
+    )
+
+
+def _pins(id: str, n: int, body: Callable[[Callable[..., Any]], object]) -> Case:
+    """``body(pin)`` builds the rung; ``pin(*ks)`` is the OR of those contacts."""
+    return Case(
+        id,
+        lambda: [a(f"C{1042 + 8 * n}")],
+        lambda: body(lambda *ks: _any(n, *ks) if len(ks) > 1 else _pin(n, ks[0])),
+        lambda: body(lambda *ks: _pin(n, ks[0])),
+    )
+
+
+PINS = [
+    _pins("pins__drum_reset_or", 1,
+          lambda p: _pin_drum(1).reset(p(1, 2)).jump(p(3), step=a("DS1710"))),
+    _pins("pins__drum_reset_or3", 2,
+          lambda p: _pin_drum(2).reset(p(1, 2, 3)).jog(p(4))),
+    _pins("pins__drum_jump_or", 3,
+          lambda p: _pin_drum(3).reset(p(1)).jump(p(2, 3), step=a("DS1710")).jog(p(4))),
+    _pins("pins__drum_all_or", 4,
+          lambda p: _pin_drum(4).reset(p(1, 2)).jump(p(3, 4), step=a("DS1710")).jog(p(5, 6))),
+    _pins("pins__count_up_down_or", 5,
+          lambda p: count_up(Counters[1], 5).down(p(1, 2)).reset(p(3))),
+    _pins("pins__shift_clock_or", 6,
+          lambda p: shift(r("C1041", "C1048")).clock(p(1, 2)).reset(p(3))),
+]
+
+
+GROUPS = {"out": OUT, "drum": DRUM, "math": MATH, "loop": LOOP, "pins": PINS}
 
 
 # ---------------------------------------------------------------------------
@@ -452,14 +516,16 @@ def build_group(cases: list[Case]) -> tuple[list[list[str]], list[list[str]]]:
             stub_rows = _apply_override(stub_rows, case)
         stubs += stub_rows
     with Program(strict=False) as logic:
-        with Rung(a("C1")):
+        with Rung():
             pass
     header = list(pyrung_to_ladder(logic, TagMap(_mapping, include_system=False)).main_rows[0])
     return [header, *stubs], [header, *expected]
 
 
 def main() -> None:
-    for name, cases in GROUPS.items():
+    names = sys.argv[1:] or list(GROUPS)
+    for name in names:
+        cases = GROUPS[name]
         stubs, expected = build_group(cases)
         for folder, rows in (("stubs", stubs), ("expected", expected)):
             path = HERE / folder / f"{name}.csv"
@@ -467,8 +533,6 @@ def main() -> None:
             with path.open("w", encoding="utf-8", newline="") as handle:
                 csv.writer(handle).writerows(rows)
         print(f"{name}: {len(cases)} rungs -> stubs/{name}.csv, expected/{name}.csv")
-    for case_id, codes in _skipped_checks.items():
-        print(f"  exported without validation: {case_id} ({', '.join(sorted(codes))})")
 
 
 if __name__ == "__main__":
