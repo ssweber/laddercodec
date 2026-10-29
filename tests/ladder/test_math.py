@@ -32,9 +32,17 @@ def test_reconstruct_expression_preserves_display_literals_and_concrete_operands
 def test_internal_form_normalizes_literals() -> None:
     """Decimal integers get ``H``; hex constants become ``UH`` + decimal value.
 
-    ``Ah`` → ``UH10`` is from a CLICK v4 copy-back (clicknick math-error-ok.bin).
+    ``Ah`` → ``UH10`` is from a CLICK v4 copy-back (clicknick math-error-ok.bin);
+    ``( -5 )`` → ``(#H-5#)`` and ``( -2.5 )`` → ``(#F-2.5#)`` from ones typed
+    in v4 (math_neg.bin).
     """
     assert _make_internal("DS1 + 200") == "DS1#+#H200"
+    assert _make_internal("DS401 + ( -5 )") == "DS401#+#(#H-5#)"
+    assert _make_internal("DF401 * ( -2.5 )") == "DF401#*#(#F-2.5#)"
+    assert _make_internal("DF401 * ( -1.5E+10 )") == "DF401#*#(#F-1.5E+10#)"
+    assert _make_internal("DF1 * 3.14") == "DF1#*#F3.14"
+    assert _make_internal("DF1 * .5 + 1E5") == "DF1#*#F.5#+#F1E5"
+    assert _make_internal("- DS401") == "-#DS401"
     assert _make_internal("DH221 + Ah") == "DH221#+#UH10"
     assert _make_internal("LSH ( DH1 , 1h )") == "LSH#(#DH1#,#UH1#)"
     assert _make_internal("DH1 AND AB59h") == "DH1#AND#UH43865"

@@ -196,7 +196,10 @@ def _make_internal(expression: str) -> str:
 
     Replaces spaces with ``#`` delimiters and normalizes literals the way
     Click does: a decimal integer gets an ``H`` prefix (``200`` → ``H200``),
-    a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
+    ahead of its sign when negative (``( -5 )`` → ``(#H-5#)``, typed in CLICK v4;
+    a bare ``#-5#`` fails its syntax check), a real gets ``F`` the same way
+    (``( -2.5 )`` → ``(#F-2.5#)``, ``-1.5E+10`` → ``F-1.5E+10``, typed in v4;
+    pasted ``F3.14`` passes its syntax check), a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
     seen when a pasted Math with ``Ah`` left as typed was reopened and OK'd
     in CLICK v4, which then passed its syntax check).
     ``RAND ( a , b )`` is stored infix as ``a#RAND#b``, with a trailing
@@ -219,9 +222,14 @@ def _make_internal(expression: str) -> str:
     return "#".join(_internal_literal(t) for t in out)
 
 
+_REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")
+
+
 def _internal_literal(token: str) -> str:
-    if re.fullmatch(r"\d+", token):
+    if re.fullmatch(r"-?\d+", token):
         return f"H{token}"
+    if _REAL_LITERAL_RE.fullmatch(token):
+        return f"F{token}"
     if re.fullmatch(r"[0-9A-Fa-f]+h", token):
         return f"UH{int(token[:-1], 16)}"
     return token

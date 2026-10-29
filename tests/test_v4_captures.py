@@ -103,6 +103,11 @@ _NATIVE_MATH = [
     *(("math.bin", i) for i in range(17, 23)),  # math__abs_ds .. math__rand_hex
     ("math_typed.bin", 0),  # RAND ( 1 , 10 ) + DS1
     ("math_typed.bin", 1),  # MAX ( DS1 : DS3 ) + SUM ( DS5 : DS8 )
+    # Negative operands, all typed: ( -5 ) is stored H-5 and ( -2.5 ) F-2.5.  Rung 8,
+    # DS401 * ( - DS402 ), fails CLICK's check even typed; its fields still match.
+    # In retyped/ because retyping changed some results and comments, so the rung
+    # comments no longer name the token.
+    *(("retyped/math_neg.bin", i) for i in range(12)),
 ]
 
 
