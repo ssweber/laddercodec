@@ -12,10 +12,10 @@ legs under a pin push the later pins down (``pin_rows``, the blob's part bytes).
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Literal, cast
 
-from ..model import AfInstruction
+from ..model import PinnedInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -137,7 +137,7 @@ def _timer_done_bit(accumulator: str) -> str:
 
 
 @dataclass
-class Drum(AfInstruction):
+class Drum(PinnedInstruction):
     """A drum sequencer instruction (event_drum / time_drum / time_event_drum).
 
     Occupies the AF column.  The binary class name is ``Drum``
@@ -210,6 +210,27 @@ class Drum(AfInstruction):
     def cell_params(self) -> dict:
         # +0x0A keeps the base height when OR legs grow the box (pins.bin).
         return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 4}
+
+    def pin_names(self) -> tuple[str, ...]:
+        return (".reset", ".jump", ".jog")
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        return (
+            ".reset()",
+            f".jump({self.jump_target})" if self.jump_enabled else None,
+            ".jog()" if self.jog_enabled else None,
+        )
+
+    def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Drum:
+        if ".reset" not in pins:
+            raise ValueError("Drum requires a .reset() pin row")
+        drum = replace(self, pin_rows=cast(tuple[int, int, int], pin_rows))
+        if ".jump" in pins:
+            target = pins[".jump"][0] if pins[".jump"] else ""
+            drum = replace(drum, jump_enabled=True, jump_target=target)
+        if ".jog" in pins:
+            drum = replace(drum, jog_enabled=True)
+        return drum
 
     def _compute_func_codes(self) -> list[str]:
         """Return the 4 func-code slot values [base, reset, jump, jog].

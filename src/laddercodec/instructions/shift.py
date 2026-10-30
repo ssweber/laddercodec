@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, cast
 
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import InstructionType, PinnedInstruction, _validate_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -36,14 +36,23 @@ _SHIFT_SUB_MARKERS = (b"\x00\x00\x00\x00", b"\x01\x00\x00\x00", b"\x02\x00\x00\x
 
 
 @dataclass
-class Shift(AfInstruction):
+class Shift(PinnedInstruction):
     """A shift register instruction."""
 
     start_bit: str
     end_bit: str
     #: Rows of the clock and reset inputs below the main row.  OR legs under
-    #: ``.clock()`` push ``.reset()`` down.
+    #: the data input push both down; legs under ``.clock()`` push ``.reset()``.
     pin_rows: tuple[int, int] = (1, 2)
+
+    def pin_names(self) -> tuple[str, ...]:
+        return (".clock", ".reset")
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        return (".clock()", ".reset()")
+
+    def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Shift:
+        return replace(self, pin_rows=cast(tuple[int, int], pin_rows))
 
     @classmethod
     def from_csv_token(cls, token: str) -> Shift:

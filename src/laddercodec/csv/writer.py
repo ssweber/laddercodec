@@ -12,10 +12,10 @@ Public API
 Pin row reconstruction
 ----------------------
 
-The binary format stores timer retention as a flag in the timer blob.
-The CSV format represents it as a ``.reset()`` pin row.  When a retained
-timer is decoded, the writer emits a ``.reset()`` row using the conditions
-from the timer's second grid row (which carried the reset-enable branch).
+The binary format stores pin use as flags in the blob (e.g. timer
+retention) and each pin's row as the blob's part bytes (``pin_rows``).
+The CSV format represents each used pin as a pin row (``.reset()``, ...)
+at that row, with the OR-leg rows between pins kept in place.
 
 Tall instruction padding
 ------------------------
@@ -39,17 +39,13 @@ from ..instructions import (
     AfToken,
     ConditionInstruction,
     ConditionToken,
-    Counter,
-    Drum,
     RawInstruction,
-    Shift,
-    Timer,
     UnknownCondition,
     UnknownInstruction,
-    get_af_family_for_token,
 )
+from ..model import PinnedInstruction
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import convert_rung
+from .converter import _is_blank_row, convert_rung, pinned_gap_height
 from .parser import _parse_single_rung_rows
 
 
@@ -111,9 +107,13 @@ def _followed_by_floating_row(af_tokens: Sequence[object], span_end: int) -> boo
     reparse, so the instruction's trailing padding must stay positional rather
     than dehydrated — otherwise the following content floats up.  A real AF
     instruction (or the end of the rung) anchors the position, so dehydration
-    is safe there.
+    is safe there — except a box with lead slots, whose lead rows are written
+    as blank-AF rows above its token.
     """
-    return span_end < len(af_tokens) and af_tokens[span_end] == ""
+    if span_end >= len(af_tokens):
+        return False
+    following = af_tokens[span_end]
+    return following == "" or (isinstance(following, PinnedInstruction) and following.lead_rows > 0)
 
 
 def _emit_blank_continuation(
@@ -140,55 +140,44 @@ def _require_blank_af(af: object, *, message: str) -> None:
         raise WriterError(message)
 
 
-def _emit_timer_block(
-    rows: list[list[str]],
-    data_row_count: int,
-    condition_rows: Sequence[Sequence[object]],
-    af_tokens: Sequence[object],
-    start: int,
-    timer: Timer,
-) -> tuple[int, int]:
-    """Emit one timer block and return ``(new_count, consumed_rows)``."""
-    needed = start + 2
-    if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(f"timer requires {needed} decoded rows; got {len(condition_rows)}")
-
-    _require_blank_af(
-        af_tokens[start + 1],
-        message="timer continuation row must be blank AF",
-    )
-
-    keep = _followed_by_floating_row(af_tokens, start + 2)
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], timer)
-    if timer.retained:
-        data_row_count = _append_data_row(
-            rows, data_row_count, condition_rows[start + 1], ".reset()"
-        )
-    else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 1], keep
-        )
-    return data_row_count, 2
-
-
-def _emit_gap(
+def _emit_pin_gap(
     rows: list[list[str]],
     data_row_count: int,
     gap: Sequence[Sequence[object]],
     unused_pins: int,
+) -> int:
+    """Emit the rows between two slots of a pinned block, before a used pin.
+
+    Drops as much trailing padding as the converter re-pads for the unused
+    pins in between (``pinned_gap_height``), so the pin lands on its row.
+    """
+    keep = len(gap)
+    for drop in range(min(unused_pins, len(gap)), 0, -1):
+        if all(_is_padding_row(row) for row in gap[-drop:]) and (
+            pinned_gap_height(gap[:-drop], unused_pins) == len(gap)
+        ):
+            keep = len(gap) - drop
+            break
+    for row in gap[:keep]:
+        data_row_count = _append_data_row(rows, data_row_count, row, "")
+    return data_row_count
+
+
+def _emit_box_tail(
+    rows: list[list[str]],
+    data_row_count: int,
+    tail: Sequence[Sequence[object]],
     keep_positional: bool,
 ) -> int:
-    """Emit the rows between two pins (or after the last one) of a pinned block.
+    """Emit a pinned block's rows after its last used pin (its unused pins' rows).
 
-    On reparse, leg rows land right under the pin above and unused pins are
-    re-padded below them.  So when the gap is no taller than its unused pins,
-    trailing padding dehydrates; a taller gap (legs pushed the next pin down)
-    stays positional, padding included.
+    Trailing padding dehydrates, since the reparse pads the box back to its
+    height, unless a floating row follows (``keep_positional``).
     """
-    last = max((i for i, row in enumerate(gap) if not _is_padding_row(row)), default=-1)
-    if keep_positional or len(gap) > unused_pins:
-        last = len(gap) - 1
-    for row in gap[: last + 1]:
+    last = len(tail) - 1
+    if not keep_positional:
+        last = max((i for i, row in enumerate(tail) if not _is_padding_row(row)), default=-1)
+    for row in tail[: last + 1]:
         data_row_count = _append_data_row(rows, data_row_count, row, "")
     return data_row_count
 
@@ -199,116 +188,54 @@ def _emit_pinned_block(
     condition_rows: Sequence[Sequence[object]],
     af_tokens: Sequence[object],
     start: int,
-    af: Counter | Drum | Shift,
-    pins: Sequence[str | None],
+    af: PinnedInstruction,
 ) -> tuple[int, int]:
-    """Emit a block whose pins sit at ``af.pin_rows``; ``pins`` labels each (None: unused)."""
+    """Emit a box whose slots sit at ``af.pin_rows``; return ``(new_count, consumed_rows)``.
+
+    Lead slots (above the main input) are emitted as blank-AF rows before the
+    instruction token; the token goes on the main input's row, which decodes
+    with a NOP in its AF cell.  Empty lead rows are left out, unless the row
+    above is a blank-AF row the reparse would take as the lead row instead.
+    """
     name = af.to_csv().split("(", 1)[0]
     height = af.pin_rows[-1] + 1
+    lead = af.lead_rows
     needed = start + height
     if len(condition_rows) < needed or len(af_tokens) < needed:
         raise WriterError(f"{name} requires {needed} decoded rows; got {len(condition_rows)}")
     for offset in range(1, height):
+        if offset == lead:
+            if af_tokens[start + offset] != "NOP":
+                raise WriterError(f"{name} requires a NOP bridge row on its main input")
+            continue
         _require_blank_af(af_tokens[start + offset], message=f"{name} pin rows must be blank AF")
 
-    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], af)
-    prev, unused = 0, 0
-    for pin_row, label in zip(af.pin_rows, pins, strict=True):
+    main = af.pin_rows[lead - 1] if lead else 0
+    if main != lead:
+        raise WriterError(f"{name} lead slots must sit directly above its main input")
+    first_lead = next(
+        (i for i in range(lead) if not _is_blank_row(condition_rows[start + i])), lead
+    )
+    if start > 0 and af_tokens[start - 1] == "":
+        first_lead = 0
+    for offset in range(first_lead, lead):
+        data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + offset], "")
+    data_row_count = _append_data_row(rows, data_row_count, condition_rows[start + main], af)
+    prev, unused = main, 0
+    for pin_row, label in zip(af.pin_rows[lead:], af.pin_labels(), strict=True):
         if label is None:
             unused += 1
             continue
         gap = condition_rows[start + prev + 1 : start + pin_row]
-        data_row_count = _emit_gap(rows, data_row_count, gap, unused, False)
+        data_row_count = _emit_pin_gap(rows, data_row_count, gap, unused)
         data_row_count = _append_data_row(
             rows, data_row_count, condition_rows[start + pin_row], label
         )
         prev, unused = pin_row, 0
-    gap = condition_rows[start + prev + 1 : needed]
+    tail = condition_rows[start + prev + 1 : needed]
     keep = _followed_by_floating_row(af_tokens, needed)
-    data_row_count = _emit_gap(rows, data_row_count, gap, unused, keep)
+    data_row_count = _emit_box_tail(rows, data_row_count, tail, keep)
     return data_row_count, height
-
-
-def _emit_counter_block(
-    rows: list[list[str]],
-    data_row_count: int,
-    condition_rows: Sequence[Sequence[object]],
-    af_tokens: Sequence[object],
-    start: int,
-    counter: Counter,
-) -> tuple[int, int]:
-    """Emit one counter block and return ``(new_count, consumed_rows)``."""
-    if counter.counter_type == "count_up":
-        pins = (
-            ".down()" if counter.down_enabled else None,
-            ".reset()" if counter.reset_enabled else None,
-        )
-        return _emit_pinned_block(
-            rows, data_row_count, condition_rows, af_tokens, start, counter, pins
-        )
-
-    needed = start + 3
-    if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(
-            f"{counter.counter_type} requires {needed} decoded rows; got {len(condition_rows)}"
-        )
-
-    keep = _followed_by_floating_row(af_tokens, start + 3)
-    if af_tokens[start + 1] != "NOP":
-        raise WriterError("count_down requires a NOP bridge row after the counter")
-    _require_blank_af(
-        af_tokens[start + 2],
-        message="count_down reset row must be blank AF",
-    )
-
-    counter_conditions = condition_rows[start]
-    bridge_conditions = condition_rows[start + 1]
-    if all(c == "" for c in counter_conditions):
-        data_row_count = _append_data_row(rows, data_row_count, bridge_conditions, counter)
-    else:
-        data_row_count = _append_data_row(rows, data_row_count, counter_conditions, "")
-        data_row_count = _append_data_row(rows, data_row_count, bridge_conditions, counter)
-
-    if counter.reset_enabled:
-        data_row_count = _append_data_row(
-            rows, data_row_count, condition_rows[start + 2], ".reset()"
-        )
-    else:
-        data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + 2], keep
-        )
-    return data_row_count, 3
-
-
-def _emit_shift_block(
-    rows: list[list[str]],
-    data_row_count: int,
-    condition_rows: Sequence[Sequence[object]],
-    af_tokens: Sequence[object],
-    start: int,
-    shift: Shift,
-) -> tuple[int, int]:
-    """Emit one shift block and return ``(new_count, consumed_rows)``."""
-    return _emit_pinned_block(
-        rows, data_row_count, condition_rows, af_tokens, start, shift, (".clock()", ".reset()")
-    )
-
-
-def _emit_drum_block(
-    rows: list[list[str]],
-    data_row_count: int,
-    condition_rows: Sequence[Sequence[object]],
-    af_tokens: Sequence[object],
-    start: int,
-    drum: Drum,
-) -> tuple[int, int]:
-    """Emit one drum block and return ``(new_count, consumed_rows)``."""
-    pins = (
-        ".reset()",
-        f".jump({drum.jump_target})" if drum.jump_enabled else None,
-        ".jog()" if drum.jog_enabled else None,
-    )
-    return _emit_pinned_block(rows, data_row_count, condition_rows, af_tokens, start, drum, pins)
 
 
 def _emit_generic_tall_block(
@@ -433,6 +360,17 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
         start=1,
     ):
         if not _af_tokens_match(expected, actual):
+            if (
+                isinstance(expected, PinnedInstruction)
+                and isinstance(actual, PinnedInstruction)
+                and expected.pin_rows != actual.pin_rows
+            ):
+                raise WriterError(
+                    "CSV round-trip validation failed: "
+                    f"{_display_token(expected)} at row {row_idx} has its pins on rows "
+                    f"{expected.pin_rows}, which CSV cannot express (it reads back as "
+                    f"{actual.pin_rows}); an OR leg likely sits on an unused pin's row"
+                )
             raise WriterError(
                 "CSV round-trip validation failed: "
                 f"AF mismatch at row {row_idx}: "
@@ -468,32 +406,8 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         consumed = 1
 
         if isinstance(af, AfInstruction):
-            family = get_af_family_for_token(af)
-            family_name = family.family_name if family is not None else None
-
-            if family_name == "timer" and isinstance(af, Timer):
-                data_row_count, consumed = _emit_timer_block(
-                    rows, data_row_count, condition_rows, af_tokens, row_idx, af
-                )
-                row_idx += consumed
-                continue
-
-            if family_name == "counter" and isinstance(af, Counter):
-                data_row_count, consumed = _emit_counter_block(
-                    rows, data_row_count, condition_rows, af_tokens, row_idx, af
-                )
-                row_idx += consumed
-                continue
-
-            if family_name == "shift" and isinstance(af, Shift):
-                data_row_count, consumed = _emit_shift_block(
-                    rows, data_row_count, condition_rows, af_tokens, row_idx, af
-                )
-                row_idx += consumed
-                continue
-
-            if family_name == "drum" and isinstance(af, Drum):
-                data_row_count, consumed = _emit_drum_block(
+            if isinstance(af, PinnedInstruction):
+                data_row_count, consumed = _emit_pinned_block(
                     rows, data_row_count, condition_rows, af_tokens, row_idx, af
                 )
                 row_idx += consumed

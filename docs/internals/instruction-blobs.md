@@ -21,9 +21,10 @@ All instruction blobs follow the same pattern:
 
 A tall instruction's extra bytes give the row, below the main row, of each later
 part: `01` for a timer's reset, `01 02` for a counter (down, reset) or shift
-(clock, reset), `01 02 03` for a drum (reset, jump, jog). OR legs under a pin
-push the later parts down, and CLICK grows the box: a drum with one leg under
-reset is `01 03 04`. The AF cell's `+0x09` becomes the last part's row + 1;
+(clock, reset), `01 02 03` for a drum (reset, jump, jog). OR legs under an
+input (the main one included) push the later parts down, and CLICK grows the
+box: a drum with one leg under reset is `01 03 04`. A count_down's main part is
+its unused Up input, so its Down input is the first extra byte. The AF cell's `+0x09` becomes the last part's row + 1;
 `+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`).
 
 ### Tagged fields

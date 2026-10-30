@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction
+from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -215,9 +215,9 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
 
 def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
     """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
-    if not isinstance(parsed, (Counter, Drum, Shift)) or len(extra) != len(parsed.pin_rows):
+    if not isinstance(parsed, PinnedInstruction) or len(extra) != len(parsed.pin_rows):
         return parsed
-    return replace(parsed, pin_rows=tuple(extra))
+    return parsed.with_pin_rows(tuple(extra))
 
 
 def from_tags_condition(
