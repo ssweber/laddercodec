@@ -15,6 +15,11 @@
 - **Coil decode**: an Out coil with a func code laddercodec does not know falls through to `raw(Out,...)` instead of silently decoding as a plain `out(...)`.
 - **Drum decode**: a drum with an unknown base decodes as `raw(Drum,...)`. Before, a CLICK v4 Time & Event drum with an event on every step decoded as a plain `time_drum` with its events as presets.
 - **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes (`01 02 03` for a drum, not `00 01 02`), so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
+- **CSV read, OR inputs on boxes**: OR legs under any timer, counter, shift or drum input now push its later pins down, so a `count_down` fed by a 3+ row OR no longer fails with "count_down requires a .reset() pin row", and a retentive timer fed by a 2+ row OR keeps its `.reset()` instead of encoding as non-retentive.
+- **CSV writer**: a box's empty pin rows stay in place when a floating blank-AF row or a `count_down` follows it, and a `count_down` under a blank-AF row keeps its own empty top row, where `write_csv` used to fail its round-trip check.
+
+### Changed
+- **CSV read**: a blank-AF row directly under `count_down` is an OR leg of its Down input, not the bridge row, and a pin a timer does not have (e.g. `.down()`) raises `ConvertError` instead of being read as a blank row.
 
 ### Added
 - **CLICK v4 check**: `find_v4_only(rungs)` lists the instructions an older CLICK would silently change on paste (Break/Continue, Out variants, time & event drums, time drums with a duration from a register, v4 math functions and SUM over bits), and `is_v4_only()` checks one.
