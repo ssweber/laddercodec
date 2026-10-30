@@ -15,6 +15,7 @@
 - **Coil decode**: an Out coil with a func code laddercodec does not know falls through to `raw(Out,...)` instead of silently decoding as a plain `out(...)`.
 - **Drum decode**: a drum with an unknown base decodes as `raw(Drum,...)`. Before, a CLICK v4 Time & Event drum with an event on every step decoded as a plain `time_drum` with its events as presets.
 - **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes (`01 02 03` for a drum, not `00 01 02`), so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
+- **Drum encode**: with Jump off, Jog takes the func code Jump would have, as CLICK writes it, so CLICK v4's syntax check no longer rejects a pasted drum with C000A ("all inputs of the box instruction must originate from the same branch").
 - **CSV read, OR inputs on boxes**: OR legs under any timer, counter, shift or drum input now push its later pins down, so a `count_down` fed by a 3+ row OR no longer fails with "count_down requires a .reset() pin row", and a retentive timer fed by a 2+ row OR keeps its `.reset()` instead of encoding as non-retentive.
 - **CSV writer**: a box's empty pin rows stay in place when a floating blank-AF row or a `count_down` follows it, and a `count_down` under a blank-AF row keeps its own empty top row, where `write_csv` used to fail its round-trip check.
 
@@ -22,6 +23,7 @@
 - **CSV read**: a blank-AF row directly under `count_down` is an OR leg of its Down input, not the bridge row, and a pin a timer does not have (e.g. `.down()`) raises `ConvertError` instead of being read as a blank row.
 
 ### Added
+- **Pin OR legs**: OR legs under a counter, shift or drum pin push the later pins down and grow the box as CLICK does, read from and written to the blob's part bytes (`pin_rows`) in clipboard and SCR, with an unused pin's row below the legs above it; pins out of order or repeated raise `ConvertError` instead of being dropped, and `write_csv` refuses a leg drawn onto an unused pin's row, which CSV cannot express.
 - **CLICK v4 check**: `find_v4_only(rungs)` lists the instructions an older CLICK would silently change on paste (Break/Continue, Out variants, time & event drums, time drums with a duration from a register, v4 math functions and SUM over bits), and `is_v4_only()` checks one.
 - **CLICK v4 Break and Continue**: `break()` and `continue()` decode and encode as `Break` and `Continue`, exported from the root package. Before, both decoded as `next()`. Click-written blobs re-encode byte for byte.
 - **CLICK v4 Time & Event drum**: `time_event_drum(outputs=[...],presets=[1000,None,DS1],events=[None,C1,C2],unit=Tms,...)` decodes and encodes as `Drum(drum_kind="time_event")`, with the same `.reset()` / `.jump()` / `.jog()` pin rows as the other drums. `None` marks a step without a preset or event. Click-written drums re-encode field for field.
