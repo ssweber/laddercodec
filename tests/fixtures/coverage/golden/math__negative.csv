@@ -1,0 +1,58 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math__neg_int_add
+#,"math(DS401 + ( -5 ),DS481,mode=decimal)"
+R,C1971,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + ( -5 ),DS481,mode=decimal)"
+#,math__neg_int_sub
+#,"math(DS401 - ( -5 ),DS482,mode=decimal)"
+R,C1972,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 - ( -5 ),DS482,mode=decimal)"
+#,math__neg_int_mul
+#,"math(DS401 * ( -5 ),DS483,mode=decimal)"
+R,C1973,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 * ( -5 ),DS483,mode=decimal)"
+#,math__neg_int_div
+#,"math(DS401 / ( -5 ),DS484,mode=decimal)"
+R,C1974,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 / ( -5 ),DS484,mode=decimal)"
+#,math__neg_int_lhs
+#,"math(-5 + DS401,DS485,mode=decimal)"
+R,C1975,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(-5 + DS401,DS485,mode=decimal)"
+#,math__neg_real
+#,"math(DF401 * ( -2.5 ),DF486,mode=decimal)"
+R,C1976,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * ( -2.5 ),DF486,mode=decimal)"
+#,math__neg_real_exp
+#,"math(DF401 * ( -1.5E+10 ),DF487,mode=decimal)"
+R,C1977,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * ( -1.5E+10 ),DF487,mode=decimal)"
+#,math__neg_real_lhs
+#,"math(-2.5 * DF401,DF488,mode=decimal)"
+R,C1978,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(-2.5 * DF401,DF488,mode=decimal)"
+#,math__real_positive
+#,"math(DF401 * 3.14,DF489,mode=decimal)"
+R,C1979,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * 3.14,DF489,mode=decimal)"
+#,math__real_positive_exp
+#,"math(DF401 * 1.5E+10,DF490,mode=decimal)"
+R,C1980,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * 1.5E+10,DF490,mode=decimal)"
+#,math__real_no_leading_digit
+#,"math(DF401 * .5 + 1E5,DF491,mode=decimal)"
+R,C1981,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * .5 + 1E5,DF491,mode=decimal)"
+#,math__lead_negation
+#,"math(- DS401,DS492,mode=decimal)"
+R,C1982,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(- DS401,DS492,mode=decimal)"
+#,math__lead_negation_group
+#,"math(- ( DS401 + 1 ),DS493,mode=decimal)"
+R,C1983,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(- ( DS401 + 1 ),DS493,mode=decimal)"
+#,math__zero_minus_literal
+#,"math(DS401 * ( 0 - 5 ),DS494,mode=decimal)"
+R,C1984,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 * ( 0 - 5 ),DS494,mode=decimal)"
+#,math__zero_minus_tag_rhs
+#,"math(DS401 * ( 0 - DS402 ),DS495,mode=decimal)"
+R,C1985,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 * ( 0 - DS402 ),DS495,mode=decimal)"
+#,math__zero_minus_tag_lhs
+#,"math(( 0 - DS401 ) * DS402,DS496,mode=decimal)"
+R,C1986,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(( 0 - DS401 ) * DS402,DS496,mode=decimal)"
+#,math__zero_minus_group
+#,"math(DS401 - ( 0 - ( DS402 + 1 ) ),DS497,mode=decimal)"
+R,C1987,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 - ( 0 - ( DS402 + 1 ) ),DS497,mode=decimal)"
+#,math__zero_minus_real
+#,"math(DF401 * ( 0 - DF402 ),DF498,mode=decimal)"
+R,C1988,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * ( 0 - DF402 ),DF498,mode=decimal)"
+#,math__zero_minus_hex
+#,"math(DH401 + ( 0h - DH402 ),DH499,mode=hex)"
+R,C1989,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH401 + ( 0h - DH402 ),DH499,mode=hex)"

@@ -1,0 +1,14 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math_wide__wide_501
+#,"math(SUM ( DS1 : DS503 ),DD511,mode=decimal)"
+R,C1993,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS503 ),DD511,mode=decimal)"
+#,math_wide__wide_998
+#,"math(SUM ( DS1 : DS1000 ),DD512,mode=decimal)"
+R,C1994,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS1000 ),DD512,mode=decimal)"
+#,math_wide__wide_4498
+#,"math(SUM ( DS1 : DS4500 ),DD513,mode=decimal)"
+R,C1995,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS4500 ),DD513,mode=decimal)"
+#,math_wide__wide_5496
+#,"math(SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ),DD514,mode=decimal)"
+R,C1996,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ),DD514,mode=decimal)"
+R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,end()

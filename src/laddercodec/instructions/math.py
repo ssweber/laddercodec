@@ -6,11 +6,13 @@ The math instruction evaluates a user-defined formula and stores the
 result in a destination register.  Two modes: decimal (trig, log, etc.)
 and hex (bitwise AND/OR/XOR, shift/rotate).
 
-The binary blob is always 1010 tagged fields:
+The binary blob is 1010 tagged fields:
 
 - 9 header fields (result, flags, formula strings, func code)
 - 500 operand slots (tag 0x6888, indexed sentinel)
-- 500 reserved slots (tag 0x688C, indexed sentinel, always empty)
+- 500 reserved slots (tag 0x688C, indexed sentinel): interior addresses of each ``A : B`` range
+  (CLICK v4 copies back 5000 reserved slots; 500 pastes into both v3 and v4, so the encoder
+  writes 5000, for 5510 fields, only when the ranges have more than 500 interiors)
 - 1 terminator (tag 0x0000)
 
 CSV token format::
@@ -83,9 +85,10 @@ _HEADER_TAGS = (
 
 _OPERAND_SLOTS = 500
 _RESERVED_SLOTS = 500
-_TOTAL_FIELDS = 9 + _OPERAND_SLOTS + _RESERVED_SLOTS + 1  # 1010
-# Click's formula editor accepts at most 68 operands (DS1..DS68 tested);
-# the blob has 500 slots but the UI caps well before that.
+#: CLICK v4's capacity.  Its editor stops listing interiors here, whatever the formula says.
+_V4_RESERVED_SLOTS = 5000
+# Click's formula editor accepted at most 68 operands (DS1..DS68 tested); a pasted
+# 69 passes CLICK v4's check.  The blob has 500 slots.
 
 # Pre-computed empty slot bytes: each slot is [2B tag LE][4B index LE][00 00].
 # Avoids 1000 _variant_tagged_field() calls per Math instruction.
@@ -102,7 +105,7 @@ _EMPTY_RESERVED_BYTES = b"".join(
 # ---------------------------------------------------------------------------
 
 #: Click PLC memory address pattern.
-_ADDR_RE = re.compile(r"\b(CTD|CT|TD|TXT|SC|SD|DS|DD|DH|DF|X|Y|C|T)\d+\b")
+_ADDR_RE = re.compile(r"\b(?:(?:CTD|CT|TD|TXT|SC|SD|DS|DD|DH|DF|X|Y|C|T)\d+|(?:XD|YD)\d+u?)\b")
 
 #: Reserved function/operator names that must NOT be treated as operands.
 RESERVED_NAMES: frozenset[str] = frozenset(
@@ -132,12 +135,62 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 )
 
 
-def _normalize_parens(expr: str) -> str:
-    """Ensure spaces around parentheses: ``(x)`` → ``( x )``."""
-    expr = re.sub(r"\(\s*", "( ", expr)
-    expr = re.sub(r"\s*\)", " )", expr)
-    # Collapse any double spaces introduced by already-spaced input.
-    return re.sub(r"  +", " ", expr).strip()
+_NUMBER = r"(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+|\d+)(?![\w.])"
+_HEX_CONSTANT = r"[0-9A-Fa-f]+h\b"
+
+#: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
+_TOKEN_RE = re.compile(rf"<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
+_CONSTANT_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}")
+
+#: After these a ``-`` is a sign, not a subtraction.
+_BEFORE_SIGN = frozenset({"(", ",", ":", "+", "-", "*", "/", "^", "MOD", "AND", "OR", "XOR"})
+
+
+def _normalize_spacing(expr: str) -> str:
+    """Space a formula the way Click's formula editor does, one space between tokens.
+
+    ``ABS(x)*2`` → ``ABS ( x ) * 2``, ``RAND(1,100)`` → ``RAND ( 1 , 100 )``,
+    ``SUM(DS1:DS9)`` → ``SUM ( DS1 : DS9 )``.  Click splits the internal form on
+    these spaces, so ``ABS(`` would be a single unknown token.  A sign stays on its
+    constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
+    an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).
+    """
+    out: list[str] = []
+    for token in _TOKEN_RE.findall(expr):
+        is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
+        if is_sign and _CONSTANT_RE.fullmatch(token):
+            out[-1] = f"-{token}"
+        else:
+            out.append(token)
+    return " ".join(out)
+
+
+#: ``ADDR : ADDR`` range inside a formula (e.g. ``DS1401 : DS1410``).
+_RANGE_RE = re.compile(r"\b([A-Z]+)(\d+u?) : \1(\d+u?)\b")
+
+#: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
+_XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
+
+
+def _range_interiors(expression: str) -> list[str]:
+    """Addresses strictly inside each ``A : B`` range, ranges in order.
+
+    Click lists them in the reserved slots (tag ``0x688C``): the endpoints
+    are ordinary operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.
+    """
+    interiors: list[str] = []
+    for m in _RANGE_RE.finditer(expression):
+        prefix, start, end = m.group(1), m.group(2), m.group(3)
+        if prefix in ("XD", "YD"):
+            if start in _XY_WORD_ORDER and end in _XY_WORD_ORDER:
+                inside = _XY_WORD_ORDER[_XY_WORD_ORDER.index(start) + 1 : _XY_WORD_ORDER.index(end)]
+                interiors.extend(f"{prefix}{n}" for n in inside)
+            continue
+        if start.endswith("u") or end.endswith("u"):
+            continue
+        width = len(start) if start.startswith("0") else 0
+        interiors.extend(f"{prefix}{n:0{width}d}" for n in range(int(start) + 1, int(end)))
+    return interiors
 
 
 def _extract_operands(expression: str) -> list[str]:
@@ -156,26 +209,53 @@ def _extract_operands(expression: str) -> list[str]:
     return result
 
 
-def _make_template(expression: str, operands: list[str]) -> str:
-    """Replace operand addresses with ``@`` placeholders.
-
-    Longer addresses are replaced first to avoid partial matches
-    (e.g. ``DS10`` before ``DS1``).
-    """
-    result = expression
-    for addr in sorted(operands, key=lambda s: -len(s)):
-        result = result.replace(addr, "@")
-    return result
+def _make_template(expression: str) -> str:
+    """Replace operand addresses with ``@`` placeholders."""
+    return _ADDR_RE.sub("@", expression)
 
 
 def _make_internal(expression: str) -> str:
     """Convert display-form expression to Click internal form.
 
-    Replaces spaces with ``#`` delimiters and prefixes standalone
-    numeric literals with ``H`` (Click's internal normalization).
+    Replaces spaces with ``#`` delimiters and normalizes literals the way
+    Click does: a decimal integer gets an ``H`` prefix (``200`` → ``H200``),
+    ahead of its sign when negative (``( -5 )`` → ``(#H-5#)``, typed in CLICK v4;
+    a bare ``#-5#`` fails its syntax check), a real gets ``F`` the same way
+    (``( -2.5 )`` → ``(#F-2.5#)``, ``-1.5E+10`` → ``F-1.5E+10``, typed in v4;
+    pasted ``F3.14`` passes its syntax check), a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
+    seen when a pasted Math with ``Ah`` left as typed was reopened and OK'd
+    in CLICK v4, which then passed its syntax check).
+    ``RAND ( a , b )`` is stored infix as ``a#RAND#b``, with a trailing
+    ``#`` when it ends the formula (``H1#RAND#H100#``,
+    ``H1#RAND#H10#+#DS1``).
     """
     tokens = expression.split(" ")
-    return "#".join(f"H{t}" if re.fullmatch(r"\d+", t) else t for t in tokens)
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        group = tokens[i : i + 6]
+        if len(group) == 6 and group[0] == "RAND" and group[1::2] == ["(", ",", ")"]:
+            out += [group[2], "RAND", group[4]]
+            i += 6
+            if i == len(tokens):
+                out.append("")
+            continue
+        out.append(tokens[i])
+        i += 1
+    return "#".join(_internal_literal(t) for t in out)
+
+
+_REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")
+
+
+def _internal_literal(token: str) -> str:
+    if re.fullmatch(r"-?\d+", token):
+        return f"H{token}"
+    if _REAL_LITERAL_RE.fullmatch(token):
+        return f"F{token}"
+    if re.fullmatch(r"[0-9A-Fa-f]+h", token):
+        return f"UH{int(token[:-1], 16)}"
+    return token
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
@@ -246,7 +326,7 @@ class Math(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        self.expression = _normalize_parens(self.expression)
+        self.expression = _normalize_spacing(self.expression)
 
     def to_csv(self) -> str:
         parts = [self.expression, self.result]
@@ -264,14 +344,11 @@ class Math(AfInstruction):
         operands = _extract_operands(self.expression)
 
         # Build the 4 formula fields.
-        template_display = _make_template(self.expression, operands)
+        template_display = _make_template(self.expression)
         if show_nicknames:
             # Click expects operands wrapped as <?ADDR> (empty nickname form)
-            # when the nickname display flag is set.  Replace longer addresses
-            # first to avoid partial-match issues (e.g. DS10 before DS1).
-            formula_display = self.expression
-            for addr in sorted(operands, key=lambda s: -len(s)):
-                formula_display = formula_display.replace(addr, f"<?{addr}>")
+            # when the nickname display flag is set.
+            formula_display = _ADDR_RE.sub(r"<?\g<0>>", self.expression)
         else:
             formula_display = self.expression
         template_internal = _make_internal(template_display)
@@ -283,7 +360,13 @@ class Math(AfInstruction):
         out += _utf16le_null("Math")
         out += struct.pack("<I", 0x271A)  # type marker
         out += b"\x01\x00"  # part count
-        out += struct.pack("<I", _TOTAL_FIELDS)
+        # The 500-slot form pastes into v3 and v4; only wider ranges need v4's capacity.
+        interiors = _range_interiors(self.expression)
+        reserved_slots = (
+            _RESERVED_SLOTS if len(interiors) <= _RESERVED_SLOTS else _V4_RESERVED_SLOTS
+        )
+        interiors = interiors[:reserved_slots]
+        out += struct.pack("<I", 9 + _OPERAND_SLOTS + reserved_slots + 1)
 
         # --- 9 header fields (standard sentinel) ---
         out += _tagged_field(_TAG_RESULT, self.result)
@@ -303,8 +386,14 @@ class Math(AfInstruction):
             out += _variant_tagged_field(_TAG_OPERAND, sentinel, operands[i])
         out += _EMPTY_OPERAND_BYTES[n_ops * _SLOT_EMPTY_SIZE :]
 
-        # --- 500 reserved slots (indexed sentinel, always empty) ---
-        out += _EMPTY_RESERVED_BYTES
+        # --- reserved slots: the interior addresses of each range ---
+        for i, addr in enumerate(interiors):
+            out += _variant_tagged_field(_TAG_RESERVED, struct.pack("<I", i), addr)
+        if reserved_slots == _RESERVED_SLOTS:
+            out += _EMPTY_RESERVED_BYTES[len(interiors) * _SLOT_EMPTY_SIZE :]
+        else:
+            for i in range(len(interiors), reserved_slots):
+                out += struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00"
 
         # --- Terminator ---
         out += _tagged_field(_TAG_TERMINATOR, "")

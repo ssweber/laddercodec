@@ -12,10 +12,20 @@ All instruction blobs follow the same pattern:
 [UTF-16LE class name, null-terminated]
 [type marker: uint32 LE, high byte always 0x27]
 [part count: uint16 LE (0x01 for contacts/coils, 0x02 for timers)]
-[extra bytes: (part_count - 1) bytes, if part_count > 1]
+[extra bytes: (part_count - 1) bytes, if part_count > 1 — each later part's row]
 [field count: uint32 LE]
 [tagged fields...]
 ```
+
+### Part rows
+
+A tall instruction's extra bytes give the row, below the main row, of each later
+part: `01` for a timer's reset, `01 02` for a counter (down, reset) or shift
+(clock, reset), `01 02 03` for a drum (reset, jump, jog). OR legs under an
+input (the main one included) push the later parts down, and CLICK grows the
+box: a drum with one leg under reset is `01 03 04`. A count_down's main part is
+its unused Up input, so its Down input is the first extra byte. The AF cell's `+0x09` becomes the last part's row + 1;
+`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`).
 
 ### Tagged fields
 
@@ -40,6 +50,133 @@ Field values are string-encoded even for numeric data (e.g. `"1000"` for a timer
 | `Tmr` | 0x2718 | Timers (on_delay, off_delay) | `timer.py` |
 
 The encoder uses `Out` as the class name for all coil types; the type marker and func code determine the variant. The decoder also recognizes `Latch` and `Reset` class names from native Click captures.
+
+## Out variants (CLICK v4)
+
+CLICK v4's toggle, debounce, flasher and timed coils are `Out` blobs with type
+marker 0x2715, the same as a plain `out`. They carry 15 fields, and only the
+func code separates them from plain coils. An `Out` blob whose func code is in
+neither table decodes as `raw(Out,...)`. Source: `out_variant.py`.
+
+| Tag | Field |
+|---|---|
+| `0x6066` | target |
+| `0x6067` | range end (always empty) |
+| `0x60B3` / `0x60B4` | on preset / on accumulator (`TD`) |
+| `0x60B5` / `0x60B6` | off preset / off accumulator (debounce, flasher) |
+| `0x11F8` | oneshot (always `0`) |
+| `0x11F5` | immediate (toggle) |
+| `0x1246` | `1` for toggle |
+| `0x1247` | maintained (timed) |
+| `0x21F9` | time unit: 0 ms, 1 s, 2 min |
+| `0x2248` | variant: 0 toggle, 1 debounce, 2 flasher, 3 timed |
+| `0x3218` | func code |
+| `0x20CA` | always `2` |
+
+| Variant | Func codes | Units | Rows (`+0x09` / `+0x0A`) |
+|---|---|---|---|
+| toggle | 8224, immediate 8225 | — | 1 / 1 |
+| debounce | 8226 ms, 8227 s | ms, s | 3 / 3 |
+| flasher | 8228 ms, 8229 s | ms, s | 3 / 3 |
+| timed | 8230–8232 ms/s/min, maintained 8233–8235 | ms, s, min | 2 / 3 |
+
+Each phase stores only its accumulator; Click claims the `T` of the same number
+with it. Timed is the one AF instruction whose cell header has more visual
+sub-rows (`+0x0A`) than rows spanned (`+0x09`).
+
+## Time & Event drum (CLICK v4)
+
+A drum's base is tag `0x2200`: `0` time, `1` event, `2` time & event. Any other
+value decodes as `raw(Drum,...)`. Source: `drum.py`.
+
+CLICK v4 copies every drum back with 82 fields: the 63 v3 fields, then 16 preset
+slots (`0x6891`), `0x428A`, `0x6068` and the terminator. The encoder writes the
+82-field layout for time & event drums only. Time and event drums keep the
+64-field v3 layout, which CLICK v4 still accepts.
+
+| Tag | Time & event drum |
+|---|---|
+| `0x6872` ×16 | events (blank for a step without one) |
+| `0x6891` ×16 | presets (blank for a step without one) |
+| `0x6068` | done bit of the accumulator's timer (`TD101` → `T101`) |
+| `0x428A` | `-1` as written by the encoder; see below |
+| `0x3A05` ×4 | func codes; no-jog base Tms 10503, Ts 10510, Tm 10517, Th 10524, Td 10532 |
+
+The func codes have the same 7-code block shape as the time drum (base, reset,
+jump, then jog group +3..+6) and the same Td skip.
+
+In every drum the codes run consecutively over the enabled pins. With Jump off,
+Jog takes Jump's code: event `8494, 8495, 0, 8496`, not `8497`. CLICK v3
+accepts the skipped code. CLICK v4 pastes it, then fails the syntax check with
+C000A ("All inputs of the box instruction must originate from the same branch")
+until the drum is reopened and OK'd (`v4_captures/drum_jog.bin`).
+
+`0x428A` looks like leftover editor state. Click fills in `-1` for a pasted drum
+that lacks the field. A time drum switched to Time & Event and back came out
+`-4`, with new func codes (Tms 10247/10248 where the v3 table has 8455/8456).
+
+## Break and Continue (CLICK v4)
+
+Break and Continue are class `Next` (type 0x2726), told apart by the func code in
+tag `0x3218`. Source: `forloop.py`.
+
+| `0x3218` | Instruction |
+|---|---|
+| absent | `next()`: v3 writes Next with the terminator field only |
+| `9220` | `next()`: CLICK v4 writes the func code |
+| `9232` | `continue()` |
+| `9233` | `break()` |
+
+Any other func code decodes as `raw(Next,...)`. Break and Continue are encoded
+with the two fields Click writes; `next()` keeps the one-field v3 form. Each
+version accepts either Next on paste and copies back its own: v3 drops `9220`,
+v4 adds it.
+
+## Math formulas
+
+A Math blob (class `Math`, type 0x271A) has 1010 tagged fields: 9 header
+fields, 500 operand slots (tag `0x6888`), 500 reserved slots (tag `0x688C`) and
+a terminator. Source: `math.py`.
+
+The formula appears four times in the header:
+
+| Tag | Field | Example for `SUM ( DS1 : DS3 ) + 5` |
+|---|---|---|
+| `0x61FF` | template, display | `SUM ( @ : @ ) + 5` |
+| `0x6228` | formula, display | `SUM ( DS1 : DS3 ) + 5` |
+| `0x6229` | template, internal | `SUM#(#@#:#@#)#+#H5` |
+| `0x61FD` | formula, internal | `SUM#(#DS1#:#DS3#)#+#H5` |
+
+- **Display form** is spaced the way Click's formula editor spaces it: one space
+  on each side of every operator, paren, comma and range colon (`ABS ( x )`,
+  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)*2` to this form. A sign
+  stays on its constant (`( -5 )`) and is spaced from an address (`- DS401`).
+- **Internal form** is the display form with spaces replaced by `#` and each
+  bare decimal literal prefixed with `H`. Click splits it on `#`, so an
+  unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
+  raises a Math instruction error.
+- **RAND** is stored infix in the internal form: `RAND ( a , b )` becomes
+  `a#RAND#b`, followed by a trailing `#` when RAND ends the formula
+  (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`). The display form keeps the function
+  call.
+
+### Operand and reserved slots
+
+Each slot is `[2B tag][4B index LE][UTF-16LE value]`, and an empty slot is just
+a null terminator. Operand slots hold every address in the formula, in order,
+duplicates included. Reserved slots hold the interior addresses of each
+`A : B` range, ranges in order. The endpoints are ordinary operands, so
+`SUM ( DS201 : DS300 )` stores DS201 and DS300 as operands and DS202..DS299 in
+the reserved slots.
+
+An `XD` or `YD` range also lists the upper half of address 0:
+`MAX ( XD0 : XD3 )` stores XD0u, XD1 and XD2.
+
+CLICK v4 copies Math back with 5000 reserved slots, not 500, for 5510 fields.
+A 500-slot blob still pastes into both v3 and v4, so the encoder writes 500
+unless the ranges have more than 500 interiors. CLICK's editor stops listing
+at 5000 without an error, even though the formula keeps the full range, and the
+encoder does the same.
 
 ## Math nickname flag
 

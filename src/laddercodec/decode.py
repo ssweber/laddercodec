@@ -45,7 +45,6 @@ from .instructions import (
     AfInstruction,
     AfToken,
     ConditionToken,
-    Counter,
     RawInstruction,
     UnknownCondition,
     UnknownInstruction,
@@ -53,6 +52,7 @@ from .instructions import (
     parse_condition_blob,
 )
 from .instructions.raw import find_blob_boundary
+from .model import PinnedInstruction
 from .topology import (
     CELL_SIZE,
     CELL_TAIL_SIZE,
@@ -906,17 +906,17 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
 
     An AF instruction owns ``visual_rows`` grid rows.  A NOP on one of its
     continuation rows is editing cruft — e.g. a NOP left stranded when the
-    user inserts a row above it — not a real op, so drop it.  count_down is
-    exempt: its NOP bridge row is a genuine part of the instruction.
+    user inserts a row above it — not a real op, so drop it.  The main-input
+    row of a box with lead slots is exempt: count_down's NOP bridge row is a
+    genuine part of the instruction.
     """
     for i, af in enumerate(instructions):
         if not isinstance(af, AfInstruction):
             continue
-        if isinstance(af, Counter) and af.counter_type == "count_down":
-            continue
+        bridge = i + af.lead_rows if isinstance(af, PinnedInstruction) and af.lead_rows else -1
         span = int(af.cell_params().get("visual_rows", 1))
         for j in range(i + 1, min(i + span, len(instructions))):
-            if instructions[j] == "NOP":
+            if j != bridge and instructions[j] == "NOP":
                 instructions[j] = ""
 
 

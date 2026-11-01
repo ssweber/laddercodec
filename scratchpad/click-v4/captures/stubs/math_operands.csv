@@ -1,0 +1,65 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math_operands__spacing_add
+#,"math(DS401+DS402,DS481,mode=decimal)"
+R,C1971,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401+DS402,DS481,mode=decimal)"
+#,math_operands__spacing_func_literal
+#,"math(ABS(DS401)*2,DS482,mode=decimal)"
+R,C1972,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS(DS401)*2,DS482,mode=decimal)"
+#,math_operands__spacing_sub_literal
+#,"math(DS401-5,DS483,mode=decimal)"
+R,C1973,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401-5,DS483,mode=decimal)"
+#,math_operands__spacing_sign_tag
+#,"math(-DS401,DS484,mode=decimal)"
+R,C1974,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(-DS401,DS484,mode=decimal)"
+#,math_operands__spacing_power_real
+#,"math(DF401^2.5,DF485,mode=decimal)"
+R,C1975,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401^2.5,DF485,mode=decimal)"
+#,math_operands__ops_69
+#,"math(DS401 + DS402 + DS403 + DS404 + DS405 + DS406 + DS407 + DS408 + DS409 + DS410 + DS411 + DS412 + DS413 + DS414 + DS415 + DS416 + DS417 + DS418 + DS419 + DS420 + DS421 + DS422 + DS423 + DS424 + DS425 + DS426 + DS427 + DS428 + DS429 + DS430 + DS431 + DS432 + DS433 + DS434 + DS435 + DS436 + DS437 + DS438 + DS439 + DS440 + DS441 + DS442 + DS443 + DS444 + DS445 + DS446 + DS447 + DS448 + DS449 + DS450 + DS451 + DS452 + DS453 + DS454 + DS455 + DS456 + DS457 + DS458 + DS459 + DS460 + DS461 + DS462 + DS463 + DS464 + DS465 + DS466 + DS467 + DS468 + DS469,DD486,mode=decimal)"
+R,C1976,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + DS402 + DS403 + DS404 + DS405 + DS406 + DS407 + DS408 + DS409 + DS410 + DS411 + DS412 + DS413 + DS414 + DS415 + DS416 + DS417 + DS418 + DS419 + DS420 + DS421 + DS422 + DS423 + DS424 + DS425 + DS426 + DS427 + DS428 + DS429 + DS430 + DS431 + DS432 + DS433 + DS434 + DS435 + DS436 + DS437 + DS438 + DS439 + DS440 + DS441 + DS442 + DS443 + DS444 + DS445 + DS446 + DS447 + DS448 + DS449 + DS450 + DS451 + DS452 + DS453 + DS454 + DS455 + DS456 + DS457 + DS458 + DS459 + DS460 + DS461 + DS462 + DS463 + DS464 + DS465 + DS466 + DS467 + DS468 + DS469,DD486,mode=decimal)"
+#,math_operands__type_xd
+#,"math(XD0 AND 1h,DH487,mode=hex)"
+R,C1977,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(XD0 AND 1h,DH487,mode=hex)"
+#,math_operands__type_xd_upper
+#,"math(XD0u AND 1h,DH488,mode=hex)"
+R,C1978,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(XD0u AND 1h,DH488,mode=hex)"
+#,math_operands__type_yd
+#,"math(YD1 AND 1h,DH489,mode=hex)"
+R,C1979,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(YD1 AND 1h,DH489,mode=hex)"
+#,math_operands__type_td_ctd_sd
+#,"math(TD1 + CTD1 + SD1,DD490,mode=decimal)"
+R,C1980,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(TD1 + CTD1 + SD1,DD490,mode=decimal)"
+#,math_operands__range_x_gap
+#,"math(SUM ( X001 : X036 ),DS491,mode=decimal)"
+R,C1981,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( X001 : X036 ),DS491,mode=decimal)"
+#,math_operands__range_x_slots
+#,"math(SUM ( X001 : X101 ),DS492,mode=decimal)"
+R,C1982,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( X001 : X101 ),DS492,mode=decimal)"
+#,math_operands__range_t_bits
+#,"math(SUM ( T1 : T5 ),DS493,mode=decimal)"
+R,C1983,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( T1 : T5 ),DS493,mode=decimal)"
+#,math_operands__range_td
+#,"math(MAX ( TD1 : TD5 ),DD494,mode=decimal)"
+R,C1984,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( TD1 : TD5 ),DD494,mode=decimal)"
+#,math_operands__range_xd
+#,"math(MAX ( XD0 : XD3 ),DH495,mode=hex)"
+R,C1985,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( XD0 : XD3 ),DH495,mode=hex)"
+#,math_operands__range_cap_500
+#,"math(SUM ( DS1 : DS502 ),DD496,mode=decimal)"
+R,C1986,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS502 ),DD496,mode=decimal)"
+#,math_operands__range_cap_two
+#,"math(SUM ( DS1 : DS252 ) + SUM ( DS301 : DS552 ),DD497,mode=decimal)"
+R,C1987,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS1 : DS252 ) + SUM ( DS301 : DS552 ),DD497,mode=decimal)"
+#,math_operands__range_over_501
+#,"TYPE: math(SUM ( DS1 : DS503 ),DD498,mode=decimal)"
+R,C1988,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + 1,DD498,mode=decimal)"
+#,math_operands__range_over_998
+#,"TYPE: math(SUM ( DS1 : DS1000 ),DD499,mode=decimal)"
+R,C1989,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + 1,DD499,mode=decimal)"
+#,math_operands__range_over_4498
+#,"TYPE: math(SUM ( DS1 : DS4500 ),DD500,mode=decimal)"
+R,C1990,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + 1,DD500,mode=decimal)"
+#,math_operands__range_over_5496
+#,"TYPE: math(SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ),DD501,mode=decimal)"
+R,C1991,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + 1,DD501,mode=decimal)"
+R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,end()

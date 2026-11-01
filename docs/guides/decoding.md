@@ -29,14 +29,15 @@ All standard Click instruction types are decoded into domain objects:
 - **Contacts** → `Contact` (NO, NC, edge, immediate)
 - **Comparison contacts** → `CompareContact` (==, !=, >, <, >=, <=)
 - **Coils** → `Coil` (out, latch, reset, immediate, range, oneshot)
+- **CLICK v4 Out variants** → `OutVariant` (toggle, debounce, flasher, timed)
 - **Timers** → `Timer` (on_delay, off_delay, retentive)
 - **Counters** → `Counter` (count_up, count_down)
 - **Copy family** → `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`
 - **Math** → `Math` (decimal/hex expressions)
 - **Shift registers** → `Shift`
-- **Drum sequencers** → `Drum` (event/time)
+- **Drum sequencers** → `Drum` (event, time, and CLICK v4 time & event)
 - **Table search** → `Search`
-- **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`
+- **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue` (CLICK v4)
 - **Modbus** → `Send`, `Receive`
 
 Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline.
@@ -108,6 +109,24 @@ The returned `Program` dataclass has:
 | `rungs` | `list[Rung]` | Decoded rungs — same `Rung` objects as `decode()` returns |
 
 Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs, so you can pass them to `encode()`, `write_csv()`, or any other API that accepts `Rung` objects.
+
+## Check for CLICK v4 instructions
+
+An older CLICK pastes v4 rungs without complaint and changes them: Break and
+Continue come back as plain Next, which closes the loop early. Check before
+pasting into a pre-v4 CLICK:
+
+```python
+from laddercodec import find_v4_only
+
+for index, instruction in find_v4_only(rungs):
+    print(f"rung {index}: {instruction.to_csv()} needs CLICK v4")
+```
+
+v4-only: `Break`, `Continue`, `OutVariant`, a time & event `Drum`, a time `Drum`
+with a duration from a register, and `Math` using MAX, MIN, MDN, AVG, ABS, RAND,
+SUM over a bit range, or ranges past 500 interior addresses. `is_v4_only()` checks
+a single instruction.
 
 ## Round-trip identity
 

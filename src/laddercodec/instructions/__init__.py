@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction
+from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -18,6 +18,7 @@ from . import end as end_mod
 from . import forloop as forloop_mod
 from . import home as home_mod
 from . import math as math_mod
+from . import out_variant as out_variant_mod
 from . import position as position_mod
 from . import raw as raw_mod
 from . import return_ as return_mod
@@ -36,9 +37,10 @@ from .drum import Drum
 from .email import Email
 from .end import End
 from .family import AfInstructionFamilySpec, ConditionInstructionFamilySpec
-from .forloop import ForLoop, Next
+from .forloop import Break, Continue, ForLoop, Next
 from .home import Home
 from .math import Math
+from .out_variant import OutVariant
 from .position import Position
 from .raw import RawInstruction
 from .return_ import Return
@@ -88,6 +90,7 @@ ConditionToken = str | Contact | CompareContact | ConditionInstruction | Unknown
 AfToken = (
     str
     | Coil
+    | OutVariant
     | Timer
     | Counter
     | Copy
@@ -97,6 +100,8 @@ AfToken = (
     | Unpack
     | ForLoop
     | Next
+    | Break
+    | Continue
     | Shift
     | End
     | Return
@@ -113,6 +118,7 @@ CONDITION_FAMILY_SPECS: tuple[ConditionInstructionFamilySpec, ...] = (
 
 AF_FAMILY_SPECS: tuple[AfInstructionFamilySpec, ...] = (
     coil_mod.SPEC,
+    out_variant_mod.SPEC,
     timer_mod.SPEC,
     counter_mod.SPEC,
     copy_mod.SPEC,
@@ -199,11 +205,19 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
     from .raw import _decompose_blob, _fields_to_tag_dicts
 
     try:
-        class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
+        class_name, type_marker, _part_count, extra, fields = _decompose_blob(raw)
     except (ValueError, struct.error):
         return None
     tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    return from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
+    parsed = from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
+    return _with_pin_rows(parsed, extra)
+
+
+def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
+    """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
+    if not isinstance(parsed, PinnedInstruction) or len(extra) != len(parsed.pin_rows):
+        return parsed
+    return parsed.with_pin_rows(tuple(extra))
 
 
 def from_tags_condition(
@@ -274,6 +288,9 @@ __all__ = [
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Next",
+    "Break",
+    "Continue",
+    "OutVariant",
     "Pack",
     "Position",
     "RawInstruction",

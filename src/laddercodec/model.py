@@ -11,9 +11,9 @@ tables live in :mod:`laddercodec.instructions`.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import IntEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -47,6 +47,46 @@ class AfInstruction:
 
     def cell_params(self) -> dict:
         raise NotImplementedError
+
+
+class PinnedInstruction(AfInstruction):
+    """An AF box with inputs ("slots") on several rows.
+
+    Slots run top to bottom: ``lead_rows`` slots above the main input
+    (count_down's unused Up), the main input (the CSV row holding the
+    instruction token), then one slot per name in ``pin_names()``.
+    ``pin_rows`` holds the row of every slot after the first; it is the
+    blob's part bytes, and the box ends at its last row.
+
+    OR legs under a slot push every later slot down; legs under the last
+    slot sit below the box.  An unused pin keeps a row of its own.  When
+    ``lead_rows`` is nonzero, the decoded main row's AF cell holds a NOP.
+    """
+
+    pin_rows: tuple[int, ...]
+
+    @property
+    def lead_rows(self) -> int:
+        """Slots above the main input."""
+        return 0
+
+    def pin_names(self) -> tuple[str, ...]:
+        """CSV pin tokens below the main input, in box order (e.g. ``.reset``)."""
+        raise NotImplementedError
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        """CSV text of each pin row, ``None`` for an unused pin."""
+        raise NotImplementedError
+
+    def with_pins(
+        self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]
+    ) -> PinnedInstruction:
+        """Copy with the flags the used pins (name -> args) imply, at ``pin_rows``."""
+        raise NotImplementedError
+
+    def with_pin_rows(self, pin_rows: tuple[int, ...]) -> PinnedInstruction:
+        """Copy at ``pin_rows`` (subclasses are dataclasses)."""
+        return replace(cast(Any, self), pin_rows=pin_rows)
 
 
 class InstructionType(IntEnum):

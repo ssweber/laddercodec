@@ -393,6 +393,12 @@ class TestAfNodeToToken:
         assert result.class_name == "X"
         assert result.blob == bytes.fromhex(blob_hex)
 
+    def test_raw_fields_token_keeps_multipart_extras(self) -> None:
+        # Click numbers part extras from 1 (a timer's part count 2 is followed by 01).
+        timer_blob = Timer.from_csv_token("on_delay(T1,TD1,preset=1000,unit=Tms)").build_blob()
+        raw = RawInstruction(class_name="Tmr", blob=timer_blob, part_count=2)
+        assert RawInstruction.from_csv_token(raw.to_csv()).blob == timer_blob
+
     def test_counter(self) -> None:
         node = AfCall(
             name="count_up",
@@ -621,6 +627,110 @@ class TestShiftRows:
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="not supported for shift"):
             convert_rung(rung)
+
+    def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        leg = _blank()
+        leg[0] = "C98"
+        clock = _wire_row("C97")
+        clock[1] = "T"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", clock, ".clock()"),
+                ("", leg, ""),
+                ("", _wire_row("C95"), ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        lr, _, afs, _ = convert_rung(rung)
+        assert lr == 4
+        assert isinstance(afs[0], Shift)
+        assert afs[0].pin_rows == (1, 3)
+
+    def test_shift_rejects_pins_out_of_order(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".reset()"),
+                ("", _wire_row("C98"), ".clock()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ConvertError, match="out of order"):
+            convert_rung(rung)
+
+
+def _or_row(contact: str) -> list[str]:
+    """A pin row whose wire drops a vertical at column B for an OR leg below."""
+    row = _wire_row(contact)
+    row[1] = "T"
+    return row
+
+
+def _leg(contact: str, down: bool = False) -> list[str]:
+    row = _blank()
+    row[0] = contact
+    if down:
+        row[1] = "|"
+    return row
+
+
+_REDGE = ("", _or_row("C2"), ".reset()")
+_RESET = ("", _wire_row("C2"), ".reset()")
+_JUMP = ("", _wire_row("C5"), ".jump(DS2)")
+_JOG = ("", _wire_row("C3"), ".jog()")
+_BLANK = ("", _blank(), "")
+
+
+class TestDrumPinLayout:
+    """Each drum pin keeps a row of its own; an unused one goes below the legs above it.
+
+    Native CLICK v4 (clicknick test_drums.bin): Reset + Jog lays out Reset 1, blank
+    Jump 2, Jog 3; a Reset leg added with Insert Row gives Reset 1, leg 2, Jump 3, Jog 4.
+    """
+
+    @pytest.mark.parametrize(
+        ("rows", "pin_rows"),
+        [
+            ([_RESET, _JOG], (1, 2, 3)),
+            ([_RESET, _BLANK, _JOG], (1, 2, 3)),
+            ([_REDGE, ("", _leg("C4"), ""), _JOG], (1, 3, 4)),
+            ([_REDGE, ("", _leg("C4"), ""), _BLANK, _JOG], (1, 3, 4)),
+            ([_REDGE, ("", _leg("C4", down=True), ""), ("", _leg("C6"), ""), _JOG], (1, 4, 5)),
+            ([_RESET, _JUMP], (1, 2, 3)),
+            ([_REDGE, ("", _leg("C4"), ""), _JUMP], (1, 3, 4)),
+        ],
+        ids=[
+            "jog_only",
+            "jog_only_explicit_blank",
+            "reset_leg_jog",
+            "reset_leg_blank_jog",
+            "reset_two_legs_jog",
+            "jump_only",
+            "reset_leg_jump",
+        ],
+    )
+    def test_unused_pin_row_follows_legs(
+        self, tmp_path: Path, rows: list[tuple[str, list[str], str]], pin_rows: tuple[int, ...]
+    ) -> None:
+        csv_path = tmp_path / "main.csv"
+        main = (
+            "R",
+            _wire_row("C1"),
+            "event_drum(outputs=[C3],events=[C2],pattern=[[1]],current_step=DS1,completion_flag=C1)",
+        )
+        _write_csv(csv_path, [main, *rows])
+
+        lr, _, afs, _ = convert_rung(parse_csv_file(csv_path).rungs[0])
+        assert isinstance(afs[0], Drum)
+        assert afs[0].pin_rows == pin_rows
+        assert lr == pin_rows[-1] + 1
 
 
 class TestForLoopRows:

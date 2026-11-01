@@ -1,0 +1,70 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math__max_ds
+#,"math(MAX ( DS1401 : DS1410 ),DS1501,mode=decimal)"
+R,C1701,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DS1401 : DS1410 ),DS1501,mode=decimal)"
+#,math__min_ds
+#,"math(MIN ( DS1401 : DS1410 ),DS1502,mode=decimal)"
+R,C1702,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DS1401 : DS1410 ),DS1502,mode=decimal)"
+#,math__median_ds
+#,"math(MDN ( DS1401 : DS1410 ),DS1503,mode=decimal)"
+R,C1703,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DS1401 : DS1410 ),DS1503,mode=decimal)"
+#,math__mean_ds
+#,"math(AVG ( DS1401 : DS1410 ),DS1504,mode=decimal)"
+R,C1704,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DS1401 : DS1410 ),DS1504,mode=decimal)"
+#,math__max_dd
+#,"math(MAX ( DD101 : DD110 ),DD201,mode=decimal)"
+R,C1705,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DD101 : DD110 ),DD201,mode=decimal)"
+#,math__min_dd
+#,"math(MIN ( DD101 : DD110 ),DD202,mode=decimal)"
+R,C1706,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DD101 : DD110 ),DD202,mode=decimal)"
+#,math__median_dd
+#,"math(MDN ( DD101 : DD110 ),DD203,mode=decimal)"
+R,C1707,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DD101 : DD110 ),DD203,mode=decimal)"
+#,math__mean_dd
+#,"math(AVG ( DD101 : DD110 ),DD204,mode=decimal)"
+R,C1708,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DD101 : DD110 ),DD204,mode=decimal)"
+#,math__max_df
+#,"math(MAX ( DF101 : DF110 ),DF201,mode=decimal)"
+R,C1709,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DF101 : DF110 ),DF201,mode=decimal)"
+#,math__min_df
+#,"math(MIN ( DF101 : DF110 ),DF202,mode=decimal)"
+R,C1710,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DF101 : DF110 ),DF202,mode=decimal)"
+#,math__median_df
+#,"math(MDN ( DF101 : DF110 ),DF203,mode=decimal)"
+R,C1711,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DF101 : DF110 ),DF203,mode=decimal)"
+#,math__mean_df
+#,"math(AVG ( DF101 : DF110 ),DF204,mode=decimal)"
+R,C1712,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DF101 : DF110 ),DF204,mode=decimal)"
+#,math__max_dh
+#,"math(MAX ( DH101 : DH104 ),DH201,mode=hex)"
+R,C1713,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DH101 : DH104 ),DH201,mode=hex)"
+#,math__min_dh
+#,"math(MIN ( DH101 : DH104 ),DH202,mode=hex)"
+R,C1714,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DH101 : DH104 ),DH202,mode=hex)"
+#,math__median_dh
+#,"math(MDN ( DH101 : DH104 ),DH203,mode=hex)"
+R,C1715,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DH101 : DH104 ),DH203,mode=hex)"
+#,math__mean_dh
+#,"math(AVG ( DH101 : DH104 ),DH204,mode=hex)"
+R,C1716,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DH101 : DH104 ),DH204,mode=hex)"
+#,math__sum_bits
+#,"math(SUM ( C1801 : C1816 ),DS1505,mode=decimal)"
+R,C1717,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( C1801 : C1816 ),DS1505,mode=decimal)"
+#,math__abs_ds
+#,"math(ABS ( DS1411 ),DS1506,mode=decimal)"
+R,C1718,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS(DS1411),DS1506,mode=decimal)"
+#,math__abs_df
+#,"math(ABS ( DF111 ),DF205,mode=decimal)"
+R,C1719,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS(DF111),DF205,mode=decimal)"
+#,math__composed
+#,"math(MAX ( DS1401 : DS1410 ) + ABS ( DS1411 ),DS1507,mode=decimal)"
+R,C1720,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DS1401 : DS1410 ) + ABS(DS1411),DS1507,mode=decimal)"
+#,math__rand_const
+#,"math(RAND ( 1 , 100 ),DS1508,mode=decimal)"
+R,C1721,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND(1,100),DS1508,mode=decimal)"
+#,math__rand_reg
+#,"math(RAND ( DD111 , DD112 ),DD205,mode=decimal)"
+R,C1722,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND(DD111,DD112),DD205,mode=decimal)"
+#,math__rand_hex
+#,"math(RAND ( DH105 , DH106 ),DH205,mode=hex)"
+R,C1723,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND(DH105,DH106),DH205,mode=hex)"

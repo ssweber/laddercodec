@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import InstructionType, PinnedInstruction, _validate_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -50,7 +50,7 @@ _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 
 
 @dataclass
-class Counter(AfInstruction):
+class Counter(PinnedInstruction):
     """A counter instruction (count_up / count_down)."""
 
     counter_type: Literal["count_up", "count_down"]
@@ -59,6 +59,33 @@ class Counter(AfInstruction):
     preset: str
     down_enabled: bool = False
     reset_enabled: bool = False
+    #: Rows of the down and reset inputs below the up input (row 0).  OR legs
+    #: on an input push the later inputs down.  count_down's main input is Down
+    #: (row 1, under its unused Up), so legs under it push ``.reset()`` down.
+    pin_rows: tuple[int, int] = (1, 2)
+
+    @property
+    def lead_rows(self) -> int:
+        return 1 if self.counter_type == "count_down" else 0
+
+    def pin_names(self) -> tuple[str, ...]:
+        return (".reset",) if self.counter_type == "count_down" else (".down", ".reset")
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        reset = ".reset()" if self.reset_enabled else None
+        if self.counter_type == "count_down":
+            return (reset,)
+        return (".down()" if self.down_enabled else None, reset)
+
+    def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Counter:
+        if ".reset" not in pins:
+            raise ValueError(f"{self.counter_type} requires a .reset() pin row")
+        return replace(
+            self,
+            reset_enabled=True,
+            down_enabled=".down" in pins,
+            pin_rows=cast(tuple[int, int], pin_rows),
+        )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Counter:
@@ -110,7 +137,8 @@ class Counter(AfInstruction):
 
     def cell_params(self) -> dict:
         return {
-            "visual_rows": 3,
+            "visual_rows": self.pin_rows[-1] + 1,
+            "sub_rows": 3,
             # Native count_down AF row 0 stores +0x1D=0 (while count_up uses 1).
             "wire_right": 0 if self.counter_type == "count_down" else 1,
         }
@@ -127,7 +155,7 @@ class Counter(AfInstruction):
         out += _utf16le_null("Cnt")
         out += struct.pack("<I", type_marker)
         out += b"\x03\x00"  # part count
-        out += b"\x01\x02"  # extra part bytes
+        out += bytes(self.pin_rows)  # extra part bytes: each pin's row
         out += struct.pack("<I", 9)  # field count
 
         std_values = [

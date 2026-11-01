@@ -413,8 +413,9 @@ class RawInstruction(AfInstruction):
 
         fields = _parse_field_specs(field_specs)
 
-        # Reconstruct extra bytes (sequential: 0, 1, ..., part_count-2).
-        extra_bytes = bytes(range(max(0, part_count - 1)))
+        # Reconstruct extra bytes: Click numbers parts 1..part_count-1 (Tmr 01,
+        # Cnt/SR 01 02, Drum 01 02 03 in every native capture).
+        extra_bytes = bytes(range(1, max(1, part_count)))
 
         blob = _compose_blob(class_name, type_marker, part_count, extra_bytes, fields)
         return cls(class_name=class_name, blob=blob, part_count=part_count)

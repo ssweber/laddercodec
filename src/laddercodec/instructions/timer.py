@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
-from ..model import AfInstruction
+from ..model import PinnedInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
 
 @dataclass
-class Timer(AfInstruction):
+class Timer(PinnedInstruction):
     """A timer instruction (on_delay / off_delay).
 
     Occupies the AF column.  The binary class name is ``Tmr``
@@ -59,6 +59,10 @@ class Timer(AfInstruction):
     setpoint: str  # preset value or operand, e.g. "1" or "DS1"
     unit: str  # "Tms", "Ts", "Tm", "Th", "Td"
     retained: bool = False  # True = retentive (RTON)
+    #: Row of the reset input.  OR legs under the enable input of a retentive
+    #: timer push it down.  A timer without ``.reset()`` stays 2 rows with its
+    #: legs beside and below it (native: tumbler ProductionErrors).
+    pin_rows: tuple[int] = (1,)
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
@@ -125,7 +129,16 @@ class Timer(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        return {"visual_rows": 2}
+        return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 2}
+
+    def pin_names(self) -> tuple[str, ...]:
+        return (".reset",)
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        return (".reset()" if self.retained else None,)
+
+    def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Timer:
+        return replace(self, retained=".reset" in pins, pin_rows=cast(tuple[int], pin_rows))
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this timer cell."""
@@ -138,7 +151,7 @@ class Timer(AfInstruction):
         out += _utf16le_null("Tmr")
         out += struct.pack("<I", type_marker)
         out += b"\x02\x00"  # part count (differs from contact/coil's 01 00)
-        out += b"\x01"  # sub-marker
+        out += bytes(self.pin_rows)  # extra part byte: the reset input's row
         out += struct.pack("<I", 9)  # field count
 
         # Fields 0–5: standard tagged fields.

@@ -1,18 +1,21 @@
-"""Drum — event drum and time drum instructions (type marker 0x271B).
+"""Drum — event, time, and time & event drum instructions (type marker 0x271B).
 
 Binary class name: ``"Drum"``.
-Drum types: event_drum (event-driven), time_drum (time-driven).
-Both share the same 64-field blob structure.
-4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3).
+Drum types: event_drum (event-driven), time_drum (time-driven), and CLICK v4's
+time_event_drum (each step ends on its preset time and/or its event).
+Event and time drums use the 64-field v3 blob; time & event drums use v4's
+82-field blob (16 preset slots ``0x6891``, ``0x428A``, timer done bit ``0x6068``).
+4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3), more when OR
+legs under a pin push the later pins down (``pin_rows``, the blob's part bytes).
 """
 
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING, Literal, cast
 
-from ..model import AfInstruction
+from ..model import PinnedInstruction
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -37,6 +40,19 @@ _TIME_FC: dict[str, tuple[int, int]] = {
     "Th": (8476, 8477),
     "Td": (8484, 8485),
 }
+
+# Time & event drum (CLICK v4): unit → no-jog base func code; same 7-code block
+# shape and Td skip as the time drum (v4_captures/drum.bin).
+_TIME_EVENT_FC_BASE: dict[str, int] = {
+    "Tms": 10503,
+    "Ts": 10510,
+    "Tm": 10517,
+    "Th": 10524,
+    "Td": 10532,
+}
+
+# Drum base (tag 0x2200).
+_BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT = "0", "1", "2"
 
 # Time unit name → index string (same convention as Timer).
 _DRUM_UNIT_TO_INDEX: dict[str, str] = {
@@ -99,31 +115,55 @@ def _parse_pattern(val: str) -> list[list[int]]:
     return [[int(x) for x in _parse_simple_list(row_str)] for row_str in rows if row_str]
 
 
+def _parse_optional_list(val: str) -> list[str]:
+    """Parse ``"[1000,None,DS1]"``; ``None`` (an unused step slot) becomes ``""``."""
+    return ["" if x == "None" else x for x in _parse_simple_list(val)]
+
+
+def _format_optional_list(values: list[str]) -> str:
+    return ",".join(value or "None" for value in values)
+
+
+def _timer_done_bit(accumulator: str) -> str:
+    """``TD101`` -> ``T101``: the timer a time & event drum's accumulator belongs to."""
+    if not accumulator.startswith("TD"):
+        raise ValueError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
+    return f"T{accumulator[2:]}"
+
+
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class Drum(AfInstruction):
-    """A drum sequencer instruction (event_drum / time_drum).
+class Drum(PinnedInstruction):
+    """A drum sequencer instruction (event_drum / time_drum / time_event_drum).
 
     Occupies the AF column.  The binary class name is ``Drum``
-    (type marker 0x271B).  Each drum rung takes 4 grid rows:
-    row 0 = main, row 1 = reset, row 2 = jump, row 3 = jog.
+    (type marker 0x271B).  A drum takes at least 4 grid rows: row 0 = main,
+    then reset, jump and jog at ``pin_rows`` (1, 2, 3 unless OR legs grow it).
+
+    ``events_or_presets`` holds the events of an event drum and the presets of a
+    time or time & event drum; ``events`` holds a time & event drum's events.
+    A time & event step may leave either one blank (``""``, ``None`` in CSV).
     """
 
-    drum_kind: Literal["event", "time"]
+    drum_kind: Literal["event", "time", "time_event"]
     outputs: list[str] = field(default_factory=list)
     events_or_presets: list[str] = field(default_factory=list)
     pattern: list[list[int]] = field(default_factory=list)
     current_step: str = ""
     completion_flag: str = ""
-    accumulator: str = ""  # TD address (time drum only)
-    unit: str = ""  # "Tms"/"Ts"/"Tm"/"Th"/"Td" (time drum only)
+    accumulator: str = ""  # TD address (time and time & event drums)
+    unit: str = ""  # "Tms"/"Ts"/"Tm"/"Th"/"Td" (time and time & event drums)
     jog_enabled: bool = False
     jump_enabled: bool = False
     jump_target: str = ""  # DS address
+    events: list[str] = field(default_factory=list)  # time & event drum only
+    #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
+    #: a pin push the later pins down; an unused pin keeps its row.
+    pin_rows: tuple[int, int, int] = (1, 2, 3)
 
     @property
     def num_outputs(self) -> int:
@@ -145,6 +185,17 @@ class Drum(AfInstruction):
                 f"current_step={self.current_step},"
                 f"completion_flag={self.completion_flag})"
             )
+        if self.drum_kind == "time_event":
+            return (
+                f"time_event_drum(outputs=[{outputs_str}],"
+                f"presets=[{_format_optional_list(self.events_or_presets)}],"
+                f"events=[{_format_optional_list(self.events)}],"
+                f"unit={self.unit},"
+                f"pattern=[{pattern_str}],"
+                f"current_step={self.current_step},"
+                f"accumulator={self.accumulator},"
+                f"completion_flag={self.completion_flag})"
+            )
         presets_str = ",".join(self.events_or_presets)
         return (
             f"time_drum(outputs=[{outputs_str}],"
@@ -157,30 +208,60 @@ class Drum(AfInstruction):
         )
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 4}
+        # +0x0A keeps the base height when OR legs grow the box (pins.bin).
+        return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 4}
+
+    def pin_names(self) -> tuple[str, ...]:
+        return (".reset", ".jump", ".jog")
+
+    def pin_labels(self) -> tuple[str | None, ...]:
+        return (
+            ".reset()",
+            f".jump({self.jump_target})" if self.jump_enabled else None,
+            ".jog()" if self.jog_enabled else None,
+        )
+
+    def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Drum:
+        if ".reset" not in pins:
+            raise ValueError("Drum requires a .reset() pin row")
+        drum = replace(self, pin_rows=cast(tuple[int, int, int], pin_rows))
+        if ".jump" in pins:
+            target = pins[".jump"][0] if pins[".jump"] else ""
+            drum = replace(drum, jump_enabled=True, jump_target=target)
+        if ".jog" in pins:
+            drum = replace(drum, jog_enabled=True)
+        return drum
 
     def _compute_func_codes(self) -> list[str]:
-        """Return the 4 func-code slot values [base, reset, jump, jog]."""
+        """Return the 4 func-code slot values [base, reset, jump, jog].
+
+        Codes run consecutively over the enabled pins: with jump off, jog takes
+        the code jump would have had (8496, not 8497).  CLICK v3 accepts either;
+        v4's syntax check rejects the gap with C000A ("All inputs of the box
+        instruction must originate from the same branch").
+        """
         if self.drum_kind == "event":
             if self.jog_enabled:
                 base, reset = _EVENT_FC_JOG[0], _EVENT_FC_JOG[1]
                 jump = _EVENT_FC_JOG[2] if self.jump_enabled else 0
-                jog = _EVENT_FC_JOG[3]
+                jog = _EVENT_FC_JOG[3] if self.jump_enabled else _EVENT_FC_JOG[2]
             else:
                 base, reset = _EVENT_FC_NO_JOG[0], _EVENT_FC_NO_JOG[1]
                 jump = _EVENT_FC_NO_JOG[2] if self.jump_enabled else 0
                 jog = 0
             return [str(base), str(reset), str(jump), str(jog)]
-        fc = _TIME_FC.get(self.unit)
-        if fc is None:
-            raise ValueError(f"Unsupported time drum unit: {self.unit!r}")
+        if self.drum_kind == "time_event":
+            block_base = _TIME_EVENT_FC_BASE.get(self.unit, 0)
+        else:
+            block_base = _TIME_FC.get(self.unit, (0, 0))[0]
+        if not block_base:
+            raise ValueError(f"Unsupported {self.drum_kind} drum unit: {self.unit!r}")
         # Each time unit reserves a 7-code block, same shape as event drums:
         # no-jog group (base, reset, jump) then jog group (base, reset, jump, jog).
-        block_base = fc[0]
         if self.jog_enabled:
             base, reset = block_base + 3, block_base + 4
             jump = block_base + 5 if self.jump_enabled else 0
-            jog = block_base + 6
+            jog = block_base + 6 if self.jump_enabled else block_base + 5
         else:
             base, reset = block_base, block_base + 1
             jump = block_base + 2 if self.jump_enabled else 0
@@ -198,19 +279,21 @@ class Drum(AfInstruction):
         out += _utf16le_null("Drum")
         out += struct.pack("<I", type_marker)
         out += struct.pack("<H", 4)  # part count
-        out += b"\x01\x02\x03"  # extra bytes (part_count - 1 = 3)
-        out += struct.pack("<I", 64)  # field count
+        out += bytes(self.pin_rows)  # extra bytes: each pin's row
+        time_event = self.drum_kind == "time_event"
+        out += struct.pack("<I", 82 if time_event else 64)  # field count
 
         # Fields 0-3: func codes (sub-indexed 0x3A05)
         func_codes = self._compute_func_codes()
         for i, fc in enumerate(func_codes):
             out += _variant_tagged_field(0x3A05, struct.pack("<I", i), fc)
 
-        # Field 4: is_event (1=event, 0=time)
-        out += _tagged_field(0x2200, "1" if self.drum_kind == "event" else "0")
+        # Field 4: drum base (0=time, 1=event, 2=time & event)
+        base = {"time": _BASE_TIME, "event": _BASE_EVENT, "time_event": _BASE_TIME_EVENT}
+        out += _tagged_field(0x2200, base[self.drum_kind])
 
         # Field 5: time unit index
-        unit_idx = _DRUM_UNIT_TO_INDEX.get(self.unit, "0") if self.drum_kind == "time" else "0"
+        unit_idx = _DRUM_UNIT_TO_INDEX.get(self.unit, "0") if self.drum_kind != "event" else "0"
         out += _tagged_field(0x21F9, unit_idx)
 
         # Fields 6-7: num_steps, num_outputs
@@ -235,9 +318,11 @@ class Drum(AfInstruction):
         # Field 13: jump target
         out += _tagged_field(0x6071, self.jump_target)
 
-        # Fields 14-29: events/presets (sub-indexed 0x6872, 16 slots)
+        # Fields 14-29: events/presets (sub-indexed 0x6872, 16 slots); a time & event
+        # drum keeps its events here and its presets in 0x6891.
+        step_values = self.events if time_event else self.events_or_presets
         for i in range(16):
-            value = self.events_or_presets[i] if i < self.num_steps else ""
+            value = step_values[i] if i < len(step_values) else ""
             out += _variant_tagged_field(0x6872, struct.pack("<I", i), value)
 
         # Fields 30-45: pattern bitmasks (sub-indexed 0x3A26, 16 slots)
@@ -253,7 +338,18 @@ class Drum(AfInstruction):
         # Field 62: visual rows marker
         out += _tagged_field(0x20CA, "2")
 
-        # Field 63: terminator
+        if time_event:
+            # Fields 63-78: presets (sub-indexed 0x6891, 16 slots)
+            for i in range(16):
+                value = self.events_or_presets[i] if i < self.num_steps else ""
+                out += _variant_tagged_field(0x6891, struct.pack("<I", i), value)
+            # Field 79: unexplained; Click writes -1 (once -2) and itself fills in -1
+            # for a pasted drum that lacks it.
+            out += _tagged_field(0x428A, "-1")
+            # Field 80: the done bit of the accumulator's timer (TD101 -> T101)
+            out += _tagged_field(0x6068, _timer_done_bit(self.accumulator))
+
+        # Last field: terminator
         out += _tagged_field(0x0000, "")
 
         return bytes(out)
@@ -276,6 +372,13 @@ def from_tags(
 ) -> Drum | None:
     """Construct a Drum from tag data (shared by both decoders)."""
     if class_name != "Drum" or type_code != _DRUM_TYPE_CODE:
+        return None
+
+    # Tag 0x2200 is the drum base: absent/0 time, 1 event, 2 time & event (CLICK v4,
+    # events in 0x6872, presets in 0x6891).  Any other base falls through to
+    # RawInstruction rather than misreading its step slots.
+    base = tags.get(0x2200, "")
+    if base not in ("", _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT):
         return None
 
     lens = tag_byte_lens or {}
@@ -301,6 +404,31 @@ def from_tags(
 
     if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
         return None
+
+    if base == _BASE_TIME_EVENT:
+        presets_by_idx = variant_strings.get(0x6891, {})
+        outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
+        unit = _DRUM_INDEX_TO_UNIT.get(tags.get(0x21F9, "0"))
+        accumulator = tags.get(0x606F, "")
+        if any(not value for value in outputs) or unit is None or not accumulator:
+            return None
+        return Drum(
+            drum_kind="time_event",
+            outputs=outputs,
+            events_or_presets=[presets_by_idx.get(i, "") for i in range(num_steps)],
+            events=[events_by_idx.get(i, "") for i in range(num_steps)],
+            pattern=[
+                [(bitmasks_by_idx.get(s, 0) >> o) & 1 for o in range(num_outputs)]
+                for s in range(num_steps)
+            ],
+            current_step=current_step,
+            completion_flag=completion_flag,
+            accumulator=accumulator,
+            unit=unit,
+            jog_enabled=0x1201 in tags,
+            jump_enabled=0x1202 in tags,
+            jump_target=tags.get(0x6071, ""),
+        )
 
     outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
     events_or_presets = [events_by_idx.get(i, "") for i in range(num_steps)]
@@ -362,6 +490,31 @@ def parse_af_call(call: AfCall) -> Drum:
     current_step = call.kwargs.get("current_step", "")
     completion_flag = call.kwargs.get("completion_flag", "")
 
+    if call.name == "time_event_drum":
+        presets = _parse_optional_list(call.kwargs.get("presets", "[]"))
+        events = _parse_optional_list(call.kwargs.get("events", "[]"))
+        if len(presets) != len(events):
+            raise ValueError(
+                f"time_event_drum needs one preset and one event per step "
+                f"(None for unused): {len(presets)} presets, {len(events)} events"
+            )
+        unit = call.kwargs.get("unit", "")
+        if unit not in _TIME_EVENT_FC_BASE:
+            raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
+        accumulator = call.kwargs.get("accumulator", "")
+        _timer_done_bit(accumulator)
+        return Drum(
+            drum_kind="time_event",
+            outputs=outputs,
+            events_or_presets=presets,
+            events=events,
+            pattern=pattern,
+            current_step=current_step,
+            completion_flag=completion_flag,
+            accumulator=accumulator,
+            unit=unit,
+        )
+
     if is_event:
         events_or_presets = _parse_simple_list(call.kwargs.get("events", "[]"))
         accumulator = ""
@@ -390,7 +543,7 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Drum,),
     binary_class_names=("Drum",),
     from_tags=from_tags,
-    csv_names=("event_drum", "time_drum"),
+    csv_names=("event_drum", "time_drum", "time_event_drum"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset", ".jump", ".jog"),
     min_csv_rows=4,

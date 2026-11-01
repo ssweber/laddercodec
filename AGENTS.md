@@ -43,6 +43,7 @@ src/laddercodec/
 ├── binary_helpers.py     # Shared binary primitives: UTF-16LE encode/decode, tagged fields
 ├── decode.py             # Decoder: decode() + internal decode_rung(), decode_rungs()
 ├── decode_program.py     # Program file decoder: decode_program() — Scr*.tmp to Program
+├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
@@ -52,6 +53,7 @@ src/laddercodec/
 │   ├── contact.py        # Contact (NO/NC/edge/immediate), build_blob(), cell_params(), parser
 │   ├── comparison.py     # CompareContact (==, !=, >, <, >=, <=), build_blob(), cell_params(), parser
 │   ├── coil.py           # Coil (out/latch/reset, range, immediate, oneshot), build_blob(), cell_params(), parser
+│   ├── out_variant.py    # OutVariant (CLICK v4 toggle/debounce/flasher/timed), build_blob(), cell_params(), parser
 │   ├── timer.py          # Timer (on_delay/off_delay, retentive), build_blob(), cell_params(), parser
 │   ├── copy.py           # Copy (single/block/fill), BlockCopy, Fill — build_blob(), cell_params(), parser
 │   └── raw.py            # RawInstruction (opaque blob passthrough), build_blob(), cell_params()
@@ -91,6 +93,7 @@ src/laddercodec/
 tests/
 ├── test_smoke.py            # Basic sanity check
 ├── test_coverage.py         # Coverage golden fixture tests (instruction variants)
+├── test_v4_captures.py      # CLICK v4 captures: each rung decodes to its comment; native blob matching
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/
 │   ├── test_encode.py       # encode() pipeline, multi-row, comments, wires, NOP
@@ -112,7 +115,8 @@ tests/
 └── fixtures/
     ├── ladder_captures/golden/  # Golden CSV/BIN fixtures
     ├── scr_captures/            # Scr program files + clipboard bins (decode_program)
-    └── tumbler/                 # 34 real programs: <name>.scr + <name>.clipboard.{bin,csv}
+    ├── tumbler/                 # 34 real programs: <name>.scr + <name>.clipboard.{bin,csv}
+    └── v4_captures/             # CLICK v4 copy-backs of pyrung capture stubs (math, out, drum)
 ```
 
 Ladder golden fixtures are verified through Click paste round-trip. In `scr_captures`, `time_drums.bin` is synthetic (see that directory's README); do not use its differences from SCR as evidence of native cleanup. The tumbler fixture pairs each Click internal program file (`.scr`) with a clipboard capture of the same program; `devtools/compare_csv.py <dir>` compares `<name>.csv` (scr decode) against `<name>.clipboard.csv` ground truth.
@@ -209,8 +213,10 @@ When the user provides a `.bin` + `.csv` from a Click capture:
 
 1. **Inspect the capture:** `uv run devtools/inspect_bin.py <file.bin>` — shows known instructions with `to_csv()` output, and RawInstruction/Unknown blobs with full tagged-field breakdown (tag IDs, sentinel types, values).
 2. **Identify what's new:** RawInstruction means the class name is recognized but the func code isn't. The field breakdown shows exactly which func code / field values differ from existing support.
-3. **Update the code:** add func codes, fields, or new instruction modules as needed. Update `csv/converter.py` to pass new kwargs through.
+3. **Update the code:** add func codes, fields, or new instruction modules as needed; CSV parsing goes through the family `SPEC`'s `parse_csv_call`.
 4. **Update coverage CSV:** `tests/fixtures/coverage/golden/<name>.csv` — use kwargs style for boolean flags (e.g. `oneshot=1`).
 5. **Verify:** `make test` + `make lint`.
+
+For CLICK v4 instructions captured from pyrung stubs (`tests/fixtures/v4_captures/`, `tests/test_v4_captures.py`), see "Capturing from CLICK v4" in the guide.
 
 See [`docs/guides/adding-instructions.md`](docs/guides/adding-instructions.md) for the full guide.

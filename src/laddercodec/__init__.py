@@ -1,5 +1,6 @@
 """Binary codec for AutomationDirect CLICK PLC ladder clipboard format."""
 
+from .compat import find_v4_only, is_v4_only
 from .csv import read_csv
 from .csv.writer import write_csv
 from .decode import Rung, decode
@@ -7,10 +8,12 @@ from .decode_program import decode_program
 from .encode import encode
 from .instructions import (
     BlockCopy,
+    Break,
     Call,
     Coil,
     CompareContact,
     Contact,
+    Continue,
     Copy,
     Counter,
     Drum,
@@ -22,6 +25,7 @@ from .instructions import (
     ModbusRtuTarget,
     ModbusTcpTarget,
     Next,
+    OutVariant,
     Pack,
     RawInstruction,
     Receive,
@@ -40,6 +44,8 @@ __all__ = [
     "decode_program",
     "read_csv",
     "write_csv",
+    "find_v4_only",
+    "is_v4_only",
     "Rung",
     "Program",
     "Project",
@@ -49,6 +55,7 @@ __all__ = [
     "CompareContact",
     "Counter",
     "Coil",
+    "OutVariant",
     "Drum",
     "Copy",
     "End",
@@ -56,6 +63,8 @@ __all__ = [
     "ForLoop",
     "Math",
     "Next",
+    "Break",
+    "Continue",
     "ModbusAddress",
     "ModbusRtuTarget",
     "ModbusTcpTarget",

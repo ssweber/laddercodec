@@ -2,6 +2,8 @@
 
 `coverage`, `counter_scr`, `or_topology`, and `shift_scr` pair native SCR files with clipboard captures. Their decoded geometry and wire mappings are comparison evidence.
 
+`pins.scr` is CLICK's `Scr1.tmp` after pasting the `pins__v4` coverage golden (pins with OR legs, 2026-10-28). Its clipboard pair is that golden, which is synthetic: the SCR is evidence of how CLICK stores grown pin rows (each part's 1-based rung row, e.g. a drum's `01 02 04 05`), not of clipboard output. The native clipboard evidence is `v4_captures/pins.bin`.
+
 `time_drums.scr` is a native SCR capture. **`time_drums.bin` is synthetic**: commit `be211ee` (v0.1.9 / PR #15, `test(scr): golden fixture for time drums`) says it was encoded from the verified canonical CSV, with a native clipboard capture left for future replacement. It is not independent evidence of CLICK's clipboard output.
 
 The CSV/BIN keep their original canonical content. SCR rungs 13 and 14 contain additional wire rows that the decoder now preserves. Tests check these stored rows explicitly instead of deleting them to match the generated BIN. Tall-span NOP suppression remains a separate semantic convention shared with clipboard decoding.

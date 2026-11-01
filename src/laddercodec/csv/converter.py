@@ -7,9 +7,9 @@ tuple consumed by ``encode_rung()``.  Handles:
 - AF token conversion (coils, timers, NOP)
 - Pin continuation rows (``.reset()``, ``.down()``, etc.) — absorbed into
   the parent instruction rather than emitted as separate rows
-- Multi-row AF instructions: pinned families (timers, counters, shift,
-  drum) absorb their continuation rows; other tall AF instructions keep
-  blank-AF continuation rows as part of the same visual block
+- Multi-row AF instructions: pinned boxes (``PinnedInstruction``: timers,
+  counters, shift, drums) absorb their pin and OR-leg rows; other tall AF
+  instructions keep blank-AF continuation rows as part of the same block
 - Auto-padding: tall AF instructions get blank continuation rows
   appended when the user omits them
 
@@ -27,6 +27,12 @@ The ``.reset()`` row makes the timer retentive (``retained=True``) and
 contributes its conditions/wires as the reset-enable branch.  It does
 **not** produce a separate AF instruction.
 
+Blank-AF rows between the instruction and a pin are OR legs of the input
+above them, and push every later input down (``pin_rows``).  This is one
+rule for every pinned box; each instruction only declares its pins
+(``pin_names()``), how they set its flags (``with_pins()``), and how many
+slots sit above its main input (``lead_rows``, 1 for count_down).
+
 Tall instructions
 -----------------
 
@@ -42,7 +48,8 @@ that was stripped by the writer's dehydration pass.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from typing import cast
 
 from ..encode import AfToken, ConditionToken
@@ -50,14 +57,9 @@ from ..instructions import (
     KNOWN_PIN_NAMES,
     CompareContact,
     Contact,
-    Counter,
-    Drum,
-    Shift,
-    Timer,
-    get_af_family_for_token,
     parse_af_call,
 )
-from ..model import AfInstruction, InstructionType
+from ..model import AfInstruction, InstructionType, PinnedInstruction
 from .ast import (
     AfBlank,
     AfCall,
@@ -75,19 +77,10 @@ from .ast import (
 )
 
 # ---------------------------------------------------------------------------
-# Pin row table — dot-prefixed AF tokens and their effects
-# ---------------------------------------------------------------------------
-
-#: Pin names that make the parent timer retentive.
-_RETENTIVE_PINS = frozenset({".reset"})
-
-
-# ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
 # ---------------------------------------------------------------------------
 
 CONDITION_COLUMNS = 31
-_PINNED_BLOCK_FAMILIES = frozenset({"timer", "counter", "shift", "drum"})
 
 
 @dataclass
@@ -97,7 +90,6 @@ class _ParsedRow:
     conditions: list[ConditionToken]
     kind: str
     token: AfToken = ""
-    family_name: str | None = None
     pin_name: str | None = None
     pin_args: tuple[str, ...] = ()
 
@@ -106,16 +98,38 @@ class _ParsedRow:
 class _ActiveBlock:
     """A multi-row AF block that is still gathering continuation rows."""
 
-    family_name: str | None
     token: AfInstruction
     main_conditions: list[ConditionToken]
-    leading_blank_conditions: list[ConditionToken] | None = None
+    #: Rows of a pinned box's lead slots (above its main input), top first.
+    lead_conditions: list[list[ConditionToken]] = field(default_factory=list)
     continuations: list[_ParsedRow] = field(default_factory=list)
 
 
 def _blank_condition_row() -> list[ConditionToken]:
     """Return one all-blank condition row."""
     return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+
+
+def _is_blank_row(conditions: Sequence[object]) -> bool:
+    return all(c == "" for c in conditions)
+
+
+def _unused_pin_blank_rows(gap: Sequence[Sequence[object]], unused: int) -> int:
+    """Blank rows at the end of a pre-pin gap that are read as unused pins' rows."""
+    count = 0
+    while count < min(unused, len(gap)) and _is_blank_row(gap[-1 - count]):
+        count += 1
+    return count
+
+
+def pinned_gap_height(gap: Sequence[Sequence[object]], unused: int) -> int:
+    """Rows a pinned box's CSV gap before a used pin lays out to.
+
+    The gap's rows are OR legs of the slot above; each of the ``unused`` pins
+    in between takes a row below them, unless a blank row at the gap's end
+    already stands for it.  The writer uses this to pick the rows it emits.
+    """
+    return len(gap) + unused - _unused_pin_blank_rows(gap, unused)
 
 
 def _af_visual_rows(token: AfToken) -> int:
@@ -184,21 +198,8 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     if token == "NOP":
         return _ParsedRow(conditions=conds, kind="nop", token="NOP")
 
-    family = get_af_family_for_token(token)
-    visual_rows = _af_visual_rows(token)
-    if family is not None and (family.family_name in _PINNED_BLOCK_FAMILIES or visual_rows > 1):
-        return _ParsedRow(
-            conditions=conds,
-            kind="block_main",
-            token=token,
-            family_name=family.family_name,
-        )
-    if visual_rows > 1:
-        return _ParsedRow(
-            conditions=conds,
-            kind="block_main",
-            token=token,
-        )
+    if isinstance(token, PinnedInstruction) or _af_visual_rows(token) > 1:
+        return _ParsedRow(conditions=conds, kind="block_main", token=token)
     return _ParsedRow(conditions=conds, kind="main", token=token)
 
 
@@ -217,16 +218,15 @@ def _flush_plain_rows(
 def _start_active_block(
     row: _ParsedRow,
     *,
-    leading_blank_conditions: list[ConditionToken] | None = None,
+    lead_conditions: list[list[ConditionToken]] | None = None,
 ) -> _ActiveBlock:
     """Create a new active multi-row AF block from its main AF row."""
     if not isinstance(row.token, AfInstruction):
         raise AssertionError("block_main row must carry an AF instruction token")
     return _ActiveBlock(
-        family_name=row.family_name,
         token=row.token,
         main_conditions=row.conditions,
-        leading_blank_conditions=leading_blank_conditions,
+        lead_conditions=lead_conditions or [],
     )
 
 
@@ -235,272 +235,126 @@ def _max_continuations(block: _ActiveBlock) -> int:
     return max(0, _af_visual_rows(block.token) - 1)
 
 
-def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
-    """Consume a continuation row for the active block when it belongs there."""
-    if len(block.continuations) >= _max_continuations(block):
-        return False
+def _call_name(token: AfInstruction) -> str:
+    return f"{token.to_csv().split('(', 1)[0]}()"
 
-    # .reset() occupies the last row of a counter/shift span, so nothing after
-    # it belongs to the block — following rows are floating rows below the
-    # span (e.g. the OR-leg of the reset branch).  This is what lets the
-    # writer dehydrate an unused .down() row above the .reset() pin.
-    if isinstance(block.token, (Counter, Shift)) and any(
-        c.kind == "pin" and c.pin_name == ".reset" for c in block.continuations
-    ):
-        return False
 
+def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstruction) -> bool:
+    """Absorb pin rows (in pin order) and the leg rows between them.
+
+    Nothing after the last pin belongs to the block: legs under it sit below
+    the box.  Blank rows after an earlier pin (or the main input) are absorbed
+    even when no later pin follows; ``_finalize_pinned_block`` hands back the
+    ones past the box.
+
+    A box with lead slots may put its main input on a NOP row right under the
+    instruction token (count_down's bridge form); the token row is then the
+    lead row.
+    """
+    order = token.pin_names()
+    if row.kind == "nop" and token.lead_rows:
+        if block.lead_conditions or block.continuations:
+            raise ConvertError(
+                f"{_call_name(token)} takes a NOP bridge row only directly under it, "
+                "with no row above it"
+            )
+        block.lead_conditions = [block.main_conditions]
+        block.main_conditions = row.conditions
+        return True
+    seen = [c.pin_name for c in block.continuations if c.kind == "pin"]
+    if seen and seen[-1] == order[-1] and not (row.kind == "pin" and row.pin_name in order):
+        return False
     if row.kind == "blank":
         block.continuations.append(row)
         return True
+    if row.kind != "pin":
+        return False
+    pin_name = cast(str, row.pin_name)
+    if pin_name not in order:
+        raise ConvertError(f"Pin token {pin_name!r} is not supported for {_call_name(token)}")
+    remaining = order[order.index(seen[-1]) + 1 :] if seen else order
+    if pin_name not in remaining:
+        raise ConvertError(
+            f"Pin token {pin_name!r} is out of order or repeated for "
+            f"{_call_name(token)}: pins go {', '.join(f'{p}()' for p in order)}"
+        )
+    block.continuations.append(row)
+    return True
 
-    if row.kind == "pin":
-        pin_name = cast(str, row.pin_name)
-        if isinstance(block.token, Counter):
-            if pin_name not in {".down", ".reset"}:
-                raise ConvertError(
-                    f"Pin token {pin_name!r} is not supported for {block.token.counter_type}()"
-                )
-            block.continuations.append(row)
-            return True
 
-        if isinstance(block.token, Drum):
-            if pin_name not in {".reset", ".jump", ".jog"}:
-                raise ConvertError(
-                    f"Pin token {pin_name!r} is not supported for {block.token.drum_kind}_drum()"
-                )
-            block.continuations.append(row)
-            return True
-
-        if isinstance(block.token, Shift):
-            if pin_name not in {".clock", ".reset"}:
-                raise ConvertError(f"Pin token {pin_name!r} is not supported for shift()")
-            block.continuations.append(row)
-            return True
-
-        # Timers remain lenient for non-.reset() pin rows: absorb them as blank rows.
-        if isinstance(block.token, Timer):
-            block.continuations.append(row)
-            return True
-
-    if isinstance(block.token, Counter) and block.token.counter_type == "count_down":
-        if row.kind == "nop":
-            block.continuations.append(row)
-            return True
-
+def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
+    """Consume a continuation row for the active block when it belongs there."""
+    if isinstance(block.token, PinnedInstruction):
+        return _consume_pinned_row(block, row, block.token)
+    if len(block.continuations) >= _max_continuations(block):
+        return False
+    if row.kind == "blank":
+        block.continuations.append(row)
+        return True
     return False
 
 
-def _finalize_timer_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one timer block back to its decoded 2-row span."""
-    timer = cast(Timer, block.token)
-    continuation_conditions = _blank_condition_row()
-    if block.continuations:
-        continuation = block.continuations[0]
-        if continuation.kind == "nop":
-            raise ConvertError("Timer continuation rows cannot use NOP")
-        continuation_conditions = continuation.conditions
-        if continuation.kind == "pin" and continuation.pin_name in _RETENTIVE_PINS:
-            timer = replace(timer, retained=True)
-
-    return [block.main_conditions, continuation_conditions], [timer, ""]
-
-
-def _finalize_count_up_block(
+def _finalize_pinned_block(
     block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one count_up block back to its decoded 3-row span."""
-    counter = cast(Counter, block.token)
-    middle_conditions: list[ConditionToken] | None = None
-    reset_conditions: list[ConditionToken] | None = None
+) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
+    """Lay out a pinned block, placing each slot on its own row.
 
-    for row in block.continuations:
-        if row.kind == "nop":
-            raise ConvertError("count_up does not support NOP bridge rows")
-
-        if row.kind == "pin":
-            pin_name = cast(str, row.pin_name)
-            if pin_name == ".down":
-                counter = replace(counter, down_enabled=True)
-                middle_conditions = row.conditions
-                continue
-            if pin_name == ".reset":
-                counter = replace(counter, reset_enabled=True)
-                reset_conditions = row.conditions
-                continue
-
-        if middle_conditions is None:
-            middle_conditions = row.conditions
+    Lead slots come first, then the main input.  Rows between two slots are
+    OR legs of the slot above.  An unused pin still takes a row of its own,
+    below those legs (as CLICK lays out a leg added with Insert Row: Reset 1,
+    leg 2, unused Jump 3, Jog 4).  Blank rows just above the next pin are
+    read as the unused pins' rows, not legs.  Unused pins after the last used
+    one sit directly under it, and the box ends at the last pin's row;
+    absorbed rows past it are returned as the tail.
+    """
+    token = cast(PinnedInstruction, block.token)
+    lead = token.lead_rows
+    lead_rows = [_blank_condition_row() for _ in range(lead - len(block.lead_conditions))]
+    rows = [*lead_rows, *block.lead_conditions, block.main_conditions]
+    # Every slot after the first: the main input when there are lead slots.
+    slot_rows: list[int] = list(range(1, lead + 1))
+    pins: dict[str, tuple[str, ...]] = {}
+    pending = list(block.continuations)
+    prev = lead
+    unused = 0
+    for slot in token.pin_names():
+        j = next((i for i, row in enumerate(pending) if row.kind == "pin"), None)
+        if j is None or pending[j].pin_name != slot:
+            unused += 1
             continue
-        if reset_conditions is None:
-            reset_conditions = row.conditions
-            continue
+        gap = [row.conditions for row in pending[:j]]
+        rows.extend(gap)
+        rows.extend(
+            _blank_condition_row() for _ in range(pinned_gap_height(gap, unused) - len(gap))
+        )
+        slot_rows.extend(range(len(rows) - unused, len(rows)))
+        prev = len(rows)
+        rows.append(pending[j].conditions)
+        slot_rows.append(prev)
+        pins[slot] = pending[j].pin_args
+        pending = pending[j + 1 :]
+        unused = 0
+    slot_rows.extend(range(prev + 1, prev + 1 + unused))
+    prev += unused
 
-    if not counter.reset_enabled:
-        raise ConvertError(f"{counter.counter_type} requires a .reset() pin row")
+    height = prev + 1
+    tail: list[_ParsedRow] = []
+    for row in pending:
+        if len(rows) < height:
+            rows.append(row.conditions)
+        else:
+            tail.append(row)
+    while len(rows) < height:
+        rows.append(_blank_condition_row())
 
-    if middle_conditions is None:
-        middle_conditions = _blank_condition_row()
-    if reset_conditions is None:
-        reset_conditions = _blank_condition_row()
-
-    return [block.main_conditions, middle_conditions, reset_conditions], [counter, "", ""]
-
-
-def _finalize_count_down_block(
-    block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one count_down block back to its decoded 3-row span."""
-    counter = cast(Counter, block.token)
-    explicit_bridge_conditions: list[ConditionToken] | None = None
-    reset_conditions: list[ConditionToken] | None = None
-
-    for row in block.continuations:
-        if row.kind == "pin":
-            pin_name = cast(str, row.pin_name)
-            if pin_name == ".down":
-                raise ConvertError("count_down does not support .down()")
-            if pin_name == ".reset":
-                counter = replace(counter, reset_enabled=True)
-                reset_conditions = row.conditions
-                continue
-
-        if row.kind == "nop":
-            if block.leading_blank_conditions is not None:
-                raise ConvertError("count_down block cannot mix a leading blank top row with NOP")
-            if explicit_bridge_conditions is not None:
-                raise ConvertError("count_down block uses more than one bridge row")
-            explicit_bridge_conditions = row.conditions
-            continue
-
-        if block.leading_blank_conditions is None and explicit_bridge_conditions is None:
-            explicit_bridge_conditions = row.conditions
-            continue
-        if reset_conditions is None:
-            reset_conditions = row.conditions
-            continue
-
-    if not counter.reset_enabled:
-        raise ConvertError(f"{counter.counter_type} requires a .reset() pin row")
-
-    if reset_conditions is None:
-        reset_conditions = _blank_condition_row()
-
-    if block.leading_blank_conditions is not None:
-        condition_rows = [
-            block.leading_blank_conditions,
-            block.main_conditions,
-            reset_conditions,
-        ]
-    elif explicit_bridge_conditions is not None:
-        condition_rows = [
-            block.main_conditions,
-            explicit_bridge_conditions,
-            reset_conditions,
-        ]
-    else:
-        condition_rows = [
-            _blank_condition_row(),
-            block.main_conditions,
-            reset_conditions,
-        ]
-
-    return condition_rows, [counter, "NOP", ""]
-
-
-def _finalize_counter_block(
-    block: _ActiveBlock,
-) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one counter block back to its decoded 3-row span."""
-    counter = cast(Counter, block.token)
-    if counter.counter_type == "count_up":
-        return _finalize_count_up_block(block)
-    return _finalize_count_down_block(block)
-
-
-def _finalize_shift_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one shift block back to its decoded 3-row span."""
-    shift = cast(Shift, block.token)
-    clock_conditions: list[ConditionToken] | None = None
-    reset_conditions: list[ConditionToken] | None = None
-
-    for row in block.continuations:
-        if row.kind == "nop":
-            raise ConvertError("Shift continuation rows cannot use NOP")
-
-        if row.kind == "pin":
-            pin_name = cast(str, row.pin_name)
-            if pin_name == ".clock":
-                clock_conditions = row.conditions
-                continue
-            if pin_name == ".reset":
-                reset_conditions = row.conditions
-                continue
-
-        if clock_conditions is None:
-            clock_conditions = row.conditions
-            continue
-        if reset_conditions is None:
-            reset_conditions = row.conditions
-            continue
-
-    if clock_conditions is None:
-        clock_conditions = _blank_condition_row()
-    if reset_conditions is None:
-        reset_conditions = _blank_condition_row()
-
-    return [block.main_conditions, clock_conditions, reset_conditions], [shift, "", ""]
-
-
-def _finalize_drum_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand one drum block back to its decoded 4-row span."""
-    drum = cast(Drum, block.token)
-    reset_conditions: list[ConditionToken] | None = None
-    jump_conditions: list[ConditionToken] | None = None
-    jog_conditions: list[ConditionToken] | None = None
-
-    for row in block.continuations:
-        if row.kind == "nop":
-            raise ConvertError("Drum continuation rows cannot use NOP")
-
-        if row.kind == "pin":
-            pin_name = cast(str, row.pin_name)
-            if pin_name == ".reset":
-                reset_conditions = row.conditions
-                continue
-            if pin_name == ".jump":
-                jump_target = row.pin_args[0] if row.pin_args else ""
-                drum = replace(drum, jump_enabled=True, jump_target=jump_target)
-                jump_conditions = row.conditions
-                continue
-            if pin_name == ".jog":
-                drum = replace(drum, jog_enabled=True)
-                jog_conditions = row.conditions
-                continue
-
-        if reset_conditions is None:
-            reset_conditions = row.conditions
-            continue
-        if jump_conditions is None:
-            jump_conditions = row.conditions
-            continue
-        if jog_conditions is None:
-            jog_conditions = row.conditions
-            continue
-
-    if reset_conditions is None:
-        raise ConvertError("Drum requires a .reset() pin row")
-
-    if jump_conditions is None:
-        jump_conditions = _blank_condition_row()
-    if jog_conditions is None:
-        jog_conditions = _blank_condition_row()
-
-    return [
-        block.main_conditions,
-        reset_conditions,
-        jump_conditions,
-        jog_conditions,
-    ], [drum, "", "", ""]
+    try:
+        token = token.with_pins(pins, tuple(slot_rows))
+    except ValueError as exc:
+        raise ConvertError(str(exc)) from exc
+    af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
+    if lead:
+        af_tokens[lead] = "NOP"
+    return rows, af_tokens, tail
 
 
 def _finalize_generic_tall_block(
@@ -521,17 +375,17 @@ def _finalize_generic_tall_block(
     return condition_rows, af_tokens
 
 
-def _finalize_active_block(block: _ActiveBlock) -> tuple[list[list[ConditionToken]], list[AfToken]]:
-    """Expand the current active block into decode-ready rows/tokens."""
-    if isinstance(block.token, Timer):
-        return _finalize_timer_block(block)
-    if isinstance(block.token, Counter):
-        return _finalize_counter_block(block)
-    if isinstance(block.token, Shift):
-        return _finalize_shift_block(block)
-    if isinstance(block.token, Drum):
-        return _finalize_drum_block(block)
-    return _finalize_generic_tall_block(block)
+def _finalize_active_block(
+    block: _ActiveBlock,
+) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
+    """Expand the current active block into decode-ready rows/tokens.
+
+    Also returns the absorbed rows that fall below the block (pinned blocks only).
+    """
+    if isinstance(block.token, PinnedInstruction):
+        return _finalize_pinned_block(block)
+    rows, afs = _finalize_generic_tall_block(block)
+    return rows, afs, []
 
 
 def condition_node_to_token(node: object) -> ConditionToken:
@@ -632,21 +486,24 @@ def convert_rung(
         if active_block is not None:
             if _consume_active_row(active_block, parsed):
                 continue
-            block_conditions, block_afs = _finalize_active_block(active_block)
+            block_conditions, block_afs, tail = _finalize_active_block(active_block)
             condition_rows.extend(block_conditions)
             af_tokens.extend(block_afs)
+            plain_rows.extend(tail)
             active_block = None
 
         if parsed.kind == "block_main":
-            leading_blank_conditions: list[ConditionToken] | None = None
-            if isinstance(parsed.token, Counter) and parsed.token.counter_type == "count_down":
-                if plain_rows and plain_rows[-1].kind == "blank":
-                    leading_blank_conditions = plain_rows.pop().conditions
+            # Blank-AF rows just above a box with lead slots are those slots' rows.
+            lead_conditions: list[list[ConditionToken]] = []
+            if isinstance(parsed.token, PinnedInstruction):
+                while (
+                    len(lead_conditions) < parsed.token.lead_rows
+                    and plain_rows
+                    and plain_rows[-1].kind == "blank"
+                ):
+                    lead_conditions.insert(0, plain_rows.pop().conditions)
             _flush_plain_rows(plain_rows, condition_rows, af_tokens)
-            active_block = _start_active_block(
-                parsed,
-                leading_blank_conditions=leading_blank_conditions,
-            )
+            active_block = _start_active_block(parsed, lead_conditions=lead_conditions)
             continue
 
         if parsed.kind == "pin":
@@ -656,9 +513,10 @@ def convert_rung(
         plain_rows.append(parsed)
 
     if active_block is not None:
-        block_conditions, block_afs = _finalize_active_block(active_block)
+        block_conditions, block_afs, tail = _finalize_active_block(active_block)
         condition_rows.extend(block_conditions)
         af_tokens.extend(block_afs)
+        plain_rows.extend(tail)
 
     _flush_plain_rows(plain_rows, condition_rows, af_tokens)
 

@@ -189,7 +189,7 @@ raw address for that operand.
 All standard Click instruction families are supported from the root package:
 
 - Condition side: `Contact`, `CompareContact`
-- AF side: `Coil`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`
+- AF side: `Coil`, `OutVariant`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`
 
 Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
 binary payload intact for lossless round-trip.

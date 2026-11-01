@@ -293,6 +293,38 @@ Builder side conditions are emitted as continuation rows with dot tokens in `AF`
 Pin rows are independent left-rail paths, not AND-chained through the parent
 output row conditions.
 
+Pins go in a fixed order (timers: reset; `count_up`: down, reset; `count_down`:
+reset; `shift`: clock, reset; drums: reset, jump, jog). Rows without an AF token
+between the instruction and a pin, or between two pins, are OR legs of the input
+above, and they push the later pins down. CLICK grows the box to match:
+
+```csv
+R,C1,-,...,-,"time_drum(...)"
+,C2,T,-,...,-,.reset()
+,C3,,...,,
+,C4,-,...,-,.jump(DS2)
+```
+
+Here `.jump()` is on row 3, not row 2. An unused pin still takes a row of its
+own, below the legs of the pin above it: with Jump off, `.reset()` with one leg
+then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK lays out a leg
+added with Insert Row the same way). Blank rows just above the next pin are read
+as the unused pins' rows, not legs. Legs under the last pin sit below the box.
+
+The same holds for legs under the main input:
+
+```csv
+R,X1,T:X2,T,-,...,-,"count_down(CT1,CTD1,preset=3)"
+,,T:X3,|,,...,,
+,,X4,,,...,,
+,X9,-,...,-,.reset()
+```
+
+`count_down`'s main input is its Down input, on box row 1 under the unused Up,
+so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
+the unused Down row under the main input's legs. A timer without `.reset()`
+stays 2 rows, with its main input's legs beside and below it.
+
 ## Parsing conveniences
 
 `laddercodec.read_csv()` accepts a few parsing conveniences beyond the canonical
@@ -308,7 +340,9 @@ writer contract:
 `forloop(count, oneshot=...)` lowers to:
 
 1. `for(count)` or `for(count,oneshot=1)` row (`marker=R`)
-2. Body instruction rows (`marker=R` per emitted body instruction row)
+2. Body rungs (`marker=R` each): a bare body instruction is a wire-only rung; a
+   body rung with contacts keeps them, and holds `break()` / `continue()`
+   (CLICK v4). A nested loop is its own `for` .. `next()` run, up to three deep.
 3. Closing `next()` row (`marker=R`)
 
 ## Subroutine tail guarantee
@@ -383,6 +417,7 @@ Producer may emit:
 - `return()`
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
+- `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
 - `raw(ClassName,hex)` - opaque instruction passthrough for binary round-trip
   fidelity. `ClassName` is the Click binary class name (unquoted) and `hex` is
   the raw blob as a hex string. Runtime no-op; preserved so CSV -> DSL -> CSV
