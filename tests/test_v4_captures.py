@@ -108,6 +108,11 @@ _NATIVE_MATH = [
     # In retyped/ because retyping changed some results and comments, so the rung
     # comments no longer name the token.
     *(("retyped/math_neg.bin", i) for i in range(12)),
+    # Typed XD/YD operands: XD0, XD0u, YD1, then MAX ( XD0 : XD3 ).
+    *(("retyped/math_xd.bin", i) for i in range(4)),
+    # Copy-back of the math_operands stub; only these rungs were typed.  Past 500
+    # interiors, up to the 5496 of SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ).
+    *(("retyped/math_wide.bin", i) for i in range(17, 21)),
 ]
 
 
@@ -147,6 +152,16 @@ def test_math_blob_fields_match_native(file: str, index: int) -> None:
     header, slots = _blob_fields(math.build_blob())
     assert header == native_header
     assert slots == native_slots
+
+
+@pytest.mark.parametrize("index", range(17, 21))
+def test_math_wider_than_500_interiors_uses_clicks_capacity(index: int) -> None:
+    """Past 500 interiors the whole blob matches, capacity included; CLICK stops at 5000."""
+    path = CAPTURE_DIR / "retyped" / "math_wide.bin"
+    math = next(t for t in _decode_file(path)[index].instructions if isinstance(t, Math))
+    blob = math.build_blob()
+    assert _native_math_blobs(path)[index].startswith(blob)
+    assert struct.unpack_from("<I", blob, 16)[0] == 5510
 
 
 def test_out_variant_blobs_match_native() -> None:

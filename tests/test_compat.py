@@ -61,6 +61,8 @@ def test_v4_captures_are_flagged() -> None:
         ("ABS ( DS1 )", True),
         ("RAND ( 1 , 100 )", True),
         ("DS1 + SQRT ( DS2 )", False),
+        ("SUM ( DS1 : DS502 )", False),  # 500 interiors fit v3's capacity
+        ("SUM ( DS1 : DS503 )", True),
     ],
 )
 def test_math_v4_functions(expression: str, v4_only: bool) -> None:

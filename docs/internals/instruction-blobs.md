@@ -134,7 +134,7 @@ v4 adds it.
 
 ## Math formulas
 
-A Math blob (class `Math`, type 0x271A) always has 1010 tagged fields: 9 header
+A Math blob (class `Math`, type 0x271A) has 1010 tagged fields: 9 header
 fields, 500 operand slots (tag `0x6888`), 500 reserved slots (tag `0x688C`) and
 a terminator. Source: `math.py`.
 
@@ -149,7 +149,8 @@ The formula appears four times in the header:
 
 - **Display form** is spaced the way Click's formula editor spaces it: one space
   on each side of every operator, paren, comma and range colon (`ABS ( x )`,
-  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)` to this form.
+  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)*2` to this form. A sign
+  stays on its constant (`( -5 )`) and is spaced from an address (`- DS401`).
 - **Internal form** is the display form with spaces replaced by `#` and each
   bare decimal literal prefixed with `H`. Click splits it on `#`, so an
   unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
@@ -168,8 +169,14 @@ duplicates included. Reserved slots hold the interior addresses of each
 `SUM ( DS201 : DS300 )` stores DS201 and DS300 as operands and DS202..DS299 in
 the reserved slots.
 
-CLICK v4 copies Math back with 5000 reserved slots, not 500. A 500-slot blob
-still pastes into both v3 and v4, so the encoder keeps 500.
+An `XD` or `YD` range also lists the upper half of address 0:
+`MAX ( XD0 : XD3 )` stores XD0u, XD1 and XD2.
+
+CLICK v4 copies Math back with 5000 reserved slots, not 500, for 5510 fields.
+A 500-slot blob still pastes into both v3 and v4, so the encoder writes 500
+unless the ranges have more than 500 interiors. CLICK's editor stops listing
+at 5000 without an error, even though the formula keeps the full range, and the
+encoder does the same.
 
 ## Math nickname flag
 

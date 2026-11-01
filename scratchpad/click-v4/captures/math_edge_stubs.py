@@ -89,7 +89,12 @@ def write(name: str, cases: list[tuple[str, str, str, str]], contact: int, resul
         token = f"math({expression},{prefix}{result + n},mode={mode})"
         cells = ["-"] * WIDTH
         cells[0] = f"C{contact + n}"
-        rows += [["#", f"{name}__{case_id}"], ["#", token], ["R", *cells, token]]
+        body = token
+        note = token
+        if case_id in TYPED:
+            body = f"math(DS401 + 1,{prefix}{result + n},mode={mode})"
+            note = f"TYPE: {token}"
+        rows += [["#", f"{name}__{case_id}"], ["#", note], ["R", *cells, body]]
     end = ["-"] * WIDTH
     rows.append(["R", *end, "end()"])
     path = HERE / "stubs" / f"{name}.csv"
@@ -112,10 +117,56 @@ NEG2_CASES = [
     ("real_lhs_negative", "-2.5 * DF401", "DF", "decimal"),
 ]
 
+# Math operands, visible (0x6888) and invisible (0x688C, the interiors of each range).
+# Contacts C1971+, results (480+n).
+OPERAND_CASES = [
+    # spacing: written unspaced here, the encoder should space them
+    ("spacing_add", "DS401+DS402", "DS", "decimal"),
+    ("spacing_func_literal", "ABS(DS401)*2", "DS", "decimal"),
+    ("spacing_sub_literal", "DS401-5", "DS", "decimal"),
+    ("spacing_sign_tag", "-DS401", "DS", "decimal"),
+    ("spacing_power_real", "DF401^2.5", "DF", "decimal"),
+    # visible: one past the 68 operands v3's editor took; do v4's limits differ?
+    ("ops_69", " + ".join(f"DS{n}" for n in range(401, 470)), "DD", "decimal"),
+    # visible: register types the encoder does not recognize as operands yet (XD, YD)
+    ("type_xd", "XD0 AND 1h", "DH", "hex"),
+    ("type_xd_upper", "XD0u AND 1h", "DH", "hex"),
+    ("type_yd", "YD1 AND 1h", "DH", "hex"),
+    ("type_td_ctd_sd", "TD1 + CTD1 + SD1", "DD", "decimal"),
+    # invisible: X/Y addresses are not contiguous; we list X017..X020 and X037..X100
+    ("range_x_gap", "SUM ( X001 : X036 )", "DS", "decimal"),
+    ("range_x_slots", "SUM ( X001 : X101 )", "DS", "decimal"),
+    ("range_t_bits", "SUM ( T1 : T5 )", "DS", "decimal"),
+    ("range_td", "MAX ( TD1 : TD5 )", "DD", "decimal"),
+    ("range_xd", "MAX ( XD0 : XD3 )", "DH", "hex"),
+    # invisible: exactly the 500 slots we write, in one range and split over two
+    ("range_cap_500", "SUM ( DS1 : DS502 )", "DD", "decimal"),
+    ("range_cap_two", "SUM ( DS1 : DS252 ) + SUM ( DS301 : DS552 )", "DD", "decimal"),
+    # invisible: past our 500, the encoder refuses these; rungs are stand-ins, see TYPED
+    ("range_over_501", "SUM ( DS1 : DS503 )", "DD", "decimal"),
+    ("range_over_998", "SUM ( DS1 : DS1000 )", "DD", "decimal"),
+    ("range_over_4498", "SUM ( DS1 : DS4500 )", "DD", "decimal"),
+    ("range_over_5496", "SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 )", "DD", "decimal"),
+]
+
+#: Formulas to type in CLICK: the rung pastes as ``DS401 + 1``, its comment says what to type.
+TYPED = {"range_over_501", "range_over_998", "range_over_4498", "range_over_5496"}
+
+# The ranges math_operands had to type, now on the rung: our 5510-field form, never
+# pasted before.  CLICK v4 only.  Contacts C1993+, results DD(510+n).
+WIDE_CASES = [
+    ("wide_501", "SUM ( DS1 : DS503 )", "DD", "decimal"),
+    ("wide_998", "SUM ( DS1 : DS1000 )", "DD", "decimal"),
+    ("wide_4498", "SUM ( DS1 : DS4500 )", "DD", "decimal"),
+    ("wide_5496", "SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 )", "DD", "decimal"),
+]
+
 STUBS = {
+    "math_wide": (WIDE_CASES, 1992, 510),
     "math_edge": (CASES, 1900, 410),
     "math_neg": (NEG_CASES, 1940, 450),
     "math_neg2": (NEG2_CASES, 1960, 470),
+    "math_operands": (OPERAND_CASES, 1970, 480),
 }
 
 # Only the stubs named on the command line (default all): a copy-back saved under

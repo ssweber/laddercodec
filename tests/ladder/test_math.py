@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import struct
 
+import pytest
+
 from laddercodec.binary_helpers import _tagged_field, _utf16le_null
 from laddercodec.instructions import parse_af_blob
-from laddercodec.instructions.math import Math, _make_internal, _reconstruct_expression
+from laddercodec.instructions.math import (
+    Math,
+    _make_internal,
+    _range_interiors,
+    _reconstruct_expression,
+)
 
 
 def _build_math_blob_with_nickname_and_display_literal() -> bytes:
@@ -67,3 +74,74 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
     assert parsed.result == "DS124"
     assert parsed.mode == "decimal"
     assert parsed.to_csv() == "math(DS123 + 200,DS124,mode=decimal)"
+
+
+@pytest.mark.parametrize(
+    ("typed", "spaced"),
+    [
+        ("DS1+DS2", "DS1 + DS2"),
+        ("ABS(DS1)*2", "ABS ( DS1 ) * 2"),
+        ("(DS1+DS2)/2", "( DS1 + DS2 ) / 2"),
+        ("DS1-5", "DS1 - 5"),
+        ("DS1 - 5", "DS1 - 5"),
+        ("-5+DS1", "-5 + DS1"),
+        ("DS1*(-5)", "DS1 * ( -5 )"),
+        ("DS1*-2.5", "DS1 * -2.5"),
+        ("-DS1", "- DS1"),
+        ("DF1*1.0E-10", "DF1 * 1.0E-10"),
+        ("DF1*-1.5e+10", "DF1 * -1.5e+10"),
+        ("DF1+.5", "DF1 + .5"),
+        ("DH1+1Eh-1h", "DH1 + 1Eh - 1h"),
+        ("DS1 MOD 2", "DS1 MOD 2"),
+        ("DS1 MOD -2", "DS1 MOD -2"),
+        ("SUM(DS1:DS9)", "SUM ( DS1 : DS9 )"),
+        ("RAND(1,100)", "RAND ( 1 , 100 )"),
+        ("<a-b> + 1", "<a-b> + 1"),
+    ],
+)
+def test_expression_is_spaced_like_clicks_editor(typed: str, spaced: str) -> None:
+    assert Math(typed, "DS9").expression == spaced
+
+
+def test_nickname_display_wraps_each_operand_once() -> None:
+    blob = Math("DS10 + DS1 + DS1", "DS9").build_blob(show_nicknames=True)
+    assert "<?DS10> + <?DS1> + <?DS1>".encode("utf-16-le") in blob
+
+
+def test_template_leaves_hex_constants_alone() -> None:
+    blob = Math("C1 + AC1h", "DH9", mode="hex").build_blob()
+    assert "@ + AC1h".encode("utf-16-le") in blob
+
+
+def test_literal_after_unspaced_operator_gets_its_internal_prefix() -> None:
+    assert _make_internal(Math("ABS(DS1)*2", "DS9").expression) == "ABS#(#DS1#)#*#H2"
+
+
+@pytest.mark.parametrize(
+    ("expression", "interiors"),
+    [
+        ("MAX ( XD0 : XD3 )", ["XD0u", "XD1", "XD2"]),
+        ("MAX ( XD0u : XD2 )", ["XD1"]),
+        ("MAX ( XD0 : XD0u )", []),
+        ("MAX ( YD0 : YD1 )", ["YD0u"]),
+        ("SUM ( DS1 : DS3 )", ["DS2"]),
+    ],
+)
+def test_range_interiors(expression: str, interiors: list[str]) -> None:
+    assert _range_interiors(expression) == interiors
+
+
+def test_xd_operands_decode_with_their_display_constants() -> None:
+    blob = Math("XD0u AND 1h", "DH1", mode="hex").build_blob()
+    parsed = parse_af_blob(blob)
+    assert isinstance(parsed, Math)
+    assert parsed.expression == "XD0u AND 1h"
+    assert "@ AND 1h".encode("utf-16-le") in blob
+
+
+def test_500_interiors_keeps_the_short_form_and_501_takes_v4_capacity() -> None:
+    field_count = lambda expr: struct.unpack_from(  # noqa: E731
+        "<I", Math(expr, "DD1").build_blob(), 16
+    )[0]
+    assert field_count("SUM ( DS1 : DS502 )") == 1010
+    assert field_count("SUM ( DS1 : DS503 )") == 5510

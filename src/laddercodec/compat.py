@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from .instructions.drum import Drum
 from .instructions.forloop import Break, Continue
-from .instructions.math import Math
+from .instructions.math import _RESERVED_SLOTS, Math, _range_interiors
 from .instructions.out_variant import OutVariant
 
 if TYPE_CHECKING:
@@ -38,7 +38,12 @@ def is_v4_only(instruction: object) -> bool:
         return instruction.drum_kind == "time_event"
     if isinstance(instruction, Math):
         expression = instruction.expression
-        return bool(_V4_MATH_RE.search(expression) or _V4_BIT_SUM_RE.search(expression))
+        # Past 500 range interiors the blob needs v4's capacity; v3 holds 500.
+        return bool(
+            _V4_MATH_RE.search(expression)
+            or _V4_BIT_SUM_RE.search(expression)
+            or len(_range_interiors(expression)) > _RESERVED_SLOTS
+        )
     return False
 
 

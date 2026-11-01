@@ -123,9 +123,10 @@ for index, instruction in find_v4_only(rungs):
     print(f"rung {index}: {instruction.to_csv()} needs CLICK v4")
 ```
 
-v4-only: `Break`, `Continue`, `OutVariant`, a time & event `Drum`, and `Math`
-using MAX, MIN, MDN, AVG, ABS, RAND, or SUM over a bit range. `is_v4_only()`
-checks a single instruction.
+v4-only: `Break`, `Continue`, `OutVariant`, a time & event `Drum`, a time `Drum`
+with a duration from a register, and `Math` using MAX, MIN, MDN, AVG, ABS, RAND,
+SUM over a bit range, or ranges past 500 interior addresses. `is_v4_only()` checks
+a single instruction.
 
 ## Round-trip identity
 
