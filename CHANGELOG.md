@@ -8,27 +8,29 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
-## Unreleased
-
-### Fixed
-- **Math encode**: formulas are written the way Click's editor writes them (`ABS ( x )`, `RAND ( a , b )` in its infix internal form, range interiors listed), so pasted ABS and RAND formulas no longer raise a Math instruction error in CLICK v4.
-- **Coil decode**: an Out coil with a func code laddercodec does not know falls through to `raw(Out,...)` instead of silently decoding as a plain `out(...)`.
-- **Drum decode**: a drum with an unknown base decodes as `raw(Drum,...)`. Before, a CLICK v4 Time & Event drum with an event on every step decoded as a plain `time_drum` with its events as presets.
-- **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes (`01 02 03` for a drum, not `00 01 02`), so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
-- **Drum encode**: with Jump off, Jog takes the func code Jump would have, as CLICK writes it, so CLICK v4's syntax check no longer rejects a pasted drum with C000A ("all inputs of the box instruction must originate from the same branch").
-- **CSV read, OR inputs on boxes**: OR legs under any timer, counter, shift or drum input now push its later pins down, so a `count_down` fed by a 3+ row OR no longer fails with "count_down requires a .reset() pin row", and a retentive timer fed by a 2+ row OR keeps its `.reset()` instead of encoding as non-retentive.
-- **CSV writer**: a box's empty pin rows stay in place when a floating blank-AF row or a `count_down` follows it, and a `count_down` under a blank-AF row keeps its own empty top row, where `write_csv` used to fail its round-trip check.
-
-### Changed
-- **CSV read**: a blank-AF row directly under `count_down` is an OR leg of its Down input, not the bridge row, and a pin a timer does not have (e.g. `.down()`) raises `ConvertError` instead of being read as a blank row.
+## 0.3.0 (2026-11-01)
 
 ### Added
-- **Pin OR legs**: OR legs under a counter, shift or drum pin push the later pins down and grow the box as CLICK does, read from and written to the blob's part bytes (`pin_rows`) in clipboard and SCR, with an unused pin's row below the legs above it; pins out of order or repeated raise `ConvertError` instead of being dropped, and `write_csv` refuses a leg drawn onto an unused pin's row, which CSV cannot express.
-- **CLICK v4 check**: `find_v4_only(rungs)` lists the instructions an older CLICK would silently change on paste (Break/Continue, Out variants, time & event drums, time drums with a duration from a register, v4 math functions and SUM over bits), and `is_v4_only()` checks one.
-- **CLICK v4 Break and Continue**: `break()` and `continue()` decode and encode as `Break` and `Continue`, exported from the root package. Before, both decoded as `next()`. Click-written blobs re-encode byte for byte.
-- **CLICK v4 Time & Event drum**: `time_event_drum(outputs=[...],presets=[1000,None,DS1],events=[None,C1,C2],unit=Tms,...)` decodes and encodes as `Drum(drum_kind="time_event")`, with the same `.reset()` / `.jump()` / `.jog()` pin rows as the other drums. `None` marks a step without a preset or event. Click-written drums re-encode field for field.
-- **CLICK v4 Out variants**: `toggle(C1)`, `toggle(immediate(Y1))`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package. Each phase names its accumulator and preset (`on_acc=TD1,on_preset=100`); timed takes `maintained=1`. Click-written blobs re-encode byte for byte.
-- **CLICK v4 capture fixtures**: math aggregates (MAX/MIN/MDN/AVG, SUM over bits, ABS, RAND) decode to the token in each rung's comment, and Click-written math blobs match the encoder field for field.
+- **CLICK v4 Out variants**: `toggle(C1)`, `debounce(...)`, `flasher(...)` and `timed(...)` decode and encode as `OutVariant`, exported from the root package, matching Click-written blobs byte for byte.
+- **CLICK v4 Time & Event drum**: `time_event_drum(outputs=[...],presets=[1000,None,DS1],events=[None,C1,C2],unit=Tms,...)` decodes and encodes as `Drum(drum_kind="time_event")`, with `None` marking a step without a preset or event.
+- **CLICK v4 Break and Continue**: `break()` and `continue()` decode and encode as `Break` and `Continue`, exported from the root package; both used to decode as `next()`.
+- **CLICK v4 Math**: wide ranges encode up to CLICK's limit of 5000 interior addresses, where more than 500 used to raise `ValueError`, and `XD`/`YD` registers are recognized as operands, including `XD0u` and its place inside a range.
+- **CLICK v4 check**: `find_v4_only(rungs)` lists the instructions an older CLICK would silently change or may not hold (Break/Continue, Out variants, Time & Event drums, time drums with a duration from a register, v4 math functions, SUM over bits, Math ranges past 500 interior addresses), and `is_v4_only()` checks one.
+- **Pin OR legs**: OR legs under a counter, shift or drum pin push the later pins down and grow the box as CLICK does, in clipboard and SCR, exposed as `pin_rows`.
+
+### Changed
+- **CSV read**: a blank-AF row directly under `count_down` is an OR leg of its Down input rather than the bridge row.
+- **CSV errors**: pins out of order or repeated raise `ConvertError` instead of being dropped, a pin a timer does not have (e.g. `.down()`) raises `ConvertError` instead of reading as a blank row, and `write_csv` refuses a leg drawn onto an unused pin's row, which CSV cannot express.
+
+### Fixed
+- **Math encode**: formulas and constants are written the way Click's editor writes them (`ABS(x)*2` → `ABS ( x ) * 2`, `RAND` in its infix form, range interiors listed, `Ah` → `UH10`, `-5` → `H-5`, `-2.5` → `F-2.5`), so pasted formulas no longer raise Math instruction errors or fail CLICK v4's syntax check.
+- **Math encode**: `show_nicknames=True` wraps each operand once, where repeated or overlapping addresses (`DS10 + DS1 + DS1`) came out corrupted.
+- **Math decode**: `XD`/`YD` formulas keep their display constants, instead of `XD0 AND 1h` reading back as `XD0 AND UH1`.
+- **Drum encode**: with Jump off, Jog takes the func code Jump would have, so CLICK v4 no longer rejects a pasted drum with C000A ("all inputs of the box instruction must originate from the same branch").
+- **Unknown coils and drums**: an Out coil with an unknown func code or a drum with an unknown base decodes as `raw(...)`, instead of silently decoding as a plain `out(...)` or `time_drum`.
+- **Raw multi-part instructions**: a `raw(...)` token with part count 2+ rebuilds Click's part bytes, so `write_csv` no longer fails its round-trip check on raw drums and SCR raw blobs carry the right bytes.
+- **CSV read, OR inputs on boxes**: OR legs under any timer, counter, shift or drum input push its later pins down, so a `count_down` fed by a 3+ row OR no longer raises and a retentive timer fed by a 2+ row OR keeps its `.reset()`.
+- **CSV writer**: a box's empty pin rows and a `count_down`'s empty top row stay in place when a blank-AF row or a `count_down` follows, where `write_csv` used to fail its round-trip check.
 
 ## 0.2.2 (2026-09-10)
 
