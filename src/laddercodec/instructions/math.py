@@ -225,24 +225,52 @@ def _make_internal(expression: str) -> str:
     pasted ``F3.14`` passes its syntax check), a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
     seen when a pasted Math with ``Ah`` left as typed was reopened and OK'd
     in CLICK v4, which then passed its syntax check).
-    ``RAND ( a , b )`` is stored infix as ``a#RAND#b``, with a trailing
-    ``#`` when it ends the formula (``H1#RAND#H100#``,
-    ``H1#RAND#H10#+#DS1``).
+    A comma function ``F ( a , b )`` is stored infix as ``a#F#b``, with a
+    trailing ``#`` when it ends the formula: ``RAND ( 1 , 100 )`` →
+    ``H1#RAND#H100#``, ``RAND ( 1 , 10 ) + DS1`` → ``H1#RAND#H10#+#DS1``,
+    ``LSH ( DH5 , 1h )`` → ``DH5#LSH#UH1#`` (all typed in CLICK v4).  SUM, MAX, MIN,
+    MDN and AVG take a range and keep the call form (``SUM#(#DS1#:#DS3#)``), as do
+    one-argument calls.  CLICK's editor refuses a comma-function argument that isn't
+    one operand or constant (``LSH ( DH401 + 1h , 2h )``); pasted with an infix
+    form those fail Check Program with C0114, so such a call is written as called,
+    nested calls included, which passes.
     """
     tokens = expression.split(" ")
     out: list[str] = []
     i = 0
     while i < len(tokens):
-        group = tokens[i : i + 6]
-        if len(group) == 6 and group[0] == "RAND" and group[1::2] == ["(", ",", ")"]:
-            out += [group[2], "RAND", group[4]]
-            i += 6
-            if i == len(tokens):
-                out.append("")
+        name, *call = tokens[i : i + 6]
+        if name in _COMMA_FUNCTIONS and call[:1] == ["("]:
+            if len(call) == 5 and call[::2] == ["(", ",", ")"]:
+                out += [call[1], name, call[3]]
+                i += 6
+                if i == len(tokens):
+                    out.append("")
+                continue
+            end = _call_end(tokens, i)
+            out += tokens[i:end]
+            i = end
             continue
         out.append(tokens[i])
         i += 1
     return "#".join(_internal_literal(t) for t in out)
+
+
+#: Click's two-argument functions, ``F ( a , b )``; every other call takes one value or a range.
+_COMMA_FUNCTIONS = frozenset({"RAND", "LSH", "RSH", "LRO", "RRO"})
+
+
+def _call_end(tokens: list[str], i: int) -> int:
+    """One past the ``)`` closing the call named at *i* (the end, if unclosed)."""
+    depth = 0
+    for j in range(i + 1, len(tokens)):
+        if tokens[j] == "(":
+            depth += 1
+        elif tokens[j] == ")":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+    return len(tokens)
 
 
 _REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")

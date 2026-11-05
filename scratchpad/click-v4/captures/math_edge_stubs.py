@@ -161,7 +161,81 @@ WIDE_CASES = [
     ("wide_5496", "SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 )", "DD", "decimal"),
 ]
 
+# Every Math function through the editor.  LSH and RAND are stored infix
+# (a#LSH#b#, a#RAND#b#) but SUM and MAX stay prefix (SUM#(#a#:#b#)), so what decides
+# the internal form?  Load, copy back as math_funcs-pasted, reopen every Math and hit
+# OK, copy back as math_funcs-ok.  A rung the editor refuses: Cancel, leave it, note it;
+# its +0x0A stays 1.  Contacts C1601+, results (300+n).
+FUNC_CASES = [
+    # comma functions, bare
+    ("lsh_const", "LSH ( DH401 , 1h )", "DH", "hex"),
+    ("rsh_const", "RSH ( DH401 , 1h )", "DH", "hex"),
+    ("lro_const", "LRO ( DH401 , 1h )", "DH", "hex"),
+    ("rro_const", "RRO ( DH401 , 1h )", "DH", "hex"),
+    ("lsh_reg", "LSH ( DH401 , DH402 )", "DH", "hex"),
+    ("rro_reg", "RRO ( DH401 , DH402 )", "DH", "hex"),
+    ("rand_const", "RAND ( 1 , 100 )", "DS", "decimal"),
+    ("rand_reg", "RAND ( DS401 , DS402 )", "DS", "decimal"),
+    # comma functions, position in the formula: where does the trailing # go?
+    ("lsh_first", "LSH ( DH401 , 1h ) + DH402", "DH", "hex"),
+    ("lsh_last", "DH402 + LSH ( DH401 , 1h )", "DH", "hex"),
+    ("lsh_middle", "DH402 + LSH ( DH401 , 1h ) + DH403", "DH", "hex"),
+    ("lsh_two", "LSH ( DH401 , 1h ) AND RSH ( DH402 , 2h )", "DH", "hex"),
+    ("lsh_in_parens", "( LSH ( DH401 , 1h ) ) + DH402", "DH", "hex"),
+    ("rand_last", "DS401 + RAND ( 1 , 10 )", "DS", "decimal"),
+    ("rand_two", "RAND ( 1 , 10 ) * RAND ( 2 , 20 )", "DS", "decimal"),
+    # comma functions, arguments that aren't one token
+    ("lsh_expr_first", "LSH ( DH401 + 1h , 2h )", "DH", "hex"),
+    ("lsh_expr_second", "LSH ( DH401 , DH402 + 1h )", "DH", "hex"),
+    ("lsh_parens_arg", "LSH ( ( DH401 AND FFh ) , 1h )", "DH", "hex"),
+    ("lsh_nested_first", "LSH ( RSH ( DH401 , 1h ) , 2h )", "DH", "hex"),
+    ("lsh_nested_second", "LSH ( DH401 , RSH ( DH402 , 1h ) )", "DH", "hex"),
+    ("rand_expr", "RAND ( DS401 + 1 , DS402 * 2 )", "DS", "decimal"),
+    ("rand_negative", "RAND ( -5 , 5 )", "DS", "decimal"),
+    # comma functions inside one-argument functions and the reverse
+    ("abs_of_rand", "ABS ( RAND ( 1 , 10 ) )", "DS", "decimal"),
+    ("rand_of_abs", "RAND ( ABS ( DS401 ) , 10 )", "DS", "decimal"),
+    ("sum_plus_rand", "SUM ( DS401 : DS403 ) + RAND ( 1 , 10 )", "DS", "decimal"),
+    # one-argument functions
+    ("abs", "ABS ( DS401 )", "DS", "decimal"),
+    ("sqrt", "SQRT ( DF401 )", "DF", "decimal"),
+    ("log", "LOG ( DF401 )", "DF", "decimal"),
+    ("ln", "LN ( DF401 )", "DF", "decimal"),
+    ("sin", "SIN ( DF401 )", "DF", "decimal"),
+    ("cos", "COS ( DF401 )", "DF", "decimal"),
+    ("tan", "TAN ( DF401 )", "DF", "decimal"),
+    ("asin", "ASIN ( DF401 )", "DF", "decimal"),
+    ("acos", "ACOS ( DF401 )", "DF", "decimal"),
+    ("atan", "ATAN ( DF401 )", "DF", "decimal"),
+    ("rad", "RAD ( DF401 )", "DF", "decimal"),
+    ("deg", "DEG ( DF401 )", "DF", "decimal"),
+    ("sqrt_of_abs", "SQRT ( ABS ( DF401 ) )", "DF", "decimal"),
+    ("sqrt_literal", "SQRT ( 2.0 )", "DF", "decimal"),
+    ("abs_expr", "ABS ( DS401 - DS402 ) + 1", "DS", "decimal"),
+    # range functions
+    ("sum_range", "SUM ( DS401 : DS405 )", "DS", "decimal"),
+    ("max_range", "MAX ( DS401 : DS405 )", "DS", "decimal"),
+    ("min_range", "MIN ( DS401 : DS405 )", "DS", "decimal"),
+    ("mdn_range", "MDN ( DS401 : DS405 )", "DS", "decimal"),
+    ("avg_range", "AVG ( DS401 : DS405 )", "DS", "decimal"),
+    ("sum_range_hex", "SUM ( DH401 : DH405 )", "DH", "hex"),
+    # the range functions with commas: the editor may refuse these
+    ("max_comma", "MAX ( DS401 , DS402 )", "DS", "decimal"),
+    ("min_comma", "MIN ( DS401 , DS402 )", "DS", "decimal"),
+    ("mdn_comma", "MDN ( DS401 , DS402 , DS403 )", "DS", "decimal"),
+    ("avg_comma", "AVG ( DS401 , DS402 )", "DS", "decimal"),
+    ("sum_comma", "SUM ( DS401 , DS402 )", "DS", "decimal"),
+    # operators and PI, controls
+    ("mod", "DS401 MOD 2", "DS", "decimal"),
+    ("power", "DF401 ^ 2.5", "DF", "decimal"),
+    ("pi", "DF401 * PI", "DF", "decimal"),
+    ("and", "DH401 AND FFh", "DH", "hex"),
+    ("or", "DH401 OR FFh", "DH", "hex"),
+    ("xor", "DH401 XOR FFh", "DH", "hex"),
+]
+
 STUBS = {
+    "math_funcs": (FUNC_CASES, 1600, 300),
     "math_wide": (WIDE_CASES, 1992, 510),
     "math_edge": (CASES, 1900, 410),
     "math_neg": (NEG_CASES, 1940, 450),
