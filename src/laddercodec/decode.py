@@ -759,7 +759,7 @@ def decode(data: bytes) -> Rung | list[Rung]:
         If the buffer is invalid.
     """
     _validate_buffer(data)
-    row_word = struct.unpack_from("<H", data, PROGRAM_HEADER_BASE)[0]
+    row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
     total_grid_rows = row_word // 0x20
     rung0_rtf, payload_len = _read_rung0_comment(data)
     grid_start = GRID_FIRST_ROW_START + payload_len
@@ -789,7 +789,7 @@ def decode_rung(data: bytes) -> Rung:
     """
     _validate_buffer(data)
 
-    row_word = struct.unpack_from("<H", data, PROGRAM_HEADER_BASE)[0]
+    row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
     total_grid_rows = row_word // 0x20
 
     rung0_rtf, payload_len = _read_rung0_comment(data)
@@ -823,7 +823,7 @@ def decode_rungs(data: bytes) -> list[Rung]:
     """
     _validate_buffer(data)
 
-    row_word = struct.unpack_from("<H", data, PROGRAM_HEADER_BASE)[0]
+    row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
     total_grid_rows = row_word // 0x20
 
     rung0_rtf, payload_len = _read_rung0_comment(data)
@@ -979,7 +979,7 @@ def inspect_cells(
     """
     _validate_buffer(data)
 
-    row_word = struct.unpack_from("<H", data, PROGRAM_HEADER_BASE)[0]
+    row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
     total_grid_rows = row_word // 0x20
 
     rung0_rtf, payload_len = _read_rung0_comment(data)

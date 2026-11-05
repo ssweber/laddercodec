@@ -8,6 +8,11 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
+## Unreleased
+
+### Fixed
+- **More than 256 rungs in one paste**: encoding carries the rung index and row number the way CLICK does, where it used to raise `byte must be in range(0, 256)`, and past 2047 grid rows both encoding and decoding keep every rung instead of losing most of them.
+
 ## 0.3.0 (2026-11-01)
 
 ### Added

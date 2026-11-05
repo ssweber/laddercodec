@@ -9,12 +9,20 @@ Regenerate BIN files:  make golden
 
 from __future__ import annotations
 
+import gzip
 from pathlib import Path
 
 import pytest
 
-from laddercodec import encode, read_csv
+from laddercodec import decode, encode, read_csv
+from laddercodec.decode import _DATA, _walk_grid, _walk_row_cells
 from laddercodec.encode_multi import encode_rungs
+from laddercodec.topology import (
+    CELL_SIZE,
+    COLS_PER_ROW,
+    GRID_FIRST_ROW_START,
+    PROGRAM_HEADER_BASE,
+)
 from tests.golden_io import GOLDEN_DIR
 
 # -- Golden CSV/BIN round-trip tests --
@@ -206,3 +214,79 @@ def test_multi_rung_rejects_out_of_range_rows() -> None:
                 (1, [_empty()], [""]),
             ]
         )
+
+
+# -- Past 256 rungs: CLICK's own copy of 266 rungs --
+
+_NATIVE_266 = GOLDEN_DIR.parents[1] / "scr_captures" / "rungs_266"
+
+
+def _row_fields(data: bytes) -> list[list[tuple[bytes, bytes]]]:
+    """Each row's cells as (row number field, 16-byte tail)."""
+    rows, _ = _walk_grid(data, GRID_FIRST_ROW_START, 600)
+    fields = []
+    for kind, cursor, _ in rows:
+        if kind == _DATA:
+            bounds = [(start, end) for start, end, _ in _walk_row_cells(data, cursor)]
+        else:
+            bounds = [
+                (cursor + col * CELL_SIZE, cursor + (col + 1) * CELL_SIZE)
+                for col in range(COLS_PER_ROW)
+            ]
+        fields.append([(data[a + 0x05 : a + 0x09], data[b - 0x10 : b]) for a, b in bounds])
+    return fields
+
+
+def test_rung_and_row_fields_match_native_past_256_rungs() -> None:
+    native = gzip.decompress(_NATIVE_266.with_suffix(".bin.gz").read_bytes())
+    rungs = read_csv(_NATIVE_266.with_suffix(".csv"))
+    assert len(rungs) == 266
+
+    ours, theirs = _row_fields(encode(rungs)), _row_fields(native)
+    assert len(ours) == len(theirs) == 532
+    # The last AF cell's end is not comparable: CLICK follows it with a table of its own.
+    ours[-1].pop()
+    theirs[-1].pop()
+    assert ours == theirs
+
+
+def test_native_past_256_rungs_decodes_to_its_csv() -> None:
+    native = decode(gzip.decompress(_NATIVE_266.with_suffix(".bin.gz").read_bytes()))
+    rungs = read_csv(_NATIVE_266.with_suffix(".csv"))
+    assert isinstance(native, list)
+    assert [(r.conditions, r.instructions) for r in native] == [
+        (r.conditions, r.instructions) for r in rungs
+    ]
+
+
+@pytest.mark.parametrize("count", [255, 256, 257, 258])
+def test_rung_counts_around_256_round_trip(count: int) -> None:
+    rungs = [(1, [["-"] * 31], ["NOP"])] * count
+    result = decode(encode_rungs(rungs))
+    assert isinstance(result, list)
+    assert len(result) == count
+    assert all(r.instructions == ["NOP"] for r in result)
+
+
+def test_comment_past_256_rungs_round_trips() -> None:
+    rungs = [(1, [_empty()], [""])] * 260
+    comments = [f"rung {i}" if i in (255, 256, 259) else None for i in range(260)]
+    result = decode(encode_rungs(rungs, comments=comments))
+    assert isinstance(result, list)
+    assert [(i, r.comment) for i, r in enumerate(result) if r.comment] == [
+        (255, "rung 255"),
+        (256, "rung 256"),
+        (259, "rung 259"),
+    ]
+
+
+def test_row_word_carries_past_16_bits() -> None:
+    # CLICK's copy of 1049 rungs and 2938 grid rows reads 40 6F 01 00 here.
+    count = 1100
+    data = encode_rungs([(1, [_empty()], [""])] * count)
+    assert data[PROGRAM_HEADER_BASE : PROGRAM_HEADER_BASE + 4] == (count * 2 * 0x20).to_bytes(
+        4, "little"
+    )
+    result = decode(data)
+    assert isinstance(result, list)
+    assert len(result) == count

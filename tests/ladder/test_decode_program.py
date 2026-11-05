@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import importlib
 import struct
 from pathlib import Path
@@ -553,6 +554,15 @@ def test_decode_program_matches_counter_scr_fixture():
     clip_rungs, scr_rungs = _load_fixture_pair("counter_scr")
 
     assert len(scr_rungs) == len(clip_rungs)
+    assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
+
+
+def test_decode_program_past_256_rungs_matches_clipboard():
+    fixture = _SCR_FIXTURE_DIR / "rungs_266"
+    clip_rungs = decode(gzip.decompress(fixture.with_suffix(".bin.gz").read_bytes()))
+    scr_rungs = decode_program(fixture.with_suffix(".scr").read_bytes()).rungs
+
+    assert len(scr_rungs) == len(clip_rungs) == 266
     assert [_rung_to_lines(r) for r in scr_rungs] == [_rung_to_lines(r) for r in clip_rungs]
 
 

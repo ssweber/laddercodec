@@ -36,8 +36,8 @@ A 12-byte structure immediately before the rung 0 preamble:
 
 | Offset | Size | Field | Value |
 |---|---|---|---|
-| +0x00 | 2B | row_word | `total_grid_rows * 0x20` |
-| +0x02 | ... | (other) | GUI state, not load-bearing for paste |
+| +0x00 | 4B | row_word | `total_grid_rows * 0x20`, uint32 LE (carries into the third byte past 2047 rows) |
+| +0x04 | ... | (other) | GUI state, not load-bearing for paste |
 
 `total_grid_rows` includes data rows for all rungs, preamble rows for rungs 1+, and one terminal row. For a single N-row rung: `total_grid_rows = N + 1`.
 
@@ -120,7 +120,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | Offset | Field |
 |---|---|
 | +0x08 | Marker (0x01 for condition cells and non-last-row AF data cells) |
-| +0x09 | Rung index |
+| +0x09 | Rung index, little-endian, carrying into +0x0A past 255 |
 | +0x0C | Instruction count (AF data cell, last row of last rung only) |
 | +0x0D | Row hint (condition: `local_row + 1`; AF last rung: `local_row + 2`) |
 
