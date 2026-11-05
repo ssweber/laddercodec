@@ -64,15 +64,18 @@ def test_internal_form_normalizes_literals() -> None:
         ("RAND ( 1 , 10 ) + DS1", "H1#RAND#H10#+#DS1"),
         ("SUM ( DS1 : DS3 ) + 5", "SUM#(#DS1#:#DS3#)#+#H5"),
         ("MAX ( DS1 : DS3 ) + SUM ( DS5 : DS8 )", "MAX#(#DS1#:#DS3#)#+#SUM#(#DS5#:#DS8#)"),
+        # typed in CLICK v4: math-multiple.bin
+        ("DH2 + LSH ( DH1 , 1h )", "DH2#+#DH1#LSH#UH1#"),
+        ("LSH ( DH1 , 1h ) AND RSH ( DH2 , 2h )", "DH1#LSH#UH1#AND#DH2#RSH#UH2#"),
         # the other comma functions and positions: same rule, not typed yet
         ("RRO ( DH1 , DH2 )", "DH1#RRO#DH2#"),
-        ("DH2 + LSH ( DH1 , 1h )", "DH2#+#DH1#LSH#UH1#"),
         ("( LSH ( DH1 , 1h ) ) + DH2", "(#DH1#LSH#UH1#)#+#DH2"),
         ("ABS ( RAND ( 1 , 10 ) )", "ABS#(#H1#RAND#H10#)"),
         # the editor refuses a compound argument; the call form passes Check Program
         ("LSH ( DH1 + 1h , 2h )", "LSH#(#DH1#+#UH1#,#UH2#)"),
         ("LSH ( ( DH1 AND FFh ) , 1h )", "LSH#(#(#DH1#AND#UH255#)#,#UH1#)"),
         ("LSH ( RSH ( DH1 , 1h ) , 2h )", "LSH#(#RSH#(#DH1#,#UH1#)#,#UH2#)"),
+        ("RAND ( ABS ( DD616 ) , 20 )", "RAND#(#ABS#(#DD616#)#,#H20#)"),
         # range functions take no commas; a comma list is left as written
         ("MAX ( DS1 , DS2 )", "MAX#(#DS1#,#DS2#)"),
     ],

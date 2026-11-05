@@ -162,7 +162,8 @@ The formula appears four times in the header:
   (`SUM`, `MAX`, `MIN`, `MDN`, `AVG`) and one-argument functions keep the call
   form (`SUM#(#DS1#:#DS3#)`).
 - Each argument of a comma function must be one operand or constant. CLICK's
-  editor refuses `LSH ( DH401 + 1h , 2h )` and a nested call. The encoder
+  editor refuses `LSH ( DH401 + 1h , 2h )`, `RAND ( ABS ( DD616 ) , 20 )` and
+  any other expression or call as an argument. The encoder
   writes such a call in its call form (`LSH#(#DH401#+#UH1#,#UH2#)`), which
   passes Check Program when pasted; written infix, it fails with C0114.
 - Cell header byte `+0x0A` is `03` on a Math that went through CLICK's editor.
