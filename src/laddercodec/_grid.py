@@ -24,12 +24,41 @@ from .encode import (
     _compute_seg_boundaries,
     _normalize_af,
 )
-from .instructions import AfInstruction, ConditionInstruction
+from .instructions import AfInstruction, CompareContact, ConditionInstruction, Copy, Fill, Search
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
 # 5a: Shared validation
 # ---------------------------------------------------------------------------
+
+#: An empty text constant.  CLICK writes one TXT register per character of a
+#: text constant, so ``""`` writes nothing, and a compare against it is not a
+#: usable compare (a TXT holding "T" read equal to ``""`` on a CLICK).  The
+#: blank / NUL character is spelled with the ASCII-code constant ``$00``.
+_EMPTY_TEXT_CONSTANT = '""'
+
+
+def _text_constant_operands(token: object) -> tuple[str, ...]:
+    """Return the operands of *token* that may hold a quoted text constant."""
+    if isinstance(token, CompareContact):
+        return (token.left, token.right)
+    if isinstance(token, (Copy, Search)):
+        return (token.source,)
+    if isinstance(token, Fill):
+        return (token.value,)
+    return ()
+
+
+def _check_text_constants(
+    token: ConditionInstruction | AfInstruction, prefix: str, where: str
+) -> None:
+    """Refuse an empty text constant ``""`` in *token* (encode only)."""
+    for operand in _text_constant_operands(token):
+        if operand.strip() == _EMPTY_TEXT_CONSTANT:
+            raise ValueError(
+                f'{prefix}Empty text constant "" in {token.to_csv()} at {where}: '
+                "CLICK writes nothing for it; use $00 for the NUL character"
+            )
 
 
 def _validate_rung(
@@ -63,6 +92,7 @@ def _validate_rung(
             )
         for col_idx, token in enumerate(row):
             if isinstance(token, ConditionInstruction):
+                _check_text_constants(token, prefix, f"row={row_idx}, col={col_idx}")
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
                 raise ValueError(
@@ -78,6 +108,10 @@ def _validate_rung(
                     f"{prefix}Vertical-down tokens are not allowed on the last row "
                     f"(row={row_idx}, col={col_idx}, token={token!r})"
                 )
+
+    for row_idx, af in enumerate(af_tokens):
+        if isinstance(af, AfInstruction):
+            _check_text_constants(af, prefix, f"row={row_idx}, AF")
 
     nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
     if nop_count > 1:

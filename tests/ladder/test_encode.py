@@ -9,12 +9,16 @@ Regenerate BIN files:  make golden
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
 
-from laddercodec import Coil, CompareContact, Contact, Return, Timer, decode, encode, read_csv
+from laddercodec import Coil, CompareContact, Contact, Copy, Return, Timer, decode, encode, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import _sanitize_to_ascii, encode_rung
+from laddercodec.instructions.comparison import from_tags as compare_from_tags
+from laddercodec.instructions.copy import from_tags as copy_from_tags
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
 
@@ -339,6 +343,79 @@ class TestInstructionRoundTrip:
             d = decode(buf)
             t = d.instructions[0]
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"
+
+
+# -- Text constants: "" refused on encode, $00 is the blank --
+
+
+def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
+    """Write a one-row rung: *condition* in column A, wire to *af*."""
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", condition] + ["-"] * 30 + [af])
+    return path
+
+
+_EMPTY_TEXT_SITES = [
+    pytest.param("C1", 'copy("",TXT813)', id="copy_source"),
+    pytest.param("C1", 'fill("",TXT1..TXT4)', id="fill_value"),
+    pytest.param("C1", 'search(TXT1..TXT10 == "",result=DS1,found=C2)', id="search_value"),
+    pytest.param('TXT842==""', "out(Y001)", id="compare_right"),
+    pytest.param('""!=TXT842', "out(Y001)", id="compare_left"),
+    pytest.param('T:TXT842==""', "out(Y001)", id="compare_wire_down"),
+]
+
+
+@pytest.mark.parametrize(("condition", "af"), _EMPTY_TEXT_SITES)
+def test_encode_refuses_empty_text_constant(tmp_path: Path, condition: str, af: str) -> None:
+    # Reading the CSV is fine; only encoding refuses.
+    rung = read_csv(_one_row_csv(tmp_path, condition, af))[0]
+    with pytest.raises(ValueError, match=r'Empty text constant "" in .* use \$00') as exc:
+        encode(rung)
+    assert str(exc.value).isascii()
+
+
+def test_encode_refuses_empty_text_constant_names_rung(tmp_path: Path) -> None:
+    ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
+    bad = read_csv(_one_row_csv(tmp_path, 'TXT842==""', "out(Y001)"))[0]
+    with pytest.raises(ValueError, match=r'^Rung 1: Empty text constant "" in TXT842=="" at row=0'):
+        encode([ok, bad])
+
+
+def test_encode_refuses_empty_text_constant_in_objects() -> None:
+    with pytest.raises(ValueError, match="Empty text constant"):
+        encode_rung(1, [_wire_row(CompareContact("==", "TXT1", '""'))], ["NOP"])  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="Empty text constant"):
+        encode_rung(2, [_empty(), _empty()], [Copy(source='""', destination="TXT1"), ""])
+
+
+@pytest.mark.parametrize(
+    ("condition", "af"),
+    [
+        pytest.param("C1", "copy($00,TXT813)", id="copy_source"),
+        pytest.param("C1", "fill($00,TXT1..TXT4)", id="fill_value"),
+        pytest.param("TXT842==$00", "out(Y001)", id="compare_right"),
+        pytest.param("C1", 'copy("Q",TXT813)', id="copy_nonempty_text"),
+        pytest.param('TXT842=="T"', "out(Y001)", id="compare_nonempty_text"),
+    ],
+)
+def test_encode_accepts_nul_and_nonempty_text_constants(
+    tmp_path: Path, condition: str, af: str
+) -> None:
+    rung = read_csv(_one_row_csv(tmp_path, condition, af))[0]
+    d = decode(encode(rung))
+    assert d.conditions[0][0].to_csv() == condition  # type: ignore[union-attr]
+    assert d.instructions[0].to_csv() == af  # type: ignore[union-attr]
+
+
+def test_decoder_accepts_empty_text_constant() -> None:
+    """The refusal is encode-only: decoded tags holding "" still build models."""
+    c = copy_from_tags("Copy", 0x2721, {0x6074: '""', 0x6076: "TXT1"}, {0x2223: 0, 0x2227: 0})
+    assert isinstance(c, Copy) and c.to_csv() == 'copy("",TXT1)'
+    cmp = compare_from_tags("Compare", 0x2714, {0x6066: "TXT1", 0x6067: '""'}, {0x21F7: 0})
+    assert isinstance(cmp, CompareContact) and cmp.to_csv() == 'TXT1==""'
 
 
 # -- ASCII sanitization --
