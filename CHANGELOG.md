@@ -10,7 +10,11 @@
 
 ## Unreleased
 
+### Changed
+- **Empty text constants**: `encode()` raises `ValueError` for `""` in a Copy or Fill source, a Search value or either side of a compare contact, because CLICK writes nothing for it and a compare against it is not usable; write `$00` for the NUL character.
+
 ### Fixed
+- **Copy with a text constant source**: a Copy of `"Q"` or `$00` sets the flag CLICK sets for a text constant, and decoding one no longer invents a termination code, where `copy($00,TXT1)` used to read back with `termination_code=$0` and fail `write_csv`'s round-trip check.
 - **Math encode**: `LSH`, `RSH`, `LRO` and `RRO` are written in the infix form Click's editor writes, like `RAND`, where `LSH ( DH5 , 1h )` used to come out as a call that only matched the editor once the Math was reopened and OK'd.
 - **More than 256 rungs in one paste**: encoding carries the rung index and row number the way CLICK does, where it used to raise `byte must be in range(0, 256)`, and past 2047 grid rows both encoding and decoding keep every rung instead of losing most of them.
 

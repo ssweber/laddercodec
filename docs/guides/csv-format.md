@@ -461,6 +461,13 @@ currently emit:
   - explicit list form `[A,B,C]`.
 - Indirect refs render as `BANK[pointer]` or `BANK[pointer+offset]` /
   `BANK[pointer-offset]`.
+- Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
+  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
+  one TXT register per character of a text constant, so `""` writes nothing
+  and does not compare usefully: `encode()` refuses an empty `""` in a Copy
+  or Fill source, a Search value, or either side of a compare contact. Use
+  `$00` for the blank (NUL) character. `read_csv()` and `decode()` still
+  accept `""`.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`

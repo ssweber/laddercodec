@@ -9,7 +9,8 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``) are only used by the blob tests below.
+into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin`` and
+``text_q.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from laddercodec import encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.instructions.comparison import CompareContact
+from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
@@ -356,3 +359,53 @@ def test_out_variant_is_not_a_plain_coil() -> None:
     assert (
         af.to_csv() == "debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=100,unit=Tms)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Text constants typed in CLICK v4
+# ---------------------------------------------------------------------------
+
+#: ``text_blank.bin``: ``TXT1 == $00`` (ASCII-code constant) -> Copy ``$00`` to TXT1.
+#: ``text_q.bin``: Copy ``"Q"`` (typed with its quotes) to TXT2.
+_TEXT_CAPTURES = {
+    "text_blank.bin": ("TXT1==$00", "copy($00,TXT1)"),
+    "text_q.bin": ("-", 'copy("Q",TXT2)'),
+}
+
+
+def _native_blob(buf: bytes, class_name: str, length: int) -> bytes:
+    start = buf.index(class_name.encode("utf-16-le") + b"\x00\x00")
+    return buf[start : start + length]
+
+
+@pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
+def test_text_constant_capture_decodes(file: str, tmp_path: Path) -> None:
+    """Decodes to the typed rung, with no termination code, and the CSV round-trips."""
+    rung = _decode_file(CAPTURE_DIR / file)[0]
+    rows = decoded_rung_to_rows(rung)
+    assert [(row[1], row[-1]) for row in rows if row[0] != "#" and row[-1]] == [
+        _TEXT_CAPTURES[file]
+    ]
+    copy = rung.instructions[0]
+    assert isinstance(copy, Copy) and copy.termination_code == "0"
+    write_csv(tmp_path / "rung.csv", [rung])
+    assert read_csv(tmp_path / "rung.csv")[0].instructions[0] == copy
+
+
+@pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
+def test_text_constant_blobs_match_native(file: str) -> None:
+    """A text-constant Copy source sets 0x1201 = -1, as CLICK writes; the blobs match."""
+    path = CAPTURE_DIR / file
+    buf = path.read_bytes()
+    rung = _decode_file(path)[0]
+    copy = rung.instructions[0]
+    assert isinstance(copy, Copy)
+    blob = copy.build_blob()
+    assert _native_blob(buf, "Copy", len(blob)) == blob
+    *_, fields = _decompose_blob(blob)
+    flags = {tag: value for tag, _, value in fields if tag in (0x1221, 0x3216, 0x1201)}
+    assert flags == {0x1221: "0", 0x3216: "0", 0x1201: "-1"}
+    compare = rung.conditions[0][0]
+    if isinstance(compare, CompareContact):
+        blob = compare.build_blob()
+        assert _native_blob(buf, "Compare", len(blob)) == blob

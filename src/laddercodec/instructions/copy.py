@@ -95,9 +95,19 @@ _COPY_TAGS = (
     0x2227,  # [8]  conversion_type (0=none, 1-4=text variants, 5=value, 6=ascii, 8=binary)
     0x1221,  # [9]  termination_flag (-1 = termination enabled)
     0x3216,  # [10] termination_char (decimal ASCII code, e.g. 19 = $13)
-    0x1201,  # [11] termination_flag2 (-1 = termination enabled)
+    0x1201,  # [11] text_flag (-1 = text constant source or termination enabled)
     0x0000,  # [12] terminator
 )
+
+#: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code).
+_ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
+
+
+def _is_text_constant(operand: str) -> bool:
+    """True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``)."""
+    operand = operand.strip()
+    return operand.startswith('"') or _ASCII_CODE_CONSTANT_RE.fullmatch(operand) is not None
+
 
 # ---------------------------------------------------------------------------
 # Paren-aware helpers
@@ -311,13 +321,16 @@ class Copy(AfInstruction):
             conv_type = _FORMAT_TO_CONVTYPE[self.format]
             field4 = _FORMAT_TO_FIELD4[self.format]
 
-        # Termination encoding: $hex → decimal for field[10], flags for [9]/[11].
+        # Termination encoding: $hex → decimal for field[10], flag for [9].
         if self.termination_code != "0" and self.termination_code.startswith("$"):
             term_char = str(int(self.termination_code[1:], 16))
             term_flag = "-1"
         else:
             term_char = "0"
             term_flag = "0"
+        # field[11]: CLICK sets it for a termination code and for a text
+        # constant source ("Q" or $00), seen in native captures of each.
+        text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
 
         return _build_blob(
             "Copy",
@@ -335,7 +348,7 @@ class Copy(AfInstruction):
                 conv_type,  # [8] conversion_type
                 term_flag,  # [9] termination_flag
                 term_char,  # [10] termination_char (decimal)
-                term_flag,  # [11] termination_flag2
+                text_flag,  # [11] text_flag
                 "",  # [12] terminator
             ],
         )
@@ -422,7 +435,7 @@ class BlockCopy(AfInstruction):
                 conv_type,  # [8] conversion_type
                 "0",  # [9] termination_flag
                 "0",  # [10] termination_char
-                "0",  # [11] termination_flag2
+                "0",  # [11] text_flag
                 "",  # [12] terminator
             ],
         )
@@ -492,7 +505,7 @@ class Fill(AfInstruction):
                 "0",  # [8] conversion_type
                 "0",  # [9] termination_flag
                 "0",  # [10] termination_char
-                "0",  # [11] termination_flag2
+                "0",  # [11] text_flag (no capture of a Fill with a text constant yet)
                 "",  # [12] terminator
             ],
         )
@@ -590,7 +603,7 @@ class Pack(AfInstruction):
                 conv_type,  # [8] conversion_type
                 "0",  # [9] termination_flag
                 "0",  # [10] termination_char
-                "0",  # [11] termination_flag2
+                "0",  # [11] text_flag
                 "",  # [12] terminator
             ],
         )
@@ -669,7 +682,7 @@ class Unpack(AfInstruction):
                 "0",  # [8] conversion_type
                 "0",  # [9] termination_flag
                 "0",  # [10] termination_char
-                "0",  # [11] termination_flag2
+                "0",  # [11] text_flag
                 "",  # [12] terminator
             ],
         )
@@ -723,7 +736,9 @@ def from_tags(
 
         termination_code = "0"
         term_char = tags.get(0x3216, "")
-        if (0x1221 in tags or 0x1201 in tags) and term_char:
+        # 0x1221 alone marks termination; 0x1201 is also set for a text
+        # constant source, so it must not imply a termination code.
+        if 0x1221 in tags and term_char:
             termination_code = f"${int(term_char):X}"
 
         return Copy(

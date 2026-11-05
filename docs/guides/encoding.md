@@ -138,6 +138,15 @@ some counters occupy multiple visual rows. `encode()` accepts the fully expanded
 rows directly. When you come from canonical CSV, `read_csv()` handles the
 padding and pin-row shaping for you.
 
+## Text Constants
+
+Text constants are written with their double quotes (`Copy(source='"Q"', ...)`,
+`CompareContact("==", "TXT1", '"T"')`), and an ASCII-code constant as `$hh`
+(`"$00"`). CLICK writes one TXT register per character of a text constant, so an
+empty `""` writes nothing and is not a usable compare. `encode()` raises
+`ValueError` for `""` in a Copy or Fill source, a Search value, or either side
+of a compare contact; use `$00` for the blank (NUL) character.
+
 ## Comments
 
 Comments are plain text with optional markdown-style inline formatting:
