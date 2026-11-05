@@ -25,7 +25,7 @@ part: `01` for a timer's reset, `01 02` for a counter (down, reset) or shift
 input (the main one included) push the later parts down, and CLICK grows the
 box: a drum with one leg under reset is `01 03 04`. A count_down's main part is
 its unused Up input, so its Down input is the first extra byte. The AF cell's `+0x09` becomes the last part's row + 1;
-`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`).
+`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`, `count_down_or.bin`).
 
 ### Tagged fields
 

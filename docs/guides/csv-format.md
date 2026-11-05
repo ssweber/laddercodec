@@ -325,6 +325,20 @@ so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
 the unused Down row under the main input's legs. A timer without `.reset()`
 stays 2 rows, with its main input's legs beside and below it.
 
+"OR leg" only says where a row sits. `read_csv` doesn't check wires, and it takes
+`T` or `|` to join a leg to the row above. CLICK accepts a leg without them, but
+that contact feeds nothing:
+
+```csv
+R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
+,C32,,...,,
+,C39,-,...,-,.reset()
+```
+
+Here C31 drives Down and C32 goes nowhere. With `NOP` in the second row's AF, the
+box is 3 rows and C32 drives Down, but C31 then sits on the unused top row, where
+its wire stops at the box and it feeds nothing.
+
 ## Parsing conveniences
 
 `laddercodec.read_csv()` accepts a few parsing conveniences beyond the canonical

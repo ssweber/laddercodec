@@ -7,7 +7,7 @@ This file provides guidance to coding agents working in this repository.
 
 ## Project Overview
 
-**laddercodec** is a pure-Python binary codec for AutomationDirect CLICK PLC ladder clipboard format. It encodes and decodes the native clipboard binary used by CLICK Programming Software (v2.60–v3.80). Zero runtime dependencies. Licensed MPL-2.0.
+**laddercodec** is a pure-Python binary codec for AutomationDirect CLICK PLC ladder clipboard format. It encodes and decodes the native clipboard binary used by CLICK Programming Software (v2.60–v4). Zero runtime dependencies. Licensed MPL-2.0.
 
 Extracted from [clicknick](https://github.com/ssweber/clicknick) as a standalone library.
 

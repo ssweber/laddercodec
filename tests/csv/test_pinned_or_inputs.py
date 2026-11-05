@@ -7,8 +7,10 @@ the rung back, and that the writer emits the same CSV rows.
 Ground truth: the N=1 shapes are the CLICK-verified coverage goldens
 (tests/test_coverage.py, byte for byte).  A timer without ``.reset()`` keeps
 its 2-row box beside a tall OR (native: tumbler ProductionErrors, checked
-below).  The other tall-OR shapes follow the rule CLICK showed for legs under
-a later pin (v4_captures/pins.bin) and still need a CLICK capture.
+below), and count_down's tall OR is captured in v4_captures/count_down_or.bin
+(tests/test_v4_captures.py).  The other tall-OR shapes follow the rule CLICK
+showed for legs under a later pin (v4_captures/pins.bin) and still need a
+CLICK capture.
 """
 
 from __future__ import annotations

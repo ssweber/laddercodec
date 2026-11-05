@@ -292,6 +292,38 @@ def test_pin_rows_from_pyrung_csv() -> None:
         assert af.pin_rows == _PIN_ROWS[rung_id], rung_id
 
 
+#: ``(rows, pin_rows)`` of each rung in count_down_or.bin, CLICK 4.00's copy-back of
+#: ``pinned_or/count_down_or.csv``.  Only nop_control_3row has anything on the box's
+#: unused top row; CLICK draws C21's wire stopping at the box.
+_COUNT_DOWN_SHAPES = {
+    "or2_wired": (4, (1, 3)),
+    "or3_wired": (5, (1, 4)),
+    "nop_control_3row": (3, (1, 2)),
+    "unwired_contact": (4, (1, 3)),
+    "empty_row": (4, (1, 3)),
+    "counters/count_down_negative": (5, (1, 4)),
+    "counters/acc_clamps_at_dint_range": (6, (1, 5)),
+    "counters/count_down_done_at_preset": (10, (1, 9)),
+}
+
+
+def test_count_down_or_layouts_survive_click() -> None:
+    """CLICK keeps the layout read_csv gives count_down: legs under Down push Reset down."""
+    native = (CAPTURE_DIR / "count_down_or.bin").read_bytes()
+    rungs = _decode_file(CAPTURE_DIR / "count_down_or.bin")
+    sent = read_csv(Path(__file__).parent / "fixtures" / "pinned_or" / "count_down_or.csv")
+    assert [r.comment for r in rungs] == list(_COUNT_DOWN_SHAPES)
+    encoded = encode(rungs)
+    for index, (rung, ours) in enumerate(zip(rungs, sent, strict=True)):
+        rung_id = rung.comment or ""
+        af = rung.instructions[0]
+        assert isinstance(af, Counter)
+        assert (rung.logical_rows, af.pin_rows) == _COUNT_DOWN_SHAPES[rung_id], rung_id
+        assert rung.conditions == ours.conditions, rung_id
+        assert rung.instructions == ours.instructions, rung_id
+        assert _af_cell_shape(encoded, index) == _af_cell_shape(native, index), rung_id
+
+
 def test_loop_exit_blobs_match_native() -> None:
     """Break and Continue are class ``Next`` with func codes 9233 / 9232 (a v4 Next is 9220).
 
