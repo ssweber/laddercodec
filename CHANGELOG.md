@@ -8,15 +8,15 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
-## Unreleased
+## 0.3.1 (2026-11-06)
 
 ### Changed
-- **Empty text constants**: `encode()` raises `ValueError` for `""` in a Copy or Fill source, a Search value or either side of a compare contact, because CLICK writes nothing for it and a compare against it is not usable; write `$00` for the NUL character.
+- **Empty text constants**: `encode()` raises `ValueError` for `""` in a Copy or Fill source, a Search value or a compare contact, since CLICK cannot store an empty text constant; use `$00` for the NUL character.
 
 ### Fixed
-- **Copy with a text constant source**: a Copy of `"Q"` or `$00` sets the flag CLICK sets for a text constant, and decoding one no longer invents a termination code, where `copy($00,TXT1)` used to read back with `termination_code=$0` and fail `write_csv`'s round-trip check.
-- **Math encode**: `LSH`, `RSH`, `LRO` and `RRO` are written in the infix form Click's editor writes, like `RAND`, where `LSH ( DH5 , 1h )` used to come out as a call that only matched the editor once the Math was reopened and OK'd.
-- **More than 256 rungs in one paste**: encoding carries the rung index and row number the way CLICK does, where it used to raise `byte must be in range(0, 256)`, and past 2047 grid rows both encoding and decoding keep every rung instead of losing most of them.
+- **Large pastes**: encoding more than 256 rungs no longer raises `byte must be in range(0, 256)`, and buffers past 2047 grid rows encode and decode without dropping rungs.
+- **Copy text constants**: a Copy from a text constant (`"Q"`, `$00`) encodes with the flag CLICK sets and decodes without a spurious `termination_code`, so `write_csv` round-trips it.
+- **Math encode**: `LSH`, `RSH`, `LRO` and `RRO` are written in the editor's infix form, like `RAND`.
 
 ## 0.3.0 (2026-11-01)
 
