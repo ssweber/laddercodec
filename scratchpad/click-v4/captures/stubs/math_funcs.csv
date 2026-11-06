@@ -1,0 +1,173 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math_funcs__lsh_const
+#,"math(LSH ( DH401 , 1h ),DH301,mode=hex)"
+R,C1601,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , 1h ),DH301,mode=hex)"
+#,math_funcs__rsh_const
+#,"math(RSH ( DH401 , 1h ),DH302,mode=hex)"
+R,C1602,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RSH ( DH401 , 1h ),DH302,mode=hex)"
+#,math_funcs__lro_const
+#,"math(LRO ( DH401 , 1h ),DH303,mode=hex)"
+R,C1603,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LRO ( DH401 , 1h ),DH303,mode=hex)"
+#,math_funcs__rro_const
+#,"math(RRO ( DH401 , 1h ),DH304,mode=hex)"
+R,C1604,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RRO ( DH401 , 1h ),DH304,mode=hex)"
+#,math_funcs__lsh_reg
+#,"math(LSH ( DH401 , DH402 ),DH305,mode=hex)"
+R,C1605,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , DH402 ),DH305,mode=hex)"
+#,math_funcs__rro_reg
+#,"math(RRO ( DH401 , DH402 ),DH306,mode=hex)"
+R,C1606,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RRO ( DH401 , DH402 ),DH306,mode=hex)"
+#,math_funcs__rand_const
+#,"math(RAND ( 1 , 100 ),DS307,mode=decimal)"
+R,C1607,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( 1 , 100 ),DS307,mode=decimal)"
+#,math_funcs__rand_reg
+#,"math(RAND ( DS401 , DS402 ),DS308,mode=decimal)"
+R,C1608,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( DS401 , DS402 ),DS308,mode=decimal)"
+#,math_funcs__lsh_first
+#,"math(LSH ( DH401 , 1h ) + DH402,DH309,mode=hex)"
+R,C1609,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , 1h ) + DH402,DH309,mode=hex)"
+#,math_funcs__lsh_last
+#,"math(DH402 + LSH ( DH401 , 1h ),DH310,mode=hex)"
+R,C1610,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH402 + LSH ( DH401 , 1h ),DH310,mode=hex)"
+#,math_funcs__lsh_middle
+#,"math(DH402 + LSH ( DH401 , 1h ) + DH403,DH311,mode=hex)"
+R,C1611,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH402 + LSH ( DH401 , 1h ) + DH403,DH311,mode=hex)"
+#,math_funcs__lsh_two
+#,"math(LSH ( DH401 , 1h ) AND RSH ( DH402 , 2h ),DH312,mode=hex)"
+R,C1612,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , 1h ) AND RSH ( DH402 , 2h ),DH312,mode=hex)"
+#,math_funcs__lsh_in_parens
+#,"math(( LSH ( DH401 , 1h ) ) + DH402,DH313,mode=hex)"
+R,C1613,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(( LSH ( DH401 , 1h ) ) + DH402,DH313,mode=hex)"
+#,math_funcs__rand_last
+#,"math(DS401 + RAND ( 1 , 10 ),DS314,mode=decimal)"
+R,C1614,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 + RAND ( 1 , 10 ),DS314,mode=decimal)"
+#,math_funcs__rand_two
+#,"math(RAND ( 1 , 10 ) * RAND ( 2 , 20 ),DS315,mode=decimal)"
+R,C1615,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( 1 , 10 ) * RAND ( 2 , 20 ),DS315,mode=decimal)"
+#,math_funcs__lsh_expr_first
+#,"math(LSH ( DH401 + 1h , 2h ),DH316,mode=hex)"
+R,C1616,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 + 1h , 2h ),DH316,mode=hex)"
+#,math_funcs__lsh_expr_second
+#,"math(LSH ( DH401 , DH402 + 1h ),DH317,mode=hex)"
+R,C1617,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , DH402 + 1h ),DH317,mode=hex)"
+#,math_funcs__lsh_parens_arg
+#,"math(LSH ( ( DH401 AND FFh ) , 1h ),DH318,mode=hex)"
+R,C1618,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( ( DH401 AND FFh ) , 1h ),DH318,mode=hex)"
+#,math_funcs__lsh_nested_first
+#,"math(LSH ( RSH ( DH401 , 1h ) , 2h ),DH319,mode=hex)"
+R,C1619,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( RSH ( DH401 , 1h ) , 2h ),DH319,mode=hex)"
+#,math_funcs__lsh_nested_second
+#,"math(LSH ( DH401 , RSH ( DH402 , 1h ) ),DH320,mode=hex)"
+R,C1620,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LSH ( DH401 , RSH ( DH402 , 1h ) ),DH320,mode=hex)"
+#,math_funcs__rand_expr
+#,"math(RAND ( DS401 + 1 , DS402 * 2 ),DS321,mode=decimal)"
+R,C1621,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( DS401 + 1 , DS402 * 2 ),DS321,mode=decimal)"
+#,math_funcs__rand_negative
+#,"math(RAND ( -5 , 5 ),DS322,mode=decimal)"
+R,C1622,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( -5 , 5 ),DS322,mode=decimal)"
+#,math_funcs__abs_of_rand
+#,"math(ABS ( RAND ( 1 , 10 ) ),DS323,mode=decimal)"
+R,C1623,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS ( RAND ( 1 , 10 ) ),DS323,mode=decimal)"
+#,math_funcs__rand_of_abs
+#,"math(RAND ( ABS ( DS401 ) , 10 ),DS324,mode=decimal)"
+R,C1624,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAND ( ABS ( DS401 ) , 10 ),DS324,mode=decimal)"
+#,math_funcs__sum_plus_rand
+#,"math(SUM ( DS401 : DS403 ) + RAND ( 1 , 10 ),DS325,mode=decimal)"
+R,C1625,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS401 : DS403 ) + RAND ( 1 , 10 ),DS325,mode=decimal)"
+#,math_funcs__abs
+#,"math(ABS ( DS401 ),DS326,mode=decimal)"
+R,C1626,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS ( DS401 ),DS326,mode=decimal)"
+#,math_funcs__sqrt
+#,"math(SQRT ( DF401 ),DF327,mode=decimal)"
+R,C1627,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SQRT ( DF401 ),DF327,mode=decimal)"
+#,math_funcs__log
+#,"math(LOG ( DF401 ),DF328,mode=decimal)"
+R,C1628,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LOG ( DF401 ),DF328,mode=decimal)"
+#,math_funcs__ln
+#,"math(LN ( DF401 ),DF329,mode=decimal)"
+R,C1629,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(LN ( DF401 ),DF329,mode=decimal)"
+#,math_funcs__sin
+#,"math(SIN ( DF401 ),DF330,mode=decimal)"
+R,C1630,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SIN ( DF401 ),DF330,mode=decimal)"
+#,math_funcs__cos
+#,"math(COS ( DF401 ),DF331,mode=decimal)"
+R,C1631,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(COS ( DF401 ),DF331,mode=decimal)"
+#,math_funcs__tan
+#,"math(TAN ( DF401 ),DF332,mode=decimal)"
+R,C1632,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(TAN ( DF401 ),DF332,mode=decimal)"
+#,math_funcs__asin
+#,"math(ASIN ( DF401 ),DF333,mode=decimal)"
+R,C1633,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ASIN ( DF401 ),DF333,mode=decimal)"
+#,math_funcs__acos
+#,"math(ACOS ( DF401 ),DF334,mode=decimal)"
+R,C1634,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ACOS ( DF401 ),DF334,mode=decimal)"
+#,math_funcs__atan
+#,"math(ATAN ( DF401 ),DF335,mode=decimal)"
+R,C1635,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ATAN ( DF401 ),DF335,mode=decimal)"
+#,math_funcs__rad
+#,"math(RAD ( DF401 ),DF336,mode=decimal)"
+R,C1636,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(RAD ( DF401 ),DF336,mode=decimal)"
+#,math_funcs__deg
+#,"math(DEG ( DF401 ),DF337,mode=decimal)"
+R,C1637,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DEG ( DF401 ),DF337,mode=decimal)"
+#,math_funcs__sqrt_of_abs
+#,"math(SQRT ( ABS ( DF401 ) ),DF338,mode=decimal)"
+R,C1638,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SQRT ( ABS ( DF401 ) ),DF338,mode=decimal)"
+#,math_funcs__sqrt_literal
+#,"math(SQRT ( 2.0 ),DF339,mode=decimal)"
+R,C1639,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SQRT ( 2.0 ),DF339,mode=decimal)"
+#,math_funcs__abs_expr
+#,"math(ABS ( DS401 - DS402 ) + 1,DS340,mode=decimal)"
+R,C1640,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(ABS ( DS401 - DS402 ) + 1,DS340,mode=decimal)"
+#,math_funcs__sum_range
+#,"math(SUM ( DS401 : DS405 ),DS341,mode=decimal)"
+R,C1641,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS401 : DS405 ),DS341,mode=decimal)"
+#,math_funcs__max_range
+#,"math(MAX ( DS401 : DS405 ),DS342,mode=decimal)"
+R,C1642,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DS401 : DS405 ),DS342,mode=decimal)"
+#,math_funcs__min_range
+#,"math(MIN ( DS401 : DS405 ),DS343,mode=decimal)"
+R,C1643,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DS401 : DS405 ),DS343,mode=decimal)"
+#,math_funcs__mdn_range
+#,"math(MDN ( DS401 : DS405 ),DS344,mode=decimal)"
+R,C1644,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DS401 : DS405 ),DS344,mode=decimal)"
+#,math_funcs__avg_range
+#,"math(AVG ( DS401 : DS405 ),DS345,mode=decimal)"
+R,C1645,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DS401 : DS405 ),DS345,mode=decimal)"
+#,math_funcs__sum_range_hex
+#,"math(SUM ( DH401 : DH405 ),DH346,mode=hex)"
+R,C1646,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DH401 : DH405 ),DH346,mode=hex)"
+#,math_funcs__max_comma
+#,"math(MAX ( DS401 , DS402 ),DS347,mode=decimal)"
+R,C1647,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MAX ( DS401 , DS402 ),DS347,mode=decimal)"
+#,math_funcs__min_comma
+#,"math(MIN ( DS401 , DS402 ),DS348,mode=decimal)"
+R,C1648,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MIN ( DS401 , DS402 ),DS348,mode=decimal)"
+#,math_funcs__mdn_comma
+#,"math(MDN ( DS401 , DS402 , DS403 ),DS349,mode=decimal)"
+R,C1649,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(MDN ( DS401 , DS402 , DS403 ),DS349,mode=decimal)"
+#,math_funcs__avg_comma
+#,"math(AVG ( DS401 , DS402 ),DS350,mode=decimal)"
+R,C1650,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(AVG ( DS401 , DS402 ),DS350,mode=decimal)"
+#,math_funcs__sum_comma
+#,"math(SUM ( DS401 , DS402 ),DS351,mode=decimal)"
+R,C1651,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(SUM ( DS401 , DS402 ),DS351,mode=decimal)"
+#,math_funcs__mod
+#,"math(DS401 MOD 2,DS352,mode=decimal)"
+R,C1652,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DS401 MOD 2,DS352,mode=decimal)"
+#,math_funcs__power
+#,"math(DF401 ^ 2.5,DF353,mode=decimal)"
+R,C1653,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 ^ 2.5,DF353,mode=decimal)"
+#,math_funcs__pi
+#,"math(DF401 * PI,DF354,mode=decimal)"
+R,C1654,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DF401 * PI,DF354,mode=decimal)"
+#,math_funcs__and
+#,"math(DH401 AND FFh,DH355,mode=hex)"
+R,C1655,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH401 AND FFh,DH355,mode=hex)"
+#,math_funcs__or
+#,"math(DH401 OR FFh,DH356,mode=hex)"
+R,C1656,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH401 OR FFh,DH356,mode=hex)"
+#,math_funcs__xor
+#,"math(DH401 XOR FFh,DH357,mode=hex)"
+R,C1657,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DH401 XOR FFh,DH357,mode=hex)"
+R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,end()

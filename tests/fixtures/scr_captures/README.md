@@ -31,3 +31,7 @@ The upper row has flag 0, B segment 0, and C through AE segment 1. The lower ori
 This is a native counterexample to the removed deletion rule: the upper row is nonempty and the following row has the all-segment-1 rail signature, yet CLICK's clipboard preserves both rows and the branch. Running the pre-change decoder (the version with `_resync_trailing_rung` and the row-0-signature deletion rule) deletes the branch and shifts the lower wire onto the drum's top row. The updated decoder preserves the branch and suppresses only the covered NOP token.
 
 The condition-side geometry, row flags, and down list match the older time_drums rung 13; that older SCR additionally has a segment-0 AF wire entry on the upper row. Exact editing history of the older fixture is unnecessary to establish that the generic deletion rule was invalid.
+
+## Past 256 rungs (2026-11-05)
+
+`rungs_266.{scr,bin.gz,csv}` are one CLICK project of 266 rungs, all native: the `Scr1.tmp`, and the clipboard copy of the same rungs with its CSV. The BIN is gzipped because 266 rungs copy out to 1 MB. They settle how a rung index passes 255: 16 bits in the SCR (`RUNG`), and in the clipboard a little-endian value at tail `+0x09` that carries into `+0x0A`.

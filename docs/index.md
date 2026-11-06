@@ -1,6 +1,6 @@
 # laddercodec
 
-**The compatibility layer for CLICK ladder data.** laddercodec reads and writes CLICK's native representations and enables reliable round-tripping between CLICK and the pyrung/ClickNick toolchain. Tested against v2.60 to v3.9x captures. Zero runtime dependencies.
+**The compatibility layer for CLICK ladder data.** laddercodec reads and writes CLICK's native representations and enables reliable round-tripping between CLICK and the pyrung/ClickNick toolchain. Tested against captures from v2.60 through v4. Zero runtime dependencies.
 
 It's the layer [ClickNick](https://pyrung.com/clicknick/) pastes through, and it's useful on its own to convert between CLICK ladder data, Python objects, and CSV.
 
@@ -31,9 +31,9 @@ print(rung.instructions)
 
 ## What's included
 
-**[Encoder](guides/encoding.md)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, wire topologies, and styled comments.
+**[Encoder](guides/encoding.md)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, including those new in CLICK v4, wire topologies, and styled comments.
 
-**[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files.
+**[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files. `find_v4_only()` lists the instructions an older CLICK would silently change.
 
 **[CSV I/O](guides/csv-format.md)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 

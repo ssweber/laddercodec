@@ -51,8 +51,37 @@ def test_internal_form_normalizes_literals() -> None:
     assert _make_internal("DF1 * .5 + 1E5") == "DF1#*#F.5#+#F1E5"
     assert _make_internal("- DS401") == "-#DS401"
     assert _make_internal("DH221 + Ah") == "DH221#+#UH10"
-    assert _make_internal("LSH ( DH1 , 1h )") == "LSH#(#DH1#,#UH1#)"
     assert _make_internal("DH1 AND AB59h") == "DH1#AND#UH43865"
+
+
+@pytest.mark.parametrize(
+    ("display", "internal"),
+    [
+        # typed in CLICK v4: math_r1.bin, math_typed.bin, the math__v4 RAND rungs
+        ("LSH ( DH5 , 1h )", "DH5#LSH#UH1#"),
+        ("RAND ( 1 , 100 )", "H1#RAND#H100#"),
+        ("RAND ( DD111 , DD112 )", "DD111#RAND#DD112#"),
+        ("RAND ( 1 , 10 ) + DS1", "H1#RAND#H10#+#DS1"),
+        ("SUM ( DS1 : DS3 ) + 5", "SUM#(#DS1#:#DS3#)#+#H5"),
+        ("MAX ( DS1 : DS3 ) + SUM ( DS5 : DS8 )", "MAX#(#DS1#:#DS3#)#+#SUM#(#DS5#:#DS8#)"),
+        # typed in CLICK v4: math-multiple.bin
+        ("DH2 + LSH ( DH1 , 1h )", "DH2#+#DH1#LSH#UH1#"),
+        ("LSH ( DH1 , 1h ) AND RSH ( DH2 , 2h )", "DH1#LSH#UH1#AND#DH2#RSH#UH2#"),
+        # the other comma functions and positions: same rule, not typed yet
+        ("RRO ( DH1 , DH2 )", "DH1#RRO#DH2#"),
+        ("( LSH ( DH1 , 1h ) ) + DH2", "(#DH1#LSH#UH1#)#+#DH2"),
+        ("ABS ( RAND ( 1 , 10 ) )", "ABS#(#H1#RAND#H10#)"),
+        # the editor refuses a compound argument; the call form passes Check Program
+        ("LSH ( DH1 + 1h , 2h )", "LSH#(#DH1#+#UH1#,#UH2#)"),
+        ("LSH ( ( DH1 AND FFh ) , 1h )", "LSH#(#(#DH1#AND#UH255#)#,#UH1#)"),
+        ("LSH ( RSH ( DH1 , 1h ) , 2h )", "LSH#(#RSH#(#DH1#,#UH1#)#,#UH2#)"),
+        ("RAND ( ABS ( DD616 ) , 20 )", "RAND#(#ABS#(#DD616#)#,#H20#)"),
+        # range functions take no commas; a comma list is left as written
+        ("MAX ( DS1 , DS2 )", "MAX#(#DS1#,#DS2#)"),
+    ],
+)
+def test_comma_calls_are_stored_infix(display: str, internal: str) -> None:
+    assert _make_internal(display) == internal
 
 
 def test_hex_constant_round_trips_through_csv_form() -> None:

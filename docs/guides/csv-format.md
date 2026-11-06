@@ -325,6 +325,20 @@ so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
 the unused Down row under the main input's legs. A timer without `.reset()`
 stays 2 rows, with its main input's legs beside and below it.
 
+"OR leg" only says where a row sits. `read_csv` doesn't check wires, and it takes
+`T` or `|` to join a leg to the row above. CLICK accepts a leg without them, but
+that contact feeds nothing:
+
+```csv
+R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
+,C32,,...,,
+,C39,-,...,-,.reset()
+```
+
+Here C31 drives Down and C32 goes nowhere. With `NOP` in the second row's AF, the
+box is 3 rows and C32 drives Down, but C31 then sits on the unused top row, where
+its wire stops at the box and it feeds nothing.
+
 ## Parsing conveniences
 
 `laddercodec.read_csv()` accepts a few parsing conveniences beyond the canonical
@@ -447,6 +461,13 @@ currently emit:
   - explicit list form `[A,B,C]`.
 - Indirect refs render as `BANK[pointer]` or `BANK[pointer+offset]` /
   `BANK[pointer-offset]`.
+- Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
+  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
+  one TXT register per character of a text constant, so `""` writes nothing
+  and does not compare usefully: `encode()` refuses an empty `""` in a Copy
+  or Fill source, a Search value, or either side of a compare contact. Use
+  `$00` for the blank (NUL) character. `read_csv()` and `decode()` still
+  accept `""`.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`

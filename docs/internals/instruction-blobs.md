@@ -25,7 +25,7 @@ part: `01` for a timer's reset, `01 02` for a counter (down, reset) or shift
 input (the main one included) push the later parts down, and CLICK grows the
 box: a drum with one leg under reset is `01 03 04`. A count_down's main part is
 its unused Up input, so its Down input is the first extra byte. The AF cell's `+0x09` becomes the last part's row + 1;
-`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`).
+`+0x0A` keeps the base height (`tests/fixtures/v4_captures/pins.bin`, `count_down_or.bin`).
 
 ### Tagged fields
 
@@ -155,10 +155,20 @@ The formula appears four times in the header:
   bare decimal literal prefixed with `H`. Click splits it on `#`, so an
   unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
   raises a Math instruction error.
-- **RAND** is stored infix in the internal form: `RAND ( a , b )` becomes
-  `a#RAND#b`, followed by a trailing `#` when RAND ends the formula
-  (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`). The display form keeps the function
-  call.
+- **Comma functions** (`RAND`, `LSH`, `RSH`, `LRO`, `RRO`) are stored infix in
+  the internal form: `F ( a , b )` becomes `a#F#b`, followed by a trailing `#`
+  when the call ends the formula (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`,
+  `DH5#LSH#UH1#`). The display form keeps the function call. Range functions
+  (`SUM`, `MAX`, `MIN`, `MDN`, `AVG`) and one-argument functions keep the call
+  form (`SUM#(#DS1#:#DS3#)`).
+- Each argument of a comma function must be one operand or constant. CLICK's
+  editor refuses `LSH ( DH401 + 1h , 2h )`, `RAND ( ABS ( DD616 ) , 20 )` and
+  any other expression or call as an argument. The encoder
+  writes such a call in its call form (`LSH#(#DH401#+#UH1#,#UH2#)`), which
+  passes Check Program when pasted; written infix, it fails with C0114.
+- Cell header byte `+0x0A` is `03` on a Math that went through CLICK's editor.
+  A pasted Math keeps the encoder's `01`, even in a copy-back, so only `03`
+  blobs show CLICK's own internal form.
 
 ### Operand and reserved slots
 

@@ -9,7 +9,8 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``) are only used by the blob tests below.
+into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin`` and
+``text_q.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from laddercodec import encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.instructions.comparison import CompareContact
+from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
@@ -292,6 +295,38 @@ def test_pin_rows_from_pyrung_csv() -> None:
         assert af.pin_rows == _PIN_ROWS[rung_id], rung_id
 
 
+#: ``(rows, pin_rows)`` of each rung in count_down_or.bin, CLICK 4.00's copy-back of
+#: ``pinned_or/count_down_or.csv``.  Only nop_control_3row has anything on the box's
+#: unused top row; CLICK draws C21's wire stopping at the box.
+_COUNT_DOWN_SHAPES = {
+    "or2_wired": (4, (1, 3)),
+    "or3_wired": (5, (1, 4)),
+    "nop_control_3row": (3, (1, 2)),
+    "unwired_contact": (4, (1, 3)),
+    "empty_row": (4, (1, 3)),
+    "counters/count_down_negative": (5, (1, 4)),
+    "counters/acc_clamps_at_dint_range": (6, (1, 5)),
+    "counters/count_down_done_at_preset": (10, (1, 9)),
+}
+
+
+def test_count_down_or_layouts_survive_click() -> None:
+    """CLICK keeps the layout read_csv gives count_down: legs under Down push Reset down."""
+    native = (CAPTURE_DIR / "count_down_or.bin").read_bytes()
+    rungs = _decode_file(CAPTURE_DIR / "count_down_or.bin")
+    sent = read_csv(Path(__file__).parent / "fixtures" / "pinned_or" / "count_down_or.csv")
+    assert [r.comment for r in rungs] == list(_COUNT_DOWN_SHAPES)
+    encoded = encode(rungs)
+    for index, (rung, ours) in enumerate(zip(rungs, sent, strict=True)):
+        rung_id = rung.comment or ""
+        af = rung.instructions[0]
+        assert isinstance(af, Counter)
+        assert (rung.logical_rows, af.pin_rows) == _COUNT_DOWN_SHAPES[rung_id], rung_id
+        assert rung.conditions == ours.conditions, rung_id
+        assert rung.instructions == ours.instructions, rung_id
+        assert _af_cell_shape(encoded, index) == _af_cell_shape(native, index), rung_id
+
+
 def test_loop_exit_blobs_match_native() -> None:
     """Break and Continue are class ``Next`` with func codes 9233 / 9232 (a v4 Next is 9220).
 
@@ -324,3 +359,53 @@ def test_out_variant_is_not_a_plain_coil() -> None:
     assert (
         af.to_csv() == "debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=100,unit=Tms)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Text constants typed in CLICK v4
+# ---------------------------------------------------------------------------
+
+#: ``text_blank.bin``: ``TXT1 == $00`` (ASCII-code constant) -> Copy ``$00`` to TXT1.
+#: ``text_q.bin``: Copy ``"Q"`` (typed with its quotes) to TXT2.
+_TEXT_CAPTURES = {
+    "text_blank.bin": ("TXT1==$00", "copy($00,TXT1)"),
+    "text_q.bin": ("-", 'copy("Q",TXT2)'),
+}
+
+
+def _native_blob(buf: bytes, class_name: str, length: int) -> bytes:
+    start = buf.index(class_name.encode("utf-16-le") + b"\x00\x00")
+    return buf[start : start + length]
+
+
+@pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
+def test_text_constant_capture_decodes(file: str, tmp_path: Path) -> None:
+    """Decodes to the typed rung, with no termination code, and the CSV round-trips."""
+    rung = _decode_file(CAPTURE_DIR / file)[0]
+    rows = decoded_rung_to_rows(rung)
+    assert [(row[1], row[-1]) for row in rows if row[0] != "#" and row[-1]] == [
+        _TEXT_CAPTURES[file]
+    ]
+    copy = rung.instructions[0]
+    assert isinstance(copy, Copy) and copy.termination_code == "0"
+    write_csv(tmp_path / "rung.csv", [rung])
+    assert read_csv(tmp_path / "rung.csv")[0].instructions[0] == copy
+
+
+@pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
+def test_text_constant_blobs_match_native(file: str) -> None:
+    """A text-constant Copy source sets 0x1201 = -1, as CLICK writes; the blobs match."""
+    path = CAPTURE_DIR / file
+    buf = path.read_bytes()
+    rung = _decode_file(path)[0]
+    copy = rung.instructions[0]
+    assert isinstance(copy, Copy)
+    blob = copy.build_blob()
+    assert _native_blob(buf, "Copy", len(blob)) == blob
+    *_, fields = _decompose_blob(blob)
+    flags = {tag: value for tag, _, value in fields if tag in (0x1221, 0x3216, 0x1201)}
+    assert flags == {0x1221: "0", 0x3216: "0", 0x1201: "-1"}
+    compare = rung.conditions[0][0]
+    if isinstance(compare, CompareContact):
+        blob = compare.build_blob()
+        assert _native_blob(buf, "Compare", len(blob)) == blob

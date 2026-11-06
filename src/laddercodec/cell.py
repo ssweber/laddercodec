@@ -27,6 +27,11 @@ _INSTR_DATA_OFFSET = 0x25
 _HEADER_STRUCT = struct.Struct("<xIIBBBBiIIIII")
 
 
+def _put_rung(buf: bytearray, offset: int, rung: int) -> None:
+    """Write a rung index: little-endian, carrying into the next byte past 255."""
+    buf[offset : offset + 2] = rung.to_bytes(2, "little")
+
+
 # ---------------------------------------------------------------------------
 # Unified cell builder
 # ---------------------------------------------------------------------------
@@ -134,7 +139,7 @@ class ClickCell:
                     return tail
 
             tail[8] = 0x01
-            tail[9] = self.rung_idx
+            _put_rung(tail, 9, self.rung_idx)
             if self.col < 31:
                 tail[13] = (self.local_row + 1) & 0xFF
             elif self.single_rung:
@@ -149,7 +154,7 @@ class ClickCell:
                 #   - tail[13] is only present on non-final data rows.
                 is_last_row = self.local_row == self.logical_rows - 1
                 if not self.is_last_rung and is_last_row:
-                    tail[9] = (self.rung_idx + 1) & 0xFF
+                    _put_rung(tail, 9, self.rung_idx + 1)
                 if not is_last_row:
                     tail[13] = (self.local_row + 2) & 0xFF
         else:
@@ -157,7 +162,7 @@ class ClickCell:
             is_last_row = self.local_row == self.logical_rows - 1
             if self.col < 31:
                 tail[8] = 0x01
-                tail[9] = self.rung_idx
+                _put_rung(tail, 9, self.rung_idx)
                 tail[13] = (self.local_row + 1) & 0xFF
             else:  # col 31
                 if is_last_row and self.is_last_rung:
@@ -167,7 +172,7 @@ class ClickCell:
                         tail[12] = self.instr_count & 0xFF
                 else:
                     tail[8] = 0x01
-                    tail[9] = (self.rung_idx + 1) if is_last_row else self.rung_idx
+                    _put_rung(tail, 9, self.rung_idx + 1 if is_last_row else self.rung_idx)
                     if self.single_rung or not is_last_row:
                         tail[13] = (self.local_row + 2) & 0xFF
 
@@ -201,7 +206,7 @@ def build_preamble_cell(col: int, global_row: int, rung_idx: int) -> bytes:
     cell = bytearray(CELL_SIZE)
 
     cell[0x01] = col
-    cell[0x05] = (global_row + 1) & 0xFF
+    cell[0x05:0x09] = (global_row + 1).to_bytes(4, "little")
     cell[0x09] = 0x01
     cell[0x0A] = 0x01
     cell[0x0C] = 0x01
@@ -213,7 +218,7 @@ def build_preamble_cell(col: int, global_row: int, rung_idx: int) -> bytes:
 
     cell[0x30] = 0x01  # preamble marker
     cell[0x38] = 0x01
-    cell[0x39] = rung_idx + 1
+    _put_rung(cell, 0x39, rung_idx + 1)
     cell[0x3D] = 0x01 if col == 31 else 0x00
 
     return bytes(cell)

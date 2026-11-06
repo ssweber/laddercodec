@@ -44,10 +44,11 @@ Grid layout (1-row rungs shown; multi-row rungs span multiple rows)
 Key cell field differences from single-rung
 --------------------------------------------
 
-    +0x05   global 1-based row (not local)
+    +0x05   global 1-based row (not local), uint32 LE
     +0x30   1 on preamble rows (load-bearing for comment detection)
     +0x38   0 only on last rung's col31; 1 everywhere else
-    +0x39   load-bearing rung index (confirmed via bisect 2026-03-12):
+    +0x39   load-bearing rung index, carrying into +0x3A past 255 (native 266-rung capture)
+            (confirmed via bisect 2026-03-12):
               data rows       col 0..30: rung_idx
                               col31:     0 if last rung, else rung_idx+1
               preamble rows   all cols:  rung_idx+1
@@ -165,8 +166,8 @@ def encode_rungs(
 
     template = synthesize_empty_multirow(1)
     out = bytearray(template[:GRID_FIRST_ROW_START])
-    out[PROGRAM_HEADER_BASE + 0x00] = row_word & 0xFF
-    out[PROGRAM_HEADER_BASE + 0x01] = (row_word >> 8) & 0xFF
+    # uint32 LE: a native copy of 1049 rungs and 2938 grid rows carries into the third byte.
+    out[PROGRAM_HEADER_BASE : PROGRAM_HEADER_BASE + 4] = row_word.to_bytes(4, "little")
 
     # --- Step 2: Grid — build cell objects, concatenate ---
 
