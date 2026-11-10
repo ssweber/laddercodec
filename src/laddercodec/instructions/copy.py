@@ -110,6 +110,13 @@ def _is_text_constant(operand: str) -> bool:
     return operand.startswith('"') or _ASCII_CODE_CONSTANT_RE.fullmatch(operand) is not None
 
 
+def _ascii_code(code: int) -> str:
+    """Spell a character code the way CLICK and pyrung do: ``$`` + two hex digits (``$0D``)."""
+    if not 0 <= code <= 0xFF:
+        raise ValueError(f"ASCII code out of range 0..0xFF: {code}")
+    return f"${code:02X}"
+
+
 # ---------------------------------------------------------------------------
 # Paren-aware helpers
 # ---------------------------------------------------------------------------
@@ -198,8 +205,8 @@ class Copy(AfInstruction):
     exponential:
         Text option — ``"0"`` (real) or ``"1"`` (exponential).
     termination_code:
-        Text option — ``"0"`` (none) or ``"$HH"`` hex ASCII code
-        (e.g. ``"$13"`` for 0x13).
+        Text option — ``"0"`` (none) or ``"$HH"`` hex ASCII code, always
+        two digits (``"$0D"`` for 0x0D; ``"$D"`` is accepted and stored as ``"$0D"``).
     """
 
     source: str
@@ -213,6 +220,13 @@ class Copy(AfInstruction):
     def __post_init__(self) -> None:
         if self.format not in _VALID_FORMATS:
             raise ValueError(f"Invalid copy format: {self.format!r}")
+        # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
+        if self.termination_code.startswith("$"):
+            try:
+                code = int(self.termination_code[1:], 16)
+            except ValueError:
+                raise ValueError(f"Invalid termination code: {self.termination_code!r}") from None
+            self.termination_code = _ascii_code(code)
 
     @classmethod
     def from_csv_token(cls, token: str) -> Copy:
@@ -729,7 +743,7 @@ def from_tags(
         # 0x1221 alone marks termination; 0x1201 is also set for a text
         # constant source, so it must not imply a termination code.
         if tag_flag(tags, 0x1221) and term_char:
-            termination_code = f"${int(term_char):X}"
+            termination_code = _ascii_code(int(term_char))
 
         return Copy(
             source=source,
