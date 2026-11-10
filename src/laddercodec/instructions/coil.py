@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_value
 from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, _validate_operand
 from .family import AfInstructionFamilySpec
 
@@ -184,7 +185,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Coil | None:
@@ -196,7 +196,7 @@ def from_tags(
         InstructionType.COIL_RESET,
     ):
         return None
-    operand = tags.get(0x6066, "")
+    operand = tag_value(tags, 0x6066)
     if not operand:
         return None
     # CLICK v4's Out variants (toggle, debounce, flasher, timed) share class "Out" and
@@ -205,13 +205,13 @@ def from_tags(
     func_code = tags.get(0x3218)
     if func_code is not None and func_code not in _FUNC_TO_COIL:
         return None
-    range_end_val = tags.get(0x6067, "")
+    range_end_val = tag_value(tags, 0x6067)
     return Coil(
         type=itype,
         operand=operand,
         range_end=range_end_val or None,
-        immediate=0x11F5 in tags,
-        oneshot=0x11F8 in tags,
+        immediate=tag_flag(tags, 0x11F5),
+        oneshot=tag_flag(tags, 0x11F8),
     )
 
 

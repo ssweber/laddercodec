@@ -68,7 +68,9 @@ In `src/laddercodec/instructions/<module>.py`:
 - Add the new func code to the lookup table
 - Add any new fields to the dataclass (e.g. `oneshot: bool = False`)
 - Update `build_blob()` to emit the new field value
-- Update `to_csv()` to include the new parameter
+- Update `to_csv()` to include the new parameter. A flag kwarg is written only when
+  set (`oneshot=1`, never `oneshot=0`); value kwargs such as `mode=` and `unit=` are
+  always written
 - Update `from_tags()` to extract the new field from the func code table
 
 If the new variant shares a class name with an existing family (CLICK v4's toggle,
@@ -125,9 +127,24 @@ Example: timers currently use `visual_rows=2` and `min_csv_rows=2`, while counte
 (sub-rows). When a native capture shows them differing, add `"sub_rows"` for
 `+0x0A`: CLICK v4's timed coil spans 2 rows but writes 3 (`{"visual_rows": 2, "sub_rows": 3}`).
 
-**Reading tags in `from_tags()`:** flag tags (`0x11xx`/`0x12xx`) are present in
-`tags` with an empty value when set, and absent when `0`. Test them with
-`0x1201 in tags`, not by value.
+**Reading tags in `from_tags()`:** Click's program files (`Scr*.tmp`) leave out every
+tag at its default value, so a tag can be missing even though the clipboard always
+has it. Read tags through the helpers in `binary_helpers.py`, never `tags.get()` with
+a hand-picked fallback:
+
+- `tag_value(tags, 0x6066)` — a value tag, or its default when absent
+- `tag_int(tags, 0x21F9)` — a numeric tag as an `int`
+- `tag_flag(tags, 0x1201)` — a flag tag (`0x11xx`/`0x12xx`): set when present
+
+The default is `""` for string tags and `"0"` for numeric ones. A tag whose default is
+something else goes in `_TAG_DEFAULTS` (or `_CLASS_TAG_DEFAULTS`), backed by a native
+SCR + clipboard pair showing SCR leave it out at that value. The func code (`0x3218`)
+is the exception: SCR leaves it out whenever the class and other fields determine it,
+so each family derives it. `tests/test_instruction_defaults.py` checks the tables
+against every native SCR + clipboard pair in the fixtures, then drops every default
+tag from each fixture instruction and expects it to decode unchanged. When a new
+SCR capture fails the first check, `uv run devtools/scr_defaults_survey.py
+--mismatches` names the tag and the value SCR left out.
 
 Also add a family `SPEC` in the module:
 

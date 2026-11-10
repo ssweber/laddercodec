@@ -138,3 +138,73 @@ def _tag_wire_type(tag: int) -> str:
     if hi == 0x68:
         return "variant_string"
     return "unknown"
+
+
+# ---------------------------------------------------------------------------
+# Tag defaults: reading a tag that may be absent
+# ---------------------------------------------------------------------------
+#
+# Click's program files (Scr*.tmp) store a tag only when its value differs from
+# the default; the clipboard stores every tag.  So a tag missing from a decoded
+# tag dict reads as its default, and every ``from_tags`` reads value tags through
+# ``tag_value`` / ``tag_int`` and flag tags through ``tag_flag``.
+#
+# The default is the wire type's zero: ``""`` for string tags, ``"0"`` for
+# byte/u16 tags, unset for flags.  The tables below list the tags whose default
+# is something else, each seen omitted by SCR at that value in the fixture
+# captures (SCR vs clipboard copies of the same programs).
+#
+# Exception: the func code (0x3218) is left out of SCR whenever the class and
+# its other fields determine it, so each family derives it itself.
+
+#: Tags whose default is not zero, whatever the class.
+_TAG_DEFAULTS: dict[int, str] = {
+    0x20CA: "2",
+    0x221C: "1",  # Send/Receive word swap off
+    0x3203: "1",  # Drum step count
+    0x3204: "1",  # Drum output count
+    0x3210: "1",  # Send/Receive quantity
+    0x322C: "502",  # Modbus TCP port
+}
+
+#: Class-specific non-zero defaults, ``(class_name, tag) -> value``.
+_CLASS_TAG_DEFAULTS: dict[tuple[str, int], str] = {
+    ("RD", 0x320E): "1",  # Receive device ID
+    ("RD", 0x60B2): "1",
+    ("RD", 0x608D): "SD50",
+    ("RD", 0x608E): "SD60",
+    ("Position", 0x222F): "2",
+    ("Velocity", 0x222F): "2",
+}
+
+
+def tag_default(tag: int, class_name: str = "") -> str:
+    """Return the value a tag has when Click leaves it out."""
+    value = _CLASS_TAG_DEFAULTS.get((class_name, tag))
+    if value is not None:
+        return value
+    value = _TAG_DEFAULTS.get(tag)
+    if value is not None:
+        return value
+    return "0" if _tag_wire_type(tag) in ("byte", "u16") else ""
+
+
+def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
+    """Read a value tag, falling back to its default when absent (or blank, for numbers)."""
+    value = tags.get(tag)
+    if value is None or (not value and _tag_wire_type(tag) in ("byte", "u16")):
+        return tag_default(tag, class_name)
+    return value
+
+
+def tag_int(tags: dict[int, str], tag: int, class_name: str = "") -> int:
+    """Read a numeric tag as an int; absent, blank or non-numeric reads as its default."""
+    try:
+        return int(tag_value(tags, tag, class_name))
+    except ValueError:
+        return int(tag_default(tag, class_name) or "0")
+
+
+def tag_flag(tags: dict[int, str], tag: int) -> bool:
+    """Read a flag tag (0x11xx/0x12xx): set when present, unset when absent."""
+    return tag in tags

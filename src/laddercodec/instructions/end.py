@@ -46,7 +46,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> End | None:

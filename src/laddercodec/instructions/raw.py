@@ -144,7 +144,6 @@ def _fields_to_tag_dicts(
     fields: list[tuple[int, bytes, str]],
 ) -> tuple[
     dict[int, str],
-    dict[int, int],
     dict[int, dict[int, int]],
     dict[int, dict[int, str]],
 ]:
@@ -154,32 +153,23 @@ def _fields_to_tag_dicts(
 
     * **Flag tags** (``0x11xx``/``0x12xx``): clipboard value ``"-1"``
       or ``"1"`` → present in *tags*; ``"0"`` → absent.
-    * **Byte tags** (``0x20xx``–``0x22xx``): stored in both *tags*
-      (string) and *tag_byte_lens* (int).
+    * **Value tags** (byte, u16, string): their string value in *tags*;
+      read them through ``binary_helpers.tag_value`` / ``tag_int``.
     * **Variant-sentinel fields**: ``0x3Axx`` → *variant_u16_tags*,
       ``0x68xx`` → *variant_string_tags*.
 
-    Returns ``(tags, tag_byte_lens, variant_u16_tags, variant_string_tags)``.
+    Returns ``(tags, variant_u16_tags, variant_string_tags)``.
     """
     tags: dict[int, str] = {}
-    tag_byte_lens: dict[int, int] = {}
     variant_u16_tags: dict[int, dict[int, int]] = {}
     variant_string_tags: dict[int, dict[int, str]] = {}
 
     for tag, sentinel, value in fields:
         if sentinel == _STANDARD_SENTINEL:
-            wire = _tag_wire_type(tag)
-            if wire == "flag":
+            if _tag_wire_type(tag) == "flag":
                 if value in ("-1", "1"):
                     tags[tag] = ""
-                    tag_byte_lens[tag] = 0
                 # "0" / "" → absent (disabled)
-            elif wire == "byte":
-                tags[tag] = value
-                try:
-                    tag_byte_lens[tag] = int(value or "0")
-                except ValueError:
-                    tag_byte_lens[tag] = 0
             else:
                 tags[tag] = value
         else:
@@ -198,7 +188,7 @@ def _fields_to_tag_dicts(
                 # Unknown variant — store as string tag (harmless).
                 tags[tag] = value
 
-    return tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+    return tags, variant_u16_tags, variant_string_tags
 
 
 def _compose_blob(
@@ -425,7 +415,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> RawInstruction | None:

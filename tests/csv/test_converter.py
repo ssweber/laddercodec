@@ -739,7 +739,7 @@ class TestForLoopRows:
         _write_csv(
             csv_path,
             [
-                ("R", _wire_row("C222"), "for(3,oneshot=0)"),
+                ("R", _wire_row("C222"), "for(3)"),
                 ("R", _wire_row(), "next()"),
             ],
         )

@@ -15,6 +15,7 @@ import struct
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
+from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import PinnedInstruction
 from .family import AfInstructionFamilySpec
 
@@ -366,7 +367,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Drum | None:
@@ -377,30 +377,22 @@ def from_tags(
     # Tag 0x2200 is the drum base: absent/0 time, 1 event, 2 time & event (CLICK v4,
     # events in 0x6872, presets in 0x6891).  Any other base falls through to
     # RawInstruction rather than misreading its step slots.
-    base = tags.get(0x2200, "")
-    if base not in ("", _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT):
+    base = tag_value(tags, 0x2200)
+    if base not in (_BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT):
         return None
 
-    lens = tag_byte_lens or {}
     variant_u16 = variant_u16_tags or {}
     variant_strings = variant_string_tags or {}
 
-    current_step = tags.get(0x606E, "")
-    completion_flag = tags.get(0x6070, "")
+    current_step = tag_value(tags, 0x606E)
+    completion_flag = tag_value(tags, 0x6070)
 
     outputs_by_idx = variant_strings.get(0x6873, {})
     events_by_idx = variant_strings.get(0x6872, {})
     bitmasks_by_idx = variant_u16.get(0x3A26, {})
 
-    # The clipboard blob always carries explicit step/output counts, but Click's
-    # SCR (Scr*.tmp) format omits 0x3203/0x3204 when the count is 1.  Fall back to
-    # the highest populated variant slot so single-step drums still decode.
-    num_steps = int(tags.get(0x3203, "0") or "0")
-    if num_steps <= 0 and events_by_idx:
-        num_steps = max(events_by_idx) + 1
-    num_outputs = int(tags.get(0x3204, "0") or "0")
-    if num_outputs <= 0 and outputs_by_idx:
-        num_outputs = max(outputs_by_idx) + 1
+    num_steps = tag_int(tags, 0x3203)
+    num_outputs = tag_int(tags, 0x3204)
 
     if num_steps <= 0 or num_outputs <= 0 or not current_step or not completion_flag:
         return None
@@ -408,8 +400,8 @@ def from_tags(
     if base == _BASE_TIME_EVENT:
         presets_by_idx = variant_strings.get(0x6891, {})
         outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
-        unit = _DRUM_INDEX_TO_UNIT.get(tags.get(0x21F9, "0"))
-        accumulator = tags.get(0x606F, "")
+        unit = _DRUM_INDEX_TO_UNIT.get(tag_value(tags, 0x21F9))
+        accumulator = tag_value(tags, 0x606F)
         if any(not value for value in outputs) or unit is None or not accumulator:
             return None
         return Drum(
@@ -425,9 +417,9 @@ def from_tags(
             completion_flag=completion_flag,
             accumulator=accumulator,
             unit=unit,
-            jog_enabled=0x1201 in tags,
-            jump_enabled=0x1202 in tags,
-            jump_target=tags.get(0x6071, ""),
+            jog_enabled=tag_flag(tags, 0x1201),
+            jump_enabled=tag_flag(tags, 0x1202),
+            jump_target=tag_value(tags, 0x6071),
         )
 
     outputs = [outputs_by_idx.get(i, "") for i in range(num_outputs)]
@@ -440,12 +432,7 @@ def from_tags(
         for step_idx in range(num_steps)
     ]
 
-    is_event = lens.get(0x2200, 0) == 1
-    # Also handle string-valued tag from clipboard path.
-    if tags.get(0x2200) == "1":
-        is_event = True
-
-    if is_event:
+    if base == _BASE_EVENT:
         return Drum(
             drum_kind="event",
             outputs=outputs,
@@ -453,13 +440,13 @@ def from_tags(
             pattern=pattern,
             current_step=current_step,
             completion_flag=completion_flag,
-            jog_enabled=0x1201 in tags,
-            jump_enabled=0x1202 in tags,
-            jump_target=tags.get(0x6071, ""),
+            jog_enabled=tag_flag(tags, 0x1201),
+            jump_enabled=tag_flag(tags, 0x1202),
+            jump_target=tag_value(tags, 0x6071),
         )
 
-    unit = _DRUM_INDEX_TO_UNIT.get(tags.get(0x21F9, "0"), "Tms")
-    accumulator = tags.get(0x606F, "")
+    unit = _DRUM_INDEX_TO_UNIT.get(tag_value(tags, 0x21F9), "Tms")
+    accumulator = tag_value(tags, 0x606F)
     if not accumulator:
         return None
     return Drum(
@@ -471,9 +458,9 @@ def from_tags(
         completion_flag=completion_flag,
         accumulator=accumulator,
         unit=unit,
-        jog_enabled=0x1201 in tags,
-        jump_enabled=0x1202 in tags,
-        jump_target=tags.get(0x6071, ""),
+        jog_enabled=tag_flag(tags, 0x1201),
+        jump_enabled=tag_flag(tags, 0x1202),
+        jump_target=tag_value(tags, 0x6071),
     )
 
 

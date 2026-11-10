@@ -9,8 +9,8 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin`` and
-``text_q.bin``) are only used by the blob tests below.
+into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
+``text_q.bin`` and ``text_compare.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -336,7 +336,7 @@ def test_loop_exit_blobs_match_native() -> None:
     buf = path.read_bytes()
     rows = [row for rung in _decode_file(path) for row in decoded_rung_to_rows(rung)]
     assert [(row[1], row[-1]) for row in rows if row[0] != "#"] == [
-        ("-", "for(1,oneshot=0)"),
+        ("-", "for(1)"),
         ("C1", "break()"),
         ("C2", "continue()"),
         ("-", "next()"),
@@ -409,3 +409,37 @@ def test_text_constant_blobs_match_native(file: str) -> None:
     if isinstance(compare, CompareContact):
         blob = compare.build_blob()
         assert _native_blob(buf, "Compare", len(blob)) == blob
+
+
+#: ``text_compare.bin``: TXT1 compared, as typed, against an ASCII-code constant and a
+#: quoted text constant.  CLICK stores each operand as its text ($0D two digits, "A"
+#: with its quotes), and laddercodec passes it through: nothing is formatted.
+_TEXT_COMPARES = [("TXT1", "$0D"), ("TXT1", '"A"')]
+
+
+def test_text_compare_capture_decodes() -> None:
+    rung = _decode_file(CAPTURE_DIR / "text_compare.bin")[0]
+    operands = []
+    for compare in rung.conditions[0][: len(_TEXT_COMPARES)]:
+        assert isinstance(compare, CompareContact) and compare.op == "=="
+        operands.append((compare.left, compare.right))
+    assert operands == _TEXT_COMPARES
+    rows = decoded_rung_to_rows(rung)
+    assert rows[0][1:3] == ["TXT1==$0D", 'TXT1=="A"']
+
+
+def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
+    """Each Compare re-encodes to CLICK's bytes, and survives a CSV round-trip."""
+    path = CAPTURE_DIR / "text_compare.bin"
+    buf = path.read_bytes()
+    rung = _decode_file(path)[0]
+    compares = rung.conditions[0][: len(_TEXT_COMPARES)]
+    offsets = []
+    for compare in compares:
+        assert isinstance(compare, CompareContact)
+        offset = buf.find(compare.build_blob())
+        assert offset >= 0, f"{compare.to_csv()} blob not in the native buffer"
+        offsets.append(offset)
+    assert len(set(offsets)) == len(compares)
+    write_csv(tmp_path / "rung.csv", [rung])
+    assert read_csv(tmp_path / "rung.csv")[0].conditions[0][:2] == compares

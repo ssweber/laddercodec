@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -180,7 +181,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Search | None:
@@ -188,14 +188,12 @@ def from_tags(
     if class_name != "Search" or type_code != _SEARCH_TYPE_CODE:
         return None
 
-    lens = tag_byte_lens or {}
-
-    source = tags.get(0x6065, "")
-    table_start = tags.get(0x6066, "")
-    table_end = tags.get(0x6067, "")
-    result = tags.get(0x6079, "")
-    found = tags.get(0x607A, "")
-    cmp_idx = str(lens.get(0x21F7, 0))
+    source = tag_value(tags, 0x6065)
+    table_start = tag_value(tags, 0x6066)
+    table_end = tag_value(tags, 0x6067)
+    result = tag_value(tags, 0x6079)
+    found = tag_value(tags, 0x607A)
+    cmp_idx = str(tag_int(tags, 0x21F7))
     comparison = _CMP_CODE_TO_OP.get(cmp_idx)
 
     if not all([source, table_start, table_end, result, found]) or comparison is None:
@@ -208,8 +206,8 @@ def from_tags(
         result=result,
         found=found,
         comparison=comparison,
-        continuous=0x1277 in tags,
-        oneshot=0x11F8 in tags,
+        continuous=tag_flag(tags, 0x1277),
+        oneshot=tag_flag(tags, 0x11F8),
     )
 
 

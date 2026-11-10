@@ -5,7 +5,7 @@ Binary class names:
     - ``"Next"`` (also CLICK v4's Break and Continue, told apart by func code)
 
 CSV forms:
-    - ``for(3,oneshot=0)``
+    - ``for(3)``
     - ``for(DS1,oneshot=1)``
     - ``next()``
     - ``break()``
@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, InstructionType, _validate_operand
 from .family import AfInstructionFamilySpec
 
@@ -93,7 +94,9 @@ class ForLoop(AfInstruction):
         return _FOR_FUNC_CODES[self.oneshot]
 
     def to_csv(self) -> str:
-        return f"for({self.limit},oneshot={1 if self.oneshot else 0})"
+        if self.oneshot:
+            return f"for({self.limit},oneshot=1)"
+        return f"for({self.limit})"
 
     def cell_params(self) -> dict:
         return {}
@@ -182,7 +185,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> ForLoop | Next | Break | Continue | None:
@@ -198,10 +200,10 @@ def from_tags(
         return None
 
     if class_name == "For" and type_code == FOR_TYPE_MARKER:
-        limit = tags.get(0x6065, "")
+        limit = tag_value(tags, 0x6065)
         if not limit:
             return None
-        oneshot = 0x11F8 in tags
+        oneshot = tag_flag(tags, 0x11F8)
         try:
             return ForLoop(limit=limit, oneshot=oneshot)
         except ValueError:

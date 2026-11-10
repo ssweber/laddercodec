@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, _validate_operand
 from .family import ConditionInstructionFamilySpec
 
@@ -175,7 +176,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Contact | None:
@@ -186,21 +186,19 @@ def from_tags(
         InstructionType.CONTACT_NO,
         InstructionType.CONTACT_NC,
     ):
-        operand = tags.get(0x6065, "")
+        operand = tag_value(tags, 0x6065)
         if not operand:
             return None
-        immediate = 0x11F5 in tags
+        immediate = tag_flag(tags, 0x11F5)
         return Contact(type=itype, operand=operand, immediate=immediate)
 
     if class_name == "Edge" and itype == InstructionType.CONTACT_EDGE:
-        operand = tags.get(0x6065, "")
+        operand = tag_value(tags, 0x6065)
         if not operand:
             return None
         # SCR: tag absent = rise, present = fall.
         # Clipboard: tag always present, byte value 0 = rise, 1 = fall.
-        edge_kind: Literal["rise", "fall"] = (
-            "fall" if (tag_byte_lens or {}).get(0x21F6, 0) != 0 else "rise"
-        )
+        edge_kind: Literal["rise", "fall"] = "fall" if tag_int(tags, 0x21F6) != 0 else "rise"
         return Contact(
             type=InstructionType.CONTACT_EDGE,
             operand=operand,

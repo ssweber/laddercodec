@@ -175,7 +175,7 @@ def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
 def _section_instruction_from_token(row: int, col: int, token) -> tuple:
     blob = token.build_blob()
     class_name, type_code, part_count, _extra_bytes, fields = _decompose_blob(blob)
-    tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _fields_to_tag_dicts(fields)
+    tags, variant_u16_tags, variant_string_tags = _fields_to_tag_dicts(fields)
     return (
         row,
         col,
@@ -183,7 +183,6 @@ def _section_instruction_from_token(row: int, col: int, token) -> tuple:
         type_code,
         tags,
         part_count,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -214,19 +213,16 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
-        _parse_scr_tags(
-            raw,
-            0,
-            len(raw),
-            1,
-        )
+    class_name, type_code, tags, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
     )
     parsed = from_tags_af(
         class_name,
         type_code,
         tags,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -252,19 +248,16 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
-        _parse_scr_tags(
-            raw,
-            0,
-            len(raw),
-            2,
-        )
+    class_name, type_code, tags, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        2,
     )
     parsed = from_tags_af(
         class_name,
         type_code,
         tags,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -277,6 +270,31 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         unit="Ts",
         retained=True,
     )
+
+
+#: Out variant blobs CLICK v4 stored in a program file after a Guided Paste.
+#: SCR omits zero-valued tags, so the Tms unit index (0x21F9 = 0) is absent.
+_SCR_OUT_VARIANT_BLOBS = {
+    "timed(C1606,on_acc=TD119,on_preset=1000,unit=Tms)": (
+        "07 4f 00 75 00 74 00 00 15 27 00 00 00 00 00 00 01 01 1d 2e 00 00 66 60 0b 43"
+        " 00 31 00 36 00 30 00 36 00 00 b3 60 09 31 00 30 00 30 00 30 00 00 b4 60 0b 54"
+        " 00 44 00 31 00 31 00 39 00 00 48 22 03 18 32 26 20 00 00"
+    ),
+    "flasher(C1609,on_acc=TD120,on_preset=1000,off_acc=TD121,off_preset=1000,unit=Tms)": (
+        "07 4f 00 75 00 74 00 00 15 27 00 00 00 00 00 00 01 01 ed 35 00 00 66 60 0b 43"
+        " 00 31 00 36 00 30 00 39 00 00 b3 60 09 31 00 30 00 30 00 30 00 00 b4 60 0b 54"
+        " 00 44 00 31 00 32 00 30 00 00 b5 60 09 31 00 30 00 30 00 30 00 00 b6 60 0b 54"
+        " 00 44 00 31 00 32 00 31 00 00 48 22 02 18 32 24 20 00 00"
+    ),
+}
+
+
+@pytest.mark.parametrize("expected", list(_SCR_OUT_VARIANT_BLOBS))
+def test_scr_out_variant_without_unit_tag_decodes_as_tms(expected: str):
+    raw = bytes.fromhex(_SCR_OUT_VARIANT_BLOBS[expected])
+    parsed = from_tags_af(*_parse_scr_tags(raw, 0, len(raw), 1))
+    assert parsed is not None
+    assert parsed.to_csv() == expected
 
 
 def test_parse_section_entries_accepts_large_instruction_counts():
@@ -368,7 +386,6 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
                 _compact_scr_string_field(0x609C, "DD102"),
                 _compact_scr_string_field(0x609D, "DD103"),
                 _compact_scr_byte_field(0x222F, 0),
-                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2230, 255),
                 _compact_scr_string_field(0x60A1, "0"),
                 _compact_scr_string_field(0x60A3, "C102"),
@@ -384,7 +401,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
         ),
     )
 
-    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+    class_name, type_code, tags, _v_u16, _v_str = _parse_scr_tags(
         raw,
         0,
         len(raw),
@@ -416,7 +433,6 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
                 _compact_scr_string_field(0x609C, "DD120"),
                 _compact_scr_string_field(0x609D, "DD121"),
                 _compact_scr_byte_field(0x222F, 2),
-                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2231, 0),
                 _compact_scr_string_field(0x60A2, ""),
                 _compact_scr_string_field(0x60A3, "C315"),
@@ -430,7 +446,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
         ),
     )
 
-    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+    class_name, type_code, tags, _v_u16, _v_str = _parse_scr_tags(
         raw,
         0,
         len(raw),
@@ -795,34 +811,36 @@ def test_rung_walk_yields_a_topology_block_for_every_section():
 
 
 def test_tag_wire_type_covers_all_implicit_tags():
-    """Every tag constant used via tags.get / in tags / _raw_field must resolve to a known wire type.
+    """Every tag constant a decoder reads must resolve to a known wire type.
 
     The spec tables only list tags with non-default wire types. String tags
     (0x60xx–0x62xx) are implicit — they work via the default fallback path in
     _parse_scr_tags. This test ensures _tag_wire_type returns something other
     than "unknown" for every tag referenced at a call site, so the dispatch
-    refactor won't silently drop them.
+    refactor won't silently drop them.  ``tag_value`` / ``tag_int`` /
+    ``tag_flag`` also pick their default by wire type.
     """
     import inspect
     import re
 
-    # Gather source of all from_tags functions in instruction modules
+    # Whole module of each family, so helpers (_extract_fields, _from_tags_rd, ...)
+    # that from_tags delegates to are covered too.
     from laddercodec.instructions import AF_FAMILY_SPECS, CONDITION_FAMILY_SPECS
 
-    source_parts = []
-    for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS):
-        if spec.from_tags is not None:
-            source_parts.append(inspect.getsource(spec.from_tags))
-    source = "\n".join(source_parts)
+    modules = {
+        inspect.getmodule(spec.from_tags)
+        for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS)
+        if spec.from_tags is not None
+    }
+    source = "\n".join(inspect.getsource(module) for module in modules if module is not None)
 
     # Extract tag constants from various accessor patterns
     tag_pattern = re.compile(
         r"(?:"
         r"tags\.get\(|"
-        r"lens\.get\(|"
+        r"tag_(?:value|int|flag)\(\s*tags,\s*(?:[^,()]+\bif\b[^,()]+\belse\s+)?|"
         r"variant_strings\.get\(|"
         r"variant_u16\.get\(|"
-        r"tag_byte_lens\b[^)]*\.get\(|"
         r"_raw_field\(|"
         r"_raw_empty_array_fields\("
         r")(0x[0-9A-Fa-f]{4})"
@@ -836,6 +854,9 @@ def test_tag_wire_type_covers_all_implicit_tags():
 
     # 0x0000 is the null terminator, not a real tag
     tag_ids.discard(0x0000)
+    # Guard the pattern itself: a missed accessor (as tag_value once was) drops this
+    # from ~100 to a handful and the check below passes vacuously.
+    assert len(tag_ids) > 90, f"accessor pattern found only {len(tag_ids)} tag ids"
 
     unknowns = sorted(t for t in tag_ids if _tag_wire_type(t) == "unknown")
     assert not unknowns, (

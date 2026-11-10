@@ -17,6 +17,7 @@ import struct
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
+from ..binary_helpers import tag_value
 from ..model import InstructionType, PinnedInstruction, _validate_operand
 from .family import AfInstructionFamilySpec
 
@@ -111,15 +112,14 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Shift | None:
     """Construct a Shift from tag data (shared by both decoders)."""
     if class_name != "SR" or type_code != _SHIFT_TYPE_CODE:
         return None
-    start_bit = tags.get(0x6066, "")
-    end_bit = tags.get(0x6067, "")
+    start_bit = tag_value(tags, 0x6066)
+    end_bit = tag_value(tags, 0x6067)
     if not start_bit or not end_bit:
         return None
     return Shift(start_bit=start_bit, end_bit=end_bit)

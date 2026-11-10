@@ -9,7 +9,7 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..binary_helpers import _tagged_field, _utf16le_null
+from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -31,19 +31,19 @@ _FIELD_COUNT = 15
 
 def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
     return {
-        "tag_222d": tags.get(0x222D) or "0",
-        "tag_609b": tags.get(0x609B, ""),
-        "tag_609c": tags.get(0x609C, ""),
-        "tag_609d": tags.get(0x609D, ""),
-        "tag_222f": tags.get(0x222F) or "2",
-        "tag_11f5": tags.get(0x11F5) or "0",
-        "tag_2231": tags.get(0x2231) or "0",
-        "tag_60a2": tags.get(0x60A2, ""),
-        "tag_60a3": tags.get(0x60A3, ""),
-        "tag_60a4": tags.get(0x60A4, ""),
-        "tag_607b": tags.get(0x607B, ""),
-        "tag_607d": tags.get(0x607D, ""),
-        "tag_6083": tags.get(0x6083, ""),
+        "tag_222d": tag_value(tags, 0x222D),
+        "tag_609b": tag_value(tags, 0x609B),
+        "tag_609c": tag_value(tags, 0x609C),
+        "tag_609d": tag_value(tags, 0x609D),
+        "tag_222f": tag_value(tags, 0x222F, "Velocity"),
+        "tag_11f5": "1" if tag_flag(tags, 0x11F5) else "0",
+        "tag_2231": tag_value(tags, 0x2231),
+        "tag_60a2": tag_value(tags, 0x60A2),
+        "tag_60a3": tag_value(tags, 0x60A3),
+        "tag_60a4": tag_value(tags, 0x60A4),
+        "tag_607b": tag_value(tags, 0x607B),
+        "tag_607d": tag_value(tags, 0x607D),
+        "tag_6083": tag_value(tags, 0x6083),
         "tag_3218": tags.get(0x3218) or "9744",
     }
 
@@ -152,7 +152,6 @@ def from_tags(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Velocity | None:
