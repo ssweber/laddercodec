@@ -68,7 +68,9 @@ In `src/laddercodec/instructions/<module>.py`:
 - Add the new func code to the lookup table
 - Add any new fields to the dataclass (e.g. `oneshot: bool = False`)
 - Update `build_blob()` to emit the new field value
-- Update `to_csv()` to include the new parameter
+- Update `to_csv()` to include the new parameter. A flag kwarg is written only when
+  set (`oneshot=1`, never `oneshot=0`); value kwargs such as `mode=` and `unit=` are
+  always written
 - Update `from_tags()` to extract the new field from the func code table
 
 If the new variant shares a class name with an existing family (CLICK v4's toggle,

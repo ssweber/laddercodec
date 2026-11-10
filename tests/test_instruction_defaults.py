@@ -12,6 +12,10 @@ Binary side: Click's ``Scr*.tmp`` files leave out each tag at its default value
 The func code (0x3218) is kept: SCR leaves it out only when it can be derived, and
 each family derives it.
 
+CSV side: a flag kwarg (a ``bool`` field such as ``oneshot``) is written only when
+set, so ``for(3)`` rather than ``for(3,oneshot=0)``.  Value kwargs (``mode=``,
+``unit=``, ``preset=``, the ``to_text(...)`` fields) are always written.
+
 The instructions come from the coverage goldens plus every native clipboard
 capture (CLICK v4 copy-backs, the SCR pairs' clipboard side, the tumbler programs).
 """
@@ -108,3 +112,13 @@ def test_instruction_decodes_without_default_tags(token_csv: str) -> None:
     parsed = decode_tags(class_name, type_marker, *tag_dicts)
     assert parsed is not None, f"{token_csv} fell back to raw without its default tags"
     assert parsed.to_csv() == token_csv
+
+
+@pytest.mark.parametrize("token_csv", sorted(_CORPUS))
+def test_unset_flag_kwarg_is_not_written(token_csv: str) -> None:
+    token = _CORPUS[token_csv]
+    for field in dataclasses.fields(token):
+        value = getattr(token, field.name)
+        if isinstance(value, bool) and not value:
+            for written in (f"{field.name}=0", f"{field.name}=False"):
+                assert written not in token_csv, f"{type(token).__name__} writes {written}"

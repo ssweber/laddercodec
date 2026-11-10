@@ -13,7 +13,7 @@ class TestForLoopBlobRoundTrip:
         parsed = parse_af_blob(instr.build_blob())
         assert isinstance(parsed, ForLoop)
         assert parsed == instr
-        assert parsed.to_csv() == "for(3,oneshot=0)"
+        assert parsed.to_csv() == "for(3)"
 
     def test_forloop_oneshot(self) -> None:
         instr = ForLoop(limit="DS1", oneshot=True)

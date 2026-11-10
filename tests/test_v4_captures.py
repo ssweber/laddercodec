@@ -336,7 +336,7 @@ def test_loop_exit_blobs_match_native() -> None:
     buf = path.read_bytes()
     rows = [row for rung in _decode_file(path) for row in decoded_rung_to_rows(rung)]
     assert [(row[1], row[-1]) for row in rows if row[0] != "#"] == [
-        ("-", "for(1,oneshot=0)"),
+        ("-", "for(1)"),
         ("C1", "break()"),
         ("C2", "continue()"),
         ("-", "next()"),

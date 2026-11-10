@@ -539,7 +539,7 @@ class TestDecodedRungToRows:
             comment=None,
         )
         rows = decoded_rung_to_rows(rung)
-        assert rows[0][32] == "for(3,oneshot=0)"
+        assert rows[0][32] == "for(3)"
 
     def test_next_serializes(self) -> None:
         rung = Rung(
