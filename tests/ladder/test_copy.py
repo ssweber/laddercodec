@@ -40,6 +40,13 @@ def test_termination_code_from_scr_tags(code: str, term_char: str | None) -> Non
     assert parsed.termination_code == code
 
 
+@pytest.mark.parametrize("end_tag", [0x6075, 0x6077])
+def test_single_copy_with_end_address_is_not_decoded(end_tag: int) -> None:
+    """Copy type 0 (absent 0x2223) with an end address is left to raw(), not truncated."""
+    tags = {0x6074: "DS1", 0x6076: "DS10", end_tag: "DS20"}
+    assert from_tags("Copy", 0x2721, tags) is None
+
+
 @pytest.mark.parametrize(("given", "stored"), [("$D", "$0D"), ("$0", "$00"), ("$0d", "$0D")])
 def test_one_digit_or_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
     copy = Copy(source="DS20", destination="TXT7", format="text", termination_code=given)

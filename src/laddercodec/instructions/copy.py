@@ -733,6 +733,10 @@ def from_tags(
     if copy_type == 0:
         if not source or not destination:
             return None
+        # A single copy has no end addresses; one that carries them isn't a shape
+        # CLICK writes, so leave it to raw() rather than drop them.
+        if source_end or destination_end:
+            return None
         opts = _CONVTYPE_TO_OPTS.get(str(conv_type))
         if opts is None:
             return None

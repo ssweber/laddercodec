@@ -231,7 +231,8 @@ def from_tags(
     """Construct an OutVariant from tag data (shared by both decoders)."""
     if class_name != "Out" or type_code != 0x2715:
         return None
-    variant = _FUNC_TO_VARIANT.get(tag_value(tags, 0x3218))
+    # The func code is per family, not a tag default (see binary_helpers.tag_default).
+    variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
     operand = tag_value(tags, 0x6066)
     if variant is None or not operand:
         return None
