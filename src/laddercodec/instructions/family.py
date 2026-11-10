@@ -20,7 +20,6 @@ ConditionFromTagsParser = Callable[
         str,  # class_name
         int,  # type_code
         dict[int, str],  # tags
-        dict[int, int] | None,  # tag_byte_lens
         dict[int, dict[int, int]] | None,  # variant_u16_tags
         dict[int, dict[int, str]] | None,  # variant_string_tags
     ],
@@ -31,7 +30,6 @@ AfFromTagsParser = Callable[
         str,  # class_name
         int,  # type_code
         dict[int, str],  # tags
-        dict[int, int] | None,  # tag_byte_lens
         dict[int, dict[int, int]] | None,  # variant_u16_tags
         dict[int, dict[int, str]] | None,  # variant_string_tags
     ],

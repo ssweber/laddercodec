@@ -80,7 +80,7 @@ def _scr_tags(data: bytes) -> list[tuple[str, Tags]]:
         def recording(*args: Any, **kwargs: Any) -> Any:
             out = original(*args, **kwargs)
             tags = dict(out[2])
-            for tag, entries in {**out[4], **out[5]}.items():
+            for tag, entries in {**out[3], **out[4]}.items():
                 tags[tag] = repr(entries)
             log.append((out[0], tags))
             return out

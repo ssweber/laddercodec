@@ -50,7 +50,6 @@ _ScrSectionInstruction = tuple[
     int,
     dict[int, str],
     bytes,  # part rows, 1-based, main row first
-    dict[int, int],
     _ScrVariantU16Tags,
     _ScrVariantStringTags,
 ]
@@ -209,7 +208,7 @@ def _parse_scr_tags(
     blob_start: int,
     end_offset: int,
     visual_sub_rows: int,
-) -> tuple[str, int, dict[int, str], dict[int, int], _ScrVariantU16Tags, _ScrVariantStringTags]:
+) -> tuple[str, int, dict[int, str], _ScrVariantU16Tags, _ScrVariantStringTags]:
     """Parse SCR blob into scalar tags plus compact variant-tag collections.
 
     Wire type is inferred from each tag's high byte via ``_tag_wire_type``.
@@ -226,7 +225,6 @@ def _parse_scr_tags(
     )  # skip cell-header + visual_sub_rows counting bytes + end_offset
 
     tags: dict[int, str] = {}
-    tag_byte_lens: dict[int, int] = {}
     variant_u16_tags: _ScrVariantU16Tags = {}
     variant_string_tags: _ScrVariantStringTags = {}
     while pos < end_offset:
@@ -237,7 +235,6 @@ def _parse_scr_tags(
 
         if tag == 0x0000:
             tags[tag] = ""
-            tag_byte_lens[tag] = 0
             break
 
         wire = _tag_wire_type(tag)
@@ -281,7 +278,6 @@ def _parse_scr_tags(
 
         if wire == "flag":
             tags[tag] = ""
-            tag_byte_lens[tag] = 0
             continue
 
         if wire == "u16":
@@ -289,7 +285,6 @@ def _parse_scr_tags(
                 break
             value = struct.unpack_from("<H", data, pos)[0]
             tags[tag] = str(value)
-            tag_byte_lens[tag] = 2
             pos += 2
             continue
 
@@ -298,9 +293,6 @@ def _parse_scr_tags(
                 break
             value = data[pos]
             tags[tag] = str(value)
-            # Preserve the old contract: short-value tags expose their raw byte
-            # through ``tag_byte_lens`` for downstream decoders.
-            tag_byte_lens[tag] = value
             pos += 1
             continue
 
@@ -316,9 +308,8 @@ def _parse_scr_tags(
             value_raw = value_raw + b"\x00"
         str_value = value_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
         tags[tag] = str_value
-        tag_byte_lens[tag] = str_len
         pos += str_len
-    return class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+    return class_name, type_code, tags, variant_u16_tags, variant_string_tags
 
 
 def _clipboard_part_rows(part_rows: bytes) -> bytes:
@@ -335,7 +326,6 @@ def _scr_af(
     type_code: int,
     tags: dict[int, str],
     part_rows: bytes,
-    tag_byte_lens: dict[int, int],
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
 ) -> AfInstruction | None:
@@ -344,7 +334,6 @@ def _scr_af(
         class_name,
         type_code,
         tags,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -356,7 +345,6 @@ def _infer_af_visual_rows(
     type_code: int,
     tags: dict[int, str],
     part_rows: bytes,
-    tag_byte_lens: dict[int, int],
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
 ) -> int:
@@ -366,7 +354,6 @@ def _infer_af_visual_rows(
         type_code,
         tags,
         part_rows,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -513,8 +500,8 @@ def _parse_section_entries(
         row_1based = data[cursor]
         col_idx = data[cursor + 1]
         _cls, _marker, end_off, part_rows = blob
-        cn, tc, tags, tbl, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, len(part_rows))
-        results.append((row_1based - 1, col_idx, cn, tc, tags, part_rows, tbl, v_u16, v_str))
+        cn, tc, tags, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, len(part_rows))
+        results.append((row_1based - 1, col_idx, cn, tc, tags, part_rows, v_u16, v_str))
 
         trailer_len = data[end_off]
         if trailer_len > 8:
@@ -651,7 +638,6 @@ def _build_rung(
         type_code,
         tags,
         part_rows,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     ) in section_instructions:
@@ -662,7 +648,6 @@ def _build_rung(
                 class_name,
                 type_code,
                 tags,
-                tag_byte_lens,
                 variant_u16_tags,
                 variant_string_tags,
             )
@@ -677,7 +662,6 @@ def _build_rung(
                 type_code,
                 tags,
                 part_rows,
-                tag_byte_lens,
                 variant_u16_tags,
                 variant_string_tags,
             )
@@ -801,7 +785,6 @@ def decode_program(data: bytes) -> Program:
             type_code,
             tags,
             part_rows,
-            tag_byte_lens,
             variant_u16_tags,
             variant_string_tags,
         ) in record.instructions:
@@ -812,7 +795,6 @@ def decode_program(data: bytes) -> Program:
                     type_code,
                     tags,
                     part_rows,
-                    tag_byte_lens,
                     variant_u16_tags,
                     variant_string_tags,
                 )

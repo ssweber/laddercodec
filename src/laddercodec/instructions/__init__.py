@@ -189,10 +189,8 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
         class_name, type_marker, _part_count, _extra, fields = _decompose_blob(raw)
     except (ValueError, struct.error):
         return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    result = from_tags_condition(
-        class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string
-    )
+    tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    result = from_tags_condition(class_name, type_marker, tags, variant_u16, variant_string)
     if isinstance(result, (Contact, CompareContact)):
         return result
     return None
@@ -208,8 +206,8 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
         class_name, type_marker, _part_count, extra, fields = _decompose_blob(raw)
     except (ValueError, struct.error):
         return None
-    tags, tag_byte_lens, variant_u16, variant_string = _fields_to_tag_dicts(fields)
-    parsed = from_tags_af(class_name, type_marker, tags, tag_byte_lens, variant_u16, variant_string)
+    tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
+    parsed = from_tags_af(class_name, type_marker, tags, variant_u16, variant_string)
     return _with_pin_rows(parsed, extra)
 
 
@@ -224,7 +222,6 @@ def from_tags_condition(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> ConditionInstruction | None:
@@ -232,7 +229,7 @@ def from_tags_condition(
     for spec in CONDITION_FAMILY_SPECS:
         if spec.from_tags is not None:
             result = spec.from_tags(
-                class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+                class_name, type_code, tags, variant_u16_tags, variant_string_tags
             )
             if result is not None:
                 return result
@@ -243,7 +240,6 @@ def from_tags_af(
     class_name: str,
     type_code: int,
     tags: dict[int, str],
-    tag_byte_lens: dict[int, int] | None = None,
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> AfInstruction | None:
@@ -251,7 +247,7 @@ def from_tags_af(
     for spec in AF_FAMILY_SPECS:
         if spec.from_tags is not None:
             result = spec.from_tags(
-                class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags
+                class_name, type_code, tags, variant_u16_tags, variant_string_tags
             )
             if result is not None:
                 return result

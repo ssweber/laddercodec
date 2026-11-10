@@ -175,7 +175,7 @@ def _compact_scr_variant_u16_field(tag: int, entries: dict[int, int]) -> bytes:
 def _section_instruction_from_token(row: int, col: int, token) -> tuple:
     blob = token.build_blob()
     class_name, type_code, part_count, _extra_bytes, fields = _decompose_blob(blob)
-    tags, tag_byte_lens, variant_u16_tags, variant_string_tags = _fields_to_tag_dicts(fields)
+    tags, variant_u16_tags, variant_string_tags = _fields_to_tag_dicts(fields)
     return (
         row,
         col,
@@ -183,7 +183,6 @@ def _section_instruction_from_token(row: int, col: int, token) -> tuple:
         type_code,
         tags,
         part_count,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -214,19 +213,16 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
-        _parse_scr_tags(
-            raw,
-            0,
-            len(raw),
-            1,
-        )
+    class_name, type_code, tags, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        1,
     )
     parsed = from_tags_af(
         class_name,
         type_code,
         tags,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -252,19 +248,16 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
         ),
     )
 
-    class_name, type_code, tags, tag_byte_lens, variant_u16_tags, variant_string_tags = (
-        _parse_scr_tags(
-            raw,
-            0,
-            len(raw),
-            2,
-        )
+    class_name, type_code, tags, variant_u16_tags, variant_string_tags = _parse_scr_tags(
+        raw,
+        0,
+        len(raw),
+        2,
     )
     parsed = from_tags_af(
         class_name,
         type_code,
         tags,
-        tag_byte_lens,
         variant_u16_tags,
         variant_string_tags,
     )
@@ -408,7 +401,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
         ),
     )
 
-    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+    class_name, type_code, tags, _v_u16, _v_str = _parse_scr_tags(
         raw,
         0,
         len(raw),
@@ -453,7 +446,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
         ),
     )
 
-    class_name, type_code, tags, _tbl, _v_u16, _v_str = _parse_scr_tags(
+    class_name, type_code, tags, _v_u16, _v_str = _parse_scr_tags(
         raw,
         0,
         len(raw),
@@ -818,34 +811,36 @@ def test_rung_walk_yields_a_topology_block_for_every_section():
 
 
 def test_tag_wire_type_covers_all_implicit_tags():
-    """Every tag constant used via tags.get / in tags / _raw_field must resolve to a known wire type.
+    """Every tag constant a decoder reads must resolve to a known wire type.
 
     The spec tables only list tags with non-default wire types. String tags
     (0x60xx–0x62xx) are implicit — they work via the default fallback path in
     _parse_scr_tags. This test ensures _tag_wire_type returns something other
     than "unknown" for every tag referenced at a call site, so the dispatch
-    refactor won't silently drop them.
+    refactor won't silently drop them.  ``tag_value`` / ``tag_int`` /
+    ``tag_flag`` also pick their default by wire type.
     """
     import inspect
     import re
 
-    # Gather source of all from_tags functions in instruction modules
+    # Whole module of each family, so helpers (_extract_fields, _from_tags_rd, ...)
+    # that from_tags delegates to are covered too.
     from laddercodec.instructions import AF_FAMILY_SPECS, CONDITION_FAMILY_SPECS
 
-    source_parts = []
-    for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS):
-        if spec.from_tags is not None:
-            source_parts.append(inspect.getsource(spec.from_tags))
-    source = "\n".join(source_parts)
+    modules = {
+        inspect.getmodule(spec.from_tags)
+        for spec in (*CONDITION_FAMILY_SPECS, *AF_FAMILY_SPECS)
+        if spec.from_tags is not None
+    }
+    source = "\n".join(inspect.getsource(module) for module in modules if module is not None)
 
     # Extract tag constants from various accessor patterns
     tag_pattern = re.compile(
         r"(?:"
         r"tags\.get\(|"
-        r"lens\.get\(|"
+        r"tag_(?:value|int|flag)\(\s*tags,\s*(?:[^,()]+\bif\b[^,()]+\belse\s+)?|"
         r"variant_strings\.get\(|"
         r"variant_u16\.get\(|"
-        r"tag_byte_lens\b[^)]*\.get\(|"
         r"_raw_field\(|"
         r"_raw_empty_array_fields\("
         r")(0x[0-9A-Fa-f]{4})"
@@ -859,6 +854,9 @@ def test_tag_wire_type_covers_all_implicit_tags():
 
     # 0x0000 is the null terminator, not a real tag
     tag_ids.discard(0x0000)
+    # Guard the pattern itself: a missed accessor (as tag_value once was) drops this
+    # from ~100 to a handful and the check below passes vacuously.
+    assert len(tag_ids) > 90, f"accessor pattern found only {len(tag_ids)} tag ids"
 
     unknowns = sorted(t for t in tag_ids if _tag_wire_type(t) == "unknown")
     assert not unknowns, (
