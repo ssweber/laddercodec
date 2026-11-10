@@ -279,6 +279,31 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
     )
 
 
+#: Out variant blobs CLICK v4 stored in a program file after a Guided Paste.
+#: SCR omits zero-valued tags, so the Tms unit index (0x21F9 = 0) is absent.
+_SCR_OUT_VARIANT_BLOBS = {
+    "timed(C1606,on_acc=TD119,on_preset=1000,unit=Tms)": (
+        "07 4f 00 75 00 74 00 00 15 27 00 00 00 00 00 00 01 01 1d 2e 00 00 66 60 0b 43"
+        " 00 31 00 36 00 30 00 36 00 00 b3 60 09 31 00 30 00 30 00 30 00 00 b4 60 0b 54"
+        " 00 44 00 31 00 31 00 39 00 00 48 22 03 18 32 26 20 00 00"
+    ),
+    "flasher(C1609,on_acc=TD120,on_preset=1000,off_acc=TD121,off_preset=1000,unit=Tms)": (
+        "07 4f 00 75 00 74 00 00 15 27 00 00 00 00 00 00 01 01 ed 35 00 00 66 60 0b 43"
+        " 00 31 00 36 00 30 00 39 00 00 b3 60 09 31 00 30 00 30 00 30 00 00 b4 60 0b 54"
+        " 00 44 00 31 00 32 00 30 00 00 b5 60 09 31 00 30 00 30 00 30 00 00 b6 60 0b 54"
+        " 00 44 00 31 00 32 00 31 00 00 48 22 02 18 32 24 20 00 00"
+    ),
+}
+
+
+@pytest.mark.parametrize("expected", list(_SCR_OUT_VARIANT_BLOBS))
+def test_scr_out_variant_without_unit_tag_decodes_as_tms(expected: str):
+    raw = bytes.fromhex(_SCR_OUT_VARIANT_BLOBS[expected])
+    parsed = from_tags_af(*_parse_scr_tags(raw, 0, len(raw), 1))
+    assert parsed is not None
+    assert parsed.to_csv() == expected
+
+
 def test_parse_section_entries_accepts_large_instruction_counts():
     blobs: list[bytes] = []
     for idx in range(21):
@@ -368,7 +393,6 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
                 _compact_scr_string_field(0x609C, "DD102"),
                 _compact_scr_string_field(0x609D, "DD103"),
                 _compact_scr_byte_field(0x222F, 0),
-                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2230, 255),
                 _compact_scr_string_field(0x60A1, "0"),
                 _compact_scr_string_field(0x60A3, "C102"),
@@ -416,7 +440,6 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
                 _compact_scr_string_field(0x609C, "DD120"),
                 _compact_scr_string_field(0x609D, "DD121"),
                 _compact_scr_byte_field(0x222F, 2),
-                _compact_scr_flag_field(0x11F5),
                 _compact_scr_byte_field(0x2231, 0),
                 _compact_scr_string_field(0x60A2, ""),
                 _compact_scr_string_field(0x60A3, "C315"),

@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from ..binary_helpers import tag_int, tag_value
 from ..model import ConditionInstruction, InstructionType
 from .family import ConditionInstructionFamilySpec
 
@@ -145,11 +146,9 @@ def from_tags(
     """Construct a CompareContact from tag data (shared by both decoders)."""
     if class_name != "Compare" or type_code != _COMPARE_TYPE_CODE:
         return None
-    left = tags.get(0x6066, "")
-    right = tags.get(0x6067, "")
-    # Compare type is in tag_byte_lens (SCR byte encoding) or tags (clipboard string).
-    lens = tag_byte_lens or {}
-    type_idx = str(lens.get(0x21F7, 0))
+    left = tag_value(tags, 0x6066)
+    right = tag_value(tags, 0x6067)
+    type_idx = str(tag_int(tags, 0x21F7))
     op = _TYPE_IDX_TO_OP.get(type_idx)
     if not left or not right or op is None:
         return None

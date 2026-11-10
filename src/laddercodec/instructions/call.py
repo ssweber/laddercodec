@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -62,7 +63,7 @@ def from_tags(
     """Construct a Call instruction from tag data (shared by both decoders)."""
     if class_name != "Call" or type_code != CALL_TYPE_MARKER:
         return None
-    subroutine = tags.get(0x6208, "")
+    subroutine = tag_value(tags, 0x6208)
     if not subroutine:
         return None
     return Call(subroutine=subroutine)

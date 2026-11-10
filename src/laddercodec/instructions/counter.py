@@ -16,6 +16,7 @@ import struct
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
+from ..binary_helpers import tag_int, tag_value
 from ..model import InstructionType, PinnedInstruction, _validate_operand
 from .family import AfInstructionFamilySpec
 
@@ -201,10 +202,10 @@ def from_tags(
     """Construct a Counter from tag data (shared by both decoders)."""
     if class_name != "Cnt" or type_code != _COUNTER_TYPE_CODE:
         return None
-    done_bit = tags.get(0x606B, "")
-    preset = tags.get(0x606A, "")
-    current = tags.get(0x606C, "")
-    mode = (tag_byte_lens or {}).get(0x21FC, 0)
+    done_bit = tag_value(tags, 0x606B)
+    preset = tag_value(tags, 0x606A)
+    current = tag_value(tags, 0x606C)
+    mode = tag_int(tags, 0x21FC)
     variant = _MODE_TO_VARIANT.get(mode)
     if not all([done_bit, preset, current]) or variant is None:
         return None

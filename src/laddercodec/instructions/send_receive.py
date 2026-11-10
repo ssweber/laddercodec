@@ -16,6 +16,7 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -552,9 +553,9 @@ def from_tags(
 ) -> Receive | Send | None:
     """Construct a Send or Receive from tag data (shared by both decoders)."""
     if class_name == "RD" and type_code == _RD_TYPE_CODE:
-        return _from_tags_rd(tags, tag_byte_lens or {})
+        return _from_tags_rd(tags)
     if class_name == "SD" and type_code == _SD_TYPE_CODE:
-        return _from_tags_sd(tags, tag_byte_lens or {})
+        return _from_tags_sd(tags)
     return None
 
 
@@ -566,8 +567,8 @@ def _build_target(
     if protocol_mode == "2":
         return ModbusTcpTarget(
             name="tcp",
-            ip=tags.get(0x622B, ""),
-            port=int(tags.get(0x322C, "502") or "502"),
+            ip=tag_value(tags, 0x622B),
+            port=tag_int(tags, 0x322C),
             device_id=device_id,
         )
     return ModbusRtuTarget(
@@ -579,15 +580,14 @@ def _build_target(
 
 def _build_remote_start(
     tags: dict[int, str],
-    lens: dict[int, int],
     rd: bool,
 ) -> str | ModbusAddress | None:
-    remote_start_raw = tags.get(0x6085, "")
+    remote_start_raw = tag_value(tags, 0x6085)
     if not remote_start_raw:
         return None
 
-    address_type = tags.get(0x320F, "0")
-    fc_subtype = tags.get(0x2211, "0")
+    address_type = tag_value(tags, 0x320F)
+    fc_subtype = tag_value(tags, 0x2211)
 
     if address_type == "2":
         return remote_start_raw
@@ -604,15 +604,15 @@ def _build_remote_start(
     return ModbusAddress(address=remote_start_raw)
 
 
-def _from_tags_rd(tags: dict[int, str], lens: dict[int, int]) -> Receive | None:
-    protocol_mode = tags.get(0x220C, "0")
+def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
+    protocol_mode = tag_value(tags, 0x220C)
     # SCR blobs elide fields at their class default. Receive's device_id
     # default is 1; Send's is 0 (see _from_tags_sd).
-    device_id = int(tags.get(0x320E, tags.get(0x60B2, "1")) or "1")
+    device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, "RD")
     target = _build_target(protocol_mode, device_id, tags)
 
-    remote_start = _build_remote_start(tags, lens, rd=True)
-    dest = tags.get(0x607E, "")
+    remote_start = _build_remote_start(tags, rd=True)
+    dest = tag_value(tags, 0x607E)
     if remote_start is None or not dest:
         return None
 
@@ -620,25 +620,25 @@ def _from_tags_rd(tags: dict[int, str], lens: dict[int, int]) -> Receive | None:
         target=target,
         remote_start=remote_start,
         dest=dest,
-        quantity=int(tags.get(0x3210, "1") or "1"),
-        receiving=tags.get(0x607C, ""),
-        success=tags.get(0x607B, ""),
-        error=tags.get(0x607D, ""),
-        exception_response=tags.get(0x6083, ""),
-        word_swap=tags.get(0x221C, "1") == "0",
+        quantity=tag_int(tags, 0x3210),
+        receiving=tag_value(tags, 0x607C),
+        success=tag_value(tags, 0x607B),
+        error=tag_value(tags, 0x607D),
+        exception_response=tag_value(tags, 0x6083),
+        word_swap=tag_value(tags, 0x221C) == "0",
     )
 
 
-def _from_tags_sd(tags: dict[int, str], lens: dict[int, int]) -> Send | None:
-    protocol_mode = tags.get(0x220C, "0")
+def _from_tags_sd(tags: dict[int, str]) -> Send | None:
+    protocol_mode = tag_value(tags, 0x220C)
     # SCR blobs elide fields at their class default, and Send's device_id
     # default is 0 (a Send at device_id 0 stores no 0x320E/0x60B2 tag, while
     # one at 1 stores both — verified against a native scr+clipboard pair).
-    device_id = int(tags.get(0x320E, tags.get(0x60B2, "0")) or "0")
+    device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, "SD")
     target = _build_target(protocol_mode, device_id, tags)
 
-    remote_start = _build_remote_start(tags, lens, rd=False)
-    source = tags.get(0x607E, "")
+    remote_start = _build_remote_start(tags, rd=False)
+    source = tag_value(tags, 0x607E)
     if remote_start is None or not source:
         return None
 
@@ -646,12 +646,12 @@ def _from_tags_sd(tags: dict[int, str], lens: dict[int, int]) -> Send | None:
         target=target,
         remote_start=remote_start,
         source=source,
-        quantity=int(tags.get(0x3210, "1") or "1"),
-        sending=tags.get(0x607C, "") if 0x120A in tags else "",
-        success=tags.get(0x607B, "") if 0x1209 in tags else "",
-        error=tags.get(0x607D, "") if 0x120B in tags else "",
-        exception_response=tags.get(0x6083, "") if 0x121A in tags else "",
-        word_swap=tags.get(0x221C, "1") == "0",
+        quantity=tag_int(tags, 0x3210),
+        sending=tag_value(tags, 0x607C) if tag_flag(tags, 0x120A) else "",
+        success=tag_value(tags, 0x607B) if tag_flag(tags, 0x1209) else "",
+        error=tag_value(tags, 0x607D) if tag_flag(tags, 0x120B) else "",
+        exception_response=tag_value(tags, 0x6083) if tag_flag(tags, 0x121A) else "",
+        word_swap=tag_value(tags, 0x221C) == "0",
     )
 
 

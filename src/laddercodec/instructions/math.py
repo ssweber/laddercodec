@@ -35,6 +35,7 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -448,16 +449,16 @@ def from_tags(
     if class_name != "Math" or type_code != _MATH_TYPE_CODE:
         return None
 
-    result = tags.get(0x6065, "")
+    result = tag_value(tags, 0x6065)
     expression = _reconstruct_expression(
-        tags.get(0x61FF, ""),
-        tags.get(0x61FD, ""),
-    ) or tags.get(0x6228, "")
+        tag_value(tags, 0x61FF),
+        tag_value(tags, 0x61FD),
+    ) or tag_value(tags, 0x6228)
     if not result or not expression:
         return None
 
-    mode: Literal["decimal", "hex"] = "hex" if 0x11FE in tags else "decimal"
-    oneshot = 0x11F8 in tags
+    mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
+    oneshot = tag_flag(tags, 0x11F8)
 
     return Math(
         expression=expression,

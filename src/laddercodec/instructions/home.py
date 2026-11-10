@@ -9,7 +9,7 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..binary_helpers import _tagged_field, _utf16le_null
+from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_int, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -30,31 +30,28 @@ _FIELD_COUNT = 22
 
 
 def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
-    try:
-        home_variant = int(tags.get(0x222E, "0") or "0")
-    except ValueError:
-        home_variant = 0
+    home_variant = tag_int(tags, 0x222E)
     return {
-        "tag_222d": tags.get(0x222D) or "0",
-        "tag_222e": tags.get(0x222E) or "0",
-        "tag_6096": tags.get(0x6096, ""),
-        "tag_6097": tags.get(0x6097, ""),
-        "tag_609e": tags.get(0x609E, ""),
-        "tag_609f": tags.get(0x609F, ""),
-        "tag_60a0": tags.get(0x60A0, ""),
-        "tag_609c": tags.get(0x609C, ""),
-        "tag_609d": tags.get(0x609D, ""),
-        "tag_222f": tags.get(0x222F) or "0",
-        "tag_11f5": tags.get(0x11F5) or "0",
-        "tag_2230": tags.get(0x2230) or "0",
-        "tag_60a1": tags.get(0x60A1, ""),
-        "tag_60a3": tags.get(0x60A3, ""),
-        "tag_60a4": tags.get(0x60A4, ""),
-        "tag_607b": tags.get(0x607B, ""),
-        "tag_607d": tags.get(0x607D, ""),
-        "tag_6083": tags.get(0x6083, ""),
-        "tag_2232": tags.get(0x2232) or "0",
-        "tag_2233": tags.get(0x2233) or "0",
+        "tag_222d": tag_value(tags, 0x222D),
+        "tag_222e": tag_value(tags, 0x222E),
+        "tag_6096": tag_value(tags, 0x6096),
+        "tag_6097": tag_value(tags, 0x6097),
+        "tag_609e": tag_value(tags, 0x609E),
+        "tag_609f": tag_value(tags, 0x609F),
+        "tag_60a0": tag_value(tags, 0x60A0),
+        "tag_609c": tag_value(tags, 0x609C),
+        "tag_609d": tag_value(tags, 0x609D),
+        "tag_222f": tag_value(tags, 0x222F),
+        "tag_11f5": "1" if tag_flag(tags, 0x11F5) else "0",
+        "tag_2230": tag_value(tags, 0x2230),
+        "tag_60a1": tag_value(tags, 0x60A1),
+        "tag_60a3": tag_value(tags, 0x60A3),
+        "tag_60a4": tag_value(tags, 0x60A4),
+        "tag_607b": tag_value(tags, 0x607B),
+        "tag_607d": tag_value(tags, 0x607D),
+        "tag_6083": tag_value(tags, 0x6083),
+        "tag_2232": tag_value(tags, 0x2232),
+        "tag_2233": tag_value(tags, 0x2233),
         "tag_3218": tags.get(0x3218) or str(9738 + home_variant),
     }
 

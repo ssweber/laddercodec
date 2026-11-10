@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -707,24 +708,13 @@ def from_tags(
     if class_name != "Copy" or type_code != _COPY_TYPE_CODE:
         return None
 
-    lens = tag_byte_lens or {}
-
-    source = tags.get(0x6074, "")
-    source_end = tags.get(0x6075, "")
-    destination = tags.get(0x6076, "")
-    destination_end = tags.get(0x6077, "")
-    oneshot = 0x11F8 in tags
-    copy_type = lens.get(0x2223, -1)  # -1 = absent (SCR omits when 0)
-    conv_type = lens.get(0x2227, 0)
-
-    # SCR may omit copy_type tag; infer from address presence.
-    if copy_type == -1:
-        if source_end and destination_end:
-            copy_type = 1
-        elif destination_end:
-            copy_type = 2
-        else:
-            copy_type = 0
+    source = tag_value(tags, 0x6074)
+    source_end = tag_value(tags, 0x6075)
+    destination = tag_value(tags, 0x6076)
+    destination_end = tag_value(tags, 0x6077)
+    oneshot = tag_flag(tags, 0x11F8)
+    copy_type = tag_int(tags, 0x2223)
+    conv_type = tag_int(tags, 0x2227)
 
     if copy_type == 0:
         if not source or not destination:
@@ -735,10 +725,10 @@ def from_tags(
         fmt, suppress_zero, exponential = opts
 
         termination_code = "0"
-        term_char = tags.get(0x3216, "")
+        term_char = tag_value(tags, 0x3216)
         # 0x1221 alone marks termination; 0x1201 is also set for a text
         # constant source, so it must not imply a termination code.
-        if 0x1221 in tags and term_char:
+        if tag_flag(tags, 0x1221) and term_char:
             termination_code = f"${int(term_char):X}"
 
         return Copy(

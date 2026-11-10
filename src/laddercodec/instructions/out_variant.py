@@ -22,6 +22,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
+from ..binary_helpers import tag_value
 from ..model import AfInstruction, _validate_operand
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
@@ -230,23 +231,23 @@ def from_tags(
     """Construct an OutVariant from tag data (shared by both decoders)."""
     if class_name != "Out" or type_code != 0x2715:
         return None
-    variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
-    operand = tags.get(0x6066, "")
+    variant = _FUNC_TO_VARIANT.get(tag_value(tags, 0x3218))
+    operand = tag_value(tags, 0x6066)
     if variant is None or not operand:
         return None
     kind, unit, flag = variant
     if kind == "toggle":
         return OutVariant(kind="toggle", operand=operand, immediate=flag)
-    if TIMER_UNITS.get(tags.get(0x21F9, "")) != unit:
+    if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
     two_phase = kind in _TWO_PHASE
     return OutVariant(
         kind=kind,
         operand=operand,
-        on_acc=tags.get(0x60B4, ""),
-        on_preset=tags.get(0x60B3, ""),
-        off_acc=tags.get(0x60B6, "") if two_phase else "",
-        off_preset=tags.get(0x60B5, "") if two_phase else "",
+        on_acc=tag_value(tags, 0x60B4),
+        on_preset=tag_value(tags, 0x60B3),
+        off_acc=tag_value(tags, 0x60B6) if two_phase else "",
+        off_preset=tag_value(tags, 0x60B5) if two_phase else "",
         unit=unit,
         maintained=flag,
     )

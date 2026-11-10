@@ -18,6 +18,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, InstructionType, _validate_operand
 from .family import AfInstructionFamilySpec
 
@@ -198,10 +199,10 @@ def from_tags(
         return None
 
     if class_name == "For" and type_code == FOR_TYPE_MARKER:
-        limit = tags.get(0x6065, "")
+        limit = tag_value(tags, 0x6065)
         if not limit:
             return None
-        oneshot = 0x11F8 in tags
+        oneshot = tag_flag(tags, 0x11F8)
         try:
             return ForLoop(limit=limit, oneshot=oneshot)
         except ValueError:

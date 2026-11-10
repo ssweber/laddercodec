@@ -11,6 +11,7 @@ import struct
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
+from ..binary_helpers import tag_int, tag_value
 from ..model import PinnedInstruction
 from .family import AfInstructionFamilySpec
 
@@ -194,17 +195,17 @@ def from_tags(
     """Construct a Timer from tag data (shared by both decoders)."""
     if class_name != "Tmr" or type_code != _TIMER_TYPE_CODE:
         return None
-    done_bit = tags.get(0x6068, "")
-    setpoint = tags.get(0x606A, "")
-    current = tags.get(0x6069, "")
-    unit_idx = tags.get(0x21F9, "0")
+    done_bit = tag_value(tags, 0x6068)
+    setpoint = tag_value(tags, 0x606A)
+    current = tag_value(tags, 0x6069)
+    unit_idx = tag_value(tags, 0x21F9)
     unit = TIMER_UNITS.get(unit_idx)
     if not done_bit or not current or not setpoint or unit is None:
         return None
     # SCR: 0x21FA absent = on_delay, present = off_delay.
     # Clipboard: byte tag value 0 = on_delay, 1 = off_delay.
-    timer_type = "off_delay" if (tag_byte_lens or {}).get(0x21FA, 0) != 0 else "on_delay"
-    retained = (tag_byte_lens or {}).get(0x21FB, 0) != 0
+    timer_type = "off_delay" if tag_int(tags, 0x21FA) != 0 else "on_delay"
+    retained = tag_int(tags, 0x21FB) != 0
     return Timer(
         timer_type=timer_type,
         done_bit=done_bit,
