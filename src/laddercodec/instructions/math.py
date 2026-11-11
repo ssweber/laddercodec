@@ -89,8 +89,8 @@ _OPERAND_SLOTS = 500
 _RESERVED_SLOTS = 500
 #: CLICK v4's capacity.  Its editor stops listing interiors here, whatever the formula says.
 _V4_RESERVED_SLOTS = 5000
-# Click's formula editor accepted at most 68 operands (DS1..DS68 tested); a pasted
-# 69 passes CLICK v4's check.  The blob has 500 slots.
+# The formula's length cap (``_MAX_INTERNAL_LENGTH``) allows at most 68 operands, within
+# the 500 slots.
 
 # Pre-computed empty slot bytes: each slot is [2B tag LE][4B index LE][00 00].
 # Avoids 1000 _variant_tagged_field() calls per Math instruction.
@@ -199,10 +199,10 @@ def _range_interiors(expression: str) -> list[str]:
 # Field rules (CLICK v4.00 Help CL170 Math decimal, CL203 Math hex, OBJ-10xx)
 # ---------------------------------------------------------------------------
 
-#: Result banks per mode; DH only in hex mode.
+#: Result banks per mode (Inst_Math.dll result masks at 0x100042e6 / 0x10005c54; OBJ-004).
 RESULT_BANKS: dict[str, frozenset[str]] = {
-    "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD"}),
-    "hex": frozenset({"DS", "DD", "DF", "TD", "CTD", "DH"}),
+    "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
+    "hex": frozenset({"DH", "YD"}),
 }
 #: Keys only the decimal keypad has (CL170), and only the hex keypad (CL203).
 _DECIMAL_ONLY = frozenset(
@@ -229,6 +229,12 @@ _MAX_NESTING = 8
 #: Bytes per register (Help CL196 data types) for the median's 1024-byte cap (OBJ-1013).
 _REGISTER_BYTES = {"DS": 2, "DH": 2, "TD": 2, "SD": 2, "DD": 4, "DF": 4, "CTD": 4}
 _MEDIAN_MAX_BYTES = 1024
+#: SUM over a range refuses only CT on a CPU with the v4 functions (Q-M8).
+_SUM_REFUSED_BANKS = frozenset({"CT"})
+#: Most characters of the internal template, ``@`` per address and ``#`` between tokens
+#: (Inst_Math.dll 0x1000a5fd compares with 0x10e; OBJ-1008 "The Formula is too long").
+_MAX_INTERNAL_LENGTH = 270
+_INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 _TOKEN_ADDRESS_RE = re.compile(r"([A-Z]{1,3})(\d+u?)")
 
 
@@ -269,15 +275,24 @@ def _check_expression(expression: str, mode: str) -> None:
     if depth > 0:
         raise FieldError(f"{name}: {expression!r} has a '(' with no ')'")
 
-    # SUM ( a : b ) is the one place a bit may stand.
+    # SUM ( a : b ) is the one place a bit may stand, and not a CT bit (Inst_Math.dll SUM
+    # handler 0x10011290, OBJ-1002; an older CPU's refusal of every bit is a project rule).
     bit_ok: set[int] = set()
     for i in range(len(tokens) - 5):
         if tokens[i : i + 2] == ["SUM", "("] and tokens[i + 3] == ":" and tokens[i + 5] == ")":
             bit_ok.update((i + 2, i + 4))
     for i, token in enumerate(tokens):
         address = _token_address(token)
-        if address is not None and address[0] in BIT_BANKS and i not in bit_ok:
+        if address is None or address[0] not in BIT_BANKS:
+            continue
+        if i not in bit_ok:
             raise FieldError(f"{name}: {token} is a bit; a bit stands only in SUM over a bit range")
+        if address[0] in _SUM_REFUSED_BANKS:
+            raise FieldError(f"{name}: SUM over {token} is refused; SUM takes no CT range")
+    # The spaced form keeps a sign on its constant (``( -5 )``).
+    for token in expression.split(" "):
+        if _CONSTANT_RE.fullmatch(token.removeprefix("-")):
+            _check_constant(token, name)
 
     for i in range(1, len(tokens) - 1):
         if tokens[i] != ":":
@@ -298,10 +313,41 @@ def _check_expression(expression: str, mode: str) -> None:
                 f"a median covers at most {_MEDIAN_MAX_BYTES}"
             )
 
-    operands = len(_extract_operands(expression))
-    if operands > _OPERAND_SLOTS:
+    # The cap is on CLICK's internal template, which the blob stores as 0x6229 (Q-M7).  At
+    # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.
+    length = len(_make_internal(_make_template(expression)))
+    if length > _MAX_INTERNAL_LENGTH:
         raise FieldError(
-            f"{name}: {operands} operands; the Math blob holds at most {_OPERAND_SLOTS}"
+            f"{name}: the formula is {length} characters in CLICK's internal form; "
+            f"CLICK allows {_MAX_INTERNAL_LENGTH}"
+        )
+
+
+def _check_constant(token: str, name: str) -> None:
+    """Refuse a constant the Math dialog refuses (Inst_Math.dll 0x1000ead1-0x1000eefc, OBJ-1009).
+
+    A hex constant has at most 4 digits and is at most FFFFh.  CLICK reads a decimal integer
+    as 64 bits, truncates it to 32, prints it back and compares the lengths.  A value outside
+    int32 whose printed length differs is refused; one whose length matches
+    (``6000000000``) is not yet checked in a dialog and passes.
+    """
+    if token.endswith("h"):
+        digits = token.lstrip("-")[:-1]
+        if len(digits) > 4 or int(digits, 16) > 0xFFFF:
+            raise FieldError(
+                f"{name}: {token} is outside 0h..FFFFh; a hex constant has at most 4 digits"
+            )
+        return
+    if not re.fullmatch(r"-?\d+", token):
+        return
+    value = int(token)
+    if _INT32_MIN <= value <= _INT32_MAX:
+        return
+    truncated = (value + 2**31) % 2**32 - 2**31
+    if len(str(truncated)) != len(token):
+        raise FieldError(
+            f"{name}: {token} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is "
+            "32-bit"
         )
 
 

@@ -35,14 +35,25 @@ def _sum_of(n: int) -> str:
 _NINE_DEEP = "( " * 9 + "DS1" + " )" * 9
 
 _REFUSED = [
-    # result banks; DH only in hex mode
+    # result banks per mode (Q-M9): decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
     ("DS1 + 1", "DH1", "decimal", "Math.result: 'DH1' is not allowed"),
+    ("DS1 + 1", "YD1", "decimal", "Math.result: 'YD1' is not allowed"),
     ("DS1", "X001", "decimal", "Math.result: 'X001' is not allowed"),
     ("DS1", "C1", "decimal", "Math.result: 'C1' is not allowed"),
-    ("DS1", "SD1", "decimal", "Math.result: 'SD1' is not allowed"),
     ("DS1", "TXT1", "decimal", "Math.result: 'TXT1' is not allowed"),
-    ("DH1", "YD1", "hex", "Math.result: 'YD1' is not allowed"),
+    ("DS1", "XD1", "decimal", "Math.result: 'XD1' is not allowed"),
+    ("DH1 + 1h", "DS9", "hex", "Math.result: 'DS9' is not allowed"),
+    ("DH1 + 1h", "DD9", "hex", "Math.result: 'DD9' is not allowed"),
+    ("DH1 + 1h", "XD1", "hex", "Math.result: 'XD1' is not allowed"),
     ("DS1", "DS4501", "decimal", "outside DS1-DS4500"),
+    # constants (Q-M9, OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
+    ("DS1 + 3000000000", "DD9", "decimal", "3000000000 is outside -2147483648..2147483647"),
+    ("DS1 + ( -3000000000 )", "DD9", "decimal", "-3000000000 is outside"),
+    ("DH1 + 10000h", "DH9", "hex", "10000h is outside 0h..FFFFh"),
+    ("DH1 + 1FFFFh", "DH9", "hex", "1FFFFh is outside 0h..FFFFh"),
+    ("DH1 + 0FFFFh", "DH9", "hex", "0FFFFh is outside 0h..FFFFh"),
+    # SUM takes no CT range (Q-M8, OBJ-1002)
+    ("SUM ( CT1 : CT3 )", "DS9", "decimal", "SUM over CT1 is refused; SUM takes no CT range"),
     # parentheses: at most 8 deep (OBJ-1010), balanced (OBJ-1004, OBJ-1005)
     (_NINE_DEEP, "DS9", "decimal", "nests parentheses 9 deep; CLICK allows 8"),
     ("( DS1 + DS2", "DS9", "decimal", "has a '\\(' with no '\\)'"),
@@ -63,8 +74,9 @@ _REFUSED = [
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
-    # the blob has 500 operand slots
-    (_sum_of(501), "DD1", "decimal", "501 operands; the Math blob holds at most 500"),
+    # 270 characters of the internal template (Q-M7, OBJ-1008): DS1..DS69 is 273
+    (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
+    ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
 ]
 
 
@@ -95,13 +107,22 @@ def test_unknown_mode_refused() -> None:
     ("expression", "result", "mode"),
     [
         ("SUM ( C1 : C16 )", "DS9", "decimal"),
-        # range aggregate banks wait on a dialog check: kept as before
+        # SUM over X, Y, T and SC, and MAX over TD and DS (Q-M8)
         ("SUM ( X001 : X036 )", "DS9", "decimal"),
+        ("SUM ( Y001 : Y008 )", "DS9", "decimal"),
         ("SUM ( T1 : T5 )", "DS9", "decimal"),
+        ("SUM ( SC1 : SC3 )", "DS9", "decimal"),
+        ("SUM ( TD1 : TD3 )", "DS9", "decimal"),
         ("MAX ( TD1 : TD5 )", "DD9", "decimal"),
-        # a hex result into DS or DD waits on a dialog check
-        ("DH1 + 1h", "DS9", "hex"),
-        ("DH1 + 1h", "DD9", "hex"),
+        ("MAX ( DS1 : DS3 )", "DS9", "decimal"),
+        # result banks (Q-M9)
+        ("DS1 + 1", "SD9", "decimal"),
+        ("DH1 + 1h", "YD1", "hex"),
+        ("DH1 + 1h", "YD0u", "hex"),
+        # 32-bit integers and 4-digit hex constants (Q-M9)
+        ("DS1 + 2147483647", "DD9", "decimal"),
+        ("DS1 + ( -2147483648 )", "DD9", "decimal"),
+        ("DH1 + FFFFh", "DH9", "hex"),
         # constants in the other mode are not refused
         ("DH1 + 1Eh", "DS9", "decimal"),
         ("DH1 + 1.5", "DH9", "hex"),
@@ -122,14 +143,25 @@ def test_accepted(tmp_path: Path, expression: str, result: str, mode: str) -> No
     assert parse_af_blob(parsed.build_blob()) == parsed
 
 
-def test_500_operands_fill_the_slots_and_match_the_header() -> None:
-    """The header field count is what the blob holds (S1)."""
-    blob = Math(_sum_of(500), "DD1").build_blob()
+def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
+    """The header field count is what the blob holds (S1); 68 operands is 269 characters."""
+    blob = Math(_sum_of(68), "DD1").build_blob()
     header = struct.unpack_from("<I", blob, 16)[0]
     assert header == 1010
     assert len(_decompose_blob(blob)[4]) == header
 
 
-def test_refused_blob_is_left_unparsed() -> None:
-    tags = {0x6065: "C1", 0x61FF: "@ + @", 0x61FD: "DS1#+#DS2", 0x3218: "8451"}
-    assert from_tags_af("Math", 0x271A, tags) is None
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {0x6065: "C1"},  # a bit result
+        {0x11FE: "-1"},  # a hex Math into DS9
+        {0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"},  # SUM over CT
+        {0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"},  # outside int32
+        {0x61FF: " + ".join(["@"] * 69), 0x61FD: "#+#".join(f"DS{i}" for i in range(1, 70))},
+    ],
+)
+def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
+    tags = {0x6065: "DS9", 0x61FF: "@ + @", 0x61FD: "DS1#+#DS2", 0x3218: "8451"}
+    assert from_tags_af("Math", 0x271A, tags) is not None
+    assert from_tags_af("Math", 0x271A, tags | fields) is None

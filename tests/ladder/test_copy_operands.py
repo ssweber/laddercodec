@@ -99,6 +99,59 @@ _REFUSED = [
     ("pack_words(C1..C2,DS1)", "'C1' is a bit; words needs a register bank"),
     ("unpack_to_bits(DD1,DS1..DS2)", "'DS1' is a register; bits needs a bit bank"),
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
+    ("pack_text(DS1..DS2,DD1)", "'DS1' is not TXT; text packs a TXT range"),
+    # Single Copy constants (Q-M5): an integer is 32-bit (OBJ-005); hex above FFFFh goes to
+    # the 32-bit integer registers only (OBJ-024)
+    ("copy(5000000000,DD1)", "Copy.source: '5000000000' is outside -2147483648..2147483647"),
+    ("copy(-2147483649,DD1)", "is outside -2147483648..2147483647"),
+    ("copy(10000h,DH1)", "can't take '10000h'; a hex constant above FFFFh copies to DD, CTD"),
+    ("copy(1FFFFh,DS1)", "a hex constant above FFFFh copies to DD, CTD"),
+    ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
+    # Block Copy banks (Q-M1): source and destination edits (OBJ-004), pairing rows
+    ("blockcopy(DS1..DS3,YD1..YD3)", "BlockCopy.dest_start: 'YD1' is not allowed"),
+    ("blockcopy(DS1..DS2,YD0..YD0u)", "BlockCopy.dest_start: 'YD0' is not allowed"),
+    ("blockcopy(TD1..TD3,DS1..DS3)", "BlockCopy.source_start: 'TD1' is not allowed"),
+    ("blockcopy(CTD1..CTD3,DS1..DS3)", "BlockCopy.source_start: 'CTD1' is not allowed"),
+    ("blockcopy(YD1..YD3,DS1..DS3)", "BlockCopy.source_start: 'YD1' is not allowed"),
+    ("blockcopy(XD0..XD0u,DS1..DS2)", "BlockCopy.source_start: 'XD0' is not allowed"),
+    ("blockcopy(DS1..DS3,T1..T3)", "BlockCopy.dest_start: 'T1' is not allowed"),
+    ("blockcopy(TXT1..TXT3,DF1..DF3)", "a block copy from TXT goes to DS, DD, DH, TXT"),
+    ("blockcopy(TXT1..TXT3,TD1..TD3)", "a block copy from TXT goes to DS, DD, DH, TXT"),
+    ("blockcopy(C1..C3,DS1..DS3)", "a block copy from C goes to Y, C"),
+    ("blockcopy(DS1..DS3,TXT1..TXT3)", "a block copy from DS goes to DS, DD, DH, DF, TD, CTD, SD"),
+    ("blockcopy(DS1..DS3,C1..C3)", "a block copy from DS goes to DS, DD, DH, DF, TD, CTD, SD"),
+    # Block Copy ranges (Q-M3, OBJ-012/009) and the end CLICK computes (Q-M4)
+    ("blockcopy(DS1..DS1,DS5..DS5)", r"DS1\.\.DS1 is one address"),
+    ("blockcopy(DS4..DS1,DS5..DS8)", r"DS4\.\.DS1 runs backwards"),
+    ("blockcopy(DS1..DS4,DD1..DD2)", r"'DD2' is not where the copy ends; DS1\.\.DS4 fills DD1\.\.DD4"),
+    ("blockcopy(DD1..DD4,DS1..DS9)", r"DD1\.\.DD4 fills DS1\.\.DS4"),
+    ("blockcopy(C1..C4,Y001..Y016)", r"C1\.\.C4 fills Y001\.\.Y004"),
+    ("blockcopy(X001..X101,C1..C101)", "spans two X slots"),
+    ("blockcopy(C1..C16,Y010..Y101)", "spans two Y slots"),
+    # Pack pairs (Q-M2): X/Y/T/CT/SC pack into DH only; DS into DD/DF; DH into DD
+    ("pack_bits(X001..X016,DS1)", "a pack from X goes to DH"),
+    ("pack_bits(Y001..Y016,DD1)", "a pack from Y goes to DH"),
+    ("pack_bits(T1..T16,DS1)", "a pack from T goes to DH"),
+    ("pack_words(DH1..DH2,DF1)", "a pack from DH goes to DD"),
+    ("pack_words(DS1..DS2,DH1)", "a pack from DS goes to DD, DF"),
+    ("pack_text(TXT1..TXT4,SD1)", "Pack.destination: 'SD1' is not allowed"),
+    ("pack_text(TXT1..TXT4,YD0u)", "Pack.destination: 'YD0u' is not allowed"),
+    ("pack_bits(C1..C16,YD0u)", "Pack.destination: 'YD0u' is not allowed"),
+    ("pack_words(DD1..DD2,DF1)", "Pack.source_start: 'DD1' is not allowed"),
+    ("pack_words(XD0..XD1,DD1)", "Pack.source_start: 'XD0' is not allowed"),
+    ("pack_bits(C1..C1,DS1)", r"C1\.\.C1 is one address"),
+    ("pack_bits(C5..C1,DS1)", r"C5\.\.C1 runs backwards"),
+    # Unpack pairs (Q-M2b): only DH unpacks to Y; DS to C only; nothing to DF
+    ("unpack_to_bits(DS5,Y001..Y016)", "an unpack from DS goes to C"),
+    ("unpack_to_bits(DD5,Y001..Y016)", "an unpack from DD goes to C, DS, DH"),
+    ("unpack_to_words(DD1,DF1..DF2)", "Unpack.dest_start: 'DF1' is not allowed"),
+    ("unpack_to_words(DD1,YD0..YD0u)", "Unpack.dest_start: 'YD0' is not allowed"),
+    ("unpack_to_bits(TXT1,C1..C16)", "Unpack.source: 'TXT1' is not allowed"),
+    ("unpack_to_bits(XD0u,C1..C16)", "Unpack.source: 'XD0u' is not allowed"),
+    ("unpack_to_bits(DS1,C1..C1)", r"C1\.\.C1 is one address"),
+    # Fill's destination range takes the same range check (Inst_Copy.dll 0x10007fb3)
+    ("fill(0,DS1..DS1)", r"DS1\.\.DS1 is one address"),
+    ("fill(0,DS5..DS1)", r"DS5\.\.DS1 runs backwards"),
 ]
 
 
@@ -141,21 +194,35 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "fill(TXT1,TXT2..TXT5)",
         "fill($00,TXT1..TXT4)",
         "blockcopy(TXT1..TXT4,DS1..DS4,convert=to_ascii)",
-        "pack_bits(X001..X016,DS1)",
-        "pack_bits(X021..X036,DS1)",
-        "unpack_to_bits(DS1,Y021..Y036)",
+        "blockcopy(TXT1..TXT4,DH1..DH4,convert=to_value)",
+        "blockcopy(TXT1..TXT4,TXT11..TXT14)",
+        "blockcopy(DS1..DS4,DD1..DD4)",  # the end counts elements (Q-M4)
+        "blockcopy(DD1..DD4,DS1..DS4)",
+        "blockcopy(DF1..DF3,CTD1..CTD3)",
+        "blockcopy(C1..C16,Y001..Y016)",
+        "blockcopy(X021..X036,C1..C16)",
+        "pack_bits(X001..X016,DH1)",
+        "pack_bits(X021..X036,DH1)",
+        "pack_bits(SC1..SC16,DH1)",
+        "pack_bits(C1..C16,DF1)",
+        "pack_words(DS1..DS2,DF1)",
+        "pack_words(DH1..DH2,DD1)",
+        "pack_text(TXT1..TXT4,CTD1)",
+        "unpack_to_bits(DH1,Y021..Y036)",
+        "unpack_to_bits(DF1,C1..C32)",
+        "unpack_to_words(DF1,DH1..DH2)",
         "copy(X021,Y036)",
         "pack_bits(C1..C32,DD1)",
-        "pack_words(XD0..XD1,DD1)",  # how CLICK counts XD0u is unchecked: no count
         "unpack_to_bits(DD1,C1..C32)",
-        # these fields' banks wait on a dialog check: any bank, XD0u and YD0u included
-        "blockcopy(DS1..DS2,YD0..YD0u)",
-        "blockcopy(XD0..XD0u,DS1..DS2)",
-        "pack_bits(C1..C16,YD0u)",
-        "pack_text(TXT1..TXT4,YD0u)",
-        "pack_words(XD0..XD0u,DD1)",
-        "unpack_to_bits(XD0u,C1..C16)",
-        "unpack_to_words(DD1,YD0..YD0u)",
+        # Single Copy constants (Q-M5)
+        "copy(40000,DS1)",
+        "copy(3.5,DS1)",
+        "copy(100h,DH1)",
+        "copy(FFFFh,DS1)",
+        "copy(10000h,DD1)",
+        "copy(10000h,CTD1)",
+        "copy(2147483647,DD1)",
+        "copy(-2147483648,DD1)",
     ],
 )
 def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
@@ -201,20 +268,20 @@ def test_text_options_keep_their_bytes(source: str, option: str) -> None:
 @pytest.mark.parametrize(
     "instruction",
     [
-        Pack("X001", "X016", "DS1", pack_type="bits"),
+        Pack("X001", "X016", "DH1", pack_type="bits"),
         Pack("Y101", "Y108", "DH1", pack_type="bits"),
-        Pack("X021", "X036", "DS1", pack_type="bits"),
-        Unpack("DS1", "Y021", "Y036", unpack_type="bits"),
-        Pack("T1", "T16", "DS1", pack_type="bits"),
-        Pack("CT1", "CT4", "DS1", pack_type="bits"),
-        Pack("SC1", "SC16", "DS1", pack_type="bits"),
-        Pack("CTD1", "CTD2", "DD1", pack_type="words"),
-        Unpack("DS1", "Y001", "Y016", unpack_type="bits"),
-        Unpack("DD1", "CTD1", "CTD2", unpack_type="words"),
+        Pack("X021", "X036", "DH1", pack_type="bits"),
+        Unpack("DH1", "Y021", "Y036", unpack_type="bits"),
+        Pack("T1", "T16", "DH1", pack_type="bits"),
+        Pack("CT1", "CT4", "DH1", pack_type="bits"),
+        Pack("SC1", "SC16", "DH1", pack_type="bits"),
+        Pack("DH1", "DH2", "DD1", pack_type="words"),
+        Unpack("DH1", "Y001", "Y016", unpack_type="bits"),
+        Unpack("DD1", "DH1", "DH2", unpack_type="words"),
     ],
 )
 def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
-    """Bits or words comes from the bank, not the first letter (CT, CTD, X, Y, T, SC)."""
+    """Bits or words comes from the bank, not the first letter (CT, X, Y, T, SC, DH)."""
     assert parse_af_blob(instruction.build_blob()) == instruction
 
 
@@ -227,6 +294,14 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
         {0x6074: "C1", 0x6075: "C17", 0x6076: "DS1", 0x2223: "3"},  # 17 bits into DS
         {0x6074: "X016", 0x6075: "X021", 0x6076: "DD1", 0x2223: "3"},  # two X slots
         {0x6074: "X001", 0x6075: "X036", 0x6076: "DD1", 0x2223: "3"},  # two X slots
+        {0x6074: "X001", 0x6075: "X016", 0x6076: "DS1", 0x2223: "3"},  # X packs into DH only
+        {0x6074: "DS5", 0x6076: "Y001", 0x6077: "Y016", 0x2223: "4"},  # DS unpacks to C only
+        {0x6074: "DS1", 0x6075: "DS3", 0x6076: "YD1", 0x6077: "YD3", 0x2223: "1"},  # YD dest
+        {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DD1", 0x6077: "DD2", 0x2223: "1"},  # end
+        {0x6074: "DS1", 0x6075: "DS1", 0x6076: "DS5", 0x6077: "DS5", 0x2223: "1"},  # one
+        {0x6074: "0", 0x6076: "DS5", 0x6077: "DS1", 0x2223: "2"},  # fill runs backwards
+        {0x6074: "10000h", 0x6076: "DH1"},  # hex above FFFFh into DH
+        {0x6074: "5000000000", 0x6076: "DD1"},  # outside int32
     ],
 )
 def test_refused_blob_is_left_unparsed(tags: dict[int, str]) -> None:

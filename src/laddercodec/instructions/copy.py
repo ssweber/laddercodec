@@ -252,6 +252,13 @@ def check_operand(
     return Operand(_register_kind(address.bank), address.bank)
 
 
+def _position(address: Address) -> int:
+    """Order of an address in its bank: ``XD0``, ``XD0u``, ``XD1`` ... count 0, 1, 2 ..."""
+    if address.bank in ("XD", "YD"):
+        return 1 if address.upper else address.number + (address.number > 0)
+    return address.number
+
+
 def _span(first: Address, last: Address) -> int | None:
     """Addresses from ``first`` to ``last`` in one bank; ``None`` for XD/YD.
 
@@ -271,12 +278,16 @@ def _check_range(
     banks: Collection[str] | None = None,
     *,
     one_module: bool = False,
+    ordered: bool = True,
 ) -> tuple[Address, Address]:
     """Check a ``start..end`` range and return its two ends.
 
-    Both ends are addresses in one bank (OBJ-008), never pointers.  With ``one_module``, an X
-    or Y range stays inside one 16-point slot of :data:`~laddercodec.model.XY_SLOTS`
-    (OBJ-033, OBJ-035, OBJ-019); the dual option slot, 21-36, is a slot of its own.
+    Both ends are addresses in one bank (OBJ-008), never pointers.  With ``ordered``, the end
+    comes after the start: an end before it is OBJ-009 and the same address OBJ-012
+    (Inst_Copy.dll range check 0x10011670, which Inst_Search.dll repeats at 0x10003b80).
+    With ``one_module``, an X or Y range stays inside one 16-point slot of
+    :data:`~laddercodec.model.XY_SLOTS` (OBJ-033, OBJ-035, OBJ-019); the dual option slot,
+    21-36, is a slot of its own.
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
@@ -290,6 +301,9 @@ def _check_range(
             f"{cls}.{end_field}: {end!r} is not in the bank of {start!r}; "
             "both ends of a range are in one bank"
         )
+    if ordered and _position(last) <= _position(first):
+        what = "is one address" if _position(last) == _position(first) else "runs backwards"
+        raise AddressError(f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start")
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
             f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "
@@ -362,13 +376,97 @@ _COPY_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-#: Help CL185: source kind -> destination banks of a Fill.
+#: Help CL185: source kind -> destination banks of a Fill.  Inst_Copy.dll's Fill rows
+#: (0x1001ba18) agree for registers.
 _FILL_PAIRS: dict[str, frozenset[str]] = {
     "word": _NUMERIC_DEST_BANKS,
     "txt": frozenset({"TXT"}),
     "number": _REGISTER_DEST_BANKS,
     "text": frozenset({"TXT"}),
 }
+
+#: A single Copy's integer constant is an int32 (OBJ-005, baseEx CheckValueRange).
+_INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
+_INT_CONSTANT_RE = re.compile(r"[+-]?\d+")
+_HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
+#: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
+#: (Inst_Copy.dll single row 0x1001ba70, type matrix 0x10010e40; OBJ-024).
+_HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
+
+
+def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
+    """Refuse a number constant a single Copy can't hold or can't put in ``dest_bank``."""
+    if _INT_CONSTANT_RE.fullmatch(source) and not _INT32_MIN <= int(source) <= _INT32_MAX:
+        raise FieldError(
+            f"Copy.source: {source!r} is outside {_INT32_MIN}..{_INT32_MAX}; an integer "
+            "constant is 32-bit"
+        )
+    m = _HEX_CONSTANT_RE.fullmatch(source)
+    if m and int(m.group(1), 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
+        raise AddressError(
+            f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
+            f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Block, Pack and Unpack pairs (Inst_Copy.dll pairing rows, table 0x1001b9b4)
+# ---------------------------------------------------------------------------
+
+#: One pairing row: source banks and the destination banks they copy to.  The first row
+#: holding the source bank applies; a destination outside it is refused.
+_Rows = tuple[tuple[frozenset[str], frozenset[str]], ...]
+
+_NUMERIC_BITS = frozenset({"X", "Y", "T", "CT", "SC"})
+
+#: Block Copy rows (0x1001ba40).  Its source and destination edits refuse every other bank
+#: (OBJ-004): XD, YD, TD and CTD are no source, and X, T, CT, SC, XD and YD no destination.
+_BLOCK_ROWS: _Rows = (
+    (BIT_BANKS, frozenset({"Y", "C"})),
+    (frozenset({"DS", "DD", "DH", "DF", "SD"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "SD"})),
+    (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "TXT"})),
+)  # fmt: skip
+#: Pack rows (0x1001b9e8): X/Y/T/CT/SC bits pack into DH only; C into any 16- or 32-bit word.
+_PACK_ROWS: _Rows = (
+    (_NUMERIC_BITS, frozenset({"DH"})),
+    (frozenset({"C"}), frozenset({"DS", "DD", "DH", "DF"})),
+    (frozenset({"DS"}), frozenset({"DD", "DF"})),
+    (frozenset({"DH"}), frozenset({"DD"})),
+    (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD"})),
+)
+#: Unpack rows (0x1001b9c8): only DH unpacks to Y (OBJ-024 at 0x100063c7).
+_UNPACK_ROWS: _Rows = (
+    (frozenset({"DS"}), frozenset({"C"})),
+    (frozenset({"DD", "DF"}), frozenset({"C", "DS", "DH"})),
+    (frozenset({"DH"}), frozenset({"Y", "C"})),
+)
+
+
+def _sources(rows: _Rows) -> frozenset[str]:
+    return frozenset().union(*(src for src, _ in rows))
+
+
+def _destinations(rows: _Rows) -> frozenset[str]:
+    return frozenset().union(*(dst for _, dst in rows))
+
+
+def _check_row(
+    cls: str,
+    rows: _Rows,
+    source: str,
+    source_bank: str,
+    dest_field: str,
+    destination: str,
+    dest_bank: str,
+) -> None:
+    """Refuse a destination bank the source bank's pairing row leaves out (OBJ-004, OBJ-024)."""
+    allowed = next(dst for src, dst in rows if source_bank in src)
+    if dest_bank not in allowed:
+        what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
+        raise AddressError(
+            f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
+            f"{what} from {source_bank} goes to {_bank_list(allowed)}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -501,6 +599,8 @@ class Copy(AfInstruction):
         _check_pair(
             "Copy", self.source, src, "destination", self.destination, dst.bank, _COPY_PAIRS
         )
+        if src.kind == "number":
+            _check_copy_constant(self.source, "destination", self.destination, dst.bank)
         self._check_format(src, dst.bank)
         if self.termination_code != "0" and not (
             self.format in ("text", "binary") and src.kind == "word" and dst.bank == "TXT"
@@ -703,14 +803,30 @@ class BlockCopy(AfInstruction):
     def __post_init__(self) -> None:
         if self.format not in _BLOCKCOPY_FORMATS:
             raise FieldError(f"Invalid blockcopy format: {self.format!r}")
-        # Bank pairs wait on a dialog check; only the addresses and ranges are checked.
         cls = "BlockCopy"
-        src, _ = _check_range(
-            cls, "source_start", self.source_start, "source_end", self.source_end, ADDRESS_BANKS
-        )
-        dest, _ = _check_range(
-            cls, "dest_start", self.dest_start, "dest_end", self.dest_end, ADDRESS_BANKS
-        )
+        src, src_last = _check_range(
+            cls, "source_start", self.source_start, "source_end", self.source_end,
+            _sources(_BLOCK_ROWS), one_module=True,
+        )  # fmt: skip
+        # CLICK fills in the destination end itself, so a one-address destination stays
+        # unordered here and is refused below as an end that doesn't match.
+        dest, dest_last = _check_range(
+            cls, "dest_start", self.dest_start, "dest_end", self.dest_end,
+            _destinations(_BLOCK_ROWS), one_module=True, ordered=False,
+        )  # fmt: skip
+        _check_row(
+            cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}", src.bank,
+            "dest_start", self.dest_start, dest.bank,
+        )  # fmt: skip
+        # Inst_Copy.dll 0x10009540: the destination end is the start plus the source's
+        # element count (GetNextAddress), whatever the two banks.
+        end = dest.number + src_last.number - src.number
+        if dest_last.number != end:
+            spelled = f"{dest.bank}{end:03d}" if dest.bank in ("X", "Y") else f"{dest.bank}{end}"
+            raise AddressError(
+                f"{cls}.dest_end: {self.dest_end!r} is not where the copy ends; "
+                f"{self.source_start}..{self.source_end} fills {self.dest_start}..{spelled}"
+            )
         if self.format != "none" and src.bank != "TXT":
             raise FieldError(
                 f"{cls}.format: to_{self.format} needs a TXT source, not "
@@ -885,13 +1001,23 @@ class Pack(AfInstruction):
     def __post_init__(self) -> None:
         if self.pack_type not in _PACK_TYPES:
             raise FieldError(f"Invalid pack type: {self.pack_type!r}")
-        # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
         first, last = _check_range(
             "Pack", "source_start", self.source_start, "source_end", self.source_end,
-            ADDRESS_BANKS, one_module=True,
+            _sources(_PACK_ROWS), one_module=True,
         )  # fmt: skip
-        dest = check_operand(self.destination, "Pack.destination", ADDRESS_BANKS)
+        dest = check_operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
+        assert dest.bank is not None
+        _check_row(
+            "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}", first.bank,
+            "destination", self.destination, dest.bank,
+        )  # fmt: skip
         if self.pack_type == "text":
+            # CLICK offers the whitespace options, which write the text conversion types,
+            # only for a TXT source (Inst_Copy.dll context 5).
+            if first.bank != "TXT":
+                raise AddressError(
+                    f"Pack.source_start: {self.source_start!r} is not TXT; text packs a TXT range"
+                )
             return
         _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
         _check_count(
@@ -990,11 +1116,15 @@ class Unpack(AfInstruction):
     def __post_init__(self) -> None:
         if self.unpack_type not in _UNPACK_TYPES:
             raise FieldError(f"Invalid unpack type: {self.unpack_type!r}")
-        # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
-        src = check_operand(self.source, "Unpack.source", ADDRESS_BANKS)
+        src = check_operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
+        assert src.bank is not None
         first, last = _check_range(
             "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end,
-            ADDRESS_BANKS, one_module=True,
+            _destinations(_UNPACK_ROWS), one_module=True,
+        )  # fmt: skip
+        _check_row(
+            "Unpack", _UNPACK_ROWS, self.source, src.bank,
+            "dest_start", self.dest_start, first.bank,
         )  # fmt: skip
         _check_kind("Unpack", "dest_start", self.dest_start, first.bank, self.unpack_type)
         _check_count(

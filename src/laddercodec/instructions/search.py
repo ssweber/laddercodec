@@ -23,12 +23,13 @@ Field layout (10 fields):
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import ADDRESS_BANKS, AfInstruction, FieldError
-from .copy import REGISTER_BANKS, check_operand
+from ..model import AfInstruction, FieldError
+from .copy import REGISTER_BANKS, _check_range, check_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -73,6 +74,14 @@ _CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
 TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
 #: The result holds the found address's index, a DS (Help CL174).
 RESULT_BANKS = frozenset({"DS"})
+#: The Result Flag is a C bit (Inst_Search.dll validator mask 4 at 0x10006e70; OBJ-004).
+FOUND_BANKS = frozenset({"C"})
+#: A text search value hides the four order operators, leaving these (Inst_Search.dll
+#: 0x10002a90, search-value change handler).
+_TEXT_OPS = frozenset({"==", "!="})
+#: A hex search value of five or more digits is a 32-bit hex constant, which the value
+#: check refuses (Inst_Search.dll 0x10007861, OBJ-005).
+_HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -136,14 +145,26 @@ class Search(AfInstruction):
                 f"Search.comparison: {self.comparison!r} is not allowed; it is one of "
                 f"{', '.join(_OP_TO_FUNC)}"
             )
-        # Whether Search takes a pointer waits on a dialog check, so one is still accepted.
-        check_operand(self.table_start, "Search.table_start", TABLE_BANKS, pointer=True)
-        check_operand(self.table_end, "Search.table_end", TABLE_BANKS, pointer=True)
-        check_operand(self.result, "Search.result", RESULT_BANKS, pointer=True)
-        # The found flag's banks wait on a dialog check: any bank, XD0u and YD0u included.
-        check_operand(self.found, "Search.found", ADDRESS_BANKS, pointer=True)
+        # Inst_Search.dll has no pointer path, so no field takes one (Q-M6).  The table is
+        # one bank, start before end (range check 0x10003b80: OBJ-008, OBJ-009, OBJ-012).
+        _check_range(
+            "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
+        )
+        check_operand(self.result, "Search.result", RESULT_BANKS)
+        check_operand(self.found, "Search.found", FOUND_BANKS)
         # The search value is a constant or a data register, never a bit (Help CL174).
-        check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True, pointer=True)
+        source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
+        m = _HEX_CONSTANT_RE.fullmatch(self.source)
+        if m and len(m.group(1)) > 4:
+            raise FieldError(
+                f"Search.source: {self.source!r} has {len(m.group(1))} hex digits; a hex "
+                "search value has at most 4"
+            )
+        if (source.kind == "text" or source.bank == "TXT") and self.comparison not in _TEXT_OPS:
+            raise FieldError(
+                f"Search.comparison: {self.comparison!r} is not offered for text "
+                f"{self.source!r}; text searches with == or !="
+            )
 
     @property
     def func_code(self) -> str:
@@ -232,8 +253,6 @@ def parse_af_call(call: AfCall) -> Search:
         raise ValueError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
-    import re
-
     m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr)
     if not m:
         raise ValueError(f"Cannot parse search expression: {expr!r}")
