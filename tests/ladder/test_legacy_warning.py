@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import pickle
 import warnings
 from pathlib import Path
 
@@ -92,20 +94,37 @@ def test_decode_program_warns_with_program_name():
 
 def test_no_fixture_warns():
     """Every capture under tests/fixtures decodes without a legacy warning."""
+    decoded = 0
     with warnings.catch_warnings():
         warnings.simplefilter("error", LegacyEncodingWarning)
         for path in sorted(_FIXTURES.rglob("*.bin")):
             data = path.read_bytes()
             if data[:8] == b"CLICK   ":
-                try:
-                    decode(data)
-                except Exception as exc:  # noqa: BLE001
-                    if isinstance(exc, LegacyEncodingWarning):
-                        raise
+                decode(data)
+                decoded += 1
         for path in sorted(_FIXTURES.rglob("*.scr")):
-            try:
-                decode_program(path.read_bytes())
-            except LegacyEncodingWarning:
-                raise
-            except Exception:  # noqa: BLE001
-                pass
+            decode_program(path.read_bytes())
+            decoded += 1
+    assert decoded >= 200
+
+
+def test_hex_mode_legacy_h_warns():
+    rung = Rung(
+        logical_rows=1,
+        conditions=[[""] * 31],
+        instructions=[Math(expression="70000 + DH1", result="DH2", mode="hex")],
+        comment=None,
+    )
+    data = encode(rung)
+    old = data.replace(_u16("W70000"), _u16("H70000"))
+    assert old != data
+    _, found = _decode_recording(old)
+    assert [(w.token, w.rung) for w in found] == [("H70000", 0)]
+
+
+def test_warning_survives_pickle_and_copy():
+    w = LegacyEncodingWarning("Math", "H70000", "detail.", rung=3, program="P")
+    for clone in (pickle.loads(pickle.dumps(w)), copy.copy(w)):
+        assert (clone.instruction, clone.token, clone.detail) == ("Math", "H70000", "detail.")
+        assert (clone.rung, clone.program) == (3, "P")
+        assert str(clone) == str(w)

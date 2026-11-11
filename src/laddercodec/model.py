@@ -41,6 +41,8 @@ class ConditionInstruction:
 class AfInstruction:
     """Base class for AF-side instructions (Coil, Timer, Counter, Copy, Fill, RawInstruction)."""
 
+    # Keep this a plain class attribute. As a dataclass field in a subclass it would
+    # take part in equality and change how decoded instructions compare.
     #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
     #: see :mod:`laddercodec.legacy`.
     _legacy_findings: Collection[tuple[str, str, str]] = ()

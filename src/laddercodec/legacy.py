@@ -39,6 +39,12 @@ class LegacyEncodingWarning(UserWarning):
         Program name for :func:`laddercodec.decode_program`, else ``None``.
     """
 
+    def __reduce__(self):
+        return (
+            type(self),
+            (self.instruction, self.token, self.detail, self.rung, self.program),
+        )
+
     def __init__(
         self,
         instruction: str,
