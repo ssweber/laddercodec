@@ -132,6 +132,8 @@ _COPY_TAGS = (
 
 #: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code).
 _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
+#: A termination code: ``$`` and one or two hex digits (``$D`` is stored as ``$0D``).
+_TERMINATION_CODE_RE = re.compile(r"\$[0-9A-Fa-f]{1,2}")
 
 
 def _is_text_constant(operand: str) -> bool:
@@ -586,11 +588,9 @@ class Copy(AfInstruction):
             raise FieldError(f"Invalid copy format: {self.format!r}")
         # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
         if self.termination_code.startswith("$"):
-            try:
-                code = int(self.termination_code[1:], 16)
-            except ValueError:
-                raise FieldError(f"Invalid termination code: {self.termination_code!r}") from None
-            self.termination_code = _ascii_code(code)
+            if not _TERMINATION_CODE_RE.fullmatch(self.termination_code):
+                raise FieldError(f"Invalid termination code: {self.termination_code!r}")
+            self.termination_code = _ascii_code(int(self.termination_code[1:], 16))
         for option in ("suppress_zero", "exponential"):
             if getattr(self, option) not in ("0", "1"):
                 raise FieldError(

@@ -585,10 +585,10 @@ currently emit:
   `encode()` refuses an empty `""` in a Copy or Fill source, and `read_csv()` and
   `decode()` still accept it there. A compare or a search takes 1 to 128
   printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
-  TXT772; a search matches the same window) and refuses `""`, a longer or non-ASCII text and a
-  quote inside the text when it is read or built; spell a quote as `$22`. A quoted
-  `"$41"` is three characters of text, not the code `$41`. Use `$00` for the blank (NUL)
-  character.
+  TXT772; a search matches the same window) and refuses `""`, a longer or
+  non-ASCII text and a quote inside the text when it is read or built; spell a
+  quote as `$22`. A quoted `"$41"` is three characters of text, not the code
+  `$41`. Use `$00` for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`

@@ -1,7 +1,8 @@
 """Constants, counts and address numbers take the ASCII digits 0-9 only.
 
-``\\d`` and ``int()`` accept every Unicode decimal digit (ARABIC-INDIC DIGIT THREE,
-``\\u0663``); CLICK's validators do not.  Search refuses an empty text value.
+Python's ``\\d`` and ``int()`` accept every Unicode decimal digit (ARABIC-INDIC DIGIT
+THREE, ``\\u0663``); CLICK's validators do not.  A Search text value follows the Compare
+rule.
 """
 
 from __future__ import annotations
@@ -14,22 +15,31 @@ import pytest
 
 from laddercodec import FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
+from laddercodec.csv.ast import AfCall
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
-from laddercodec.instructions.copy import Copy, Fill
+from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.counter import Counter
-from laddercodec.instructions.drum import _check_duration
+from laddercodec.instructions.drum import Drum, _check_duration
+from laddercodec.instructions.drum import parse_af_call as parse_drum_call
 from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.out_variant import OutVariant
+from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.search import Search
 from laddercodec.instructions.send_receive import ModbusAddress
+from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
-from laddercodec.model import InstructionType, check_address
+from laddercodec.model import AddressError, InstructionType, check_address
 
 ASCII = "3"
 UNICODE = "٣"
+
+
+def _termination(code: str) -> Copy:
+    return Copy("DS1", "TXT1", format="binary", termination_code=code)
+
 
 # (id, constructor taking the digit text).
 CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
@@ -49,6 +59,12 @@ CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("drum-duration", lambda d: _check_duration(d, "Drum.duration")),
     ("drum-duration-register", lambda d: _check_duration(f"DS{d}", "Drum.duration")),
     ("math", lambda d: Math(f"DS1 + {d}", "DS2", "decimal")),
+    ("math-range", lambda d: Math(f"SUM ( DS1 : DS{d} )", "DS2", "decimal")),
+    ("blockcopy", lambda d: BlockCopy("DS1", f"DS{d}", "DS10", "DS12")),
+    ("pack", lambda d: Pack("C1", f"C{d}", "DS1")),
+    ("unpack", lambda d: Unpack("DS1", "C1", f"C{d}")),
+    ("shift", lambda d: Shift("C1", f"C{d}")),
+    ("termination-code", lambda d: _termination(f"$0{d}")),
     ("math-address", lambda d: Math("DS1 + 1", f"DS{d}", "decimal")),
 ]
 
@@ -70,6 +86,14 @@ CSV_TOKENS: list[tuple[str, str, str]] = [
     ("for", "C1", "for(@)"),
     ("out-variant", "C1", "timed(C1111,on_acc=TD18,on_preset=@,unit=Tms)"),
     ("math", "C1", "math(DS1 + @,DS2,mode=decimal)"),
+    ("math-range", "C1", "math(SUM(DS1:DS@),DS2,mode=decimal)"),
+    ("latch-range", "C1", "latch(C1..C@)"),
+    ("out-range", "C1", "out(C1..C@)"),
+    ("pack", "C1", "pack_bits(C1..C@,DS1)"),
+    ("unpack", "C1", "unpack_to_bits(DS1,C1..C@)"),
+    ("blockcopy", "C1", "blockcopy(DS1..DS@,DS10..DS12)"),
+    ("shift", "C1", "shift(C1..C@)"),
+    ("termination-code", "C1", "copy(DS1,TXT1,convert=to_binary(termination_code=$0@))"),
     ("math-address", "C1", "math(DS1 + 1,DS@,mode=decimal)"),
     (
         "receive-count",
@@ -169,3 +193,55 @@ class TestSearchEmptyText:
         assert blob.count(needle) == 1
         empty = blob.replace(needle, '""'.encode("utf-16-le"))
         assert parse_af_blob(empty) is None
+
+
+@pytest.mark.parametrize("code", ["$\u0663", "$0x1", "$1_0", "$ 1", "$+1", "$", "$123", "$G1"])
+def test_termination_code_is_two_hex_digits(code: str) -> None:
+    with pytest.raises(FieldError, match="Invalid termination code"):
+        _termination(code)
+
+
+def test_termination_code_accepts_two_hex_digits() -> None:
+    assert _termination("$0d").termination_code == "$0D"
+
+
+def _drum_pattern(cells: str) -> Drum:
+    call = AfCall(
+        name="event_drum",
+        args=(),
+        known=False,
+        kwargs={
+            "outputs": "[C1,C2]",
+            "events": "[C3,C4]",
+            "pattern": f"[[{cells}],[1,0]]",
+            "current_step": "DS1",
+            "completion_flag": "C5",
+        },
+        raw="event_drum(...)",
+    )
+    return parse_drum_call(call)
+
+
+@pytest.mark.parametrize("cells", ["\u0661,0", "+1,0", "1_0,0", " 2,0", "01,0", "1,"])
+def test_drum_pattern_cell_is_0_or_1(cells: str) -> None:
+    with pytest.raises(ValueError):
+        _drum_pattern(cells)
+
+
+def test_drum_pattern_accepts_0_and_1() -> None:
+    assert _drum_pattern("1,0").pattern == [[1, 0], [1, 0]]
+
+
+def test_math_nickname_keeps_its_digits() -> None:
+    Math("DS1 + <n\u0663>", "DS2", "decimal")
+
+
+def test_contact_with_unicode_digit_names_the_operand(tmp_path: Path) -> None:
+    with pytest.raises(AddressError, match="^Contact.operand"):
+        read_csv(_write(tmp_path, "X00\u0663", ""))
+
+
+@pytest.mark.parametrize("fields", ["zz,1", "0x27_2,1", "0x2722,x", "0x2722,+1", "0x2722"])
+def test_raw_token_header_is_hex_and_digits(fields: str) -> None:
+    with pytest.raises(ValueError):
+        RawInstruction._from_fields_token("Search", fields)
