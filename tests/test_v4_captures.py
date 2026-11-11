@@ -456,6 +456,12 @@ _V4_ADDED_TAGS: dict[str, frozenset[int]] = {
     "Drum": frozenset({0x6891, 0x428A, 0x6068}),
 }
 
+#: Slot tables v4 pads further than v3 (Math: 5000 range-interior slots, not 500);
+#: only the filled slots are compared.
+_PADDED_TAGS: dict[str, frozenset[int]] = {
+    "Math": frozenset({0x688C}),
+}
+
 _SWEEP = [
     (path, index, rung)
     for path in sorted(CAPTURE_DIR.glob("sweep_*.bin"))
@@ -488,9 +494,10 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
     v4_added = _V4_ADDED_TAGS.get(native[0], frozenset())
     if not any(f[0] in v4_added for f in ours[4]):
         ignored |= v4_added
+    padded = _PADDED_TAGS.get(native[0], frozenset())
 
     def compared(fields: list[tuple[int, bytes, str]]) -> list[tuple[int, bytes, str]]:
-        return [f for f in fields if f[0] not in ignored]
+        return [f for f in fields if f[0] not in ignored and not (f[0] in padded and not f[2])]
 
     assert ours[:4] == native[:4]
     assert compared(ours[4]) == compared(native[4])
