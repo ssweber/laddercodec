@@ -146,7 +146,7 @@ RESERVED_NAMES: frozenset[str] = frozenset(
     }
 )
 
-#: Every name on CLICK's Math keypads (Inst_Math.dll 0x10003f40; it has no other names).
+#: Every name on CLICK's Math keypads (Inst_Math.dll; it has no other names).
 #: CLICK writes them in uppercase.
 FUNCTION_NAMES: frozenset[str] = RESERVED_NAMES | {"ABS", "AVG", "MAX", "MDN", "MIN", "RAND"}
 
@@ -218,7 +218,7 @@ def _range_interiors(expression: str) -> list[str]:
 # Field rules (CLICK v4.00 Help CL170 Math decimal, CL203 Math hex, OBJ-10xx)
 # ---------------------------------------------------------------------------
 
-#: Result banks per mode (Inst_Math.dll result masks at 0x100042e6 / 0x10005c54; OBJ-004).
+#: Result banks per mode (Inst_Math.dll result masks; OBJ-004).
 RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
@@ -251,7 +251,7 @@ _MEDIAN_MAX_BYTES = 1024
 #: SUM over a range refuses only CT on a CPU with the v4 functions (Q-M8).
 _SUM_REFUSED_BANKS = frozenset({"CT"})
 #: Most characters of the internal template, ``@`` per address and ``#`` between tokens
-#: (Inst_Math.dll 0x1000a5fd compares with 0x10e; OBJ-1008 "The Formula is too long").
+#: (Inst_Math.dll compares with 0x10e; OBJ-1008 "The Formula is too long").
 _MAX_INTERNAL_LENGTH = 270
 _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 _TOKEN_ADDRESS_RE = re.compile(r"([A-Z]{1,3})([0-9]+u?)")
@@ -298,7 +298,7 @@ def _check_expression(expression: str, mode: str) -> None:
         raise FieldError(f"{name}: {expression!r} has a '(' with no ')'")
 
     # SUM ( a : b ) is the one place a bit may stand, and not a CT bit (Inst_Math.dll SUM
-    # handler 0x10011290, OBJ-1002; an older CPU's refusal of every bit is a project rule).
+    # handler, OBJ-1002; an older CPU's refusal of every bit is a project rule).
     bit_ok: set[int] = set()
     for i in range(len(tokens) - 5):
         if tokens[i : i + 2] == ["SUM", "("] and tokens[i + 3] == ":" and tokens[i + 5] == ")":
@@ -346,12 +346,12 @@ def _check_expression(expression: str, mode: str) -> None:
 
 
 def _check_constant(token: str, name: str, mode: str) -> None:
-    """Refuse a constant the Math dialog refuses (Inst_Math.dll 0x1000e940, OBJ-1009).
+    """Refuse a constant the Math dialog refuses (Inst_Math.dll, OBJ-1009).
 
     Each mode checks its own constants.  In hex mode a hex constant has at most 4 digits and
     is at most FFFFh.  In decimal mode CLICK reads an integer with ``_wtoi64``, keeps the low
     32 bits, prints them with ``%d`` and refuses the token when the printed length differs
-    from the typed one (0x1000ead1).  So ``3000000000``, ``007`` and ``-0`` are refused,
+    from the typed one.  So ``3000000000``, ``007`` and ``-0`` are refused,
     while ``6000000000``, whose low 32 bits print as ``1705032704``, passes.
     """
     if mode == "hex":

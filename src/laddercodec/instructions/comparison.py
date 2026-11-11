@@ -99,8 +99,8 @@ _INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
 
-#: Limits of a compare constant (baseEx.dll CheckInputData @1000e6c0 and its numeric
-#: classifier @1000d0e0; Inst_Compare.dll OnOK refuses anything else with OBJ-005).
+#: Limits of a compare constant (baseEx.dll CheckInputData and its numeric
+#: classifier; Inst_Compare.dll OnOK refuses anything else with OBJ-005).
 _HEX_MAX = 0xFFFF
 _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 
@@ -111,7 +111,7 @@ _TEXT_MAX = 128
 _TEXT_CHARS = range(0x20, 0x7F)
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
-#: (Q-B7: Inst_Compare.dll Data A handler 100029d0; user dialog check 2026-11-11: typing
+#: (Q-B7: Inst_Compare.dll Data A handler; user dialog check 2026-11-11: typing
 #: TXT1 into Data A with > selected leaves only = and != to choose).
 _TEXT_OPS = ("==", "!=")
 
