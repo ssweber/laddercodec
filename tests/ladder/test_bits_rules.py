@@ -7,16 +7,18 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, read_csv
+from laddercodec import AddressError, FieldError, decode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
+from laddercodec.encode import encode_rung
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.coil import COIL_NAME_TO_TYPE as COIL_TYPES
 from laddercodec.instructions.coil import WRITABLE_SC, Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
+from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.model import InstructionType
 
 NO = InstructionType.CONTACT_NO
@@ -80,7 +82,16 @@ class TestCompare:
             'TXT1=="A"',
             "TXT1==$0D",
             "TXT1==TXT2",
-            'TXT1==""',
+            'TXT1==" "',
+            'TXT1!="~"',
+            # Q-B7 (DLL, jobs/dllqa/bits.md): a constant on the left, two constants, and an
+            # integer constant inside int32 against a 16-bit register.
+            "100<DS1",
+            "1==1",
+            "DS1>40000",
+            "DS1==2147483647",
+            "DS1==-2147483648",
+            "DH1==0FFFFh",
         ],
     )
     def test_pairs_accepted(self, token: str) -> None:
@@ -103,13 +114,133 @@ class TestCompare:
         with pytest.raises(AddressError):
             CompareContact(op="==", left="DS[DS1]", right="1")
 
+    # Q-B7 (DLL): an integer constant outside int32 is refused, OBJ-005.
+    @pytest.mark.parametrize(
+        ("token", "field"),
+        [
+            ("DS1==3000000000", "right"),
+            ("DS1==2147483648", "right"),
+            ("DS1==-2147483649", "right"),
+            ("3000000000>DS1", "left"),
+            ("DS1==" + "9" * 5000, "right"),
+        ],
+    )
+    def test_integer_outside_int32_refused(self, token: str, field: str) -> None:
+        with pytest.raises(
+            FieldError, match=rf"^CompareContact.{field}: .* is outside -2147483648"
+        ):
+            CompareContact.from_csv_token(token)
+
+    # Q-B7 and N6 (DLL): a hex constant above FFFFh is refused on either side, OBJ-005.
+    @pytest.mark.parametrize(
+        ("token", "field"),
+        [("DH1==10000h", "right"), ("10000H==DH1", "left"), ("XD0==FFFFFFFFh", "right")],
+    )
+    def test_hex_above_ffff_refused(self, token: str, field: str) -> None:
+        with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
+            CompareContact.from_csv_token(token)
+
+    # bits.md N4: the dialog takes 1 to 128 printable ASCII characters in quotes.
+    @pytest.mark.parametrize(
+        "token",
+        [
+            'TXT1==""',
+            '""!=TXT1',
+            'TXT1=="' + "A" * 129 + '"',
+            'TXT1=="é"',
+            'TXT1=="	"',
+            'TXT1=="Aé"',
+        ],
+    )
+    def test_text_is_one_to_128_printable_characters(self, token: str) -> None:
+        with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
+            CompareContact.from_csv_token(token)
+
+    def test_quoted_character_code_is_refused(self) -> None:
+        with pytest.raises(FieldError, match=r"write the character code as [$]41"):
+            CompareContact.from_csv_token('TXT1=="$41"')
+
+    @pytest.mark.parametrize("text", ["AB", "A", "hello world", "a$41", "x" * 128, "=>"])
+    def test_multi_character_text_round_trips(self, text: str) -> None:
+        compare = CompareContact("==", "TXT771", f'"{text}"')
+        again = CompareContact.from_csv_token(compare.to_csv())
+        assert (again.op, again.left, again.right) == ("==", "TXT771", f'"{text}"')
+        assert again.build_blob() == compare.build_blob()
+
+    def test_multi_character_text_through_read_csv(self, tmp_path: Path) -> None:
+        compare = _read_condition(tmp_path, 'TXT771=="AB"')
+        assert isinstance(compare, CompareContact) and compare.right == '"AB"'
+
+    def test_multi_character_text_encodes_and_decodes(self) -> None:
+        compare = CompareContact.from_csv_token('TXT771=="AB"')
+        rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        assert rung.conditions[0][0] == compare
+
+    def test_multi_character_blob_differs_in_the_text_field_only(self) -> None:
+        one = CompareContact("==", "TXT1", '"A"').build_blob()
+        two = CompareContact("==", "TXT1", '"AB"').build_blob()
+        text_one = '"A"'.encode("utf-16-le") + bytes(2)
+        text_two = '"AB"'.encode("utf-16-le") + bytes(2)
+        assert two == one.replace(text_one, text_two)
+        # The tag's length prefix is derived from the text, not stored apart.
+        assert len(two) - len(one) == len(text_two) - len(text_one)
+
+    # Q-B7 (DLL): with text as Data A the dialog hides >, <, >= and <=.
+    @pytest.mark.parametrize(
+        "token", ['TXT1>"A"', "TXT1<TXT2", "TXT1>=$41", '"B"<=TXT1', "$41>TXT1"]
+    )
+    def test_text_takes_equal_and_not_equal_only(self, token: str) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.op: .* takes == or !="):
+            CompareContact.from_csv_token(token)
+
+    @pytest.mark.parametrize(
+        "cell",
+        ['TXT1>"A"', 'TXT1==""', 'TXT1=="$41"', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
+    )
+    def test_refusals_through_read_csv(self, tmp_path: Path, cell: str) -> None:
+        with pytest.raises(FieldError, match="^CompareContact"):
+            _read_condition(tmp_path, cell)
+
+    # The quote character would end the text in the CSV token; $22 spells it.
+    @pytest.mark.parametrize(
+        ("left", "right", "field"), [('"""', "TXT1", "left"), ("TXT1", '"""', "right")]
+    )
+    def test_quote_character_refused(self, left: str, right: str, field: str) -> None:
+        with pytest.raises(
+            FieldError, match=rf"^CompareContact.{field}: .* holds a quote; .* \$22"
+        ):
+            CompareContact(op="==", left=left, right=right)
+        assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
+
+    def test_quote_inside_text_refused(self) -> None:
+        with pytest.raises(FieldError, match="holds a quote"):
+            CompareContact("==", '"a"=="b"', '"c"')
+
+    def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.right: .* holds a quote"):
+            _read_condition(tmp_path, 'TXT1=="""')
+        with pytest.raises(FieldError, match="^CompareContact"):
+            _read_condition(tmp_path, 'TXT1=="a"b"')
+
+    # ``\d`` would match Unicode digits; CLICK's classifier takes 0-9 only.
+    @pytest.mark.parametrize("token", ["DS1==\u0663", "DS1==1\u0663", "DF1==\u0663.5"])
+    def test_unicode_digits_refused(self, token: str) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.right"):
+            CompareContact.from_csv_token(token)
+
+    def test_text_through_read_csv(self, tmp_path: Path) -> None:
+        compare = _read_condition(tmp_path, 'TXT1!="="')
+        assert isinstance(compare, CompareContact)
+        assert (compare.left, compare.op, compare.right) == ("TXT1", "!=", '"="')
+
     @pytest.mark.parametrize(
         ("token", "op", "right"),
         [
             ('TXT1=="="', "==", '"="'),
             ('TXT1!="="', "!=", '"="'),
-            ('TXT1<">"', "<", '">"'),
-            ('TXT1>"<"', ">", '"<"'),
+            ('TXT1==">"', "==", '">"'),
+            ('TXT1!="<"', "!=", '"<"'),
+            ('TXT1=="!"', "==", '"!"'),
             ("TXT1==$3D", "==", "$3D"),
         ],
     )
@@ -117,9 +248,13 @@ class TestCompare:
         parsed = CompareContact.from_csv_token(token)
         assert (parsed.left, parsed.op, parsed.right) == ("TXT1", op, right)
 
-    def test_quoted_ascii_code_refused(self) -> None:
-        with pytest.raises(AddressError):
-            CompareContact.from_csv_token('TXT1=="$41"')
+    def test_text_blob_keeps_the_text_as_written(self) -> None:
+        # text_compare.bin: CLICK stores the one-character "A" as typed, quotes included.
+        compare = CompareContact.from_csv_token('TXT1!="a"')
+        blob = compare.build_blob()
+        assert '"a"'.encode("utf-16-le") + bytes(2) in blob
+        rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        assert rung.conditions[0][0] == compare
 
     def test_hex_suffix_case_keeps_bytes(self) -> None:
         upper = CompareContact.from_csv_token("DH1==FFFFH")
@@ -130,9 +265,12 @@ class TestCompare:
         ("cell", "left", "op", "right"),
         [
             ('TXT1=="="', "TXT1", "==", '"="'),
-            ('TXT1>"<"', "TXT1", ">", '"<"'),
-            ('TXT1<">"', "TXT1", "<", '">"'),
-            ('"<">TXT1', '"<"', ">", "TXT1"),
+            ('TXT1!="<"', "TXT1", "!=", '"<"'),
+            ('TXT1==">"', "TXT1", "==", '">"'),
+            ('"<"==TXT1', '"<"', "==", "TXT1"),
+            ('">"!=TXT1', '">"', "!=", "TXT1"),
+            # The splitter pairs quotes around the whole text.
+            ('"a>=b"!=TXT1', '"a>=b"', "!=", "TXT1"),
         ],
     )
     def test_csv_token_parser_skips_quoted_operators(
@@ -143,7 +281,7 @@ class TestCompare:
         assert (node.left, node.op, node.right) == (left, op, right)
 
     def test_wire_down_prefix(self) -> None:
-        assert CompareContact.from_csv_token('T:TXT1<">"').wire_down
+        assert CompareContact.from_csv_token('T:TXT1!=">"').wire_down
 
 
 _COILS = ("out", "latch", "reset")
@@ -156,6 +294,15 @@ def _read_af(tmp_path: Path, af: str) -> object:
         w.writerow(CSV_HEADER)
         w.writerow(["R", "X1"] + ["-"] * 30 + [af])
     return read_csv(path)[0].instructions[0]
+
+
+def _read_condition(tmp_path: Path, cell: str) -> object:
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", cell] + ["-"] * 30 + ["out(Y001)"])
+    return read_csv(path)[0].conditions[0][0]
 
 
 class TestCoil:
@@ -305,9 +452,81 @@ class TestOutVariant:
         with pytest.raises(AddressError, match="^OutVariant.off_acc"):
             debounce(off_acc="DS2")
 
-    @pytest.mark.parametrize("preset", ["0", "7", "32768", "DS1", "DS4500"])
+    @pytest.mark.parametrize("preset", ["0", "7", "32767", "00032767", "DS1", "DS4500"])
     def test_debounce_presets(self, preset: str) -> None:
         debounce(on_preset=preset, off_preset=preset)
+
+    # Q-B6 (DLL, jobs/dllqa/bits.md): 32768 is refused for all three kinds, OBJ-005.
+    @pytest.mark.parametrize("preset", ["32768", "99999", "9" * 5000])
+    def test_preset_above_32767_refused(self, preset: str) -> None:
+        with pytest.raises(FieldError, match="^OutVariant.on_preset: .* above the maximum 32767"):
+            debounce(on_preset=preset)
+        with pytest.raises(FieldError, match="^OutVariant.off_preset: .* above the maximum 32767"):
+            debounce(off_preset=preset)
+        with pytest.raises(FieldError, match="above the maximum 32767"):
+            timed(on_preset=preset)
+        with pytest.raises(FieldError, match="above the maximum 32767"):
+            OutVariant(
+                kind="flasher", operand="C1", on_acc="TD1", on_preset="1",
+                off_acc="TD2", off_preset=preset, unit="Tms",
+            )  # fmt: skip
+
+    def test_preset_cap_through_read_csv(self, tmp_path: Path) -> None:
+        good = "timed(C1,on_acc=TD1,on_preset=32767,unit=Tm)"
+        assert isinstance(_read_af(tmp_path, good), OutVariant)
+        with pytest.raises(FieldError, match="above the maximum 32767"):
+            _read_af(tmp_path, good.replace("32767", "32768"))
+
+    # Q-B5 (DLL): one TD for both phases is refused for debounce and flasher, OBJ-012.
+    @pytest.mark.parametrize(("on_acc", "off_acc"), [("TD1", "TD1"), ("TD1", "TD001")])
+    def test_same_accumulator_refused(self, tmp_path: Path, on_acc: str, off_acc: str) -> None:
+        message = "^OutVariant.off_acc: .* needs two different TD registers"
+        with pytest.raises(FieldError, match=message):
+            debounce(on_acc=on_acc, off_acc=off_acc)
+        token = f"flasher(C1,on_acc={on_acc},on_preset=5,off_acc={off_acc},off_preset=5,unit=Ts)"
+        with pytest.raises(FieldError, match=message):
+            _read_af(tmp_path, token)
+
+    # Q-B4 (DLL) and v4_captures/debounce_one_phase.bin: a debounce saves with one phase.
+    @pytest.mark.parametrize(
+        "token",
+        [
+            "debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)",
+            "debounce(C1,off_acc=TD1,off_preset=DS1,unit=Ts)",
+        ],
+    )
+    def test_one_phase_debounce(self, tmp_path: Path, token: str) -> None:
+        variant = _read_af(tmp_path, token)
+        assert isinstance(variant, OutVariant) and variant.to_csv() == token
+        assert OutVariant.from_csv_token(variant.to_csv()) == variant
+
+    def test_one_phase_debounce_fields(self) -> None:
+        on_only = debounce(off_acc="", off_preset="")
+        assert (on_only.off_acc, on_only.off_preset) == ("", "")
+        # One TD for both is checked only when both phases are filled.
+        debounce(on_acc="", on_preset="", off_acc="TD1")
+
+    def test_debounce_needs_a_phase(self, tmp_path: Path) -> None:
+        # Q-B4 (DLL): both phases empty is refused, OBJ-006.
+        message = "^OutVariant.on_preset: debounce needs an on phase or an off phase"
+        with pytest.raises(FieldError, match=message):
+            debounce(on_acc="", on_preset="", off_acc="", off_preset="")
+        with pytest.raises(FieldError, match=message):
+            _read_af(tmp_path, "debounce(C1,unit=Tms)")
+
+    def test_half_filled_phase_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(FieldError, match="^OutVariant.off_preset"):
+            debounce(off_preset="")
+        with pytest.raises(AddressError, match="^OutVariant.on_acc"):
+            debounce(on_acc="")
+        with pytest.raises(FieldError, match="^OutVariant.off_preset"):
+            _read_af(tmp_path, "debounce(C1,on_acc=TD1,on_preset=5,off_acc=TD2,unit=Tms)")
+
+    def test_flasher_needs_both_phases(self, tmp_path: Path) -> None:
+        with pytest.raises(FieldError, match="^OutVariant.off_acc"):
+            OutVariant(kind="flasher", operand="C1", on_acc="TD1", on_preset="5", unit="Tms")
+        with pytest.raises(ValueError, match="missing keyword"):
+            _read_af(tmp_path, "flasher(C1,on_acc=TD1,on_preset=5,unit=Tms)")
 
     @pytest.mark.parametrize("preset", ["", "1.5", "TD1", "DS0", "DD1", "1h"])
     def test_bad_presets(self, preset: str) -> None:
@@ -371,6 +590,42 @@ class TestOutVariant:
 
 
 class TestDecodeRefusal:
+    @pytest.mark.parametrize(
+        ("left", "right", "type_idx"),
+        [
+            ("TXT1", '""', "0"),  # empty text
+            ("TXT1", '"A"', "2"),  # > with text as Data A
+            ("DS1", "3000000000", "0"),  # outside int32
+            ("DH1", "10000h", "0"),  # above FFFFh
+            ("TXT1", '"' + "A" * 129 + '"', "0"),  # more than 128 characters
+            ("TXT1", '"$41"', "0"),  # quoted character code
+            ("TXT1", '"""', "0"),  # the quote character
+        ],
+    )
+    def test_refused_compare_blob_is_unknown(self, left: str, right: str, type_idx: str) -> None:
+        tags = {0x3218: "4103", 0x6066: left, 0x6067: right, 0x21F7: type_idx}
+        assert from_tags_condition("Compare", 0x2714, tags) is None
+
+    def test_multi_character_compare_blob_decodes(self) -> None:
+        tags = {0x3218: "4103", 0x6066: "TXT771", 0x6067: '"AB"', 0x21F7: "0"}
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert isinstance(compare, CompareContact) and compare.right == '"AB"'
+
+    def test_one_character_compare_blob_decodes(self) -> None:
+        tags = {0x3218: "4104", 0x6066: "TXT1", 0x6067: '"A"', 0x21F7: "1"}
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert isinstance(compare, CompareContact) and compare.right == '"A"'
+
+    @pytest.mark.parametrize(("on_preset", "off_acc"), [("32768", "TD2"), ("5", "TD1")])
+    def test_refused_debounce_blob_is_not_a_variant(self, on_preset: str, off_acc: str) -> None:
+        tags = {
+            0x6066: "C1", 0x60B3: on_preset, 0x60B4: "TD1", 0x60B5: "5", 0x60B6: off_acc,
+            0x21F9: TIMER_UNIT_TO_INDEX["Tms"], 0x2248: "1", 0x3218: "8226",
+        }  # fmt: skip
+        assert from_tags_af("Out", 0x2715, tags) is None
+        tags[0x60B3], tags[0x60B6] = "5", "TD2"
+        assert isinstance(from_tags_af("Out", 0x2715, tags), OutVariant)
+
     def test_refused_contact_blob_is_unknown(self) -> None:
         assert from_tags_condition("ContactNO", 0x2711, {0x6065: "DS1", 0x11F5: "0"}) is None
 

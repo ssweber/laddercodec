@@ -482,11 +482,18 @@ currently emit:
   - A coil range stays in one bank and its end is above its start: `out(C1..C2000)`
     and `out(immediate(Y001..Y101))` are accepted, `out(C9..C1)`, `out(C5..C5)` and
     `out(C5..Y5)` are refused.
-  - Variant accumulators are TD. A preset is a DS register or a whole number, at
-    least 0 for `debounce` and at least 1 for `flasher` and `timed`.
-  - A compare takes data registers or constants, never bits. Both sides come from
-    one group: hex (XD, YD, DH, `0000h` or `0000H`), numeric (TD, CTD, DS, DD, DF, SD, numbers)
-    or text (TXT, `"A"`, `$41`).
+  - Variant accumulators are TD, and the on and off phases of `debounce` and
+    `flasher` use two different TD registers. A preset is a DS register or a whole
+    number up to 32767, at least 0 for `debounce` and at least 1 for `flasher` and
+    `timed`.
+  - A `debounce` may leave out one phase's keywords
+    (`debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)`); it needs at least one phase.
+    `flasher` needs both.
+  - A compare takes data registers or constants, never bits, on either side. Both
+    sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
+    DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
+    (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
+    is `$22`). A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
     set point that is a `DS` address or digits only, `0`-`32767` for every unit.
@@ -540,11 +547,13 @@ currently emit:
   (`DS1 + DS2 + ... + DS68` is 269).
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
-  one TXT register per character of a text constant, so `""` writes nothing
-  and does not compare usefully: `encode()` refuses an empty `""` in a Copy
-  or Fill source, a Search value, or either side of a compare contact. Use
-  `$00` for the blank (NUL) character. `read_csv()` and `decode()` still
-  accept `""`.
+  one TXT register per character of a text constant, so `""` writes nothing:
+  `encode()` refuses an empty `""` in a Copy or Fill source or a Search value,
+  and `read_csv()` and `decode()` still accept it there. A compare takes 1 to 128
+  printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
+  TXT772) and refuses `""`, a longer or non-ASCII text, a quoted `"$41"` and a
+  quote inside the text when it is read or built; spell a quote as `$22`. Use `$00` for the blank (NUL)
+  character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
