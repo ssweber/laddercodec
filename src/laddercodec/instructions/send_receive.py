@@ -24,7 +24,6 @@ from ..model import (
     AfInstruction,
     FieldError,
     check_address,
-    xy_slot,
 )
 from .family import AfInstructionFamilySpec
 
@@ -180,7 +179,7 @@ _RD_REGISTER_TYPE_FC: dict[str, int] = {v: k for k, v in _RD_FC_REGISTER_TYPE.it
 def _check_function_code(who: str, function_code: object, allowed: tuple[int, ...]) -> None:
     if function_code is None:
         return
-    if isinstance(function_code, bool) or function_code not in allowed:
+    if type(function_code) is not int or function_code not in allowed:
         listed = ", ".join(str(fc) for fc in allowed)
         raise FieldError(f"{who} function_code: {function_code!r} is not one of {listed}")
 
@@ -345,6 +344,11 @@ def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str
     raise FieldError(f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}")
 
 
+def _check_int_quantity(who: str, quantity: object) -> None:
+    if isinstance(quantity, bool) or not isinstance(quantity, int):
+        raise FieldError(f"{who} quantity: {quantity!r} is not an integer")
+
+
 def _check_quantity(
     who: str,
     quantity: int,
@@ -357,8 +361,6 @@ def _check_quantity(
 
     ``xy_room`` is the room from an X/Y start, which depends on the remote side.
     """
-    if isinstance(quantity, bool) or not isinstance(quantity, int):
-        raise FieldError(f"{who} quantity: {quantity!r} is not an integer")
     bits, regs, wide = caps
     if bit:
         high, kind = bits, "bits"
@@ -405,6 +407,7 @@ def _validate_send(send: Send) -> tuple[int, int]:
     _check_slave_id(who, send.target, 0)
     _check_function_code(who, send.function_code, tuple(_SD_FC_SUBTYPE))
     remote, quantity = send.remote_start, send.quantity
+    _check_int_quantity(who, quantity)
     remote_addr: Address | None = None
     if isinstance(remote, str):
         remote_addr = check_address(
@@ -443,7 +446,7 @@ def _validate_send(send: Send) -> tuple[int, int]:
         fc06 = fc == 6
         local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
         check_address(send.source, f"{who} source (FC{fc:02d})", local_banks)
-        if remote_addr is not None:
+        if isinstance(remote, str):
             remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
             check_address(remote, f"{who} remote_start (FC{fc:02d})", remote_banks)
 
@@ -500,6 +503,7 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
     _check_slave_id(who, receive.target, 1)
     _check_function_code(who, receive.function_code, tuple(_RD_FC_SUBTYPE))
     remote, quantity = receive.remote_start, receive.quantity
+    _check_int_quantity(who, quantity)
     remote_addr: Address | None = None
     if isinstance(remote, str):
         remote_addr = check_address(
@@ -527,11 +531,9 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         receive.dest, f"{who} dest", _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS
     )
     hex_pair = False
-    if remote_addr is not None and not bit:
-        check_address(
-            remote, f"{who} remote_start (for a {local.bank} dest)",
-            _RECEIVE_REMOTE_FOR_DEST[local.bank],
-        )  # fmt: skip
+    if isinstance(remote, str) and remote_addr is not None and not bit:
+        name = f"{who} remote_start (for a {local.bank} dest)"
+        check_address(remote, name, _RECEIVE_REMOTE_FOR_DEST[local.bank])
         hex_pair = remote_addr.bank in ("XD", "YD")
     _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit)
     if (local.bank == "YD" or hex_pair) and quantity != 1:

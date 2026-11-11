@@ -440,9 +440,10 @@ def test_csv_x_range_across_slots() -> None:
      ("X815", 2, "X816")],
 )  # fmt: skip
 def test_x_range_end_counts_by_slot(source, quantity, end) -> None:
-    assert f"source={source}..{end}" in send(
-        remote_start="C1", source=source, quantity=quantity
-    ).to_csv()
+    assert (
+        f"source={source}..{end}"
+        in send(remote_start="C1", source=source, quantity=quantity).to_csv()
+    )
 
 
 def test_csv_range_end_is_an_address() -> None:
@@ -578,6 +579,8 @@ def test_send_function_code_default_is_dropped() -> None:
     [
         ({"function_code": 3}, "function_code: 3 is not one of 5, 6, 15, 16"),
         ({"function_code": True}, "function_code"),
+        ({"function_code": 16.0}, "function_code"),
+        ({"quantity": "1"}, "quantity: '1' is not an integer"),
         ({"function_code": 5}, "FC05 cannot write a register"),
         ({"remote_start": "C1", "source": "C1", "function_code": 16}, "FC16 cannot write a coil"),
         ({"quantity": 2, "function_code": 6}, "FC06 writes one element, not 2"),

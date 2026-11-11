@@ -432,11 +432,29 @@ Producer may emit:
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
   - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
-  - Hex `remote_start` runs `0h`-`FFFEh`; a Send takes `register_type` `coil` or `holding`.
+  - Hex `remote_start` runs `0h`-`FFFEh` (`0h`-`FFFDh` for a DD, DF, CTD or TXT source); a
+    Send takes `register_type` `coil` or `holding`.
+  - `function_code=N` picks the Modbus code when the address leaves a choice. Receive from a
+    CLICK address reads with FC01 (bits) or FC03 (registers) unless `function_code=2` or `4`.
+    Send writes one element with FC05/FC06 and a block with FC15/FC16; `function_code=15` or
+    `16` writes one element as a block. One DD, DF or CTD element is always FC16, and XD and
+    YD go out only as FC06.
+  - A Receive into registers takes DS, DD, DH, DF, YD or TXT. A CLICK `remote_start` matches
+    the destination's type: DS from DS, TD or SD; DD from DD or CTD; DF from DF; DH or YD
+    from DH, XD or YD; TXT from TXT. A YD destination, or DH read from XD or YD, takes one
+    element; TXT takes an even count of at least 2.
+  - `word_swap=1` is refused where CLICK turns Word Swap off: a bit Receive, a YD or TXT
+    destination, DH read from XD or YD, and DD or DF read from a CLICK address.
   - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
     1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
-    DD, DF, CTD).
-  - `sending`, `receiving`, `success` and `error` are C bits; `exception_response` is DS or DD.
+    DD, DF).
+  - An X or Y range counts the points of the slots it covers: `X001..X021` is 17 elements
+    (`X001`-`X016`, then `X021`). A Send of X or Y to a CLICK address counts at most to the
+    end of the CPU and option slots from `X001`-`X036` (`X001` gives 32), or to the end of
+    the start's slot from `X101` on (16); to a MODBUS 984 or hex address it counts through
+    `X816` (`X001` gives 160). A Receive into Y counts through `Y816`.
+  - `sending`, `receiving`, `success` and `error` are C bits, and a Send's three are
+    different bits; `exception_response` is DS or DD.
 - `call("subroutine_name")`
   - Subroutine names must not contain `"`
 - `return()`
