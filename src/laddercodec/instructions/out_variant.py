@@ -23,7 +23,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, check_address
+from ..model import AfInstruction, FieldError, check_address
+from .coil import check_out_target
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -60,6 +61,35 @@ _FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, str, bool]] = {
 }
 
 _TWO_PHASE = frozenset({"debounce", "flasher"})
+
+#: Accumulators are timer data registers (CLICK v4.00 Help CL348-350).
+_ACC_BANKS = frozenset({"TD"})
+
+#: Lowest constant preset: debounce takes 0, flasher and timed 1.
+_PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
+
+#: Fields each kind uses; any other of them must stay empty.
+_USED_FIELDS: dict[str, frozenset[str]] = {
+    "toggle": frozenset(),
+    "debounce": frozenset({"on_acc", "on_preset", "off_acc", "off_preset", "unit"}),
+    "flasher": frozenset({"on_acc", "on_preset", "off_acc", "off_preset", "unit"}),
+    "timed": frozenset({"on_acc", "on_preset", "unit"}),
+}
+
+
+def _check_preset(value: str, name: str, floor: int) -> None:
+    """A preset is a DS register or a digits-only constant of at least *floor*."""
+    if value.isascii() and value.isdigit():
+        if int(value) < floor:
+            raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
+        return
+    if re.fullmatch(r"[+-]\d+", value):
+        raise FieldError(f"{name}: {value!r} is below the minimum {floor}; a preset is unsigned")
+    if value[:1].isalpha():
+        check_address(value, name, {"DS"})
+        return
+    raise FieldError(f"{name}: {value!r} is not a DS register or a whole number")
+
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -103,11 +133,31 @@ class OutVariant(AfInstruction):
     maintained: bool = False  # timed only
 
     def __post_init__(self) -> None:
-        check_address(self.operand, "OutVariant.operand")
-        if self.kind != "toggle":
-            check_address(self.on_acc, "OutVariant.on_acc")
+        check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
+        if self.kind not in _KIND_INDEX:
+            raise FieldError(
+                f"OutVariant.kind: {self.kind!r} is not one of {', '.join(_KIND_INDEX)}"
+            )
+        used = _USED_FIELDS[self.kind]
+        for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
+            if name not in used and getattr(self, name):
+                raise FieldError(
+                    f"OutVariant.{name}: {getattr(self, name)!r} is not used by {self.kind}"
+                )
+        if self.kind != "toggle" and self.immediate:
+            raise FieldError(f"OutVariant.immediate: {self.kind} has no immediate form")
+        if self.kind != "timed" and self.maintained:
+            raise FieldError("OutVariant.maintained: only timed has an Output Maintained box")
+        if self.kind == "toggle":
+            return
+        if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
+            raise FieldError(f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}")
+        floor = _PRESET_FLOORS[self.kind]
+        check_address(self.on_acc, "OutVariant.on_acc", _ACC_BANKS)
+        _check_preset(self.on_preset, "OutVariant.on_preset", floor)
         if self.kind in _TWO_PHASE:
-            check_address(self.off_acc, "OutVariant.off_acc")
+            check_address(self.off_acc, "OutVariant.off_acc", _ACC_BANKS)
+            _check_preset(self.off_preset, "OutVariant.off_preset", floor)
 
     @classmethod
     def from_csv_token(cls, token: str) -> OutVariant:
@@ -154,7 +204,7 @@ class OutVariant(AfInstruction):
         if maintained_raw not in {"0", "1"}:
             raise ValueError("timed maintained must be 0 or 1")
 
-        variant = cls(
+        return cls(
             kind=kind,
             operand=arg,
             on_acc=kwargs["on_acc"],
@@ -164,9 +214,6 @@ class OutVariant(AfInstruction):
             unit=kwargs["unit"],
             maintained=maintained_raw == "1",
         )
-        if (variant.kind, variant.unit, variant.maintained) not in OUT_VARIANT_FUNC_CODES:
-            raise ValueError(f"{kind} does not support unit={variant.unit!r}: {token!r}")
-        return variant
 
     @property
     def func_code(self) -> str:

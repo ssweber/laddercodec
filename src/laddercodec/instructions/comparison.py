@@ -6,16 +6,19 @@ Operators: EQ, NE, GT, LT, GE, LE.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import ConditionInstruction, InstructionType
+from ..model import ConditionInstruction, FieldError, InstructionType, check_address
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
 # Func code tables
 # ---------------------------------------------------------------------------
+
+CompareOp = Literal["==", "!=", ">", "<", ">=", "<="]
 
 #: Compare func codes: func_code_str -> operator.
 COMPARE_FUNC_CODES: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
@@ -50,6 +53,55 @@ _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "5": "<=",
 }
 
+
+def split_comparison(token: str) -> tuple[str, str, str] | None:
+    """Split ``left<op>right`` at the first operator outside a quoted text constant.
+
+    Returns ``(left, op, right)``, or None when there is no operator or a side is empty.
+    """
+    i = 0
+    while i < len(token):
+        if token[i] == '"' and token[i + 2 : i + 3] == '"':
+            i += 3
+            continue
+        for op in ("==", "!=", ">=", "<=", ">", "<"):
+            if token.startswith(op, i):
+                left, right = token[:i].strip(), token[i + len(op) :].strip()
+                return (left, op, right) if left and right else None
+        i += 1
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Operand rules (CLICK v4.00 Help CL164, CL196, CL202)
+# ---------------------------------------------------------------------------
+
+#: Compare data banks by group.  A compare pairs two operands of one group.
+_GROUP_BANKS: dict[str, frozenset[str]] = {
+    "hex": frozenset({"XD", "YD", "DH"}),
+    "numeric": frozenset({"TD", "CTD", "DS", "DD", "DF", "SD"}),
+    "text": frozenset({"TXT"}),
+}
+_DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
+
+_HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
+_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+_TEXT_CONSTANT_RE = re.compile(r'"[^"]?"|\$[0-9A-Fa-f]{2}')
+
+
+def _operand_group(value: str, name: str) -> str:
+    """Return the Help 202 group of a compare operand; raise if it is neither a data
+    register nor a constant."""
+    if _HEX_CONSTANT_RE.fullmatch(value):
+        return "hex"
+    if _NUMERIC_CONSTANT_RE.fullmatch(value):
+        return "numeric"
+    if _TEXT_CONSTANT_RE.fullmatch(value):
+        return "text"
+    bank = check_address(value, name, _DATA_BANKS).bank
+    return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)
+
+
 # ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
@@ -74,6 +126,15 @@ class CompareContact(ConditionInstruction):
     right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"'
     wire_down: bool = False
 
+    def __post_init__(self) -> None:
+        left = _operand_group(self.left, "CompareContact.left")
+        right = _operand_group(self.right, "CompareContact.right")
+        if left != right:
+            raise FieldError(
+                f"CompareContact: {self.left!r} ({left}) and {self.right!r} ({right}) "
+                "are not in one compare group; hex, numeric and text operands do not mix"
+            )
+
     @classmethod
     def from_csv_token(cls, token: str) -> CompareContact:
         """Parse ``DS1==1``, ``DS2>=DS3``, etc.
@@ -88,15 +149,11 @@ class CompareContact(ConditionInstruction):
             wire_down = True
             token = token[2:]
 
-        # Try two-char ops first to avoid partial match on single-char.
-        for op in ("==", "!=", ">=", "<=", ">", "<"):
-            idx = token.find(op)
-            if idx > 0:
-                left = token[:idx]
-                right = token[idx + len(op) :]
-                if left and right:
-                    return cls(op=op, left=left, right=right, wire_down=wire_down)
-        raise ValueError(f"Cannot parse compare contact: {token!r}")
+        parts = split_comparison(token)
+        if parts is None:
+            raise ValueError(f"Cannot parse compare contact: {token!r}")
+        left, op, right = parts
+        return cls(op=cast(CompareOp, op), left=left, right=right, wire_down=wire_down)
 
     @property
     def func_code(self) -> str:

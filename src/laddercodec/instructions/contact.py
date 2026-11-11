@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, check_address
+from ..model import (
+    TYPE_CODE_TO_ITYPE,
+    ConditionInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+)
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -47,6 +53,9 @@ for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
 # Tag constants
 # ---------------------------------------------------------------------------
 
+#: Banks a NO, NC or edge contact reads (CLICK v4.00 Help CL161, CL163).
+CONTACT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+
 _CONTACT_NO_TAGS = (0x6065, 0x11F5, 0x3218, 0x0000)
 _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
@@ -66,7 +75,14 @@ class Contact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
-        check_address(self.operand, "Contact.operand")
+        address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
+        if self.immediate and self.type == InstructionType.CONTACT_EDGE:
+            raise FieldError("Contact.immediate: an edge contact has no immediate form")
+        if self.immediate and address.bank != "X":
+            raise FieldError(
+                f"Contact.immediate: {self.operand!r} is not allowed; "
+                "an immediate contact takes X only"
+            )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Contact:
