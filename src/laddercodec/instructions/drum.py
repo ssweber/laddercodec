@@ -137,7 +137,7 @@ def _format_optional_list(values: list[str]) -> str:
 
 
 #: A preset that names a register rather than a literal duration.
-_REGISTER_RE = re.compile(r"[A-Z]+\d+")
+_REGISTER_RE = re.compile(r"[A-Z]+[0-9]+")
 
 
 def is_register_preset(preset: str) -> bool:

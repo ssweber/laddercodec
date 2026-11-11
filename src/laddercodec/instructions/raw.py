@@ -260,7 +260,7 @@ def _compress_fields(fields: list[tuple[int, bytes, str]]) -> list[str]:
 # Regex for parsing a single field spec.
 _FIELD_SPEC_RE = re.compile(
     r"([0-9a-fA-F]{4})"  # tag (4 hex digits)
-    r"(?:\[(\d+)\])?"  # optional [N] array count
+    r"(?:\[([0-9]+)\])?"  # optional [N] array count
     r"(?::([0-9a-fA-F]{8}))?"  # optional :sentinel (8 hex digits)
     r"=(.*)",  # =value (rest of string)
 )

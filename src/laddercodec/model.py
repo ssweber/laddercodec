@@ -123,7 +123,7 @@ class InstructionType(IntEnum):
 
 #: Shape of an address token; the CSV token parser uses it to tell a contact from other
 #: condition tokens.  :func:`check_address` checks the bank and number.
-OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")
+OPERAND_RE = re.compile(r"^[A-Z]{1,3}[0-9]{1,5}$")
 
 
 # Mapping from SCR type-code marker to InstructionType.

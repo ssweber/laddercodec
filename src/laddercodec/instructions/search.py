@@ -153,6 +153,8 @@ class Search(AfInstruction):
         )
         check_operand(self.result, "Search.result", RESULT_BANKS)
         check_operand(self.found, "Search.found", FOUND_BANKS)
+        if self.source == '""':
+            raise FieldError("Search.source: '\"\"' is empty; a text value is one character or $hh")
         # The search value is a constant or a data register, never a bit (Help CL174).
         source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
         m = _HEX_CONSTANT_RE.fullmatch(self.source)

@@ -411,6 +411,11 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     order operators are hidden for it too. A hex value is 32-bit, and refused (OBJ-005 at
     0x10007861), only above FFFFh: baseEx decides by value, so `0FFFFh` is accepted.
   - **ANSWERED 2026-11-11 (user, dialog):** `DS1..DS10 > 40000` is accepted.
+  - **Ruling 2026-11-11 (user):** a Search text value of `""` is refused (`FieldError`
+    naming `Search.source`); one character in quotes and `$hh` stay accepted, and a native
+    blob holding `""` decodes as raw. Multi-character text (`"AB"`) and a quoted `"$41"`
+    stay as they are until a hardware probe. No DLL address; the Compare classifier refuses
+    an empty text (bits.md N4) as supporting evidence.
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
 - Q-M13 Decimal Math with a hex constant: are `DS1 + 10000h` and `DS1 + 1Fh` accepted in a
@@ -522,6 +527,10 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 
 ## Rulings
 
+- **Ruling 2026-11-11 (user):** constants, counts, presets and address numbers accept only
+  the ASCII digits 0-9. Python's `\d` and `int()` take any Unicode decimal digit
+  (`٣`), which CLICK's validators do not; every regex and digit test in the codec is
+  ASCII.
 - Field rules raise in `__post_init__`, so construction, CSV and encode all go through them.
   Decoders keep the existing ValueError → raw fallback. Cost if wrong: a rule that is too
   strict turns a native blob into raw. The native fixtures in `make test` catch that.
