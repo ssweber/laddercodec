@@ -474,6 +474,16 @@ currently emit:
 - An address must name a CLICK bank and lie inside its range (CLICK help topic
   CL195, Memory Addresses); X and Y number by module, points 01-16 only. `X017`,
   `C2001` and `DS0` raise `AddressError`.
+- Timer, counter and drum fields take CLICK's banks:
+  - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
+    set point that is a `DS` address or digits only (`0` is allowed).
+  - Counter: done bit `CT1`-`CT250` with current value `CTD` of the same number,
+    and a set point that is an integer or a register address.
+  - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
+    one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
+    and a `.jump()` target that is a `DS` address. Each step has an event (event
+    drum) or a duration (time drum); a time and event step needs one of the two.
+  - A value outside these raises `FieldError`.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.

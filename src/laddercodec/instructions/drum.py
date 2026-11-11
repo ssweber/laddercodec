@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import PinnedInstruction
+from ..model import FieldError, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -59,6 +59,9 @@ _TIME_EVENT_FC_BASE: dict[str, int] = {
     "Th": 10524,
     "Td": 10532,
 }
+
+#: A drum has at most 16 steps and 16 outputs.
+_MAX_DRUM_SIZE = 16
 
 # Drum base (tag 0x2200).
 _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT = "0", "1", "2"
@@ -195,6 +198,51 @@ class Drum(PinnedInstruction):
     #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
     #: a pin push the later pins down; an unused pin keeps its row.
     pin_rows: tuple[int, int, int] = (1, 2, 3)
+
+    def __post_init__(self) -> None:
+        kind = self.drum_kind
+        if kind not in ("event", "time", "time_event"):
+            raise FieldError(f"Drum.drum_kind: {kind!r} is not event, time or time_event")
+        steps, outputs = self.num_steps, self.num_outputs
+        if not 1 <= steps <= _MAX_DRUM_SIZE:
+            raise FieldError(f"Drum steps: {steps} is outside 1-{_MAX_DRUM_SIZE}")
+        if not 1 <= outputs <= _MAX_DRUM_SIZE:
+            raise FieldError(f"Drum outputs: {outputs} is outside 1-{_MAX_DRUM_SIZE}")
+        if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
+            raise FieldError(
+                f"Drum.pattern: needs {steps} steps of {outputs} cells each, got "
+                f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells"
+            )
+        if any(
+            cell not in (0, 1) or isinstance(cell, bool) for row in self.pattern for cell in row
+        ):
+            raise FieldError("Drum.pattern: every cell must be 0 or 1")
+        for i, output in enumerate(self.outputs):
+            check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
+        check_address(self.current_step, "Drum.current_step", banks={"DS"})
+        check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
+        if self.jump_enabled:
+            check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
+        if kind == "event":
+            if any(not event for event in self.events_or_presets):
+                raise FieldError("Drum.events: every step needs an event (OBJ-021)")
+            return
+        if self.unit not in _DRUM_UNIT_TO_INDEX:
+            raise FieldError(
+                f"Drum.unit: {self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}"
+            )
+        check_address(self.accumulator, "Drum.accumulator", banks={"TD"})
+        if kind == "time":
+            if any(not preset for preset in self.events_or_presets):
+                raise FieldError("Drum.presets: every step needs a duration (OBJ-022)")
+            return
+        if len(self.events) != steps:
+            raise FieldError(
+                f"Drum.events: needs one event per step ({steps}), got {len(self.events)}"
+            )
+        for i, (preset, event) in enumerate(zip(self.events_or_presets, self.events, strict=True)):
+            if not preset and not event:
+                raise FieldError(f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)")
 
     @property
     def num_outputs(self) -> int:

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction
+from ..model import AfInstruction, FieldError
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -27,10 +27,14 @@ class Call(AfInstruction):
 
     subroutine: str  # subroutine name (e.g. "coverage_sub")
 
+    def __post_init__(self) -> None:
+        if not self.subroutine:
+            raise FieldError("Call.subroutine cannot be empty: CLICK requires a subroutine name")
+
     @classmethod
     def from_csv_token(cls, token: str) -> Call:
         token = token.strip()
-        m = re.fullmatch(r'call\("([^"]+)"\)', token)
+        m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
             raise ValueError(f"Cannot parse call instruction: {token!r}")
         return cls(subroutine=m.group(1))
