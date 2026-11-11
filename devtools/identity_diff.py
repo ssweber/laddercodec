@@ -9,7 +9,8 @@ and summaries derived from ``cases``.
 
 Prints one line per difference and exits 1 if there is any or the two come from different
 tools, 0 if the cases are identical.  Exits 2 without comparing when an input cannot be
-read or has no ``cases`` object, when the scopes differ, or when both have no cases.
+read or has no ``cases`` object, when either lists a ``meta.refused_baselines`` entry,
+when the scopes differ, or when both have no cases.
 """
 
 from __future__ import annotations
@@ -61,7 +62,7 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
     """Print the differences between two tool outputs; return the exit status.
 
     0: identical cases; 1: differences or different tools; 2: not comparable (unreadable,
-    no ``cases``, different scope, or no cases on either side).
+    no ``cases``, a refused probe baseline, different scope, or no cases on either side).
     """
     docs = []
     for path in (path_a, path_b):
@@ -74,6 +75,14 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
     for path, doc in zip((path_a, path_b), docs, strict=True):
         if not isinstance(doc, dict) or not isinstance(doc.get("cases"), dict):
             print(f"{path} is not a tool output: no 'cases' object", file=sys.stderr)
+            return 2
+        refused = (doc.get("meta") or {}).get("refused_baselines")
+        if refused:
+            print(
+                f"{path}: the tree refused probe baseline(s) {', '.join(map(str, refused))}; "
+                "their cases are not a valid comparison",
+                file=sys.stderr,
+            )
             return 2
     a, b = docs
     if a.get("tool") != b.get("tool"):

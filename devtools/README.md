@@ -34,12 +34,18 @@ uv run python -I devtools/operand_probe.py --diff "$TEMP/probe_base.json" "$TEMP
 git worktree remove "$TEMP/base"
 ```
 
-`git archive <base-sha> src | tar -x -C "$TEMP/base"` gives the same `src` without a worktree.
+The same `src` without a worktree:
+
+```bash
+mkdir -p "$TEMP/base"
+git archive <base-sha> src | tar -x -C "$TEMP/base"
+```
 
 `--diff` prints one line per changed, added (`+`) or removed (`-`) case and exits 1 if there is
 any, or if the two files come from different tools. A behaviour-identical change shows
 `0 difference(s)` and exits 0. It exits 2 without comparing when the two runs have a different
-scope (fixture root or `--limit`) or no cases. Run the tools from the branch checkout so both
+scope (fixture root or `--limit`), when either lists a refused probe baseline, or when neither
+has cases. Run the tools from the branch checkout so both
 sides use the branch's fixtures and value lists.
 
 `--limit N` runs at most N cases per class (or the first N fixture files). It is for trying the
@@ -47,8 +53,9 @@ tools out: only two full runs prove a change behaviour-identical.
 
 The probe stops if a registered instruction class has no baseline in its `PROBES` table, or if
 a class's fields differ from the table's: add the new class or field there first. A baseline the
-tree under test refuses is printed and listed in `meta.refused_baselines`; on the base it must
-be empty.
+tree under test refuses is printed and listed in `meta.refused_baselines`; the probe still
+writes its output, for inspection, and exits 3, and `--diff` exits 2 on that file. Fix the
+baseline in `PROBES` (or the tree) before comparing.
 
 What the tools leave out:
 

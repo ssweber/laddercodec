@@ -16,9 +16,6 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DEVTOOLS = ROOT / "devtools"
 
-#: Appended to a copy of ``model.py``: C2000 and DS31 and above become out of range.
-NARROWED_BANKS = '\nADDRESS_BANKS["C"] = (1, 1999)\nADDRESS_BANKS["DS"] = (1, 30)\n'
-
 
 def _run(script: str, *args: object) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
@@ -46,16 +43,34 @@ def _identity_diff() -> Any:
     return module
 
 
-@pytest.fixture(scope="module")
-def narrowed_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """A copy of ``src`` whose bank table refuses C2000 and DS31 and above."""
-    src = tmp_path_factory.mktemp("narrowed") / "src"
+def _narrowed(factory: pytest.TempPathFactory, banks: dict[str, tuple[int, int]]) -> Path:
+    """A copy of ``src`` with ``banks`` replacing those banks' ranges in ``ADDRESS_BANKS``."""
+    src = factory.mktemp("narrowed") / "src"
     shutil.copytree(
         SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
     )
     model = src / "laddercodec" / "model.py"
-    model.write_text(model.read_text(encoding="utf-8") + NARROWED_BANKS, encoding="utf-8")
+    lines = "".join(f"\nADDRESS_BANKS[{bank!r}] = {span!r}" for bank, span in banks.items())
+    model.write_text(model.read_text(encoding="utf-8") + lines + "\n", encoding="utf-8")
     return src
+
+
+@pytest.fixture(scope="module")
+def narrowed_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Refuses C2000 and DS31 and above."""
+    return _narrowed(tmp_path_factory, {"C": (1, 1999), "DS": (1, 30)})
+
+
+@pytest.fixture(scope="module")
+def c2000_refused_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Refuses C2000, which no probe baseline holds."""
+    return _narrowed(tmp_path_factory, {"C": (1, 1999)})
+
+
+@pytest.fixture(scope="module")
+def drum_refused_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Refuses C187 and above: of the first baselines, only ``Drum/event`` holds one."""
+    return _narrowed(tmp_path_factory, {"C": (1, 186)})
 
 
 def _check_tool(script: str, limit: int, narrowed: Path, tmp_path: Path) -> dict[str, Any]:
@@ -78,8 +93,8 @@ def test_fixture_snapshot_sees_a_narrowed_bank(narrowed_src: Path, tmp_path: Pat
     assert "blockcopy__" in doc["narrowed_diff"]
 
 
-def test_operand_probe_sees_a_narrowed_bank(narrowed_src: Path, tmp_path: Path) -> None:
-    doc = _check_tool("operand_probe.py", 40, narrowed_src, tmp_path)
+def test_operand_probe_sees_a_narrowed_bank(c2000_refused_src: Path, tmp_path: Path) -> None:
+    doc = _check_tool("operand_probe.py", 40, c2000_refused_src, tmp_path)
     per_class = doc["meta"]["per_class"]
     assert per_class["Contact"]["cases"] == 40
     assert all(info["cases"] >= 1 for info in per_class.values())
@@ -88,6 +103,23 @@ def test_operand_probe_sees_a_narrowed_bank(narrowed_src: Path, tmp_path: Path) 
     assert baseline["new"] == "ok"
     assert baseline["read"] == "="
     assert "~ Coil/out/operand='C2000'.new: \"ok\"" in doc["narrowed_diff"]
+
+
+def test_operand_probe_fails_on_a_refused_baseline(drum_refused_src: Path, tmp_path: Path) -> None:
+    refused = tmp_path / "refused.json"
+    result = _run("operand_probe.py", drum_refused_src, refused, "--limit", 1)
+    assert result.returncode == 3, result.stdout + result.stderr
+    assert "Drum/event" in result.stderr
+    doc = json.loads(refused.read_text(encoding="utf-8"))
+    assert doc["meta"]["refused_baselines"] == ["Drum/event"]
+    assert doc["cases"]["Drum/event/-"]["new"].startswith("!AddressError")
+
+    good = tmp_path / "good.json"
+    _output("operand_probe.py", SRC, good, 1)
+    for a, b in ((good, refused), (refused, good), (refused, refused)):
+        diff = _run("identity_diff.py", a, b)
+        assert diff.returncode == 2, diff.stdout + diff.stderr
+        assert "refused probe baseline(s) Drum/event" in diff.stderr
 
 
 def test_outputs_of_different_tools_differ(tmp_path: Path) -> None:

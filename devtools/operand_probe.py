@@ -29,8 +29,9 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 so two source trees get the same cases.  Values that are objects of the tree under test
 (``InstructionType`` members, Modbus targets and addresses) are built from literal
 arguments; one the tree refuses to build records only ``new: !value: <error>``.  A
-baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run.
-A registered instruction class with no baseline, or a field with no value kind, stops the
+baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run;
+the probe then exits 3 after writing its output, and ``--diff`` refuses the file.  A
+registered instruction class with no baseline, or a field with no value kind, stops the
 run, and so does a case key that appears twice.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
@@ -1397,6 +1398,10 @@ def main(argv: list[str] | None = None) -> int:
     for name, info in doc["meta"]["per_class"].items():
         print(f"{name:16} {info['cases']:6}  {info['outcomes']}")
     print(f"{doc['meta']['cases']} cases in {seconds:.1f} s -> {args.out}")
+    refused = doc["meta"]["refused_baselines"]
+    if refused:
+        print(f"refused baseline(s): {', '.join(refused)}", file=sys.stderr)
+        return 3
     return 0
 
 
