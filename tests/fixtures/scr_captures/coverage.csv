@@ -193,9 +193,9 @@ R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(targe
 #,receive__tcp_click_coil - select FC 01 (Read Coil Status)
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""C1"",dest=C11..C15,receiving=C1,success=C2,error=C3,exception_response=DS100)"
 #,receive__tcp_click_input - select FC 02 (Read Input Status)
-R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""X001"",dest=C11..C15,receiving=C1,success=C2,error=C3,exception_response=DS100)"
+R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""X001"",function_code=2,dest=C11..C15,receiving=C1,success=C2,error=C3,exception_response=DS100)"
 #,receive__tcp_click_input_reg - select FC 04 (Read Input Registers)
-R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""DS1"",dest=DS1..DS5,receiving=C1,success=C2,error=C3,exception_response=DS100)"
+R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=""DS1"",function_code=4,dest=DS1..DS5,receiving=C1,success=C2,error=C3,exception_response=DS100)"
 #,receive__tcp_click_wordswap - Word Swap checkbox ON (32-bit DD addresses)
 R,C10,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"receive(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.10"",port=502,device_id=1),remote_start=ModbusAddress(address=400001),dest=DD1..DD5,receiving=C1,success=C2,error=C3,exception_response=DS100,word_swap=1)"
 #,send__rtu_click_block - select FC 16 (Write Multiple Registers)
