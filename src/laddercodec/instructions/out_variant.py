@@ -68,6 +68,10 @@ _ACC_BANKS = frozenset({"TD"})
 #: Lowest constant preset: debounce takes 0, flasher and timed 1.
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
+#: Highest constant preset, for every kind (Q-B6: Inst_Out.dll caps a digits-only preset
+#: at 0x7FFF @10007b1c and @10007c45; OnOK refuses a larger one with OBJ-005).
+_PRESET_MAX = 32767
+
 #: Fields each kind uses; any other of them must stay empty.
 _USED_FIELDS: dict[str, frozenset[str]] = {
     "toggle": frozenset(),
@@ -78,8 +82,11 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 
 
 def _check_preset(value: str, name: str, floor: int) -> None:
-    """A preset is a DS register or a digits-only constant of at least *floor*."""
+    """A preset is a DS register or a digits-only constant from *floor* to 32767."""
     if value.isascii() and value.isdigit():
+        # The length guard keeps int() inside Python's digit limit for any input.
+        if len(value.lstrip("0")) > len(str(_PRESET_MAX)) or int(value) > _PRESET_MAX:
+            raise FieldError(f"{name}: {value!r} is above the maximum {_PRESET_MAX}")
         if int(value) < floor:
             raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
         return
@@ -154,10 +161,17 @@ class OutVariant(AfInstruction):
         if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
             raise FieldError(f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}")
         floor = _PRESET_FLOORS[self.kind]
-        check_address(self.on_acc, "OutVariant.on_acc", _ACC_BANKS)
+        on_acc = check_address(self.on_acc, "OutVariant.on_acc", _ACC_BANKS)
         _check_preset(self.on_preset, "OutVariant.on_preset", floor)
         if self.kind in _TWO_PHASE:
-            check_address(self.off_acc, "OutVariant.off_acc", _ACC_BANKS)
+            off_acc = check_address(self.off_acc, "OutVariant.off_acc", _ACC_BANKS)
+            # Q-B5: Inst_Out.dll compares the two TD fields @100080be and OnOK refuses
+            # one register for both with OBJ-012.
+            if (off_acc.bank, off_acc.number) == (on_acc.bank, on_acc.number):
+                raise FieldError(
+                    f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "
+                    f"{self.kind} needs two different TD registers"
+                )
             _check_preset(self.off_preset, "OutVariant.off_preset", floor)
 
     @classmethod
