@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
-from ..model import FieldError, InstructionType, PinnedInstruction, check_address
+from ..model import InstructionType, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -57,9 +57,6 @@ class Shift(PinnedInstruction):
         return (".clock()", ".reset()")
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Shift:
-        for pin in (".clock", ".reset"):
-            if pin not in pins:
-                raise FieldError(f"Shift requires a {pin}() pin row")
         return replace(self, pin_rows=cast(tuple[int, int], pin_rows))
 
     @classmethod

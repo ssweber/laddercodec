@@ -87,14 +87,6 @@ class TestCounter:
 
 
 class TestShift:
-    def test_pins_required(self) -> None:
-        shift = Shift(start_bit="C99", end_bit="C106")
-        with pytest.raises(FieldError, match=r"\.clock\(\)"):
-            shift.with_pins({".reset": ()}, (1, 2))
-        with pytest.raises(FieldError, match=r"\.reset\(\)"):
-            shift.with_pins({".clock": ()}, (1, 2))
-        assert shift.with_pins({".clock": (), ".reset": ()}, (1, 2)).pin_rows == (1, 2)
-
     def test_start_after_end_allowed(self) -> None:
         assert Shift(start_bit="C106", end_bit="C99").to_csv() == "shift(C106..C99)"
 

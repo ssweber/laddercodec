@@ -473,7 +473,6 @@ currently emit:
     one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
     and a `.jump()` target that is a `DS` address. Each step has an event (event
     drum) or a duration (time drum); a time and event step needs one of the two.
-  - `shift` needs both the `.clock()` and `.reset()` pin rows.
   - A value outside these raises `FieldError`.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
