@@ -348,11 +348,77 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
         send(remote_start=remote, source=source, quantity=room + 1)
 
 
-def test_receive_y_room_is_the_points_left() -> None:
-    receive(remote_start="C1", dest="Y001", quantity=160)
-    receive(remote_start="C1", dest="Y801", quantity=16)
-    with pytest.raises(FieldError, match="outside 1-16 "):
-        receive(remote_start="C1", dest="Y801", quantity=17)
+@pytest.mark.parametrize(
+    ("remote", "dest", "room"),
+    [
+        # every addressing mode counts the slot run from the Y start
+        ("C1", "Y001", 32),
+        ("C1", "Y016", 17),
+        ("C1", "Y021", 16),
+        ("C1", "Y101", 16),
+        ("C1", "Y801", 16),
+        ("X001", "Y001", 32),
+        ("X101", "Y001", 16),  # the higher start number decides
+        ("Y005", "Y003", 28),
+        # a remote C, T, CT or SC caps the count at the room left in that bank
+        ("C1995", "Y001", 6),
+        ("T495", "Y001", 6),
+        ("CT250", "Y021", 1),
+        ("SC990", "Y001", 11),
+        (ModbusAddress("1"), "Y001", 32),
+        (ModbusAddress("100001"), "Y101", 16),
+        (ModbusAddress("FFFEh", "coil"), "Y001", 32),
+        (ModbusAddress("0h", "discrete_input"), "Y815", 2),
+        # a MODBUS 984 start up to 65535 caps the count at 65536 minus the start
+        (ModbusAddress("65530"), "Y001", 6),
+    ],
+)
+def test_receive_y_room_counts_by_slot(remote, dest, room) -> None:
+    """Inst_RD.dll 0x100155a0 (local Y case 0x10015e03, 984/hex 0x100161fd)."""
+    receive(remote_start=remote, dest=dest, quantity=room)
+    with pytest.raises(FieldError, match=f"outside 1-{room} "):
+        receive(remote_start=remote, dest=dest, quantity=room + 1)
+
+
+def test_receive_y_room_through_csv(tmp_path: Path) -> None:
+    target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
+    got = _read_af(tmp_path, f'receive(target={target},remote_start="C1",dest=Y001..Y036)')
+    assert isinstance(got, Receive) and got.quantity == 32
+    with pytest.raises(FieldError, match="outside 1-32 "):
+        _read_af(tmp_path, f'receive(target={target},remote_start="C1",dest=Y001..Y101)')
+
+
+@pytest.mark.parametrize(
+    ("build", "kw", "room"),
+    [
+        (send, {"remote_start": "Y001", "source": "C1"}, 32),
+        (send, {"remote_start": "Y021", "source": "C1"}, 16),
+        (send, {"remote_start": "Y815", "source": "C1"}, 2),
+        (receive, {"remote_start": "X001", "dest": "C1"}, 32),
+        (receive, {"remote_start": "X101", "dest": "C1"}, 16),
+        (receive, {"remote_start": "Y036", "dest": "C1"}, 1),
+    ],
+)
+def test_c_room_from_a_remote_x_y_counts_by_slot(build, kw, room) -> None:
+    """SD 0x100181f6 (local C case 0x100181be), RD 0x10015c7a (local C case 0x10015c54)."""
+    build(quantity=room, **kw)
+    with pytest.raises(FieldError, match=f"outside 1-{room} "):
+        build(quantity=room + 1, **kw)
+
+
+def test_c_room_from_a_remote_x_y_keeps_the_c_room() -> None:
+    receive(remote_start="X001", dest="C1995", quantity=6)
+    with pytest.raises(FieldError, match="runs past C2000"):
+        receive(remote_start="X001", dest="C1995", quantity=7)
+
+
+def test_refused_room_decodes_as_raw() -> None:
+    fields = _fields(receive(remote_start="C1", dest="Y001", quantity=32))
+    fields[0x3210] = "33"
+    assert from_tags_af("RD", 0x2728, fields) is None
+    fields = _fields(send(remote_start="Y101", source="C1", quantity=16))
+    fields[0x3210] = "17"
+    assert from_tags_af("SD", 0x2729, fields) is None
 
 
 # --- status operands --------------------------------------------------------
@@ -712,6 +778,9 @@ def test_receive_text_even_counts() -> None:
         {"remote_start": "DD1", "dest": "DD1", "quantity": 2},  # CLICK DD/DF: 0x10006afa
         {"remote_start": "DF1", "dest": "DF1", "quantity": 2},
         {"remote_start": "XD1", "dest": "DH1"},  # "(1 to 1)": 0x1001420d
+        {"remote_start": "DS1", "dest": "DS1"},  # one DS or DH element: 0x10006a3e..0x10006aeb
+        {"remote_start": ModbusAddress("400001"), "dest": "DS1"},
+        {"remote_start": ModbusAddress("0h", "input"), "dest": "DH1"},
     ],
 )
 def test_receive_word_swap_forced_off(kw) -> None:
@@ -727,11 +796,53 @@ def test_receive_word_swap_forced_off(kw) -> None:
         {"remote_start": ModbusAddress("0h", "holding"), "dest": "DF1", "quantity": 2},
         {"remote_start": "DS1", "dest": "DS1", "quantity": 2},
         {"remote_start": "DH1", "dest": "DH1", "quantity": 2},
-        {"remote_start": "DS1", "dest": "DS1"},  # disabled at 1, not forced off
+        {"remote_start": ModbusAddress("400001"), "dest": "DD1"},  # 32-bit keeps it at 1
+        {"remote_start": ModbusAddress("0h", "holding"), "dest": "DF1"},
     ],
 )
 def test_receive_word_swap_allowed(kw) -> None:
     receive(word_swap=True, **kw)
+
+
+def test_receive_word_swap_on_one_element_through_csv(tmp_path: Path) -> None:
+    target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
+    got = _read_af(tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1..DS2,word_swap=1)')
+    assert isinstance(got, Receive) and got.word_swap
+    with pytest.raises(FieldError, match="one DS element"):
+        _read_af(tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1,word_swap=1)')
+
+
+def test_receive_word_swap_on_one_element_decodes_as_raw() -> None:
+    fields = _fields(receive(remote_start="DS1", dest="DS1"))
+    fields[0x221C] = "0"
+    assert from_tags_af("RD", 0x2728, fields) is None
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"receiving": "C1", "success": "C1", "error": "C3"},
+        {"receiving": "C1", "success": "C2", "error": "C0001"},
+        {"receiving": "", "success": "C5", "error": "C5"},
+    ],
+)
+def test_receive_status_bit_used_twice(kw) -> None:
+    """RD 0x100092c9, 0x1000a5e9: one C bit can't serve two status fields (0x271e)."""
+    with pytest.raises(FieldError, match="already the"):
+        receive(**kw)
+
+
+def test_receive_status_bit_used_twice_through_csv(tmp_path: Path) -> None:
+    target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
+    call = f'receive(target={target},remote_start="DS1",dest=DS1,receiving=C1,success=C1)'
+    with pytest.raises(FieldError, match="success: C1 is already the receiving bit"):
+        _read_af(tmp_path, call)
+
+
+def test_receive_status_bit_used_twice_decodes_as_raw() -> None:
+    fields = _fields(receive())
+    fields[0x607D] = "C2"
+    assert from_tags_af("RD", 0x2728, fields) is None
 
 
 def test_refused_receive_decodes_as_raw() -> None:

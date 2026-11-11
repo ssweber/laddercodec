@@ -203,17 +203,54 @@ def _xy_points_left(number: int) -> int:
 
 
 def _xy_click_room(number: int) -> int:
-    """Points a CLICK-addressed Send can count from X/Y point ``number``.
+    """Points the slot run from X/Y point ``number`` holds.
 
     The CPU slot and its dual option slot count as one run (X001 gives 32); a count from an
     expansion slot stays in that slot (X101 gives 16).  Inst_SD.dll 0x10018501, the X/Y case
-    of the quantity limit at 0x10017d80.
+    of the quantity limit at 0x10017d80, for a CLICK-addressed Send; Inst_RD.dll 0x10015e03
+    for every Receive into Y.
     """
     if number <= 16:
         return 33 - number
     if number <= 36:
         return 37 - number
     return 17 - number % 100
+
+
+def _receive_y_room(local: Address, remote: str | ModbusAddress, remote_addr: Address | None) -> int:
+    """Points a Receive can count into Y point ``local``: the slot run, capped by the remote.
+
+    Inst_RD.dll 0x10015e03, the local Y case of the quantity limit at 0x100155a0, uses the
+    slot run in every addressing mode.  A remote X/Y start takes the higher of the two start
+    numbers (0x10015e1b); a remote C, T, CT or SC caps the count at the room left in that bank
+    (0x10015e6e, 0x10015f84, 0x10016057, 0x1001612a); a MODBUS 984 start up to 65535 caps it at
+    65536 minus the start (0x100161fd).
+    """
+    if remote_addr is not None:
+        if remote_addr.bank in _XY_BANKS:
+            return _xy_click_room(max(local.number, remote_addr.number))
+        remote_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+        return min(remote_room, _xy_click_room(local.number))
+    room = _xy_click_room(local.number)
+    if isinstance(remote, ModbusAddress) and not remote.is_hex and int(remote.address) <= 0xFFFF:
+        room = min(room, 0x10000 - int(remote.address))
+    return room
+
+
+def _check_c_room_from_xy(who: str, quantity: int, local: Address, remote_addr: Address) -> None:
+    """A count between local C and a CLICK X/Y remote also stays in the remote's slot run.
+
+    Inst_SD.dll 0x100181f6 (local C case 0x100181be) and Inst_RD.dll 0x10015c7a (local C case
+    0x10015c54): the room is the lesser of the C room and the slot run from the X/Y start.
+    """
+    room = _xy_click_room(remote_addr.number)
+    if quantity > room:
+        bank = remote_addr.bank
+        raise FieldError(
+            f"{who} quantity: {quantity} from remote {bank}{remote_addr.number:03d} is outside "
+            f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-{bank}036, "
+            f"then {bank}101-{bank}116 ...)"
+        )
 
 
 def _xy_nth(number: int, steps: int) -> int:
@@ -334,6 +371,20 @@ def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Add
     return None
 
 
+def _check_status_bits(who: str, inst: Send | Receive, names: tuple[str, str, str]) -> None:
+    """Each status field is a C bit, and no C bit serves two of them."""
+    seen: dict[tuple[str, int], str] = {}
+    for name in names:
+        value = getattr(inst, name)
+        found = _check_status(who, name, value, _STATUS_BITS)
+        if found is None:
+            continue
+        key = (found.bank, found.number)
+        if key in seen:
+            raise FieldError(f"{who} {name}: {value} is already the {seen[key]} bit")
+        seen[key] = name
+
+
 def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str:
     """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to."""
     n = int(address)
@@ -359,7 +410,8 @@ def _check_quantity(
 ) -> None:
     """The count cap per kind, then the room left from the local start.
 
-    ``xy_room`` is the room from an X/Y start, which depends on the remote side.
+    ``xy_room`` is the room from an X/Y start, which depends on the remote side.  None, for
+    a Send to a MODBUS 984 or hex address, is the points left through the last slot.
     """
     bits, regs, wide = caps
     if bit:
@@ -460,6 +512,8 @@ def _validate_send(send: Send) -> tuple[int, int]:
             c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
             xy_room = min(c_room, _xy_click_room(local.number))
     _check_quantity(who, quantity, local, _SEND_CAPS, bit, xy_room)
+    if local.bank == "C" and remote_addr is not None and remote_addr.bank in _XY_BANKS:
+        _check_c_room_from_xy(who, quantity, local, remote_addr)
 
     if isinstance(remote, ModbusAddress) and remote.is_hex and local.bank in _SEND_HEX_FFFD:
         start = int(remote.address[:-1], 16)
@@ -475,15 +529,7 @@ def _validate_send(send: Send) -> tuple[int, int]:
             )
 
     # SD 0x100095f0: one C bit can't serve two status fields (OBJ-014).
-    seen: dict[tuple[str, int], str] = {}
-    for name in ("sending", "success", "error"):
-        found = _check_status(who, name, getattr(send, name), _STATUS_BITS)
-        if found is None:
-            continue
-        key = (found.bank, found.number)
-        if key in seen:
-            raise FieldError(f"{who} {name}: {getattr(send, name)} is already the {seen[key]} bit")
-        seen[key] = name
+    _check_status_bits(who, send, ("sending", "success", "error"))
     _check_status(who, "exception_response", send.exception_response, _EXCEPTION_BANKS)
     return fc, default_fc
 
@@ -535,7 +581,10 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         name = f"{who} remote_start (for a {local.bank} dest)"
         check_address(remote, name, _RECEIVE_REMOTE_FOR_DEST[local.bank])
         hex_pair = remote_addr.bank in ("XD", "YD")
-    _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit)
+    xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
+    _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit, xy_room)
+    if local.bank == "C" and remote_addr is not None and remote_addr.bank in _XY_BANKS:
+        _check_c_room_from_xy(who, quantity, local, remote_addr)
     if (local.bank == "YD" or hex_pair) and quantity != 1:
         # RD 0x1001420d / 0x100141ec: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
         raise FieldError(f"{who} quantity: {quantity} is outside 1-1 for this dest and remote")
@@ -551,14 +600,16 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
             reason = f"a {local.bank} dest"
         elif local.bank in ("DD", "DF") and remote_addr is not None:
             reason = f"a {local.bank} dest read from a CLICK address"
+        elif local.bank in ("DS", "DH") and quantity == 1:
+            # RD 0x10006a3e..0x10006aeb: a DS or DH dest enables Word Swap above one element.
+            reason = f"one {local.bank} element"
         else:
             reason = ""
         if reason:
             raise FieldError(f"{who} word_swap: CLICK turns Word Swap off for {reason}")
 
-    _check_status(who, "receiving", receive.receiving, _STATUS_BITS)
-    _check_status(who, "success", receive.success, _STATUS_BITS)
-    _check_status(who, "error", receive.error, _STATUS_BITS)
+    # RD 0x100092c9, 0x1000a5e9: one C bit can't serve two status fields (0x271e).
+    _check_status_bits(who, receive, ("receiving", "success", "error"))
     _check_status(who, "exception_response", receive.exception_response, _EXCEPTION_BANKS)
     return fc, default_fc
 
