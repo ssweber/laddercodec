@@ -50,6 +50,8 @@ EXPECTED_ROOT_EXPORTS = (
     "Rung",
     "Program",
     "Project",
+    "FieldError",
+    "AddressError",
     "BlockCopy",
     "Call",
     "Contact",

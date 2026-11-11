@@ -36,7 +36,7 @@ from .instructions import (
     Timer,
     Unpack,
 )
-from .model import Program, Project
+from .model import AddressError, FieldError, Program, Project
 
 __all__ = [
     "encode",
@@ -49,6 +49,8 @@ __all__ = [
     "Rung",
     "Program",
     "Project",
+    "FieldError",
+    "AddressError",
     "BlockCopy",
     "Call",
     "Contact",

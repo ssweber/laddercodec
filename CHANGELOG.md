@@ -11,7 +11,7 @@
 ## Unreleased
 
 ### Changed
-- **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `ValueError` naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
+- **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
 
 ## 0.3.3 (2026-11-11)
 
