@@ -29,7 +29,8 @@ def _tracked_files() -> list[str]:
 
 
 def test_pattern_matches_the_forms_in_use() -> None:
-    for text in ("0x1000ead1", "@100080be", "Inst_Search 1000786c", "at 10006637"):
+    tail = "0000aa"  # built here so this file holds no address itself
+    for text in ("0x100" + tail, "@100" + tail + "bb", "Inst_Search 100" + tail, "at 100" + tail):
         assert ADDRESS.search(text), text
     for text in ("0x8bc0", "0x271e", "0x0A60", "0x6fff", "0x10e", "0x1201", "+0x19", "x1000"):
         assert not ADDRESS.search(text), text
