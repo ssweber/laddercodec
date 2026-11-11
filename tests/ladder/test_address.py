@@ -234,7 +234,7 @@ class TestConstructionRaises:
             ("Contact.operand", lambda: Contact(InstructionType.CONTACT_NO, "YD0u")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(XD0u)")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
-            ("Coil.range_end", lambda: Coil(InstructionType.COIL_LATCH, "YD0", range_end="YD0u")),
+            ("Coil.range_end", lambda: Coil(InstructionType.COIL_LATCH, "Y1", range_end="YD0u")),
             ("Counter.done_bit", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
             ("Counter.current", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),

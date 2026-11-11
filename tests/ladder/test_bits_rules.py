@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import pytest
 
-from laddercodec import AddressError, FieldError
+from laddercodec import AddressError, FieldError, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.instructions import from_tags_af, from_tags_condition
-from laddercodec.instructions.coil import Coil
+from laddercodec.instructions.coil import COIL_NAME_TO_TYPE as COIL_TYPES
+from laddercodec.instructions.coil import WRITABLE_SC, Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
@@ -141,20 +146,65 @@ class TestCompare:
         assert CompareContact.from_csv_token('T:TXT1<">"').wire_down
 
 
+_COILS = ("out", "latch", "reset")
+
+
+def _read_af(tmp_path: Path, af: str) -> object:
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", "X1"] + ["-"] * 30 + [af])
+    return read_csv(path)[0].instructions[0]
+
+
 class TestCoil:
-    @pytest.mark.parametrize("op", ["Y1", "C1", "SC1"])
-    def test_out_banks_accepted(self, op: str) -> None:
-        Coil(OUT, op)
+    @pytest.mark.parametrize("name", _COILS)
+    @pytest.mark.parametrize("op", ["Y1", "C1", "SC50"])
+    def test_banks_accepted(self, tmp_path: Path, name: str, op: str) -> None:
+        coil = _read_af(tmp_path, f"{name}({op})")
+        assert isinstance(coil, Coil) and coil.operand == op
 
+    # Out: OBJ-004.  Set and Reset: Q-B1, user dialog check 2026-11-11.
+    @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["X1", "T1", "CT1", "DS1"])
-    def test_out_other_banks_refused(self, op: str) -> None:
+    def test_other_banks_refused(self, tmp_path: Path, name: str, op: str) -> None:
+        with pytest.raises(AddressError, match=rf"^Coil.operand: '{op}' .*takes Y, C, SC"):
+            _read_af(tmp_path, f"{name}({op})")
         with pytest.raises(AddressError, match="^Coil.operand"):
-            Coil(OUT, op)
+            Coil(COIL_TYPES[name], op)
 
-    def test_latch_and_reset_keep_step0_banks(self) -> None:
-        for kind in (InstructionType.COIL_LATCH, InstructionType.COIL_RESET):
-            Coil(kind, "X1")
-            Coil(kind, "T1")
+    # Q-B2, user dialog check 2026-11-11; Set and Reset by ruling.
+    @pytest.mark.parametrize("name", _COILS)
+    @pytest.mark.parametrize("op", ["SC50", "SC51", "SC171", "SC303", "SC326"])
+    def test_writable_sc_accepted(self, tmp_path: Path, name: str, op: str) -> None:
+        Coil(COIL_TYPES[name], op)
+        assert isinstance(_read_af(tmp_path, f"{name}({op})"), Coil)
+
+    @pytest.mark.parametrize("name", _COILS)
+    @pytest.mark.parametrize("op", ["SC1", "SC52", "SC327", "SC1000"])
+    def test_other_sc_refused(self, tmp_path: Path, name: str, op: str) -> None:
+        message = rf"^Coil.operand: '{op}' is not a writable SC bit; a coil writes SC50, SC51,"
+        with pytest.raises(AddressError, match=message):
+            _read_af(tmp_path, f"{name}({op})")
+        with pytest.raises(AddressError, match=message):
+            Coil(COIL_TYPES[name], op)
+
+    def test_writable_sc_is_the_dialog_list(self) -> None:
+        assert len(WRITABLE_SC) == 25
+        assert {50, 51, 53, 55, 120, 121, 171, 303, 326} <= WRITABLE_SC
+        assert not {1, 52, 54, 122, 327} & WRITABLE_SC
+
+    @pytest.mark.parametrize("name", _COILS)
+    def test_sc_range_checks_both_ends(self, tmp_path: Path, name: str) -> None:
+        # Q-B3: an SC range is accepted; the bits between are not checked (ruling).
+        coil = _read_af(tmp_path, f"{name}(SC50..SC53)")
+        assert isinstance(coil, Coil) and coil.range_end == "SC53"
+        assert isinstance(_read_af(tmp_path, f"{name}(SC50..SC51)"), Coil)
+        with pytest.raises(AddressError, match="^Coil.range_end: 'SC52' is not a writable"):
+            _read_af(tmp_path, f"{name}(SC50..SC52)")
+        with pytest.raises(AddressError, match="^Coil.operand: 'SC1' is not a writable"):
+            _read_af(tmp_path, f"{name}(SC1..SC50)")
 
     def test_immediate_only_on_y(self) -> None:
         Coil(OUT, "Y1", immediate=True)
@@ -168,35 +218,70 @@ class TestCoil:
         with pytest.raises(FieldError, match="^Coil.range_end"):
             Coil(InstructionType.COIL_LATCH, "Y1", range_end="C2", immediate=True)
 
-    def test_set_and_reset_ranges_are_not_checked(self) -> None:
-        for kind in (InstructionType.COIL_LATCH, InstructionType.COIL_RESET):
-            Coil(kind, "C9", range_end="C1")
-            Coil(kind, "C5", range_end="Y5")
+    @pytest.mark.parametrize("name", _COILS)
+    def test_immediate_range_crosses_a_module(self, tmp_path: Path, name: str) -> None:
+        # Q-B3, user dialog check 2026-11-11: immediate Y001..Y101 is accepted.
+        coil = _read_af(tmp_path, f"{name}(immediate(Y001..Y101))")
+        assert isinstance(coil, Coil) and coil.immediate and coil.range_end == "Y101"
 
-    def test_range_same_bank(self) -> None:
-        with pytest.raises(FieldError, match="^Coil.range_end"):
-            Coil(OUT, "C1", range_end="Y2")
-        with pytest.raises(FieldError, match="^Coil.range_end"):
-            Coil.from_csv_token("out(C1..SC2)")
+    @pytest.mark.parametrize("name", _COILS)
+    def test_whole_c_bank_range(self, tmp_path: Path, name: str) -> None:
+        # Q-B3, user dialog check 2026-11-11: C1..C2000 is accepted.
+        coil = _read_af(tmp_path, f"{name}(C1..C2000)")
+        assert isinstance(coil, Coil) and coil.range_end == "C2000"
 
-    def test_range_ascends(self) -> None:
-        Coil(OUT, "C1", range_end="C5")
-        Coil(OUT, "Y16", range_end="Y101")
+    # Out: OBJ-008.  Set and Reset: Q-B1, user dialog check 2026-11-11 (C5..Y5 refused).
+    @pytest.mark.parametrize("name", _COILS)
+    @pytest.mark.parametrize("token", ["C5..Y5", "C1..SC50", "Y1..C2"])
+    def test_range_same_bank(self, tmp_path: Path, name: str, token: str) -> None:
+        with pytest.raises(FieldError, match="^Coil.range_end: .* must stay in it"):
+            _read_af(tmp_path, f"{name}({token})")
+        start, end = token.split("..")
+        with pytest.raises(FieldError, match="^Coil.range_end"):
+            Coil(COIL_TYPES[name], start, range_end=end)
+
+    # Out: OBJ-009 and Q-B3 (C5..C5).  Set and Reset: Q-B1 (C9..C1), and C5..C5 by ruling.
+    @pytest.mark.parametrize("name", _COILS)
+    @pytest.mark.parametrize("token", ["C9..C1", "C5..C5", "Y101..Y16", "Y001..Y1"])
+    def test_range_ascends(self, tmp_path: Path, name: str, token: str) -> None:
         with pytest.raises(FieldError, match="lower to a higher"):
-            Coil.from_csv_token("out(C5..C1)")
-        with pytest.raises(FieldError, match="lower to a higher"):
-            Coil.from_csv_token("out(Y101..Y16)")
+            _read_af(tmp_path, f"{name}({token})")
+        start, end = token.split("..")
+        with pytest.raises(FieldError, match="^Coil.range_end: .* is not above"):
+            Coil(COIL_TYPES[name], start, range_end=end)
+
+    @pytest.mark.parametrize("name", _COILS)
+    def test_range_accepted(self, name: str) -> None:
+        Coil(COIL_TYPES[name], "C1", range_end="C5")
+        Coil(COIL_TYPES[name], "Y16", range_end="Y101")
+        Coil(COIL_TYPES[name], "C1", range_end="C2")
 
 
 class TestOutVariant:
-    @pytest.mark.parametrize("op", ["Y1", "C1", "SC1"])
+    @pytest.mark.parametrize("op", ["Y1", "C1", "SC50", "SC326"])
     def test_target_banks(self, op: str) -> None:
         OutVariant(kind="toggle", operand=op)
+        timed(operand=op)
 
     @pytest.mark.parametrize("op", ["X1", "T1", "DS1"])
     def test_target_refused(self, op: str) -> None:
         with pytest.raises(AddressError, match="^OutVariant.operand"):
             OutVariant(kind="toggle", operand=op)
+
+    # The writable SC list applies to the variants too (ruling on Q-B2).
+    @pytest.mark.parametrize("op", ["SC1", "SC52", "SC327"])
+    def test_other_sc_refused(self, tmp_path: Path, op: str) -> None:
+        message = rf"^OutVariant.operand: '{op}' is not a writable SC bit"
+        with pytest.raises(AddressError, match=message):
+            OutVariant(kind="toggle", operand=op)
+        with pytest.raises(AddressError, match=message):
+            debounce(operand=op)
+        with pytest.raises(AddressError, match=message):
+            _read_af(tmp_path, f"toggle({op})")
+
+    def test_writable_sc_through_read_csv(self, tmp_path: Path) -> None:
+        variant = _read_af(tmp_path, "toggle(SC50)")
+        assert isinstance(variant, OutVariant) and variant.operand == "SC50"
 
     def test_toggle_immediate_only_on_y(self) -> None:
         OutVariant(kind="toggle", operand="Y1", immediate=True)
@@ -282,3 +367,17 @@ class TestDecodeRefusal:
     def test_refused_coil_blob_is_not_a_coil(self) -> None:
         tags = {0x6066: "X1", 0x6067: "", 0x11F8: "0", 0x11F5: "0", 0x3218: "8193"}
         assert from_tags_af("Out", 0x2715, tags) is None
+
+    @pytest.mark.parametrize(
+        ("type_code", "operand", "range_end", "func_code"),
+        [
+            (0x2715, "SC52", "", "8193"),  # Out of a read-only SC
+            (0x2716, "X1", "", "8195"),  # Set of X
+            (0x2717, "C9", "C1", "8219"),  # Reset of a reversed range
+        ],
+    )
+    def test_refused_coil_blobs(
+        self, type_code: int, operand: str, range_end: str, func_code: str
+    ) -> None:
+        tags = {0x6066: operand, 0x6067: range_end, 0x11F8: "0", 0x11F5: "0", 0x3218: func_code}
+        assert from_tags_af("Out", type_code, tags) is None
