@@ -10,7 +10,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, check_address
+from ..model import (
+    TYPE_CODE_TO_ITYPE,
+    AfInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -54,6 +60,26 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 }
 
 # ---------------------------------------------------------------------------
+# Target rules
+# ---------------------------------------------------------------------------
+
+#: Banks an Out coil writes (CLICK v4.00 Help CL167).  Every SC is accepted; CLICK takes
+#: only some of them.
+OUT_BANKS = frozenset({"Y", "C", "SC"})
+
+
+def check_out_target(operand: str, name: str, *, immediate: bool = False) -> int:
+    """Check an Out target address; return its number.
+
+    An immediate target takes Y only.
+    """
+    address = check_address(operand, name, OUT_BANKS)
+    if immediate and address.bank != "Y":
+        raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
+    return address.number
+
+
+# ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
 
@@ -75,9 +101,31 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        check_address(self.operand, "Coil.operand")
+        # Set and Reset share this class; only Out is narrowed to Y, C and SC.
+        banks = OUT_BANKS if self.type == InstructionType.COIL_OUT else None
+        start = check_address(self.operand, "Coil.operand", banks)
+        ends = [("operand", self.operand, start)]
         if self.range_end is not None:
-            check_address(self.range_end, "Coil.range_end")
+            end = check_address(self.range_end, "Coil.range_end", banks)
+            # Range direction and bank are known for Out only (Set and Reset wait on Q-B1).
+            out = self.type == InstructionType.COIL_OUT
+            if out and end.bank != start.bank:
+                raise FieldError(
+                    f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
+                    f"the range starts in bank {start.bank} and must stay in it"
+                )
+            if out and end.number < start.number:
+                raise FieldError(
+                    f"Coil.range_end: {self.range_end!r} is below {self.operand!r}; "
+                    "a range runs from a lower to a higher address"
+                )
+            ends.append(("range_end", self.range_end, end))
+        if self.immediate:
+            for name, text, address in ends:
+                if address.bank != "Y":
+                    raise FieldError(
+                        f"Coil.{name}: {text!r} is not allowed; an immediate coil takes Y only"
+                    )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:

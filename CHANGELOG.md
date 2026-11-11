@@ -12,6 +12,13 @@
 
 ### Changed
 - **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
+- **Bit instruction rules**: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils), an `out` range stays in one bank and ascends, and a compare takes data registers or constants of one group (hex, numeric or text); a refused value raises `FieldError`, and a refused blob decodes as `raw(...)` or an unknown condition.
+- **Out variants**: accumulators are TD, a preset is a DS register or a whole number (at least 0 for debounce, 1 for flasher and timed), and a field the kind does not use must be empty; a bad `unit` raises `FieldError` on construction instead of a `KeyError` at encode.
+- **Compare tokens**: a quoted text constant that holds an operator character (`TXT1<">"`) now parses, in CSV files and in `CompareContact.from_csv_token`.
+- **Call and For**: `Call(subroutine="")` and a blank or whitespace-only `ForLoop` limit raise `FieldError`; a For blob with a blank limit decodes as `raw(...)`.
+- **Timer, Counter and Drum fields**: these raise `FieldError` for a value CLICK's dialog refuses: a timer or counter number outside T1-T500 or CT1-CT250, a current value that does not match it, a non-numeric constant set point, an unknown timer unit, and a drum with more than 16 steps or outputs, a pattern that does not match them, or a blank event or duration. A Drum used to drop steps or outputs past 16 without a message. A native blob these rules refuse decodes as `raw(...)`.
+- **Send/Receive checks**: `Send` and `Receive` raise `FieldError` for a slave ID, TCP port or IP, `register_type`, MODBUS 984 or hex remote address, CLICK bank, count or status operand CLICK refuses, and a CSV range that runs backwards or mixes banks; such a blob decodes as `raw(...)`.
+- **Send decode**: a Send keeps a status operand whose enable flag is 0, as Receive does, since CLICK v4 rederives the flags from the strings.
 - **Copy, Search and Math checks**: Copy, Block Copy, Fill, Pack, Unpack, Search and Math refuse the operands, bank pairs, converters, ranges and formulas CLICK's dialogs refuse (for example `copy(X001,DS1)`, `fill(0,DS1..DD5)`, `pack_bits(C1..C17,DS1)`, `math(SIN ( DH1 ),DH2,mode=hex)`) with a `FieldError` naming the field, and such a blob decodes as `raw(...)`.
 
 ### Fixed

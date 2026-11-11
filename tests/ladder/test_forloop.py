@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from laddercodec import FieldError, decode, decode_program
 from laddercodec.binary_helpers import _build_blob
-from laddercodec.instructions import Break, Continue, ForLoop, Next, parse_af_blob
+from laddercodec.encode import encode_rung
+from laddercodec.instructions import Break, Call, Continue, ForLoop, Next, parse_af_blob
 from laddercodec.instructions.forloop import NEXT_TYPE_MARKER
+from laddercodec.instructions.raw import RawInstruction
+
+_SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
 
 class TestForLoopBlobRoundTrip:
@@ -85,3 +94,43 @@ class TestNextBlobSize:
         """Terminal field uses proper UTF-16LE empty value (no trailing zeros)."""
         blob = Next().build_blob()
         assert blob[-2:] == b"\x00\x00"
+
+
+class TestBlankFields:
+    def test_blank_limit_is_a_field_error(self) -> None:
+        for limit in ("", " ", "\t "):
+            with pytest.raises(FieldError, match="ForLoop.limit"):
+                ForLoop(limit=limit)
+
+    def test_empty_call_is_a_field_error(self) -> None:
+        with pytest.raises(FieldError, match="Call.subroutine"):
+            Call(subroutine="")
+
+    def test_empty_call_csv_is_a_field_error(self) -> None:
+        with pytest.raises(FieldError, match="Call.subroutine"):
+            Call.from_csv_token('call("")')
+
+    def test_whitespace_limit_blob_is_raw(self) -> None:
+        blob = ForLoop(limit="DS1").build_blob()
+        assert isinstance(parse_af_blob(blob), ForLoop)
+        assert (
+            parse_af_blob(blob.replace("DS1".encode("utf-16-le"), "   ".encode("utf-16-le")))
+            is None
+        )
+
+    def test_whitespace_limit_decodes_as_raw_clipboard(self) -> None:
+        conditions = [["-"] * 31]
+        data = encode_rung(1, conditions, [ForLoop(limit="DS1")])
+        data = data.replace("DS1".encode("utf-16-le"), "   ".encode("utf-16-le"))
+        [af] = decode(data).instructions
+        assert isinstance(af, RawInstruction)
+        assert af.class_name == "For"
+
+    def test_whitespace_limit_decodes_as_raw_scr(self) -> None:
+        # coverage.scr stores strings as a length byte then text and one NUL byte.
+        data = (_SCR_DIR / "coverage.scr").read_bytes()
+        old = bytes.fromhex("65600744005300310000")
+        assert data.count(old) == 1
+        rungs = decode_program(data.replace(old, bytes.fromhex("65600720002000200000"))).rungs
+        raws = [a for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
+        assert [a.class_name for a in raws if a.class_name == "For"] == ["For"]

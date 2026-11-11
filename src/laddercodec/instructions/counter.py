@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import InstructionType, PinnedInstruction, check_address
+from ..model import FieldError, InstructionType, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -43,6 +43,9 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 # Tag constants
 # ---------------------------------------------------------------------------
 
+#: A constant set point is an integer; its range waits on a CLICK dialog check.
+_INTEGER_RE = re.compile(r"-?[0-9]+")
+
 _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 
 # ---------------------------------------------------------------------------
@@ -66,8 +69,19 @@ class Counter(PinnedInstruction):
     pin_rows: tuple[int, int] = (1, 2)
 
     def __post_init__(self) -> None:
-        check_address(self.done_bit, "Counter.done_bit")
-        check_address(self.current, "Counter.current")
+        done = check_address(self.done_bit, "Counter.done_bit", banks={"CT"})
+        current = check_address(self.current, "Counter.current", banks={"CTD"})
+        if done.number != current.number:
+            raise FieldError(
+                f"Counter.current: {self.current!r} must be CTD{done.number} to match "
+                f"Counter.done_bit {self.done_bit!r}"
+            )
+        if not _INTEGER_RE.fullmatch(self.preset):
+            if not self.preset[:1].isalpha():
+                raise FieldError(
+                    f"Counter.preset: {self.preset!r} is neither an integer nor a register address"
+                )
+            check_address(self.preset, "Counter.preset")
 
     @property
     def lead_rows(self) -> int:

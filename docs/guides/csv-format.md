@@ -431,6 +431,12 @@ Producer may emit:
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
+  - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
+  - Hex `remote_start` runs `0h`-`FFFEh`; a Send takes `register_type` `coil` or `holding`.
+  - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
+    1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
+    DD, DF, CTD).
+  - `sending`, `receiving`, `success` and `error` are C bits; `exception_response` is DS or DD.
 - `call("subroutine_name")`
   - Subroutine names must not contain `"`
 - `return()`
@@ -464,6 +470,25 @@ currently emit:
 - An address must name a CLICK bank and lie inside its range (CLICK help topic
   CL195, Memory Addresses); X and Y number by module, points 01-16 only. `X017`,
   `C2001` and `DS0` raise `AddressError`.
+- Each instruction narrows the banks it takes:
+  - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
+  - `out(...)` and the Out variants (`toggle`, `debounce`, `flasher`, `timed`) take Y,
+    C or SC; `immediate(...)` only on Y, and both ends of an immediate range.
+  - An `out` range stays in one bank and runs from a lower to a higher address.
+  - Variant accumulators are TD. A preset is a DS register or a whole number, at
+    least 0 for `debounce` and at least 1 for `flasher` and `timed`.
+  - A compare takes data registers or constants, never bits. Both sides come from
+    one group: hex (XD, YD, DH, `0000h` or `0000H`), numeric (TD, CTD, DS, DD, DF, SD, numbers)
+    or text (TXT, `"A"`, `$41`).
+- Timer, counter and drum fields take CLICK's banks:
+  - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
+    set point that is a `DS` address or digits only (`0` is allowed).
+  - Counter: done bit `CT1`-`CT250` with current value `CTD` of the same number,
+    and a set point that is an integer or a register address.
+  - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
+    one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
+    and a `.jump()` target that is a `DS` address. Each step has an event (event
+    drum) or a duration (time drum); a time and event step needs a duration or an event.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.

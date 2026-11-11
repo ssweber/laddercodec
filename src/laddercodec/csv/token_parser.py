@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Literal, cast
 
+from ..instructions.comparison import split_comparison
 from ..model import OPERAND_RE
 from .ast import (
     KNOWN_AF_NAMES,
@@ -24,7 +25,6 @@ from .ast import (
 
 _EDGE_RE = re.compile(r"^(rise|fall)\((.+)\)$")
 _CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|\.[A-Za-z_][A-Za-z0-9_]*)\((.*)\)$")
-_COMPARISON_OPERATORS = ("==", "!=", "<=", ">=", "<", ">")
 
 
 def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
@@ -197,16 +197,13 @@ def _parse_contact(token: str) -> ContactCondition | None:
 
 
 def _parse_comparison(token: str) -> ComparisonCondition | None:
-    for op in _COMPARISON_OPERATORS:
-        idx = token.find(op)
-        if idx < 0:
-            continue
-        left = token[:idx].strip()
-        right = token[idx + len(op) :].strip()
-        if not left or not right:
-            return None
-        return ComparisonCondition(left=left, op=op, right=right)
-    return None
+    parts = split_comparison(token)
+    if parts is None:
+        return None
+    left, op, right = parts
+    return ComparisonCondition(
+        left=left, op=cast(Literal["==", "!=", "<", ">", "<=", ">="], op), right=right
+    )
 
 
 def parse_condition_token(token: str) -> ConditionCellNode:
