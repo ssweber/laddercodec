@@ -19,7 +19,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AddressError, AfInstruction, FieldError, InstructionType, check_address
+from ..model import (
+    AddressError,
+    AfInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -68,6 +75,7 @@ def _validate_for_limit(value: str) -> str:
     if "[" in text:
         # Q-F1, user dialog check 2026-11-11: the For count refuses a pointer.
         raise AddressError(f"ForLoop.limit: {text!r} is a pointer; the For count takes no pointer")
+    text = normalize_address(text)
     check_address(text, "ForLoop.limit", banks=FOR_LIMIT_BANKS)
     return text
 

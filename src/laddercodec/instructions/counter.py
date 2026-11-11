@@ -17,7 +17,13 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import FieldError, InstructionType, PinnedInstruction, check_address
+from ..model import (
+    FieldError,
+    InstructionType,
+    PinnedInstruction,
+    check_address,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -78,6 +84,9 @@ class Counter(PinnedInstruction):
     pin_rows: tuple[int, int] = (1, 2)
 
     def __post_init__(self) -> None:
+        self.done_bit = normalize_address(self.done_bit)
+        self.current = normalize_address(self.current)
+        self.preset = normalize_address(self.preset)
         done = check_address(self.done_bit, "Counter.done_bit", banks={"CT"})
         current = check_address(self.current, "Counter.current", banks={"CTD"})
         if done.number != current.number:

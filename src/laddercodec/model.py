@@ -1,7 +1,8 @@
 """Shared domain types for ladder instructions.
 
 Defines ``InstructionType`` enum, the field errors, the CLICK address
-check (:func:`check_address`) and the ``OPERAND_RE`` shape pattern.  These are
+check (:func:`check_address`), its display form (:func:`normalize_address`) and the
+``OPERAND_RE`` shape pattern.  These are
 the foundation types imported by every ``instructions/`` module — no
 reverse dependency.
 
@@ -115,9 +116,9 @@ class InstructionType(IntEnum):
     SEND = 0x29  # 0x2729 (modbus send / write)
 
 
-#: Shape of an address token; the CSV token parser uses it to tell a contact from other
-#: condition tokens.  :func:`check_address` checks the bank and number.
-OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")
+#: Shape of an address token, in any letter case; the CSV token parser uses it to tell a
+#: contact from other condition tokens.  :func:`check_address` checks the bank and number.
+OPERAND_RE = re.compile(r"^[A-Za-z]{1,3}\d{1,5}$")
 
 
 # Mapping from SCR type-code marker to InstructionType.
@@ -190,6 +191,47 @@ class Address(NamedTuple):
     number: int
     upper: bool = False
 
+    @property
+    def display(self) -> str:
+        """The address as CLICK shows and stores it: ``X001``, ``C1``, ``XD0u``.
+
+        X and Y pad the number to 3 digits; every other bank writes it unpadded.
+        """
+        if self.bank in _MODULE_BANKS:
+            return f"{self.bank}{self.number:03d}"
+        return f"{self.bank}{self.number}{'u' if self.upper else ''}"
+
+
+#: Address text in any letter case, with or without leading zeros (``x1``, ``ds07``,
+#: ``XD0U``), and a pointer ``BANK[address]``.
+_LOOSE_ADDRESS_RE = re.compile(r"([A-Za-z]{1,3})([0-9]{1,5})([uU]?)")
+_LOOSE_POINTER_RE = re.compile(r"([A-Za-z]{1,3})\[([^\[\]]*)\]")
+
+
+def normalize_address(value: str) -> str:
+    """Return an address in CLICK's display form; return other text unchanged.
+
+    CLICK normalizes an address as it is typed: the bank is uppercase, X and Y pad the
+    number to 3 digits and every other bank drops leading zeros, so ``x1`` becomes
+    ``X001``, ``C001`` becomes ``C1`` and ``xd0U`` becomes ``XD0u``.  A pointer
+    normalizes both parts (``ds[ds01]`` becomes ``DS[DS1]``).  Text that is not an
+    address in one of :data:`ADDRESS_BANKS` (a constant, a blank, an unknown bank) comes
+    back as given; range and allowed banks are :func:`check_address`'s job.
+    """
+    pointer = _LOOSE_POINTER_RE.fullmatch(value)
+    if pointer is not None:
+        bank = pointer.group(1).upper()
+        if bank in ADDRESS_BANKS:
+            return f"{bank}[{normalize_address(pointer.group(2))}]"
+        return value
+    match = _LOOSE_ADDRESS_RE.fullmatch(value)
+    if match is None:
+        return value
+    bank = match.group(1).upper()
+    if bank not in ADDRESS_BANKS:
+        return value
+    return Address(bank, int(match.group(2)), match.group(3) != "").display
+
 
 def _bank_range_text(bank: str) -> str:
     if bank in _MODULE_BANKS:
@@ -229,7 +271,9 @@ def check_address(value: str, name: str, banks: Collection[str] | None = None) -
     number inside the bank's range.  X and Y number by 16-point slot (:data:`XY_SLOTS`):
     ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option slot, and
     ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are
-    allowed (``X001`` and ``X1`` are the same point); the caller keeps the text as written.
+    allowed (``X001`` and ``X1`` are the same point) and the bank is uppercase; an
+    instruction passes its fields through :func:`normalize_address` first and keeps the
+    display form.
     ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
     YD.
     """

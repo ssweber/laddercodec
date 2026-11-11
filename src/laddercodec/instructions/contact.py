@@ -16,6 +16,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_address,
+    normalize_address,
 )
 from .family import ConditionInstructionFamilySpec
 
@@ -75,6 +76,7 @@ class Contact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
+        self.operand = normalize_address(self.operand)
         address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:
             raise FieldError("Contact.immediate: an edge contact has no immediate form")

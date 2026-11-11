@@ -11,7 +11,13 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import ConditionInstruction, FieldError, InstructionType, check_address
+from ..model import (
+    ConditionInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+    normalize_address,
+)
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -171,6 +177,9 @@ class CompareContact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
+        # A constant comes back from normalize_address as written.
+        self.left = normalize_address(self.left)
+        self.right = normalize_address(self.right)
         left = _operand_group(self.left, "CompareContact.left")
         right = _operand_group(self.right, "CompareContact.right")
         if left != right:
