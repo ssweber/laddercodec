@@ -415,6 +415,8 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   trace ties the whitespace options to a TXT source.
 - Q-M13 Decimal Math with a hex constant: are `DS1 + 10000h` and `DS1 + 1Fh` accepted in a
   decimal Math? The hex tests run only in hex mode, and laddercodec accepts both.
+- Q-M13b Hex Math with a decimal integer: does a hex-mode Math refuse `DH1 + 70000` or
+  `DH1 + 007`? laddercodec checks only hex constants in hex mode and accepts both.
 - Q-M14 Block Copy into Y across a slot: what does `X001..X008 → Y010` give? CLICK's
   GetNextAddress steps on into the next Y slot; laddercodec refuses the run until a capture
   shows the stored destination.
