@@ -36,7 +36,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import ADDRESS_BANKS, AfInstruction, FieldError, check_address
+from ..model import (
+    ADDRESS_BANKS,
+    Address,
+    AfInstruction,
+    FieldError,
+    check_address,
+    normalize_address,
+    to_display,
+)
 from .copy import BIT_BANKS
 from .family import AfInstructionFamilySpec
 
@@ -138,6 +146,10 @@ RESERVED_NAMES: frozenset[str] = frozenset(
     }
 )
 
+#: Every name on CLICK's Math keypads (Inst_Math.dll 0x10003f40; it has no other names).
+#: CLICK writes them in uppercase.
+FUNCTION_NAMES: frozenset[str] = RESERVED_NAMES | {"ABS", "AVG", "MAX", "MDN", "MIN", "RAND"}
+
 
 _NUMBER = (
     r"(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)(?![\w.])"
@@ -159,15 +171,19 @@ def _normalize_spacing(expr: str) -> str:
     ``SUM(DS1:DS9)`` → ``SUM ( DS1 : DS9 )``.  Click splits the internal form on
     these spaces, so ``ABS(`` would be a single unknown token.  A sign stays on its
     constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
-    an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).
+    an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).  Each
+    address takes its display form (``ds01 + x1`` → ``DS1 + X001``) and each function
+    name is uppercase (``sum`` → ``SUM``).
     """
     out: list[str] = []
     for token in _TOKEN_RE.findall(expr):
         is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
         if is_sign and _CONSTANT_RE.fullmatch(token):
             out[-1] = f"-{token}"
+        elif token.upper() in FUNCTION_NAMES:
+            out.append(to_display(token, token.upper()))
         else:
-            out.append(token)
+            out.append(normalize_address(token))
     return " ".join(out)
 
 
@@ -194,8 +210,7 @@ def _range_interiors(expression: str) -> list[str]:
             continue
         if start.endswith("u") or end.endswith("u"):
             continue
-        width = len(start) if start.startswith("0") else 0
-        interiors.extend(f"{prefix}{n:0{width}d}" for n in range(int(start) + 1, int(end)))
+        interiors.extend(Address(prefix, n).display for n in range(int(start) + 1, int(end)))
     return interiors
 
 
@@ -535,6 +550,7 @@ class Math(AfInstruction):
         if self.mode not in RESULT_BANKS:
             raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
         self.expression = _normalize_spacing(self.expression)
+        self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
         _check_expression(self.expression, self.mode)
 

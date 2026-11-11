@@ -494,6 +494,11 @@ currently emit:
 ## Operand normalization notes
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
+- An address is read in any letter case, with or without leading zeros, and is kept
+  and written in CLICK's display form: X and Y pad to 3 digits (`x1` is `X001`), every
+  other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`, `DS[ds01]` is `DS[DS1]`),
+  and `xd0U` is `XD0u`. Constants are kept as written. A Math formula's function
+  names are uppercase (`sum(x1:x16)` is `SUM ( X001 : X016 )`).
 - An address must name a CLICK bank and lie inside its range (CLICK help topic
   CL195, Memory Addresses). X and Y number by 16-point slot: `X001`-`X016` on the
   CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`

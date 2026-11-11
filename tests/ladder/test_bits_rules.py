@@ -310,14 +310,14 @@ def _read_condition(tmp_path: Path, cell: str) -> object:
 
 class TestCoil:
     @pytest.mark.parametrize("name", _COILS)
-    @pytest.mark.parametrize("op", ["Y1", "C1", "SC50"])
+    @pytest.mark.parametrize("op", ["Y001", "C1", "SC50"])
     def test_banks_accepted(self, tmp_path: Path, name: str, op: str) -> None:
         coil = _read_af(tmp_path, f"{name}({op})")
         assert isinstance(coil, Coil) and coil.operand == op
 
     # Out: OBJ-004.  Set and Reset: Q-B1, user dialog check 2026-11-11.
     @pytest.mark.parametrize("name", _COILS)
-    @pytest.mark.parametrize("op", ["X1", "T1", "CT1", "DS1"])
+    @pytest.mark.parametrize("op", ["X001", "T1", "CT1", "DS1"])
     def test_other_banks_refused(self, tmp_path: Path, name: str, op: str) -> None:
         with pytest.raises(AddressError, match=rf"^Coil.operand: '{op}' .*takes Y, C, SC"):
             _read_af(tmp_path, f"{name}({op})")

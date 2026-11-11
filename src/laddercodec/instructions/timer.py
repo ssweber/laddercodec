@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import FieldError, PinnedInstruction, check_address
+from ..model import FieldError, PinnedInstruction, check_address, normalize_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -78,6 +78,9 @@ class Timer(PinnedInstruction):
             raise FieldError(
                 f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}"
             )
+        self.done_bit = normalize_address(self.done_bit)
+        self.current = normalize_address(self.current)
+        self.setpoint = normalize_address(self.setpoint)
         done = check_address(self.done_bit, "Timer.done_bit", banks={"T"})
         current = check_address(self.current, "Timer.current", banks={"TD"})
         if done.number != current.number:

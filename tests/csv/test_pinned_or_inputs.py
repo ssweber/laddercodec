@@ -48,18 +48,21 @@ TIME_EVENT_DRUM = (
 
 
 def _or_input(n: int) -> list[list[str]]:
-    """Condition rows of an input gated by X1 and ORed over ``n`` rows (as pyrung writes it)."""
+    """Condition rows of an input gated by X001 and ORed over ``n`` rows (as pyrung writes it).
+
+    The addresses are in display form, which is what the writer gives back.
+    """
     if n == 1:
-        return [["X1", "X2"] + ["-"] * (COLUMNS - 2)]
-    rows = [["X1", "T:X2", "T"] + ["-"] * (COLUMNS - 3)]
+        return [["X001", "X002"] + ["-"] * (COLUMNS - 2)]
+    rows = [["X001", "T:X002", "T"] + ["-"] * (COLUMNS - 3)]
     for k in range(1, n - 1):
-        rows.append(["", f"T:X{k + 2}", "|"] + [""] * (COLUMNS - 3))
-    rows.append(["", f"X{n + 1}"] + [""] * (COLUMNS - 2))
+        rows.append(["", f"T:X{k + 2:03d}", "|"] + [""] * (COLUMNS - 3))
+    rows.append(["", f"X{n + 1:03d}"] + [""] * (COLUMNS - 2))
     return rows
 
 
 def _pin_row(index: int) -> list[str]:
-    return [f"Y{index + 1}"] + ["-"] * (COLUMNS - 1)
+    return [f"Y{index + 1:03d}"] + ["-"] * (COLUMNS - 1)
 
 
 def _csv_rows(token: str, n: int, pins: tuple[str, ...]) -> list[list[str]]:

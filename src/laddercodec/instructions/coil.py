@@ -18,6 +18,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_address,
+    normalize_address,
 )
 from .family import AfInstructionFamilySpec
 
@@ -119,6 +120,9 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
+        self.operand = normalize_address(self.operand)
+        if self.range_end is not None:
+            self.range_end = normalize_address(self.range_end)
         # Out, Set and Reset follow the same target and range rules (Q-B1).
         start = check_out_target(self.operand, "Coil.operand", immediate=self.immediate)
         if self.range_end is None:

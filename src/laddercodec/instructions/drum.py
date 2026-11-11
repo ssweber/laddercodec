@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import Address, FieldError, PinnedInstruction, check_address
+from ..model import Address, FieldError, PinnedInstruction, check_address, normalize_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -260,6 +260,11 @@ class Drum(PinnedInstruction):
     pin_rows: tuple[int, int, int] = (1, 2, 3)
 
     def __post_init__(self) -> None:
+        self.outputs = [normalize_address(output) for output in self.outputs]
+        self.events_or_presets = [normalize_address(value) for value in self.events_or_presets]
+        self.events = [normalize_address(event) for event in self.events]
+        for name in ("current_step", "completion_flag", "accumulator", "jump_target"):
+            setattr(self, name, normalize_address(getattr(self, name)))
         kind = self.drum_kind
         if kind not in ("event", "time", "time_event"):
             raise FieldError(f"Drum.drum_kind: {kind!r} is not event, time or time_event")
@@ -653,7 +658,7 @@ def parse_af_call(call: AfCall) -> Drum:
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_EVENT_FC_BASE:
             raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
-        accumulator = call.kwargs.get("accumulator", "")
+        accumulator = normalize_address(call.kwargs.get("accumulator", ""))
         _timer_done_bit(accumulator)
         return Drum(
             drum_kind="time_event",

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, FieldError, check_address
+from ..model import AfInstruction, FieldError, check_address, normalize_address
 from .coil import check_out_target
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
@@ -141,6 +141,8 @@ class OutVariant(AfInstruction):
     maintained: bool = False  # timed only
 
     def __post_init__(self) -> None:
+        for name in ("operand", "on_acc", "on_preset", "off_acc", "off_preset"):
+            setattr(self, name, normalize_address(getattr(self, name)))
         # The target follows Out's rule, writable SC list included (ruling on Q-B2).
         check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
         if self.kind not in _KIND_INDEX:

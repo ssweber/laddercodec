@@ -18,7 +18,13 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
-from ..model import FieldError, InstructionType, PinnedInstruction, check_address
+from ..model import (
+    FieldError,
+    InstructionType,
+    PinnedInstruction,
+    check_address,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -50,6 +56,8 @@ class Shift(PinnedInstruction):
     pin_rows: tuple[int, int] = (1, 2)
 
     def __post_init__(self) -> None:
+        self.start_bit = normalize_address(self.start_bit)
+        self.end_bit = normalize_address(self.end_bit)
         # Inst_ShiftRegister.dll OnOK: both ends are C (validator mask 4); another bank,
         # or an end in another bank than the start, is OBJ-004 (Q-D3).
         start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)

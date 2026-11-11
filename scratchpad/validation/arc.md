@@ -332,7 +332,11 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (user, dialog):** CLICK normalizes an address as it is typed:
     C001 becomes C1, and only X and Y go the other way (X1 becomes X001). So C1 and C001
     are the same output, and so are X1 and X001; laddercodec compares parsed addresses.
-    How laddercodec writes the operand text is a separate open question.
+  - **ANSWERED 2026-11-11 (user decision; native captures):** laddercodec writes every
+    address in pyclickplc's display form (X/Y padded to 3 digits, other banks unpadded,
+    bank uppercase, XD0u), normalized at construction by `model.normalize_address`. The
+    18,117 address strings in the native .bin/.scr fixtures (v4_captures, tumbler,
+    scr_captures) are all in this form, so decoding native data is unchanged.
 
 **move**
 - Q-M1 Block Copy DS1..DS3:

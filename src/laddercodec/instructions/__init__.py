@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction, FieldError, PinnedInstruction
+from ..model import (
+    AfInstruction,
+    ConditionInstruction,
+    FieldError,
+    PinnedInstruction,
+    display_form_only,
+)
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -229,12 +235,14 @@ def from_tags_condition(
     for spec in CONDITION_FAMILY_SPECS:
         if spec.from_tags is not None:
             try:
-                result = spec.from_tags(
-                    class_name, type_code, tags, variant_u16_tags, variant_string_tags
-                )
+                with display_form_only():
+                    result = spec.from_tags(
+                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                    )
             except FieldError:
-                # The blob's own family refused a field value CLICK refuses:
-                # keep it unparsed rather than try another family.
+                # The blob's own family refused a field value CLICK refuses, or text
+                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
+                # try another family.
                 return None
             if result is not None:
                 return result
@@ -252,12 +260,14 @@ def from_tags_af(
     for spec in AF_FAMILY_SPECS:
         if spec.from_tags is not None:
             try:
-                result = spec.from_tags(
-                    class_name, type_code, tags, variant_u16_tags, variant_string_tags
-                )
+                with display_form_only():
+                    result = spec.from_tags(
+                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                    )
             except FieldError:
-                # The blob's own family refused a field value CLICK refuses:
-                # keep it unparsed rather than try another family.
+                # The blob's own family refused a field value CLICK refuses, or text
+                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
+                # try another family.
                 return None
             if result is not None:
                 return result

@@ -24,6 +24,7 @@ from ..model import (
     AfInstruction,
     FieldError,
     check_address,
+    normalize_address,
 )
 from .family import AfInstructionFamilySpec
 
@@ -50,6 +51,7 @@ class ModbusRtuTarget:
                 f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
+        _normalize_device_id(self)
         _check_device_id(self.device_id)
 
 
@@ -70,6 +72,7 @@ class ModbusTcpTarget:
                 f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
+        _normalize_device_id(self)
         _check_device_id(self.device_id)
         _check_ip(self.ip)
         if isinstance(self.port, bool) or not isinstance(self.port, int):
@@ -79,6 +82,12 @@ class ModbusTcpTarget:
 
 
 _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
+
+
+def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
+    """Write a Slave ID address in display form (the target is frozen)."""
+    if isinstance(target.device_id, str):
+        object.__setattr__(target, "device_id", normalize_address(target.device_id))
 
 
 def _check_device_id(device_id: int | str) -> None:
@@ -258,7 +267,7 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
         room = _xy_click_room(number)
         if quantity > room:
             raise FieldError(
-                f"{who} quantity: {quantity} from remote {bank}{number:03d} is outside "
+                f"{who} quantity: {quantity} from remote {remote_addr.display} is outside "
                 f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
                 f"{bank}036, then {bank}101-{bank}116 ...)"
             )
@@ -267,7 +276,7 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
     left = last_number - number + 1
     if quantity > left:
         raise FieldError(
-            f"{who} quantity: {quantity} from remote {bank}{number} runs past "
+            f"{who} quantity: {quantity} from remote {remote_addr.display} runs past "
             f"{bank}{last_number} ({left} left)"
         )
 
@@ -289,10 +298,10 @@ def _addr_end(start: str, quantity: int) -> str:
     m = _ADDR_NUM_RE.fullmatch(start)
     if not m:
         return start
-    prefix, digits = m.group(1), m.group(2)
+    prefix, number = m.group(1), int(m.group(2))
     if prefix in _XY_BANKS:
-        return f"{prefix}{_xy_nth(int(digits), quantity - 1):0{len(digits)}d}"
-    return f"{prefix}{int(digits) + quantity - 1}"
+        return Address(prefix, _xy_nth(number, quantity - 1)).display
+    return Address(prefix, number + quantity - 1).display
 
 
 def _addr_type_code(remote_start: str | ModbusAddress) -> str:
@@ -384,6 +393,16 @@ def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low
         raise FieldError(f"{who} target.device_id: {device_id} is outside {low}-{high} for {link}")
 
 
+def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
+    """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
+    if isinstance(inst.remote_start, str):
+        inst.remote_start = normalize_address(inst.remote_start)
+    for name in names:
+        value = getattr(inst, name)
+        if isinstance(value, str):
+            setattr(inst, name, normalize_address(value))
+
+
 def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:
     if value:
         return check_address(value, f"{who} {name}", banks=banks)
@@ -445,7 +464,7 @@ def _check_quantity(
         room = _xy_points_left(local.number) if xy_room is None else xy_room
         if quantity > room:
             raise FieldError(
-                f"{who} quantity: {quantity} from {local.bank}{local.number:03d} is outside "
+                f"{who} quantity: {quantity} from {local.display} is outside "
                 f"1-{room} (X/Y points count by slot: {local.bank}001-{local.bank}016 with "
                 f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)"
             )
@@ -456,7 +475,7 @@ def _check_quantity(
     left = last_number - local.number + 1
     if quantity > left:
         raise FieldError(
-            f"{who} quantity: {quantity} from {local.bank}{local.number} runs past "
+            f"{who} quantity: {quantity} from {local.display} runs past "
             f"{local.bank}{last_number} ({left} left)"
         )
 
@@ -818,6 +837,7 @@ class Receive(AfInstruction):
     function_code: int | None = None
 
     def __post_init__(self) -> None:
+        _normalize_operands(self, ("dest", "receiving", "success", "error", "exception_response"))
         fc, default_fc = _validate_receive(self)
         self.function_code = None if fc == default_fc else fc
 
@@ -915,6 +935,7 @@ class Send(AfInstruction):
     function_code: int | None = None
 
     def __post_init__(self) -> None:
+        _normalize_operands(self, ("source", "sending", "success", "error", "exception_response"))
         fc, default_fc = _validate_send(self)
         self.function_code = None if fc == default_fc else fc
 
@@ -1240,8 +1261,8 @@ def _parse_range_quantity(raw: str) -> tuple[str, int]:
     """
     if ".." in raw:
         start, end = raw.split("..", 1)
-        start = start.strip()
-        end = end.strip()
+        start = normalize_address(start.strip())
+        end = normalize_address(end.strip())
         m_start = _ADDR_NUM_RE.fullmatch(start)
         m_end = _ADDR_NUM_RE.fullmatch(end)
         if not (m_start and m_end):
