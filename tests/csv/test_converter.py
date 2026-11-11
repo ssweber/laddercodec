@@ -626,18 +626,13 @@ class TestShiftRows:
         assert isinstance(conds[2][0], Contact)
         assert conds[2][0].operand == "C98"
 
-    def test_shift_missing_pins_autofills_blank_rows(self, tmp_path: Path) -> None:
+    def test_shift_missing_pins_rejected(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
         _write_csv(csv_path, [("R", _wire_row("C96"), "shift(C99..C106)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
-        assert lr == 3
-        assert isinstance(afs[0], Shift)
-        assert afs[1] == ""
-        assert afs[2] == ""
-        assert all(c == "" for c in conds[1])
-        assert all(c == "" for c in conds[2])
+        with pytest.raises(ConvertError, match=r"requires a \.clock\(\) pin row"):
+            convert_rung(rung)
 
     def test_shift_rejects_non_shift_pin(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
