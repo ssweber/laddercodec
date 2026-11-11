@@ -289,6 +289,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (user, dialog):** typing TXT1 into Data A leaves only = and != to
     choose; a text compare takes == or != only. Which of the two is saved (bits.md N8) is
     still open.
+  - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
   - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
     refuses them.
@@ -421,6 +422,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     baseEx 1000e81c; `""` gives OBJ-005 at Inst_Search 1000786c. Hardware: CLICK matches
     multi-character text as a window over consecutive TXT registers (pyrung case
     search/text_windows).
+  - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
 - Q-M13 Decimal Math with a hex constant: are `DS1 + 10000h` and `DS1 + 1Fh` accepted in a

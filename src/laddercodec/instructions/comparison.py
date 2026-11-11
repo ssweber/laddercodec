@@ -119,8 +119,6 @@ def check_quoted_text(value: str, name: str) -> None:
             f"{name}: {value!r} is refused; a text constant is 1 to {_TEXT_MAX} "
             "printable ASCII characters in quotes (use $hh for a character by code)"
         )
-    if _ASCII_CODE_CONSTANT_RE.fullmatch(inner):
-        raise FieldError(f"{name}: {value!r} is refused; write the character code as {inner}")
     # A quote inside the text would end it in the CSV token (split_comparison), so the
     # token could read back as a different compare; $22 spells the quote.
     if '"' in inner:

@@ -130,23 +130,37 @@ class TestSearchEmptyText:
         with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
             read_csv(_write(tmp_path, "C1", af))
 
-    @pytest.mark.parametrize("source", ['"A"', '"AB"', '"' + "x" * 128 + '"', "$00", "$41"])
+    @pytest.mark.parametrize(
+        "source", ['"A"', '"AB"', '"$41"', '"' + "x" * 128 + '"', "$00", "$41"]
+    )
     def test_text_and_code_accepted(self, source: str) -> None:
         assert self._search(source).source == source
 
     @pytest.mark.parametrize(
         "source",
-        ['"' + "x" * 129 + '"', '"$41"', '"a"b"', '"é"'],
-        ids=["129-chars", "quoted-code", "inner-quote", "non-ascii"],
+        ['"' + "x" * 129 + '"', '"a"b"', '"é"'],
+        ids=["129-chars", "inner-quote", "non-ascii"],
     )
     def test_refused_text(self, source: str) -> None:
         with pytest.raises(FieldError, match=r"^Search\.source: "):
             self._search(source)
 
     def test_refused_text_through_read_csv(self, tmp_path: Path) -> None:
-        af = 'search(DS1..DS10 == "$41",result=DS20,found=C20)'
+        af = f'search(DS1..DS10 == "{"x" * 129}",result=DS20,found=C20)'
         with pytest.raises(FieldError, match=r"^Search\.source: "):
             read_csv(_write(tmp_path, "C1", af))
+
+    def test_quoted_character_code_is_text_and_round_trips(self, tmp_path: Path) -> None:
+        af = 'search(DS1..DS10 == "$41",result=DS20,found=C20)'
+        search = read_csv(_write(tmp_path, "C1", af))[0].instructions[0]
+        assert isinstance(search, Search) and search.source == '"$41"'
+        bare = self._search("$41")
+        blob = search.build_blob()
+        assert blob != bare.build_blob()
+        assert '"$41"'.encode("utf-16-le") in blob
+        parsed = parse_af_blob(blob)
+        assert isinstance(parsed, Search) and parsed.source == '"$41"'
+        assert parsed.to_csv() == search.to_csv()
 
     def test_native_blob_with_empty_text_is_not_parsed(self) -> None:
         # decode() keeps a blob that parse_af_blob does not parse as a RawInstruction.
