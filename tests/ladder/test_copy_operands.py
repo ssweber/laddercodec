@@ -77,6 +77,12 @@ _REFUSED = [
     # Pack / Unpack: one module (OBJ-033/035/019), counts (OBJ-027/041/040, 032/039/042)
     ("pack_bits(X016..X101,DD1)", "spans two X modules"),
     ("unpack_to_bits(DS1,Y101..Y201)", "spans two Y modules"),
+    # 21-36 is the dual option slot, a module of its own (Q-A1)
+    ("pack_bits(X001..X036,DD1)", "X001..X036 spans two X modules"),
+    ("pack_bits(X015..X022,DS1)", "X015..X022 spans two X modules"),
+    ("pack_bits(X036..X101,DD1)", "spans two X modules"),
+    ("unpack_to_bits(DD1,Y016..Y021)", "Y016..Y021 spans two Y modules"),
+    ("pack_bits(X021..X037,DD1)", "Pack.source_end: 'X037' is outside"),
     ("pack_bits(C1..C17,DS1)", "is 17 bits; a pack into 'DS1' takes at most 16"),
     ("pack_bits(C1..C17,DH1)", "at most 16"),
     ("pack_bits(C1..C33,DD1)", "is 33 bits; a pack into 'DD1' takes at most 32"),
@@ -135,6 +141,9 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "fill($00,TXT1..TXT4)",
         "blockcopy(TXT1..TXT4,DS1..DS4,convert=to_ascii)",
         "pack_bits(X001..X016,DS1)",
+        "pack_bits(X021..X036,DS1)",
+        "unpack_to_bits(DS1,Y021..Y036)",
+        "copy(X021,Y036)",
         "pack_bits(C1..C32,DD1)",
         "pack_words(XD0..XD1,DD1)",  # how CLICK counts XD0u is unchecked: no count
         "unpack_to_bits(DD1,C1..C32)",
@@ -193,6 +202,8 @@ def test_text_options_keep_their_bytes(source: str, option: str) -> None:
     [
         Pack("X001", "X016", "DS1", pack_type="bits"),
         Pack("Y101", "Y108", "DH1", pack_type="bits"),
+        Pack("X021", "X036", "DS1", pack_type="bits"),
+        Unpack("DS1", "Y021", "Y036", unpack_type="bits"),
         Pack("T1", "T16", "DS1", pack_type="bits"),
         Pack("CT1", "CT4", "DS1", pack_type="bits"),
         Pack("SC1", "SC16", "DS1", pack_type="bits"),
@@ -217,3 +228,15 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
 )
 def test_refused_blob_is_left_unparsed(tags: dict[int, str]) -> None:
     assert from_tags_af("Copy", 0x2721, tags) is None
+
+
+@pytest.mark.parametrize(("first", "last"), [("X001", "X036"), ("X015", "X022"), ("X016", "X021")])
+def test_pack_unpack_constructors_keep_to_one_module(first: str, last: str) -> None:
+    """The dual option slot, 21-36, is a 16-point module of its own (Q-A1)."""
+    with pytest.raises(FieldError, match=f"Pack.source_end: {first}..{last} spans two X modules"):
+        Pack(first, last, "DD1", pack_type="bits")
+    y_first, y_last = "Y" + first[1:], "Y" + last[1:]
+    with pytest.raises(
+        FieldError, match=f"Unpack.dest_end: {y_first}..{y_last} spans two Y modules"
+    ):
+        Unpack("DD1", y_first, y_last, unpack_type="bits")

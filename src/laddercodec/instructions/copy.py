@@ -32,6 +32,7 @@ from ..model import (
     AfInstruction,
     FieldError,
     check_address,
+    xy_slot,
 )
 from .family import AfInstructionFamilySpec
 
@@ -274,7 +275,8 @@ def _check_range(
     """Check a ``start..end`` range and return its two ends.
 
     Both ends are addresses in one bank (OBJ-008), never pointers.  With ``one_module``, an X
-    or Y range stays inside one 16-point module (OBJ-033, OBJ-035, OBJ-019).
+    or Y range stays inside one 16-point module (OBJ-033, OBJ-035, OBJ-019); the dual option
+    slot, 21-36, is a module of its own.
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
@@ -288,7 +290,7 @@ def _check_range(
             f"{cls}.{end_field}: {end!r} is not in the bank of {start!r}; "
             "both ends of a range are in one bank"
         )
-    if one_module and first.bank in ("X", "Y") and first.number // 100 != last.number // 100:
+    if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
             f"{cls}.{end_field}: {start}..{end} spans two {first.bank} modules; "
             "the range stays inside one 16-point module"

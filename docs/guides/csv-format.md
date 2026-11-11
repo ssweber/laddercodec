@@ -468,8 +468,9 @@ currently emit:
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
 - An address must name a CLICK bank and lie inside its range (CLICK help topic
-  CL195, Memory Addresses); X and Y number by module, points 01-16 only. `X017`,
-  `C2001` and `DS0` raise `AddressError`.
+  CL195, Memory Addresses). X and Y number by 16-point slot: `X001`-`X016` on the
+  CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`
+  on expansion modules 1-8. `X017`, `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
   - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
   - `out(...)` and the Out variants (`toggle`, `debounce`, `flasher`, `timed`) take Y,

@@ -69,14 +69,24 @@ class TestCheckAddress:
             check_address(f"{bank}{hi + 1}", "f")
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
-    @pytest.mark.parametrize("text", ["001", "1", "016", "16", "101", "116", "801", "816"])
+    @pytest.mark.parametrize(
+        "text", ["001", "1", "016", "16", "021", "21", "036", "36", "101", "116", "801", "816"]
+    )
     def test_module_points_accepted(self, bank: str, text: str) -> None:
+        """21-36 is the CPU's dual option slot; CLICK v4's dialog accepts it (Q-A1)."""
         assert check_address(f"{bank}{text}", "f") == Address(bank, int(text))
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
-    @pytest.mark.parametrize("text", ["000", "0", "017", "100", "117", "200", "817", "900", "901"])
+    @pytest.mark.parametrize(
+        "text",
+        ["000", "0", "017", "020", "037", "100", "117", "200", "817", "900", "901"],
+    )
     def test_module_points_refused(self, bank: str, text: str) -> None:
-        with pytest.raises(ValueError, match=r"\(module 0-8, point 01-16\)$"):
+        with pytest.raises(
+            ValueError,
+            match=f"is outside {bank}001-{bank}016, {bank}021-{bank}036, "
+            rf"{bank}101-{bank}116 \.\.\. {bank}801-{bank}816$",
+        ):
             check_address(f"{bank}{text}", "f")
 
     @pytest.mark.parametrize("bank", ["XD", "YD"])
@@ -151,7 +161,7 @@ class TestCheckAddress:
         with pytest.raises(ValueError) as info:
             check_address("X999", "Contact.operand")
         assert str(info.value) == (
-            "Contact.operand: 'X999' is outside X001-X816 (module 0-8, point 01-16)"
+            "Contact.operand: 'X999' is outside X001-X016, X021-X036, X101-X116 ... X801-X816"
         )
         with pytest.raises(ValueError) as info:
             check_address("Q1", "Contact.operand")

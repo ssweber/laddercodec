@@ -23,6 +23,7 @@
 - **Copy pointers**: a pointer is `BANK[DSn]` in C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT; the `BANK[pointer+offset]` and `BANK[pointer-offset]` forms (`copy(DD[DS1+2],DS1)`) and a pointer in any other bank raise `AddressError`.
 
 ### Fixed
+- **Dual option slot**: `X021`-`X036` and `Y021`-`Y036` were refused; CLICK accepts them for the CPU's dual option slot, and a Pack or Unpack range stays inside that slot as it does inside any other 16-point module.
 - **Pack/Unpack decode**: a pack or unpack of X, Y, T, CT or SC bits now decodes as `pack_bits`/`unpack_to_bits`, and one of CTD words as `pack_words`/`unpack_to_words`.
 - **Math operand count**: a formula of more than 500 operands raises `FieldError` instead of writing a blob whose field count disagrees with its header.
 - **Search and Copy options**: an unknown `Search.comparison` raises `FieldError` on construction instead of a `KeyError` at encode, and a `Copy.suppress_zero` or `Copy.exponential` other than `"0"` or `"1"` raises `FieldError` instead of writing a conversion code CLICK doesn't have.
