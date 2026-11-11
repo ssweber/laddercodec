@@ -74,3 +74,19 @@ Besides the public API, the tools import the family registry in `laddercodec.ins
 and `_compose_blob`, and from `laddercodec.model` `AfInstruction`, `ConditionInstruction`,
 `PinnedInstruction` and `InstructionType`. A step that renames one of them stops the tools on
 that tree.
+
+## Constant classifier dry run
+
+`classify_dryrun.py` compares today's per-field constant checks with
+`laddercodec.operands.constants.classify()`, which no field uses yet. For each field that takes
+a constant it tries a fixed value list two ways: building the instruction (today), and
+`classify()` plus that field's documented kinds and limits (each rule cites its arc.md
+question, or the DLL reading it rests on). It prints every disagreement and the totals per
+family, and changes nothing:
+
+```bash
+uv run python -I devtools/classify_dryrun.py src
+```
+
+`DIFFERS` is a disagreement; `DIFFERS?` is one whose rule rests on a DLL reading with no dialog
+check; `open` is a value whose rule waits on a question. Addresses are skipped.
