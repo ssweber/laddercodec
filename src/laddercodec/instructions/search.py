@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction
+from .copy import REGISTER_BANKS, check_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -63,6 +64,15 @@ _OP_TO_CMP_CODE: dict[str, str] = {
 }
 
 _CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
+
+# ---------------------------------------------------------------------------
+# Operand banks
+# ---------------------------------------------------------------------------
+
+#: Banks a search table spans.
+TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
+#: The result holds the found address's index, a DS (Help CL174).
+RESULT_BANKS = frozenset({"DS"})
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -119,6 +129,15 @@ class Search(AfInstruction):
     comparison: str
     continuous: bool = False
     oneshot: bool = False
+
+    def __post_init__(self) -> None:
+        # Whether Search takes a pointer waits on a dialog check, so one is still accepted.
+        check_operand(self.table_start, "Search.table_start", TABLE_BANKS, pointer=True)
+        check_operand(self.table_end, "Search.table_end", TABLE_BANKS, pointer=True)
+        check_operand(self.result, "Search.result", RESULT_BANKS, pointer=True)
+        check_operand(self.found, "Search.found", pointer=True)
+        # The search value is a constant or a data register, never a bit (Help CL174).
+        check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True, pointer=True)
 
     @property
     def func_code(self) -> str:
