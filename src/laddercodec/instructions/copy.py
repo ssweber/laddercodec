@@ -193,6 +193,12 @@ _KIND_TEXT = {
 }
 
 
+def _bank_prefix(operand: str) -> str:
+    """The bank letters an address starts with (``CTD`` for ``CTD5``), checked or not."""
+    m = re.match(r"[A-Z]*", operand)
+    return m.group(0) if m else ""
+
+
 def _bank_list(banks: Collection[str]) -> str:
     return ", ".join(b for b in ADDRESS_BANKS if b in banks)
 
@@ -1114,7 +1120,7 @@ def from_tags(
             pack_type = "text"
             allow_whitespace = True
         elif conv_type == 0:
-            pack_type = "bits" if source.startswith("C") else "words"
+            pack_type = "bits" if _bank_prefix(source) in BIT_BANKS else "words"
             allow_whitespace = False
         else:
             return None
@@ -1130,7 +1136,7 @@ def from_tags(
     if copy_type == 4:
         if not all([source, destination, destination_end]):
             return None
-        unpack_type = "bits" if destination.startswith("C") else "words"
+        unpack_type = "bits" if _bank_prefix(destination) in BIT_BANKS else "words"
         return Unpack(
             source=source,
             dest_start=destination,

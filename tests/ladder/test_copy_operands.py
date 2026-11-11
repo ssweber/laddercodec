@@ -15,7 +15,7 @@ import pytest
 from laddercodec import FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
-from laddercodec.instructions.copy import Copy
+from laddercodec.instructions.copy import Copy, Pack, Unpack
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -120,6 +120,7 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "fill(TXT1,TXT2..TXT5)",
         "fill($00,TXT1..TXT4)",
         "blockcopy(TXT1..TXT4,DS1..DS4,convert=to_ascii)",
+        "pack_bits(X001..X016,DS1)",
         "pack_bits(C1..C32,DD1)",
         "pack_words(XD0..XD1,DD1)",  # how CLICK counts XD0u is unchecked: no count
         "unpack_to_bits(DD1,C1..C32)",
@@ -149,6 +150,24 @@ def test_termination_code_needs_a_number_register_copied_to_text() -> None:
     ]:
         with pytest.raises(FieldError, match=r"Copy.termination_code: '\$0D'"):
             Copy(source, destination, format=fmt, termination_code="$0D")
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        Pack("X001", "X016", "DS1", pack_type="bits"),
+        Pack("Y101", "Y108", "DH1", pack_type="bits"),
+        Pack("T1", "T16", "DS1", pack_type="bits"),
+        Pack("CT1", "CT4", "DS1", pack_type="bits"),
+        Pack("SC1", "SC16", "DS1", pack_type="bits"),
+        Pack("CTD1", "CTD2", "DD1", pack_type="words"),
+        Unpack("DS1", "Y001", "Y016", unpack_type="bits"),
+        Unpack("DD1", "CTD1", "CTD2", unpack_type="words"),
+    ],
+)
+def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
+    """Bits or words comes from the bank, not the first letter (CT, CTD, X, Y, T, SC)."""
+    assert parse_af_blob(instruction.build_blob()) == instruction
 
 
 @pytest.mark.parametrize(
