@@ -438,7 +438,7 @@ Producer may emit:
     DD, DF, CTD).
   - `sending`, `receiving`, `success` and `error` are C bits; `exception_response` is DS or DD.
 - `call("subroutine_name")`
-  - Subroutine names must not contain `"`
+  - Subroutine names follow CLICK's naming rules (see "Operand normalization notes")
 - `return()`
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
@@ -487,15 +487,27 @@ currently emit:
   - A compare takes data registers or constants, never bits. Both sides come from
     one group: hex (XD, YD, DH, `0000h` or `0000H`), numeric (TD, CTD, DS, DD, DF, SD, numbers)
     or text (TXT, `"A"`, `$41`).
-- Timer, counter and drum fields take CLICK's banks:
+- Timer, counter, shift and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
-    set point that is a `DS` address or digits only (`0` is allowed).
+    set point that is a `DS` address or digits only, `0`-`32767` for every unit.
   - Counter: done bit `CT1`-`CT250` with current value `CTD` of the same number,
-    and a set point that is an integer or a register address.
+    and a set point that is a `DS` or `DD` address or an integer from
+    `-2147483648` to `2147483647` (a `-` only in front, at most 12 characters).
+  - Shift: both ends are `C` bits and differ (`shift(C1..C1)` and `shift(C1..C001)`
+    are refused); `shift(C106..C99)` runs backwards.
   - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
     one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
     and a `.jump()` target that is a `DS` address. Each step has an event (event
     drum) or a duration (time drum); a time and event step needs a duration or an event.
+  - Drum events are X, Y, C, T, CT or SC; a duration is `0`-`32767` (no sign) or a
+    `DS` address. No output appears twice or equals the completion flag, compared as
+    addresses (`C1` and `C001` are the same bit).
+- `for(count)`: a `DS`, `DD`, `TD`, `CTD` or `SD` address, or digits only from `0` to
+  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are refused.
+- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows: not
+  blank, at most 24 characters, none of `\ / : * ? " < > |`, and the part before the
+  last dot is not a Windows device name (`CON`, `NUL`, `COM1`, ...). A `Project`
+  also refuses two subroutine names that differ only in case.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.

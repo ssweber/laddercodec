@@ -256,21 +256,42 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 **data**
 - Q-D1 Timer set point: is 32767 accepted? Are 32768 and -1 refused? Is it the same for every
   unit?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** 0-32767 for every unit, digits only
+    (a sign is refused), OBJ-005; an address set point is DS only, OBJ-004.
 - Q-D2 Counter set point:
   - Are 2147483647 and -2147483648 accepted, and 2147483648 refused?
   - Are `1.5` and `abc` refused?
   - Are DS and DD the only registers (DH, DF, TD and CTD refused)?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** yes to all three. The constant fits
+    32 bits and its text is under 13 characters, else OBJ-005; registers DS and DD only,
+    OBJ-004.
+  - **ANSWERED 2026-11-11 (user, dialog):** `1-2` is refused, so a `-` only leads (the
+    report's "'-' anywhere" quirk does not happen).
 - Q-D3 Shift register:
   - Are Y1..Y8, T1..T8 and SC1..SC8 accepted, or only C?
   - Is `C1..X8` refused?
   - Are `C1..C1` and `C1..C2000` accepted?
   - Is `C106..C99` accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** only C, OBJ-004; `C1..X8` refused
+    with OBJ-004; `C1..C1` refused, OBJ-012 (not accepted); `C1..C2000` and `C106..C99`
+    accepted. laddercodec compares the ends as addresses, since CLICK normalizes C001 to
+    C1 as it is typed (user, dialog, 2026-11-11; see Q-D5).
 - Q-D4 Drum time base:
   - Is a duration of 32767 accepted and 32768 refused? Is 0 accepted?
   - Does the unit change the cap?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** 0-32767 accepted, 32768 and any
+    sign refused, OBJ-005; the unit does not change the cap. A DS duration depends on the
+    CPU (project rule, not checked); another register bank is OBJ-004.
 - Q-D5 Drum:
   - Is the same output in two columns accepted?
   - Are SC, T and CT accepted in the event column?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** the same output twice, or an output
+    equal to the completion flag, is refused, OBJ-014. Events take X, Y, C, T, CT and SC,
+    else OBJ-004. Checking outputs against coils in other rungs is a project rule.
+  - **ANSWERED 2026-11-11 (user, dialog):** CLICK normalizes an address as it is typed:
+    C001 becomes C1, and only X and Y go the other way (X1 becomes X001). So C1 and C001
+    are the same output, and so are X1 and X001; laddercodec compares parsed addresses.
+    How laddercodec writes the operand text is a separate open question.
 
 **move**
 - Q-M1 Block Copy DS1..DS3:
@@ -338,9 +359,26 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - Are a constant 0, a negative and 2147483648 refused?
   - Which banks are refused (DF, DH, X, C, T, CT, TXT)?
   - Is a pointer accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** a constant 0 is accepted (no floor);
+    a negative and 2147483648 are refused, OBJ-005. Banks DS, DD, TD, CTD and SD only; DF,
+    DH, X, C, T, CT and TXT are refused, OBJ-004.
+  - **ANSWERED 2026-11-11 (user, dialog):** a pointer (`DS[DS1]`) is refused.
+  - **ANSWERED 2026-11-11 (user, dialog):** `1 0` (inner space) passes the dialog, a gap in
+    its check; the user's decision is to refuse it, since it is not a number. Leading and
+    trailing whitespace keeps today's handling (stripped).
 - Q-F2 Add New Subroutine:
   - What happens at 25 characters?
   - Are spaces, `-`, `.`, a leading digit, a case-only duplicate and "Main" refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/data.md):** the edit takes 24 characters, so a
+    25th cannot be typed. The name is trimmed. `\ / : * ? " < > |` and a Windows device
+    name (AUX, CON, NUL, PRN, CLOCK$, COM1-9, LPT1-9) before the last dot are refused,
+    GUI-040. A case-only duplicate is refused, GUI-036. Inner spaces, `-` and a leading
+    digit are accepted. The checks live in CLICK.exe; Add Interrupt has the same ones.
+  - **ANSWERED 2026-11-11 (user, dialog):** `main` and `.` are accepted. An empty or
+    all-space name is refused.
+  - laddercodec: `Call.subroutine` takes the name rules; `Project` also refuses a
+    case-only duplicate among its subroutines. The 986-subroutine Call list limit is a
+    project rule.
 
 **Captures wanted (one-time, when convenient)**
 - Native Home, Velocity and Position, one per mode, with distinct values in every field.
