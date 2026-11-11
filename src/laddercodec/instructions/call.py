@@ -34,7 +34,7 @@ class Call(AfInstruction):
     @classmethod
     def from_csv_token(cls, token: str) -> Call:
         token = token.strip()
-        m = re.fullmatch(r'call\("([^"]+)"\)', token)
+        m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
             raise ValueError(f"Cannot parse call instruction: {token!r}")
         return cls(subroutine=m.group(1))
