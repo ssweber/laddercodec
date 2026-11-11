@@ -5,8 +5,8 @@ Repo-specific rules for the /bob skill. Another repo replaces this file.
 ## Paths
 
 - Main checkout `C:/Users/Sam/Documents/GitHub/laddercodec`, base branch `dev`. The user
-  squash-merges dev into main and cuts releases; never touch main. Do not push dev or any
-  bob/* branch until the user says pushing after a landing is wanted.
+  squash-merges dev into main and cuts releases; never touch main. Do not push any bob/*
+  branch. Push dev only when the user has said so for that landing (2026-11-11: yes).
 - Worktrees `../laddercodec-wt/<name>` on `bob/<name>`; mergeq home `../laddercodec-wt/buildbot`
   (queue, logs, results, `jobs/<id>/{BRIEF,HANDOFF,REVIEW,LEDGER}.md`).
 - Current arc doc: `scratchpad/validation/arc.md`. One arc doc: fold rulings and leftovers into
@@ -22,6 +22,11 @@ Repo-specific rules for the /bob skill. Another repo replaces this file.
   the code.
 - Those AutomationDirect files are not ours: read them, quote short facts, never commit dumps
   of them (the repo is public; `scratchpad/click-v4/.gitignore` shows what stays out).
+- No DLL addresses (`0x1000xxxx`, `@1000xxxx`, offsets into a CLICK DLL) in committed code,
+  tests or docs (user ruling 2026-11-11). Committed citations name the evidence kind and a
+  public reference: the OBJ-xxx error id, a Help topic (CLxxx), a capture file, an arc.md
+  ruling, or `DLL: <name>.dll, <dialog/field>` without an address. Exact addresses go to the
+  private map `../laddercodec-wt/buildbot/jobs/dllqa/ADDRESSES.md`, keyed by file and rule.
 - The encoder writes bytes from verified formulas. A change to an encoded byte layout or a
   golden `.bin` needs a paste check in CLICK by the user; the builder names every changed
   golden and BOB batches them into one ground-truth request.
