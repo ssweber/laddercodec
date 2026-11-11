@@ -108,3 +108,5 @@ event_drum__jog: worked
 pins__v4: worked
 math__negative: worked
 loop__v4: worked
+drum__v4: worked
+out__oneshot: worked
