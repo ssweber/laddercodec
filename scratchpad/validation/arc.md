@@ -273,9 +273,15 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     FFFFh); `100<DS1` and `1==1` accepted; with text as Data A, `>`, `<`, `>=` and `<=` are
     hidden; `DH1==FFFFH` accepted; `TXT1=="$41"` accepted as three characters of text. A
     text constant holds 1 to 128 characters between its quotes; `""` is refused (OBJ-005).
-  - **ANSWERED 2026-11-11 (user, dialog):** with `>` selected, typing TXT1 into Data A
-    leaves only = and != to choose, so there is no saved-as-`!=` case (bits.md N8). A text
-    compare takes == or != only.
+  - **ANSWERED 2026-11-11 (user, dialog):** typing TXT1 into Data A leaves only = and != to
+    choose; a text compare takes == or != only. Which of the two is saved (bits.md N8) is
+    still open.
+  - Needs a capture: what CLICK writes for a text constant of more than one character
+    (`TXT1=="AB"`, `=="ab"`, `=="$41"`, a long one). Only the one-character `"A"` is
+    captured (`text_compare.bin`).
+  - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
+    The DLL classifies `$` up to FF as one type and above it as another; laddercodec
+    refuses them.
 
 **data**
 - Q-D1 Timer set point: is 32767 accepted? Are 32768 and -1 refused? Is it the same for every

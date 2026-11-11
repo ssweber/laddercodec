@@ -89,8 +89,8 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
 _HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
-_INTEGER_CONSTANT_RE = re.compile(r"[+-]?\d+")
-_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
+_INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
+_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
 
 #: Limits of a compare constant (baseEx.dll CheckInputData @1000e6c0 and its numeric
@@ -129,6 +129,10 @@ def _operand_group(value: str, name: str) -> str:
                 f"{name}: {value!r} holds {len(value) - 2} characters; a text constant "
                 f"holds 1 to {_TEXT_MAX_CHARS} characters between its quotes"
             )
+        # A quote inside the text would end it in the CSV token (split_comparison), and
+        # no capture shows CLICK writing one.
+        if '"' in value[1:-1]:
+            raise FieldError(f"{name}: {value!r} holds a quote; a text constant cannot")
         return "text"
     bank = check_address(value, name, _DATA_BANKS).bank
     return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)

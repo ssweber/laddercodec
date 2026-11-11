@@ -73,6 +73,9 @@ neither table decodes as `raw(Out,...)`. Source: `out_variant.py`.
 | `0x3218` | func code |
 | `0x20CA` | always `2` |
 
+A debounce saved with one phase stores that phase's other preset and accumulator
+(`0x60B3`/`0x60B4` or `0x60B5`/`0x60B6`) as empty strings.
+
 | Variant | Func codes | Units | Rows (`+0x09` / `+0x0A`) |
 |---|---|---|---|
 | toggle | 8224, immediate 8225 | — | 1 / 1 |

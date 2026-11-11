@@ -163,6 +163,24 @@ class TestCompare:
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, cell)
 
+    @pytest.mark.parametrize(
+        ("left", "right", "field"),
+        [('"a"=="b"', '"c"', "left"), ("TXT1", '"a"b"', "right"), ('"""', '"""', "left")],
+    )
+    def test_quote_inside_text_refused(self, left: str, right: str, field: str) -> None:
+        with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* holds a quote"):
+            CompareContact(op="==", left=left, right=right)
+
+    def test_quote_inside_text_refused_through_read_csv(self, tmp_path: Path) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.right: .* holds a quote"):
+            _read_condition(tmp_path, 'TXT1=="a"b"')
+
+    # ``\d`` would match Unicode digits; CLICK's classifier takes 0-9 only.
+    @pytest.mark.parametrize("token", ["DS1==\u0663", "DS1==1\u0663", "DF1==\u0663.5"])
+    def test_unicode_digits_refused(self, token: str) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.right"):
+            CompareContact.from_csv_token(token)
+
     def test_text_through_read_csv(self, tmp_path: Path) -> None:
         compare = _read_condition(tmp_path, 'TXT1!="a==b"')
         assert isinstance(compare, CompareContact)
@@ -191,7 +209,8 @@ class TestCompare:
         assert '"$41"'.encode("utf-16-le") in compare.build_blob()
 
     def test_text_blob_keeps_the_text_as_written(self) -> None:
-        # text_compare.bin: CLICK stores a text constant as typed, quotes included.
+        # text_compare.bin shows CLICK storing the one-character "A" as typed, quotes
+        # included.  A longer text is written the same way here; no capture shows one yet.
         compare = CompareContact.from_csv_token('TXT1!="Ab c=1"')
         blob = compare.build_blob()
         assert '"Ab c=1"'.encode("utf-16-le") + bytes(2) in blob
@@ -537,6 +556,7 @@ class TestDecodeRefusal:
             ("TXT1", '"A"', "2"),  # > with text as Data A
             ("DS1", "3000000000", "0"),  # outside int32
             ("DH1", "10000h", "0"),  # above FFFFh
+            ("TXT1", '"a"b"', "0"),  # quote inside the text
         ],
     )
     def test_refused_compare_blob_is_unknown(self, left: str, right: str, type_idx: str) -> None:
