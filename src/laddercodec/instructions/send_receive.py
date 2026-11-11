@@ -78,7 +78,7 @@ class ModbusTcpTarget:
             raise FieldError(f"ModbusTcpTarget port must be 1-65535, got {self.port}")
 
 
-_DS_ADDRESS_RE = re.compile(r"DS([1-9]\d*)")
+_DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 
 def _check_device_id(device_id: int | str) -> None:
@@ -93,7 +93,7 @@ def _check_device_id(device_id: int | str) -> None:
         raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
 
 
-_IP_RE = re.compile(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})")
+_IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
 
 
 def _check_ip(ip: str) -> None:
@@ -188,7 +188,7 @@ def _check_function_code(who: str, function_code: object, allowed: tuple[int, ..
 # Address helpers
 # ---------------------------------------------------------------------------
 
-_ADDR_NUM_RE = re.compile(r"^([A-Z]+)(\d+)$")
+_ADDR_NUM_RE = re.compile(r"^([A-Z]+)([0-9]+)$")
 _XY_BANKS = frozenset({"X", "Y"})
 
 
@@ -1199,7 +1199,9 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
 
     name = _strip_quotes(kw.get("name", ""))
     raw_id = _strip_quotes(kw.get("device_id", "0"))
-    device_id: int | str = int(raw_id) if raw_id.lstrip("-").isdigit() else raw_id
+    device_id: int | str = (
+        int(raw_id) if raw_id.isascii() and raw_id.lstrip("-").isdigit() else raw_id
+    )
 
     if cls_name == "ModbusRtuTarget":
         com_port = _strip_quotes(kw.get("com_port", "cpu2"))

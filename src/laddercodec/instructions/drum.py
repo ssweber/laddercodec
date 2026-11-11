@@ -124,7 +124,15 @@ def _parse_pattern(val: str) -> list[list[int]]:
             rows.append(inner[start:i].strip())
             start = i + 1
     rows.append(inner[start:].strip())
-    return [[int(x) for x in _parse_simple_list(row_str)] for row_str in rows if row_str]
+    pattern: list[list[int]] = []
+    for row_str in rows:
+        if not row_str:
+            continue
+        cells = _parse_simple_list(row_str)
+        if any(x not in ("0", "1") for x in cells):
+            raise ValueError(f"A pattern cell is 0 or 1: {row_str!r}")
+        pattern.append([int(x) for x in cells])
+    return pattern
 
 
 def _parse_optional_list(val: str) -> list[str]:
@@ -137,7 +145,7 @@ def _format_optional_list(values: list[str]) -> str:
 
 
 #: A preset that names a register rather than a literal duration.
-_REGISTER_RE = re.compile(r"[A-Z]+\d+")
+_REGISTER_RE = re.compile(r"[A-Z]+[0-9]+")
 
 
 def is_register_preset(preset: str) -> bool:

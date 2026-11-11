@@ -47,6 +47,22 @@ also surface this way. They are supported for binary/SCR round-trip, but they
 are not yet modeled as dedicated DSL classes, so they currently emit
 `raw(...)` tokens.
 
+### Legacy encodings
+
+A rung saved from an older laddercodec can hold bytes that decode to the same text as today's but that CLICK runs differently. `decode()` and `decode_program()` still return the rungs and emit a `LegacyEncodingWarning`. At present the only case is a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`); CLICK runs it as its low 16 bits, so `70000` runs as 4464. Re-paste the rung to store it as 32-bit.
+
+The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or `None`) and `program` (for `decode_program()`). To collect them:
+
+```python
+import warnings
+from laddercodec import LegacyEncodingWarning, decode
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always", LegacyEncodingWarning)
+    rungs = decode(data)
+legacy = [w.message for w in caught if issubclass(w.category, LegacyEncodingWarning)]
+```
+
 ### Wire tokens
 
 Wire cells are decoded into string tokens: `"-"`, `"|"`, `"T"`, or `""` (blank). The segment flag is ignored during decoding — only the right and down flags determine the token.

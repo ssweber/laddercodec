@@ -30,6 +30,7 @@ from .instructions import (
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
+from .legacy import warn_legacy
 from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
@@ -810,4 +811,5 @@ def decode_program(data: bytes) -> Program:
             )
         )
 
+    warn_legacy(rungs, program=header.name)
     return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)

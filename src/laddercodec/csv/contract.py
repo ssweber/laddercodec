@@ -10,7 +10,7 @@ COMMENT_MARKER = "#"
 
 # Rung-start marker: ``R`` optionally followed by a 1-based decimal index
 # (``R``, ``R1``, ``R2``, ...).  The index is decorative and ignored on read.
-_RUNG_MARKER_RE = re.compile(r"R\d*")
+_RUNG_MARKER_RE = re.compile(r"R[0-9]*")
 
 
 def _excel_column_name(index_1_based: int) -> str:

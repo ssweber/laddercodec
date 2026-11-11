@@ -520,7 +520,7 @@ currently emit:
     sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
     DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
     (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
-    is `$22`). A text compare takes `==` or `!=` only.
+    is `$22`, and `"$41"` is text). A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
     set point that is a `DS` address or digits only, `0`-`32767` for every unit.
@@ -569,6 +569,8 @@ currently emit:
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
   `FFFFh` copies only to DD or CTD.
+- Constants, counts and address numbers use the digits 0-9 only; a digit from
+  another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
   text constant or a TXT register), and a hex value of at most `FFFFh`.
 - In a decimal `math`, an integer constant must read back as typed: CLICK keeps
@@ -580,12 +582,13 @@ currently emit:
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
   one TXT register per character of a text constant, so `""` writes nothing:
-  `encode()` refuses an empty `""` in a Copy or Fill source or a Search value,
-  and `read_csv()` and `decode()` still accept it there. A compare takes 1 to 128
+  `encode()` refuses an empty `""` in a Copy or Fill source, and `read_csv()` and
+  `decode()` still accept it there. A compare or a search takes 1 to 128
   printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
-  TXT772) and refuses `""`, a longer or non-ASCII text, a quoted `"$41"` and a
-  quote inside the text when it is read or built; spell a quote as `$22`. Use `$00` for the blank (NUL)
-  character.
+  TXT772; a search matches the same window) and refuses `""`, a longer or
+  non-ASCII text and a quote inside the text when it is read or built; spell a
+  quote as `$22`. A quoted `"$41"` is three characters of text, not the code
+  `$41`. Use `$00` for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`

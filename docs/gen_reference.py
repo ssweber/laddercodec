@@ -37,6 +37,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "is_v4_only",
             "FieldError",
             "AddressError",
+            "LegacyEncodingWarning",
         ),
     ),
     ReferencePage(

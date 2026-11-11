@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 #: Math functions added in CLICK v4.  SUM is older, but not over a bit range.
 _V4_MATH_RE = re.compile(r"\b(?:MAX|MIN|MDN|AVG|ABS|RAND)\s*\(")
-_V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)\d+\s*:")
+_V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)[0-9]+\s*:")
 
 
 def is_v4_only(instruction: object) -> bool:

@@ -156,9 +156,12 @@ class TestCompare:
         with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
             CompareContact.from_csv_token(token)
 
-    def test_quoted_character_code_is_refused(self) -> None:
-        with pytest.raises(FieldError, match=r"write the character code as [$]41"):
-            CompareContact.from_csv_token('TXT1=="$41"')
+    def test_quoted_character_code_is_text(self) -> None:
+        quoted = CompareContact.from_csv_token('TXT1=="$41"')
+        bare = CompareContact.from_csv_token("TXT1==$41")
+        assert quoted.right == '"$41"' and bare.right == "$41"
+        assert quoted.build_blob() != bare.build_blob()
+        assert quoted.to_csv() == 'TXT1=="$41"'
 
     @pytest.mark.parametrize("text", ["AB", "A", "hello world", "a$41", "x" * 128, "=>"])
     def test_multi_character_text_round_trips(self, text: str) -> None:
@@ -195,7 +198,7 @@ class TestCompare:
 
     @pytest.mark.parametrize(
         "cell",
-        ['TXT1>"A"', 'TXT1==""', 'TXT1=="$41"', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
+        ['TXT1>"A"', 'TXT1==""', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
     )
     def test_refusals_through_read_csv(self, tmp_path: Path, cell: str) -> None:
         with pytest.raises(FieldError, match="^CompareContact"):
@@ -598,7 +601,6 @@ class TestDecodeRefusal:
             ("DS1", "3000000000", "0"),  # outside int32
             ("DH1", "10000h", "0"),  # above FFFFh
             ("TXT1", '"' + "A" * 129 + '"', "0"),  # more than 128 characters
-            ("TXT1", '"$41"', "0"),  # quoted character code
             ("TXT1", '"""', "0"),  # the quote character
         ],
     )
@@ -610,6 +612,11 @@ class TestDecodeRefusal:
         tags = {0x3218: "4103", 0x6066: "TXT771", 0x6067: '"AB"', 0x21F7: "0"}
         compare = from_tags_condition("Compare", 0x2714, tags)
         assert isinstance(compare, CompareContact) and compare.right == '"AB"'
+
+    def test_quoted_character_code_compare_blob_decodes(self) -> None:
+        tags = {0x3218: "4103", 0x6066: "TXT1", 0x6067: '"$41"', 0x21F7: "0"}
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert isinstance(compare, CompareContact) and compare.right == '"$41"'
 
     def test_one_character_compare_blob_decodes(self) -> None:
         tags = {0x3218: "4104", 0x6066: "TXT1", 0x6067: '"A"', 0x21F7: "1"}

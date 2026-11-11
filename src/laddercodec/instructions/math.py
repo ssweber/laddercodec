@@ -107,7 +107,9 @@ _EMPTY_RESERVED_BYTES = b"".join(
 # ---------------------------------------------------------------------------
 
 #: Click PLC memory address pattern.
-_ADDR_RE = re.compile(r"\b(?:(?:CTD|CT|TD|TXT|SC|SD|DS|DD|DH|DF|X|Y|C|T)\d+|(?:XD|YD)\d+u?)\b")
+_ADDR_RE = re.compile(
+    r"\b(?:(?:CTD|CT|TD|TXT|SC|SD|DS|DD|DH|DF|X|Y|C|T)[0-9]+|(?:XD|YD)[0-9]+u?)\b"
+)
 
 #: Reserved function/operator names that must NOT be treated as operands.
 RESERVED_NAMES: frozenset[str] = frozenset(
@@ -137,7 +139,9 @@ RESERVED_NAMES: frozenset[str] = frozenset(
 )
 
 
-_NUMBER = r"(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+|\d+)(?![\w.])"
+_NUMBER = (
+    r"(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)(?![\w.])"
+)
 _HEX_CONSTANT = r"[0-9A-Fa-f]+h\b"
 
 #: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
@@ -168,7 +172,7 @@ def _normalize_spacing(expr: str) -> str:
 
 
 #: ``ADDR : ADDR`` range inside a formula (e.g. ``DS1401 : DS1410``).
-_RANGE_RE = re.compile(r"\b([A-Z]+)(\d+u?) : \1(\d+u?)\b")
+_RANGE_RE = re.compile(r"\b([A-Z]+)([0-9]+u?) : \1([0-9]+u?)\b")
 
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
@@ -235,7 +239,7 @@ _SUM_REFUSED_BANKS = frozenset({"CT"})
 #: (Inst_Math.dll 0x1000a5fd compares with 0x10e; OBJ-1008 "The Formula is too long").
 _MAX_INTERNAL_LENGTH = 270
 _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
-_TOKEN_ADDRESS_RE = re.compile(r"([A-Z]{1,3})(\d+u?)")
+_TOKEN_ADDRESS_RE = re.compile(r"([A-Z]{1,3})([0-9]+u?)")
 
 
 def _token_address(token: str) -> tuple[str, str] | None:
@@ -256,6 +260,9 @@ def _check_expression(expression: str, mode: str) -> None:
     """Refuse a formula CLICK's Math dialog refuses; the expression is already spaced."""
     tokens = _TOKEN_RE.findall(expression)
     name = "Math.expression"
+    for token in tokens:
+        if not token.startswith("<") and any(c.isdecimal() and not c.isascii() for c in token):
+            raise FieldError(f"{name}: {token!r} has a digit outside 0-9")
     depth = 0
     for token in tokens:
         if token == "(":
@@ -340,7 +347,7 @@ def _check_constant(token: str, name: str, mode: str) -> None:
                     f"{name}: {token} is outside 0h..FFFFh; a hex constant has at most 4 digits"
                 )
         return
-    if not re.fullmatch(r"-?\d+", token):
+    if not re.fullmatch(r"-?[0-9]+", token):
         return
     value = int(token)
     # _wtoi64 saturates at the int64 limits.
@@ -436,7 +443,9 @@ def _call_end(tokens: list[str], i: int) -> int:
     return len(tokens)
 
 
-_REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")
+_REAL_LITERAL_RE = re.compile(
+    r"-?(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+)"
+)
 
 
 #: Integer literals CLICK stores as a 16-bit constant (``H``); wider ones get ``W``.
@@ -444,7 +453,7 @@ _INT16_MIN, _INT16_MAX = -32768, 32767
 
 
 def _internal_literal(token: str) -> str:
-    if re.fullmatch(r"-?\d+", token):
+    if re.fullmatch(r"-?[0-9]+", token):
         # v4_captures/sweep_math.bin: 32767 -> H, 40000 and 100000 -> W.
         prefix = "H" if _INT16_MIN <= int(token) <= _INT16_MAX else "W"
         return f"{prefix}{token}"
@@ -631,12 +640,33 @@ def from_tags(
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    return Math(
+    math = Math(
         expression=expression,
         result=result,
         mode=mode,
         oneshot=oneshot,
     )
+    findings = _legacy_findings(tag_value(tags, 0x61FD))
+    if findings:
+        math._legacy_findings = findings
+    return math
+
+
+def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
+    """List the 16-bit (``H``) constants outside 16 bits in a stored formula.
+
+    Older laddercodec wrote a decimal integer outside -32768..32767 as ``H70000``;
+    CLICK runs it as its low 16 bits, as a signed value.
+    """
+    found = []
+    for token in formula_internal.split("#"):
+        m = re.fullmatch(r"H(-?[0-9]+)", token)
+        if m and not _INT16_MIN <= int(m.group(1)) <= _INT16_MAX:
+            low = int(m.group(1)) & 0xFFFF
+            if low > _INT16_MAX:
+                low -= 0x10000
+            found.append(("Math", token, f"it is stored as 16-bit and CLICK runs it as {low}."))
+    return found
 
 
 # ---------------------------------------------------------------------------
