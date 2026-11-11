@@ -614,11 +614,13 @@ def test_send_receive_elided_device_id_defaults():
     per class: a Send with no 0x320E/0x60B2 tag is device_id 0, a Receive is
     device_id 1.  Verified against a native scr+clipboard pair where a Send at
     device_id 0 stored no tag while one at 1 stored both."""
+    # No 0x2211 tag: the elided function code is FC05 (Send) / FC01 (Receive), so
+    # the addresses are bits.
     base = {
         0x220C: "2",  # protocol: modbus tcp
         0x320F: "2",  # remote_start address type: raw string
-        0x6085: "DS12",  # remote_start
-        0x607E: "DS3",  # source / dest
+        0x6085: "C12",  # remote_start
+        0x607E: "C3",  # source / dest
         0x622B: "10.0.0.9",
     }
 
