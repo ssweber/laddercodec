@@ -36,7 +36,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction
+from ..model import ADDRESS_BANKS, AfInstruction, FieldError, check_address
+from .copy import BIT_BANKS
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -192,6 +193,116 @@ def _range_interiors(expression: str) -> list[str]:
         width = len(start) if start.startswith("0") else 0
         interiors.extend(f"{prefix}{n:0{width}d}" for n in range(int(start) + 1, int(end)))
     return interiors
+
+
+# ---------------------------------------------------------------------------
+# Field rules (CLICK v4.00 Help CL170 Math decimal, CL203 Math hex, OBJ-10xx)
+# ---------------------------------------------------------------------------
+
+#: Result banks per mode; DH only in hex mode.
+RESULT_BANKS: dict[str, frozenset[str]] = {
+    "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD"}),
+    "hex": frozenset({"DS", "DD", "DF", "TD", "CTD", "DH"}),
+}
+#: Keys only the decimal keypad has (CL170), and only the hex keypad (CL203).
+_DECIMAL_ONLY = frozenset(
+    {
+        "SIN",
+        "COS",
+        "TAN",
+        "ASIN",
+        "ACOS",
+        "ATAN",
+        "LOG",
+        "LN",
+        "SQRT",
+        "RAD",
+        "DEG",
+        "PI",
+        "ABS",
+        "^",
+    }
+)
+_HEX_ONLY = frozenset({"AND", "OR", "XOR", "LSH", "RSH", "LRO", "RRO"})
+#: Parentheses nest at most 8 deep (CL170, OBJ-1010).
+_MAX_NESTING = 8
+#: Bytes per register (Help CL196 data types) for the median's 1024-byte cap (OBJ-1013).
+_REGISTER_BYTES = {"DS": 2, "DH": 2, "TD": 2, "SD": 2, "DD": 4, "DF": 4, "CTD": 4}
+_MEDIAN_MAX_BYTES = 1024
+_TOKEN_ADDRESS_RE = re.compile(r"([A-Z]{1,3})(\d+u?)")
+
+
+def _token_address(token: str) -> tuple[str, str] | None:
+    """``(bank, number)`` of a formula token that is an address, else ``None``."""
+    m = _TOKEN_ADDRESS_RE.fullmatch(token)
+    if m is None or m.group(1) not in ADDRESS_BANKS:
+        return None
+    return m.group(1), m.group(2)
+
+
+def _range_position(bank: str, number: str) -> int:
+    if bank in ("XD", "YD"):
+        return _XY_WORD_ORDER.index(number) if number in _XY_WORD_ORDER else -1
+    return int(number.rstrip("u"))
+
+
+def _check_expression(expression: str, mode: str) -> None:
+    """Refuse a formula CLICK's Math dialog refuses; the expression is already spaced."""
+    tokens = _TOKEN_RE.findall(expression)
+    name = "Math.expression"
+    depth = 0
+    for token in tokens:
+        if token == "(":
+            depth += 1
+            if depth > _MAX_NESTING:
+                raise FieldError(
+                    f"{name}: {expression!r} nests parentheses {depth} deep; "
+                    f"CLICK allows {_MAX_NESTING}"
+                )
+        elif token == ")":
+            depth -= 1
+            if depth < 0:
+                raise FieldError(f"{name}: {expression!r} has a ')' with no '('")
+        elif token in (_DECIMAL_ONLY if mode == "hex" else _HEX_ONLY):
+            other = "decimal" if mode == "hex" else "hex"
+            raise FieldError(f"{name}: {token} is {other} only; {expression!r} is a {mode} Math")
+    if depth > 0:
+        raise FieldError(f"{name}: {expression!r} has a '(' with no ')'")
+
+    # SUM ( a : b ) is the one place a bit may stand.
+    bit_ok: set[int] = set()
+    for i in range(len(tokens) - 5):
+        if tokens[i : i + 2] == ["SUM", "("] and tokens[i + 3] == ":" and tokens[i + 5] == ")":
+            bit_ok.update((i + 2, i + 4))
+    for i, token in enumerate(tokens):
+        address = _token_address(token)
+        if address is not None and address[0] in BIT_BANKS and i not in bit_ok:
+            raise FieldError(f"{name}: {token} is a bit; a bit stands only in SUM over a bit range")
+
+    for i in range(1, len(tokens) - 1):
+        if tokens[i] != ":":
+            continue
+        low, high = _token_address(tokens[i - 1]), _token_address(tokens[i + 1])
+        if low is None or high is None:
+            continue
+        text = f"{tokens[i - 1]} : {tokens[i + 1]}"
+        if low[0] != high[0]:
+            raise FieldError(f"{name}: {text} spans two banks; a range stays in one (OBJ-1015)")
+        count = _range_position(*high) - _range_position(*low) + 1
+        if count < 1:
+            raise FieldError(f"{name}: {text} runs high to low; a range runs low : high")
+        width = _REGISTER_BYTES.get(low[0])
+        if tokens[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
+            raise FieldError(
+                f"{name}: MDN ( {text} ) covers {count * width} bytes; "
+                f"a median covers at most {_MEDIAN_MAX_BYTES}"
+            )
+
+    operands = len(_extract_operands(expression))
+    if operands > _OPERAND_SLOTS:
+        raise FieldError(
+            f"{name}: {operands} operands; the Math blob holds at most {_OPERAND_SLOTS}"
+        )
 
 
 def _extract_operands(expression: str) -> list[str]:
@@ -361,7 +472,11 @@ class Math(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
+        if self.mode not in RESULT_BANKS:
+            raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
         self.expression = _normalize_spacing(self.expression)
+        check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
+        _check_expression(self.expression, self.mode)
 
     def to_csv(self) -> str:
         parts = [self.expression, self.result]

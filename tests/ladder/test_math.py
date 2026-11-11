@@ -138,7 +138,7 @@ def test_nickname_display_wraps_each_operand_once() -> None:
 
 
 def test_template_leaves_hex_constants_alone() -> None:
-    blob = Math("C1 + AC1h", "DH9", mode="hex").build_blob()
+    blob = Math("DH1 + AC1h", "DH9", mode="hex").build_blob()
     assert "@ + AC1h".encode("utf-16-le") in blob
 
 
