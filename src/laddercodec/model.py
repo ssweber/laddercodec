@@ -228,9 +228,10 @@ def check_address(value: str, name: str, banks: Collection[str] | None = None) -
     The bank must be one of :data:`ADDRESS_BANKS` (and in ``banks`` when given), and the
     number inside the bank's range.  X and Y number by 16-point slot (:data:`XY_SLOTS`):
     ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option slot, and
-    ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are allowed (``X001`` and ``X1`` are the
-    same point); the caller keeps the text as written.  ``XD0u`` and ``YD0u`` are
-    accepted, spelled exactly so, only when ``banks`` names XD or YD.
+    ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are
+    allowed (``X001`` and ``X1`` are the same point); the caller keeps the text as written.
+    ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
+    YD.
     """
     match = _ADDRESS_RE.fullmatch(value)
     if match is None:
