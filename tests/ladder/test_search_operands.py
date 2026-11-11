@@ -53,6 +53,9 @@ def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:
         "search(DF1..DF10 > -1.5,result=DS1,found=C1)",
         "search(TD1..TD10 >= XD0u,result=DS1,found=C1)",
         "search(CTD1..CTD10 < SD1,result=DS1,found=Y001)",
+        # the found flag's banks wait on a dialog check: any bank, XD0u included
+        "search(DS1..DS10 == 1,result=DS20,found=XD0u)",
+        "search(DS1..DS10 == 1,result=DS20,found=YD0u)",
         # whether Search takes a pointer waits on a dialog check
         "search(DS1..DS10 == DS[DS100],result=DS20,found=C1)",
         # bank pairs, order and mixed-bank tables wait on a dialog check
@@ -70,6 +73,12 @@ def test_accepted(tmp_path: Path, token: str) -> None:
 def test_direct_construction_is_checked() -> None:
     with pytest.raises(FieldError, match="Search.result"):
         Search("DS72", "DS81", "DS71", "DD82", "C81", "==")
+
+
+@pytest.mark.parametrize("comparison", ["=<", "=", "<>", ""])
+def test_unknown_comparison_is_refused(comparison: str) -> None:
+    with pytest.raises(FieldError, match="Search.comparison"):
+        Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
 def test_refused_blob_is_left_unparsed() -> None:

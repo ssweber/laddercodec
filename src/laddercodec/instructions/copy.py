@@ -160,6 +160,8 @@ NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
 _REGISTER_DEST_BANKS = REGISTER_BANKS - {"XD"}
 _NUMERIC_DEST_BANKS = _REGISTER_DEST_BANKS - {"TXT"}
 _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
+#: Banks a pointer ``BANK[DSn]`` can address (Help CL238).
+POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "TXT"})
 
 _POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
 #: A number constant (Help CL196): integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
@@ -222,7 +224,8 @@ def check_operand(
     An address goes through :func:`check_address`, narrowed to ``banks`` (``None``: any bank).
     With ``constant``, a number constant (``42``, ``-1.5``, ``1Eh``) or a text constant
     (``"AB"``, ``$0D``) passes too.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
-    in ``banks`` and the pointer a DS address (Help CL238).
+    in ``banks`` and in :data:`POINTER_BANKS`, and the pointer a DS address (Help CL238).
+    ``XD0u`` and ``YD0u`` pass only when ``banks`` names XD or YD (``ADDRESS_BANKS`` does).
     """
     if constant:
         if (len(value) >= 2 and value[0] == value[-1] == '"') or (
@@ -236,10 +239,11 @@ def check_operand(
         if not pointer:
             raise AddressError(f"{name}: {value!r} is a pointer; only a single Copy takes one")
         bank = m.group(1)
-        allowed = ADDRESS_BANKS if banks is None else banks
+        allowed = POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks)
         if bank not in allowed:
             raise AddressError(
-                f"{name}: {value!r} is not allowed; {name} takes {_bank_list(allowed)}"
+                f"{name}: {value!r} is not allowed; a pointer in {name} addresses "
+                f"{_bank_list(allowed)}"
             )
         check_address(m.group(2), f"{name} pointer", {"DS"})
         return Operand(_register_kind(bank), bank, pointer=True)
@@ -477,6 +481,11 @@ class Copy(AfInstruction):
             except ValueError:
                 raise FieldError(f"Invalid termination code: {self.termination_code!r}") from None
             self.termination_code = _ascii_code(code)
+        for option in ("suppress_zero", "exponential"):
+            if getattr(self, option) not in ("0", "1"):
+                raise FieldError(
+                    f"Copy.{option}: {getattr(self, option)!r} is not allowed; it is '0' or '1'"
+                )
         src = check_operand(
             self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, constant=True, pointer=True
         )
@@ -487,13 +496,14 @@ class Copy(AfInstruction):
         )
         self._check_format(src, dst.bank)
         if self.termination_code != "0" and not (
-            self.format in ("text", "binary") and src.kind == "word" and dst.bank == "TXT"
+            self.format == "text" and src.kind == "word" and dst.bank == "TXT"
         ):
             # CLICK v4's dialog: termination is for a single copy from a number register to
-            # text; the box is greyed for TXT -> TXT and constant -> TXT.
+            # text; the box is greyed for TXT -> TXT and constant -> TXT.  A to_binary
+            # token has no place for one.
             raise FieldError(
                 f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
-                f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
+                f"copied to TXT with to_text, not {self.source!r} -> "
                 f"{self.destination!r} with format {self.format!r}"
             )
         if self.format == "text":
@@ -687,8 +697,12 @@ class BlockCopy(AfInstruction):
             raise FieldError(f"Invalid blockcopy format: {self.format!r}")
         # Bank pairs wait on a dialog check; only the addresses and ranges are checked.
         cls = "BlockCopy"
-        src, _ = _check_range(cls, "source_start", self.source_start, "source_end", self.source_end)
-        dest, _ = _check_range(cls, "dest_start", self.dest_start, "dest_end", self.dest_end)
+        src, _ = _check_range(
+            cls, "source_start", self.source_start, "source_end", self.source_end, ADDRESS_BANKS
+        )
+        dest, _ = _check_range(
+            cls, "dest_start", self.dest_start, "dest_end", self.dest_end, ADDRESS_BANKS
+        )
         if self.format != "none" and src.bank != "TXT":
             raise FieldError(
                 f"{cls}.format: to_{self.format} needs a TXT source, not "
@@ -866,9 +880,9 @@ class Pack(AfInstruction):
         # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
         first, last = _check_range(
             "Pack", "source_start", self.source_start, "source_end", self.source_end,
-            one_module=True,
+            ADDRESS_BANKS, one_module=True,
         )  # fmt: skip
-        dest = check_operand(self.destination, "Pack.destination")
+        dest = check_operand(self.destination, "Pack.destination", ADDRESS_BANKS)
         if self.pack_type == "text":
             return
         _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
@@ -969,10 +983,11 @@ class Unpack(AfInstruction):
         if self.unpack_type not in _UNPACK_TYPES:
             raise FieldError(f"Invalid unpack type: {self.unpack_type!r}")
         # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
-        src = check_operand(self.source, "Unpack.source")
+        src = check_operand(self.source, "Unpack.source", ADDRESS_BANKS)
         first, last = _check_range(
-            "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end, one_module=True
-        )
+            "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end,
+            ADDRESS_BANKS, one_module=True,
+        )  # fmt: skip
         _check_kind("Unpack", "dest_start", self.dest_start, first.bank, self.unpack_type)
         _check_count(
             "Unpack", "dest_end", f"{self.dest_start}..{self.dest_end}", _span(first, last),

@@ -44,6 +44,17 @@ _REFUSED = [
     # Help CL238: the pointer is a DS
     ("copy(DS[DD1],DS2)", "Copy.source pointer: 'DD1' is not allowed"),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
+    # Help CL238: a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
+    (
+        "copy(X[DS1],C1)",
+        r"Copy.source: 'X\[DS1\]' is not allowed; a pointer in Copy.source addresses C, DS,",
+    ),
+    ("copy(SC[DS1],C1)", r"Copy.source: 'SC\[DS1\]' is not allowed"),
+    ("copy(SD[DS1],DS1)", r"Copy.source: 'SD\[DS1\]' is not allowed"),
+    ("copy(T[DS1],C1)", r"Copy.source: 'T\[DS1\]' is not allowed"),
+    ("copy(C1,Y[DS1])", r"Copy.destination: 'Y\[DS1\]' is not allowed"),
+    ("copy(DS1,XD[DS2])", r"Copy.destination: 'XD\[DS2\]' is not allowed"),
+    ("copy(DD[DS1+2],DS1)", r"Copy.source pointer: 'DS1\+2' is not a CLICK address"),
     # converters
     ("copy(DS1,TXT1,convert=to_value)", "to_value copies TXT to a number"),
     ("copy(TXT1,TXT2,convert=to_ascii)", "to_ascii copies TXT to a number"),
@@ -113,6 +124,9 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy($D,TXT1)",
         "copy(DD[DS1],DS1)",
         "copy(DS1,TXT[DS2])",
+        "copy(C[DS1],Y001)",
+        "copy(XD[DS1],DS1)",
+        "copy(DS1,YD[DS2])",
         "copy(TXT1,DS1,convert=to_value)",
         "copy(DD1,DF1,convert=to_binary)",
         "fill(1,TXT1..TXT3)",
@@ -124,6 +138,14 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "pack_bits(C1..C32,DD1)",
         "pack_words(XD0..XD1,DD1)",  # how CLICK counts XD0u is unchecked: no count
         "unpack_to_bits(DD1,C1..C32)",
+        # these fields' banks wait on a dialog check: any bank, XD0u and YD0u included
+        "blockcopy(DS1..DS2,YD0..YD0u)",
+        "blockcopy(XD0..XD0u,DS1..DS2)",
+        "pack_bits(C1..C16,YD0u)",
+        "pack_text(TXT1..TXT4,YD0u)",
+        "pack_words(XD0..XD0u,DD1)",
+        "unpack_to_bits(XD0u,C1..C16)",
+        "unpack_to_words(DD1,YD0..YD0u)",
     ],
 )
 def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
@@ -139,10 +161,13 @@ def test_copy_csv_paths_agree(tmp_path: Path) -> None:
 
 
 def test_termination_code_needs_a_number_register_copied_to_text() -> None:
-    """CLICK v4's dialog greys the box for TXT -> TXT and constant -> TXT copies."""
+    """CLICK v4's dialog greys the box for TXT -> TXT and constant -> TXT copies.
+
+    Termination goes with to_text only: a ``to_binary`` token has no place for it.
+    """
     Copy("DS1", "TXT1", format="text", termination_code="$0D")
-    Copy("DS1", "TXT1", format="binary", termination_code="$0D")
     for source, destination, fmt in [
+        ("DS1", "TXT1", "binary"),
         ("DS1", "TXT1", "none"),
         ("TXT1", "TXT2", "none"),
         ("5", "TXT1", "text"),
@@ -150,6 +175,20 @@ def test_termination_code_needs_a_number_register_copied_to_text() -> None:
     ]:
         with pytest.raises(FieldError, match=r"Copy.termination_code: '\$0D'"):
             Copy(source, destination, format=fmt, termination_code="$0D")
+
+
+@pytest.mark.parametrize("option", ["suppress_zero", "exponential"])
+@pytest.mark.parametrize("value", ["2", "5", "-1", ""])
+def test_text_options_are_zero_or_one(option: str, value: str) -> None:
+    with pytest.raises(FieldError, match=f"Copy.{option}: '{value}' is not allowed"):
+        Copy("DF1", "TXT1", format="text", **{option: value})
+
+
+@pytest.mark.parametrize(("source", "option"), [("DS1", "suppress_zero"), ("DF1", "exponential")])
+def test_text_options_keep_their_bytes(source: str, option: str) -> None:
+    for value in ("0", "1"):
+        copy = Copy(source, "TXT1", format="text", **{option: value})
+        assert parse_af_blob(copy.build_blob()) == copy
 
 
 @pytest.mark.parametrize(

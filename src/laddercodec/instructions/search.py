@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction
+from ..model import ADDRESS_BANKS, AfInstruction, FieldError
 from .copy import REGISTER_BANKS, check_operand
 from .family import AfInstructionFamilySpec
 
@@ -131,11 +131,17 @@ class Search(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
+        if self.comparison not in _OP_TO_FUNC:
+            raise FieldError(
+                f"Search.comparison: {self.comparison!r} is not allowed; it is one of "
+                f"{', '.join(_OP_TO_FUNC)}"
+            )
         # Whether Search takes a pointer waits on a dialog check, so one is still accepted.
         check_operand(self.table_start, "Search.table_start", TABLE_BANKS, pointer=True)
         check_operand(self.table_end, "Search.table_end", TABLE_BANKS, pointer=True)
         check_operand(self.result, "Search.result", RESULT_BANKS, pointer=True)
-        check_operand(self.found, "Search.found", pointer=True)
+        # The found flag's banks wait on a dialog check: any bank, XD0u and YD0u included.
+        check_operand(self.found, "Search.found", ADDRESS_BANKS, pointer=True)
         # The search value is a constant or a data register, never a bit (Help CL174).
         check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True, pointer=True)
 
