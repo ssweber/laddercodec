@@ -277,25 +277,53 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - Are a YD destination and an SD destination accepted?
   - Are TD, CTD and YD sources accepted?
   - Is TXT → DF refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** YD destinations and TD, CTD and YD sources are refused;
+    an SD destination is accepted from a word source, then checked against CLICK's
+    read-only SD list (OBJ-018, not applied: the writable-SD table is not extracted);
+    TXT → DF, TD, CTD and SD are refused. The pairs: bits → Y, C; DS, DD, DH, DF, SD →
+    DS, DD, DH, DF, TD, CTD, SD; TXT → DS, DD, DH, TXT.
 - Q-M2 Pack:
   - Is X001..X016 → DS accepted?
   - Are DH words → DF accepted?
   - Is TXT → SD accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** all three are refused. X, Y, T, CT and SC pack to DH
+    only; C to DS, DD, DH, DF; DS to DD, DF; DH to DD; TXT to DS, DD, DH, DF, TD, CTD.
 - Q-M2b Unpack: are DS5 → Y001..Y016 and DD → DF accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** both are refused. DS unpacks to C; DD and DF to C, DS,
+    DH; DH to Y, C.
 - Q-M3 Equal range ends: is Block DS1..DS1 refused? Pack and Unpack with start == end?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** all are refused (OBJ-012); an end before the start is
+    OBJ-009. Fill's destination range runs the same check.
 - Q-M4 Block DS1..DS4 → DD1: does CLICK compute the end as DD2 or DD4? And DD1..DD4 → DS1?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** by element count: DD4, and DS4.
 - Q-M5 Single Copy:
   - Is `"AB"` → DS1 refused?
   - Are 40000 → DS1, 3.5 → DS1, 5000000000 → DD1 and 100h → DH1 refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** `"AB"` → DS1 and 5000000000 → DD1 are refused;
+    40000 → DS1, 3.5 → DS1 and 100h → DH1 are accepted. A hex constant above FFFFh
+    copies to DD or CTD only (10000h → DH1 is refused).
 - Q-M6 Pointers: does Block Copy refuse `DS[DS1]`? Does Search accept a pointer?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** both refuse a pointer. The exact error id is not
+    settled (most likely OBJ-005).
 - Q-M7 Math: what is the longest formula, and what is the message? Today DS1..DS68 is
   accepted and DS69 is refused; the edit limit reads as 500 characters.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** 270 characters of CLICK's internal form of the
+    formula (OBJ-1008 "The Formula is too long"). DS1..DS68 summed is 269, DS1..DS69
+    is 273. Constants, function names and parentheses count; the 500-character edit
+    limit is a looser, separate cap.
 - Q-M8 Math: which of these are refused?
   - `SUM(X001:X008)`, `SUM(Y001:Y008)`, `SUM(T1:T3)`, `SUM(SC1:SC3)`
   - `SUM(CT1:CT3)`, `SUM(TD1:TD3)`, `MAX(TD1:TD3)`, `MAX(DS1:DS3)`
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** on a current CPU only `SUM(CT1:CT3)` is refused
+    (OBJ-1002); MAX, MIN and AVG refuse a bit range. An older CPU refuses SUM over any
+    bit bank and MAX, MIN, MDN, AVG, RAND and ABS outright (OBJ-1016); laddercodec
+    applies the current-CPU rule.
 - Q-M9 Math:
   - Is a hex result into DS1 or DD1 accepted?
   - Are 3000000000 (decimal), and 10000h and 1FFFFh (hex), refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** a hex result into DS1 or DD1 is refused: a decimal
+    Math stores to DS, DD, DF, TD, CTD or SD, a hex Math to DH or YD. 3000000000,
+    10000h and 1FFFFh are refused (OBJ-1009).
 - Q-M11 Copy pointer offset: is `DS[DS1+5]` (or `DS[DS1-5]`) refused in the Single Copy
   dialog? laddercodec now refuses it (Help CL238 shows no offset). pyrung's translator writes
   this form for a mapped block with an offset (`pyrung/src/pyrung/click/ladder/translator.py:725-728`).
@@ -306,6 +334,10 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - With a TXT range and source "A", are the order operators disabled?
   - Are DS10..DS1, DS1..DD5 and a one-register range refused?
   - Is DS1..DS10 > 40000 accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** the Result Flag is a C bit; the order operators are
+    hidden for a text value, leaving == and !=; DS10..DS1, DS1..DD5 and DS1..DS1 are
+    refused (OBJ-009, OBJ-008, OBJ-012).
+  - **ANSWERED 2026-11-11 (user, dialog):** `DS1..DS10 > 40000` is accepted.
 
 **comm**
 - Q-C1 Slave ID: are DD1 and C1 refused?

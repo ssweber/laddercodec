@@ -303,7 +303,9 @@ def _check_range(
         )
     if ordered and _position(last) <= _position(first):
         what = "is one address" if _position(last) == _position(first) else "runs backwards"
-        raise AddressError(f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start")
+        raise AddressError(
+            f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start"
+        )
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
             f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "

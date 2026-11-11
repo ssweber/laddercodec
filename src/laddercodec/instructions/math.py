@@ -346,8 +346,7 @@ def _check_constant(token: str, name: str) -> None:
     truncated = (value + 2**31) % 2**32 - 2**31
     if len(str(truncated)) != len(token):
         raise FieldError(
-            f"{name}: {token} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is "
-            "32-bit"
+            f"{name}: {token} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
         )
 
 

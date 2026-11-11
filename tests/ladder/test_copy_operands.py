@@ -123,7 +123,10 @@ _REFUSED = [
     # Block Copy ranges (Q-M3, OBJ-012/009) and the end CLICK computes (Q-M4)
     ("blockcopy(DS1..DS1,DS5..DS5)", r"DS1\.\.DS1 is one address"),
     ("blockcopy(DS4..DS1,DS5..DS8)", r"DS4\.\.DS1 runs backwards"),
-    ("blockcopy(DS1..DS4,DD1..DD2)", r"'DD2' is not where the copy ends; DS1\.\.DS4 fills DD1\.\.DD4"),
+    (
+        "blockcopy(DS1..DS4,DD1..DD2)",
+        r"'DD2' is not where the copy ends; DS1\.\.DS4 fills DD1\.\.DD4",
+    ),
     ("blockcopy(DD1..DD4,DS1..DS9)", r"DD1\.\.DD4 fills DS1\.\.DS4"),
     ("blockcopy(C1..C4,Y001..Y016)", r"C1\.\.C4 fills Y001\.\.Y004"),
     ("blockcopy(X001..X101,C1..C101)", "spans two X slots"),
