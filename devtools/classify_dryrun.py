@@ -151,9 +151,10 @@ def _digits_rule(low: int, high: int, strip: bool = False) -> Callable[[Any, str
 def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
     """Compare, against an operand of ``group``.
 
-    bits.md Q-B7, N5, N6: numeric pairs with an int32 integer or a float, hex with a 16-bit
-    hex constant (32-bit hex is OBJ-005 on either side), text with quoted text or ``$hh``.
-    arc.md Q-B7 rulings: text is 1 to 128 printable ASCII characters, no quote inside.
+    arc.md Q-B7 (DLL: Inst_Compare.dll, baseEx.dll): numeric pairs with an int32 integer or
+    a float, hex with a 16-bit hex constant (32-bit hex is OBJ-005 on either side), text
+    with quoted text or ``$hh``.  arc.md Q-B7 rulings: text is 1 to 128 printable ASCII
+    characters, no quote inside.
     """
     kinds = {"numeric": {"integer", "float"}, "hex": {"hex"}, "text": {"text", "char"}}[group]
 
@@ -169,7 +170,7 @@ def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Single Copy source into ``dest`` (move.md Q-M5; arc.md move field rules).
+    """Single Copy source into ``dest`` (arc.md Q-M5 and the move field rules).
 
     A number constant is an int32 integer, a float or hex; hex above FFFFh goes to DD or
     CTD only.  A text constant goes to TXT only.  A number into TXT has no DLL reading or
@@ -211,7 +212,7 @@ def fill_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Search value against a ``table`` range (move.md Q-M10; arc.md Q-M10 answers, ruling).
+    """Search value against a ``table`` range (arc.md Q-M10 answers and ruling).
 
     The value's kind picks the table banks: an int32 integer or a float searches DS, DD, DF,
     TD, CTD; 16-bit hex searches DH; text or ``$hh`` searches TXT.  32-bit hex is OBJ-005.
@@ -231,7 +232,7 @@ def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
-    """A constant in a Math formula (move.md Q-M9; arc.md Q-M9, Q-M13, Q-M13b).
+    """A constant in a Math formula (arc.md Q-M9, Q-M13, Q-M13b).
 
     Decimal: an integer whose int32 value prints back as typed (``007``, ``+1``, ``-0``
     refused), or a float; hex in a decimal Math waits on Q-M13.  Hex: hex of at most four
@@ -260,7 +261,7 @@ def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def counter_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Counter preset (data.md Q-D2; arc.md Q-D2 dialog check).
+    """Counter preset (arc.md Q-D2 answers).
 
     An int32 integer: digits with an optional leading ``-`` (no ``+``), under 13 characters.
     """
@@ -273,14 +274,14 @@ def counter_rule(ns: Any, value: str) -> tuple[str, str]:
 
 
 def termination_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Copy termination code: ``0`` (none) or a character code ``$hh`` (arc.md D1)."""
+    """Copy termination code: ``0`` (none) or a character code ``$hh`` (arc.md move field rules)."""
     if value == "0":
         return ACCEPT, "none"
     return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
 
 
 def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Remote hex start (comm.md Q-C7): hex in either case, 0h to FFFEh.
+    """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): hex in either case, 0h to FFFEh.
 
     The dialog upper-cases the text and wants ``H`` last; it counts no digits.  A MODBUS 984
     number is no constant and is skipped.
@@ -333,7 +334,7 @@ def _fields() -> list[Field]:
         "timed": dict(on_acc="TD18", on_preset="1000"),
     }
     for kind, base in out_variants.items():
-        # Q-B6: 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only (N3).
+        # Q-B6: 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only (DLL: Inst_Out.dll).
         floor = 0 if kind == "debounce" else 1
         make = _make("OutVariant", kind=kind, operand="C1", unit="Tms", **base)
         for phase in ("on", "off") if kind != "timed" else ("on",):
