@@ -122,17 +122,31 @@ class TestSearchEmptyText:
         return Search("DS1", "DS10", source, "DS20", "C20", "==")
 
     def test_empty_refused_through_constructor(self) -> None:
-        with pytest.raises(FieldError, match=r"^Search\.source: .* one character or \$hh"):
+        with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
             self._search('""')
 
     def test_empty_refused_through_read_csv(self, tmp_path: Path) -> None:
         af = 'search(DS1..DS10 == "",result=DS20,found=C20)'
-        with pytest.raises(FieldError, match=r"^Search\.source: .* one character or \$hh"):
+        with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
             read_csv(_write(tmp_path, "C1", af))
 
-    @pytest.mark.parametrize("source", ['"A"', "$00", "$41"])
-    def test_one_character_and_code_accepted(self, source: str) -> None:
+    @pytest.mark.parametrize("source", ['"A"', '"AB"', '"' + "x" * 128 + '"', "$00", "$41"])
+    def test_text_and_code_accepted(self, source: str) -> None:
         assert self._search(source).source == source
+
+    @pytest.mark.parametrize(
+        "source",
+        ['"' + "x" * 129 + '"', '"$41"', '"a"b"', '"é"'],
+        ids=["129-chars", "quoted-code", "inner-quote", "non-ascii"],
+    )
+    def test_refused_text(self, source: str) -> None:
+        with pytest.raises(FieldError, match=r"^Search\.source: "):
+            self._search(source)
+
+    def test_refused_text_through_read_csv(self, tmp_path: Path) -> None:
+        af = 'search(DS1..DS10 == "$41",result=DS20,found=C20)'
+        with pytest.raises(FieldError, match=r"^Search\.source: "):
+            read_csv(_write(tmp_path, "C1", af))
 
     def test_native_blob_with_empty_text_is_not_parsed(self) -> None:
         # decode() keeps a blob that parse_af_blob does not parse as a RawInstruction.

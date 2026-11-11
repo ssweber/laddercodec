@@ -110,6 +110,23 @@ _TEXT_CHARS = range(0x20, 0x7F)
 _TEXT_OPS = ("==", "!=")
 
 
+def check_quoted_text(value: str, name: str) -> None:
+    """Refuse a quoted text constant CLICK's dialog refuses; Compare and Search share it."""
+    # The text is stored as written, quotes included (text_compare.bin).
+    inner = value[1:-1]
+    if not 1 <= len(inner) <= _TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
+        raise FieldError(
+            f"{name}: {value!r} is refused; a text constant is 1 to {_TEXT_MAX} "
+            "printable ASCII characters in quotes (use $hh for a character by code)"
+        )
+    if _ASCII_CODE_CONSTANT_RE.fullmatch(inner):
+        raise FieldError(f"{name}: {value!r} is refused; write the character code as {inner}")
+    # A quote inside the text would end it in the CSV token (split_comparison), so the
+    # token could read back as a different compare; $22 spells the quote.
+    if '"' in inner:
+        raise FieldError(f"{name}: {value!r} holds a quote; write the quote character as $22")
+
+
 def _operand_group(value: str, name: str) -> str:
     """Return the Help 202 group of a compare operand; raise if it is neither a data
     register nor a constant CLICK's compare dialog accepts."""
@@ -128,19 +145,7 @@ def _operand_group(value: str, name: str) -> str:
     if _ASCII_CODE_CONSTANT_RE.fullmatch(value):
         return "text"
     if len(value) >= 2 and value[0] == value[-1] == '"':
-        # The text is stored as written, quotes included (text_compare.bin).
-        inner = value[1:-1]
-        if not 1 <= len(inner) <= _TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
-            raise FieldError(
-                f"{name}: {value!r} is refused; a text constant is 1 to {_TEXT_MAX} "
-                "printable ASCII characters in quotes (use $hh for a character by code)"
-            )
-        if _ASCII_CODE_CONSTANT_RE.fullmatch(inner):
-            raise FieldError(f"{name}: {value!r} is refused; write the character code as {inner}")
-        # A quote inside the text would end it in the CSV token (split_comparison), so the
-        # token could read back as a different compare; $22 spells the quote.
-        if '"' in inner:
-            raise FieldError(f"{name}: {value!r} holds a quote; write the quote character as $22")
+        check_quoted_text(value, name)
         return "text"
     bank = check_address(value, name, _DATA_BANKS).bank
     return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)
