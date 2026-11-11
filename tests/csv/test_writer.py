@@ -587,7 +587,7 @@ class TestGenericTallRoundTrip:
         af: object,
         visual_rows: int,
     ) -> None:
-        lead = Coil(InstructionType.COIL_OUT, "Y900")
+        lead = Coil(InstructionType.COIL_OUT, "Y801")
         rung = Rung(
             logical_rows=visual_rows + 1,
             conditions=[
@@ -602,7 +602,7 @@ class TestGenericTallRoundTrip:
 
         rows = decoded_rung_to_rows(rung)
         assert len(rows) == 2
-        assert [row[32] for row in rows] == ["out(Y900)", af.to_csv()]
+        assert [row[32] for row in rows] == ["out(Y801)", af.to_csv()]
 
         out_csv = tmp_path / f"later-tall-end-{type(af).__name__}.csv"
         write_csv(out_csv, [rung])
@@ -619,8 +619,8 @@ class TestGenericTallRoundTrip:
         af: object,
         visual_rows: int,
     ) -> None:
-        lead = Coil(InstructionType.COIL_OUT, "Y901")
-        tail = Coil(InstructionType.COIL_OUT, "Y902")
+        lead = Coil(InstructionType.COIL_OUT, "Y802")
+        tail = Coil(InstructionType.COIL_OUT, "Y803")
         rung = Rung(
             logical_rows=visual_rows + 2,
             conditions=[
@@ -636,7 +636,7 @@ class TestGenericTallRoundTrip:
 
         rows = decoded_rung_to_rows(rung)
         assert len(rows) == 3
-        assert [row[32] for row in rows] == ["out(Y901)", af.to_csv(), "out(Y902)"]
+        assert [row[32] for row in rows] == ["out(Y802)", af.to_csv(), "out(Y803)"]
 
         out_csv = tmp_path / f"later-tall-mid-{type(af).__name__}.csv"
         write_csv(out_csv, [rung])

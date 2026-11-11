@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, _validate_operand
+from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -74,6 +74,11 @@ class Coil(AfInstruction):
     immediate: bool = False
     oneshot: bool = False
 
+    def __post_init__(self) -> None:
+        check_address(self.operand, "Coil.operand")
+        if self.range_end is not None:
+            check_address(self.range_end, "Coil.range_end")
+
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:
         """Parse coil forms with inner immediate wrapper and ranges."""
@@ -126,19 +131,17 @@ class Coil(AfInstruction):
             parts = [p.strip() for p in arg.split("..")]
             if len(parts) != 2 or not all(parts):
                 raise ValueError(f"Cannot parse coil range: {token!r}")
-            op1 = _validate_operand(parts[0])
-            op2 = _validate_operand(parts[1])
             return cls(
                 type=coil_type,
-                operand=op1,
-                range_end=op2,
+                operand=parts[0],
+                range_end=parts[1],
                 immediate=immediate,
                 oneshot=oneshot,
             )
 
         return cls(
             type=coil_type,
-            operand=_validate_operand(arg),
+            operand=arg,
             immediate=immediate,
             oneshot=oneshot,
         )
@@ -214,13 +217,16 @@ def from_tags(
     if func_code is not None and func_code not in _FUNC_TO_COIL:
         return None
     range_end_val = tag_value(tags, 0x6067)
-    return Coil(
-        type=itype,
-        operand=operand,
-        range_end=range_end_val or None,
-        immediate=tag_flag(tags, 0x11F5),
-        oneshot=tag_flag(tags, 0x11F8),
-    )
+    try:
+        return Coil(
+            type=itype,
+            operand=operand,
+            range_end=range_end_val or None,
+            immediate=tag_flag(tags, 0x11F5),
+            oneshot=tag_flag(tags, 0x11F8),
+        )
+    except ValueError:  # an address CLICK refuses: keep the blob raw
+        return None
 
 
 def parse_af_call(call: AfCall) -> Coil:

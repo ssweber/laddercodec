@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
-from ..model import InstructionType, PinnedInstruction, _validate_operand
+from ..model import InstructionType, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -46,6 +46,10 @@ class Shift(PinnedInstruction):
     #: the data input push both down; legs under ``.clock()`` push ``.reset()``.
     pin_rows: tuple[int, int] = (1, 2)
 
+    def __post_init__(self) -> None:
+        check_address(self.start_bit, "Shift.start_bit")
+        check_address(self.end_bit, "Shift.end_bit")
+
     def pin_names(self) -> tuple[str, ...]:
         return (".clock", ".reset")
 
@@ -71,8 +75,8 @@ class Shift(PinnedInstruction):
             raise ValueError(f"Cannot parse shift range: {token!r}")
 
         return cls(
-            start_bit=_validate_operand(parts[0]),
-            end_bit=_validate_operand(parts[1]),
+            start_bit=parts[0],
+            end_bit=parts[1],
         )
 
     def to_csv(self) -> str:
@@ -122,7 +126,10 @@ def from_tags(
     end_bit = tag_value(tags, 0x6067)
     if not start_bit or not end_bit:
         return None
-    return Shift(start_bit=start_bit, end_bit=end_bit)
+    try:
+        return Shift(start_bit=start_bit, end_bit=end_bit)
+    except ValueError:  # an address CLICK refuses: keep the blob raw
+        return None
 
 
 # ---------------------------------------------------------------------------

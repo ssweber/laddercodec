@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import AfInstruction, InstructionType, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -48,7 +48,8 @@ def _validate_for_limit(value: str) -> str:
         raise ValueError("for() limit cannot be blank")
     if _FOR_LITERAL_RE.fullmatch(text):
         return text
-    return _validate_operand(text)
+    check_address(text, "ForLoop.limit")
+    return text
 
 
 @dataclass

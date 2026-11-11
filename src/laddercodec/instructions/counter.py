@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import InstructionType, PinnedInstruction, _validate_operand
+from ..model import InstructionType, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -64,6 +64,10 @@ class Counter(PinnedInstruction):
     #: on an input push the later inputs down.  count_down's main input is Down
     #: (row 1, under its unused Up), so legs under it push ``.reset()`` down.
     pin_rows: tuple[int, int] = (1, 2)
+
+    def __post_init__(self) -> None:
+        check_address(self.done_bit, "Counter.done_bit")
+        check_address(self.current, "Counter.current")
 
     @property
     def lead_rows(self) -> int:
@@ -117,8 +121,8 @@ class Counter(PinnedInstruction):
 
         return cls(
             counter_type=counter_type,
-            done_bit=_validate_operand(args[0]),
-            current=_validate_operand(args[1]),
+            done_bit=args[0],
+            current=args[1],
             preset=preset,
         )
 
@@ -209,14 +213,17 @@ def from_tags(
     if not all([done_bit, preset, current]) or variant is None:
         return None
     counter_type, down_enabled, reset_enabled = variant
-    return Counter(
-        counter_type=counter_type,
-        done_bit=done_bit,
-        current=current,
-        preset=preset,
-        down_enabled=down_enabled,
-        reset_enabled=reset_enabled,
-    )
+    try:
+        return Counter(
+            counter_type=counter_type,
+            done_bit=done_bit,
+            current=current,
+            preset=preset,
+            down_enabled=down_enabled,
+            reset_enabled=reset_enabled,
+        )
+    except ValueError:  # an address CLICK refuses: keep the blob raw
+        return None
 
 
 def parse_af_call(call: AfCall) -> Counter:

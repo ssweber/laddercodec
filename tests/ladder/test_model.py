@@ -44,7 +44,7 @@ class TestContact:
         assert c.immediate is True
 
     def test_from_csv_invalid_operand(self):
-        with pytest.raises(ValueError, match="Invalid operand"):
+        with pytest.raises(ValueError, match="Contact.operand: 'XABC' is not a CLICK address"):
             Contact.from_csv_token("XABC")
 
     def test_from_csv_token_rise(self):
@@ -181,7 +181,7 @@ class TestCoil:
             Coil.from_csv_token("out(Y1:Y2)")
 
     def test_from_csv_token_invalid_operand(self):
-        with pytest.raises(ValueError, match="Invalid operand"):
+        with pytest.raises(ValueError, match="Coil.operand: 'YABC' is not a CLICK address"):
             Coil.from_csv_token("out(YABC)")
 
     def test_to_csv(self):

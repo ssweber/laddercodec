@@ -1,8 +1,9 @@
 """Shared domain types for ladder instructions.
 
-Defines ``InstructionType`` enum, operand validation, and the
-``OPERAND_RE`` pattern.  These are the foundation types imported
-by every ``instructions/`` module — no reverse dependency.
+Defines ``InstructionType`` enum, the CLICK address check
+(:func:`check_address`) and the ``OPERAND_RE`` shape pattern.  These are
+the foundation types imported by every ``instructions/`` module — no
+reverse dependency.
 
 Instruction dataclasses (Contact, Coil, …) and their func-code
 tables live in :mod:`laddercodec.instructions`.
@@ -11,9 +12,10 @@ tables live in :mod:`laddercodec.instructions`.
 from __future__ import annotations
 
 import re
+from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -113,6 +115,8 @@ class InstructionType(IntEnum):
     SEND = 0x29  # 0x2729 (modbus send / write)
 
 
+#: Shape of an address token; the CSV token parser uses it to tell a contact from other
+#: condition tokens.  :func:`check_address` checks the bank and number.
 OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")
 
 
@@ -129,11 +133,89 @@ TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 }
 
 
-def _validate_operand(operand: str) -> str:
-    operand = operand.strip()
-    if not OPERAND_RE.fullmatch(operand):
-        raise ValueError(f"Invalid operand: {operand!r}")
-    return operand
+# ---------------------------------------------------------------------------
+# CLICK addresses
+# ---------------------------------------------------------------------------
+
+#: Number range of every CLICK address bank (CLICK v4.00 Help topic CL195, "Memory
+#: Addresses").  X and Y number by module (see :func:`check_address`); XD and YD also
+#: have ``XD0u``/``YD0u``, the upper word of slot 0.
+ADDRESS_BANKS: dict[str, tuple[int, int]] = {
+    "X": (1, 816),
+    "Y": (1, 816),
+    "C": (1, 2000),
+    "T": (1, 500),
+    "CT": (1, 250),
+    "SC": (1, 1000),
+    "DS": (1, 4500),
+    "DD": (1, 1000),
+    "DH": (1, 500),
+    "DF": (1, 500),
+    "XD": (0, 8),
+    "YD": (0, 8),
+    "TD": (1, 500),
+    "CTD": (1, 250),
+    "SD": (1, 1000),
+    "TXT": (1, 1000),
+}
+
+_MODULE_BANKS = frozenset({"X", "Y"})
+_WORD_IO_BANKS = frozenset({"XD", "YD"})
+_ADDRESS_RE = re.compile(r"([A-Z]{1,3})(\d{1,5})(u?)")
+
+
+class Address(NamedTuple):
+    """A parsed CLICK address: ``XD0u`` is ``Address("XD", 0, upper=True)``."""
+
+    bank: str
+    number: int
+    upper: bool = False
+
+
+def _bank_range_text(bank: str) -> str:
+    if bank in _MODULE_BANKS:
+        return f"{bank}001-{bank}816 (module 0-8, point 01-16)"
+    if bank in _WORD_IO_BANKS:
+        return f"{bank}0, {bank}0u, {bank}1-{bank}8"
+    lo, hi = ADDRESS_BANKS[bank]
+    return f"{bank}{lo}-{bank}{hi}"
+
+
+def _in_range(bank: str, number: int, upper: bool) -> bool:
+    if upper:
+        return bank in _WORD_IO_BANKS and number == 0
+    lo, hi = ADDRESS_BANKS[bank]
+    if not lo <= number <= hi:
+        return False
+    if bank in _MODULE_BANKS:
+        return 1 <= number % 100 <= 16
+    return True
+
+
+def check_address(value: str, name: str, banks: Collection[str] | None = None) -> Address:
+    """Parse a CLICK address; raise ``ValueError`` naming field ``name`` if CLICK refuses it.
+
+    The bank must be one of :data:`ADDRESS_BANKS` (and in ``banks`` when given), and the
+    number inside the bank's range.  X and Y number by module: the hundreds digit is the
+    module (0-8) and the last two digits the point (01-16), so ``X001``-``X016``,
+    ``X101``-``X116`` and so on.  Leading zeros are allowed (``X001`` and ``X1`` are the
+    same point); the caller keeps the text as written.
+    """
+    match = _ADDRESS_RE.fullmatch(value)
+    if match is None:
+        raise ValueError(f"{name}: {value!r} is not a CLICK address")
+    bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
+    if bank not in ADDRESS_BANKS:
+        raise ValueError(
+            f"{name}: {value!r} has no CLICK bank {bank!r}; banks are {', '.join(ADDRESS_BANKS)}"
+        )
+    if banks is not None and bank not in banks:
+        allowed = ", ".join(b for b in ADDRESS_BANKS if b in banks)
+        raise ValueError(f"{name}: {value!r} is not allowed; {name} takes {allowed}")
+    number = int(digits)
+    if not _in_range(bank, number, upper):
+        raise ValueError(f"{name}: {value!r} is outside {_bank_range_text(bank)}")
+    return Address(bank, number, upper)
 
 
 # ---------------------------------------------------------------------------

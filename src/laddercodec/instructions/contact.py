@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, _validate_operand
+from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, check_address
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -65,6 +65,9 @@ class Contact(ConditionInstruction):
     edge_kind: Literal["rise", "fall"] | None = None
     wire_down: bool = False
 
+    def __post_init__(self) -> None:
+        check_address(self.operand, "Contact.operand")
+
     @classmethod
     def from_csv_token(cls, token: str) -> Contact:
         """Parse NO/NC/immediate forms plus edge forms `rise(...)`/`fall(...)`.
@@ -101,7 +104,7 @@ class Contact(ConditionInstruction):
             if immediate:
                 raise ValueError("Immediate edge contacts are unsupported")
             edge_kind = cast(Literal["rise", "fall"], edge_match.group(1))
-            operand = _validate_operand(edge_match.group(2).strip())
+            operand = edge_match.group(2).strip()
             return cls(
                 InstructionType.CONTACT_EDGE,
                 operand,
@@ -113,7 +116,7 @@ class Contact(ConditionInstruction):
         itype = InstructionType.CONTACT_NC if negated else InstructionType.CONTACT_NO
         return cls(
             itype,
-            _validate_operand(token),
+            token.strip(),
             immediate=immediate,
             wire_down=wire_down,
         )
@@ -180,6 +183,13 @@ def from_tags(
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Contact | None:
     """Construct a Contact from tag data (shared by both decoders)."""
+    try:
+        return _contact_from_tags(class_name, type_code, tags)
+    except ValueError:  # an address CLICK refuses: keep the blob unparsed
+        return None
+
+
+def _contact_from_tags(class_name: str, type_code: int, tags: dict[int, str]) -> Contact | None:
     itype = TYPE_CODE_TO_ITYPE.get(type_code)
 
     if class_name == "ContactNO" and itype in (

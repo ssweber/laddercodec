@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, _validate_operand
+from ..model import AfInstruction, check_address
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -102,6 +102,13 @@ class OutVariant(AfInstruction):
     immediate: bool = False  # toggle only
     maintained: bool = False  # timed only
 
+    def __post_init__(self) -> None:
+        check_address(self.operand, "OutVariant.operand")
+        if self.kind != "toggle":
+            check_address(self.on_acc, "OutVariant.on_acc")
+        if self.kind in _TWO_PHASE:
+            check_address(self.off_acc, "OutVariant.off_acc")
+
     @classmethod
     def from_csv_token(cls, token: str) -> OutVariant:
         """Parse ``toggle(...)``, ``debounce(...)``, ``flasher(...)`` or ``timed(...)``."""
@@ -127,8 +134,8 @@ class OutVariant(AfInstruction):
                 raise ValueError(f"toggle takes no keyword arguments: {token!r}")
             inner = re.fullmatch(r"immediate\((.+)\)", arg)
             if inner:
-                return cls(kind="toggle", operand=_validate_operand(inner.group(1)), immediate=True)
-            return cls(kind="toggle", operand=_validate_operand(arg))
+                return cls(kind="toggle", operand=inner.group(1).strip(), immediate=True)
+            return cls(kind="toggle", operand=arg)
 
         required = {"on_acc", "on_preset", "unit"}
         allowed = set(required)
@@ -149,10 +156,10 @@ class OutVariant(AfInstruction):
 
         variant = cls(
             kind=kind,
-            operand=_validate_operand(arg),
-            on_acc=_validate_operand(kwargs["on_acc"]),
+            operand=arg,
+            on_acc=kwargs["on_acc"],
             on_preset=kwargs["on_preset"],
-            off_acc=_validate_operand(kwargs["off_acc"]) if kind in _TWO_PHASE else "",
+            off_acc=kwargs["off_acc"] if kind in _TWO_PHASE else "",
             off_preset=kwargs.get("off_preset", ""),
             unit=kwargs["unit"],
             maintained=maintained_raw == "1",
@@ -236,21 +243,24 @@ def from_tags(
     if variant is None or not operand:
         return None
     kind, unit, flag = variant
-    if kind == "toggle":
-        return OutVariant(kind="toggle", operand=operand, immediate=flag)
-    if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
+    if kind != "toggle" and TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
     two_phase = kind in _TWO_PHASE
-    return OutVariant(
-        kind=kind,
-        operand=operand,
-        on_acc=tag_value(tags, 0x60B4),
-        on_preset=tag_value(tags, 0x60B3),
-        off_acc=tag_value(tags, 0x60B6) if two_phase else "",
-        off_preset=tag_value(tags, 0x60B5) if two_phase else "",
-        unit=unit,
-        maintained=flag,
-    )
+    try:
+        if kind == "toggle":
+            return OutVariant(kind="toggle", operand=operand, immediate=flag)
+        return OutVariant(
+            kind=kind,
+            operand=operand,
+            on_acc=tag_value(tags, 0x60B4),
+            on_preset=tag_value(tags, 0x60B3),
+            off_acc=tag_value(tags, 0x60B6) if two_phase else "",
+            off_preset=tag_value(tags, 0x60B5) if two_phase else "",
+            unit=unit,
+            maintained=flag,
+        )
+    except ValueError:  # an address CLICK refuses: keep the blob raw
+        return None
 
 
 def parse_af_call(call: AfCall) -> OutVariant:
