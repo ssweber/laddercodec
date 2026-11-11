@@ -81,7 +81,8 @@ that tree.
 `laddercodec.operands.constants.classify()`, which no field uses yet. For each field that takes
 a constant it tries a fixed value list two ways: building the instruction (today), and
 `classify()` plus that field's documented kinds and limits (each rule cites its arc.md
-question). It prints every disagreement and the totals per family, and changes nothing:
+question, or the DLL reading it rests on). It prints every disagreement and the totals per
+family, and changes nothing:
 
 ```bash
 uv run python -I devtools/classify_dryrun.py src

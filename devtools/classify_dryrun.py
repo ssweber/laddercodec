@@ -13,9 +13,9 @@ For every field that takes a constant, each value of a fixed list is tried two w
 
 Every disagreement is printed: field, value, today's verdict, the classifier's verdict.
 ``DIFFERS?`` marks one whose classifier verdict rests on a DLL reading with no dialog
-check; it is counted apart from the others.  The script changes nothing; a disagreement is a finding for the step that wires the
-classifier into that field.  ``<src_dir>`` (default ``src``) is the laddercodec source
-tree under test.
+check; it is counted apart from the others.  The script changes nothing; a disagreement
+is a finding for the step that wires the classifier into that field.  ``<src_dir>``
+(default ``src``) is the laddercodec source tree under test.
 """
 
 from __future__ import annotations
@@ -250,6 +250,15 @@ def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
     return rule
 
 
+def _math_length(value: str, body: str) -> tuple[str, str]:
+    # Q-M9: the low 32 bits, printed signed, must match the typed token's length.
+    low = int(value[: len(value) - len(body)] + (body.lstrip("0") or "0")) & 0xFFFFFFFF
+    printed = str(low - (1 << 32) if low >> 31 else low)
+    if len(printed) != len(value):
+        return REFUSE, f"no constant; Math's length test (Q-M9) reads {printed}"
+    return OPEN, f"no constant; Math's length test (Q-M9) passes it as {printed}"
+
+
 #: A Math value that is not one constant token is formula syntax, outside the codec.
 SYNTAX = "formula syntax"
 _HEX_TOKEN = re.compile(r"[0-9A-F]+H")
@@ -263,8 +272,11 @@ def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
     integer whose int32 value prints back as typed (``007``, ``-0`` refused), or a float;
     hex in a decimal Math waits on Q-M13.  Hex: unsigned hex of at most four digits and
     FFFFh; a decimal number in a hex Math waits on Q-M13b, and a sign on hex is open.  No
-    reading covers text or ``$hh`` in a formula: open.  Math reads its constants with its own check, not the shared one, so ``6000000000``
-    (accepted by Math's 32-bit length test) is a known gap of this rule.
+    reading covers text or ``$hh`` in a formula: open.  Math reads its constants with its
+    own check, not the shared one (Q-M9): it refuses an integer whose low 32 bits, printed
+    signed, differ in length from the typed token.  Digits that :func:`classify` can't
+    read and that pass that test (``6000000000``) are open; those it fails (``3000000000``)
+    are refused.
     """
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
@@ -285,7 +297,7 @@ def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
             if mode == "hex":
                 return OPEN, f"decimal {_describe(const)}"
             if const is None:
-                return REFUSE, "no constant"
+                return _math_length(value, body)
             return (ACCEPT if str(const.value) == value else REFUSE), _describe(const)
         const = ns.c.classify(value)
         if const is None:
@@ -318,25 +330,29 @@ def termination_rule(ns: Any, value: str) -> tuple[str, str]:
     return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
 
 
-_HEX_SPAN = frozenset("0123456789ABCDEF")
+_HEX_SPAN = frozenset("0123456789ABCDEFH")
 
 
 def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
     """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): 0h to FFFEh.
 
     The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
-    last and every other character a hex digit, and counts no digits.  An uppercase ``H``
-    stays open: laddercodec keeps refusing it until a capture shows the stored text (Q-C7).
-    A MODBUS 984 number is no constant and is skipped.
+    last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes
+    the span with no digit before the last ``H`` or another ``H`` among them (``H``,
+    ``1HH``) is open: which value the dialog reads from it is not known.  An uppercase
+    ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text
+    (Q-C7).  A MODBUS 984 number is no constant and is skipped.
     """
     if ns.c.parse_digits(value) is not None:
         return ADDRESS, "984 number"
     upper = value.upper()
     digits = upper[:-1]
-    if not upper.endswith("H") or not digits or not _HEX_SPAN.issuperset(digits):
+    if not upper.endswith("H") or not _HEX_SPAN.issuperset(upper):
         if ns.is_address(value):
             return ADDRESS, "address"
         return REFUSE, "not hex"
+    if not digits or "H" in digits:
+        return OPEN, "passes the span; the value read is not known"
     number = int(digits.lstrip("0") or "0", 16)
     why = f"hex {number:#x}"
     if number > 0xFFFE:
@@ -387,7 +403,8 @@ def _fields() -> list[Field]:
         "timed": dict(on_acc="TD18", on_preset="1000"),
     }
     for kind, base in out_variants.items():
-        # Q-B6: 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only (DLL: Inst_Out.dll).
+        # Q-B6: 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only
+        # (DLL: Inst_Out.dll).
         floor = 0 if kind == "debounce" else 1
         make = _make("OutVariant", kind=kind, operand="C1", unit="Tms", **base)
         for phase in ("on", "off") if kind != "timed" else ("on",):
