@@ -95,7 +95,9 @@ moved), so N branches would cost N full gates in series. Instead:
    train, resubmit only the stages that did not run (`--stages <rest>`) on the same base,
    rather than the whole preset.
 3. Green: `M land --id train<N>` (fast-forwards the base to `refs/mergeq/train<N>`, the exact
-   tested merge). Tell the user what landed. Then `M worktree rm <name>` for each landed branch.
+   tested merge). `land` refuses while the main checkout has tracked changes, so stash your
+   own uncommitted edits (skill, profile) around it: `git stash push -- <paths>`, land, then
+   `git stash pop`. Tell the user what landed. Then `M worktree rm <name>` for each landed branch.
 4. Red (Zuul's rule): name the branch the failing tests point to, drop it from the train, send
    it back to its builder, and re-form the train from the rest. Can't attribute it: split the
    train in halves and gate each. The same branch failing two fix rounds goes to the user.

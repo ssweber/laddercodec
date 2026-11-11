@@ -46,8 +46,11 @@ None yet. Every gate stage is light (the whole suite takes about 20 s), so train
   `decode_program.py`, or anything that moves a byte; Sonnet for one instruction family's
   validation, tests-only or docs-only.
 - Reviewers: Opus for framing and byte-layout diffs; Sonnet for a single family, tests, docs.
-- Cataloguing from CLICK's files (help pages, ini, DLL strings): `bob-investigator` or a
-  builder writing only into the arc doc; Sonnet unless the DLL needs disassembly.
+- Cataloguing from CLICK's files (help pages, ini): `bob-investigator`, Sonnet. It cannot
+  write outside $TEMP or run Python, so it returns its report as its final message and BOB
+  saves it under `jobs/<id>/`. Anything that needs a DLL read (string tables, disassembly via
+  `scratchpad/click-v4/*.py`) goes to `bob-reviewer` (bounded scripts under $TEMP) or a
+  builder in a scratch worktree, not to an investigator.
 
 ## Machine budget
 
