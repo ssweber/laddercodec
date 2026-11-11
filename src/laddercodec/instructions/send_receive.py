@@ -837,9 +837,7 @@ class Receive(AfInstruction):
     function_code: int | None = None
 
     def __post_init__(self) -> None:
-        _normalize_operands(
-            self, ("dest", "receiving", "success", "error", "exception_response")
-        )
+        _normalize_operands(self, ("dest", "receiving", "success", "error", "exception_response"))
         fc, default_fc = _validate_receive(self)
         self.function_code = None if fc == default_fc else fc
 

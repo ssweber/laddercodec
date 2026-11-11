@@ -650,7 +650,7 @@ def parse_af_call(call: AfCall) -> Drum:
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_EVENT_FC_BASE:
             raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
-        accumulator = call.kwargs.get("accumulator", "")
+        accumulator = normalize_address(call.kwargs.get("accumulator", ""))
         _timer_done_bit(accumulator)
         return Drum(
             drum_kind="time_event",
