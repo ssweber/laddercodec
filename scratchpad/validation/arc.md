@@ -414,20 +414,21 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** the Result Flag is a C bit; the
     order operators are hidden for a text constant, leaving == and !=; DS10..DS1, DS1..DD5
     and DS1..DS1 are refused (OBJ-009, OBJ-008, OBJ-012).
-  - **ANSWERED 2026-11-11 (DLL, verifier):** a TXT register value reaches the same text
-    test as a text constant (Inst_Search), so the
-    order operators are hidden for it too. A hex value is 32-bit, and refused (OBJ-005), only above FFFFh: baseEx decides by value, so `0FFFFh` is accepted.
+  - **ANSWERED 2026-11-11 (DLL, verifier):** a TXT register value reaches the same text test
+    as a text constant (Inst_Search), so the order operators are hidden for it too. A hex
+    value is 32-bit, and refused (OBJ-005), only above FFFFh: baseEx decides by value, so
+    `0FFFFh` is accepted.
   - **ANSWERED 2026-11-11 (user, dialog):** `DS1..DS10 > 40000` is accepted.
   - **Ruling 2026-11-11 (user, then orchestrator):** a Search text value follows the Compare
     rule: a quoted text of 1 to 128 printable ASCII characters, or `$hh` unquoted. `""`, an
-    inner `"` (spell `$22`), a quoted `"$hh"` (write `$41`), over 128 characters and non-ASCII
-    raise `FieldError` naming `Search.source`; a native blob holding one decodes as raw. The
-    empty-text refusal is the user's; the rest applies the Compare ruling (Q-B7) to Search as
-    an orchestrator ruling. DLL: Inst_Search value field runs baseEx CheckInputData, mask
-    0x6fff, as Compare does; a 0x82 text limit (EM_LIMITTEXT) in the Inst_Search value field and a length
-    check in baseEx; `""` gives OBJ-005 at Inst_Search. Hardware: CLICK matches
-    multi-character text as a window over consecutive TXT registers (pyrung case
-    search/text_windows).
+    inner `"` (spell `$22`), a quoted `"$hh"` (write `$41`), over 128 characters and
+    non-ASCII raise `FieldError` naming `Search.source`; a native blob holding one decodes as
+    raw. The empty-text refusal is the user's; the rest applies the Compare ruling (Q-B7) to
+    Search as an orchestrator ruling. DLL: Inst_Search value field runs baseEx
+    CheckInputData, mask 0x6fff, as Compare does; a 0x82 text limit (EM_LIMITTEXT) in the
+    Inst_Search value field and a length check in baseEx; `""` gives OBJ-005 at Inst_Search.
+    Hardware: CLICK matches multi-character text as a window over consecutive TXT registers
+    (pyrung case search/text_windows).
   - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
@@ -492,13 +493,15 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     into Y uses the slot run in every mode (Y001 gives 32, not 160), capped by a remote C, T,
     CT or SC bank and by a MODBUS 984 coil start (65536 minus the start). A C count to or
     from a CLICK X/Y address stays in that address's slot run, and a C count to or from a
-    CLICK C, T, CT or SC address stays in that bank (the Inst_RD.dll and Inst_SD.dll local C cases). laddercodec now checks all of these.
+    CLICK C, T, CT or SC address stays in that bank (the Inst_RD.dll and Inst_SD.dll local C
+    cases). laddercodec now checks all of these.
   - **NEEDS DIALOG:** a Receive into Y101 or later from a CLICK C, T, CT or SC address. The
     remote C case (Inst_RD.dll) skips its slot formula from Y101 on, so its room is the C
     room capped by the higher of the two start numbers. laddercodec applies only the C room
-    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases (Inst_RD.dll) give a room of 0 from Y101 on, so CLICK seems to
-    refuse every count. laddercodec uses the slot run there (Y101 from T1 gives 16). Check
-    in the dialog: Y101 from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
+    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases
+    (Inst_RD.dll) give a room of 0 from Y101 on, so CLICK seems to refuse every count.
+    laddercodec uses the slot run there (Y101 from T1 gives 16). Check in the dialog: Y101
+    from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps

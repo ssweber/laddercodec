@@ -17,6 +17,9 @@ ADDRESS = re.compile(
     r"(?<![0-9A-Za-z_.])(?:0x)?100[0-9A-Fa-f]{5}(?![0-9A-Za-z_])|@[0-9A-Fa-f]{8}\b"
 )
 
+# A long hex value on a line that names CLICK.exe or an image base is an exe location.
+EXE_ADDRESS = re.compile(r"(?i)(?=.*(?:CLICK\.exe|image base)).*\b0x[0-9A-Fa-f]{5,}\b")
+
 # path -> reason.  Keep empty.
 ALLOWED: dict[str, str] = {}
 
@@ -36,6 +39,14 @@ def test_pattern_matches_the_forms_in_use() -> None:
         assert not ADDRESS.search(text), text
 
 
+def test_exe_pattern_needs_the_exe_and_a_long_value() -> None:
+    value = "0x5A" + "7B9B"
+    assert EXE_ADDRESS.search(f"`CLICK.exe` writer at {value}")
+    assert EXE_ADDRESS.search(f"image base {value}")
+    assert not EXE_ADDRESS.search("`CLICK.exe` command IDs 0x8036/0x802D")
+    assert not EXE_ADDRESS.search(f"offset {value} in a cell")
+
+
 def test_no_dll_addresses_in_tracked_files() -> None:
     hits = []
     for rel in _tracked_files():
@@ -46,6 +57,6 @@ def test_no_dll_addresses_in_tracked_files() -> None:
         except (UnicodeDecodeError, OSError):
             continue
         for number, line in enumerate(text.splitlines(), 1):
-            if ADDRESS.search(line):
+            if ADDRESS.search(line) or EXE_ADDRESS.search(line):
                 hits.append(f"{rel}:{number}: {line.strip()[:100]}")
     assert not hits, "DLL addresses in committed files:\n" + "\n".join(hits)
