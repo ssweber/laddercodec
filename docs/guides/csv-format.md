@@ -504,10 +504,10 @@ currently emit:
     addresses (`C1` and `C001` are the same bit).
 - `for(count)`: a `DS`, `DD`, `TD`, `CTD` or `SD` address, or digits only from `0` to
   `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are refused.
-- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows: not
-  blank, at most 24 characters, none of `\ / : * ? " < > |`, and the part before the
-  last dot is not a Windows device name (`CON`, `NUL`, `COM1`, ...). A `Project`
-  also refuses two subroutine names that differ only in case.
+- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows. With
+  outer spaces trimmed, the name is not blank, has at most 24 characters and none of
+  `\ / : * ? " < > |`, and the part before its last dot is not a Windows device name
+  (`CON`, `NUL`, `COM1`, ...).
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.

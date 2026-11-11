@@ -33,7 +33,7 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-#: Inst_For.dll OnOK (Q-F1, jobs/dllqa/data.md): a constant count is digits only (0 is
+#: Inst_For.dll OnOK (Q-F1): a constant count is digits only (0 is
 #: allowed, a sign is not) up to 2147483647, else OBJ-005; a register count is DS, DD, TD,
 #: CTD or SD (validator mask 0x70c0), else OBJ-004.
 _FOR_LITERAL_RE = re.compile(r"[0-9]+")

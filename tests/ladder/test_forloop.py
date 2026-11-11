@@ -7,15 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import (
-    AddressError,
-    FieldError,
-    Program,
-    Project,
-    decode,
-    decode_program,
-    read_csv,
-)
+from laddercodec import AddressError, FieldError, decode, decode_program, read_csv
 from laddercodec.binary_helpers import _build_blob
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
@@ -165,7 +157,7 @@ def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
 
 
 class TestForCount:
-    """Q-F1: Inst_For.dll OnOK (jobs/dllqa/data.md) and the user's dialog checks."""
+    """Q-F1: Inst_For.dll OnOK and the user's dialog checks."""
 
     @pytest.mark.parametrize("limit", ["0", "1", "2147483647", "DS1", "DD1", "TD1", "CTD1", "SD1"])
     def test_accepted(self, tmp_path: Path, limit: str) -> None:
@@ -231,7 +223,7 @@ class TestForCount:
 
 
 class TestSubroutineNames:
-    """Q-F2: CLICK.exe's Add New Subroutine dialog (jobs/dllqa/data.md) and user checks."""
+    """Q-F2: CLICK.exe's Add New Subroutine dialog and the user's dialog checks."""
 
     @pytest.mark.parametrize(
         "name",
@@ -290,13 +282,22 @@ class TestSubroutineNames:
         assert isinstance(af, RawInstruction)
         assert af.class_name == "Call"
 
-    def test_project_refuses_case_only_duplicate(self) -> None:
-        main = Program(name="Main", prog_idx=0)
-        Project(main=main, subroutines=[Program("Init", 1), Program("main", 2)])
-        with pytest.raises(FieldError, match=r"^Project.subroutines\[1\].name: 'INIT' .*GUI-036"):
-            Project(main=main, subroutines=[Program("Init", 1), Program("INIT", 2)])
+    def test_refused_name_decodes_as_raw_scr(self) -> None:
+        # coverage.scr: call("coverage_sub"), stored as a length byte, the text and one NUL.
+        old = bytes([25]) + "coverage_sub".encode("utf-16-le") + b"\x00"
+        new = bytes([25]) + "coverage:sub".encode("utf-16-le") + b"\x00"
+        data = (_SCR_DIR / "coverage.scr").read_bytes()
+        assert data.count(old) == 1
+        rungs = decode_program(data.replace(old, new)).rungs
+        raws = [a for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
+        assert [a.class_name for a in raws] == ["Call"]
 
-    def test_project_checks_each_name(self) -> None:
-        main = Program(name="Main", prog_idx=0)
-        with pytest.raises(FieldError, match=r"^Project.subroutines\[0\].name: 'a/b'"):
-            Project(main=main, subroutines=[Program("a/b", 1)])
+    # CLICK trims the name before it checks it (Q-F2), so the checks see the trimmed text.
+    @pytest.mark.parametrize("name", [" " + "x" * 24, "x" * 24 + " ", " a "])
+    def test_checks_run_on_the_trimmed_name(self, name: str) -> None:
+        assert Call(subroutine=name).subroutine == name
+
+    @pytest.mark.parametrize("name", ["CON ", " con", " CON.x "])
+    def test_device_name_with_outer_spaces_refused(self, name: str) -> None:
+        with pytest.raises(FieldError, match="(?i)Windows device name 'con'"):
+            Call(subroutine=name)

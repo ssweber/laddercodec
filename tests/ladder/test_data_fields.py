@@ -248,7 +248,7 @@ class TestRefusedBlobsDecodeAsRaw:
 
 
 # ---------------------------------------------------------------------------
-# Rules from CLICK v4.00's dialog code (jobs/dllqa/data.md, Q-D1..Q-D5: the
+# Rules from CLICK v4.00's dialog code (Q-D1..Q-D5: the
 # Inst_*.dll OnOK checks and their OBJ ids) and the user's dialog checks of
 # 2026-11-11 (address normalization).
 # ---------------------------------------------------------------------------

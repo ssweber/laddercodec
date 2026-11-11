@@ -376,9 +376,9 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     digit are accepted. The checks live in CLICK.exe; Add Interrupt has the same ones.
   - **ANSWERED 2026-11-11 (user, dialog):** `main` and `.` are accepted. An empty or
     all-space name is refused.
-  - laddercodec: `Call.subroutine` takes the name rules; `Project` also refuses a
-    case-only duplicate among its subroutines. The 986-subroutine Call list limit is a
-    project rule.
+  - laddercodec: `Call.subroutine` takes the name rules, checked on the trimmed name.
+    The case-only duplicate (GUI-036) is a cross-program rule and is not checked (BOB
+    ruling); the 986-subroutine Call list limit is a project rule.
 
 **Captures wanted (one-time, when convenient)**
 - Native Home, Velocity and Position, one per mode, with distinct values in every field.

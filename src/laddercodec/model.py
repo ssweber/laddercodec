@@ -257,7 +257,7 @@ def check_address(value: str, name: str, banks: Collection[str] | None = None) -
 
 
 #: Longest subroutine or interrupt name: CLICK.exe's Add Subroutine edit takes 24
-#: characters (EM_LIMITTEXT 0x18; Q-F2, jobs/dllqa/data.md).
+#: characters (EM_LIMITTEXT 0x18; Q-F2).
 PROGRAM_NAME_MAX = 24
 
 #: Characters a program name may not hold (CLICK.exe, GUI-040 "Invalid Program Name").
@@ -275,25 +275,27 @@ _DEVICE_NAMES = frozenset(
 def check_program_name(name: str, field_name: str) -> None:
     """Raise :class:`FieldError` naming ``field_name`` if CLICK refuses ``name`` for a subroutine.
 
-    Follows CLICK's Add New Subroutine dialog (Q-F2): not blank after trimming (user
-    dialog check 2026-11-11), at most :data:`PROGRAM_NAME_MAX` characters, none of
-    ``\\ / : * ? " < > |``, and the part before the last dot is not a Windows device
-    name (GUI-040).  ``Main``, ``.``, spaces, ``-`` and a leading digit are accepted.
+    Follows CLICK's Add New Subroutine dialog (Q-F2), which trims the name first and
+    then checks it: not blank (user dialog check 2026-11-11), at most
+    :data:`PROGRAM_NAME_MAX` characters, none of ``\\ / : * ? " < > |``, and the part
+    before the last dot is not a Windows device name (GUI-040).  ``Main``, ``.``,
+    inner spaces, ``-`` and a leading digit are accepted.
     """
-    if not name.strip():
+    text = name.strip()
+    if not text:
         raise FieldError(f"{field_name}: {name!r} is blank; a subroutine needs a name")
-    if len(name) > PROGRAM_NAME_MAX:
+    if len(text) > PROGRAM_NAME_MAX:
         raise FieldError(
-            f"{field_name}: {name!r} is {len(name)} characters; a subroutine name is at "
+            f"{field_name}: {name!r} is {len(text)} characters; a subroutine name is at "
             f"most {PROGRAM_NAME_MAX}"
         )
-    bad = sorted({ch for ch in name if ch in _PROGRAM_NAME_FORBIDDEN})
+    bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
     if bad:
         raise FieldError(
             f"{field_name}: {name!r} holds {' '.join(bad)}; a subroutine name may not hold "
             f"any of {' '.join(_PROGRAM_NAME_FORBIDDEN)} (GUI-040)"
         )
-    base = name.rsplit(".", 1)[0] if "." in name else name
+    base = text.rsplit(".", 1)[0] if "." in text else text
     if base.upper() in _DEVICE_NAMES:
         raise FieldError(
             f"{field_name}: {name!r} uses the Windows device name {base!r}; CLICK refuses "
@@ -316,17 +318,3 @@ class Project:
 
     main: Program
     subroutines: list[Program] = field(default_factory=list)
-
-    def __post_init__(self) -> None:
-        # CLICK's Add New Subroutine dialog: name rules (check_program_name), and a
-        # name that matches another subroutine's, ignoring case, is GUI-036 (Q-F2).
-        seen: dict[str, str] = {}
-        for i, program in enumerate(self.subroutines):
-            check_program_name(program.name, f"Project.subroutines[{i}].name")
-            key = program.name.casefold()
-            if key in seen:
-                raise FieldError(
-                    f"Project.subroutines[{i}].name: {program.name!r} matches subroutine "
-                    f"{seen[key]!r}; names must differ by more than case (GUI-036)"
-                )
-            seen[key] = program.name

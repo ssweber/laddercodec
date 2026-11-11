@@ -51,7 +51,7 @@ class Shift(PinnedInstruction):
 
     def __post_init__(self) -> None:
         # Inst_ShiftRegister.dll OnOK: both ends are C (validator mask 4); another bank,
-        # or an end in another bank than the start, is OBJ-004 (Q-D3, jobs/dllqa/data.md).
+        # or an end in another bank than the start, is OBJ-004 (Q-D3).
         start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)
         end = check_address(self.end_bit, "Shift.end_bit", banks=SHIFT_BANKS)
         # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an

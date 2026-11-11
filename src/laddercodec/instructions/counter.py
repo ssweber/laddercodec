@@ -45,7 +45,7 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 
 #: A constant set point is a 32-bit signed integer written in under 13 characters.
 #: Inst_Counter.dll OnOK: span check, ``value + 0x80000000`` fits 32 bits, and text length
-#: below 13, each else OBJ-005 (Q-D2, jobs/dllqa/data.md).  A '-' only leads: ``1-2`` is
+#: below 13, each else OBJ-005 (Q-D2).  A '-' only leads: ``1-2`` is
 #: refused (Q-D2, user dialog check 2026-11-11).
 _INTEGER_RE = re.compile(r"-?[0-9]+")
 COUNTER_MIN_PRESET = -(2**31)

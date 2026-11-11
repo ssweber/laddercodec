@@ -40,7 +40,7 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 
 #: A constant set point is digits only (no sign), 0 to 32767, for every unit.
 #: Inst_Timer.dll OnOK: digits-only span check, then ``value > 0x7fff`` -> OBJ-005;
-#: the unit is not read on this path (Q-D1, jobs/dllqa/data.md).
+#: the unit is not read on this path (Q-D1).
 _DIGITS_RE = re.compile(r"[0-9]+")
 TIMER_MAX_SETPOINT = 32767
 

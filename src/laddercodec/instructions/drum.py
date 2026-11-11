@@ -159,7 +159,7 @@ def _constant_preset_mask(presets: list[str]) -> str:
 
 
 #: Banks an event step reads: Inst_Drum.dll event validator mask 0x3f, else OBJ-004
-#: (Q-D5, jobs/dllqa/data.md).
+#: (Q-D5).
 DRUM_EVENT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 
 #: A constant step duration is 0 to 32767 for every unit, digits only: Inst_Drum.dll's
