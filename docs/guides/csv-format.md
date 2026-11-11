@@ -492,7 +492,7 @@ currently emit:
   - A compare takes data registers or constants, never bits, on either side. Both
     sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
     DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
-    (TXT, one printable ASCII character in quotes such as `"A"`, or `$41`; a quote
+    (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
     is `$22`). A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
@@ -533,8 +533,10 @@ currently emit:
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
   one TXT register per character of a text constant, so `""` writes nothing:
   `encode()` refuses an empty `""` in a Copy or Fill source or a Search value,
-  and `read_csv()` and `decode()` still accept it there. A compare refuses `""`
-  on either side when it is read or built. Use `$00` for the blank (NUL)
+  and `read_csv()` and `decode()` still accept it there. A compare takes 1 to 128
+  printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
+  TXT772) and refuses `""`, a longer or non-ASCII text, a quoted `"$41"` and a
+  quote inside the text when it is read or built; spell a quote as `$22`. Use `$00` for the blank (NUL)
   character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`

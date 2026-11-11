@@ -144,8 +144,10 @@ Text constants are written with their double quotes (`Copy(source='"Q"', ...)`,
 `CompareContact("==", "TXT1", '"T"')`), and an ASCII-code constant as `$hh`
 (`"$00"`). CLICK writes one TXT register per character of a text constant, so an
 empty `""` writes nothing. `encode()` raises `ValueError` for `""` in a Copy or
-Fill source or a Search value. `CompareContact` raises `FieldError` for `""` on
-either side when it is built or read from CSV. Use `$00` for the blank (NUL)
+Fill source or a Search value. `CompareContact` takes 1 to 128 printable ASCII
+characters in quotes (`"AB"` compares consecutive TXT registers) and raises
+`FieldError` for `""`, a longer or non-ASCII text, a quoted `"$41"` and a quote
+inside the text, when it is built or read from CSV. Use `$00` for the blank (NUL)
 character.
 
 ## Comments

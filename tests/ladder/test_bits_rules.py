@@ -140,23 +140,50 @@ class TestCompare:
         with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
             CompareContact.from_csv_token(token)
 
-    # Help CL196: one ASCII character in quotes.  The dialog lets up to 128 through
-    # (bits.md N4); the user's decision 2026-11-11 refuses that gap.  "" is refused too.
+    # bits.md N4: the dialog takes 1 to 128 printable ASCII characters in quotes.
     @pytest.mark.parametrize(
         "token",
         [
             'TXT1==""',
             '""!=TXT1',
-            'TXT1=="AB"',
-            'TXT1=="$41"',
-            'TXT1=="' + "A" * 128 + '"',
-            'TXT1=="\u00e9"',
-            'TXT1=="\t"',
+            'TXT1=="' + "A" * 129 + '"',
+            'TXT1=="é"',
+            'TXT1=="	"',
+            'TXT1=="Aé"',
         ],
     )
-    def test_text_is_one_character(self, token: str) -> None:
-        with pytest.raises(FieldError, match="a text constant is one printable ASCII character"):
+    def test_text_is_one_to_128_printable_characters(self, token: str) -> None:
+        with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
             CompareContact.from_csv_token(token)
+
+    def test_quoted_character_code_is_refused(self) -> None:
+        with pytest.raises(FieldError, match=r"write the character code as [$]41"):
+            CompareContact.from_csv_token('TXT1=="$41"')
+
+    @pytest.mark.parametrize("text", ["AB", "A", "hello world", "a$41", "x" * 128, "=>"])
+    def test_multi_character_text_round_trips(self, text: str) -> None:
+        compare = CompareContact("==", "TXT771", f'"{text}"')
+        again = CompareContact.from_csv_token(compare.to_csv())
+        assert (again.op, again.left, again.right) == ("==", "TXT771", f'"{text}"')
+        assert again.build_blob() == compare.build_blob()
+
+    def test_multi_character_text_through_read_csv(self, tmp_path: Path) -> None:
+        compare = _read_condition(tmp_path, 'TXT771=="AB"')
+        assert isinstance(compare, CompareContact) and compare.right == '"AB"'
+
+    def test_multi_character_text_encodes_and_decodes(self) -> None:
+        compare = CompareContact.from_csv_token('TXT771=="AB"')
+        rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        assert rung.conditions[0][0] == compare
+
+    def test_multi_character_blob_differs_in_the_text_field_only(self) -> None:
+        one = CompareContact("==", "TXT1", '"A"').build_blob()
+        two = CompareContact("==", "TXT1", '"AB"').build_blob()
+        text_one = '"A"'.encode("utf-16-le") + bytes(2)
+        text_two = '"AB"'.encode("utf-16-le") + bytes(2)
+        assert two == one.replace(text_one, text_two)
+        # The tag's length prefix is derived from the text, not stored apart.
+        assert len(two) - len(one) == len(text_two) - len(text_one)
 
     # Q-B7 (DLL): with text as Data A the dialog hides >, <, >= and <=.
     @pytest.mark.parametrize(
@@ -168,7 +195,7 @@ class TestCompare:
 
     @pytest.mark.parametrize(
         "cell",
-        ['TXT1>"A"', 'TXT1==""', 'TXT1=="AB"', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
+        ['TXT1>"A"', 'TXT1==""', 'TXT1=="$41"', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
     )
     def test_refusals_through_read_csv(self, tmp_path: Path, cell: str) -> None:
         with pytest.raises(FieldError, match="^CompareContact"):
@@ -179,12 +206,18 @@ class TestCompare:
         ("left", "right", "field"), [('"""', "TXT1", "left"), ("TXT1", '"""', "right")]
     )
     def test_quote_character_refused(self, left: str, right: str, field: str) -> None:
-        with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is a quote; .* \$22"):
+        with pytest.raises(
+            FieldError, match=rf"^CompareContact.{field}: .* holds a quote; .* \$22"
+        ):
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
+    def test_quote_inside_text_refused(self) -> None:
+        with pytest.raises(FieldError, match="holds a quote"):
+            CompareContact("==", '"a"=="b"', '"c"')
+
     def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
-        with pytest.raises(FieldError, match="^CompareContact.right: .* is a quote"):
+        with pytest.raises(FieldError, match="^CompareContact.right: .* holds a quote"):
             _read_condition(tmp_path, 'TXT1=="""')
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, 'TXT1=="a"b"')
@@ -236,7 +269,7 @@ class TestCompare:
             ('TXT1==">"', "TXT1", "==", '">"'),
             ('"<"==TXT1', '"<"', "==", "TXT1"),
             ('">"!=TXT1', '">"', "!=", "TXT1"),
-            # The splitter pairs quotes; the constructor then refuses the multi-character text.
+            # The splitter pairs quotes around the whole text.
             ('"a>=b"!=TXT1', '"a>=b"', "!=", "TXT1"),
         ],
     )
@@ -564,7 +597,7 @@ class TestDecodeRefusal:
             ("TXT1", '"A"', "2"),  # > with text as Data A
             ("DS1", "3000000000", "0"),  # outside int32
             ("DH1", "10000h", "0"),  # above FFFFh
-            ("TXT1", '"AB"', "0"),  # more than one character
+            ("TXT1", '"' + "A" * 129 + '"', "0"),  # more than 128 characters
             ("TXT1", '"$41"', "0"),  # quoted character code
             ("TXT1", '"""', "0"),  # the quote character
         ],
@@ -572,6 +605,11 @@ class TestDecodeRefusal:
     def test_refused_compare_blob_is_unknown(self, left: str, right: str, type_idx: str) -> None:
         tags = {0x3218: "4103", 0x6066: left, 0x6067: right, 0x21F7: type_idx}
         assert from_tags_condition("Compare", 0x2714, tags) is None
+
+    def test_multi_character_compare_blob_decodes(self) -> None:
+        tags = {0x3218: "4103", 0x6066: "TXT771", 0x6067: '"AB"', 0x21F7: "0"}
+        compare = from_tags_condition("Compare", 0x2714, tags)
+        assert isinstance(compare, CompareContact) and compare.right == '"AB"'
 
     def test_one_character_compare_blob_decodes(self) -> None:
         tags = {0x3218: "4104", 0x6066: "TXT1", 0x6067: '"A"', 0x21F7: "1"}

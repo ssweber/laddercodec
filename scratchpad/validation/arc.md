@@ -70,7 +70,7 @@ A rule seen only in the DLL ([I]) counts as unsettled until a dialog check confi
 - Contact NO/NC/edge: X, Y, C, T, CT, SC only. Immediate only on X. No pointers.
 - Compare: Data A and Data B are data banks or constants; bit banks are refused.
   - Pairs follow the Help 202 groups: hex {XD, YD, DH, `h` constant}, numeric {TD, CTD, DS,
-    DD, DF, SD, int/float constant}, text {TXT, one-char `"x"` or `$HH`; see Q-B7}. Cross-group pairs
+    DD, DF, SD, int/float constant}, text {TXT, `"text"` or `$HH`; see Q-B7}. Cross-group pairs
     are refused (OBJ-007, OBJ-024).
 - Coil Out: Y, C or writable SC. X, T and CT are refused (OBJ-004). Immediate only on Y, and
   on a range both ends must be Y.
@@ -273,11 +273,19 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     FFFFh); `100<DS1` and `1==1` accepted; with text as Data A, `>`, `<`, `>=` and `<=` are
     hidden; `DH1==FFFFH` accepted; `TXT1=="$41"` accepted as three characters of text. The
     dialog takes 1 to 128 characters between the quotes; `""` is refused (OBJ-005).
-  - **Ruling 2026-11-11 (user):** laddercodec refuses multi-character text, `"$41"`
+  - **Ruling 2026-11-11 (user), superseded by the revised ruling below:** laddercodec refuses multi-character text, `"$41"`
     included, though the dialog accepts it. Help CL196 says a compare text constant is a
     single ASCII character, and a TXT register holds one; the dialog's limit is baseEx's
     generic check, a gap in CLICK's validation. The quote character `"""` is refused too
     (the CSV token can't hold it; `$22` spells it).
+  - **Ruling 2026-11-11 (user, revised):** a compare text constant is 1 to 128 printable
+    ASCII characters between quotes, as the dialog accepts (`""` stays refused, OBJ-005).
+    On hardware CLICK compares the literal against consecutive TXT registers starting at the
+    named one (pyrung conformance compare/char_two_char_literal: TXT771="A", TXT772="B"
+    makes `TXT771=="AB"` true; "A","C" and "B","A" false), and pyrung's `TXT771=="AB"`
+    rungs pasted into CLICK and copied back unchanged. Still refused: any `"` inside the
+    text (the CSV token can't split it; `$22` spells it), a quoted `"$41"` (write `$41`
+    unquoted), and `>`, `<`, `>=`, `<=` on text.
   - **ANSWERED 2026-11-11 (user, dialog):** typing TXT1 into Data A leaves only = and != to
     choose; a text compare takes == or != only. Which of the two is saved (bits.md N8) is
     still open.

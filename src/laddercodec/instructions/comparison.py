@@ -98,10 +98,10 @@ _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
 _HEX_MAX = 0xFFFF
 _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 
-#: A quoted text constant is one printable ASCII character (Help CL196: "Single ASCII
-#: Character, surround with double quotation marks"; a TXT register holds one).  The
-#: dialog lets up to 128 characters through (baseEx.dll CheckInputData @1000e81c); the
-#: user's decision 2026-11-11 treats that as a gap in CLICK's validation and refuses it.
+#: A quoted text constant is 1 to 128 printable ASCII characters (Compare dialog, bits.md N4:
+#: at most 130 characters with the quotes).  On hardware the literal is compared against
+#: consecutive TXT registers from the named one.
+_TEXT_MAX = 128
 _TEXT_CHARS = range(0x20, 0x7F)
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
@@ -130,15 +130,17 @@ def _operand_group(value: str, name: str) -> str:
     if len(value) >= 2 and value[0] == value[-1] == '"':
         # The text is stored as written, quotes included (text_compare.bin).
         inner = value[1:-1]
-        if len(inner) != 1 or ord(inner) not in _TEXT_CHARS:
+        if not 1 <= len(inner) <= _TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
             raise FieldError(
-                f"{name}: {value!r} is refused; a text constant is one printable ASCII "
-                "character in quotes (use $hh for a character by code)"
+                f"{name}: {value!r} is refused; a text constant is 1 to {_TEXT_MAX} "
+                "printable ASCII characters in quotes (use $hh for a character by code)"
             )
-        # A quote as the character would end the text in the CSV token (split_comparison),
-        # and no capture shows CLICK writing one; $22 spells it.
-        if inner == '"':
-            raise FieldError(f"{name}: {value!r} is a quote; write the quote character as $22")
+        if _ASCII_CODE_CONSTANT_RE.fullmatch(inner):
+            raise FieldError(f"{name}: {value!r} is refused; write the character code as {inner}")
+        # A quote inside the text would end it in the CSV token (split_comparison), so the
+        # token could read back as a different compare; $22 spells the quote.
+        if '"' in inner:
+            raise FieldError(f"{name}: {value!r} holds a quote; write the quote character as $22")
         return "text"
     bank = check_address(value, name, _DATA_BANKS).bank
     return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)
