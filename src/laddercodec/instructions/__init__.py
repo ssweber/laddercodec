@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
+from ..model import AfInstruction, ConditionInstruction, FieldError, PinnedInstruction
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -232,7 +232,7 @@ def from_tags_condition(
                 result = spec.from_tags(
                     class_name, type_code, tags, variant_u16_tags, variant_string_tags
                 )
-            except ValueError:
+            except FieldError:
                 # The blob's own family refused a field value CLICK refuses:
                 # keep it unparsed rather than try another family.
                 return None
@@ -255,7 +255,7 @@ def from_tags_af(
                 result = spec.from_tags(
                     class_name, type_code, tags, variant_u16_tags, variant_string_tags
                 )
-            except ValueError:
+            except FieldError:
                 # The blob's own family refused a field value CLICK refuses:
                 # keep it unparsed rather than try another family.
                 return None

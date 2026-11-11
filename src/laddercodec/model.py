@@ -1,7 +1,7 @@
 """Shared domain types for ladder instructions.
 
-Defines ``InstructionType`` enum, the CLICK address check
-(:func:`check_address`) and the ``OPERAND_RE`` shape pattern.  These are
+Defines ``InstructionType`` enum, the field errors, the CLICK address
+check (:func:`check_address`) and the ``OPERAND_RE`` shape pattern.  These are
 the foundation types imported by every ``instructions/`` module — no
 reverse dependency.
 
@@ -134,12 +134,24 @@ TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 
 
 # ---------------------------------------------------------------------------
-# CLICK addresses
+# Field errors and CLICK addresses
 # ---------------------------------------------------------------------------
 
+
+class FieldError(ValueError):
+    """An instruction field holds a value CLICK's dialog refuses.
+
+    The decoders' ``from_tags`` dispatchers catch it and leave the blob unparsed.
+    """
+
+
+class AddressError(FieldError):
+    """A field holds an address outside CLICK's banks, ranges or allowed banks."""
+
+
 #: Number range of every CLICK address bank (CLICK v4.00 Help topic CL195, "Memory
-#: Addresses").  X and Y number by module (see :func:`check_address`); XD and YD also
-#: have ``XD0u``/``YD0u``, the upper word of slot 0.
+#: Addresses").  X and Y number by module (see :func:`check_address`).  XD and YD are
+#: ``XD0`` (slot 0), ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion 1-8).
 ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "X": (1, 816),
     "Y": (1, 816),
@@ -161,7 +173,7 @@ ADDRESS_BANKS: dict[str, tuple[int, int]] = {
 
 _MODULE_BANKS = frozenset({"X", "Y"})
 _WORD_IO_BANKS = frozenset({"XD", "YD"})
-_ADDRESS_RE = re.compile(r"([A-Z]{1,3})(\d{1,5})(u?)")
+_ADDRESS_RE = re.compile(r"([A-Z]{1,3})([0-9]{1,5})(u?)")
 
 
 class Address(NamedTuple):
@@ -181,9 +193,10 @@ def _bank_range_text(bank: str) -> str:
     return f"{bank}{lo}-{bank}{hi}"
 
 
-def _in_range(bank: str, number: int, upper: bool) -> bool:
+def _in_range(bank: str, digits: str, upper: bool) -> bool:
     if upper:
-        return bank in _WORD_IO_BANKS and number == 0
+        return bank in _WORD_IO_BANKS and digits == "0"
+    number = int(digits)
     lo, hi = ADDRESS_BANKS[bank]
     if not lo <= number <= hi:
         return False
@@ -193,29 +206,31 @@ def _in_range(bank: str, number: int, upper: bool) -> bool:
 
 
 def check_address(value: str, name: str, banks: Collection[str] | None = None) -> Address:
-    """Parse a CLICK address; raise ``ValueError`` naming field ``name`` if CLICK refuses it.
+    """Parse a CLICK address; raise :class:`AddressError` naming field ``name`` if refused.
 
     The bank must be one of :data:`ADDRESS_BANKS` (and in ``banks`` when given), and the
     number inside the bank's range.  X and Y number by module: the hundreds digit is the
     module (0-8) and the last two digits the point (01-16), so ``X001``-``X016``,
     ``X101``-``X116`` and so on.  Leading zeros are allowed (``X001`` and ``X1`` are the
-    same point); the caller keeps the text as written.
+    same point); the caller keeps the text as written.  ``XD0u`` and ``YD0u`` are
+    accepted, spelled exactly so, only when ``banks`` names XD or YD.
     """
     match = _ADDRESS_RE.fullmatch(value)
     if match is None:
-        raise ValueError(f"{name}: {value!r} is not a CLICK address")
+        raise AddressError(f"{name}: {value!r} is not a CLICK address")
     bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
     if bank not in ADDRESS_BANKS:
-        raise ValueError(
+        raise AddressError(
             f"{name}: {value!r} has no CLICK bank {bank!r}; banks are {', '.join(ADDRESS_BANKS)}"
         )
     if banks is not None and bank not in banks:
         allowed = ", ".join(b for b in ADDRESS_BANKS if b in banks)
-        raise ValueError(f"{name}: {value!r} is not allowed; {name} takes {allowed}")
-    number = int(digits)
-    if not _in_range(bank, number, upper):
-        raise ValueError(f"{name}: {value!r} is outside {_bank_range_text(bank)}")
-    return Address(bank, number, upper)
+        raise AddressError(f"{name}: {value!r} is not allowed; {name} takes {allowed}")
+    if not _in_range(bank, digits, upper):
+        raise AddressError(f"{name}: {value!r} is outside {_bank_range_text(bank)}")
+    if upper and banks is None:
+        raise AddressError(f"{name}: {value!r} is not allowed; {name} does not take {bank}0u")
+    return Address(bank, int(digits), upper)
 
 
 # ---------------------------------------------------------------------------

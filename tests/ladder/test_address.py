@@ -6,9 +6,11 @@ Bank ranges are CLICK v4.00 Help topic CL195 ("Memory Addresses").
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+import laddercodec.instructions as instructions_mod
 from laddercodec import decode, decode_program
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
@@ -24,7 +26,14 @@ from laddercodec.instructions import (
 )
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import _decompose_blob
-from laddercodec.model import ADDRESS_BANKS, Address, InstructionType, check_address
+from laddercodec.model import (
+    ADDRESS_BANKS,
+    Address,
+    AddressError,
+    FieldError,
+    InstructionType,
+    check_address,
+)
 
 # (bank, lowest, highest) for every bank without module or slot numbering.
 _LINEAR_BANKS = [
@@ -71,18 +80,42 @@ class TestCheckAddress:
             check_address(f"{bank}{text}", "f")
 
     @pytest.mark.parametrize("bank", ["XD", "YD"])
-    def test_word_io_slots(self, bank: str) -> None:
-        assert check_address(f"{bank}0", "f") == Address(bank, 0)
-        assert check_address(f"{bank}0u", "f") == Address(bank, 0, upper=True)
-        assert check_address(f"{bank}1", "f") == Address(bank, 1)
-        assert check_address(f"{bank}8", "f") == Address(bank, 8)
-        for bad in (f"{bank}9", f"{bank}1u", f"{bank}8u"):
-            with pytest.raises(ValueError, match=f"is outside {bank}0, {bank}0u, {bank}1-{bank}8$"):
-                check_address(bad, "f")
+    @pytest.mark.parametrize("banks", [None, {"XD", "YD", "DS"}])
+    def test_word_io_slots(self, bank: str, banks: set[str] | None) -> None:
+        assert check_address(f"{bank}0", "f", banks) == Address(bank, 0)
+        assert check_address(f"{bank}1", "f", banks) == Address(bank, 1)
+        assert check_address(f"{bank}8", "f", banks) == Address(bank, 8)
+        for bad in (f"{bank}9", f"{bank}1u", f"{bank}8u", f"{bank}00u", f"{bank}0000u"):
+            with pytest.raises(
+                AddressError, match=f"is outside {bank}0, {bank}0u, {bank}1-{bank}8$"
+            ):
+                check_address(bad, "f", banks)
+
+    @pytest.mark.parametrize("bank", ["XD", "YD"])
+    def test_upper_word_only_where_named(self, bank: str) -> None:
+        assert check_address(f"{bank}0u", "f", banks={bank}) == Address(bank, 0, upper=True)
+        with pytest.raises(AddressError) as info:
+            check_address(f"{bank}0u", "f")
+        assert str(info.value) == f"f: '{bank}0u' is not allowed; f does not take {bank}0u"
+        with pytest.raises(AddressError, match="is not allowed; f takes DS$"):
+            check_address(f"{bank}0u", "f", banks={"DS"})
 
     def test_upper_suffix_only_on_word_io(self) -> None:
         with pytest.raises(ValueError, match=r"'DS1u' is outside DS1-DS4500"):
+            check_address("DS1u", "f", banks={"DS"})
+        with pytest.raises(ValueError, match=r"'DS1u' is outside DS1-DS4500"):
             check_address("DS1u", "f")
+
+    @pytest.mark.parametrize("value", ["X١", "DS١٠", "C１"])
+    def test_ascii_digits_only(self, value: str) -> None:
+        with pytest.raises(AddressError, match="is not a CLICK address$"):
+            check_address(value, "f")
+
+    def test_error_classes(self) -> None:
+        assert issubclass(AddressError, FieldError)
+        assert issubclass(FieldError, ValueError)
+        with pytest.raises(AddressError):
+            check_address("Q1", "f")
 
     def test_leading_zeros_accepted(self) -> None:
         assert check_address("DS0001", "f") == Address("DS", 1)
@@ -194,6 +227,44 @@ class TestConstructionRaises:
         assert Contact.from_csv_token("X001").operand == "X001"
         assert Coil.from_csv_token("out(Y016)").operand == "Y016"
 
+    @pytest.mark.parametrize(
+        ("field", "build"),
+        [
+            ("Contact.operand", lambda: Contact.from_csv_token("XD0u")),
+            ("Contact.operand", lambda: Contact(InstructionType.CONTACT_NO, "YD0u")),
+            ("Coil.operand", lambda: Coil.from_csv_token("out(XD0u)")),
+            ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
+            ("Coil.range_end", lambda: Coil(InstructionType.COIL_OUT, "YD0", range_end="YD0u")),
+            ("Counter.done_bit", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
+            ("Counter.current", lambda: Counter("count_up", "CT1", "YD0u", "1")),
+            ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
+            ("Shift.end_bit", lambda: Shift(start_bit="XD0", end_bit="XD0u")),
+            ("ForLoop.limit", lambda: ForLoop.from_csv_token("for(XD0u)")),
+            ("OutVariant.operand", lambda: OutVariant.from_csv_token("toggle(YD0u)")),
+            (
+                "OutVariant.on_acc",
+                lambda: OutVariant(
+                    kind="timed", operand="C1", on_acc="XD0u", on_preset="1", unit="Tms"
+                ),
+            ),
+            (
+                "OutVariant.off_acc",
+                lambda: OutVariant(
+                    kind="debounce",
+                    operand="C1",
+                    on_acc="TD1",
+                    on_preset="1",
+                    off_acc="YD0u",
+                    off_preset="1",
+                    unit="Tms",
+                ),
+            ),
+        ],
+    )
+    def test_upper_word_refused(self, field: str, build) -> None:
+        with pytest.raises(AddressError, match=rf"^{field}: '[XY]D0u' is not allowed"):
+            build()
+
 
 _SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
@@ -266,3 +337,21 @@ class TestDecodeRefusedAddress:
         rung = decode_program(data.replace(_utf16z("C4"), _utf16z("C0"))).rungs[1]
         assert isinstance(rung.conditions[0][0], UnknownCondition)
         assert rung.instructions[0] == Coil(InstructionType.COIL_OUT, "C3")
+
+    def test_dispatchers_catch_only_field_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def refuse(*_args: object) -> None:
+            raise AddressError("refused")
+
+        def broken(*_args: object) -> None:
+            raise ValueError("parser bug")
+
+        never = SimpleNamespace(from_tags=lambda *_args: pytest.fail("tried another family"))
+        for attr, dispatch in (
+            ("AF_FAMILY_SPECS", instructions_mod.from_tags_af),
+            ("CONDITION_FAMILY_SPECS", instructions_mod.from_tags_condition),
+        ):
+            monkeypatch.setattr(instructions_mod, attr, (SimpleNamespace(from_tags=refuse), never))
+            assert dispatch("Out", 0x2715, {}) is None
+            monkeypatch.setattr(instructions_mod, attr, (SimpleNamespace(from_tags=broken),))
+            with pytest.raises(ValueError, match="parser bug"):
+                dispatch("Out", 0x2715, {})
