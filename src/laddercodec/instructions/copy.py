@@ -53,16 +53,37 @@ _FUNC_TO_COPY_TYPE: dict[str, str] = {v: k for k, v in COPY_FUNC_CODES.items()}
 _VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
 
 #: field[8] conversion_type → (format, suppress_zero, exponential).
-#: Text sub-options are encoded in the conversion_type value itself.
+#: Text sub-options are encoded in the conversion_type value itself: an integer
+#: source has suppress zero (1) or not (2); a DF source has real (3) or
+#: exponential (4) numbering, with suppress_zero stored as 1.  7 is a DD <-> DF
+#: Copy Value, a plain copy in CSV (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
 _CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
     "0": ("none", "0", "0"),
-    "1": ("text", "1", "0"),  # default text: real + suppress zeros
-    "2": ("text", "0", "0"),  # real, no suppress zeros
-    "4": ("text", "1", "1"),  # exponential + suppress zeros
+    "1": ("text", "1", "0"),  # integer source, suppress zeros
+    "2": ("text", "0", "0"),  # integer source, don't suppress zeros
+    "3": ("text", "1", "0"),  # DF source, real numbering
+    "4": ("text", "1", "1"),  # DF source, exponential numbering
     "5": ("value", "0", "0"),
     "6": ("ascii", "0", "0"),
+    "7": ("none", "0", "0"),  # DD <-> DF
     "8": ("binary", "0", "0"),
 }
+
+_DF_RE = re.compile(r"DF\d+")
+_DD_RE = re.compile(r"DD\d+")
+
+
+def _is_df(operand: str) -> bool:
+    return _DF_RE.fullmatch(operand.strip()) is not None
+
+
+def _is_dd_df_pair(source: str, destination: str) -> bool:
+    """A single copy between DD and DF, either way: CLICK's Copy Value / Copy Binary choice."""
+    src, dst = source.strip(), destination.strip()
+    return (_DD_RE.fullmatch(src) is not None and _is_df(dst)) or (
+        _is_df(src) and _DD_RE.fullmatch(dst) is not None
+    )
+
 
 #: Non-text format → field[8] conversion_type.
 _FORMAT_TO_CONVTYPE: dict[str, str] = {
@@ -143,7 +164,7 @@ def _split_paren_aware(s: str) -> list[str]:
 def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     """Parse a ``convert=`` kwarg value, returning *(format, text_opts)*.
 
-    Examples: ``to_value``, ``to_text(suppress_zero=0,exponential=1)``.
+    Examples: ``to_value``, ``to_text(exponential=1)``.
     """
     m = _CONVERT_CALL_RE.fullmatch(raw.strip())
     if not m:
@@ -201,9 +222,11 @@ class Copy(AfInstruction):
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
-        Text option — ``"0"`` (don't suppress) or ``"1"`` (suppress).
+        Text option for an integer source — ``"0"`` (don't suppress) or
+        ``"1"`` (suppress).  A DF source has no such option; it reads ``"1"``.
     exponential:
-        Text option — ``"0"`` (real) or ``"1"`` (exponential).
+        Text option for a DF source — ``"0"`` (real) or ``"1"`` (exponential).
+        An integer source has no such option and rejects ``"1"``.
     termination_code:
         Text option — ``"0"`` (none) or ``"$HH"`` hex ASCII code, always
         two digits (``"$0D"`` for 0x0D; ``"$D"`` is accepted and stored as ``"$0D"``).
@@ -227,6 +250,16 @@ class Copy(AfInstruction):
             except ValueError:
                 raise ValueError(f"Invalid termination code: {self.termination_code!r}") from None
             self.termination_code = _ascii_code(code)
+        if self.format == "text":
+            # CLICK's dialog offers suppress zero for an integer source and
+            # real/exponential for a DF source, never both.
+            if _is_df(self.source):
+                self.suppress_zero = "1"  # what CLICK stores; not a setting
+            elif self.exponential == "1":
+                raise ValueError(
+                    f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
+                    "an integer source only has suppress_zero"
+                )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Copy:
@@ -238,7 +271,7 @@ class Copy(AfInstruction):
             copy(42,DS9)
             copy(DS26,DS27,oneshot=1)
             copy(TXT1,DS10,convert=to_value)
-            copy(DS12,TXT2,convert=to_text(suppress_zero=1,exponential=0,termination_code=none))
+            copy(DS12,TXT2,convert=to_text(suppress_zero=1,termination_code=none))
         """
         token = token.strip()
         m = re.fullmatch(r"copy\((.+)\)", token)
@@ -302,9 +335,14 @@ class Copy(AfInstruction):
             kw.append("oneshot=1")
 
         if self.format == "text":
+            # Only the option the source has (pyrung's exporter writes the same).
+            option = (
+                f"exponential={self.exponential}"
+                if _is_df(self.source)
+                else f"suppress_zero={self.suppress_zero}"
+            )
             text_kw = [
-                f"suppress_zero={self.suppress_zero}",
-                f"exponential={self.exponential}",
+                option,
                 f"termination_code={'none' if self.termination_code == '0' else self.termination_code}",
             ]
             kw.append(f"convert=to_text({','.join(text_kw)})")
@@ -326,12 +364,16 @@ class Copy(AfInstruction):
         from ..binary_helpers import _build_blob
 
         # Compute conversion_type (field[8]) and format_option (field[4]).
+        # field[4] is the dialog's radio index; CLICK v4 ignores it on load.
         if self.format == "text":
-            sz = int(self.suppress_zero)
-            exp = int(self.exponential)
-            conv_type = str(1 + (1 - sz) + 3 * exp)
-            # field[4]: "0" for default text options, "1" if modified
-            field4 = "0" if (sz == 1 and exp == 0) else "1"
+            if _is_df(self.source):
+                exp = int(self.exponential)
+                conv_type, field4 = str(3 + exp), str(exp)
+            else:
+                sz = int(self.suppress_zero)
+                conv_type, field4 = str(2 - sz), str(1 - sz)
+        elif _is_dd_df_pair(self.source, self.destination) and self.format in ("none", "binary"):
+            conv_type, field4 = ("7", "0") if self.format == "none" else ("8", "1")
         else:
             conv_type = _FORMAT_TO_CONVTYPE[self.format]
             field4 = _FORMAT_TO_FIELD4[self.format]
@@ -343,8 +385,10 @@ class Copy(AfInstruction):
         else:
             term_char = "0"
             term_flag = "0"
-        # field[11]: CLICK sets it for a termination code and for a text
-        # constant source ("Q" or $00), seen in native captures of each.
+        # field[11]: CLICK v4's dialog writes -1 on every save and ignores it on
+        # load (InstCtl_Copy.dll); pre-v4 captures set it only for a termination
+        # code.  We write -1 for those and for a text constant source, the cases
+        # native captures we match byte for byte show.
         text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
 
         return _build_blob(
@@ -738,6 +782,12 @@ def from_tags(
             return None
         opts = _CONVTYPE_TO_OPTS.get(str(conv_type))
         if opts is None:
+            return None
+        # Types that only exist for one source kind; anything else isn't a blob
+        # CLICK writes, so leave it to raw() rather than re-encode it differently.
+        if conv_type == 7 and not _is_dd_df_pair(source, destination):
+            return None
+        if conv_type == 4 and not _is_df(source):
             return None
         fmt, suppress_zero, exponential = opts
 

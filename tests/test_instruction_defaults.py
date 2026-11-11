@@ -14,7 +14,7 @@ each family derives it.
 
 CSV side: a flag kwarg (a ``bool`` field such as ``oneshot``) is written only when
 set, so ``for(3)`` rather than ``for(3,oneshot=0)``.  Value kwargs (``mode=``,
-``unit=``, ``preset=``, the ``to_text(...)`` fields) are always written.
+``unit=``, ``preset=``, the ``to_text(...)`` option the source has and its termination code) are always written.
 
 The instructions come from the coverage goldens plus every native clipboard
 capture (CLICK v4 copy-backs, the SCR pairs' clipboard side, the tumbler programs).

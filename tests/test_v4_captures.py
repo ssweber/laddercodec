@@ -84,7 +84,18 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     af_tokens = [row[-1] for row in rows if row[0] != "#" and row[-1]]
     if any(token.startswith("raw(") for token in af_tokens):
         pytest.xfail(f"not decoded yet: {af_tokens}")
-    assert af_tokens == expected
+    assert af_tokens == [_current_spelling(token) for token in expected]
+
+
+def _current_spelling(token: str) -> str:
+    """A comment token as write_csv spells it now.
+
+    Comments are baked into captures.  ``to_text`` used to carry both
+    ``suppress_zero`` and ``exponential``; it now writes only the source's own.
+    """
+    if token.startswith("copy(") and "to_text(" in token:
+        return Copy.from_csv_token(token).to_csv()
+    return token
 
 
 @pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
@@ -449,6 +460,15 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
 #: Tags CLICK writes but doesn't read back, per class name.
 _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
     "Call": frozenset({0x3219}),  # dialog drop-down index; CLICK reselects the subroutine by name
+    # v4's dialog writes -1 on every save and ignores it on load (InstCtl_Copy.dll);
+    # the encoder keeps the pre-v4 rule that native v3 captures match.
+    "Copy": frozenset({0x1201}),
+}
+
+#: Per rung: fields where CLICK v4's dialog and the pre-v4 native capture we match
+#: disagree, and v4 ignores the field on load.  The encoder keeps the v3 value.
+_SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
+    "blockcopy__to_ascii_v4": frozenset({0x2206}),  # v4 dialog 1, coverage.bin 0
 }
 
 #: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
@@ -492,7 +512,10 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
         pytest.xfail("not decoded yet")
     native = _af_blob(path.read_bytes(), index)
     ours = _af_blob(encode(rung), 0)
-    ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset())
+    rung_id = (rung.comment or "").split("\n")[0]
+    ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset()) | _SWEEP_V3_VALUES.get(
+        rung_id, frozenset()
+    )
     v4_added = _V4_ADDED_TAGS.get(native[0], frozenset())
     if not any(f[0] in v4_added for f in ours[4]):
         ignored |= v4_added

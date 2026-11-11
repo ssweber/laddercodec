@@ -472,7 +472,7 @@ currently emit:
   - `convert=to_value`
   - `convert=to_ascii`
   - `convert=to_binary`
-  - `convert=to_text(suppress_zero=<0|1>,exponential=<0|1>,termination_code=<none|$XX>)`
+  - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling
 
