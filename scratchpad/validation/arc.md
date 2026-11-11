@@ -70,7 +70,7 @@ A rule seen only in the DLL ([I]) counts as unsettled until a dialog check confi
 - Contact NO/NC/edge: X, Y, C, T, CT, SC only. Immediate only on X. No pointers.
 - Compare: Data A and Data B are data banks or constants; bit banks are refused.
   - Pairs follow the Help 202 groups: hex {XD, YD, DH, `h` constant}, numeric {TD, CTD, DS,
-    DD, DF, SD, int/float constant}, text {TXT, `"..."` of 1-128 characters, or `$HH`; see Q-B7}. Cross-group pairs
+    DD, DF, SD, int/float constant}, text {TXT, one-char `"x"` or `$HH`; see Q-B7}. Cross-group pairs
     are refused (OBJ-007, OBJ-024).
 - Coil Out: Y, C or writable SC. X, T and CT are refused (OBJ-004). Immediate only on Y, and
   on a range both ends must be Y.
@@ -271,14 +271,16 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** `DS1>40000` accepted; `DS1==3000000000`
     and `DH1==10000h` refused (OBJ-005: a whole number is int32, a hex constant at most
     FFFFh); `100<DS1` and `1==1` accepted; with text as Data A, `>`, `<`, `>=` and `<=` are
-    hidden; `DH1==FFFFH` accepted; `TXT1=="$41"` accepted as three characters of text. A
-    text constant holds 1 to 128 characters between its quotes; `""` is refused (OBJ-005).
+    hidden; `DH1==FFFFH` accepted; `TXT1=="$41"` accepted as three characters of text. The
+    dialog takes 1 to 128 characters between the quotes; `""` is refused (OBJ-005).
+  - **Ruling 2026-11-11 (user):** laddercodec refuses multi-character text, `"$41"`
+    included, though the dialog accepts it. Help CL196 says a compare text constant is a
+    single ASCII character, and a TXT register holds one; the dialog's limit is baseEx's
+    generic check, a gap in CLICK's validation. The quote character `"""` is refused too
+    (the CSV token can't hold it; `$22` spells it).
   - **ANSWERED 2026-11-11 (user, dialog):** typing TXT1 into Data A leaves only = and != to
     choose; a text compare takes == or != only. Which of the two is saved (bits.md N8) is
     still open.
-  - Needs a capture: what CLICK writes for a text constant of more than one character
-    (`TXT1=="AB"`, `=="ab"`, `=="$41"`, a long one). Only the one-character `"A"` is
-    captured (`text_compare.bin`).
   - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
     refuses them.

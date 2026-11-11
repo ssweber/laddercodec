@@ -82,8 +82,8 @@ class TestCompare:
             'TXT1=="A"',
             "TXT1==$0D",
             "TXT1==TXT2",
-            'TXT1=="AB"',
-            'TXT1!="hello world"',
+            'TXT1==" "',
+            'TXT1!="~"',
             # Q-B7 (DLL, jobs/dllqa/bits.md): a constant on the left, two constants, and an
             # integer constant inside int32 against a 16-bit register.
             "100<DS1",
@@ -140,39 +140,53 @@ class TestCompare:
         with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
             CompareContact.from_csv_token(token)
 
-    # N4 (DLL): text holds 1 to 128 characters between its quotes; "" is refused, OBJ-005.
-    def test_text_length(self) -> None:
-        longest = '"' + "A" * 128 + '"'
-        assert CompareContact.from_csv_token(f"TXT1=={longest}").right == longest
-        for token in ('TXT1==""', '""!=TXT1', 'TXT1=="' + "A" * 129 + '"'):
-            with pytest.raises(FieldError, match="a text constant holds 1 to 128 characters"):
-                CompareContact.from_csv_token(token)
+    # Help CL196: one ASCII character in quotes.  The dialog lets up to 128 through
+    # (bits.md N4); the user's decision 2026-11-11 refuses that gap.  "" is refused too.
+    @pytest.mark.parametrize(
+        "token",
+        [
+            'TXT1==""',
+            '""!=TXT1',
+            'TXT1=="AB"',
+            'TXT1=="$41"',
+            'TXT1=="' + "A" * 128 + '"',
+            'TXT1=="\u00e9"',
+            'TXT1=="\t"',
+        ],
+    )
+    def test_text_is_one_character(self, token: str) -> None:
+        with pytest.raises(FieldError, match="a text constant is one printable ASCII character"):
+            CompareContact.from_csv_token(token)
 
     # Q-B7 (DLL): with text as Data A the dialog hides >, <, >= and <=.
     @pytest.mark.parametrize(
-        "token", ['TXT1>"A"', "TXT1<TXT2", "TXT1>=$41", '"AB"<=TXT1', "$41>TXT1"]
+        "token", ['TXT1>"A"', "TXT1<TXT2", "TXT1>=$41", '"B"<=TXT1', "$41>TXT1"]
     )
     def test_text_takes_equal_and_not_equal_only(self, token: str) -> None:
         with pytest.raises(FieldError, match="^CompareContact.op: .* takes == or !="):
             CompareContact.from_csv_token(token)
 
     @pytest.mark.parametrize(
-        "cell", ['TXT1>"A"', 'TXT1==""', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"']
+        "cell",
+        ['TXT1>"A"', 'TXT1==""', 'TXT1=="AB"', "DS1==3000000000", "DH1==10000h", 'T:TXT1<"A"'],
     )
     def test_refusals_through_read_csv(self, tmp_path: Path, cell: str) -> None:
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, cell)
 
+    # The quote character would end the text in the CSV token; $22 spells it.
     @pytest.mark.parametrize(
-        ("left", "right", "field"),
-        [('"a"=="b"', '"c"', "left"), ("TXT1", '"a"b"', "right"), ('"""', '"""', "left")],
+        ("left", "right", "field"), [('"""', "TXT1", "left"), ("TXT1", '"""', "right")]
     )
-    def test_quote_inside_text_refused(self, left: str, right: str, field: str) -> None:
-        with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* holds a quote"):
+    def test_quote_character_refused(self, left: str, right: str, field: str) -> None:
+        with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is a quote; .* \$22"):
             CompareContact(op="==", left=left, right=right)
+        assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
-    def test_quote_inside_text_refused_through_read_csv(self, tmp_path: Path) -> None:
-        with pytest.raises(FieldError, match="^CompareContact.right: .* holds a quote"):
+    def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
+        with pytest.raises(FieldError, match="^CompareContact.right: .* is a quote"):
+            _read_condition(tmp_path, 'TXT1=="""')
+        with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, 'TXT1=="a"b"')
 
     # ``\d`` would match Unicode digits; CLICK's classifier takes 0-9 only.
@@ -182,9 +196,9 @@ class TestCompare:
             CompareContact.from_csv_token(token)
 
     def test_text_through_read_csv(self, tmp_path: Path) -> None:
-        compare = _read_condition(tmp_path, 'TXT1!="a==b"')
+        compare = _read_condition(tmp_path, 'TXT1!="="')
         assert isinstance(compare, CompareContact)
-        assert (compare.left, compare.op, compare.right) == ("TXT1", "!=", '"a==b"')
+        assert (compare.left, compare.op, compare.right) == ("TXT1", "!=", '"="')
 
     @pytest.mark.parametrize(
         ("token", "op", "right"),
@@ -193,8 +207,7 @@ class TestCompare:
             ('TXT1!="="', "!=", '"="'),
             ('TXT1==">"', "==", '">"'),
             ('TXT1!="<"', "!=", '"<"'),
-            ('TXT1=="a<=b"', "==", '"a<=b"'),
-            ('TXT1!="!=="', "!=", '"!=="'),
+            ('TXT1=="!"', "==", '"!"'),
             ("TXT1==$3D", "==", "$3D"),
         ],
     )
@@ -202,18 +215,11 @@ class TestCompare:
         parsed = CompareContact.from_csv_token(token)
         assert (parsed.left, parsed.op, parsed.right) == ("TXT1", op, right)
 
-    def test_quoted_ascii_code_is_text(self) -> None:
-        # Q-B7 (DLL): "$41" is three characters of text; the quoted form is not decoded.
-        compare = CompareContact.from_csv_token('TXT1=="$41"')
-        assert compare.right == '"$41"'
-        assert '"$41"'.encode("utf-16-le") in compare.build_blob()
-
     def test_text_blob_keeps_the_text_as_written(self) -> None:
-        # text_compare.bin shows CLICK storing the one-character "A" as typed, quotes
-        # included.  A longer text is written the same way here; no capture shows one yet.
-        compare = CompareContact.from_csv_token('TXT1!="Ab c=1"')
+        # text_compare.bin: CLICK stores the one-character "A" as typed, quotes included.
+        compare = CompareContact.from_csv_token('TXT1!="a"')
         blob = compare.build_blob()
-        assert '"Ab c=1"'.encode("utf-16-le") + bytes(2) in blob
+        assert '"a"'.encode("utf-16-le") + bytes(2) in blob
         rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
         assert rung.conditions[0][0] == compare
 
@@ -229,6 +235,8 @@ class TestCompare:
             ('TXT1!="<"', "TXT1", "!=", '"<"'),
             ('TXT1==">"', "TXT1", "==", '">"'),
             ('"<"==TXT1', '"<"', "==", "TXT1"),
+            ('">"!=TXT1', '">"', "!=", "TXT1"),
+            # The splitter pairs quotes; the constructor then refuses the multi-character text.
             ('"a>=b"!=TXT1', '"a>=b"', "!=", "TXT1"),
         ],
     )
@@ -556,17 +564,19 @@ class TestDecodeRefusal:
             ("TXT1", '"A"', "2"),  # > with text as Data A
             ("DS1", "3000000000", "0"),  # outside int32
             ("DH1", "10000h", "0"),  # above FFFFh
-            ("TXT1", '"a"b"', "0"),  # quote inside the text
+            ("TXT1", '"AB"', "0"),  # more than one character
+            ("TXT1", '"$41"', "0"),  # quoted character code
+            ("TXT1", '"""', "0"),  # the quote character
         ],
     )
     def test_refused_compare_blob_is_unknown(self, left: str, right: str, type_idx: str) -> None:
         tags = {0x3218: "4103", 0x6066: left, 0x6067: right, 0x21F7: type_idx}
         assert from_tags_condition("Compare", 0x2714, tags) is None
 
-    def test_long_text_compare_blob_decodes(self) -> None:
-        tags = {0x3218: "4104", 0x6066: "TXT1", 0x6067: '"$41"', 0x21F7: "1"}
+    def test_one_character_compare_blob_decodes(self) -> None:
+        tags = {0x3218: "4104", 0x6066: "TXT1", 0x6067: '"A"', 0x21F7: "1"}
         compare = from_tags_condition("Compare", 0x2714, tags)
-        assert isinstance(compare, CompareContact) and compare.right == '"$41"'
+        assert isinstance(compare, CompareContact) and compare.right == '"A"'
 
     @pytest.mark.parametrize(("on_preset", "off_acc"), [("32768", "TD2"), ("5", "TD1")])
     def test_refused_debounce_blob_is_not_a_variant(self, on_preset: str, off_acc: str) -> None:

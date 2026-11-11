@@ -492,8 +492,8 @@ currently emit:
   - A compare takes data registers or constants, never bits, on either side. Both
     sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
     DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
-    (TXT, 1 to 128 characters in quotes such as `"AB"`, `$41`). A text compare takes
-    `==` or `!=` only.
+    (TXT, one printable ASCII character in quotes such as `"A"`, or `$41`; a quote
+    is `$22`). A text compare takes `==` or `!=` only.
 - Timer, counter and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
     set point that is a `DS` address or digits only (`0` is allowed).
