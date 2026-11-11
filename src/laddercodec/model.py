@@ -59,7 +59,7 @@ def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> 
     return message
 
 
-def _name_typed_text(cls: type) -> None:
+def _name_typed_text(cls: Any) -> None:
     """Wrap ``cls.__post_init__`` so a field error names the text as typed.
 
     ``__post_init__`` writes each address in display form before checking it; a refusal
@@ -81,7 +81,7 @@ def _name_typed_text(cls: type) -> None:
             exc.args = (_typed_text(str(exc), before, _text_fields(self)),)
             raise
 
-    setattr(cls, "__post_init__", wrapper)
+    cls.__post_init__ = wrapper
 
 
 class ConditionInstruction:

@@ -250,7 +250,6 @@ class TestThroughCsv:
         assert rung == shown
         assert encode(rung) == encode(shown)
 
-
     def test_lowercase_contact_with_unicode_digit_names_the_operand(self, tmp_path: Path) -> None:
         with pytest.raises(AddressError, match="^Contact.operand"):
             read_csv(_rung_csv(tmp_path / "r.csv", "x00٣", ""))
