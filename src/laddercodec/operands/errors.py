@@ -25,7 +25,7 @@ class FieldError(ValueError):
     obj:
         The instruction being built when its checks refused the value, or None.
     source:
-        The evidence the rule rests on (its kind and a public reference), or None.
+        The rule's source, or None; internal, for laddercodec's own checks.
     """
 
     field: str | None

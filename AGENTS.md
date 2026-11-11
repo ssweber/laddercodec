@@ -87,7 +87,7 @@ src/laddercodec/
 - **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, cell flag constants (+0x19 segment, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
 - **model.py** — `InstructionType` enum (0x2711–0x2718), `ConditionInstruction` and `AfInstruction` base classes. All instruction dataclasses inherit from one of these; the pipeline uses them for isinstance dispatch so new types are recognized automatically. Re-exports the address check and field errors from `operands/`, so `from laddercodec.model import check_address` keeps working.
-- **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), and rule sources (`sources.py`, no DLL addresses). `tests/test_operand_guards.py` lists every constant regex, hand-typed bank set and bare `raise ValueError` in `instructions/`; a new one fails the test, and an entry the code no longer has must be removed.
+- **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), and rule sources (`sources.py`, no DLL addresses). `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed.
 - **instructions/** — Instruction dataclasses with `build_blob()` and `cell_params()` methods, func code tables, and blob parsers. Each dataclass knows how to serialize itself — the grid loop just calls `token.build_blob()` and `token.cell_params()`. Registry in `__init__.py` dispatches class name → module.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
 - **csv/converter.py** — RungAst → Rung converter. Handles pin rows (`.reset()` → retentive timers) and tall instruction auto-padding.
@@ -101,7 +101,7 @@ tests/
 ├── test_coverage.py         # Coverage golden fixture tests (instruction variants)
 ├── test_v4_captures.py      # CLICK v4 captures: each rung decodes to its comment; native blob matching
 ├── test_operands.py         # operands/: bank masks vs code sets, FieldError attributes, Src
-├── test_operand_guards.py   # Ratchet allowlist: constant regexes, bank sets, raise ValueError
+├── test_operand_guards.py   # Ratchet allowlist: re calls, bank-name literals, ValueError raises
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/
 │   ├── test_encode.py       # encode() pipeline, multi-row, comments, wires, NOP

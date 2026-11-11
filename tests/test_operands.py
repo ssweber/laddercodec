@@ -12,8 +12,8 @@ from laddercodec.instructions import copy, counter, drum, forloop, search, send_
 from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
-from laddercodec.operands.sources import Src, SrcKind
-from tests.test_operand_guards import INSTRUCTIONS, _bank_items, scan
+from laddercodec.operands.sources import Src, SrcKind, dll_address
+from tests.test_operand_guards import INSTRUCTIONS, _bank_items
 
 # ---------------------------------------------------------------------------
 # Bank
@@ -40,6 +40,28 @@ _MASKS = [
 ]
 
 
+def _literal_banks(module: str, field: str) -> frozenset[str]:
+    """The literal ``banks=`` of the ``check_address(..., field, banks=...)`` call in ``module``."""
+    tree = ast.parse((INSTRUCTIONS / module).read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "check_address"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == field
+        ):
+            (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
+            return frozenset(ast.literal_eval(banks_arg))
+    raise AssertionError(f"no check_address for {field} in {module}")
+
+
+_MASKS.append(
+    (0x40, _literal_banks("timer.py", "Timer.setpoint"), "DLL: Inst_Timer.dll, set point")
+)
+
+
 @pytest.mark.parametrize(("value", "expected", "source"), _MASKS, ids=[m[2] for m in _MASKS])
 def test_dialog_masks_decode_to_the_code_sets(
     value: int, expected: frozenset[str], source: str
@@ -55,16 +77,21 @@ def test_groups_are_the_copy_sets() -> None:
 
 
 def test_every_bank_set_names_only_banks() -> None:
-    """A hand-typed bank set in instructions/ holds no misspelled bank."""
+    """A hand-typed bank set or bank-keyed dict in instructions/ holds no misspelled bank.
+
+    Tuples and lists are left out: ``("T", "|")`` is a pair of wire tokens.
+    """
     checked = 0
     for path in sorted(INSTRUCTIONS.glob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, (ast.Tuple, ast.List)):
+                continue
             items = _bank_items(node)
             if items is None or not set(items) & set(Bank.__members__):
                 continue
             assert set(items) <= set(Bank.__members__), (path.name, ast.unparse(node))
             checked += 1
-    assert checked >= sum(scan()["BANK_SET"].values())
+    assert checked >= 70
 
 
 def test_banks_refuses_bits_above_txt() -> None:
@@ -180,16 +207,57 @@ def test_src_text() -> None:
     ]
 
 
-#: A made-up address in a CLICK DLL's range, built here so no address is written out.
-_FAKE_ADDRESS = f"{0x1000_0000 + 0x1234:08x}"
+#: A made-up address in a CLICK DLL's range and the image base, built here so this file
+#: writes out no address.
+_FAKE = f"{(0x1000 << 16) + 0x1234:08x}"
+_BASE = f"{0x1000 << 16:x}"
 
 
-@pytest.mark.parametrize("ref", [f"Inst_SD.dll 0x{_FAKE_ADDRESS}", f"baseEx.dll @{_FAKE_ADDRESS}"])
+@pytest.mark.parametrize(
+    "ref",
+    [
+        f"Inst_SD.dll 0x{_FAKE}",
+        f"Inst_SD.dll 0X{_FAKE.upper()}",
+        f"baseEx.dll @{_FAKE}",
+        f"Inst_SD.dll sub_{_FAKE}",
+        f"FUN_{_FAKE}",
+        f"LAB_{_FAKE}",
+        f"Inst_SD.dll {_FAKE}",
+        f"Inst_SD.dll {_FAKE}h",
+        f"Inst_SD.dll 0x{_FAKE[:4]}_{_FAKE[4:]}",
+        "Inst_SD.dll+0x1234",
+        "Inst_SD.dll + 1234",
+    ],
+)
 def test_src_refuses_a_dll_address(ref: str) -> None:
     with pytest.raises(ValueError, match="DLL address"):
         Src(SrcKind.DLL, ref)
 
 
+@pytest.mark.parametrize(
+    "ref",
+    [
+        "Inst_SD.dll, Send local banks",
+        "CL195",
+        "OBJ-004",
+        "mask 0x3f",
+        f"mask 0x{_BASE}",
+        f"capture 0x{(0x1A2B << 16) + 0x3C4D:08X}.bin",
+        f"value {_FAKE}0",
+    ],
+)
+def test_src_takes_a_reference_without_an_address(ref: str) -> None:
+    assert dll_address(ref) is None
+    assert Src(SrcKind.DLL, ref).ref == ref
+
+
 def test_src_refuses_blank_reference() -> None:
     with pytest.raises(ValueError, match="names its reference"):
         Src(SrcKind.HELP, " ")
+
+
+def test_src_refuses_a_reference_that_is_not_text() -> None:
+    with pytest.raises(TypeError, match="not text"):
+        Src(SrcKind.HELP, None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="not a SrcKind"):
+        Src("Help", "CL195")  # type: ignore[arg-type]

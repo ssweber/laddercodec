@@ -1,4 +1,5 @@
 """CLICK operands: banks, addresses, field errors and rule sources.
 
-The public names are re-exported by :mod:`laddercodec.model` and :mod:`laddercodec`.
+:mod:`laddercodec.model` re-exports the address and error names; :mod:`laddercodec`
+exports ``FieldError`` and ``AddressError``.
 """
