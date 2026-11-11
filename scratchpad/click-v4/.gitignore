@@ -1,0 +1,5 @@
+# Local only: disassembly and resource dumps of CLICK's DLLs (AutomationDirect's code/text).
+*.asm
+*.txt
+dfm/
+sweep/dfm392/

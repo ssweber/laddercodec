@@ -1,0 +1,10 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,coil__out_oneshot_immediate
+#,"out(immediate(Y001),oneshot=1)"
+R,C101,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP
+#,coil__out_range_oneshot
+#,"out(C611..C614,oneshot=1)"
+R,C111,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP
+#,coil__out_range_oneshot_immediate
+#,"out(immediate(Y002..Y004),oneshot=1)"
+R,C121,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP
