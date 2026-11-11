@@ -15,16 +15,23 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 ``csv``    ``to_csv()`` of the constructed instance (``ok`` only)
 ``blob``   sha256 of ``build_blob()`` and the ``cell_params()`` (``ok`` only)
 ``write``  the CSV writer's result for a rung holding the instance (``ok`` only)
+``enc``    sha256 (24 hex digits) of ``encode()`` of that rung, then the case's token in
+           ``decode()`` of those bytes, ``=`` when it matches ``csv`` (``ok`` only)
 ``text``   ``to_csv()`` of an instance built without its checks, holding the raw value
 ``read``   that text read back through the CSV path (token parser and converter)
+``renc``   ``enc`` for the rung ``read`` produced, ``=`` when it matches ``read``
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
 ``tag``    the baseline's blob with the varied field's tag set to the case's value, parsed
            back by the blob decoder (only when one tag holds the baseline value)
 ``warn``   warnings raised by any path except the writer's (``write`` lists those)
 
 ``read`` and ``dec`` are ``=`` when they match ``text``.  The value lists are fixed here,
-so two source trees get the same cases.  A registered instruction class with no baseline,
-or a field with no value kind, stops the run.
+so two source trees get the same cases.  Values that are objects of the tree under test
+(``InstructionType`` members, Modbus targets and addresses) are built from literal
+arguments; one the tree refuses to build records only ``new: !value: <error>``.  A
+baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run.
+A registered instruction class with no baseline, or a field with no value kind, stops the
+run, and so does a case key that appears twice.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -35,6 +42,8 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import re
+import struct
 import sys
 import time
 import warnings
@@ -320,33 +329,136 @@ def _opaque_probe(names: str) -> Probe:
     )
 
 
-def _tcp(ns: Any) -> Any:
-    return ns.ModbusTcpTarget(name="tcp", ip="192.168.1.10", port=502, device_id=1)
+@dataclasses.dataclass(frozen=True)
+class Frozen:
+    """A value the probe builds from source classes, keyed by fixed text.
+
+    ``build(ns)`` makes the value from literal arguments; the case key uses ``key``, so a
+    source tree that builds it differently (or refuses it) still gets the same case.
+    """
+
+    key: str
+    build: Callable[[Any], Any]
 
 
-def _rtu(ns: Any) -> Any:
-    return ns.ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=5)
+class ValueRefused(Exception):
+    """A frozen value's own constructor refused its literal arguments."""
 
 
-def _targets(ns: Any) -> list[Any]:
-    return [
-        _rtu(ns),
-        ns.ModbusRtuTarget(name="rtu", com_port="slot1_2", device_id=3),
-        ns.ModbusRtuTarget(name="rtu", com_port="cpu3", device_id="DS2420"),
-        ns.ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=0),
-        _tcp(ns),
-        ns.ModbusTcpTarget(name="tcp", ip="10.0.0.1", port=503, device_id=255, com_port="wlan"),
+#: Instruction type ids 0x2711-0x2729 (low byte), and one that is none.  A value that is a
+#: member of the source's ``InstructionType`` is passed as that member.
+ITYPE_IDS: tuple[int, ...] = (
+    0x11,
+    0x12,
+    0x13,
+    0x14,
+    0x15,
+    0x16,
+    0x17,
+    0x18,
+    0x19,
+    0x1A,
+    0x1B,
+    0x20,
+    0x21,
+    0x22,
+    0x23,
+    0x25,
+    0x26,
+    0x28,
+    0x29,
+    0x99,
+)
+
+
+def _itype(number: int) -> Callable[[Any], Any]:
+    def build(ns: Any) -> Any:
+        try:
+            return ns.IT(number)
+        except ValueError:
+            return number
+
+    return build
+
+
+def _itypes() -> list[Any]:
+    frozen: list[Any] = [Frozen(f"itype({n:#04x})", _itype(n)) for n in ITYPE_IDS]
+    return [*frozen, 0x11, 0x99]  # plain ints, not enum members
+
+
+def _rtu_args(com_port: str, device_id: int | str) -> dict[str, Any]:
+    return {"name": "rtu", "com_port": com_port, "device_id": device_id}
+
+
+def _tcp_args(ip: str, port: int, device_id: int | str, com_port: str = "ethernet") -> dict:
+    return {"name": "tcp", "ip": ip, "port": port, "device_id": device_id, "com_port": com_port}
+
+
+RTU_TARGETS = (
+    _rtu_args("cpu2", 5),
+    _rtu_args("slot1_2", 3),
+    _rtu_args("cpu3", "DS2420"),
+    _rtu_args("cpu2", 0),
+)
+TCP_TARGETS = (
+    _tcp_args("192.168.1.10", 502, 1),
+    _tcp_args("10.0.0.1", 503, 255, "wlan"),
+)
+
+
+def _make(class_name: str, args: dict[str, Any]) -> Callable[[Any], Any]:
+    def build(ns: Any) -> Any:
+        try:
+            return getattr(ns, class_name)(**args)
+        except Exception as exc:
+            raise ValueRefused(f"{class_name}{error_text(exc)}") from exc
+
+    return build
+
+
+def _frozen(class_name: str, args: dict[str, Any]) -> Frozen:
+    text = ", ".join(f"{k}={v!r}" for k, v in args.items())
+    return Frozen(f"{class_name}({text})", _make(class_name, args))
+
+
+def _targets() -> list[Any]:
+    return [_frozen("ModbusRtuTarget", a) for a in RTU_TARGETS] + [
+        _frozen("ModbusTcpTarget", a) for a in TCP_TARGETS
     ]
 
 
-def _modbus(ns: Any) -> list[Any]:
-    out = []
-    for address, register_type in MODBUS_ADDRESSES:
-        try:
-            out.append(ns.ModbusAddress(address=address, register_type=register_type))
-        except Exception:
-            continue  # the refusals are probed as ModbusAddress cases
+def _modbus() -> list[Any]:
+    return [
+        _frozen("ModbusAddress", {"address": a, "register_type": r}) for a, r in MODBUS_ADDRESSES
+    ]
+
+
+def _rtu(ns: Any) -> Any:
+    return ns.ModbusRtuTarget(**RTU_TARGETS[0])
+
+
+def _tcp(ns: Any) -> Any:
+    return ns.ModbusTcpTarget(**TCP_TARGETS[0])
+
+
+def _blob(class_name: str, marker: int, fields: list[tuple[int, str]]) -> bytes:
+    """A standard instruction blob (class name, type marker, one part, tagged fields)."""
+    out = class_name.encode("utf-16-le") + b"\0\0" + struct.pack("<IHI", marker, 1, len(fields))
+    for tag, value in fields:
+        out += struct.pack("<H", tag) + b"\xff\xff\xff\xff" + value.encode("utf-16-le") + b"\0\0"
     return out
+
+
+#: Velocity's default blob (literal, not built by the source under test).
+VELOCITY_BLOB = bytes.fromhex(
+    "560065006c006f00630069007400790000003527000001000f0000002d22ffffffff300000009b60"
+    "ffffffff00009c60ffffffff00009d60ffffffff00002f22ffffffff32000000f511ffffffff3000"
+    "00003122ffffffff30000000a260ffffffff0000a360ffffffff0000a460ffffffff00007b60ffff"
+    "ffff00007d60ffffffff00008360ffffffff00001832ffffffff390037003400340000000000ffff"
+    "ffff0000"
+)
+#: A blob whose class name no family owns.
+WIDGET_BLOB = _blob("Widget", 0x2799, [(0x6065, "X001"), (0x0000, "")])
 
 
 _MODBUS_FIELDS = {
@@ -372,7 +484,7 @@ def _receive_baselines(ns: Any) -> dict[str, dict[str, Any]]:
         ),
         "rtu_984": dict(
             target=_rtu(ns),
-            remote_start=ns.ModbusAddress(address="400001"),
+            remote_start=ns.ModbusAddress(address="400001", register_type=None),
             dest="DS1",
             quantity=1,
             receiving="C1",
@@ -401,11 +513,11 @@ PROBES: dict[str, Probe] = {
             "wire_down": "bool",
         },
         baselines=lambda ns: {
-            "no": dict(type=ns.IT.CONTACT_NO, operand="X001"),
-            "nc": dict(type=ns.IT.CONTACT_NC, operand="C1"),
-            "rise": dict(type=ns.IT.CONTACT_EDGE, operand="C1", edge_kind="rise"),
-            "fall": dict(type=ns.IT.CONTACT_EDGE, operand="X001", edge_kind="fall"),
-            "imm": dict(type=ns.IT.CONTACT_NO, operand="X001", immediate=True),
+            "no": dict(type=ns.IT(0x11), operand="X001"),
+            "nc": dict(type=ns.IT(0x12), operand="C1"),
+            "rise": dict(type=ns.IT(0x13), operand="C1", edge_kind="rise"),
+            "fall": dict(type=ns.IT(0x13), operand="X001", edge_kind="fall"),
+            "imm": dict(type=ns.IT(0x11), operand="X001", immediate=True),
         },
     ),
     "CompareContact": Probe(
@@ -432,12 +544,12 @@ PROBES: dict[str, Probe] = {
             "oneshot": "bool",
         },
         baselines=lambda ns: {
-            "out": dict(type=ns.IT.COIL_OUT, operand="C1"),
-            "latch": dict(type=ns.IT.COIL_LATCH, operand="Y001"),
-            "reset": dict(type=ns.IT.COIL_RESET, operand="C1"),
-            "out_range": dict(type=ns.IT.COIL_OUT, operand="C1", range_end="C4"),
-            "out_imm": dict(type=ns.IT.COIL_OUT, operand="Y001", immediate=True),
-            "out_oneshot": dict(type=ns.IT.COIL_OUT, operand="C1", oneshot=True),
+            "out": dict(type=ns.IT(0x15), operand="C1"),
+            "latch": dict(type=ns.IT(0x16), operand="Y001"),
+            "reset": dict(type=ns.IT(0x17), operand="C1"),
+            "out_range": dict(type=ns.IT(0x15), operand="C1", range_end="C4"),
+            "out_imm": dict(type=ns.IT(0x15), operand="Y001", immediate=True),
+            "out_oneshot": dict(type=ns.IT(0x15), operand="C1", oneshot=True),
         },
         ranges=(("operand", "range_end"),),
     ),
@@ -812,7 +924,8 @@ PROBES: dict[str, Probe] = {
     "RawInstruction": Probe(
         fields={"class_name": "classname", "blob": "bytes", "part_count": "int"},
         baselines=lambda ns: {
-            "email": dict(class_name="Email", blob=ns.Email().build_blob()),
+            "velocity": dict(class_name="Velocity", blob=VELOCITY_BLOB),
+            "widget": dict(class_name="Widget", blob=WIDGET_BLOB),
         },
     ),
 }
@@ -859,9 +972,11 @@ class Namespace:
         self.parse_rows = _parse_single_rung_rows
         self.convert_rung = convert_rung
         self.rung_to_rows = decoded_rung_to_rows
+        self.encode = laddercodec.encode
+        self.decode = laddercodec.decode
         self.decompose = _decompose_blob
         self.compose = _compose_blob
-        for name in NESTED + ("Email",):
+        for name in NESTED:
             setattr(self, name, getattr(instructions, name))
 
     def registered_classes(self) -> list[type]:
@@ -886,7 +1001,23 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:24]
 
 
-def _values(kind: Any, field: str, base: dict[str, Any], ns: Any) -> list[Any]:
+def _key(value: Any) -> str:
+    return value.key if isinstance(value, Frozen) else repr(value)
+
+
+def _values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
+    """The values field ``field`` is varied over, without repeats."""
+    values = _raw_values(kind, field, base)
+    seen: set[str] = set()
+    out = []
+    for value in values:
+        if _key(value) not in seen:
+            seen.add(_key(value))
+            out.append(value)
+    return out
+
+
+def _raw_values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
     if isinstance(kind, tuple) and kind[0] == "lit":
         return kind[1]
     simple: dict[str, list[Any]] = {
@@ -909,11 +1040,11 @@ def _values(kind: Any, field: str, base: dict[str, Any], ns: Any) -> list[Any]:
     if kind in simple:
         return simple[kind]
     if kind == "itype":
-        return [*ns.IT, 0x11, 0x99]
+        return _itypes()
     if kind == "target":
-        return _targets(ns)
+        return _targets()
     if kind == "remote":
-        return [*OPERANDS, *_modbus(ns)]
+        return [*OPERANDS, *_modbus()]
     if kind == "oplist":
         current = list(base.get(field, []))
         lists = [[op, *current[1:]] for op in OPERANDS]
@@ -982,24 +1113,46 @@ class Runner:
             afs[nop_row] = "NOP"
         return ns.Rung(rows, conditions, afs, None)
 
-    def template(self, inst: Any) -> tuple[list[list[str]], str]:
-        """The writer's CSV rows for a rung holding ``inst``, and any warnings it gave."""
+    def template(self, rung: Any) -> tuple[list[list[str]], str]:
+        """The writer's CSV rows for ``rung``, and any warnings it gave."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            rows = [list(row) for row in self.ns.rung_to_rows(self.rung_for(inst))]
+            rows = [list(row) for row in self.ns.rung_to_rows(rung)]
         notes = "; ".join(f"{w.category.__name__}: {w.message}" for w in caught)
         return rows, notes
 
-    def read_back(self, rows: list[list[str]], condition: bool) -> str:
-        ns = self.ns
-        try:
-            _rows, conditions, instructions, _comment = ns.convert_rung(ns.parse_rows(rows))
-        except Exception as exc:
-            return error_text(exc)
+    def main_token(self, conditions: Any, instructions: Any, condition: bool) -> str:
         if condition:
             return self.describe(conditions[0][0])
         token = next((t for t in instructions if t not in ("", "NOP")), None)
         return self.describe(token) if token is not None else f"none:{instructions!r}"
+
+    def read_back(self, rows: list[list[str]], condition: bool) -> tuple[str, Any]:
+        """The case's token read back from CSV rows, and the rung it read (or None)."""
+        ns = self.ns
+        try:
+            logical, conditions, instructions, comment = ns.convert_rung(ns.parse_rows(rows))
+        except Exception as exc:
+            return error_text(exc), None
+        rung = ns.Rung(logical, conditions, instructions, comment)
+        return self.main_token(conditions, instructions, condition), rung
+
+    def round_trip(self, rung: Any, condition: bool, expect: str) -> str:
+        """sha of ``encode(rung)`` and the case's token in ``decode()`` of those bytes.
+
+        The token is ``=`` when it is ``expect``.
+        """
+        ns = self.ns
+        try:
+            data = ns.encode(rung)
+        except Exception as exc:
+            return f"encode{error_text(exc)}"
+        try:
+            decoded = ns.decode(data)
+        except Exception as exc:
+            return f"{_sha(data)} decode{error_text(exc)}"
+        token = self.main_token(decoded.conditions, decoded.instructions, condition)
+        return f"{_sha(data)} {'=' if token == expect else token}"
 
     def decode_blob(self, blob: bytes, condition: bool) -> str:
         parse = (
@@ -1036,9 +1189,11 @@ class Runner:
             except Exception as exc:
                 record["blob"] = error_text(exc)
             try:
-                rows, notes = self.template(inst)
+                rung = self.rung_for(inst)
+                rows, notes = self.template(rung)
                 record["write"] = f"ok ({notes})" if notes else "ok"
                 anchor = inst
+                record["enc"] = self.round_trip(rung, condition, record["csv"])
             except ProbeSkip as exc:
                 record["write"] = f"skipped: {exc}"
                 rows, anchor = None, None
@@ -1048,10 +1203,14 @@ class Runner:
         else:
             rows, anchor = None, None
         if rows is None or anchor is None:
-            anchor = cls(**base)
-            if key_base not in self.templates:
-                self.templates[key_base] = self.template(anchor)[0]
-            rows = [list(row) for row in self.templates[key_base]]
+            try:
+                anchor = cls(**base)
+                if key_base not in self.templates:
+                    self.templates[key_base] = self.template(self.rung_for(anchor))[0]
+            except Exception:
+                anchor = None
+            else:
+                rows = [list(row) for row in self.templates[key_base]]
         raw = _unchecked(cls, kwargs)
         text = self.describe(raw)
         record["text"] = text
@@ -1059,7 +1218,9 @@ class Runner:
             raw_csv = raw.to_csv()
         except Exception:
             raw_csv = None
-        if raw_csv is not None:
+        if raw_csv is not None and (rows is None or anchor is None):
+            record["read"] = "!probe: the baseline has no CSV rows (refused or not written)"
+        elif raw_csv is not None:
             anchor_csv = anchor.to_csv()
             cells = [
                 (r, c) for r, row in enumerate(rows) for c, v in enumerate(row) if v == anchor_csv
@@ -1069,8 +1230,10 @@ class Runner:
             else:
                 r, c = cells[0]
                 rows[r][c] = raw_csv
-                read = self.read_back(rows, condition)
+                read, read_rung = self.read_back(rows, condition)
                 record["read"] = "=" if read == text else read
+                if read_rung is not None:
+                    record["renc"] = self.round_trip(read_rung, condition, read)
         try:
             blob = raw.build_blob()
         except Exception as exc:
@@ -1100,7 +1263,10 @@ class Runner:
         if not changed:
             return None
         if key_base not in self.base_fields:
-            blob = cls(**base).build_blob()
+            try:
+                blob = cls(**base).build_blob()
+            except Exception as exc:
+                return f"!probe: baseline refused{error_text(exc)}"
             self.base_fields[key_base] = self.ns.decompose(blob)
         class_name, marker, part_count, extra, fields = self.base_fields[key_base]
         fields = list(fields)
@@ -1122,15 +1288,24 @@ class Runner:
         return f"{','.join(swapped)} {self.decode_blob(blob, condition)}"
 
 
-def _cases(probe: Probe, label: str, base: dict[str, Any], ns: Any) -> list[tuple[str, dict]]:
-    cases: list[tuple[str, dict]] = [("-", dict(base))]
+def _cases(probe: Probe, base: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    """``(case key, overrides)`` for one baseline; overrides may hold ``Frozen`` values."""
+    cases: list[tuple[str, dict[str, Any]]] = [("-", {})]
     for field, kind in probe.fields.items():
-        for value in _values(kind, field, base, ns):
-            cases.append((f"{field}={value!r}", {**base, field: value}))
+        for value in _values(kind, field, base):
+            cases.append((f"{field}={_key(value)}", {field: value}))
     for a, b in probe.ranges:
         for va, vb in RANGE_PAIRS:
-            cases.append((f"{a},{b}={(va, vb)!r}", {**base, a: va, b: vb}))
+            cases.append((f"{a},{b}={(va, vb)!r}", {a: va, b: vb}))
     return cases
+
+
+def _resolve(ns: Any, base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """The case's constructor arguments; raises ValueRefused for a refused frozen value."""
+    kwargs = dict(base)
+    for name, value in overrides.items():
+        kwargs[name] = value.build(ns) if isinstance(value, Frozen) else value
+    return kwargs
 
 
 def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
@@ -1142,6 +1317,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
         raise SystemExit(f"no probe baseline for registered class(es): {', '.join(missing)}")
     cases: dict[str, Any] = {}
     per_class: dict[str, dict[str, Any]] = {}
+    refused: list[str] = []
     for cls in sorted(classes, key=lambda c: c.__name__):
         name = cls.__name__
         spec = PROBES[name]
@@ -1155,25 +1331,36 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
         count = 0
         for label, base in spec.baselines(ns).items():
             key_base = f"{name}/{label}"
-            for case, kwargs in _cases(spec, label, base, ns):
+            for case, overrides in _cases(spec, base):
                 if limit is not None and count >= limit:
                     break
                 key = f"{key_base}/{case}"
                 if key in cases:
-                    continue
+                    raise SystemExit(f"probe case key {key!r} appears twice")
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always")
-                    record = runner.run(cls, key_base, base, kwargs)
+                    try:
+                        kwargs = _resolve(ns, base, overrides)
+                    except ValueRefused as exc:
+                        record = {"new": f"!value: {exc}"}
+                    else:
+                        record = runner.run(cls, key_base, base, kwargs)
                 if caught:
                     record["warn"] = [f"{w.category.__name__}: {w.message}" for w in caught]
                 if case == "-" and record["new"] != "ok":
-                    raise SystemExit(f"{key_base}: baseline refused: {record['new']}")
+                    refused.append(key_base)
+                    print(f"{key_base}: baseline refused: {record['new']}", file=sys.stderr)
                 cases[key] = record
                 count += 1
                 new = record["new"]
                 outcomes["ok" if new == "ok" else new.split(":", 1)[0].lstrip("!")] += 1
         per_class[name] = {"cases": count, "outcomes": dict(sorted(outcomes.items()))}
-    meta = {"cases": len(cases), "per_class": per_class}
+    meta = {
+        "cases": len(cases),
+        "per_class": per_class,
+        "refused_baselines": refused,
+        "scope": {"limit": limit},
+    }
     return {"tool": "operand_probe", "meta": meta, "cases": cases}
 
 

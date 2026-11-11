@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
+
+import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DEVTOOLS = ROOT / "devtools"
+
+#: Appended to a copy of ``model.py``: C2000 and DS31 and above become out of range.
+NARROWED_BANKS = '\nADDRESS_BANKS["C"] = (1, 1999)\nADDRESS_BANKS["DS"] = (1, 30)\n'
 
 
 def _run(script: str, *args: object) -> subprocess.CompletedProcess[str]:
@@ -24,35 +32,93 @@ def _run(script: str, *args: object) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _check_tool(script: str, limit: int, tmp_path: Path) -> dict:
-    a, b = tmp_path / f"{script}.a.json", tmp_path / f"{script}.b.json"
-    for out in (a, b):
-        result = _run(script, SRC, out, "--limit", limit)
-        assert result.returncode == 0, result.stderr
+def _output(script: str, src: Path, out: Path, limit: int) -> dict[str, Any]:
+    result = _run(script, src, out, "--limit", limit)
+    assert result.returncode == 0, result.stderr
+    return json.loads(out.read_text(encoding="utf-8"))
+
+
+def _identity_diff() -> Any:
+    spec = importlib.util.spec_from_file_location("identity_diff", DEVTOOLS / "identity_diff.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def narrowed_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A copy of ``src`` whose bank table refuses C2000 and DS31 and above."""
+    src = tmp_path_factory.mktemp("narrowed") / "src"
+    shutil.copytree(
+        SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
+    )
+    model = src / "laddercodec" / "model.py"
+    model.write_text(model.read_text(encoding="utf-8") + NARROWED_BANKS, encoding="utf-8")
+    return src
+
+
+def _check_tool(script: str, limit: int, narrowed: Path, tmp_path: Path) -> dict[str, Any]:
+    a, b, c = (tmp_path / f"{script}.{n}.json" for n in "abc")
+    doc = _output(script, SRC, a, limit)
+    _output(script, SRC, b, limit)
     same = _run(script, "--diff", a, b)
-    assert same.returncode == 0, same.stdout
+    assert same.returncode == 0, same.stdout + same.stderr
     assert "0 difference(s)" in same.stdout
 
-    doc = json.loads(a.read_text(encoding="utf-8"))
-    key = sorted(doc["cases"])[0]
-    doc["cases"][key] = {"changed": True}
-    b.write_text(json.dumps(doc), encoding="utf-8")
-    changed = _run(script, "--diff", a, b)
-    assert changed.returncode == 1
-    assert key in changed.stdout
-    return doc
+    _output(script, narrowed, c, limit)
+    changed = _run(script, "--diff", a, c)
+    assert changed.returncode == 1, changed.stdout + changed.stderr
+    return doc | {"narrowed_diff": changed.stdout}
 
 
-def test_fixture_snapshot_is_deterministic(tmp_path: Path) -> None:
-    doc = _check_tool("fixture_snapshot.py", 4, tmp_path)
+def test_fixture_snapshot_sees_a_narrowed_bank(narrowed_src: Path, tmp_path: Path) -> None:
+    doc = _check_tool("fixture_snapshot.py", 4, narrowed_src, tmp_path)
     assert doc["meta"]["files"] == 4
+    assert "blockcopy__" in doc["narrowed_diff"]
 
 
-def test_operand_probe_is_deterministic(tmp_path: Path) -> None:
-    doc = _check_tool("operand_probe.py", 2, tmp_path)
+def test_operand_probe_sees_a_narrowed_bank(narrowed_src: Path, tmp_path: Path) -> None:
+    doc = _check_tool("operand_probe.py", 40, narrowed_src, tmp_path)
     per_class = doc["meta"]["per_class"]
-    assert per_class["Contact"]["cases"] == 2
+    assert per_class["Contact"]["cases"] == 40
     assert all(info["cases"] >= 1 for info in per_class.values())
+    assert doc["meta"]["refused_baselines"] == []
     baseline = doc["cases"]["Contact/no/-"]
     assert baseline["new"] == "ok"
     assert baseline["read"] == "="
+    assert "~ Coil/out/operand='C2000'.new: \"ok\"" in doc["narrowed_diff"]
+
+
+def test_outputs_of_different_tools_differ(tmp_path: Path) -> None:
+    snap = tmp_path / "snap.json"
+    probe = tmp_path / "probe.json"
+    _output("fixture_snapshot.py", SRC, snap, 1)
+    _output("operand_probe.py", SRC, probe, 1)
+    result = _run("identity_diff.py", snap, probe)
+    assert result.returncode == 1
+    assert "tool differs" in result.stdout
+
+
+def _doc(cases: Any, limit: int | None = None) -> dict[str, Any]:
+    return {"tool": "t", "meta": {"scope": {"limit": limit}}, "cases": cases}
+
+
+def _diff(tmp_path: Path, a: Any, b: Any) -> int:
+    paths = [tmp_path / "a.json", tmp_path / "b.json"]
+    for path, doc in zip(paths, (a, b), strict=True):
+        path.write_text(json.dumps(doc), encoding="utf-8")
+    return _identity_diff().diff_files(*paths)
+
+
+@pytest.mark.parametrize("other", [True, 1.0, "1", [1], None])
+def test_identity_diff_counts_the_json_type(tmp_path: Path, other: Any) -> None:
+    assert _diff(tmp_path, _doc({"k": {"v": 1}}), _doc({"k": {"v": other}})) == 1
+    assert _diff(tmp_path, _doc({"k": {"v": 1}}), _doc({"k": {"v": 1}})) == 0
+
+
+def test_identity_diff_refuses_outputs_it_cannot_compare(tmp_path: Path) -> None:
+    assert _diff(tmp_path, _doc({"k": 1}, limit=2), _doc({"k": 1}, limit=None)) == 2
+    assert _diff(tmp_path, _doc({}), _doc({})) == 2
+    assert _diff(tmp_path, _doc({"k": 1}), {"tool": "t", "meta": {}}) == 2
+    assert _diff(tmp_path, _doc({"k": 1}), [1, 2]) == 2

@@ -8,11 +8,18 @@
 
 Every ``.bin``, ``.bin.gz``, ``.scr`` and ``.tmp`` under ``tests/fixtures`` is decoded to
 its CSV token text per rung (unknown cells as ``?UnknownInstruction:<len>:<sha256>``,
-``raw(...)`` tokens as written), then written back through the CSV writer and re-encoded;
-those two results are recorded as a sha256 of their output.  Every ``.csv`` is read and
-encoded, recorded as its tokens and a sha256 of the encoded bytes.  A step that raises
-records ``!<ExceptionClass>: <message>``; warnings raised while a file is processed are
-listed under its ``warnings``.
+``raw(...)`` tokens as written).  Every ``.csv`` is read strictly and with
+``strict=False`` (``read_relaxed`` is ``"="`` when the two agree).  The decoded or read
+rungs are then recorded as:
+
+- ``csv``: sha256 of the CSV writer's rows (decoded files only);
+- ``encode`` and ``encode_nicknames``: sha256 of ``encode()`` and of
+  ``encode(..., show_nicknames=True)``;
+- ``v4_only``: ``find_v4_only()`` as ``[rung index, token text]`` pairs.
+
+A step that raises records ``!<ExceptionClass>: <message>``, with the fixture root and the
+src directory written ``<fixtures>`` and ``<src>``; warnings raised while a file is
+processed are listed under its ``warnings``.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -24,6 +31,7 @@ import gzip
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -47,8 +55,29 @@ def load_laddercodec(src_dir: str) -> Any:
     return laddercodec
 
 
+#: (pattern, replacement) pairs that turn machine paths in messages into stable names.
+_SCRUB: list[tuple[re.Pattern[str], str]] = []
+
+
+def set_scrub_roots(roots: dict[str, Path]) -> None:
+    """Write each root path (either slash style, any case) in messages as its name."""
+    _SCRUB.clear()
+    resolved = {name: str(root.resolve()) for name, root in roots.items()}
+    for name, text in sorted(resolved.items(), key=lambda item: -len(item[1])):
+        for form in sorted({text.replace("\\", "/"), text.replace("/", "\\")}):
+            pattern = re.escape(form) + r"((?:[\\/][^\s'\"]*)?)"
+            _SCRUB.append((re.compile(pattern, re.IGNORECASE), name))
+
+
+def scrub(text: str) -> str:
+    """``text`` with machine paths under the roots written ``<name>/rel/path``."""
+    for pattern, name in _SCRUB:
+        text = pattern.sub(lambda m, name=name: name + m.group(1).replace("\\", "/"), text)
+    return text
+
+
 def error_text(exc: BaseException) -> str:
-    return f"!{type(exc).__name__}: {exc}"
+    return scrub(f"!{type(exc).__name__}: {exc}")
 
 
 def sha256(data: bytes) -> str:
@@ -102,11 +131,30 @@ def _writer_sha(rungs: list[Any]) -> str:
     return sha256(json.dumps(rows, ensure_ascii=False).encode("utf-8"))
 
 
-def _encode_sha(laddercodec: Any, rungs: Any) -> str:
+def _encode_sha(laddercodec: Any, rungs: Any, **kwargs: Any) -> str:
     try:
-        return sha256(laddercodec.encode(rungs))
+        return sha256(laddercodec.encode(rungs, **kwargs))
     except Exception as exc:
         return error_text(exc)
+
+
+def _v4_only(laddercodec: Any, rungs: list[Any]) -> Any:
+    try:
+        found = laddercodec.find_v4_only(rungs)
+    except Exception as exc:
+        return error_text(exc)
+    return [[index, token_text(token)] for index, token in found]
+
+
+def _encodings(laddercodec: Any, rungs: list[Any], encode_arg: Any) -> dict[str, Any]:
+    """Encoded-bytes hashes (plain and with nicknames shown) and the v4-only instructions."""
+    if not rungs:
+        return {"encode": None, "encode_nicknames": None, "v4_only": []}
+    return {
+        "encode": _encode_sha(laddercodec, encode_arg),
+        "encode_nicknames": _encode_sha(laddercodec, encode_arg, show_nicknames=True),
+        "v4_only": _v4_only(laddercodec, rungs),
+    }
 
 
 def decode_file(laddercodec: Any, path: Path) -> dict[str, Any]:
@@ -132,20 +180,24 @@ def decode_file(laddercodec: Any, path: Path) -> dict[str, Any]:
         encode_arg = decoded
     record["rungs"] = [rung_record(rung) for rung in rungs]
     record["csv"] = _writer_sha(rungs)
-    record["reencode"] = _encode_sha(laddercodec, encode_arg) if rungs else None
+    record.update(_encodings(laddercodec, rungs, encode_arg))
     return record
 
 
 def read_file(laddercodec: Any, path: Path) -> dict[str, Any]:
     try:
+        relaxed: Any = [rung_record(r) for r in laddercodec.read_csv(path, strict=False)]
+    except Exception as exc:
+        relaxed = error_text(exc)
+    try:
         rungs = laddercodec.read_csv(path)
     except Exception as exc:
-        return {"read": error_text(exc)}
+        return {"read": error_text(exc), "read_relaxed": relaxed}
     encode_arg: Any = rungs[0] if len(rungs) == 1 else rungs
-    return {
-        "rungs": [rung_record(rung) for rung in rungs],
-        "encode": _encode_sha(laddercodec, encode_arg) if rungs else None,
-    }
+    record: dict[str, Any] = {"rungs": [rung_record(rung) for rung in rungs]}
+    record["read_relaxed"] = "=" if relaxed == record["rungs"] else relaxed
+    record.update(_encodings(laddercodec, rungs, encode_arg))
+    return record
 
 
 def fixture_files(root: Path) -> list[Path]:
@@ -159,6 +211,7 @@ def fixture_files(root: Path) -> list[Path]:
 
 def snapshot(src_dir: str, fixtures: Path, limit: int | None = None) -> dict[str, Any]:
     laddercodec = load_laddercodec(src_dir)
+    set_scrub_roots({"<fixtures>": fixtures, "<src>": Path(src_dir)})
     files = fixture_files(fixtures)
     if limit is not None:
         files = files[:limit]
@@ -172,14 +225,22 @@ def snapshot(src_dir: str, fixtures: Path, limit: int | None = None) -> dict[str
             else:
                 record = decode_file(laddercodec, path)
         if caught:
-            record["warnings"] = [f"{w.category.__name__}: {w.message}" for w in caught]
+            record["warnings"] = [scrub(f"{w.category.__name__}: {w.message}") for w in caught]
         cases[key] = record
     failed = sorted(
         key
         for key, value in cases.items()
         if any(isinstance(v, str) and v.startswith("!") for v in value.values())
     )
-    meta = {"files": len(cases), "files_with_a_failed_step": failed}
+    try:
+        root = fixtures.relative_to(FIXTURES.parent.parent).as_posix()
+    except ValueError:
+        root = fixtures.as_posix()
+    meta = {
+        "files": len(cases),
+        "files_with_a_failed_step": failed,
+        "scope": {"fixtures": root, "limit": limit},
+    }
     return {"tool": "fixture_snapshot", "meta": meta, "cases": cases}
 
 
