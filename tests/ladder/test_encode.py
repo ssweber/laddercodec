@@ -356,7 +356,7 @@ class TestInstructionRoundTrip:
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"
 
 
-# -- Text constants: "" refused on encode, $00 is the blank --
+# -- Text constants: "" refused on encode (Search refuses it on read), $00 is the blank --
 
 
 def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
@@ -372,7 +372,6 @@ def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
 _EMPTY_TEXT_SITES = [
     pytest.param("C1", 'copy("",TXT813)', id="copy_source"),
     pytest.param("C1", 'fill("",TXT1..TXT4)', id="fill_value"),
-    pytest.param("C1", 'search(TXT1..TXT10 == "",result=DS1,found=C2)', id="search_value"),
 ]
 
 
