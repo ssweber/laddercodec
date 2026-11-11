@@ -404,22 +404,27 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     fmt = m.group(1)  # "text", "value", "binary", "ascii"
     inner = (m.group(2) or "").strip()
 
-    if fmt != "text":
+    if fmt not in ("text", "binary"):
         if inner:
             raise ValueError(f"to_{fmt} takes no arguments: {raw!r}")
         return fmt, {}
 
-    # to_text: parse kwargs
+    # to_text and to_binary: parse kwargs
     text_opts: dict[str, str] = {}
     if inner:
         for part in inner.split(","):
             part = part.strip()
             if "=" not in part:
-                raise ValueError(f"to_text options must be keyword arguments: {raw!r}")
+                raise ValueError(f"to_{fmt} options must be keyword arguments: {raw!r}")
             k, v = part.split("=", 1)
-            text_opts[k.strip()] = v.strip()
+            k = k.strip()
+            if fmt == "binary" and k != "termination_code":
+                raise FieldError(
+                    f"to_binary: {k!r} is not an option; it takes only termination_code"
+                )
+            text_opts[k] = v.strip()
 
-    return "text", text_opts
+    return fmt, text_opts
 
 
 def _parse_range(arg: str) -> tuple[str, str]:
@@ -591,6 +596,8 @@ class Copy(AfInstruction):
                 f"termination_code={'none' if self.termination_code == '0' else self.termination_code}",
             ]
             kw.append(f"convert=to_text({','.join(text_kw)})")
+        elif self.format == "binary" and self.termination_code != "0":
+            kw.append(f"convert=to_binary(termination_code={self.termination_code})")
         elif self.format in ("value", "binary", "ascii"):
             kw.append(f"convert=to_{self.format}")
         elif self.format != "none":

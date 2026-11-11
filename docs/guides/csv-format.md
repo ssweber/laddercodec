@@ -513,7 +513,7 @@ currently emit:
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
-  - `convert=to_binary`
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`)
   - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling

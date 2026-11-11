@@ -8,8 +8,13 @@ destination types (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import pytest
 
+from laddercodec import FieldError, Rung, decode, encode, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.copy import Copy, from_tags
 from laddercodec.instructions.raw import _decompose_blob
@@ -128,3 +133,40 @@ def test_one_digit_or_lowercase_code_is_stored_canonical(given: str, stored: str
 def test_invalid_termination_code_rejected(bad: str) -> None:
     with pytest.raises(ValueError):
         Copy(source="DS20", destination="TXT7", format="text", termination_code=bad)
+
+
+@pytest.mark.parametrize(
+    ("code", "token"),
+    [
+        ("$0D", "copy(DS1,TXT1,convert=to_binary(termination_code=$0D))"),
+        ("0", "copy(DS1,TXT1,convert=to_binary)"),
+    ],
+)
+def test_binary_termination_code_round_trips(tmp_path: Path, code: str, token: str) -> None:
+    """Copy -> CSV -> read_csv -> encode -> decode keeps a to_binary termination code."""
+    copy = Copy("DS1", "TXT1", format="binary", termination_code=code)
+    assert copy.to_csv() == token
+    assert Copy.from_csv_token(token) == copy
+
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", "C1"] + ["-"] * 30 + [copy.to_csv()])
+    rung = read_csv(path)[0]
+    assert rung.instructions[0] == copy
+
+    decoded = decode(encode(rung))
+    assert isinstance(decoded, Rung)
+    assert decoded.instructions[0] == copy
+    assert decoded.instructions[0].to_csv() == token
+
+
+def test_binary_termination_code_none_reads_as_no_code() -> None:
+    parsed = Copy.from_csv_token("copy(DS1,TXT1,convert=to_binary(termination_code=none))")
+    assert parsed == Copy("DS1", "TXT1", format="binary")
+
+
+def test_to_binary_rejects_other_keywords() -> None:
+    with pytest.raises(FieldError, match="suppress_zero"):
+        Copy.from_csv_token("copy(DS1,TXT1,convert=to_binary(suppress_zero=1))")
