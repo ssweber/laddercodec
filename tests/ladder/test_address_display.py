@@ -65,6 +65,9 @@ class TestNormalizeAddress:
             ("XD0U", "XD0u"),
             ("yd01", "YD1"),
             ("YD8", "YD8"),
+            # A u suffix outside XD0 is kept for check_address to refuse.
+            ("x1u", "X001u"),
+            ("ds01U", "DS1u"),
             # A pointer normalizes both parts.
             ("ds[ds01]", "DS[DS1]"),
             ("DD[DS007]", "DD[DS7]"),
@@ -98,6 +101,7 @@ class TestNormalizeAddress:
             ("C123456", r"^Contact\.operand: 'C123456' is not a CLICK address$"),
             ("X١", r"^Contact\.operand: 'X١' is not a CLICK address$"),
             ("x017", r"^Contact\.operand: 'X017' is outside X001-X016"),
+            ("x1u", r"^Contact\.operand: 'X001u' is outside X001-X016"),
             ("c02001", r"^Contact\.operand: 'C2001' is outside C1-C2000$"),
             ("ds1", r"^Contact\.operand: 'DS1' is not allowed; Contact\.operand takes X, Y, C"),
         ],

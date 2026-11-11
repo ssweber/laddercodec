@@ -1,10 +1,9 @@
 """Shared domain types for ladder instructions.
 
-Defines ``InstructionType`` enum, the field errors, the CLICK address
-check (:func:`check_address`), its display form (:func:`normalize_address`) and the
-``OPERAND_RE`` shape pattern.  These are
-the foundation types imported by every ``instructions/`` module — no
-reverse dependency.
+Defines ``InstructionType`` enum, the field errors, the CLICK address check
+(:func:`check_address`), its display form (:func:`normalize_address`) and the
+``OPERAND_RE`` shape pattern.  These are the foundation types imported by every
+``instructions/`` module — no reverse dependency.
 
 Instruction dataclasses (Contact, Coil, …) and their func-code
 tables live in :mod:`laddercodec.instructions`.
@@ -197,9 +196,8 @@ class Address(NamedTuple):
 
         X and Y pad the number to 3 digits; every other bank writes it unpadded.
         """
-        if self.bank in _MODULE_BANKS:
-            return f"{self.bank}{self.number:03d}"
-        return f"{self.bank}{self.number}{'u' if self.upper else ''}"
+        number = f"{self.number:03d}" if self.bank in _MODULE_BANKS else str(self.number)
+        return f"{self.bank}{number}{'u' if self.upper else ''}"
 
 
 #: Address text in any letter case, with or without leading zeros (``x1``, ``ds07``,
@@ -271,8 +269,8 @@ def check_address(value: str, name: str, banks: Collection[str] | None = None) -
     number inside the bank's range.  X and Y number by 16-point slot (:data:`XY_SLOTS`):
     ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option slot, and
     ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are
-    allowed (``X001`` and ``X1`` are the same point) and the bank is uppercase; an
-    instruction passes its fields through :func:`normalize_address` first and keeps the
+    allowed (``X001`` and ``X1`` are the same point); the bank must be uppercase.  An
+    instruction passes each field through :func:`normalize_address` first and keeps the
     display form.
     ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
     YD.
