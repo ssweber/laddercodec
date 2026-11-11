@@ -42,7 +42,6 @@ import argparse
 import dataclasses
 import hashlib
 import json
-import re
 import struct
 import sys
 import time
@@ -963,19 +962,19 @@ class Namespace:
         loaded = Path(laddercodec.__file__).resolve().parent.parent
         if loaded != src:
             raise SystemExit(f"laddercodec loaded from {loaded}, not {src}")
-        self.instructions = instructions
-        self.IT = InstructionType
-        self.AfInstruction = AfInstruction
-        self.ConditionInstruction = ConditionInstruction
-        self.PinnedInstruction = PinnedInstruction
-        self.Rung = Rung
-        self.parse_rows = _parse_single_rung_rows
-        self.convert_rung = convert_rung
-        self.rung_to_rows = decoded_rung_to_rows
-        self.encode = laddercodec.encode
-        self.decode = laddercodec.decode
-        self.decompose = _decompose_blob
-        self.compose = _compose_blob
+        self.instructions: Any = instructions
+        self.IT: Any = InstructionType
+        self.AfInstruction: Any = AfInstruction
+        self.ConditionInstruction: Any = ConditionInstruction
+        self.PinnedInstruction: Any = PinnedInstruction
+        self.Rung: Any = Rung
+        self.parse_rows: Any = _parse_single_rung_rows
+        self.convert_rung: Any = convert_rung
+        self.rung_to_rows: Any = decoded_rung_to_rows
+        self.encode: Any = laddercodec.encode
+        self.decode: Any = laddercodec.decode
+        self.decompose: Any = _decompose_blob
+        self.compose: Any = _compose_blob
         for name in NESTED:
             setattr(self, name, getattr(instructions, name))
 
@@ -1218,9 +1217,11 @@ class Runner:
             raw_csv = raw.to_csv()
         except Exception:
             raw_csv = None
-        if raw_csv is not None and (rows is None or anchor is None):
+        if raw_csv is None:
+            pass
+        elif rows is None or anchor is None:
             record["read"] = "!probe: the baseline has no CSV rows (refused or not written)"
-        elif raw_csv is not None:
+        else:
             anchor_csv = anchor.to_csv()
             cells = [
                 (r, c) for r, row in enumerate(rows) for c, v in enumerate(row) if v == anchor_csv
@@ -1337,6 +1338,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
                 key = f"{key_base}/{case}"
                 if key in cases:
                     raise SystemExit(f"probe case key {key!r} appears twice")
+                record: dict[str, Any]
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always")
                     try:
