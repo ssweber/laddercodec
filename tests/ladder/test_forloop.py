@@ -106,6 +106,10 @@ class TestBlankFields:
         with pytest.raises(FieldError, match="Call.subroutine"):
             Call(subroutine="")
 
+    def test_empty_call_csv_is_a_field_error(self) -> None:
+        with pytest.raises(FieldError, match="Call.subroutine"):
+            Call.from_csv_token('call("")')
+
     def test_whitespace_limit_blob_is_raw(self) -> None:
         blob = ForLoop(limit="DS1").build_blob()
         assert isinstance(parse_af_blob(blob), ForLoop)
