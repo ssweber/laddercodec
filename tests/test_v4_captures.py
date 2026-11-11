@@ -188,10 +188,9 @@ def test_out_variant_blobs_match_native() -> None:
 
 
 def test_time_event_drum_blobs_match_native() -> None:
-    """Every time & event drum CLICK wrote re-encodes field for field, 0x428A aside.
+    """Every time & event drum CLICK wrote re-encodes field for field.
 
-    0x428A is unexplained: Click wrote -1 for four drums and -2 for drum__te_ds;
-    the encoder writes -1, which Click also fills in for a pasted drum lacking it.
+    0x428A is the constant-preset mask: -1, except -2 for drum__te_ds (step 0 is DS1301).
     """
     buf = (CAPTURE_DIR / "drum.bin").read_bytes()
     drums = [
@@ -213,9 +212,7 @@ def test_time_event_drum_blobs_match_native() -> None:
         *head, native_fields = _decompose_blob(buf[start : start + len(blob)])
         *encoded_head, fields = _decompose_blob(blob)
         assert encoded_head == head
-        assert [f for f in fields if f[0] != 0x428A] == [
-            f for f in native_fields if f[0] != 0x428A
-        ], drum.to_csv()
+        assert fields == native_fields, drum.to_csv()
         checked += 1
     assert checked == 5
 
@@ -454,6 +451,11 @@ _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
     "Call": frozenset({0x3219}),  # dialog drop-down index; CLICK reselects the subroutine by name
 }
 
+#: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
+_V4_ADDED_TAGS: dict[str, frozenset[int]] = {
+    "Drum": frozenset({0x6891, 0x428A, 0x6068}),
+}
+
 _SWEEP = [
     (path, index, rung)
     for path in sorted(CAPTURE_DIR.glob("sweep_*.bin"))
@@ -483,6 +485,9 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
     native = _af_blob(path.read_bytes(), index)
     ours = _af_blob(encode(rung), 0)
     ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset())
+    v4_added = _V4_ADDED_TAGS.get(native[0], frozenset())
+    if not any(f[0] in v4_added for f in ours[4]):
+        ignored |= v4_added
 
     def compared(fields: list[tuple[int, bytes, str]]) -> list[tuple[int, bytes, str]]:
         return [f for f in fields if f[0] not in ignored]

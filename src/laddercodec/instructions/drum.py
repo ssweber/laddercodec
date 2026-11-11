@@ -3,14 +3,16 @@
 Binary class name: ``"Drum"``.
 Drum types: event_drum (event-driven), time_drum (time-driven), and CLICK v4's
 time_event_drum (each step ends on its preset time and/or its event).
-Event and time drums use the 64-field v3 blob; time & event drums use v4's
-82-field blob (16 preset slots ``0x6891``, ``0x428A``, timer done bit ``0x6068``).
+Event and time drums use the 64-field v3 blob.  The v4-only drums, time & event
+and a time drum with a register preset, use v4's 82-field blob (16 preset slots
+``0x6891``, constant-preset mask ``0x428A``, timer done bit ``0x6068``).
 4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3), more when OR
 legs under a pin push the later pins down (``pin_rows``, the blob's part bytes).
 """
 
 from __future__ import annotations
 
+import re
 import struct
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
@@ -31,19 +33,25 @@ _EVENT_FC_NO_JOG = (8491, 8492, 8493)
 # Event drum: jog group (base, reset, jump, jog)
 _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
-# Time drum: unit → (base, reset) func codes for the no-jog group.
-# Captured from native Click (timer_and_drums.bin, rungs 5-10).  reset = base+1;
-# blocks stride by 7 except Td (+8; code 8483 is skipped/reserved).
-_TIME_FC: dict[str, tuple[int, int]] = {
-    "Tms": (8455, 8456),
-    "Ts": (8462, 8463),
-    "Tm": (8469, 8470),
-    "Th": (8476, 8477),
-    "Td": (8484, 8485),
+# Time drum: unit → first func code of its block (no-jog group: base, reset, jump).
+# The jog group (base, reset, jump, jog) follows at block+3, except for Th, whose
+# jog group is at block+4: code 8479 is the unused one (InstCtl_Drum.dll,
+# v4_captures/sweep_drum.bin), which makes the Th block 8 codes long.
+_TIME_FC_BASE: dict[str, int] = {
+    "Tms": 8455,
+    "Ts": 8462,
+    "Tm": 8469,
+    "Th": 8476,
+    "Td": 8484,
 }
+_TH_JOG_SKIP = 1
 
-# Time & event drum (CLICK v4): unit → no-jog base func code; same 7-code block
-# shape and Td skip as the time drum (v4_captures/drum.bin).
+# A time drum with a register preset (CLICK v4) uses the same blocks 1792 codes up
+# (Tms 10247); constant presets only keep the 8455 series.
+_REGISTER_PRESET_FC_OFFSET = 10247 - 8455
+
+# Time & event drum (CLICK v4): unit → first func code of its block; same block
+# shape as the time drum (v4_captures/drum.bin, sweep_drum.bin).
 _TIME_EVENT_FC_BASE: dict[str, int] = {
     "Tms": 10503,
     "Ts": 10510,
@@ -125,6 +133,28 @@ def _format_optional_list(values: list[str]) -> str:
     return ",".join(value or "None" for value in values)
 
 
+#: A preset that names a register rather than a literal duration.
+_REGISTER_RE = re.compile(r"[A-Z]+\d+")
+
+
+def is_register_preset(preset: str) -> bool:
+    """Whether a time drum preset names a register (``DS1``) rather than a duration."""
+    return bool(_REGISTER_RE.fullmatch(preset))
+
+
+def _constant_preset_mask(presets: list[str]) -> str:
+    """Tag 0x428A: bit *n* stays set unless step *n*'s preset is a register.
+
+    All 16 bits set (``-1``) when every preset is a constant or blank; CLICK v4
+    writes it on OK, and picks a time drum's func code series from it.
+    """
+    mask = -1
+    for i, preset in enumerate(presets):
+        if is_register_preset(preset):
+            mask &= ~(1 << i)
+    return str(mask)
+
+
 def _timer_done_bit(accumulator: str) -> str:
     """``TD101`` -> ``T101``: the timer a time & event drum's accumulator belongs to."""
     if not accumulator.startswith("TD"):
@@ -173,6 +203,18 @@ class Drum(PinnedInstruction):
     @property
     def num_steps(self) -> int:
         return len(self.events_or_presets)
+
+    @property
+    def has_register_preset(self) -> bool:
+        """A time or time & event drum reads a step's duration from a register."""
+        return self.drum_kind != "event" and any(
+            is_register_preset(preset) for preset in self.events_or_presets
+        )
+
+    @property
+    def v4_blob(self) -> bool:
+        """Written in v4's 82-field form: time & event, or a time drum with a register preset."""
+        return self.drum_kind == "time_event" or self.has_register_preset
 
     def to_csv(self) -> str:
         outputs_str = ",".join(self.outputs)
@@ -254,15 +296,18 @@ class Drum(PinnedInstruction):
         if self.drum_kind == "time_event":
             block_base = _TIME_EVENT_FC_BASE.get(self.unit, 0)
         else:
-            block_base = _TIME_FC.get(self.unit, (0, 0))[0]
+            block_base = _TIME_FC_BASE.get(self.unit, 0)
+            if block_base and self.has_register_preset:
+                block_base += _REGISTER_PRESET_FC_OFFSET
         if not block_base:
             raise ValueError(f"Unsupported {self.drum_kind} drum unit: {self.unit!r}")
-        # Each time unit reserves a 7-code block, same shape as event drums:
-        # no-jog group (base, reset, jump) then jog group (base, reset, jump, jog).
+        # Each time unit's block has the event drum's shape: no-jog group (base,
+        # reset, jump) then jog group (base, reset, jump, jog).
         if self.jog_enabled:
-            base, reset = block_base + 3, block_base + 4
-            jump = block_base + 5 if self.jump_enabled else 0
-            jog = block_base + 6 if self.jump_enabled else block_base + 5
+            jog_base = block_base + 3 + (_TH_JOG_SKIP if self.unit == "Th" else 0)
+            base, reset = jog_base, jog_base + 1
+            jump = jog_base + 2 if self.jump_enabled else 0
+            jog = jog_base + 3 if self.jump_enabled else jog_base + 2
         else:
             base, reset = block_base, block_base + 1
             jump = block_base + 2 if self.jump_enabled else 0
@@ -282,7 +327,7 @@ class Drum(PinnedInstruction):
         out += struct.pack("<H", 4)  # part count
         out += bytes(self.pin_rows)  # extra bytes: each pin's row
         time_event = self.drum_kind == "time_event"
-        out += struct.pack("<I", 82 if time_event else 64)  # field count
+        out += struct.pack("<I", 82 if self.v4_blob else 64)  # field count
 
         # Fields 0-3: func codes (sub-indexed 0x3A05)
         func_codes = self._compute_func_codes()
@@ -339,14 +384,15 @@ class Drum(PinnedInstruction):
         # Field 62: visual rows marker
         out += _tagged_field(0x20CA, "2")
 
-        if time_event:
-            # Fields 63-78: presets (sub-indexed 0x6891, 16 slots)
+        if self.v4_blob:
+            # Fields 63-78: a time & event drum's presets (sub-indexed 0x6891, 16
+            # slots); a time drum keeps its presets in 0x6872 and leaves these blank.
             for i in range(16):
-                value = self.events_or_presets[i] if i < self.num_steps else ""
+                value = self.events_or_presets[i] if time_event and i < self.num_steps else ""
                 out += _variant_tagged_field(0x6891, struct.pack("<I", i), value)
-            # Field 79: unexplained; Click writes -1 (once -2) and itself fills in -1
-            # for a pasted drum that lacks it.
-            out += _tagged_field(0x428A, "-1")
+            # Field 79: which presets are constants.  A paste keeps it as written
+            # (absent = -1), and a time drum's func code series follows it.
+            out += _tagged_field(0x428A, _constant_preset_mask(self.events_or_presets))
             # Field 80: the done bit of the accumulator's timer (TD101 -> T101)
             out += _tagged_field(0x6068, _timer_done_bit(self.accumulator))
 
@@ -510,7 +556,7 @@ def parse_af_call(call: AfCall) -> Drum:
         events_or_presets = _parse_simple_list(call.kwargs.get("presets", "[]"))
         accumulator = call.kwargs.get("accumulator", "")
         unit = call.kwargs.get("unit", "")
-        if unit not in _TIME_FC:
+        if unit not in _TIME_FC_BASE:
             raise ValueError(f"Unsupported time drum unit: {unit!r}")
 
     return Drum(
