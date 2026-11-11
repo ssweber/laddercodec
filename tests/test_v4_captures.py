@@ -454,6 +454,8 @@ _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
 #: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
 _V4_ADDED_TAGS: dict[str, frozenset[int]] = {
     "Drum": frozenset({0x6891, 0x428A, 0x6068}),
+    # v4 writes every Out in its OutVariant shape: pulse/timer fields, all blank or 0.
+    "Out": frozenset({0x60B3, 0x60B4, 0x60B5, 0x60B6, 0x1246, 0x1247, 0x21F9, 0x2248, 0x20CA}),
 }
 
 #: Slot tables v4 pads further than v3 (Math: 5000 range-interior slots, not 500);

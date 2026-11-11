@@ -27,6 +27,9 @@ COIL_FUNC_CODES: dict[tuple[InstructionType, bool, bool, bool], str] = {
     (InstructionType.COIL_OUT, True, False, False): "8207",
     (InstructionType.COIL_OUT, True, True, False): "8208",
     (InstructionType.COIL_OUT, False, False, True): "8205",
+    (InstructionType.COIL_OUT, False, True, True): "8206",  # v4_captures/sweep_coil.bin
+    (InstructionType.COIL_OUT, True, False, True): "8209",
+    (InstructionType.COIL_OUT, True, True, True): "8210",
     (InstructionType.COIL_LATCH, False, False, False): "8195",
     (InstructionType.COIL_LATCH, False, True, False): "8199",
     (InstructionType.COIL_LATCH, True, False, False): "8213",
@@ -105,6 +108,9 @@ class Coil(AfInstruction):
         if oneshot_raw not in {"0", "1"}:
             raise ValueError("coil oneshot must be 0 or 1")
         oneshot = oneshot_raw == "1"
+        if oneshot and coil_type != InstructionType.COIL_OUT:
+            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
+            raise ValueError(f"only out() supports oneshot, not {token!r}")
 
         immediate_inner = False
         inner = re.fullmatch(r"immediate\((.+)\)", arg)
@@ -140,6 +146,8 @@ class Coil(AfInstruction):
     @property
     def func_code(self) -> str:
         key = (self.type, self.range_end is not None, self.immediate, self.oneshot)
+        if key not in COIL_FUNC_CODES:
+            raise ValueError(f"only out() supports oneshot: {self.to_csv()}")
         return COIL_FUNC_CODES[key]
 
     def to_csv(self) -> str:
@@ -168,7 +176,7 @@ class Coil(AfInstruction):
             [
                 self.operand,
                 self.range_end or "",
-                "-1" if self.oneshot else "0",
+                "1" if self.oneshot else "0",  # CLICK writes 1, not -1 (scr_captures/coverage.bin)
                 "1" if self.immediate else "0",
                 self.func_code,
                 "",

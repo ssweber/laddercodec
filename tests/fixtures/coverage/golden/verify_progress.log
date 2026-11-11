@@ -17,7 +17,6 @@ latch__immediate: worked
 latch__tag: worked
 out__block: worked
 out__immediate: worked
-out__oneshot: worked
 out__tag: worked
 reset__block: worked
 reset__immediate: worked
