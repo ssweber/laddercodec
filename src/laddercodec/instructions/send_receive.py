@@ -215,8 +215,8 @@ def _xy_click_room(number: int) -> int:
     """Points the slot run from X/Y point ``number`` holds.
 
     The CPU slot and its dual option slot count as one run (X001 gives 32); a count from an
-    expansion slot stays in that slot (X101 gives 16).  Inst_SD.dll 0x10018501, the X/Y case
-    of the quantity limit at 0x10017d80, for a CLICK-addressed Send; Inst_RD.dll 0x10015e03
+    expansion slot stays in that slot (X101 gives 16).  Inst_SD.dll, the X/Y case
+    of the quantity limit, uses it for a CLICK-addressed Send; Inst_RD.dll uses it
     for every Receive into Y.
     """
     if number <= 16:
@@ -231,14 +231,13 @@ def _receive_y_room(
 ) -> int:
     """Points a Receive can count into Y point ``local``: the slot run, capped by the remote.
 
-    Inst_RD.dll 0x10015e03, the local Y case of the quantity limit at 0x100155a0, uses the
+    Inst_RD.dll, the local Y case of the quantity limit, uses the
     slot run in every addressing mode.  A remote X/Y start takes the higher of the two start
-    numbers (0x10015e1b); a remote C, T, CT or SC caps the count at the room left in that bank
-    (0x10015e6e, 0x10015f84, 0x10016057, 0x1001612a); a MODBUS 984 start up to 65535 caps it at
-    65536 minus the start (0x100161fd).
+    numbers; a remote C, T, CT or SC caps the count at the room left in that bank;
+    a MODBUS 984 start up to 65535 caps it at 65536 minus the start.
 
-    From Y101 on, the remote C case skips its slot formula (both range tests at 0x10015f52
-    and 0x10015f64 jump past it), so only the C room and the points that exist through Y816
+    From Y101 on, the remote C case skips its slot formula (both range tests
+    jump past it), so only the C room and the points that exist through Y816
     apply there.
     """
     if remote_addr is not None:
@@ -258,9 +257,8 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
     """A count between local C and a CLICK remote also fits the remote side.
 
     The room is the lesser of the C room and the remote's: the slot run from an X/Y start
-    (Inst_SD.dll 0x100181f6, Inst_RD.dll 0x10015c7a), or the room left in a C, T, CT or SC
-    bank (SD 0x100181d6, RD 0x10015c6c, 0x10015dc5, 0x10015de5, 0x10015dec).  These are the
-    local C cases (SD 0x100181be, RD 0x10015c54) of each dialog's quantity limit.
+    (Inst_SD.dll, Inst_RD.dll), or the room left in a C, T, CT or SC
+    bank.  These are the local C cases of each dialog's quantity limit.
     """
     bank, number = remote_addr.bank, remote_addr.number
     if bank in _XY_BANKS:
@@ -331,17 +329,17 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
 _SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
-#: Send local banks per function code: SD 0x10006cb1 (masks 0x3f, 0xdd40, 0xf3c0).
+#: Send local banks per function code (Inst_SD.dll; masks 0x3f, 0xdd40, 0xf3c0).
 _SEND_LOCAL_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 _SEND_LOCAL_REGS_FC06 = frozenset({"DS", "DH", "XD", "YD", "TD", "SD", "TXT"})
 _SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "TXT"})
 #: Banks that only FC16 carries; one of them makes a single-element Send FC16.
 _FC16_ONLY = frozenset({"CTD", "DD", "DF"})
-#: Local data types whose hex remote start stops at FFFDh (int32, float, text): SD 0x10005511.
+#: Local data types whose hex remote start stops at FFFDh (int32, float, text; Inst_SD.dll).
 _SEND_HEX_FFFD = frozenset({"DD", "CTD", "DF", "TXT"})
 
 _RECEIVE_REMOTE_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-#: CLICK-addressed Receive remote banks per local bank (RD 0x10005019..0x100050a9):
+#: CLICK-addressed Receive remote banks per local bank (Inst_RD.dll):
 #: int16, int32, float, hex and text pair only with their own kind.
 _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
     "DS": frozenset({"DS", "TD", "SD"}),
@@ -352,7 +350,7 @@ _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
     "TXT": frozenset({"TXT"}),
 }
 _RECEIVE_REMOTE_REGS = frozenset().union(*_RECEIVE_REMOTE_FOR_DEST.values())
-#: Receive local banks: FC01/02 mask 6, FC03/04 mask 0x8bc0 (RD 0x1000640c, 0x100071c3).
+#: Receive local banks: FC01/02 mask 6, FC03/04 mask 0x8bc0 (Inst_RD.dll).
 _RECEIVE_LOCAL_BITS = frozenset({"Y", "C"})
 _RECEIVE_LOCAL_REGS = frozenset(_RECEIVE_REMOTE_FOR_DEST)
 
@@ -543,10 +541,10 @@ def _validate_send(send: Send) -> tuple[int, int]:
     xy_room = None
     if local.bank in _XY_BANKS and remote_addr is not None:
         if remote_addr.bank in _XY_BANKS:
-            # SD 0x10018501: the higher of the two start numbers decides the room.
+            # Inst_SD.dll: the higher of the two start numbers decides the room.
             xy_room = _xy_click_room(max(local.number, remote_addr.number))
         else:
-            # Remote C: the room left in C (SD 0x1001853f) or in the local slot run.
+            # Remote C: the room left in C (Inst_SD.dll) or in the local slot run.
             c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
             xy_room = min(c_room, _xy_click_room(local.number))
     _check_quantity(who, quantity, local, _SEND_CAPS, bit, xy_room)
@@ -555,18 +553,18 @@ def _validate_send(send: Send) -> tuple[int, int]:
 
     if isinstance(remote, ModbusAddress) and remote.is_hex and local.bank in _SEND_HEX_FFFD:
         start = int(remote.address[:-1], 16)
-        if start > 0xFFFD:  # SD 0x10005511, OBJ-010
+        if start > 0xFFFD:  # Inst_SD.dll, OBJ-010
             raise FieldError(
                 f"{who} remote_start: {remote.address!r} is outside 0h-FFFDh for a "
                 f"{local.bank} source"
             )
-        room = min(_SEND_CAPS[2], 0xFFFE - start)  # SD 0x100191c9
+        room = min(_SEND_CAPS[2], 0xFFFE - start)  # Inst_SD.dll
         if local.bank == "DD" and quantity > room:
             raise FieldError(
                 f"{who} quantity: {quantity} from hex {remote.address!r} is outside 1-{room}"
             )
 
-    # SD 0x100095f0: one C bit can't serve two status fields (OBJ-014).
+    # Inst_SD.dll: one C bit can't serve two status fields (OBJ-014).
     _check_status_bits(who, send, ("sending", "success", "error"))
     _check_status(who, "exception_response", send.exception_response, _EXCEPTION_BANKS)
     return fc, default_fc
@@ -601,7 +599,7 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
     default_fc = _receive_default_fc(remote, bit)
     fc = receive.function_code or default_fc
     if remote_addr is not None:
-        # RD 0x1000c0db..0x1000cefb: a CLICK address is read with whichever code is picked.
+        # Inst_RD.dll: a CLICK address is read with whichever code is picked.
         if fc not in ((1, 2) if bit else (3, 4)):
             kind = "a bit" if bit else "a register"
             raise FieldError(f"{who} function_code: FC{fc:02d} cannot read {kind}")
@@ -624,14 +622,14 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
     if local.bank == "C" and remote_addr is not None:
         _check_c_remote_room(who, quantity, remote_addr)
     if (local.bank == "YD" or hex_pair) and quantity != 1:
-        # RD 0x1001420d / 0x100141ec: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
+        # Inst_RD.dll: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
         raise FieldError(f"{who} quantity: {quantity} is outside 1-1 for this dest and remote")
     if local.bank == "TXT" and (quantity < 2 or quantity % 2):
-        # RD 0x10006bab: text arrives two characters per register.
+        # Inst_RD.dll: text arrives two characters per register.
         raise FieldError(f"{who} quantity: {quantity} TXT characters must be an even count of 2+")
 
     if receive.word_swap:
-        # RD 0x10006b78, 0x10006afa, 0x1000686d, 0x10006bab: CLICK forces Word Swap off here.
+        # Inst_RD.dll: CLICK forces Word Swap off here.
         if bit:
             reason = "bits"
         elif local.bank in ("YD", "TXT") or hex_pair:
@@ -639,14 +637,14 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         elif local.bank in ("DD", "DF") and remote_addr is not None:
             reason = f"a {local.bank} dest read from a CLICK address"
         elif local.bank in ("DS", "DH") and quantity == 1:
-            # RD 0x10006a3e..0x10006aeb: a DS or DH dest enables Word Swap above one element.
+            # Inst_RD.dll: a DS or DH dest enables Word Swap above one element.
             reason = f"one {local.bank} element"
         else:
             reason = ""
         if reason:
             raise FieldError(f"{who} word_swap: CLICK turns Word Swap off for {reason}")
 
-    # RD 0x100092c9, 0x1000a5e9: one C bit can't serve two status fields (0x271e).
+    # Inst_RD.dll: one C bit can't serve two status fields (0x271e).
     _check_status_bits(who, receive, ("receiving", "success", "error"))
     _check_status(who, "exception_response", receive.exception_response, _EXCEPTION_BANKS)
     return fc, default_fc

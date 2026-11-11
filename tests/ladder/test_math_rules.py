@@ -49,7 +49,7 @@ _REFUSED = [
     # constants (Q-M9, OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
     ("DS1 + 3000000000", "DD9", "decimal", "3000000000 is outside -2147483648..2147483647"),
     ("DS1 + ( -3000000000 )", "DD9", "decimal", "-3000000000 is outside"),
-    # a decimal integer must print back at its typed length (Inst_Math.dll 0x1000ead1)
+    # a decimal integer must print back at its typed length (Inst_Math.dll)
     ("DS1 + 007", "DS9", "decimal", "007 is refused; CLICK reads it back as 7"),
     ("DS1 + ( -0 )", "DS9", "decimal", "-0 is refused; CLICK reads it back as 0"),
     ("DH1 + 10000h", "DH9", "hex", "10000h is outside 0h..FFFFh"),
@@ -126,10 +126,10 @@ def test_unknown_mode_refused() -> None:
         ("DS1 + 2147483647", "DD9", "decimal"),
         ("DS1 + ( -2147483648 )", "DD9", "decimal"),
         ("DH1 + FFFFh", "DH9", "hex"),
-        # its low 32 bits print at the same length, so CLICK passes it (0x1000ead1)
+        # its low 32 bits print at the same length, so CLICK passes it
         ("DS1 + 6000000000", "DD9", "decimal"),
         ("DS1 + 0", "DS9", "decimal"),
-        # constants in the other mode are not checked (Inst_Math.dll 0x1000e940)
+        # constants in the other mode are not checked (Inst_Math.dll)
         ("DH1 + 1Eh", "DS9", "decimal"),
         ("DS1 + 10000h", "DD9", "decimal"),
         ("DH1 + 1.5", "DH9", "hex"),

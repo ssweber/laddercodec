@@ -128,7 +128,7 @@ _REFUSED = [
     ),
     ("blockcopy(DD1..DD4,DS1..DS9)", r"DD1\.\.DD4 fills DS1\.\.DS4"),
     ("blockcopy(C1..C4,Y001..Y016)", r"C1\.\.C4 fills Y001\.\.Y004"),
-    # the Block source stays in one slot (Inst_Copy.dll module check 0x10002870); a Y
+    # the Block source stays in one slot (Inst_Copy.dll module check); a Y
     # destination run that crosses a slot is not captured yet
     ("blockcopy(X001..X101,C1..C101)", "spans two X slots; the range stays in one 16-point"),
     ("blockcopy(C1..C16,Y010..Y025)", "into Y010 crosses a Y slot; crossing a slot is not"),
@@ -155,7 +155,7 @@ _REFUSED = [
     ("unpack_to_bits(TXT1,C1..C16)", "Unpack.source: 'TXT1' is not allowed"),
     ("unpack_to_bits(XD0u,C1..C16)", "Unpack.source: 'XD0u' is not allowed"),
     ("unpack_to_bits(DS1,C1..C1)", r"C1\.\.C1 is one address"),
-    # Fill's OnOK runs the same range check on its destination (Inst_Copy.dll 0x10007fb3)
+    # Fill's OnOK runs the same range check on its destination (Inst_Copy.dll)
     ("fill(0,DS1..DS1)", r"DS1\.\.DS1 is one address"),
     ("fill(0,DS5..DS1)", r"DS5\.\.DS1 runs backwards"),
 ]

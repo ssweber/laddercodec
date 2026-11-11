@@ -51,7 +51,7 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("DS1..DD5 == 1", "result=DS20,found=C1", "'DD5' is not in the bank of 'DS1'"),
         ("DS1..DS1 == 1", "result=DS20,found=C1", "DS1\\.\\.DS1 is one address"),
         # a text value hides the order operators, a text constant or a TXT register alike
-        # (Q-M10; Inst_Search.dll 0x10002c31 from 0x10002e48 and 0x10002b66)
+        # (Q-M10; Inst_Search.dll)
         ('TXT1..TXT10 > "A"', "result=DS20,found=C1", "'>' is not offered for text"),
         ('TXT1..TXT10 <= "A"', "result=DS20,found=C1", "'<=' is not offered for text"),
         ("TXT1..TXT10 >= $41", "result=DS20,found=C1", "'>=' is not offered for text"),
