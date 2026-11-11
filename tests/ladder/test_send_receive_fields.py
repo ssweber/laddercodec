@@ -346,8 +346,7 @@ def test_csv_range_counts_x_numbers() -> None:
 
 
 def test_csv_range_end_is_an_address() -> None:
-    with pytest.raises(AddressError, match="range end"):
-        _csv("send", "source=X001..X017", remote="C1")
+    assert _csv("send", "source=X001..X017", remote="C1").quantity == 17  # Q-C6
     with pytest.raises(AddressError, match="range end"):
         _csv("send", "source=DS1..DS4501")
 
@@ -408,3 +407,18 @@ def test_status_strings_decode_whatever_the_enable_flag(
     for tag in enables:
         fields[tag] = "0"
     assert from_tags(class_name, type_code, fields) == instr
+
+
+@pytest.mark.parametrize("quantity", [17, 100])
+@pytest.mark.parametrize("start", ["X001", "Y001"])
+def test_x_y_range_round_trips_through_csv(start, quantity) -> None:
+    sent = send(remote_start="C1", source=start, quantity=quantity)
+    token = sent.to_csv()
+    assert _csv("send", token[token.index("source=") :].rstrip(")"), remote="C1").quantity == (
+        quantity
+    )
+    got = receive(remote_start="C1", dest="Y001", quantity=quantity)
+    token = got.to_csv()
+    assert _csv("receive", token[token.index("dest=") :].split(",")[0], remote="C1").quantity == (
+        quantity
+    )

@@ -1015,7 +1015,8 @@ def _parse_range_quantity(raw: str) -> tuple[str, int]:
         prefix = m_start.group(1)
         if m_end.group(1) != prefix:
             raise FieldError(f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}")
-        check_address(end, f"range end of {raw!r}", banks={prefix})
+        if prefix not in ("X", "Y", "XD", "YD"):  # module numbering is open (Q-C6)
+            check_address(end, f"range end of {raw!r}", banks={prefix})
         first, last = int(m_start.group(2)), int(m_end.group(2))
         qty = last - first + 1
         if qty < 1:
