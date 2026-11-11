@@ -10,6 +10,7 @@ from laddercodec.operands.constants import (
     Kind,
     classify,
     parse_digits,
+    printable,
 )
 
 N, F, H, T, C = Kind.INTEGER, Kind.FLOAT, Kind.HEX, Kind.TEXT, Kind.CHAR
@@ -39,6 +40,7 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("1e5", Constant(F, 1e5)),
     ("-1.5e-3", Constant(F, -1.5e-3)),
     ("3.4028235E+38", Constant(F, 3.4028235e38)),
+    ("0E0", Constant(F, 0.0)),
     # Hex: 16-bit by value, 32-bit up to eight digits; either case of letter and h.
     ("0h", Constant(H, 0)),
     ("0H", Constant(H, 0)),
@@ -49,10 +51,16 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("0FFFFh", Constant(H, 0xFFFF)),
     ("000000000FFFFh", Constant(H, 0xFFFF)),
     ("1E5h", Constant(H, 0x1E5)),
+    ("0E0h", Constant(H, 0xE0)),
+    ("1EH", Constant(H, 0x1E)),
+    # Hex is tried before an address, so letters-only hex is a constant, not a bank name.
+    ("DH", Constant(H, 0xD)),
+    ("EH", Constant(H, 0xE)),
+    ("ABCH", Constant(H, 0xABC)),
     ("10000h", Constant(H, 0x10000, wide=True)),
     ("FFFFFFFFh", Constant(H, 0xFFFFFFFF, wide=True)),
     ("0001FFFFh", Constant(H, 0x1FFFF, wide=True)),
-    # Text: 1 to 128 printable ASCII characters between quotes, kept as written.
+    # Text: 1 to 128 characters between quotes, any character but the quote, as written.
     ('"A"', Constant(T, "A")),
     ('"ab"', Constant(T, "ab")),
     ('" "', Constant(T, " ")),
@@ -60,6 +68,11 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ('"$41"', Constant(T, "$41")),
     ('"~"', Constant(T, "~")),
     ('"' + "A" * TEXT_MAX + '"', Constant(T, "A" * TEXT_MAX)),
+    # The shared check takes non-ASCII and control characters; printable() is a field limit.
+    ('"\u00e9"', Constant(T, "\u00e9")),
+    ('"\t"', Constant(T, "\t")),
+    ('"\x7f"', Constant(T, "\x7f")),
+    ('"\u0663"', Constant(T, "\u0663")),
     # Character codes: $ and two hex digits.
     ("$00", Constant(C, 0)),
     ("$41", Constant(C, 0x41)),
@@ -105,7 +118,7 @@ REFUSED: list[str] = [
     "0FFFFFFFFh",
     "1Gh",
     "FF h",
-    # Floating point: no comma, no bare exponent, no nan or inf.
+    # Floating point: no comma, no bare exponent, nothing that is not finite.
     "1,5",
     "1,000",
     "E5",
@@ -115,12 +128,14 @@ REFUSED: list[str] = [
     "nan",
     "inf",
     "-inf",
+    "1E999",
+    "-1E999",
     "1.5.2",
     # Separators and other spellings.
     "1_000",
     "1'000",
     "'A'",
-    # Text: empty, unterminated, a quote inside, too long, not printable ASCII.
+    # Text: empty, unterminated, a quote inside, too long.
     '""',
     '"""',
     '"A',
@@ -128,9 +143,7 @@ REFUSED: list[str] = [
     '"a"b"',
     '"A""B"',
     '"' + "A" * (TEXT_MAX + 1) + '"',
-    '"é"',
-    '"\t"',
-    '"\x7f"',
+    '"é' + "A" * TEXT_MAX + '"',
     "A",
     "abc",
     # Character codes other than two hex digits.
@@ -209,3 +222,37 @@ DIGITS: list[tuple[str, int | None]] = [
 @pytest.mark.parametrize(("text", "expected"), DIGITS, ids=[repr(t[:12]) for t, _ in DIGITS])
 def test_parse_digits(text: str, expected: int | None) -> None:
     assert parse_digits(text) == expected
+
+
+#: More leading zeros than int() converts (it refuses text over 4300 digits).
+ZEROS = "0" * 5000
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        (ZEROS + "1", Constant(N, 1)),
+        ("-" + ZEROS + "1", Constant(N, -1)),
+        ("+" + ZEROS + "40000", Constant(N, 40000, wide=True)),
+        (ZEROS, Constant(N, 0)),
+        (ZEROS + "1h", Constant(H, 1)),
+        (ZEROS + "1" + "0" * 10, None),
+    ],
+    ids=["zeros-1", "minus-zeros-1", "plus-zeros-40000", "zeros", "zeros-1h", "zeros-big"],
+)
+def test_leading_zeros(text: str, expected: Constant | None) -> None:
+    assert classify(text) == expected
+
+
+def test_parse_digits_leading_zeros() -> None:
+    assert parse_digits(ZEROS + "5") == 5
+    assert parse_digits(ZEROS) == 0
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [("A", True), (" ~", True), ('"', True), ("", True)]
+    + [("é", False), ("\t", False), ("\x7f", False), ("٣", False)],
+)
+def test_printable(text: str, expected: bool) -> None:
+    assert printable(text) is expected
