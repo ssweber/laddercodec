@@ -100,7 +100,8 @@ _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 _TEXT_MAX_CHARS = 128  # between the quotes; 130 with them (@1000e81c)
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
-#: (Inst_Compare.dll Data A handler 100029d0).
+#: (Q-B7: Inst_Compare.dll Data A handler 100029d0; user dialog check 2026-11-11: typing
+#: TXT1 into Data A with > selected leaves only = and != to choose).
 _TEXT_OPS = ("==", "!=")
 
 
@@ -109,17 +110,13 @@ def _operand_group(value: str, name: str) -> str:
     register nor a constant CLICK's compare dialog accepts."""
     if _HEX_CONSTANT_RE.fullmatch(value):
         if int(value[:-1], 16) > _HEX_MAX:
-            raise FieldError(
-                f"{name}: {value!r} is above FFFFh; a hex constant is 0h to FFFFh"
-            )
+            raise FieldError(f"{name}: {value!r} is above FFFFh; a hex constant is 0h to FFFFh")
         return "hex"
     if _INTEGER_CONSTANT_RE.fullmatch(value):
         # The length guard keeps int() inside Python's digit limit for any input.
         too_long = len(value.lstrip("+-").lstrip("0")) > len(str(_INTEGER_MAX))
         if too_long or not _INTEGER_MIN <= int(value) <= _INTEGER_MAX:
-            raise FieldError(
-                f"{name}: {value!r} is outside {_INTEGER_MIN} to {_INTEGER_MAX}"
-            )
+            raise FieldError(f"{name}: {value!r} is outside {_INTEGER_MIN} to {_INTEGER_MAX}")
         return "numeric"
     if _NUMERIC_CONSTANT_RE.fullmatch(value):
         return "numeric"
