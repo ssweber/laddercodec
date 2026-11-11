@@ -6,7 +6,8 @@ Repo-specific rules for the /bob skill. Another repo replaces this file.
 
 - Main checkout `C:/Users/Sam/Documents/GitHub/laddercodec`, base branch `dev`. The user
   squash-merges dev into main and cuts releases; never touch main. Do not push any bob/*
-  branch. Push dev only when the user has said so for that landing (2026-11-11: yes).
+  branch. Push dev after every landing (standing approval, user 2026-11-11: "You can push
+  always on dev").
 - Worktrees `../laddercodec-wt/<name>` on `bob/<name>`; mergeq home `../laddercodec-wt/buildbot`
   (queue, logs, results, `jobs/<id>/{BRIEF,HANDOFF,REVIEW,LEDGER}.md`).
 - Current arc doc: `scratchpad/validation/arc.md`. One arc doc: fold rulings and leftovers into
