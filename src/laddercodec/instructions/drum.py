@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import FieldError, PinnedInstruction, check_address
+from ..model import Address, FieldError, PinnedInstruction, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -158,6 +158,58 @@ def _constant_preset_mask(presets: list[str]) -> str:
     return str(mask)
 
 
+#: Banks an event step reads: Inst_Drum.dll event validator mask 0x3f, else OBJ-004
+#: (Q-D5, jobs/dllqa/data.md).
+DRUM_EVENT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+
+#: A constant step duration is 0 to 32767 for every unit, digits only: Inst_Drum.dll's
+#: step validator wants an int16 with no ``-`` or ``+``, else OBJ-005 (Q-D4).
+DRUM_MAX_DURATION = 32767
+_DIGITS_RE = re.compile(r"[0-9]+")
+
+
+def _check_duration(preset: str, name: str) -> None:
+    """Refuse a step duration CLICK's drum dialog refuses.
+
+    A register duration is DS (OBJ-004 for another bank).  Whether the CPU takes a
+    register at all is a project rule and is not checked.
+    """
+    if not _DIGITS_RE.fullmatch(preset):
+        if not preset[:1].isalpha():
+            raise FieldError(
+                f"{name}: {preset!r} is not allowed; a duration is 0 to {DRUM_MAX_DURATION} "
+                "or a DS register (OBJ-005)"
+            )
+        check_address(preset, name, banks={"DS"})
+    elif int(preset) > DRUM_MAX_DURATION:
+        raise FieldError(
+            f"{name}: {preset!r} is above {DRUM_MAX_DURATION}; a duration is 0 to "
+            f"{DRUM_MAX_DURATION} (OBJ-005)"
+        )
+
+
+def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Address) -> None:
+    """Refuse an output used twice, or used as the completion flag (OBJ-014).
+
+    CLICK normalizes an address as it is typed (``C001`` becomes ``C1``) before it
+    compares, so ``C1`` and ``C001`` are the same output (Q-D5, user dialog check
+    2026-11-11).
+    """
+    seen: dict[Address, int] = {}
+    for i, (output, text) in enumerate(zip(outputs, texts, strict=True)):
+        if output in seen:
+            raise FieldError(
+                f"Drum.outputs[{i}]: {text!r} is already output {seen[output]}; "
+                "each output is a different bit (OBJ-014)"
+            )
+        seen[output] = i
+        if output == flag:
+            raise FieldError(
+                f"Drum.outputs[{i}]: {text!r} is the completion flag; an output is "
+                "a different bit (OBJ-014)"
+            )
+
+
 def _timer_done_bit(accumulator: str) -> str:
     """``TD101`` -> ``T101``: the timer a time & event drum's accumulator belongs to."""
     if not accumulator.startswith("TD"):
@@ -217,10 +269,21 @@ class Drum(PinnedInstruction):
             for cell in row:
                 if type(cell) is not int or cell not in (0, 1):
                     raise FieldError(f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1")
-        for i, output in enumerate(self.outputs):
+        outputs = [
             check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
+            for i, output in enumerate(self.outputs)
+        ]
         check_address(self.current_step, "Drum.current_step", banks={"DS"})
-        check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
+        flag = check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
+        _check_distinct_outputs(outputs, self.outputs, flag)
+        step_events = self.events_or_presets if kind == "event" else self.events
+        for i, event in enumerate(step_events):
+            if event:
+                check_address(event, f"Drum.events[{i}]", banks=DRUM_EVENT_BANKS)
+        if kind != "event":
+            for i, preset in enumerate(self.events_or_presets):
+                if preset:
+                    _check_duration(preset, f"Drum.presets[{i}]")
         if self.jump_enabled:
             check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
         if kind == "event":

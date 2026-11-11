@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, FieldError, InstructionType, check_address
+from ..model import AddressError, AfInstruction, FieldError, InstructionType, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -33,7 +33,12 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-_FOR_LITERAL_RE = re.compile(r"^\d+$")
+#: Inst_For.dll OnOK (Q-F1, jobs/dllqa/data.md): a constant count is digits only (0 is
+#: allowed, a sign is not) up to 2147483647, else OBJ-005; a register count is DS, DD, TD,
+#: CTD or SD (validator mask 0x70c0), else OBJ-004.
+_FOR_LITERAL_RE = re.compile(r"[0-9]+")
+FOR_MAX_LIMIT = 2**31 - 1
+FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
 
 # Class "Next" func codes (0x3218).  v3 writes Next without one; v4 writes 9220.
 _NEXT_FUNC_CODE = "9220"
@@ -47,8 +52,16 @@ def _validate_for_limit(value: str) -> str:
     if not text:
         raise FieldError("ForLoop.limit cannot be blank")
     if _FOR_LITERAL_RE.fullmatch(text):
+        if int(text) > FOR_MAX_LIMIT:
+            raise FieldError(
+                f"ForLoop.limit: {text!r} is above {FOR_MAX_LIMIT}; a constant count is "
+                f"0 to {FOR_MAX_LIMIT} (OBJ-005)"
+            )
         return text
-    check_address(text, "ForLoop.limit")
+    if "[" in text:
+        # Q-F1, user dialog check 2026-11-11: the For count refuses a pointer.
+        raise AddressError(f"ForLoop.limit: {text!r} is a pointer; the For count takes no pointer")
+    check_address(text, "ForLoop.limit", banks=FOR_LIMIT_BANKS)
     return text
 
 
