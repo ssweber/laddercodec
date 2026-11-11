@@ -16,12 +16,24 @@ import pytest
 
 from laddercodec import encode, read_csv
 from laddercodec.csv import CSV_HEADER
-from laddercodec.decode import Rung
-from laddercodec.instructions import Contact, Copy, Drum
+from laddercodec.decode import Rung, decode
+from laddercodec.instructions import (
+    Coil,
+    Contact,
+    Copy,
+    Drum,
+    Math,
+    RawInstruction,
+    Shift,
+    UnknownCondition,
+    parse_af_blob,
+    parse_condition_blob,
+)
 from laddercodec.instructions.send_receive import ModbusRtuTarget, ModbusTcpTarget
 from laddercodec.model import (
     ADDRESS_BANKS,
     AddressError,
+    FieldError,
     InstructionType,
     check_address,
     normalize_address,
@@ -100,15 +112,38 @@ class TestNormalizeAddress:
             ("X1 ", r"^Contact\.operand: 'X1 ' is not a CLICK address$"),
             ("C123456", r"^Contact\.operand: 'C123456' is not a CLICK address$"),
             ("X١", r"^Contact\.operand: 'X١' is not a CLICK address$"),
-            ("x017", r"^Contact\.operand: 'X017' is outside X001-X016"),
-            ("x1u", r"^Contact\.operand: 'X001u' is outside X001-X016"),
-            ("c02001", r"^Contact\.operand: 'C2001' is outside C1-C2000$"),
-            ("ds1", r"^Contact\.operand: 'DS1' is not allowed; Contact\.operand takes X, Y, C"),
+            ("X017", r"^Contact\.operand: 'X017' is outside X001-X016"),
+            ("x017", r"^Contact\.operand: 'x017' \(X017\) is outside X001-X016"),
+            ("x1u", r"^Contact\.operand: 'x1u' \(X001u\) is outside X001-X016"),
+            ("c02001", r"^Contact\.operand: 'c02001' \(C2001\) is outside C1-C2000$"),
+            ("ds1", r"^Contact\.operand: 'ds1' \(DS1\) is not allowed; Contact\.operand takes X"),
         ],
     )
     def test_refused_forms_still_refused(self, typed: str, message: str) -> None:
         with pytest.raises(AddressError, match=message):
             Contact(InstructionType.CONTACT_NO, typed)
+
+    @pytest.mark.parametrize(
+        ("typed", "message"),
+        [
+            ("ds0", r"^Copy\.source: 'ds0' \(DS0\) is outside DS1-DS4500$"),
+            ("ds04501", r"^Copy\.source: 'ds04501' \(DS4501\) is outside DS1-DS4500$"),
+            ("x0", r"^Copy\.source: 'x0' \(X000\) is outside X001-X016"),
+            ("xd1u", r"^Copy\.source: 'xd1u' \(XD1u\) is outside XD0, XD0u, XD1-XD8$"),
+            ("yd09", r"^Copy\.source: 'yd09' \(YD9\) is outside YD0, YD0u, YD1-YD8$"),
+            ("ds[ds0]", r"^Copy\.source pointer: 'DS0' is outside DS1-DS4500$"),
+        ],
+    )
+    def test_lowercase_refused_on_a_ds_field(self, typed: str, message: str) -> None:
+        with pytest.raises(AddressError, match=message):
+            Copy(typed, "DS2")
+
+    def test_two_spellings_of_one_address_quote_the_display_form(self) -> None:
+        # The message names two fields, so it cannot say which text was typed.
+        with pytest.raises(FieldError, match=r"^Shift\.end_bit: 'C1' is the same address"):
+            Shift("C1", "c001")
+        with pytest.raises(FieldError, match=r"^Shift\.end_bit: 'c001' \(C1\) is the same"):
+            Shift("c001", "c001")
 
 
 def _rung_csv(path: Path, condition: str, af: str) -> Path:
@@ -248,6 +283,93 @@ class TestConstructor:
         else:
             made = target(name="t", ip="1.2.3.4", port=502, device_id="ds02420")
         assert made.device_id == "DS2420"
+
+    @pytest.mark.parametrize(
+        ("typed", "display"),
+        [
+            ("sum(x1:x16)", "SUM ( X001 : X016 )"),
+            ("abs(ds1) mod 2", "ABS ( DS1 ) MOD 2"),
+            ("Max(DS1:DS3) + mdn(DS4:DS6) + avg(DS7:DS9) + min(dd1:dd2)",
+             "MAX ( DS1 : DS3 ) + MDN ( DS4 : DS6 ) + AVG ( DS7 : DS9 ) + MIN ( DD1 : DD2 )"),
+            ("rand(1,100) + sqrt(df1) * pi", "RAND ( 1 , 100 ) + SQRT ( DF1 ) * PI"),
+            ("<sum> + 1", "<sum> + 1"),
+        ],
+    )  # fmt: skip
+    def test_math_function_names_uppercase(self, typed: str, display: str) -> None:
+        assert Math(typed, "DF1").expression == display
+
+    def test_math_hex_only_name_refused_in_any_case(self) -> None:
+        with pytest.raises(FieldError, match=r"XOR is hex only"):
+            Math("ds1 xor 2", "DS4")
+
+
+def _swap(data: bytes, old: str, new: str) -> bytes:
+    """Rewrite every UTF-16 ``old`` in ``data`` as ``new``."""
+    assert old.encode("utf-16-le") in data
+    return data.replace(old.encode("utf-16-le"), new.encode("utf-16-le"))
+
+
+class TestDecodeKeepsText:
+    """A blob whose text is not in display form stays raw; decoding never rewrites it."""
+
+    @pytest.mark.parametrize("text", ["X1", "x1", "x001"])
+    def test_contact(self, text: str) -> None:
+        blob = Contact(InstructionType.CONTACT_NO, "X001").build_blob()
+        assert parse_condition_blob(blob) == Contact(InstructionType.CONTACT_NO, "X001")
+        assert parse_condition_blob(_swap(blob, "X001", text)) is None
+
+    @pytest.mark.parametrize("text", ["C001", "c1"])
+    def test_coil(self, text: str) -> None:
+        blob = Coil(InstructionType.COIL_OUT, "C1").build_blob()
+        assert parse_af_blob(_swap(blob, "C1", text)) is None
+
+    @pytest.mark.parametrize(
+        ("expression", "old", "new"),
+        [
+            ("DS1 + DS2", "DS1", "ds01"),
+            ("SUM ( DS1 : DS3 )", "SUM", "sum"),
+        ],
+    )
+    def test_math(self, expression: str, old: str, new: str) -> None:
+        blob = Math(expression, "DS4").build_blob()
+        assert isinstance(parse_af_blob(blob), Math)
+        assert parse_af_blob(_swap(blob, old, new)) is None
+
+    def test_copy_pointer(self) -> None:
+        blob = Copy("DD[DS1]", "DD2").build_blob()
+        assert isinstance(parse_af_blob(blob), Copy)
+        assert parse_af_blob(_swap(blob, "DS1", "ds1")) is None
+
+    def test_drum_list(self) -> None:
+        blob = Drum(
+            drum_kind="event",
+            outputs=["Y001", "C2"],
+            events_or_presets=["X001", "C3"],
+            pattern=[[1, 0], [0, 1]],
+            current_step="DS1",
+            completion_flag="C9",
+        ).build_blob()
+        assert isinstance(parse_af_blob(blob), Drum)
+        assert parse_af_blob(_swap(blob, "C3", "c3")) is None
+
+    @pytest.mark.parametrize(("index", "old", "new"), [(-3, "DS2", "ds2"), (-1, "X001", "x001")])
+    def test_send_receive(self, tmp_path: Path, index: int, old: str, new: str) -> None:
+        # Send's Slave ID address; Receive's remote_start.
+        (rung,) = read_csv(_rung_csv(tmp_path / "r.csv", "X001", INSTRUCTIONS[index][1]))
+        blob = rung.instructions[0].build_blob()
+        assert parse_af_blob(blob) == rung.instructions[0]
+        assert parse_af_blob(_swap(blob, old, new)) is None
+
+    def test_rung_round_trips_raw(self, tmp_path: Path) -> None:
+        (rung,) = read_csv(_rung_csv(tmp_path / "r.csv", "X001", "out(C1)"))
+        data = _swap(encode(rung), "C1", "c1")
+        decoded = decode(data)
+        assert isinstance(decoded, Rung)
+        assert isinstance(decoded.instructions[0], RawInstruction)
+        assert encode(decoded) == data
+        decoded = decode(_swap(data, "X001", "x001"))
+        assert isinstance(decoded, Rung)
+        assert isinstance(decoded.conditions[0][0], UnknownCondition)
 
 
 _ADDRESS_TOKEN = re.compile(r"(?<![A-Za-z0-9_$.<])([A-Z]{1,3})([0-9]{1,5})(u?)(?![A-Za-z0-9_])")

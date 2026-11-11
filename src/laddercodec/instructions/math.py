@@ -43,6 +43,7 @@ from ..model import (
     FieldError,
     check_address,
     normalize_address,
+    to_display,
 )
 from .copy import BIT_BANKS
 from .family import AfInstructionFamilySpec
@@ -143,8 +144,12 @@ RESERVED_NAMES: frozenset[str] = frozenset(
     }
 )
 
+#: Every name on CLICK's Math keypads (Inst_Math.dll 0x10003f40; it has no other names).
+#: CLICK writes them in uppercase.
+FUNCTION_NAMES: frozenset[str] = RESERVED_NAMES | {"ABS", "AVG", "MAX", "MDN", "MIN", "RAND"}
 
-_NUMBER = r"(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+|\d+)(?![\w.])"
+
+_NUMBER =r"(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+|\d+)(?![\w.])"
 _HEX_CONSTANT = r"[0-9A-Fa-f]+h\b"
 
 #: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
@@ -163,13 +168,16 @@ def _normalize_spacing(expr: str) -> str:
     these spaces, so ``ABS(`` would be a single unknown token.  A sign stays on its
     constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
     an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).  Each
-    address takes its display form (``ds01 + x1`` → ``DS1 + X001``).
+    address takes its display form (``ds01 + x1`` → ``DS1 + X001``) and each function
+    name is uppercase (``sum`` → ``SUM``).
     """
     out: list[str] = []
     for token in _TOKEN_RE.findall(expr):
         is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
         if is_sign and _CONSTANT_RE.fullmatch(token):
             out[-1] = f"-{token}"
+        elif token.upper() in FUNCTION_NAMES:
+            out.append(to_display(token, token.upper()))
         else:
             out.append(normalize_address(token))
     return " ".join(out)

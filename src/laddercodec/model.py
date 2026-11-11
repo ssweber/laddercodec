@@ -11,8 +11,11 @@ tables live in :mod:`laddercodec.instructions`.
 
 from __future__ import annotations
 
+import functools
 import re
-from collections.abc import Collection
+from collections.abc import Collection, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
@@ -25,8 +28,68 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
+def _text_fields(inst: object) -> dict[str, Any]:
+    """The instance's text fields and lists of text, by name."""
+    return {
+        name: list(value) if isinstance(value, (list, tuple)) else value
+        for name, value in vars(inst).items()
+        if isinstance(value, str)
+        or (isinstance(value, (list, tuple)) and all(isinstance(v, str) for v in value))
+    }
+
+
+def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> str:
+    """Name the typed text beside each display form ``message`` quotes: ``'x0' (X000)``.
+
+    A display form two fields reached from different text (``C1`` and ``C001``) is left
+    as it is, since the message does not say which field it quotes.
+    """
+    typed: dict[str, set[str]] = {}
+    for name, old in before.items():
+        new = after.get(name)
+        olds, news = (old, new) if isinstance(old, list) else ([old], [new])
+        if not isinstance(news, list) or len(olds) != len(news):
+            continue
+        for o, n in zip(olds, news, strict=True):
+            if isinstance(n, str) and normalize_address(o) == n:
+                typed.setdefault(n, set()).add(o)
+    for display, texts in typed.items():
+        if len(texts) == 1 and (text := next(iter(texts))) != display:
+            message = message.replace(repr(display), f"{text!r} ({display})")
+    return message
+
+
+def _name_typed_text(cls: type) -> None:
+    """Wrap ``cls.__post_init__`` so a field error names the text as typed.
+
+    ``__post_init__`` writes each address in display form before checking it; a refusal
+    quotes that form, and this adds the text the caller gave: ``'x0' (X000) is outside``.
+    """
+    post_init = cls.__dict__.get("__post_init__")
+    if post_init is None:
+        return
+
+    @functools.wraps(post_init)
+    def wrapper(self: object) -> None:
+        if _DISPLAY_FORM_ONLY.get():
+            post_init(self)
+            return
+        before = _text_fields(self)
+        try:
+            post_init(self)
+        except FieldError as exc:
+            exc.args = (_typed_text(str(exc), before, _text_fields(self)),)
+            raise
+
+    setattr(cls, "__post_init__", wrapper)
+
+
 class ConditionInstruction:
     """Base class for condition-side instructions (Contact, CompareContact)."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _name_typed_text(cls)
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -46,6 +109,10 @@ class AfInstruction:
     #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
     #: see :mod:`laddercodec.legacy`.
     _legacy_findings: Collection[tuple[str, str, str]] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _name_typed_text(cls)
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -212,6 +279,36 @@ _LOOSE_ADDRESS_RE = re.compile(r"([A-Za-z]{1,3})([0-9]{1,5})([uU]?)")
 _LOOSE_POINTER_RE = re.compile(r"([A-Za-z]{1,3})\[([^\[\]]*)\]")
 
 
+#: Set while a decoder builds an instruction from a blob: text not in display form is
+#: refused, so the blob stays raw rather than re-encode as different bytes.
+_DISPLAY_FORM_ONLY: ContextVar[bool] = ContextVar("_DISPLAY_FORM_ONLY", default=False)
+
+
+@contextmanager
+def display_form_only() -> Iterator[None]:
+    """Refuse, rather than normalize, text that is not in CLICK's display form.
+
+    The ``from_tags`` dispatchers build instructions inside this block: a blob holding
+    ``x1`` or ``C001`` raises :class:`FieldError` and stays unparsed.
+    """
+    token = _DISPLAY_FORM_ONLY.set(True)
+    try:
+        yield
+    finally:
+        _DISPLAY_FORM_ONLY.reset(token)
+
+
+def to_display(value: str, display: str) -> str:
+    """Return ``display``, the form CLICK writes for ``value``.
+
+    Inside :func:`display_form_only` a ``value`` that differs from it raises
+    :class:`FieldError`.
+    """
+    if display != value and _DISPLAY_FORM_ONLY.get():
+        raise FieldError(f"{value!r} is not CLICK's display form {display!r}")
+    return display
+
+
 def normalize_address(value: str) -> str:
     """Return an address in CLICK's display form; return other text unchanged.
 
@@ -220,13 +317,14 @@ def normalize_address(value: str) -> str:
     ``X001``, ``C001`` becomes ``C1`` and ``xd0U`` becomes ``XD0u``.  A pointer
     normalizes both parts (``ds[ds01]`` becomes ``DS[DS1]``).  Text that is not an
     address in one of :data:`ADDRESS_BANKS` (a constant, a blank, an unknown bank) comes
-    back as given; range and allowed banks are :func:`check_address`'s job.
+    back as given; range and allowed banks are :func:`check_address`'s job.  Inside
+    :func:`display_form_only` an address not in display form raises :class:`FieldError`.
     """
     pointer = _LOOSE_POINTER_RE.fullmatch(value)
     if pointer is not None:
         bank = pointer.group(1).upper()
         if bank in ADDRESS_BANKS:
-            return f"{bank}[{normalize_address(pointer.group(2))}]"
+            return to_display(value, f"{bank}[{normalize_address(pointer.group(2))}]")
         return value
     match = _LOOSE_ADDRESS_RE.fullmatch(value)
     if match is None:
@@ -234,7 +332,7 @@ def normalize_address(value: str) -> str:
     bank = match.group(1).upper()
     if bank not in ADDRESS_BANKS:
         return value
-    return Address(bank, int(match.group(2)), match.group(3) != "").display
+    return to_display(value, Address(bank, int(match.group(2)), match.group(3) != "").display)
 
 
 def _bank_range_text(bank: str) -> str:

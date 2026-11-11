@@ -26,7 +26,6 @@ from laddercodec.instructions.send_receive import (
     from_tags,
     parse_af_call,
 )
-from laddercodec.model import normalize_address
 
 RTU = ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1)
 TCP = ModbusTcpTarget(name="tcp", ip="192.168.1.10", port=502, device_id=1)
@@ -543,15 +542,12 @@ def test_csv_x_range_across_slots() -> None:
 
 
 @pytest.mark.parametrize(
-    ("source", "quantity", "end"),
-    [("X001", 17, "X021"), ("X1", 17, "X021"), ("Y016", 2, "Y021"), ("X001", 32, "X036"),
-     ("X815", 2, "X816")],
+    ("source", "quantity", "span"),
+    [("X001", 17, "X001..X021"), ("X1", 17, "X001..X021"), ("Y016", 2, "Y016..Y021"),
+     ("X001", 32, "X001..X036"), ("X815", 2, "X815..X816")],
 )  # fmt: skip
-def test_x_range_end_counts_by_slot(source, quantity, end) -> None:
-    assert (
-        f"source={normalize_address(source)}..{end}"
-        in send(remote_start="C1", source=source, quantity=quantity).to_csv()
-    )
+def test_x_range_end_counts_by_slot(source, quantity, span) -> None:
+    assert f"source={span}" in send(remote_start="C1", source=source, quantity=quantity).to_csv()
 
 
 def test_csv_range_end_is_an_address() -> None:
