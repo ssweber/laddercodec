@@ -70,7 +70,7 @@ A rule seen only in the DLL ([I]) counts as unsettled until a dialog check confi
 - Contact NO/NC/edge: X, Y, C, T, CT, SC only. Immediate only on X. No pointers.
 - Compare: Data A and Data B are data banks or constants; bit banks are refused.
   - Pairs follow the Help 202 groups: hex {XD, YD, DH, `h` constant}, numeric {TD, CTD, DS,
-    DD, DF, SD, int/float constant}, text {TXT, one-char `"x"` or `$HH`}. Cross-group pairs
+    DD, DF, SD, int/float constant}, text {TXT, `"..."` of 1-128 characters, or `$HH`; see Q-B7}. Cross-group pairs
     are refused (OBJ-007, OBJ-024).
 - Coil Out: Y, C or writable SC. X, T and CT are refused (OBJ-004). Immediate only on Y, and
   on a range both ends must be Y.
@@ -165,7 +165,7 @@ accepted.
 - S9 comm: FC02 and FC04 are unreachable from a CLICK-addressed Receive (`send_receive.py:
   157-163`), so a native FC02/04 rung would re-encode as FC01/03. Waits on Q-C4.
 - S10 bits: one-phase debounce is refused by both projects, but Help 348 allows it. Waits on
-  Q-B4 and a capture.
+  Q-B4 and a capture. Q-B4 answered with a capture; laddercodec accepts it on bob/bits2.
 
 ### pyrung follow-ups (listed for the pyrung side, not built in this arc)
 
@@ -230,11 +230,16 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     disassembled.
   - **ANSWERED 2026-11-11 (user, dialog): Set and Reset take Y, C and SC only.** X1, T1, CT1
     and DS1 are refused, and so are `C9..C1` and `C5..Y5`.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** agrees. Inst_Set and Inst_Reset use the
+    Out validator (Y, C, writable SC) and Out's range errors OBJ-008, OBJ-009 and OBJ-012
+    (`C5..C5`); with Immediate checked the range end is checked as Y only.
 - Q-B2 Out: which SC addresses are accepted? Is it exactly SC50, 51, 53, 55, 60, 61, 65, 66,
   67, 75, 76, 120, 121?
   - **ANSWERED 2026-11-11 (user, dialog): 25 SC bits, the read-write system bits in CLICK's
     address picker.** SC50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168,
     171, 303, 304, 305, 306, 323, 324, 325, 326.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** agrees: the 25 SC rows marked R/W in
+    `PLCType.ini`; Set, Reset, Out and the Out variants share the check (OBJ-003).
 - Q-B3 Out:
   - Is `C5..C5` refused?
   - Is `C1..C2000` accepted?
@@ -242,16 +247,35 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - Is an SC range accepted?
   - **ANSWERED 2026-11-11 (user, dialog):** `C5..C5` is refused; `C1..C2000` is accepted;
     immediate `Y001..Y101` is accepted; an SC range is accepted.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** agrees: only the two ends of a range are
+    checked. Whether Compile refuses an SC range with read-only bits between: needs dialog.
 - Q-B4 Debounce: can it be saved with only the off phase filled? With only the on phase? If
   yes, a capture shows what CLICK writes.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** yes to both; both phases empty is refused
+    (OBJ-006). Flasher needs both phases.
+  - **ANSWERED 2026-11-11 (user, capture `v4_captures/debounce_one_phase.bin`):** CLICK writes
+    the empty phase's accumulator and preset as empty strings. Built on bob/bits2 (S10).
 - Q-B5 Debounce and flasher: is the same TD for the on and off timer refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** refused, OBJ-012 (TD1 and TD001 are the same
+    register). Timed has one TD.
 - Q-B6 Debounce, flasher and timed: is a preset of 32768 refused? Does the Timed unit list
   include min? (Help 350 says no; a capture says yes.)
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** 32768 is refused for all three (OBJ-005),
+    32767 accepted; a DS preset also passes. Timed offers ms, sec and min; debounce and
+    flasher ms and sec.
 - Q-B7 Compare:
   - Is `DS1>40000` refused? `DS1==3000000000`? `DH1==10000h`?
   - Is a constant accepted on the left (`100<DS1`), or on both sides (`1==1`)?
   - With TXT1 as Data A, are `>`, `<`, `>=` and `<=` disabled?
   - Are `DH1==FFFFH` (uppercase H) and `TXT1=="$41"` (quoted) accepted?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/bits.md):** `DS1>40000` accepted; `DS1==3000000000`
+    and `DH1==10000h` refused (OBJ-005: a whole number is int32, a hex constant at most
+    FFFFh); `100<DS1` and `1==1` accepted; with text as Data A, `>`, `<`, `>=` and `<=` are
+    hidden; `DH1==FFFFH` accepted; `TXT1=="$41"` accepted as three characters of text. A
+    text constant holds 1 to 128 characters between its quotes; `""` is refused (OBJ-005).
+  - **ANSWERED 2026-11-11 (user, dialog):** with `>` selected, typing TXT1 into Data A
+    leaves only = and != to choose, so there is no saved-as-`!=` case (bits.md N8). A text
+    compare takes == or != only.
 
 **data**
 - Q-D1 Timer set point: is 32767 accepted? Are 32768 and -1 refused? Is it the same for every

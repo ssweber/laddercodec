@@ -167,7 +167,7 @@ class OutVariant(AfInstruction):
             # A debounce phase with both fields empty is skipped (Q-B4: Inst_Out.dll
             # @100081c6 and @10008236); with both phases empty OnOK refuses the on preset,
             # OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
-            filled = [ph for ph in phases if self.phase_fields(ph) != ("", "")]
+            filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
             if not filled:
                 raise FieldError(
                     "OutVariant.on_preset: debounce needs an on phase or an off phase "
@@ -188,7 +188,7 @@ class OutVariant(AfInstruction):
                 f"{self.kind} needs two different TD registers"
             )
 
-    def phase_fields(self, phase: str) -> tuple[str, str]:
+    def _phase_fields(self, phase: str) -> tuple[str, str]:
         """Return ``(accumulator, preset)`` of the on or off phase."""
         if phase == "on":
             return (self.on_acc, self.on_preset)
@@ -264,7 +264,7 @@ class OutVariant(AfInstruction):
             return f"toggle({operand})"
         parts = [self.operand]
         for ph in ("on", "off") if self.kind in _TWO_PHASE else ("on",):
-            acc, preset = self.phase_fields(ph)
+            acc, preset = self._phase_fields(ph)
             # A one-phase debounce leaves out the empty phase's keywords.
             if self.kind != "debounce" or (acc, preset) != ("", ""):
                 parts += [f"{ph}_acc={acc}", f"{ph}_preset={preset}"]
