@@ -426,6 +426,11 @@ Producer may emit:
 - `time_drum(outputs=[...],presets=[...],unit=Tms,pattern=[[...],...],current_step=X,accumulator=X,completion_flag=X)`
 - `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,count=N)`
 - `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,count=N)`
+  - `target` is `ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=1)` (ports `cpu2`,
+    `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
+    `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
+    `com_port="wlan"` for the WLAN port (omitted = Ethernet)
+  - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
 - `call("subroutine_name")`
   - Subroutine names must not contain `"`
 - `return()`
@@ -472,7 +477,7 @@ currently emit:
   - `convert=to_value`
   - `convert=to_ascii`
   - `convert=to_binary`
-  - `convert=to_text(suppress_zero=<0|1>,exponential=<0|1>,termination_code=<none|$XX>)`
+  - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling
 

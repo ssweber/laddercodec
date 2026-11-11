@@ -1,0 +1,19 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,search__text_eq
+#,"search(TXT101..TXT110 == ""A"",result=DS2001,found=C601)"
+R,C1,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(TXT101..TXT110 == ""A"",result=DS2001,found=C601)"
+#,search__text_ne
+#,"search(TXT101..TXT110 != ""A"",result=DS2002,found=C602)"
+R,C11,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(TXT101..TXT110 != ""A"",result=DS2002,found=C602)"
+#,search__text_ne_oneshot
+#,"search(TXT101..TXT110 != ""A"",result=DS2003,found=C603,oneshot=1)"
+R,C21,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(TXT101..TXT110 != ""A"",result=DS2003,found=C603,oneshot=1)"
+#,search__data_eq_oneshot
+#,"search(DS2101..DS2110 == DS2100,result=DS2004,found=C604,oneshot=1)"
+R,C31,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(DS2101..DS2110 == DS2100,result=DS2004,found=C604,oneshot=1)"
+#,search__data_le_oneshot
+#,"search(DS2101..DS2110 <= DS2100,result=DS2005,found=C605,oneshot=1)"
+R,C41,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(DS2101..DS2110 <= DS2100,result=DS2005,found=C605,oneshot=1)"
+#,search__data_gt
+#,"search(DS2101..DS2110 > DS2100,result=DS2006,found=C606)"
+R,C51,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"search(DS2101..DS2110 > DS2100,result=DS2006,found=C606)"

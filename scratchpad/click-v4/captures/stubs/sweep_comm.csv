@@ -1,0 +1,10 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,send__wlan
+#,"send(target=ModbusTcpTarget(name=""tcp"",ip=""192.168.1.20"",port=502,device_id=1,com_port=""wlan""),remote_start=""DS1"",source=DS2401,sending=C701,success=C702,error=C703,exception_response=DS2402)"
+R,C401,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP
+#,receive__cpu3
+#,"receive(target=ModbusRtuTarget(name=""rtu"",com_port=""cpu3"",device_id=2),remote_start=""DS1"",dest=DS2411,receiving=C711,success=C712,error=C713,exception_response=DS2412)"
+R,C411,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP
+#,send__slave_id_ds
+#,"send(target=ModbusRtuTarget(name=""rtu"",com_port=""cpu2"",device_id=DS2420),remote_start=""DS1"",source=DS2421,sending=C721,success=C722,error=C723,exception_response=DS2422)"
+R,C421,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,NOP

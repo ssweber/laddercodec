@@ -39,6 +39,8 @@ from laddercodec.instructions import (
     Shift,
     Timer,
 )
+from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.instructions.timer import from_tags as timer_from_tags
 from laddercodec.model import InstructionType
 
 
@@ -197,6 +199,29 @@ class TestPinRows:
         assert isinstance(timer, Timer)
         assert timer.retained is True
         assert afs[1] == ""  # .reset() absorbed, not emitted
+
+    def test_off_delay_rejects_reset(self, tmp_path: Path) -> None:
+        """CLICK's Timer dialog offers Retentive only for an On Delay timer."""
+        csv_path = tmp_path / "main.csv"
+        wires = ["-"] * len(CONDITION_COLUMNS)
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row(), "off_delay(T1,TD1,preset=1000,unit=Tms)"),
+                ("", wires, ".reset()"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(ValueError, match="off_delay can't be retentive"):
+            convert_rung(rung)
+
+    def test_retentive_off_delay_blob_decodes_as_raw(self) -> None:
+        """A blob CLICK's dialog never writes isn't decoded as a Timer it can't encode."""
+        on = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=True)
+        tags = {tag: value for tag, _s, value in _decompose_blob(on.build_blob())[4]}
+        tags[0x21FA] = "1"  # off_delay
+        assert timer_from_tags("Tmr", 0x2718, tags) is None
 
     def test_reset_with_condition(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"

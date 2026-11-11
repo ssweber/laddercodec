@@ -1,7 +1,9 @@
-"""Tests for laddercodec.instructions.copy: Copy-to-text termination codes.
+"""Tests for laddercodec.instructions.copy: termination codes and conversion types.
 
 CLICK and pyrung's exporter spell a termination code as ``$`` + two hex digits
-(``$0D``, ``$00``), so a decoded Copy must write the same text.
+(``$0D``, ``$00``), so a decoded Copy must write the same text.  Conversion
+types (tag 0x2227) follow CLICK's dialog: they depend on the source and
+destination types (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
 """
 
 from __future__ import annotations
@@ -10,8 +12,76 @@ import pytest
 
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.copy import Copy, from_tags
+from laddercodec.instructions.raw import _decompose_blob
 
-_TOKEN = "copy(DS20,TXT7,convert=to_text(suppress_zero=1,exponential=0,termination_code={code}))"
+
+def _conv_and_option(copy: Copy) -> tuple[str, str]:
+    """(0x2227 conversion type, 0x2206 option) as written."""
+    fields = {tag: value for tag, _s, value in _decompose_blob(copy.build_blob())[4]}
+    return fields[0x2227], fields[0x2206]
+
+
+@pytest.mark.parametrize(
+    ("token", "conv", "option", "csv"),
+    [
+        (
+            "copy(DS1,TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
+            "1",
+            "0",
+            "copy(DS1,TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
+        ),
+        (
+            "copy(DD1,TXT1,convert=to_text(suppress_zero=0,exponential=0,termination_code=none))",
+            "2",
+            "1",
+            "copy(DD1,TXT1,convert=to_text(suppress_zero=0,termination_code=none))",
+        ),
+        (
+            "copy(DF1,TXT1,convert=to_text(exponential=0,termination_code=none))",
+            "3",
+            "0",
+            "copy(DF1,TXT1,convert=to_text(exponential=0,termination_code=none))",
+        ),
+        (  # suppress_zero means nothing for DF: accepted, not written
+            "copy(DF1,TXT1,convert=to_text(suppress_zero=0,exponential=1,termination_code=none))",
+            "4",
+            "1",
+            "copy(DF1,TXT1,convert=to_text(exponential=1,termination_code=none))",
+        ),
+        ("copy(DD1,DF1)", "7", "0", "copy(DD1,DF1)"),
+        ("copy(DF1,DD1)", "7", "0", "copy(DF1,DD1)"),
+        ("copy(DD1,DF1,convert=to_binary)", "8", "1", "copy(DD1,DF1,convert=to_binary)"),
+        ("copy(DS1,TXT1,convert=to_binary)", "8", "2", "copy(DS1,TXT1,convert=to_binary)"),
+        ("copy(DS1,DF1)", "0", "0", "copy(DS1,DF1)"),  # not a DD <-> DF pair
+    ],
+)
+def test_conversion_type_follows_source_and_destination(
+    token: str, conv: str, option: str, csv: str
+) -> None:
+    copy = Copy.from_csv_token(token)
+    assert _conv_and_option(copy) == (conv, option)
+    parsed = parse_af_blob(copy.build_blob())
+    assert parsed == copy
+    assert isinstance(parsed, Copy)
+    assert parsed.to_csv() == csv
+
+
+def test_exponential_on_integer_source_rejected() -> None:
+    # CLICK offers exponential numbering for a DF source only.
+    with pytest.raises(ValueError, match="needs a DF source"):
+        Copy.from_csv_token("copy(DS1,TXT1,convert=to_text(exponential=1))")
+
+
+@pytest.mark.parametrize(("conv", "source", "destination"), [(7, "DS1", "DF1"), (4, "DS1", "TXT1")])
+def test_conversion_type_for_another_source_is_not_decoded(
+    conv: int, source: str, destination: str
+) -> None:
+    """A type CLICK only writes for another source kind is left to raw()."""
+    tags = {0x6074: source, 0x6076: destination, 0x2227: str(conv)}
+    assert from_tags("Copy", 0x2721, tags) is None
+
+
+_TOKEN = "copy(DS20,TXT7,convert=to_text(suppress_zero=1,termination_code={code}))"
 
 #: Below 0x10 is where a one-digit spelling used to slip out.
 _CODES = ["$00", "$0D", "$0A", "$13", "$7F"]

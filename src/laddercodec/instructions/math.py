@@ -277,9 +277,15 @@ def _call_end(tokens: list[str], i: int) -> int:
 _REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")
 
 
+#: Integer literals CLICK stores as a 16-bit constant (``H``); wider ones get ``W``.
+_INT16_MIN, _INT16_MAX = -32768, 32767
+
+
 def _internal_literal(token: str) -> str:
     if re.fullmatch(r"-?\d+", token):
-        return f"H{token}"
+        # v4_captures/sweep_math.bin: 32767 -> H, 40000 and 100000 -> W.
+        prefix = "H" if _INT16_MIN <= int(token) <= _INT16_MAX else "W"
+        return f"{prefix}{token}"
     if _REAL_LITERAL_RE.fullmatch(token):
         return f"F{token}"
     if re.fullmatch(r"[0-9A-Fa-f]+h", token):

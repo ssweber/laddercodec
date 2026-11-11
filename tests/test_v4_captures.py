@@ -84,7 +84,27 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     af_tokens = [row[-1] for row in rows if row[0] != "#" and row[-1]]
     if any(token.startswith("raw(") for token in af_tokens):
         pytest.xfail(f"not decoded yet: {af_tokens}")
-    assert af_tokens == expected
+    slip = _BUILT_DIFFERENTLY.get((rung.comment or "").split("\n")[0])
+    if slip:
+        expected = [token.replace(*slip) for token in expected]
+    assert af_tokens == [_current_spelling(token) for token in expected]
+
+
+#: Build rungs CLICK was given other settings than their comment names: (comment text, built).
+_BUILT_DIFFERENTLY: dict[str, tuple[str, str]] = {
+    "send__slave_id_ds": ('com_port="cpu2"', 'com_port="cpu3"'),  # built on CPU Port 3
+}
+
+
+def _current_spelling(token: str) -> str:
+    """A comment token as write_csv spells it now.
+
+    Comments are baked into captures.  ``to_text`` used to carry both
+    ``suppress_zero`` and ``exponential``; it now writes only the source's own.
+    """
+    if token.startswith("copy(") and "to_text(" in token:
+        return Copy.from_csv_token(token).to_csv()
+    return token
 
 
 @pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
@@ -188,10 +208,9 @@ def test_out_variant_blobs_match_native() -> None:
 
 
 def test_time_event_drum_blobs_match_native() -> None:
-    """Every time & event drum CLICK wrote re-encodes field for field, 0x428A aside.
+    """Every time & event drum CLICK wrote re-encodes field for field.
 
-    0x428A is unexplained: Click wrote -1 for four drums and -2 for drum__te_ds;
-    the encoder writes -1, which Click also fills in for a pasted drum lacking it.
+    0x428A is the constant-preset mask: -1, except -2 for drum__te_ds (step 0 is DS1301).
     """
     buf = (CAPTURE_DIR / "drum.bin").read_bytes()
     drums = [
@@ -213,9 +232,7 @@ def test_time_event_drum_blobs_match_native() -> None:
         *head, native_fields = _decompose_blob(buf[start : start + len(blob)])
         *encoded_head, fields = _decompose_blob(blob)
         assert encoded_head == head
-        assert [f for f in fields if f[0] != 0x428A] == [
-            f for f in native_fields if f[0] != 0x428A
-        ], drum.to_csv()
+        assert fields == native_fields, drum.to_csv()
         checked += 1
     assert checked == 5
 
@@ -443,3 +460,94 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
     assert len(set(offsets)) == len(compares)
     write_csv(tmp_path / "rung.csv", [rung])
     assert read_csv(tmp_path / "rung.csv")[0].conditions[0][:2] == compares
+
+
+# ---------------------------------------------------------------------------
+# DLL-sweep captures (arc.md): re-encoding gives CLICK's own AF blob
+# ---------------------------------------------------------------------------
+
+#: Tags CLICK writes but doesn't read back, per class name.
+_SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
+    "Call": frozenset({0x3219}),  # dialog drop-down index; CLICK reselects the subroutine by name
+    # v4's dialog writes -1 on every save and ignores it on load (InstCtl_Copy.dll);
+    # the encoder keeps the pre-v4 rule that native v3 captures match.
+    "Copy": frozenset({0x1201}),
+}
+
+#: Per rung: fields where CLICK v4's dialog and the pre-v4 native capture we match
+#: disagree, and v4 ignores the field on load.  The encoder keeps the v3 value.
+_SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
+    "blockcopy__to_ascii_v4": frozenset({0x2206}),  # v4 dialog 1, coverage.bin 0
+    # IP of a serial target: v4 '' (saved only for Ethernet/WLAN), coverage.bin '...'
+    "receive__cpu3": frozenset({0x622B}),
+    "send__slave_id_ds": frozenset({0x622B}),
+}
+
+#: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
+_V4_ADDED_TAGS: dict[str, frozenset[int]] = {
+    "Drum": frozenset({0x6891, 0x428A, 0x6068}),
+    # v4 writes every Out in its OutVariant shape: pulse/timer fields, all blank or 0.
+    "Out": frozenset({0x60B3, 0x60B4, 0x60B5, 0x60B6, 0x1246, 0x1247, 0x21F9, 0x2248, 0x20CA}),
+}
+
+#: Slot tables v4 pads further than v3 (Math: 5000 range-interior slots, not 500);
+#: only the filled slots are compared.
+_PADDED_TAGS: dict[str, frozenset[int]] = {
+    "Math": frozenset({0x688C}),
+}
+
+#: Array slots whose sentinel CLICK writes as the slot index (0, 1, ...) and we write as
+#: FFFFFFFF.  CLICK accepts both (every send/receive coverage golden is paste-verified),
+#: so only the slot values are compared.
+_INDEX_SENTINEL_TAGS: dict[str, frozenset[int]] = {
+    "SD": frozenset({0x6889, 0x688F}),
+    "RD": frozenset({0x688F}),
+}
+
+_SWEEP = [
+    (path, index, rung)
+    for path in sorted(CAPTURE_DIR.glob("sweep_*.bin"))
+    for index, rung in enumerate(_decode_file(path))
+]
+
+
+def _af_blob(
+    data: bytes, rung_index: int
+) -> tuple[str, int, int, bytes, list[tuple[int, bytes, str]]]:
+    cell = inspect_cells(data, [(rung_index, 0, "AF")])[0]
+    return _decompose_blob(cell.raw[0x25:-0x10])
+
+
+@pytest.mark.parametrize(
+    ("path", "index", "rung"),
+    _SWEEP,
+    ids=[f"{p.stem}:{(r.comment or '').split(chr(10))[0]}" for p, _, r in _SWEEP],
+)
+def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> None:
+    """Every field CLICK wrote, in order, comes back from encode(decode(...)).
+
+    The decode check above can't see func codes: the decoder ignores 0x3218.
+    """
+    if any(isinstance(token, str) and token.startswith("raw(") for token in rung.instructions):
+        pytest.xfail("not decoded yet")
+    native = _af_blob(path.read_bytes(), index)
+    ours = _af_blob(encode(rung), 0)
+    rung_id = (rung.comment or "").split("\n")[0]
+    ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset()) | _SWEEP_V3_VALUES.get(
+        rung_id, frozenset()
+    )
+    v4_added = _V4_ADDED_TAGS.get(native[0], frozenset())
+    if not any(f[0] in v4_added for f in ours[4]):
+        ignored |= v4_added
+    padded = _PADDED_TAGS.get(native[0], frozenset())
+    indexed = _INDEX_SENTINEL_TAGS.get(native[0], frozenset())
+
+    def compared(fields: list[tuple[int, bytes, str]]) -> list[tuple[int, bytes, str]]:
+        return [
+            (f[0], b"" if f[0] in indexed else f[1], f[2])
+            for f in fields
+            if f[0] not in ignored and not (f[0] in padded and not f[2])
+        ]
+
+    assert ours[:4] == native[:4]
+    assert compared(ours[4]) == compared(native[4])

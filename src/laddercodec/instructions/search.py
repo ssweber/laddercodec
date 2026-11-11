@@ -4,8 +4,8 @@ Binary class name: ``"Search"``.
 
 Searches a table range for a value matching a comparison condition.
 Six comparison operators (==, !=, >, <, >=, <=), with optional
-continuous and oneshot flags.  Text search (literal source) uses
-func code 8970; data search uses 8964–8969.
+continuous and oneshot flags.  Func code is 8964 + operator index
+(== != > >= < <=) + 6 if oneshot, for data and text search alike.
 
 Field layout (10 fields):
 
@@ -37,21 +37,17 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: CSV operator → func code (data search).
-_OP_TO_FUNC: dict[str, str] = {
-    "==": "8964",
-    "!=": "8965",
-    ">": "8966",
-    ">=": "8967",
-    "<": "8968",
-    "<=": "8969",
+#: CSV operator → func code without oneshot; oneshot adds 6 (8970–8975).
+#: From InstCtl_Search.dll, confirmed by v4_captures/sweep_search.bin.
+_OP_TO_FUNC: dict[str, int] = {
+    "==": 8964,
+    "!=": 8965,
+    ">": 8966,
+    ">=": 8967,
+    "<": 8968,
+    "<=": 8969,
 }
-
-#: Text search func code.
-_TEXT_FUNC = "8970"
-
-#: Reverse lookup: func code → CSV operator.
-_FUNC_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_FUNC.items()}
+_ONESHOT_FUNC_OFFSET = 6
 
 # ---------------------------------------------------------------------------
 # Comparison code tables (field[8])
@@ -125,14 +121,8 @@ class Search(AfInstruction):
     oneshot: bool = False
 
     @property
-    def _is_text_search(self) -> bool:
-        return self.source.startswith('"')
-
-    @property
     def func_code(self) -> str:
-        if self._is_text_search:
-            return _TEXT_FUNC
-        return _OP_TO_FUNC[self.comparison]
+        return str(_OP_TO_FUNC[self.comparison] + (_ONESHOT_FUNC_OFFSET if self.oneshot else 0))
 
     def to_csv(self) -> str:
         expr = f"{self.table_start}..{self.table_end} {self.comparison} {self.source}"

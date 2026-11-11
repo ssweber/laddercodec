@@ -153,6 +153,25 @@ class TestCoil:
         assert c.range_end == "Y2"
         assert c.immediate is True
 
+    @pytest.mark.parametrize(
+        ("token", "func_code"),
+        [
+            ("out(Y1,oneshot=1)", "8205"),
+            ("out(immediate(Y1),oneshot=1)", "8206"),
+            ("out(Y1..Y2,oneshot=1)", "8209"),
+            ("out(immediate(Y1..Y2),oneshot=1)", "8210"),
+        ],
+    )
+    def test_out_oneshot_func_codes(self, token, func_code):
+        # v4_captures/sweep_coil.bin
+        assert Coil.from_csv_token(token).func_code == func_code
+
+    @pytest.mark.parametrize("token", ["latch(Y1,oneshot=1)", "reset(C1..C2,oneshot=1)"])
+    def test_latch_reset_oneshot_rejected(self, token):
+        # CLICK's Set/Reset dialog has no One Shot box.
+        with pytest.raises(ValueError, match="only out"):
+            Coil.from_csv_token(token)
+
     def test_from_csv_token_invalid(self):
         with pytest.raises(ValueError, match="Cannot parse coil"):
             Coil.from_csv_token("Y001")

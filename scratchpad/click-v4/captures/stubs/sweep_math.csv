@@ -1,0 +1,10 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,math__w_literal
+#,"math(DD501 + 100000,DD502,mode=decimal)"
+R,C501,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DD501 + 100000,DD502,mode=decimal)"
+#,math__w_literal_low
+#,"math(DD503 + 40000,DD504,mode=decimal)"
+R,C511,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DD503 + 40000,DD504,mode=decimal)"
+#,math__h_literal_max
+#,"math(DD505 + 32767,DD506,mode=decimal)"
+R,C521,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"math(DD505 + 32767,DD506,mode=decimal)"
