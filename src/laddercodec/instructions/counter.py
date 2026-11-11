@@ -43,8 +43,17 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 # Tag constants
 # ---------------------------------------------------------------------------
 
-#: A constant set point is an integer; its range waits on a CLICK dialog check.
+#: A constant set point is a 32-bit signed integer written in under 13 characters.
+#: Inst_Counter.dll OnOK: span check, ``value + 0x80000000`` fits 32 bits, and text length
+#: below 13, each else OBJ-005 (Q-D2).  A '-' only leads: ``1-2`` is
+#: refused (Q-D2, user dialog check 2026-11-11).
 _INTEGER_RE = re.compile(r"-?[0-9]+")
+COUNTER_MIN_PRESET = -(2**31)
+COUNTER_MAX_PRESET = 2**31 - 1
+_COUNTER_MAX_PRESET_TEXT = 12
+
+#: Register set points: DS or DD only (Inst_Counter.dll validator mask 0xc0, OBJ-004).
+COUNTER_PRESET_BANKS = frozenset({"DS", "DD"})
 
 _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 
@@ -81,7 +90,18 @@ class Counter(PinnedInstruction):
                 raise FieldError(
                     f"Counter.preset: {self.preset!r} is neither an integer nor a register address"
                 )
-            check_address(self.preset, "Counter.preset")
+            check_address(self.preset, "Counter.preset", banks=COUNTER_PRESET_BANKS)
+            return
+        if not COUNTER_MIN_PRESET <= int(self.preset) <= COUNTER_MAX_PRESET:
+            raise FieldError(
+                f"Counter.preset: {self.preset!r} is outside {COUNTER_MIN_PRESET} to "
+                f"{COUNTER_MAX_PRESET} (OBJ-005)"
+            )
+        if len(self.preset) > _COUNTER_MAX_PRESET_TEXT:
+            raise FieldError(
+                f"Counter.preset: {self.preset!r} is {len(self.preset)} characters; a constant "
+                f"set point is at most {_COUNTER_MAX_PRESET_TEXT} (OBJ-005)"
+            )
 
     @property
     def lead_rows(self) -> int:
