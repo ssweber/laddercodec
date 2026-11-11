@@ -107,12 +107,14 @@ class Coil(AfInstruction):
         ends = [("operand", self.operand, start)]
         if self.range_end is not None:
             end = check_address(self.range_end, "Coil.range_end", banks)
-            if end.bank != start.bank:
+            # Range direction and bank are known for Out only (Set and Reset wait on Q-B1).
+            out = self.type == InstructionType.COIL_OUT
+            if out and end.bank != start.bank:
                 raise FieldError(
                     f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
                     f"the range starts in bank {start.bank} and must stay in it"
                 )
-            if end.number < start.number:
+            if out and end.number < start.number:
                 raise FieldError(
                     f"Coil.range_end: {self.range_end!r} is below {self.operand!r}; "
                     "a range runs from a lower to a higher address"

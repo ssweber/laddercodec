@@ -468,11 +468,11 @@ currently emit:
   - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
   - `out(...)` and the Out variants (`toggle`, `debounce`, `flasher`, `timed`) take Y,
     C or SC; `immediate(...)` only on Y, and both ends of an immediate range.
-  - A coil range stays in one bank and runs from a lower to a higher address.
+  - An `out` range stays in one bank and runs from a lower to a higher address.
   - Variant accumulators are TD. A preset is a DS register or a whole number, at
     least 0 for `debounce` and at least 1 for `flasher` and `timed`.
   - A compare takes data registers or constants, never bits. Both sides come from
-    one group: hex (XD, YD, DH, `0000h`), numeric (TD, CTD, DS, DD, DF, SD, numbers)
+    one group: hex (XD, YD, DH, `0000h` or `0000H`), numeric (TD, CTD, DS, DD, DF, SD, numbers)
     or text (TXT, `"A"`, `$41`).
 - Timer, counter and drum fields take CLICK's banks:
   - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a

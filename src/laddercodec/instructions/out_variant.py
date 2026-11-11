@@ -83,6 +83,8 @@ def _check_preset(value: str, name: str, floor: int) -> None:
         if int(value) < floor:
             raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
         return
+    if re.fullmatch(r"[+-]\d+", value):
+        raise FieldError(f"{name}: {value!r} is below the minimum {floor}; a preset is unsigned")
     if value[:1].isalpha():
         check_address(value, name, {"DS"})
         return

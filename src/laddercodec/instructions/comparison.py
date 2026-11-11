@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
 from ..model import ConditionInstruction, FieldError, InstructionType, check_address
@@ -17,6 +17,8 @@ from .family import ConditionInstructionFamilySpec
 # ---------------------------------------------------------------------------
 # Func code tables
 # ---------------------------------------------------------------------------
+
+CompareOp = Literal["==", "!=", ">", "<", ">=", "<="]
 
 #: Compare func codes: func_code_str -> operator.
 COMPARE_FUNC_CODES: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
@@ -51,6 +53,25 @@ _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "5": "<=",
 }
 
+
+def split_comparison(token: str) -> tuple[str, str, str] | None:
+    """Split ``left<op>right`` at the first operator outside a quoted text constant.
+
+    Returns ``(left, op, right)``, or None when there is no operator or a side is empty.
+    """
+    i = 0
+    while i < len(token):
+        if token[i] == '"' and token[i + 2 : i + 3] == '"':
+            i += 3
+            continue
+        for op in ("==", "!=", ">=", "<=", ">", "<"):
+            if token.startswith(op, i):
+                left, right = token[:i].strip(), token[i + len(op) :].strip()
+                return (left, op, right) if left and right else None
+        i += 1
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Operand rules (CLICK v4.00 Help CL164, CL196, CL202)
 # ---------------------------------------------------------------------------
@@ -63,7 +84,7 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 }
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
-_HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+h")
+_HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
 _TEXT_CONSTANT_RE = re.compile(r'"[^"]?"|\$[0-9A-Fa-f]{2}')
 
@@ -128,21 +149,11 @@ class CompareContact(ConditionInstruction):
             wire_down = True
             token = token[2:]
 
-        # Split at the first operator outside a quoted text constant.
-        i = 0
-        while i < len(token):
-            if token[i] == '"' and token[i + 2 : i + 3] == '"':
-                i += 3
-                continue
-            for op in ("==", "!=", ">=", "<=", ">", "<"):
-                if token.startswith(op, i):
-                    left = token[:i]
-                    right = token[i + len(op) :]
-                    if i > 0 and left and right:
-                        return cls(op=op, left=left, right=right, wire_down=wire_down)
-                    raise ValueError(f"Cannot parse compare contact: {token!r}")
-            i += 1
-        raise ValueError(f"Cannot parse compare contact: {token!r}")
+        parts = split_comparison(token)
+        if parts is None:
+            raise ValueError(f"Cannot parse compare contact: {token!r}")
+        left, op, right = parts
+        return cls(op=cast(CompareOp, op), left=left, right=right, wire_down=wire_down)
 
     @property
     def func_code(self) -> str:

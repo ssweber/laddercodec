@@ -12,11 +12,10 @@
 
 ### Changed
 - **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
-- **Bit instruction rules**: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils), a coil range stays in one bank and ascends, and a compare takes data registers or constants of one group (hex, numeric or text); a refused value raises `FieldError`, and a refused blob decodes as `raw(...)` or an unknown condition.
+- **Bit instruction rules**: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils), an `out` range stays in one bank and ascends, and a compare takes data registers or constants of one group (hex, numeric or text); a refused value raises `FieldError`, and a refused blob decodes as `raw(...)` or an unknown condition.
 - **Out variants**: accumulators are TD, a preset is a DS register or a whole number (at least 0 for debounce, 1 for flasher and timed), and a field the kind does not use must be empty; a bad `unit` raises `FieldError` on construction instead of a `KeyError` at encode.
-- **Compare tokens**: a quoted text constant that holds an operator character (`TXT1<">"`) now parses.
+- **Compare tokens**: a quoted text constant that holds an operator character (`TXT1<">"`) now parses, in CSV files and in `CompareContact.from_csv_token`.
 - **Call and For**: `Call(subroutine="")` and a blank or whitespace-only `ForLoop` limit raise `FieldError`; a For blob with a blank limit decodes as `raw(...)`.
-
 - **Timer, Counter and Drum fields**: these raise `FieldError` for a value CLICK's dialog refuses: a timer or counter number outside T1-T500 or CT1-CT250, a current value that does not match it, a non-numeric constant set point, an unknown timer unit, and a drum with more than 16 steps or outputs, a pattern that does not match them, or a blank event or duration. A Drum used to drop steps or outputs past 16 without a message.
 
 ## 0.3.3 (2026-11-11)

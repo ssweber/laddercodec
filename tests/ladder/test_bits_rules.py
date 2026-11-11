@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 
 from laddercodec import AddressError, FieldError
+from laddercodec.csv.ast import ComparisonCondition
+from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
@@ -67,6 +69,7 @@ class TestCompare:
             "TD1<DS2",
             "CTD1!=SD1",
             "DH1==FFFFh",
+            "DH1==FFFFH",
             "DH1==XD0u",
             "XD0==YD8",
             'TXT1=="A"',
@@ -109,6 +112,31 @@ class TestCompare:
         parsed = CompareContact.from_csv_token(token)
         assert (parsed.left, parsed.op, parsed.right) == ("TXT1", op, right)
 
+    def test_quoted_ascii_code_refused(self) -> None:
+        with pytest.raises(AddressError):
+            CompareContact.from_csv_token('TXT1=="$41"')
+
+    def test_hex_suffix_case_keeps_bytes(self) -> None:
+        upper = CompareContact.from_csv_token("DH1==FFFFH")
+        assert upper.right == "FFFFH"
+        assert b"FFFFH".decode().encode("utf-16-le") in upper.build_blob()
+
+    @pytest.mark.parametrize(
+        ("cell", "left", "op", "right"),
+        [
+            ('TXT1=="="', "TXT1", "==", '"="'),
+            ('TXT1>"<"', "TXT1", ">", '"<"'),
+            ('TXT1<">"', "TXT1", "<", '">"'),
+            ('"<">TXT1', '"<"', ">", "TXT1"),
+        ],
+    )
+    def test_csv_token_parser_skips_quoted_operators(
+        self, cell: str, left: str, op: str, right: str
+    ) -> None:
+        node = parse_condition_token(cell)
+        assert isinstance(node, ComparisonCondition)
+        assert (node.left, node.op, node.right) == (left, op, right)
+
     def test_wire_down_prefix(self) -> None:
         assert CompareContact.from_csv_token('T:TXT1<">"').wire_down
 
@@ -139,6 +167,11 @@ class TestCoil:
     def test_immediate_range_ends_both_y(self) -> None:
         with pytest.raises(FieldError, match="^Coil.range_end"):
             Coil(InstructionType.COIL_LATCH, "Y1", range_end="C2", immediate=True)
+
+    def test_set_and_reset_ranges_are_not_checked(self) -> None:
+        for kind in (InstructionType.COIL_LATCH, InstructionType.COIL_RESET):
+            Coil(kind, "C9", range_end="C1")
+            Coil(kind, "C5", range_end="Y5")
 
     def test_range_same_bank(self) -> None:
         with pytest.raises(FieldError, match="^Coil.range_end"):
@@ -181,12 +214,17 @@ class TestOutVariant:
     def test_debounce_presets(self, preset: str) -> None:
         debounce(on_preset=preset, off_preset=preset)
 
-    @pytest.mark.parametrize("preset", ["", "-1", "1.5", "TD1", "DS0", "DD1", "1h"])
+    @pytest.mark.parametrize("preset", ["", "1.5", "TD1", "DS0", "DD1", "1h"])
     def test_bad_presets(self, preset: str) -> None:
         with pytest.raises(FieldError, match="^OutVariant.on_preset"):
             debounce(on_preset=preset)
         with pytest.raises(FieldError, match="^OutVariant.off_preset"):
             debounce(off_preset=preset)
+
+    @pytest.mark.parametrize("preset", ["-1", "+5"])
+    def test_signed_preset_names_the_minimum(self, preset: str) -> None:
+        with pytest.raises(FieldError, match="below the minimum 0"):
+            debounce(on_preset=preset)
 
     def test_preset_floors(self) -> None:
         debounce(on_preset="0")
@@ -233,7 +271,7 @@ class TestOutVariant:
 
     def test_csv_unit_error_keeps_its_message(self) -> None:
         token = "debounce(C1,on_acc=TD1,on_preset=1,off_acc=TD2,off_preset=1,unit=Tm)"
-        with pytest.raises(ValueError, match="does not support unit"):
+        with pytest.raises(FieldError, match="does not support unit"):
             OutVariant.from_csv_token(token)
 
 
