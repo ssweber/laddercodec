@@ -337,6 +337,9 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     bank uppercase, XD0u), normalized at construction by `model.normalize_address`. The
     18,117 address strings in the native .bin/.scr fixtures (v4_captures, tumbler,
     scr_captures) are all in this form, so decoding native data is unchanged.
+  - **ANSWERED 2026-11-11 (user, dialog):** lowercase is accepted and normalized as typed:
+    `ds1` becomes DS1. laddercodec accepting `ds01`/`x1` on construction and CSV matches the
+    dialog (FABLE_REVIEW decision 4).
 
 **move**
 - Q-M1 Block Copy DS1..DS3:
