@@ -426,6 +426,11 @@ Producer may emit:
 - `time_drum(outputs=[...],presets=[...],unit=Tms,pattern=[[...],...],current_step=X,accumulator=X,completion_flag=X)`
 - `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,count=N)`
 - `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,count=N)`
+  - `target` is `ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=1)` (ports `cpu2`,
+    `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
+    `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
+    `com_port="wlan"` for the WLAN port (omitted = Ethernet)
+  - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
 - `call("subroutine_name")`
   - Subroutine names must not contain `"`
 - `return()`

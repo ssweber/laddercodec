@@ -33,8 +33,17 @@ class ModbusRtuTarget:
     """RTU serial target."""
 
     name: str  # human label, not in binary
-    com_port: str  # "cpu2", "slot0_1", "slot1_2"
-    device_id: int
+    com_port: str  # "cpu2", "cpu3", "slot0_1", "slot0_2", "slot1_1", "slot1_2"
+    #: Slave ID: a number, or the DS register CLICK reads it from (``"DS2420"``).
+    device_id: int | str
+
+    def __post_init__(self) -> None:
+        if self.com_port not in _RTU_PORT_MODE:
+            raise ValueError(
+                f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
+                f"got {self.com_port!r}"
+            )
+        _check_device_id(self.device_id)
 
 
 @dataclass(frozen=True)
@@ -44,7 +53,30 @@ class ModbusTcpTarget:
     name: str  # human label, not in binary
     ip: str
     port: int
-    device_id: int
+    #: Slave ID: a number, or the DS register CLICK reads it from (``"DS2420"``).
+    device_id: int | str
+    com_port: str = "ethernet"  # "ethernet" (CPU Port 1) or "wlan"
+
+    def __post_init__(self) -> None:
+        if self.com_port not in _TCP_PORT_MODE:
+            raise ValueError(
+                f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
+                f"got {self.com_port!r}"
+            )
+        _check_device_id(self.device_id)
+
+
+_DS_ADDRESS_RE = re.compile(r"DS([1-9]\d*)")
+
+
+def _check_device_id(device_id: int | str) -> None:
+    """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
+    if isinstance(device_id, str):
+        m = _DS_ADDRESS_RE.fullmatch(device_id)
+        if not m or int(m.group(1)) > 4500:
+            raise ValueError(
+                f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}"
+            )
 
 
 @dataclass(frozen=True)
@@ -59,16 +91,22 @@ class ModbusAddress:
 # Protocol mode tables
 # ---------------------------------------------------------------------------
 
-_COM_PORT_MODE: dict[str, str] = {
-    "tcp": "2",
+#: Protocol mode (0x220C) per port, from InstCtl_SD / InstCtl_RD and v4_captures/sweep_comm.bin.
+_RTU_PORT_MODE: dict[str, str] = {
     "cpu2": "0",
+    "cpu3": "1",
     "slot0_1": "4",
     "slot0_2": "5",
     "slot1_1": "6",
     "slot1_2": "7",
 }
+_TCP_PORT_MODE: dict[str, str] = {
+    "ethernet": "2",
+    "wlan": "3",
+}
 
-_COM_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _COM_PORT_MODE.items()}
+_RTU_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _RTU_PORT_MODE.items()}
+_TCP_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _TCP_PORT_MODE.items()}
 
 # ---------------------------------------------------------------------------
 # FC inference
@@ -297,10 +335,54 @@ _SD_RESERVED_DEFAULTS: tuple[str, ...] = (
 # Func code constants
 # ---------------------------------------------------------------------------
 
-_RD_FC_RTU = "9728"
-_RD_FC_TCP = "9735"
-_SD_FC_RTU = "9731"
-_SD_FC_TCP = "9736"
+#: Modbus func code (0x3218) by (TCP, slave ID is an address), from InstCtl_RD / InstCtl_SD.
+#: The ASCII variants (RD 9729/9730, SD 9732/9733) aren't modelled and decode as raw.
+_RD_FUNC: dict[tuple[bool, bool], str] = {
+    (False, False): "9728",
+    (True, False): "9735",
+    (False, True): "9749",
+    (True, True): "9750",
+}
+_SD_FUNC: dict[tuple[bool, bool], str] = {
+    (False, False): "9731",
+    (True, False): "9736",
+    (False, True): "9751",
+    (True, True): "9752",
+}
+
+
+@dataclass(frozen=True)
+class _TargetFields:
+    func_code: str
+    protocol_mode: str  # 0x220C
+    slave_id: str  # 0x320E: the number, or 1 for an address
+    slave_text: str  # 0x60B2: what the Slave ID box shows
+    slave_is_address: str  # 0x223A
+    ip: str  # 0x622B
+    port: str  # 0x322C
+
+
+def _target_fields(
+    target: ModbusRtuTarget | ModbusTcpTarget, func: dict[tuple[bool, bool], str]
+) -> _TargetFields:
+    tcp = isinstance(target, ModbusTcpTarget)
+    is_address = isinstance(target.device_id, str)
+    if isinstance(target, ModbusTcpTarget):
+        protocol_mode = _TCP_PORT_MODE[target.com_port]
+        ip, port = target.ip, str(target.port)
+    else:
+        protocol_mode = _RTU_PORT_MODE[target.com_port]
+        ip, port = "...", "502"
+    return _TargetFields(
+        func_code=func[(tcp, is_address)],
+        protocol_mode=protocol_mode,
+        slave_id="1" if is_address else str(target.device_id),
+        slave_text=str(target.device_id),
+        slave_is_address="1" if is_address else "0",
+        ip=ip,
+        port=port,
+    )
+
 
 # ---------------------------------------------------------------------------
 # Instruction dataclasses
@@ -347,23 +429,13 @@ class Receive(AfInstruction):
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
 
-        if isinstance(self.target, ModbusTcpTarget):
-            func_code = _RD_FC_TCP
-            protocol_mode = _COM_PORT_MODE["tcp"]
-            ip = self.target.ip
-            port = str(self.target.port)
-        else:
-            func_code = _RD_FC_RTU
-            protocol_mode = _COM_PORT_MODE[self.target.com_port]
-            ip = "..."
-            port = "502"
+        t = _target_fields(self.target, _RD_FUNC)
         fc_subtype = _rd_fc_subtype(self.remote_start)
         address_type = _addr_type_code(self.remote_start)
-        device_id = str(self.target.device_id)
 
         fields: list[str] = [
-            func_code,  # [0]
-            protocol_mode,  # [1]
+            t.func_code,  # [0]
+            t.protocol_mode,  # [1]
             "0",  # [2]  reserved
             "0",  # [3]  reserved
             "1" if self.receiving else "0",  # [4]  receiving_enabled
@@ -376,9 +448,9 @@ class Receive(AfInstruction):
             self.exception_response or "",  # [11] exception_response
             "0",  # [12] reserved
             "",  # [13] reserved
-            device_id,  # [14] device_id
-            device_id,  # [15] device_id_dup
-            "0",  # [16] reserved
+            t.slave_id,  # [14] device_id
+            t.slave_text,  # [15] device_id text
+            t.slave_is_address,  # [16] device_id is an address
             fc_subtype,  # [17] fc_subtype
             address_type,  # [18] address_type
             _remote_start_str(self.remote_start),  # [19] remote_start
@@ -387,7 +459,7 @@ class Receive(AfInstruction):
             "0" if self.word_swap else "1",  # [22] word_swap_off
         ]
         fields.extend(_RD_RESERVED_DEFAULTS)  # [23-35]
-        fields.extend([ip, port, "SD50", "SD60"])  # [36-39]
+        fields.extend([t.ip, t.port, "SD50", "SD60"])  # [36-39]
 
         type_marker = 0x2728
         field_count = len(_RD_TAGS) + 128 + 1  # 40 + 128 padding + terminator = 169
@@ -445,23 +517,13 @@ class Send(AfInstruction):
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
 
-        if isinstance(self.target, ModbusTcpTarget):
-            func_code = _SD_FC_TCP
-            protocol_mode = _COM_PORT_MODE["tcp"]
-            ip = self.target.ip
-            port = str(self.target.port)
-        else:
-            func_code = _SD_FC_RTU
-            protocol_mode = _COM_PORT_MODE[self.target.com_port]
-            ip = "..."
-            port = "502"
+        t = _target_fields(self.target, _SD_FUNC)
         fc_subtype = _sd_fc_subtype(self.remote_start, self.quantity)
         address_type = _addr_type_code(self.remote_start)
-        device_id = str(self.target.device_id)
 
         fields: list[str] = [
-            func_code,  # [0]
-            protocol_mode,  # [1]
+            t.func_code,  # [0]
+            t.protocol_mode,  # [1]
             "0",  # [2]  reserved
             "1" if self.sending else "0",  # [3]  sending_enabled
             self.sending or "",  # [4]  sending_bit
@@ -471,9 +533,9 @@ class Send(AfInstruction):
             self.error or "",  # [8]  error_bit
             "1" if self.exception_response else "0",  # [9]  exception_enabled
             self.exception_response or "",  # [10] exception_response
-            device_id,  # [11] device_id
-            device_id,  # [12] device_id_dup
-            "0",  # [13] reserved
+            t.slave_id,  # [11] device_id
+            t.slave_text,  # [12] device_id text
+            t.slave_is_address,  # [13] device_id is an address
             fc_subtype,  # [14] fc_subtype
             address_type,  # [15] address_type
             _remote_start_str(self.remote_start),  # [16] remote_start
@@ -496,8 +558,8 @@ class Send(AfInstruction):
             out += _tagged_field(tag, value)
         for _ in range(250):
             out += _tagged_field(0x6889, "")
-        out += _tagged_field(0x622B, ip)  # [280] ip_or_name
-        out += _tagged_field(0x322C, port)  # [281] port
+        out += _tagged_field(0x622B, t.ip)  # [280] ip_or_name
+        out += _tagged_field(0x322C, t.port)  # [281] port
         for _ in range(128):
             out += _tagged_field(0x688F, "")
         out += _tagged_field(0x0000, "")  # terminator
@@ -516,11 +578,12 @@ def _target_to_csv(target: ModbusRtuTarget | ModbusTcpTarget) -> str:
             f',com_port="{target.com_port}"'
             f",device_id={target.device_id})"
         )
+    com_port = "" if target.com_port == "ethernet" else f',com_port="{target.com_port}"'
     return (
         f'ModbusTcpTarget(name="{target.name}"'
         f',ip="{target.ip}"'
         f",port={target.port}"
-        f",device_id={target.device_id})"
+        f",device_id={target.device_id}{com_port})"
     )
 
 
@@ -559,22 +622,39 @@ def from_tags(
 
 
 def _build_target(
-    protocol_mode: str,
-    device_id: int,
-    tags: dict[int, str],
-) -> ModbusRtuTarget | ModbusTcpTarget:
-    if protocol_mode == "2":
-        return ModbusTcpTarget(
-            name="tcp",
-            ip=tag_value(tags, 0x622B),
-            port=tag_int(tags, 0x322C),
-            device_id=device_id,
-        )
-    return ModbusRtuTarget(
-        name="rtu",
-        com_port=_COM_PORT_MODE_INV.get(protocol_mode, "cpu2"),
-        device_id=device_id,
-    )
+    tags: dict[int, str], class_name: str
+) -> ModbusRtuTarget | ModbusTcpTarget | None:
+    """The target, or None for a port or func code we don't model (decodes as raw)."""
+    func_code = tags.get(0x3218)
+    known = _RD_FUNC if class_name == "RD" else _SD_FUNC
+    if func_code is not None and func_code not in known.values():
+        return None
+    protocol_mode = tag_value(tags, 0x220C)
+    if tag_value(tags, 0x223A) == "1":
+        device_id: int | str = tag_value(tags, 0x60B2)
+    else:
+        # SCR blobs elide fields at their class default: Receive's device_id
+        # default is 1, Send's 0 (a Send at device_id 0 stores no 0x320E/0x60B2
+        # tag, while one at 1 stores both — verified against a native scr+clipboard pair).
+        device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, class_name)
+    try:
+        if protocol_mode in _TCP_PORT_MODE_INV:
+            return ModbusTcpTarget(
+                name="tcp",
+                ip=tag_value(tags, 0x622B),
+                port=tag_int(tags, 0x322C),
+                device_id=device_id,
+                com_port=_TCP_PORT_MODE_INV[protocol_mode],
+            )
+        if protocol_mode in _RTU_PORT_MODE_INV:
+            return ModbusRtuTarget(
+                name="rtu",
+                com_port=_RTU_PORT_MODE_INV[protocol_mode],
+                device_id=device_id,
+            )
+    except ValueError:  # a slave-ID address CLICK's dialog wouldn't accept
+        return None
+    return None
 
 
 def _build_remote_start(
@@ -604,15 +684,10 @@ def _build_remote_start(
 
 
 def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
-    protocol_mode = tag_value(tags, 0x220C)
-    # SCR blobs elide fields at their class default. Receive's device_id
-    # default is 1; Send's is 0 (see _from_tags_sd).
-    device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, "RD")
-    target = _build_target(protocol_mode, device_id, tags)
-
+    target = _build_target(tags, "RD")
     remote_start = _build_remote_start(tags, rd=True)
     dest = tag_value(tags, 0x607E)
-    if remote_start is None or not dest:
+    if target is None or remote_start is None or not dest:
         return None
 
     return Receive(
@@ -629,16 +704,10 @@ def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
 
 
 def _from_tags_sd(tags: dict[int, str]) -> Send | None:
-    protocol_mode = tag_value(tags, 0x220C)
-    # SCR blobs elide fields at their class default, and Send's device_id
-    # default is 0 (a Send at device_id 0 stores no 0x320E/0x60B2 tag, while
-    # one at 1 stores both — verified against a native scr+clipboard pair).
-    device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, "SD")
-    target = _build_target(protocol_mode, device_id, tags)
-
+    target = _build_target(tags, "SD")
     remote_start = _build_remote_start(tags, rd=False)
     source = tag_value(tags, 0x607E)
-    if remote_start is None or not source:
+    if target is None or remote_start is None or not source:
         return None
 
     return Send(
@@ -701,7 +770,8 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     kw = _parse_constructor_kwargs(m.group(2))
 
     name = _strip_quotes(kw.get("name", ""))
-    device_id = int(kw.get("device_id", "0"))
+    raw_id = _strip_quotes(kw.get("device_id", "0"))
+    device_id: int | str = int(raw_id) if raw_id.lstrip("-").isdigit() else raw_id
 
     if cls_name == "ModbusRtuTarget":
         com_port = _strip_quotes(kw.get("com_port", "cpu2"))
@@ -709,7 +779,8 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
         port = int(kw.get("port", "502"))
-        return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id)
+        com_port = _strip_quotes(kw.get("com_port", "ethernet"))
+        return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise ValueError(f"Unknown target type: {cls_name!r}")
 
 

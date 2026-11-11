@@ -84,7 +84,16 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     af_tokens = [row[-1] for row in rows if row[0] != "#" and row[-1]]
     if any(token.startswith("raw(") for token in af_tokens):
         pytest.xfail(f"not decoded yet: {af_tokens}")
+    slip = _BUILT_DIFFERENTLY.get((rung.comment or "").split("\n")[0])
+    if slip:
+        expected = [token.replace(*slip) for token in expected]
     assert af_tokens == [_current_spelling(token) for token in expected]
+
+
+#: Build rungs CLICK was given other settings than their comment names: (comment text, built).
+_BUILT_DIFFERENTLY: dict[str, tuple[str, str]] = {
+    "send__slave_id_ds": ('com_port="cpu2"', 'com_port="cpu3"'),  # built on CPU Port 3
+}
 
 
 def _current_spelling(token: str) -> str:
@@ -469,6 +478,9 @@ _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
 #: disagree, and v4 ignores the field on load.  The encoder keeps the v3 value.
 _SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
     "blockcopy__to_ascii_v4": frozenset({0x2206}),  # v4 dialog 1, coverage.bin 0
+    # IP of a serial target: v4 '' (saved only for Ethernet/WLAN), coverage.bin '...'
+    "receive__cpu3": frozenset({0x622B}),
+    "send__slave_id_ds": frozenset({0x622B}),
 }
 
 #: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
@@ -482,6 +494,14 @@ _V4_ADDED_TAGS: dict[str, frozenset[int]] = {
 #: only the filled slots are compared.
 _PADDED_TAGS: dict[str, frozenset[int]] = {
     "Math": frozenset({0x688C}),
+}
+
+#: Array slots whose sentinel CLICK writes as the slot index (0, 1, ...) and we write as
+#: FFFFFFFF.  CLICK accepts both (every send/receive coverage golden is paste-verified),
+#: so only the slot values are compared.
+_INDEX_SENTINEL_TAGS: dict[str, frozenset[int]] = {
+    "SD": frozenset({0x6889, 0x688F}),
+    "RD": frozenset({0x688F}),
 }
 
 _SWEEP = [
@@ -520,9 +540,14 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
     if not any(f[0] in v4_added for f in ours[4]):
         ignored |= v4_added
     padded = _PADDED_TAGS.get(native[0], frozenset())
+    indexed = _INDEX_SENTINEL_TAGS.get(native[0], frozenset())
 
     def compared(fields: list[tuple[int, bytes, str]]) -> list[tuple[int, bytes, str]]:
-        return [f for f in fields if f[0] not in ignored and not (f[0] in padded and not f[2])]
+        return [
+            (f[0], b"" if f[0] in indexed else f[1], f[2])
+            for f in fields
+            if f[0] not in ignored and not (f[0] in padded and not f[2])
+        ]
 
     assert ours[:4] == native[:4]
     assert compared(ours[4]) == compared(native[4])
