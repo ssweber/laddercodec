@@ -365,7 +365,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** all are refused (OBJ-012); an end
     before the start is OBJ-009.
   - **ANSWERED 2026-11-11 (DLL, verifier):** Fill's OnOK runs the same range check on its
-    destination (Inst_Copy 0x10007fb3), so `fill(0,DS1..DS1)` and `fill(0,DS5..DS1)` are
+    destination (Inst_Copy), so `fill(0,DS1..DS1)` and `fill(0,DS5..DS1)` are
     refused too.
 - Q-M4 Block DS1..DS4 → DD1: does CLICK compute the end as DD2 or DD4? And DD1..DD4 → DS1?
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** by element count: DD4, and DS4.
@@ -398,9 +398,9 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     refused: a decimal Math stores to DS, DD, DF, TD, CTD or SD, a hex Math to DH or YD.
     3000000000, 10000h and 1FFFFh are refused (OBJ-1009).
   - **ANSWERED 2026-11-11 (DLL, verifier):** a decimal integer is refused when its low 32
-    bits, printed with `%d`, differ in length from the typed token (Inst_Math 0x1000ead1),
+    bits, printed with `%d`, differ in length from the typed token (Inst_Math),
     so `007` and `-0` are refused and `6000000000` passes. Hex constants are checked only
-    in a hex Math (0x1000eca5-0x1000eefc).
+    in a hex Math.
 - Q-M11 Copy pointer offset: is `DS[DS1+5]` (or `DS[DS1-5]`) refused in the Single Copy
   dialog? laddercodec now refuses it (Help CL238 shows no offset). pyrung's translator writes
   this form for a mapped block with an offset (`pyrung/src/pyrung/click/ladder/translator.py:725-728`).
@@ -414,21 +414,21 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/move.md):** the Result Flag is a C bit; the
     order operators are hidden for a text constant, leaving == and !=; DS10..DS1, DS1..DD5
     and DS1..DS1 are refused (OBJ-009, OBJ-008, OBJ-012).
-  - **ANSWERED 2026-11-11 (DLL, verifier):** a TXT register value reaches the same text
-    test as a text constant (Inst_Search 0x10002b66 and 0x10002e48 to 0x10002c31), so the
-    order operators are hidden for it too. A hex value is 32-bit, and refused (OBJ-005 at
-    0x10007861), only above FFFFh: baseEx decides by value, so `0FFFFh` is accepted.
+  - **ANSWERED 2026-11-11 (DLL, verifier):** a TXT register value reaches the same text test
+    as a text constant (Inst_Search), so the order operators are hidden for it too. A hex
+    value is 32-bit, and refused (OBJ-005), only above FFFFh: baseEx decides by value, so
+    `0FFFFh` is accepted.
   - **ANSWERED 2026-11-11 (user, dialog):** `DS1..DS10 > 40000` is accepted.
   - **Ruling 2026-11-11 (user, then orchestrator):** a Search text value follows the Compare
     rule: a quoted text of 1 to 128 printable ASCII characters, or `$hh` unquoted. `""`, an
-    inner `"` (spell `$22`), a quoted `"$hh"` (write `$41`), over 128 characters and non-ASCII
-    raise `FieldError` naming `Search.source`; a native blob holding one decodes as raw. The
-    empty-text refusal is the user's; the rest applies the Compare ruling (Q-B7) to Search as
-    an orchestrator ruling. DLL: Inst_Search value field runs baseEx CheckInputData, mask
-    0x6fff, as Compare does; EM_LIMITTEXT 0x82 at Inst_Search 100025ec and `cmp len,0x82` at
-    baseEx 1000e81c; `""` gives OBJ-005 at Inst_Search 1000786c. Hardware: CLICK matches
-    multi-character text as a window over consecutive TXT registers (pyrung case
-    search/text_windows).
+    inner `"` (spell `$22`), a quoted `"$hh"` (write `$41`), over 128 characters and
+    non-ASCII raise `FieldError` naming `Search.source`; a native blob holding one decodes as
+    raw. The empty-text refusal is the user's; the rest applies the Compare ruling (Q-B7) to
+    Search as an orchestrator ruling. DLL: Inst_Search value field runs baseEx
+    CheckInputData, mask 0x6fff, as Compare does; a 0x82 text limit (EM_LIMITTEXT) in the
+    Inst_Search value field and a length check in baseEx; `""` gives OBJ-005 at Inst_Search.
+    Hardware: CLICK matches multi-character text as a window over consecutive TXT registers
+    (pyrung case search/text_windows).
   - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
@@ -457,7 +457,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     Receives, YD and TXT destinations, DD/DF under CLICK addressing and DH read from XD/YD;
     DS/DH enable it above 1 element. "(1 to 1)" is a YD destination, or DH from a CLICK XD
     or YD. TXT takes an even count of at least 2. laddercodec now refuses the rest.
-  - **ANSWERED 2026-11-11 (DLL, RD 0x10006a3e..0x10006aeb):** at one DS or DH element the
+  - **ANSWERED 2026-11-11 (DLL: Inst_RD.dll):** at one DS or DH element the
     disabled Word Swap is forced off; laddercodec now refuses `word_swap=1` there.
 - Q-C4 CLICK-addressed Receive of X1 with the combo set to FC02: does CLICK write FC02? A
   register with FC04: does it write FC04? A capture settles S9.
@@ -468,7 +468,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** both refused (OBJ-014; OBJ-010, the
     highest hex start is FFFDh for DD, DF, CTD and TXT); a DD source at FFFDh takes 1
     element. laddercodec now refuses them.
-  - **ANSWERED 2026-11-11 (DLL, RD 0x100092c9, 0x1000a5e9):** a Receive refuses one C bit
+  - **ANSWERED 2026-11-11 (DLL: Inst_RD.dll):** a Receive refuses one C bit
     in two status fields too (0x271e); laddercodec now refuses it.
 - Q-C6 Counts across banks with gaps:
   - Does Send X001 with 17 elements read X001..X016 and then X101, or is it refused?
@@ -489,19 +489,19 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     checks that room and counts an X/Y CSV range along the slots (`X001..X021` is 17).
     Still open (firmware): which point the 17th element from X001 is. CLICK stores only the
     start and the count.
-  - **ANSWERED 2026-11-11 (DLL, RD 0x10015e03, SD 0x100181be, RD 0x10015c54):** a Receive
+  - **ANSWERED 2026-11-11 (DLL: Inst_RD.dll and Inst_SD.dll quantity limits):** a Receive
     into Y uses the slot run in every mode (Y001 gives 32, not 160), capped by a remote C, T,
     CT or SC bank and by a MODBUS 984 coil start (65536 minus the start). A C count to or
     from a CLICK X/Y address stays in that address's slot run, and a C count to or from a
-    CLICK C, T, CT or SC address stays in that bank (RD 0x10015c6c, 0x10015dc5, 0x10015de5,
-    0x10015dec; SD 0x100181d6). laddercodec now checks all of these.
+    CLICK C, T, CT or SC address stays in that bank (the Inst_RD.dll and Inst_SD.dll local C
+    cases). laddercodec now checks all of these.
   - **NEEDS DIALOG:** a Receive into Y101 or later from a CLICK C, T, CT or SC address. The
-    remote C case (RD 0x10015e6e) skips its slot formula from Y101 on, so its room is the C
+    remote C case (Inst_RD.dll) skips its slot formula from Y101 on, so its room is the C
     room capped by the higher of the two start numbers. laddercodec applies only the C room
-    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases (RD
-    0x10015f84, 0x10016057, 0x1001612a) give a room of 0 from Y101 on, so CLICK seems to
-    refuse every count. laddercodec uses the slot run there (Y101 from T1 gives 16). Check
-    in the dialog: Y101 from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
+    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases
+    (Inst_RD.dll) give a room of 0 from Y101 on, so CLICK seems to refuse every count.
+    laddercodec uses the slot run there (Y101 from T1 gives 16). Check in the dialog: Y101
+    from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps

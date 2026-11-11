@@ -70,7 +70,7 @@ _ACC_BANKS = frozenset({"TD"})
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
 #: Highest constant preset, for every kind (Q-B6: Inst_Out.dll caps a digits-only preset
-#: at 0x7FFF @10007b1c and @10007c45; OnOK refuses a larger one with OBJ-005).
+#: at 0x7FFF; OnOK refuses a larger one with OBJ-005).
 _PRESET_MAX = 32767
 
 #: Fields each kind uses; any other of them must stay empty.
@@ -166,8 +166,8 @@ class OutVariant(AfInstruction):
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
         if self.kind == "debounce":
-            # A debounce phase with both fields empty is skipped (Q-B4: Inst_Out.dll
-            # @100081c6 and @10008236); with both phases empty OnOK refuses the on preset,
+            # A debounce phase with both fields empty is skipped (Q-B4:
+            # Inst_Out.dll); with both phases empty OnOK refuses the on preset,
             # OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
             filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
             if not filled:
@@ -182,7 +182,7 @@ class OutVariant(AfInstruction):
                 check_address(getattr(self, f"{ph}_acc"), f"OutVariant.{ph}_acc", _ACC_BANKS)
             )
             _check_preset(getattr(self, f"{ph}_preset"), f"OutVariant.{ph}_preset", floor)
-        # Q-B5: Inst_Out.dll compares the two TD fields @100080be and OnOK refuses one
+        # Q-B5: Inst_Out.dll compares the two TD fields and OnOK refuses one
         # register for both with OBJ-012.
         if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
             raise FieldError(

@@ -75,14 +75,14 @@ _CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
 TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
 #: The result holds the found address's index, a DS (Help CL174).
 RESULT_BANKS = frozenset({"DS"})
-#: The Result Flag is a C bit (Inst_Search.dll validator mask 4 at 0x10006e70; OBJ-004).
+#: The Result Flag is a C bit (Inst_Search.dll validator mask 4; OBJ-004).
 FOUND_BANKS = frozenset({"C"})
 #: A text search value hides the four order operators, leaving these.  The search-value
-#: change handler (Inst_Search.dll 0x10002a90) reaches the same text test (0x140, at
-#: 0x10002c31) from a TXT register (0x10002b66) and from a text constant (0x10002e48).
+#: change handler (Inst_Search.dll) reaches the same text test (0x140)
+#: from a TXT register and from a text constant.
 _TEXT_OPS = frozenset({"==", "!="})
-#: A hex search value above FFFFh is a 32-bit hex constant (baseEx.dll decides by value at
-#: 0x1000cb20), which the value check refuses (Inst_Search.dll 0x10007861, OBJ-005).
+#: A hex search value above FFFFh is a 32-bit hex constant (baseEx.dll decides by value),
+#: which the value check refuses (Inst_Search.dll, OBJ-005).
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 
 # ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ class Search(AfInstruction):
                 f"{', '.join(_OP_TO_FUNC)}"
             )
         # Inst_Search.dll has no pointer path, so no field takes one (Q-M6).  The table is
-        # one bank, start before end (range check 0x10003b80: OBJ-008, OBJ-009, OBJ-012).
+        # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
         _check_range(
             "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
         )

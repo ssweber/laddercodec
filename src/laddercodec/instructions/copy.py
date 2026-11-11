@@ -289,10 +289,10 @@ def _check_range(
 
     Both ends are addresses in one bank (OBJ-008), never pointers.  With ``ordered``, the end
     comes after the start: an end before it is OBJ-009 and the same address OBJ-012
-    (Inst_Copy.dll range check 0x10011670, which Inst_Search.dll repeats at 0x10003b80).
+    (Inst_Copy.dll range check, which Inst_Search.dll repeats).
     With ``one_module``, an X or Y range stays inside one 16-point slot of
     :data:`~laddercodec.model.XY_SLOTS` (OBJ-033, OBJ-035, OBJ-019); the dual option slot,
-    21-36, is a slot of its own.  Inst_Copy.dll runs this module check (0x10002870) on the
+    21-36, is a slot of its own.  Inst_Copy.dll runs this module check on the
     Pack source, the Block Copy source and the Unpack destination.
     """
     ends = []
@@ -385,7 +385,7 @@ _COPY_PAIRS: dict[str, frozenset[str]] = {
 }
 
 #: Help CL185: source kind -> destination banks of a Fill.  Inst_Copy.dll's Fill rows
-#: (0x1001ba18) agree for registers.
+#: agree for registers.
 _FILL_PAIRS: dict[str, frozenset[str]] = {
     "word": _NUMERIC_DEST_BANKS,
     "txt": frozenset({"TXT"}),
@@ -398,7 +398,7 @@ _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 _INT_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
-#: (Inst_Copy.dll single row 0x1001ba70, type matrix 0x10010e40; OBJ-024).
+#: (Inst_Copy.dll single row, type matrix; OBJ-024).
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
@@ -418,7 +418,7 @@ def _check_copy_constant(source: str, dest_field: str, destination: str, dest_ba
 
 
 # ---------------------------------------------------------------------------
-# Block, Pack and Unpack pairs (Inst_Copy.dll pairing rows, table 0x1001b9b4)
+# Block, Pack and Unpack pairs (Inst_Copy.dll pairing rows, table)
 # ---------------------------------------------------------------------------
 
 #: One pairing row: source banks and the destination banks they copy to.  The first row
@@ -427,14 +427,14 @@ _Rows = tuple[tuple[frozenset[str], frozenset[str]], ...]
 
 _NUMERIC_BITS = frozenset({"X", "Y", "T", "CT", "SC"})
 
-#: Block Copy rows (0x1001ba40).  Its source and destination edits refuse every other bank
+#: Block Copy rows.  Its source and destination edits refuse every other bank
 #: (OBJ-004): XD, YD, TD and CTD are no source, and X, T, CT, SC, XD and YD no destination.
 _BLOCK_ROWS: _Rows = (
     (BIT_BANKS, frozenset({"Y", "C"})),
     (frozenset({"DS", "DD", "DH", "DF", "SD"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "SD"})),
     (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "TXT"})),
 )  # fmt: skip
-#: Pack rows (0x1001b9e8): X/Y/T/CT/SC bits pack into DH only; C into any 16- or 32-bit word.
+#: Pack rows: X/Y/T/CT/SC bits pack into DH only; C into any 16- or 32-bit word.
 _PACK_ROWS: _Rows = (
     (_NUMERIC_BITS, frozenset({"DH"})),
     (frozenset({"C"}), frozenset({"DS", "DD", "DH", "DF"})),
@@ -442,7 +442,7 @@ _PACK_ROWS: _Rows = (
     (frozenset({"DH"}), frozenset({"DD"})),
     (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD"})),
 )
-#: Unpack rows (0x1001b9c8): only DH unpacks to Y (OBJ-024 at 0x100063c7).
+#: Unpack rows: only DH unpacks to Y (OBJ-024).
 _UNPACK_ROWS: _Rows = (
     (frozenset({"DS"}), frozenset({"C"})),
     (frozenset({"DD", "DF"}), frozenset({"C", "DS", "DH"})),
@@ -829,7 +829,7 @@ class BlockCopy(AfInstruction):
             cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}", src.bank,
             "dest_start", self.dest_start, dest.bank,
         )  # fmt: skip
-        # Inst_Copy.dll 0x10009540: the destination end is the start plus the source's
+        # Inst_Copy.dll: the destination end is the start plus the source's
         # element count (GetNextAddress), whatever the two banks.
         end = dest.number + src_last.number - src.number
         if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
@@ -932,7 +932,7 @@ class Fill(AfInstruction):
         for name in ("value", "dest_start", "dest_end"):
             setattr(self, name, normalize_address(getattr(self, name)))
         src = check_operand(self.value, "Fill.value", REGISTER_BANKS, constant=True)
-        # Inst_Copy.dll's Fill OnOK runs the range check on the destination at 0x10007fb3.
+        # Inst_Copy.dll's Fill OnOK runs the range check on the destination.
         dest, _ = _check_range(
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )
