@@ -161,13 +161,10 @@ def test_copy_csv_paths_agree(tmp_path: Path) -> None:
 
 
 def test_termination_code_needs_a_number_register_copied_to_text() -> None:
-    """CLICK v4's dialog greys the box for TXT -> TXT and constant -> TXT copies.
-
-    Termination goes with to_text only: a ``to_binary`` token has no place for it.
-    """
+    """CLICK v4's dialog greys the box for TXT -> TXT and constant -> TXT copies."""
     Copy("DS1", "TXT1", format="text", termination_code="$0D")
+    Copy("DS1", "TXT1", format="binary", termination_code="$0D")
     for source, destination, fmt in [
-        ("DS1", "TXT1", "binary"),
         ("DS1", "TXT1", "none"),
         ("TXT1", "TXT2", "none"),
         ("5", "TXT1", "text"),

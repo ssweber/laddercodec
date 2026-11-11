@@ -496,14 +496,13 @@ class Copy(AfInstruction):
         )
         self._check_format(src, dst.bank)
         if self.termination_code != "0" and not (
-            self.format == "text" and src.kind == "word" and dst.bank == "TXT"
+            self.format in ("text", "binary") and src.kind == "word" and dst.bank == "TXT"
         ):
             # CLICK v4's dialog: termination is for a single copy from a number register to
-            # text; the box is greyed for TXT -> TXT and constant -> TXT.  A to_binary
-            # token has no place for one.
+            # text; the box is greyed for TXT -> TXT and constant -> TXT.
             raise FieldError(
                 f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
-                f"copied to TXT with to_text, not {self.source!r} -> "
+                f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
                 f"{self.destination!r} with format {self.format!r}"
             )
         if self.format == "text":
