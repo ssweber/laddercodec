@@ -370,15 +370,32 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 
 **comm**
 - Q-C1 Slave ID: are DD1 and C1 refused?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** both refused (OBJ-004); an indirect
+    slave ID is a DS address. laddercodec already matched.
 - Q-C2 TCP target:
   - Are IP 0.0.0.0 and a blank octet refused?
   - Are ports 0 and 65536 refused, or only labelled?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** 0.0.0.0 accepted, a blank octet
+    refused (OBJ-005), ports 0 and 65536 refused (GUI-101). laddercodec already matched.
 - Q-C3 Receive: which local types enable Word Swap on each of the four dialogs? Which
   combination limits the count to "(1 to 1)"?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** Word Swap is forced off for bit
+    Receives, YD and TXT destinations, DD/DF under CLICK addressing and DH read from XD/YD;
+    DS/DH enable it above 1 element. "(1 to 1)" is a YD destination, or DH from a CLICK XD
+    or YD. TXT takes an even count of at least 2. laddercodec now refuses the rest.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x10006a3e..0x10006aeb):** at one DS or DH element the
+    disabled Word Swap is forced off; laddercodec now refuses `word_swap=1` there.
 - Q-C4 CLICK-addressed Receive of X1 with the combo set to FC02: does CLICK write FC02? A
   register with FC04: does it write FC04? A capture settles S9.
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** CLICK writes FC02 and FC04 as picked,
+    as the native `scr_captures/coverage` rungs 88-89 show. S9 fixed: `function_code=2`/`4`.
 - Q-C5 Send: is the same C bit in two status fields refused? Is a 32-bit source at hex FFFEh
   refused with 1 element, and with 2?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** both refused (OBJ-014; OBJ-010, the
+    highest hex start is FFFDh for DD, DF, CTD and TXT); a DD source at FFFDh takes 1
+    element. laddercodec now refuses them.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x100092c9, 0x1000a5e9):** a Receive refuses one C bit
+    in two status fields too (0x271e); laddercodec now refuses it.
 - Q-C6 Counts across banks with gaps:
   - Does Send X001 with 17 elements read X001..X016 and then X101, or is it refused?
   - Is X815 with 3 elements refused?
@@ -391,8 +408,31 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     points along the slot table rather than by number. Open: is 32 the project's configured
     I/O (CPU + dual option slot only) or a fixed limit? Does it grow with an expansion module,
     or from a later start such as X101?
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** a fixed slot table, not configured
+    I/O. CLICK addressing: 33-n from X001-X016, 37-n from X021-X036, 17-(n%100) from X101
+    (X001 gives 32, X101 16, X815 2); 984/hex counts through slot 8 (X001 gives 160). X815
+    with 3 is refused in both modes; a YD count over 1 can't be entered. laddercodec now
+    checks that room and counts an X/Y CSV range along the slots (`X001..X021` is 17).
+    Still open (firmware): which point the 17th element from X001 is. CLICK stores only the
+    start and the count.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x10015e03, SD 0x100181be, RD 0x10015c54):** a Receive
+    into Y uses the slot run in every mode (Y001 gives 32, not 160), capped by a remote C, T,
+    CT or SC bank and by a MODBUS 984 coil start (65536 minus the start). A C count to or
+    from a CLICK X/Y address stays in that address's slot run, and a C count to or from a
+    CLICK C, T, CT or SC address stays in that bank (RD 0x10015c6c, 0x10015dc5, 0x10015de5,
+    0x10015dec; SD 0x100181d6). laddercodec now checks all of these.
+  - **NEEDS DIALOG:** a Receive into Y101 or later from a CLICK C, T, CT or SC address. The
+    remote C case (RD 0x10015e6e) skips its slot formula from Y101 on, so its room is the C
+    room capped by the higher of the two start numbers. laddercodec applies only the C room
+    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases (RD
+    0x10015f84, 0x10016057, 0x1001612a) give a room of 0 from Y101 on, so CLICK seems to
+    refuse every count. laddercodec uses the slot run there (Y101 from T1 gives 16). Check
+    in the dialog: Y101 from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps
+    refusing it until a capture shows the stored text). One DD/DF/CTD element must be FC16
+    (FC06 refuses them), and XD/YD FC06 only; laddercodec now writes FC16 for them.
 
 **flow**
 - Q-F1 For:

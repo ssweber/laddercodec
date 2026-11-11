@@ -424,19 +424,46 @@ Producer may emit:
 - `shift(bit_range)`
 - `event_drum(outputs=[...],events=[...],pattern=[[...],...],current_step=X,completion_flag=X)`
 - `time_drum(outputs=[...],presets=[...],unit=Tms,pattern=[[...],...],current_step=X,accumulator=X,completion_flag=X)`
-- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,count=N)`
-- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,count=N)`
+- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,function_code=N)`
+- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,function_code=N)`
   - `target` is `ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=1)` (ports `cpu2`,
     `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
   - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
-  - Hex `remote_start` runs `0h`-`FFFEh`; a Send takes `register_type` `coil` or `holding`.
+  - Hex `remote_start` runs `0h`-`FFFEh` (`0h`-`FFFDh` for a DD, DF, CTD or TXT source); a
+    Send takes `register_type` `coil` or `holding`.
+  - `function_code=N` picks the Modbus code when the address leaves a choice. Receive from a
+    CLICK address reads with FC01 (bits) or FC03 (registers) unless `function_code=2` or `4`.
+    Send writes one element with FC05/FC06 and a block with FC15/FC16; `function_code=15` or
+    `16` writes one element as a block. One DD, DF or CTD element is always FC16, and XD and
+    YD go out only as FC06.
+  - A Receive into registers takes DS, DD, DH, DF, YD or TXT. A CLICK `remote_start` matches
+    the destination's type: DS from DS, TD or SD; DD from DD or CTD; DF from DF; DH or YD
+    from DH, XD or YD; TXT from TXT. A YD destination, or DH read from XD or YD, takes one
+    element; TXT takes an even count of at least 2.
+  - `word_swap=1` is refused where CLICK turns Word Swap off: a bit Receive, a YD or TXT
+    destination, one DS or DH element, DH read from XD or YD, and DD or DF read from a CLICK
+    address.
   - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
     1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
-    DD, DF, CTD).
-  - `sending`, `receiving`, `success` and `error` are C bits; `exception_response` is DS or DD.
+    DD, DF).
+  - An X or Y range counts the points that exist in the slots it covers: `X001..X021` is 17
+    elements (`X001`-`X016`, then `X021`). `X017`-`X020` are not addresses, so a range can't
+    end on one.
+  - X and Y counts stay inside a slot run. `X001`-`X016` and `X021`-`X036` are one run
+    (`X001` gives 32); from `X101` on, a count stays in the start's slot (`X101` gives 16).
+    This holds for a Receive into Y, for a Send of X or Y to a CLICK address (from the
+    higher of the two start numbers when the remote is X or Y too), and for a C count to or
+    from a CLICK X or Y address. A Send of X or Y to a MODBUS 984 or hex address, and a
+    Receive into `Y101` or later from a CLICK C address, count through `Y816` (`X001` gives
+    160, `Y101` gives 128).
+  - A count also stays inside the remote bank where CLICK checks it: a C, T, CT or SC remote
+    of a Receive into Y or C (`T490` gives 11), a MODBUS 984 coil remote of a Receive into Y
+    (`65530` gives 6), and a C remote of a Send from X, Y or C.
+  - `sending`, `receiving`, `success` and `error` are C bits, and no C bit serves two of
+    them; `exception_response` is DS or DD.
 - `call("subroutine_name")`
   - Subroutine names follow CLICK's naming rules (see "Operand normalization notes")
 - `return()`
