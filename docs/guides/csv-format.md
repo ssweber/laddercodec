@@ -468,8 +468,9 @@ currently emit:
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
 - An address must name a CLICK bank and lie inside its range (CLICK help topic
-  CL195, Memory Addresses); X and Y number by module, points 01-16 only. `X017`,
-  `C2001` and `DS0` raise `AddressError`.
+  CL195, Memory Addresses). X and Y number by 16-point slot: `X001`-`X016` on the
+  CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`
+  on expansion modules 1-8. `X017`, `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
   - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
   - `out(...)`, `latch(...)`, `reset(...)` and the Out variants (`toggle`, `debounce`,
@@ -506,7 +507,7 @@ currently emit:
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
   dialogs and raise `AddressError` or `FieldError` naming the field: a bit
   copies to Y or C, a text constant to TXT, both ends of a range sit in one bank,
-  a pack or unpack range stays in one X or Y module and fits its register
+  a pack or unpack range stays in one 16-point X or Y slot and fits its register
   (`pack_bits` takes bits, `pack_words` registers), and a Math result is DS, DD,
   DF, TD or CTD, or DH in hex mode.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an

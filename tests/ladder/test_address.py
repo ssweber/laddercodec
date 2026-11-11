@@ -5,13 +5,15 @@ Bank ranges are CLICK v4.00 Help topic CL195 ("Memory Addresses").
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import laddercodec.instructions as instructions_mod
-from laddercodec import decode, decode_program
+from laddercodec import decode, decode_program, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
     Coil,
@@ -69,14 +71,24 @@ class TestCheckAddress:
             check_address(f"{bank}{hi + 1}", "f")
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
-    @pytest.mark.parametrize("text", ["001", "1", "016", "16", "101", "116", "801", "816"])
+    @pytest.mark.parametrize(
+        "text", ["001", "1", "016", "16", "021", "21", "036", "36", "101", "116", "801", "816"]
+    )
     def test_module_points_accepted(self, bank: str, text: str) -> None:
+        """21-36 is the CPU's dual option slot; CLICK v4's dialog accepts it (Q-A1)."""
         assert check_address(f"{bank}{text}", "f") == Address(bank, int(text))
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
-    @pytest.mark.parametrize("text", ["000", "0", "017", "100", "117", "200", "817", "900", "901"])
+    @pytest.mark.parametrize(
+        "text",
+        ["000", "0", "017", "020", "037", "100", "117", "200", "817", "900", "901"],
+    )
     def test_module_points_refused(self, bank: str, text: str) -> None:
-        with pytest.raises(ValueError, match=r"\(module 0-8, point 01-16\)$"):
+        with pytest.raises(
+            ValueError,
+            match=f"is outside {bank}001-{bank}016, {bank}021-{bank}036, "
+            rf"{bank}101-{bank}116 \.\.\. {bank}801-{bank}816$",
+        ):
             check_address(f"{bank}{text}", "f")
 
     @pytest.mark.parametrize("bank", ["XD", "YD"])
@@ -151,7 +163,7 @@ class TestCheckAddress:
         with pytest.raises(ValueError) as info:
             check_address("X999", "Contact.operand")
         assert str(info.value) == (
-            "Contact.operand: 'X999' is outside X001-X816 (module 0-8, point 01-16)"
+            "Contact.operand: 'X999' is outside X001-X016, X021-X036, X101-X116 ... X801-X816"
         )
         with pytest.raises(ValueError) as info:
             check_address("Q1", "Contact.operand")
@@ -222,6 +234,19 @@ class TestConstructionRaises:
             ForLoop.from_csv_token("for(DS0)")
         with pytest.raises(ValueError, match="^OutVariant.operand: 'Y900'"):
             OutVariant.from_csv_token("toggle(immediate(Y900))")
+
+    def test_dual_option_slot_through_parse_paths(self, tmp_path: Path) -> None:
+        """X021-X036 and Y021-Y036 are the CPU's dual option slot (Q-A1)."""
+        assert Contact.from_csv_token("X021").operand == "X021"
+        assert Contact.from_csv_token("~X036").operand == "X036"
+        path = tmp_path / "rung.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(CSV_HEADER)
+            w.writerow(["R", "X021"] + ["-"] * 30 + ["out(Y036)"])
+        rung = read_csv(path)[0]
+        assert rung.conditions[0][0].operand == "X021"
+        assert rung.instructions[0].operand == "Y036"
 
     def test_leading_zero_text_kept(self) -> None:
         assert Contact.from_csv_token("X001").operand == "X001"

@@ -150,7 +150,7 @@ class AddressError(FieldError):
 
 
 #: Number range of every CLICK address bank (CLICK v4.00 Help topic CL195, "Memory
-#: Addresses").  X and Y number by module (see :func:`check_address`).  XD and YD are
+#: Addresses").  X and Y number by slot (see :data:`XY_SLOTS`).  XD and YD are
 #: ``XD0`` (slot 0), ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion 1-8).
 ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "X": (1, 816),
@@ -171,6 +171,13 @@ ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "TXT": (1, 1000),
 }
 
+#: The ten 16-point X/Y slots: ``(first, last)`` point numbers.  1-16 is the CPU, 21-36 the
+#: CPU's dual option slot (its word form is ``XD0u``/``YD0u``), 101-116 to 801-816 the
+#: expansion modules 1-8.
+XY_SLOTS: tuple[tuple[int, int], ...] = ((1, 16), (21, 36)) + tuple(
+    (100 * m + 1, 100 * m + 16) for m in range(1, 9)
+)
+
 _MODULE_BANKS = frozenset({"X", "Y"})
 _WORD_IO_BANKS = frozenset({"XD", "YD"})
 _ADDRESS_RE = re.compile(r"([A-Z]{1,3})([0-9]{1,5})(u?)")
@@ -186,7 +193,9 @@ class Address(NamedTuple):
 
 def _bank_range_text(bank: str) -> str:
     if bank in _MODULE_BANKS:
-        return f"{bank}001-{bank}816 (module 0-8, point 01-16)"
+        return (
+            f"{bank}001-{bank}016, {bank}021-{bank}036, {bank}101-{bank}116 ... {bank}801-{bank}816"
+        )
     if bank in _WORD_IO_BANKS:
         return f"{bank}0, {bank}0u, {bank}1-{bank}8"
     lo, hi = ADDRESS_BANKS[bank]
@@ -201,19 +210,28 @@ def _in_range(bank: str, digits: str, upper: bool) -> bool:
     if not lo <= number <= hi:
         return False
     if bank in _MODULE_BANKS:
-        return 1 <= number % 100 <= 16
+        return xy_slot(number) is not None
     return True
+
+
+def xy_slot(number: int) -> int | None:
+    """Return the index in :data:`XY_SLOTS` of the slot holding X/Y point ``number``, or None."""
+    for index, (first, last) in enumerate(XY_SLOTS):
+        if first <= number <= last:
+            return index
+    return None
 
 
 def check_address(value: str, name: str, banks: Collection[str] | None = None) -> Address:
     """Parse a CLICK address; raise :class:`AddressError` naming field ``name`` if refused.
 
     The bank must be one of :data:`ADDRESS_BANKS` (and in ``banks`` when given), and the
-    number inside the bank's range.  X and Y number by module: the hundreds digit is the
-    module (0-8) and the last two digits the point (01-16), so ``X001``-``X016``,
-    ``X101``-``X116`` and so on.  Leading zeros are allowed (``X001`` and ``X1`` are the
-    same point); the caller keeps the text as written.  ``XD0u`` and ``YD0u`` are
-    accepted, spelled exactly so, only when ``banks`` names XD or YD.
+    number inside the bank's range.  X and Y number by 16-point slot (:data:`XY_SLOTS`):
+    ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option slot, and
+    ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are
+    allowed (``X001`` and ``X1`` are the same point); the caller keeps the text as written.
+    ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
+    YD.
     """
     match = _ADDRESS_RE.fullmatch(value)
     if match is None:
