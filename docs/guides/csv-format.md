@@ -472,9 +472,15 @@ currently emit:
   `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
   - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
-  - `out(...)` and the Out variants (`toggle`, `debounce`, `flasher`, `timed`) take Y,
-    C or SC; `immediate(...)` only on Y, and both ends of an immediate range.
-  - An `out` range stays in one bank and runs from a lower to a higher address.
+  - `out(...)`, `latch(...)`, `reset(...)` and the Out variants (`toggle`, `debounce`,
+    `flasher`, `timed`) take Y, C or SC; `immediate(...)` only on Y, and both ends of
+    an immediate range.
+  - The SC bits a coil writes are SC50, SC51, SC53, SC55, SC60, SC61, SC65, SC66, SC67,
+    SC75, SC76, SC120, SC121, SC162, SC165, SC168, SC171, SC303, SC304, SC305, SC306,
+    SC323, SC324, SC325 and SC326. An SC range needs both ends on this list.
+  - A coil range stays in one bank and its end is above its start: `out(C1..C2000)`
+    and `out(immediate(Y001..Y101))` are accepted, `out(C9..C1)`, `out(C5..C5)` and
+    `out(C5..Y5)` are refused.
   - Variant accumulators are TD. A preset is a DS register or a whole number, at
     least 0 for `debounce` and at least 1 for `flasher` and `timed`.
   - A compare takes data registers or constants, never bits. Both sides come from

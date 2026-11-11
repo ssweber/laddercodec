@@ -228,13 +228,20 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - Are X1, T1, CT1 and DS1 refused as the address?
   - Are `C9..C1` and `C5..Y5` refused? Out refuses both (OBJ-008/009); Set/Reset were not
     disassembled.
+  - **ANSWERED 2026-11-11 (user, dialog): Set and Reset take Y, C and SC only.** X1, T1, CT1
+    and DS1 are refused, and so are `C9..C1` and `C5..Y5`.
 - Q-B2 Out: which SC addresses are accepted? Is it exactly SC50, 51, 53, 55, 60, 61, 65, 66,
   67, 75, 76, 120, 121?
+  - **ANSWERED 2026-11-11 (user, dialog): 25 SC bits, the read-write system bits in CLICK's
+    address picker.** SC50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168,
+    171, 303, 304, 305, 306, 323, 324, 325, 326.
 - Q-B3 Out:
   - Is `C5..C5` refused?
   - Is `C1..C2000` accepted?
   - Is immediate `Y016..Y101`, which crosses a module, accepted?
   - Is an SC range accepted?
+  - **ANSWERED 2026-11-11 (user, dialog):** `C5..C5` is refused; `C1..C2000` is accepted;
+    immediate `Y001..Y101` is accepted; an SC range is accepted.
 - Q-B4 Debounce: can it be saved with only the off phase filled? With only the on phase? If
   yes, a capture shows what CLICK writes.
 - Q-B5 Debounce and flasher: is the same TD for the on and off timer refused?
