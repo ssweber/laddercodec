@@ -217,16 +217,13 @@ def from_tags(
     if func_code is not None and func_code not in _FUNC_TO_COIL:
         return None
     range_end_val = tag_value(tags, 0x6067)
-    try:
-        return Coil(
-            type=itype,
-            operand=operand,
-            range_end=range_end_val or None,
-            immediate=tag_flag(tags, 0x11F5),
-            oneshot=tag_flag(tags, 0x11F8),
-        )
-    except ValueError:  # an address CLICK refuses: keep the blob raw
-        return None
+    return Coil(
+        type=itype,
+        operand=operand,
+        range_end=range_end_val or None,
+        immediate=tag_flag(tags, 0x11F5),
+        oneshot=tag_flag(tags, 0x11F8),
+    )
 
 
 def parse_af_call(call: AfCall) -> Coil:

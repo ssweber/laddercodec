@@ -228,9 +228,14 @@ def from_tags_condition(
     """Dispatch condition instruction construction through registered specs."""
     for spec in CONDITION_FAMILY_SPECS:
         if spec.from_tags is not None:
-            result = spec.from_tags(
-                class_name, type_code, tags, variant_u16_tags, variant_string_tags
-            )
+            try:
+                result = spec.from_tags(
+                    class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                )
+            except ValueError:
+                # The blob's own family refused a field value CLICK refuses:
+                # keep it unparsed rather than try another family.
+                return None
             if result is not None:
                 return result
     return None
@@ -246,9 +251,14 @@ def from_tags_af(
     """Dispatch AF instruction construction through registered specs."""
     for spec in AF_FAMILY_SPECS:
         if spec.from_tags is not None:
-            result = spec.from_tags(
-                class_name, type_code, tags, variant_u16_tags, variant_string_tags
-            )
+            try:
+                result = spec.from_tags(
+                    class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                )
+            except ValueError:
+                # The blob's own family refused a field value CLICK refuses:
+                # keep it unparsed rather than try another family.
+                return None
             if result is not None:
                 return result
     return None

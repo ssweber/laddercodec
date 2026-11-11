@@ -5,9 +5,11 @@ Bank ranges are CLICK v4.00 Help topic CL195 ("Memory Addresses").
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from laddercodec import decode
+from laddercodec import decode, decode_program
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
     Coil,
@@ -16,6 +18,7 @@ from laddercodec.instructions import (
     ForLoop,
     RawInstruction,
     Shift,
+    UnknownCondition,
     parse_af_blob,
     parse_condition_blob,
 )
@@ -192,6 +195,13 @@ class TestConstructionRaises:
         assert Coil.from_csv_token("out(Y016)").operand == "Y016"
 
 
+_SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
+
+
+def _utf16z(text: str) -> bytes:
+    return text.encode("utf-16-le") + b"\x00\x00"
+
+
 def _swap_operand(blob: bytes, old: str, new: str) -> bytes:
     """Rewrite one UTF-16LE operand string of equal length inside a blob."""
     assert len(old) == len(new)
@@ -201,7 +211,11 @@ def _swap_operand(blob: bytes, old: str, new: str) -> bytes:
 
 
 class TestDecodeRefusedAddress:
-    """A blob whose address CLICK refuses decodes unparsed, not as the model."""
+    """A blob whose address CLICK refuses decodes unparsed, not as the model.
+
+    Both decoders reach the families through ``from_tags_af``/``from_tags_condition``,
+    which turn the family's ``ValueError`` into "not parsed".
+    """
 
     def test_af_families(self) -> None:
         cases = [
@@ -227,11 +241,28 @@ class TestDecodeRefusedAddress:
         assert isinstance(parse_condition_blob(blob), Contact)
         assert parse_condition_blob(_swap_operand(blob, "X101", "X117")) is None
 
-    def test_clipboard_decode_keeps_raw(self) -> None:
-        data = encode_rung(1, [[""] * 31], [Coil(InstructionType.COIL_OUT, "Y801")])
-        rung = decode(_swap_operand(data, "Y801", "Y901"))
+    def test_clipboard_decode(self) -> None:
+        conditions = [[Contact(InstructionType.CONTACT_NO, "X101"), *["-"] * 30]]
+        data = encode_rung(1, conditions, [Coil(InstructionType.COIL_OUT, "Y801")])
+        data = _swap_operand(_swap_operand(data, "Y801", "Y901"), "X101", "X117")
+        rung = decode(data)
+        assert isinstance(rung.conditions[0][0], UnknownCondition)
         [af] = rung.instructions
         assert isinstance(af, RawInstruction)
         assert af.class_name == "Out"
         fields = _decompose_blob(af.blob)[4]
         assert "Y901" in [value for _tag, _sentinel, value in fields]
+
+    def test_scr_decode(self) -> None:
+        # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
+        data = (_SCR_DIR / "shift_scr.scr").read_bytes()
+        data = data.replace(_utf16z("C2"), _utf16z("C0"))
+        for rung in decode_program(data).rungs:
+            assert isinstance(rung.instructions[0], RawInstruction)
+            assert rung.instructions[0].class_name == "SR"
+        # coverage rung 1 is ~C4 -> out(C3); C4 occurs once.
+        data = (_SCR_DIR / "coverage.scr").read_bytes()
+        assert data.count(_utf16z("C4")) == 1
+        rung = decode_program(data.replace(_utf16z("C4"), _utf16z("C0"))).rungs[1]
+        assert isinstance(rung.conditions[0][0], UnknownCondition)
+        assert rung.instructions[0] == Coil(InstructionType.COIL_OUT, "C3")

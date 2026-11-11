@@ -243,24 +243,21 @@ def from_tags(
     if variant is None or not operand:
         return None
     kind, unit, flag = variant
-    if kind != "toggle" and TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
+    if kind == "toggle":
+        return OutVariant(kind="toggle", operand=operand, immediate=flag)
+    if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
     two_phase = kind in _TWO_PHASE
-    try:
-        if kind == "toggle":
-            return OutVariant(kind="toggle", operand=operand, immediate=flag)
-        return OutVariant(
-            kind=kind,
-            operand=operand,
-            on_acc=tag_value(tags, 0x60B4),
-            on_preset=tag_value(tags, 0x60B3),
-            off_acc=tag_value(tags, 0x60B6) if two_phase else "",
-            off_preset=tag_value(tags, 0x60B5) if two_phase else "",
-            unit=unit,
-            maintained=flag,
-        )
-    except ValueError:  # an address CLICK refuses: keep the blob raw
-        return None
+    return OutVariant(
+        kind=kind,
+        operand=operand,
+        on_acc=tag_value(tags, 0x60B4),
+        on_preset=tag_value(tags, 0x60B3),
+        off_acc=tag_value(tags, 0x60B6) if two_phase else "",
+        off_preset=tag_value(tags, 0x60B5) if two_phase else "",
+        unit=unit,
+        maintained=flag,
+    )
 
 
 def parse_af_call(call: AfCall) -> OutVariant:

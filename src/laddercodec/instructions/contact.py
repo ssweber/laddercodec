@@ -183,13 +183,6 @@ def from_tags(
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Contact | None:
     """Construct a Contact from tag data (shared by both decoders)."""
-    try:
-        return _contact_from_tags(class_name, type_code, tags)
-    except ValueError:  # an address CLICK refuses: keep the blob unparsed
-        return None
-
-
-def _contact_from_tags(class_name: str, type_code: int, tags: dict[int, str]) -> Contact | None:
     itype = TYPE_CODE_TO_ITYPE.get(type_code)
 
     if class_name == "ContactNO" and itype in (

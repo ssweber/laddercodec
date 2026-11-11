@@ -213,17 +213,14 @@ def from_tags(
     if not all([done_bit, preset, current]) or variant is None:
         return None
     counter_type, down_enabled, reset_enabled = variant
-    try:
-        return Counter(
-            counter_type=counter_type,
-            done_bit=done_bit,
-            current=current,
-            preset=preset,
-            down_enabled=down_enabled,
-            reset_enabled=reset_enabled,
-        )
-    except ValueError:  # an address CLICK refuses: keep the blob raw
-        return None
+    return Counter(
+        counter_type=counter_type,
+        done_bit=done_bit,
+        current=current,
+        preset=preset,
+        down_enabled=down_enabled,
+        reset_enabled=reset_enabled,
+    )
 
 
 def parse_af_call(call: AfCall) -> Counter:

@@ -126,10 +126,7 @@ def from_tags(
     end_bit = tag_value(tags, 0x6067)
     if not start_bit or not end_bit:
         return None
-    try:
-        return Shift(start_bit=start_bit, end_bit=end_bit)
-    except ValueError:  # an address CLICK refuses: keep the blob raw
-        return None
+    return Shift(start_bit=start_bit, end_bit=end_bit)
 
 
 # ---------------------------------------------------------------------------
