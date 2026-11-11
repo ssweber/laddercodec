@@ -449,10 +449,10 @@ Producer may emit:
     1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
     DD, DF).
   - An X or Y range counts the points of the slots it covers: `X001..X021` is 17 elements
-    (`X001`-`X016`, then `X021`). A Send of X or Y to a CLICK address counts at most to the
-    end of the CPU and option slots from `X001`-`X036` (`X001` gives 32), or to the end of
-    the start's slot from `X101` on (16); to a MODBUS 984 or hex address it counts through
-    `X816` (`X001` gives 160). A Receive into Y counts through `Y816`.
+    (`X001`-`X016`, then `X021`). A Send of X or Y to a CLICK address counts at most to
+    `X036` from a start in `X001`-`X036` (`X001` gives 32), and to the end of the start's
+    slot from `X101` on (16). To a MODBUS 984 or hex address it counts through `X816`
+    (`X001` gives 160). A Receive into Y counts through `Y816`.
   - `sending`, `receiving`, `success` and `error` are C bits, and a Send's three are
     different bits; `exception_response` is DS or DD.
 - `call("subroutine_name")`
