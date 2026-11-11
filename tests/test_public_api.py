@@ -52,6 +52,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Project",
     "FieldError",
     "AddressError",
+    "LegacyEncodingWarning",
     "BlockCopy",
     "Call",
     "Contact",

@@ -639,12 +639,33 @@ def from_tags(
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    return Math(
+    math = Math(
         expression=expression,
         result=result,
         mode=mode,
         oneshot=oneshot,
     )
+    findings = _legacy_findings(tag_value(tags, 0x61FD))
+    if findings:
+        math._legacy_findings = findings
+    return math
+
+
+def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
+    """List the 16-bit (``H``) constants outside 16 bits in a stored formula.
+
+    Older laddercodec wrote a decimal integer outside -32768..32767 as ``H70000``;
+    CLICK runs it as its low 16 bits, as a signed value.
+    """
+    found = []
+    for token in formula_internal.split("#"):
+        m = re.fullmatch(r"H(-?\d+)", token)
+        if m and not _INT16_MIN <= int(m.group(1)) <= _INT16_MAX:
+            low = int(m.group(1)) & 0xFFFF
+            if low > _INT16_MAX:
+                low -= 0x10000
+            found.append(("Math", token, f"it is stored as 16-bit and CLICK runs it as {low}."))
+    return found
 
 
 # ---------------------------------------------------------------------------

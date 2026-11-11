@@ -36,6 +36,7 @@ from .instructions import (
     Timer,
     Unpack,
 )
+from .legacy import LegacyEncodingWarning
 from .model import AddressError, FieldError, Program, Project
 
 __all__ = [
@@ -51,6 +52,7 @@ __all__ = [
     "Project",
     "FieldError",
     "AddressError",
+    "LegacyEncodingWarning",
     "BlockCopy",
     "Call",
     "Contact",

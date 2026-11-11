@@ -52,6 +52,7 @@ from .instructions import (
     parse_condition_blob,
 )
 from .instructions.raw import find_blob_boundary
+from .legacy import warn_legacy
 from .model import PinnedInstruction
 from .topology import (
     CELL_SIZE,
@@ -765,8 +766,12 @@ def decode(data: bytes) -> Rung | list[Rung]:
     grid_start = GRID_FIRST_ROW_START + payload_len
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
     if is_multi:
-        return _decode_multi(data, row_infos, rung0_rtf)
-    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+        rungs = _decode_multi(data, row_infos, rung0_rtf)
+        warn_legacy(rungs)
+        return rungs
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    warn_legacy([rung])
+    return rung
 
 
 def decode_rung(data: bytes) -> Rung:
@@ -800,7 +805,9 @@ def decode_rung(data: bytes) -> Rung:
     if is_multi:
         raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    warn_legacy([rung])
+    return rung
 
 
 def decode_rungs(data: bytes) -> list[Rung]:
@@ -834,7 +841,9 @@ def decode_rungs(data: bytes) -> list[Rung]:
     if not is_multi:
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
-    return _decode_multi(data, row_infos, rung0_rtf)
+    rungs = _decode_multi(data, row_infos, rung0_rtf)
+    warn_legacy(rungs)
+    return rungs
 
 
 def _decode_single(
