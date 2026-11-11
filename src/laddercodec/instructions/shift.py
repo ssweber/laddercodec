@@ -60,8 +60,8 @@ class Shift(PinnedInstruction):
         # shift (Help 172).
         if end == start:
             raise FieldError(
-                f"Shift.end_bit: {self.end_bit!r} is the start address; a shift register "
-                "needs two different ends (OBJ-012)"
+                f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
+                f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)"
             )
 
     def pin_names(self) -> tuple[str, ...]:

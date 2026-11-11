@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, FieldError
+from ..model import AfInstruction, FieldError, check_program_name
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -30,6 +30,8 @@ class Call(AfInstruction):
     def __post_init__(self) -> None:
         if not self.subroutine:
             raise FieldError("Call.subroutine cannot be empty: CLICK requires a subroutine name")
+        # A Call names a subroutine, so the name follows the Add New Subroutine rules.
+        check_program_name(self.subroutine, "Call.subroutine")
 
     @classmethod
     def from_csv_token(cls, token: str) -> Call:

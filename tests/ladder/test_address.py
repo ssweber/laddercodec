@@ -264,7 +264,8 @@ class TestConstructionRaises:
             ("Counter.done_bit", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
             ("Counter.current", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
-            ("Shift.end_bit", lambda: Shift(start_bit="XD0", end_bit="XD0u")),
+            # A shift runs over C only (Q-D3), so the range starts at C1, not XD0.
+            ("Shift.end_bit", lambda: Shift(start_bit="C1", end_bit="XD0u")),
             ("ForLoop.limit", lambda: ForLoop.from_csv_token("for(XD0u)")),
             ("OutVariant.operand", lambda: OutVariant.from_csv_token("toggle(YD0u)")),
             (
