@@ -20,11 +20,19 @@ understood — the termination encoding may need revisiting.
 from __future__ import annotations
 
 import re
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction
+from ..model import (
+    ADDRESS_BANKS,
+    Address,
+    AddressError,
+    AfInstruction,
+    FieldError,
+    check_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -134,8 +142,221 @@ def _is_text_constant(operand: str) -> bool:
 def _ascii_code(code: int) -> str:
     """Spell a character code the way CLICK and pyrung do: ``$`` + two hex digits (``$0D``)."""
     if not 0 <= code <= 0xFF:
-        raise ValueError(f"ASCII code out of range 0..0xFF: {code}")
+        raise FieldError(f"ASCII code out of range 0..0xFF: {code}")
     return f"${code:02X}"
+
+
+# ---------------------------------------------------------------------------
+# Operands and banks (CLICK v4.00 Help CL173 Single Copy, CL185 Fill, CL238 Pointers)
+# ---------------------------------------------------------------------------
+
+#: Bit banks: the "Bits" rows of the Help copy tables.
+BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+#: Registers a copy reads: the "Registers" rows.
+REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
+#: Registers that hold a number.
+NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
+#: Registers a copy writes: every register but XD.
+_REGISTER_DEST_BANKS = REGISTER_BANKS - {"XD"}
+_NUMERIC_DEST_BANKS = _REGISTER_DEST_BANKS - {"TXT"}
+_COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
+
+_POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
+#: A number constant (Help CL196): integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
+#: digits then ``h`` (``1Eh``).  The sign, exponent and letter case are not narrowed.
+_NUMBER_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|[+-]?[0-9A-Fa-f]+[hH]")
+#: A text constant by character code: ``$`` then hex digits (``$0D``); how many CLICK takes
+#: is not narrowed here.
+_ASCII_CODE_OPERAND_RE = re.compile(r"\$[0-9A-Fa-f]+")
+
+
+class Operand(NamedTuple):
+    """A checked operand.
+
+    ``kind`` is ``"bit"``, ``"word"`` (a numeric register), ``"txt"`` (a TXT register),
+    ``"number"`` or ``"text"`` (constants).  ``bank`` is ``None`` for a constant; for a
+    pointer ``DD[DS1]`` it is the pointed-to bank (``DD``).
+    """
+
+    kind: str
+    bank: str | None = None
+    pointer: bool = False
+
+
+#: How each operand kind reads in a message.
+_KIND_TEXT = {
+    "bit": "a bit",
+    "word": "a numeric register",
+    "txt": "a TXT register",
+    "number": "a number constant",
+    "text": "a text constant",
+}
+
+
+def _bank_list(banks: Collection[str]) -> str:
+    return ", ".join(b for b in ADDRESS_BANKS if b in banks)
+
+
+def _register_kind(bank: str) -> str:
+    if bank in BIT_BANKS:
+        return "bit"
+    return "txt" if bank == "TXT" else "word"
+
+
+def check_operand(
+    value: str,
+    name: str,
+    banks: Collection[str] | None = None,
+    *,
+    constant: bool = False,
+    pointer: bool = False,
+) -> Operand:
+    """Check one operand; raise :class:`AddressError` naming field ``name`` if CLICK refuses it.
+
+    An address goes through :func:`check_address`, narrowed to ``banks`` (``None``: any bank).
+    With ``constant``, a number constant (``42``, ``-1.5``, ``1Eh``) or a text constant
+    (``"AB"``, ``$0D``) passes too.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
+    in ``banks`` and the pointer a DS address (Help CL238).
+    """
+    if constant:
+        if (len(value) >= 2 and value[0] == value[-1] == '"') or (
+            _ASCII_CODE_OPERAND_RE.fullmatch(value)
+        ):
+            return Operand("text")
+        if _NUMBER_CONSTANT_RE.fullmatch(value):
+            return Operand("number")
+    m = _POINTER_RE.fullmatch(value)
+    if m is not None:
+        if not pointer:
+            raise AddressError(f"{name}: {value!r} is a pointer; only a single Copy takes one")
+        bank = m.group(1)
+        allowed = ADDRESS_BANKS if banks is None else banks
+        if bank not in allowed:
+            raise AddressError(
+                f"{name}: {value!r} is not allowed; {name} takes {_bank_list(allowed)}"
+            )
+        check_address(m.group(2), f"{name} pointer", {"DS"})
+        return Operand(_register_kind(bank), bank, pointer=True)
+    address = check_address(value, name, banks)
+    return Operand(_register_kind(address.bank), address.bank)
+
+
+def _span(first: Address, last: Address) -> int | None:
+    """Addresses from ``first`` to ``last`` in one bank; ``None`` for XD/YD.
+
+    How CLICK counts across ``XD0u`` is not checked, so XD/YD ranges get no count.
+    """
+    if first.bank in ("XD", "YD"):
+        return None
+    return last.number - first.number + 1
+
+
+def _check_range(
+    cls: str,
+    start_field: str,
+    start: str,
+    end_field: str,
+    end: str,
+    banks: Collection[str] | None = None,
+    *,
+    one_module: bool = False,
+) -> tuple[Address, Address]:
+    """Check a ``start..end`` range and return its two ends.
+
+    Both ends are addresses in one bank (OBJ-008), never pointers.  With ``one_module``, an X
+    or Y range stays inside one 16-point module (OBJ-033, OBJ-035, OBJ-019).
+    """
+    ends = []
+    for field_name, value in ((start_field, start), (end_field, end)):
+        name = f"{cls}.{field_name}"
+        if _POINTER_RE.fullmatch(value):
+            raise AddressError(f"{name}: {value!r} is a pointer; only a single Copy takes one")
+        ends.append(check_address(value, name, banks))
+    first, last = ends
+    if first.bank != last.bank:
+        raise AddressError(
+            f"{cls}.{end_field}: {end!r} is not in the bank of {start!r}; "
+            "both ends of a range are in one bank"
+        )
+    if one_module and first.bank in ("X", "Y") and first.number // 100 != last.number // 100:
+        raise AddressError(
+            f"{cls}.{end_field}: {start}..{end} spans two {first.bank} modules; "
+            "the range stays inside one 16-point module"
+        )
+    return first, last
+
+
+def _check_pair(
+    cls: str,
+    source: str,
+    src: Operand,
+    dest_field: str,
+    destination: str,
+    dest_bank: str,
+    pairs: dict[str, frozenset[str]],
+) -> None:
+    """Refuse a destination bank the source kind can't copy into (OBJ-024)."""
+    allowed = pairs[src.kind]
+    if dest_bank not in allowed:
+        raise AddressError(
+            f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
+            f"{_KIND_TEXT[src.kind]} copies to {_bank_list(allowed)}"
+        )
+
+
+def _check_kind(cls: str, field_name: str, value: str, bank: str, kind: str) -> None:
+    """Pack/unpack ``bits`` takes a bit range and ``words`` a register range.
+
+    The blob stores no bits/words flag; the decoder reads it from this bank.
+    """
+    if (kind == "bits") != (bank in BIT_BANKS):
+        what = "a register" if kind == "bits" else "a bit"
+        need = f"a bit bank ({_bank_list(BIT_BANKS)})" if kind == "bits" else "a register bank"
+        raise AddressError(f"{cls}.{field_name}: {value!r} is {what}; {kind} needs {need}")
+
+
+#: Most bits one register packs into or unpacks from (OBJ-027/041, OBJ-032/039).
+_BITS_PER_REGISTER = {"DS": 16, "DH": 16, "DD": 32, "DF": 32}
+#: Most words one pack or unpack moves (OBJ-040, OBJ-042).
+_MAX_WORDS = 2
+
+
+def _check_count(
+    cls: str,
+    end_field: str,
+    span_text: str,
+    count: int | None,
+    kind: str,
+    bank: str | None,
+    single: str,
+) -> None:
+    """Refuse a pack source or unpack destination longer than the single register holds."""
+    limit = _BITS_PER_REGISTER.get(bank or "") if kind == "bits" else _MAX_WORDS
+    if limit is not None and count is not None and count > limit:
+        unit = "bits" if kind == "bits" else "words"
+        verb = "a pack into" if cls == "Pack" else "an unpack from"
+        raise FieldError(
+            f"{cls}.{end_field}: {span_text} is {count} {unit}; "
+            f"{verb} {single!r} takes at most {limit}"
+        )
+
+
+#: Help CL173: source kind -> destination banks of a single Copy.
+_COPY_PAIRS: dict[str, frozenset[str]] = {
+    "bit": frozenset({"Y", "C"}),
+    "word": _REGISTER_DEST_BANKS,
+    "txt": _REGISTER_DEST_BANKS,
+    "number": _REGISTER_DEST_BANKS,
+    "text": frozenset({"TXT"}),
+}
+
+#: Help CL185: source kind -> destination banks of a Fill.
+_FILL_PAIRS: dict[str, frozenset[str]] = {
+    "word": _NUMERIC_DEST_BANKS,
+    "txt": frozenset({"TXT"}),
+    "number": _REGISTER_DEST_BANKS,
+    "text": frozenset({"TXT"}),
+}
 
 
 # ---------------------------------------------------------------------------
@@ -242,24 +463,59 @@ class Copy(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.format not in _VALID_FORMATS:
-            raise ValueError(f"Invalid copy format: {self.format!r}")
+            raise FieldError(f"Invalid copy format: {self.format!r}")
         # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
         if self.termination_code.startswith("$"):
             try:
                 code = int(self.termination_code[1:], 16)
             except ValueError:
-                raise ValueError(f"Invalid termination code: {self.termination_code!r}") from None
+                raise FieldError(f"Invalid termination code: {self.termination_code!r}") from None
             self.termination_code = _ascii_code(code)
+        src = check_operand(
+            self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, constant=True, pointer=True
+        )
+        dst = check_operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
+        assert dst.bank is not None
+        _check_pair(
+            "Copy", self.source, src, "destination", self.destination, dst.bank, _COPY_PAIRS
+        )
+        self._check_format(src, dst.bank)
+        if self.termination_code != "0" and not (
+            self.format in ("text", "binary") and src.kind == "word" and dst.bank == "TXT"
+        ):
+            # CLICK v4's dialog: termination is for a single copy from a number register to
+            # text; the box is greyed for TXT -> TXT and constant -> TXT.
+            raise FieldError(
+                f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
+                f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
+                f"{self.destination!r} with format {self.format!r}"
+            )
         if self.format == "text":
             # CLICK's dialog offers suppress zero for an integer source and
             # real/exponential for a DF source, never both.
             if _is_df(self.source):
                 self.suppress_zero = "1"  # what CLICK stores; not a setting
             elif self.exponential == "1":
-                raise ValueError(
+                raise FieldError(
                     f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
                     "an integer source only has suppress_zero"
                 )
+
+    def _check_format(self, src: Operand, dest_bank: str) -> None:
+        """Refuse a converter the source and destination kinds don't offer."""
+        fmt = self.format
+        if fmt == "binary" and _is_dd_df_pair(self.source, self.destination):
+            return  # DD <-> DF Copy Binary (v4_captures/sweep_copy.bin)
+        if fmt in ("text", "binary"):
+            ok, need = src.kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
+        elif fmt in ("value", "ascii"):
+            ok, need = src.kind == "txt" and dest_bank in _NUMERIC_DEST_BANKS, "TXT to a number"
+        else:
+            return
+        if not ok:
+            raise FieldError(
+                f"Copy.format: to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}"
+            )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Copy:
@@ -295,33 +551,7 @@ class Copy(AfInstruction):
             raise ValueError(
                 f"copy expects 2 positional args (source, dest), got {len(args)}: {token!r}"
             )
-
-        source, destination = args
-
-        # Parse convert= kwarg
-        convert_raw = kwargs.get("convert", "")
-        if convert_raw:
-            fmt, text_opts = _parse_convert_kwarg(convert_raw)
-        else:
-            fmt, text_opts = "none", {}
-
-        oneshot = kwargs.get("oneshot") == "1"
-
-        suppress_zero = text_opts.get("suppress_zero", "0")
-        exponential = text_opts.get("exponential", "0")
-        termination_code = text_opts.get("termination_code", "0")
-        if termination_code == "none":
-            termination_code = "0"
-
-        return cls(
-            source=source,
-            destination=destination,
-            format=fmt,
-            oneshot=oneshot,
-            suppress_zero=suppress_zero,
-            exponential=exponential,
-            termination_code=termination_code,
-        )
+        return _copy_from_csv(args, kwargs)
 
     @property
     def func_code(self) -> str:
@@ -448,7 +678,16 @@ class BlockCopy(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.format not in _BLOCKCOPY_FORMATS:
-            raise ValueError(f"Invalid blockcopy format: {self.format!r}")
+            raise FieldError(f"Invalid blockcopy format: {self.format!r}")
+        # Bank pairs wait on a dialog check; only the addresses and ranges are checked.
+        cls = "BlockCopy"
+        src, _ = _check_range(cls, "source_start", self.source_start, "source_end", self.source_end)
+        dest, _ = _check_range(cls, "dest_start", self.dest_start, "dest_end", self.dest_end)
+        if self.format != "none" and src.bank != "TXT":
+            raise FieldError(
+                f"{cls}.format: to_{self.format} needs a TXT source, not "
+                f"{self.source_start}..{self.source_end}"
+            )
 
     @property
     def func_code(self) -> str:
@@ -525,6 +764,13 @@ class Fill(AfInstruction):
     dest_start: str
     dest_end: str
     oneshot: bool = False
+
+    def __post_init__(self) -> None:
+        src = check_operand(self.value, "Fill.value", REGISTER_BANKS, constant=True)
+        dest, _ = _check_range(
+            "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
+        )
+        _check_pair("Fill", self.value, src, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
 
     @property
     def func_code(self) -> str:
@@ -610,7 +856,20 @@ class Pack(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.pack_type not in _PACK_TYPES:
-            raise ValueError(f"Invalid pack type: {self.pack_type!r}")
+            raise FieldError(f"Invalid pack type: {self.pack_type!r}")
+        # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
+        first, last = _check_range(
+            "Pack", "source_start", self.source_start, "source_end", self.source_end,
+            one_module=True,
+        )  # fmt: skip
+        dest = check_operand(self.destination, "Pack.destination")
+        if self.pack_type == "text":
+            return
+        _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
+        _check_count(
+            "Pack", "source_end", f"{self.source_start}..{self.source_end}", _span(first, last),
+            self.pack_type, dest.bank, self.destination,
+        )  # fmt: skip
 
     @property
     def func_code(self) -> str:
@@ -702,7 +961,17 @@ class Unpack(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.unpack_type not in _UNPACK_TYPES:
-            raise ValueError(f"Invalid unpack type: {self.unpack_type!r}")
+            raise FieldError(f"Invalid unpack type: {self.unpack_type!r}")
+        # Bank pairs wait on a dialog check; only the addresses, ranges and counts are checked.
+        src = check_operand(self.source, "Unpack.source")
+        first, last = _check_range(
+            "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end, one_module=True
+        )
+        _check_kind("Unpack", "dest_start", self.dest_start, first.bank, self.unpack_type)
+        _check_count(
+            "Unpack", "dest_end", f"{self.dest_start}..{self.dest_end}", _span(first, last),
+            self.unpack_type, src.bank, self.source,
+        )  # fmt: skip
 
     @property
     def func_code(self) -> str:
@@ -796,6 +1065,8 @@ def from_tags(
         # 0x1221 alone marks termination; 0x1201 is also set for a text
         # constant source, so it must not imply a termination code.
         if tag_flag(tags, 0x1221) and term_char:
+            if not term_char.isdigit():
+                return None
             termination_code = _ascii_code(int(term_char))
 
         return Copy(
@@ -876,35 +1147,34 @@ def from_tags(
 # ---------------------------------------------------------------------------
 
 
+def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
+    """Build a Copy from ``copy(source, dest, ...)`` arguments (both CSV paths)."""
+    source, destination = args
+    convert_raw = kwargs.get("convert", "")
+    if convert_raw:
+        fmt, text_opts = _parse_convert_kwarg(convert_raw)
+    else:
+        fmt, text_opts = "none", {}
+    termination_code = text_opts.get("termination_code", "0")
+    if termination_code == "none":
+        termination_code = "0"
+    return Copy(
+        source=source,
+        destination=destination,
+        format=fmt,
+        oneshot=kwargs.get("oneshot") == "1",
+        suppress_zero=text_opts.get("suppress_zero", "0"),
+        exponential=text_opts.get("exponential", "0"),
+        termination_code=termination_code,
+    )
+
+
 def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
     """Parse an AF AST call into a Copy-family instruction."""
     if call.name == "copy":
         if len(call.args) != 2:
             raise ValueError(f"copy expects 2 positional args (source, dest), got {len(call.args)}")
-        source, destination = call.args
-        oneshot = call.kwargs.get("oneshot") == "1"
-
-        convert_raw = call.kwargs.get("convert", "")
-        if convert_raw:
-            fmt, text_opts = _parse_convert_kwarg(convert_raw)
-        else:
-            fmt, text_opts = "none", {}
-
-        suppress_zero = text_opts.get("suppress_zero", "0")
-        exponential = text_opts.get("exponential", "0")
-        term_val = text_opts.get("termination_code", "0")
-        if term_val == "none":
-            term_val = "0"
-
-        return Copy(
-            source=source,
-            destination=destination,
-            format=fmt,
-            oneshot=oneshot,
-            suppress_zero=suppress_zero,
-            exponential=exponential,
-            termination_code=term_val,
-        )
+        return _copy_from_csv(call.args, call.kwargs)
 
     if call.name == "blockcopy":
         if len(call.args) != 2:
