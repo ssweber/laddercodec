@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, InstructionType, check_address
+from ..model import AfInstruction, FieldError, InstructionType, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 def _validate_for_limit(value: str) -> str:
     text = value.strip()
     if not text:
-        raise ValueError("for() limit cannot be blank")
+        raise FieldError("ForLoop.limit cannot be blank")
     if _FOR_LITERAL_RE.fullmatch(text):
         return text
     check_address(text, "ForLoop.limit")
@@ -206,10 +206,7 @@ def from_tags(
         if not limit:
             return None
         oneshot = tag_flag(tags, 0x11F8)
-        try:
-            return ForLoop(limit=limit, oneshot=oneshot)
-        except ValueError:
-            return None
+        return ForLoop(limit=limit, oneshot=oneshot)
 
     return None
 
