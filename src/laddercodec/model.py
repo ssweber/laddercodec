@@ -256,6 +256,53 @@ def check_address(value: str, name: str, banks: Collection[str] | None = None) -
 # ---------------------------------------------------------------------------
 
 
+#: Longest subroutine or interrupt name: CLICK.exe's Add Subroutine edit takes 24
+#: characters (EM_LIMITTEXT 0x18; Q-F2).
+PROGRAM_NAME_MAX = 24
+
+#: Characters a program name may not hold (CLICK.exe, GUI-040 "Invalid Program Name").
+_PROGRAM_NAME_FORBIDDEN = '\\/:*?"<>|'
+
+#: Windows device names a program name may not use before its last dot (CLICK.exe
+#: device table, GUI-040), compared case-insensitively.
+_DEVICE_NAMES = frozenset(
+    {"AUX", "CON", "NUL", "PRN", "CLOCK$"}
+    | {f"COM{n}" for n in range(1, 10)}
+    | {f"LPT{n}" for n in range(1, 10)}
+)
+
+
+def check_program_name(name: str, field_name: str) -> None:
+    """Raise :class:`FieldError` naming ``field_name`` if CLICK refuses ``name`` for a subroutine.
+
+    Follows CLICK's Add New Subroutine dialog (Q-F2), which trims the name first and
+    then checks it: not blank (user dialog check 2026-11-11), at most
+    :data:`PROGRAM_NAME_MAX` characters, none of ``\\ / : * ? " < > |``, and the part
+    before the last dot is not a Windows device name (GUI-040).  ``Main``, ``.``,
+    inner spaces, ``-`` and a leading digit are accepted.
+    """
+    text = name.strip()
+    if not text:
+        raise FieldError(f"{field_name}: {name!r} is blank; a subroutine needs a name")
+    if len(text) > PROGRAM_NAME_MAX:
+        raise FieldError(
+            f"{field_name}: {name!r} is {len(text)} characters; a subroutine name is at "
+            f"most {PROGRAM_NAME_MAX}"
+        )
+    bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
+    if bad:
+        raise FieldError(
+            f"{field_name}: {name!r} holds {' '.join(bad)}; a subroutine name may not hold "
+            f"any of {' '.join(_PROGRAM_NAME_FORBIDDEN)} (GUI-040)"
+        )
+    base = text.rsplit(".", 1)[0] if "." in text else text
+    if base.upper() in _DEVICE_NAMES:
+        raise FieldError(
+            f"{field_name}: {name!r} uses the Windows device name {base!r}; CLICK refuses "
+            "it as a subroutine name (GUI-040)"
+        )
+
+
 @dataclass
 class Program:
     """A single PLC program (main or subroutine) with its rungs."""
