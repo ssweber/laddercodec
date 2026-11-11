@@ -292,7 +292,7 @@ def _check_expression(expression: str, mode: str) -> None:
     # The spaced form keeps a sign on its constant (``( -5 )``).
     for token in expression.split(" "):
         if _CONSTANT_RE.fullmatch(token.removeprefix("-")):
-            _check_constant(token, name)
+            _check_constant(token, name, mode)
 
     for i in range(1, len(tokens) - 1):
         if tokens[i] != ":":
@@ -323,31 +323,37 @@ def _check_expression(expression: str, mode: str) -> None:
         )
 
 
-def _check_constant(token: str, name: str) -> None:
-    """Refuse a constant the Math dialog refuses (Inst_Math.dll 0x1000ead1-0x1000eefc, OBJ-1009).
+def _check_constant(token: str, name: str, mode: str) -> None:
+    """Refuse a constant the Math dialog refuses (Inst_Math.dll 0x1000e940, OBJ-1009).
 
-    A hex constant has at most 4 digits and is at most FFFFh.  CLICK reads a decimal integer
-    as 64 bits, truncates it to 32, prints it back and compares the lengths.  A value outside
-    int32 whose printed length differs is refused; one whose length matches
-    (``6000000000``) is not yet checked in a dialog and passes.
+    Each mode checks its own constants.  In hex mode a hex constant has at most 4 digits and
+    is at most FFFFh.  In decimal mode CLICK reads an integer with ``_wtoi64``, keeps the low
+    32 bits, prints them with ``%d`` and refuses the token when the printed length differs
+    from the typed one (0x1000ead1).  So ``3000000000``, ``007`` and ``-0`` are refused,
+    while ``6000000000``, whose low 32 bits print as ``1705032704``, passes.
     """
-    if token.endswith("h"):
-        digits = token.lstrip("-")[:-1]
-        if len(digits) > 4 or int(digits, 16) > 0xFFFF:
-            raise FieldError(
-                f"{name}: {token} is outside 0h..FFFFh; a hex constant has at most 4 digits"
-            )
+    if mode == "hex":
+        if token.endswith("h"):
+            digits = token.lstrip("-")[:-1]
+            if len(digits) > 4 or int(digits, 16) > 0xFFFF:
+                raise FieldError(
+                    f"{name}: {token} is outside 0h..FFFFh; a hex constant has at most 4 digits"
+                )
         return
     if not re.fullmatch(r"-?\d+", token):
         return
     value = int(token)
-    if _INT32_MIN <= value <= _INT32_MAX:
+    # _wtoi64 saturates at the int64 limits.
+    low = (max(-(2**63), min(2**63 - 1, value)) + 2**31) % 2**32 - 2**31
+    if len(str(low)) == len(token):
         return
-    truncated = (value + 2**31) % 2**32 - 2**31
-    if len(str(truncated)) != len(token):
+    if not _INT32_MIN <= value <= _INT32_MAX:
         raise FieldError(
             f"{name}: {token} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
         )
+    raise FieldError(
+        f"{name}: {token} is refused; CLICK reads it back as {low}, which is not what was typed"
+    )
 
 
 def _extract_operands(expression: str) -> list[str]:

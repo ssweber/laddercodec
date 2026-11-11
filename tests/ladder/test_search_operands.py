@@ -50,13 +50,16 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("DS10..DS1 == 1", "result=DS20,found=C1", "DS10\\.\\.DS1 runs backwards"),
         ("DS1..DD5 == 1", "result=DS20,found=C1", "'DD5' is not in the bank of 'DS1'"),
         ("DS1..DS1 == 1", "result=DS20,found=C1", "DS1\\.\\.DS1 is one address"),
-        # a text value hides the order operators (Q-M10)
+        # a text value hides the order operators, a text constant or a TXT register alike
+        # (Q-M10; Inst_Search.dll 0x10002c31 from 0x10002e48 and 0x10002b66)
         ('TXT1..TXT10 > "A"', "result=DS20,found=C1", "'>' is not offered for text"),
         ('TXT1..TXT10 <= "A"', "result=DS20,found=C1", "'<=' is not offered for text"),
         ("TXT1..TXT10 >= $41", "result=DS20,found=C1", "'>=' is not offered for text"),
         ("TXT1..TXT10 < TXT20", "result=DS20,found=C1", "'<' is not offered for text"),
-        # a hex value has at most 4 digits (OBJ-005)
-        ("DH1..DH10 == 10000h", "result=DS20,found=C1", "'10000h' has 5 hex digits"),
+        ("DS1..DS10 > TXT20", "result=DS20,found=C1", "'>' is not offered for text"),
+        # a hex value above FFFFh is 32-bit (OBJ-005; baseEx.dll decides by value)
+        ("DH1..DH10 == 10000h", "result=DS20,found=C1", "'10000h' is above FFFFh"),
+        ("DH1..DH10 == 001FFFFh", "result=DS20,found=C1", "'001FFFFh' is above FFFFh"),
     ],
 )
 def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:
@@ -76,6 +79,8 @@ def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:
         'search(TXT1..TXT10 != "A",result=DS1,found=C1)',
         "search(TXT1..TXT10 == TXT20,result=DS1,found=C1)",
         "search(DH1..DH10 == FFFFh,result=DS1,found=C1)",
+        "search(DH1..DH10 == 0FFFFh,result=DS1,found=C1)",
+        "search(DH1..DH10 == 00001h,result=DS1,found=C1)",
         # an int32 constant against a DS table (Q-M10, user dialog check 2026-11-11)
         "search(DS1..DS10 > 40000,result=DS20,found=C1)",
     ],
@@ -105,6 +110,8 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         {0x607A: "Y001"},  # the Result Flag is a C bit
         {0x6066: "DS10", 0x6067: "DS1"},  # backwards
         {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
+        {0x6065: "TXT20", 0x21F7: "2"},  # > on a TXT register
+        {0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"},  # a 32-bit hex value
     ],
 )
 def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:

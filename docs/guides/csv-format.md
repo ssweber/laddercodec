@@ -525,26 +525,31 @@ currently emit:
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
   dialogs and raise `AddressError` or `FieldError` naming the field: a bit
   copies to Y or C, a text constant to TXT, both ends of a range sit in one bank
-  and the end comes after the start (`DS1..DS1` is refused), a pack or unpack
-  range stays in one 16-point X or Y slot and fits its register (`pack_bits`
-  takes bits, `pack_words` registers, `pack_text` a TXT range), and a Math
-  result is DS, DD, DF, TD, CTD or SD in decimal mode, DH or YD in hex mode.
+  and the end comes after the start (`DS1..DS1` is refused), an X or Y range in
+  a Pack source, a Block Copy source or an Unpack destination stays in one
+  16-point slot, a pack or unpack range fits its register (`pack_bits` takes
+  bits, `pack_words` registers), and a Math result is DS, DD, DF, TD, CTD or SD
+  in decimal mode, DH or YD in hex mode.
 - Block Copy, Pack and Unpack pair banks as CLICK's dialog does:
   - `blockcopy`: bits go to Y or C; DS, DD, DH, DF and SD to DS, DD, DH, DF,
     TD, CTD or SD; TXT to DS, DD, DH or TXT. The destination end is the start
     plus the source's length, whatever the banks (`blockcopy(DS1..DS4,DD1..DD4)`).
+    A run into Y that would cross a slot (`blockcopy(C1..C16,Y010..Y025)`) is
+    refused: what CLICK writes for it is not captured yet.
   - `pack_*`: X, Y, T, CT and SC bits pack into DH; C bits into DS, DD, DH or
     DF; DS words into DD or DF; DH words into DD; TXT into DS, DD, DH, DF, TD
     or CTD.
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
   `FFFFh` copies only to DD or CTD.
-- `search` takes a C bit as its found flag, `==` or `!=` for a text value, and
-  a hex value of at most 4 digits.
-- In `math`, an integer constant is 32-bit and a hex constant has at most 4
-  digits, `SUM` takes no CT range, and the formula is at most 270 characters in
-  CLICK's internal form, one `@` per address and `#` between tokens
-  (`DS1 + DS2 + ... + DS68` is 269).
+- `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
+  text constant or a TXT register), and a hex value of at most `FFFFh`.
+- In a decimal `math`, an integer constant must read back as typed: CLICK keeps
+  its low 32 bits and refuses it when they print at a different length
+  (`3000000000`, `007` and `-0` are refused). In a hex `math`, a hex constant
+  has at most 4 digits. `SUM` takes no CT range, and the formula is at most 270
+  characters as CLICK stores it: a sum of 68 addresses fits, 69 does not;
+  constants, functions and parentheses count too.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
   one TXT register per character of a text constant, so `""` writes nothing:

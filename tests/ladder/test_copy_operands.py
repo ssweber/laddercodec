@@ -99,7 +99,6 @@ _REFUSED = [
     ("pack_words(C1..C2,DS1)", "'C1' is a bit; words needs a register bank"),
     ("unpack_to_bits(DD1,DS1..DS2)", "'DS1' is a register; bits needs a bit bank"),
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
-    ("pack_text(DS1..DS2,DD1)", "'DS1' is not TXT; text packs a TXT range"),
     # Single Copy constants (Q-M5): an integer is 32-bit (OBJ-005); hex above FFFFh goes to
     # the 32-bit integer registers only (OBJ-024)
     ("copy(5000000000,DD1)", "Copy.source: '5000000000' is outside -2147483648..2147483647"),
@@ -129,8 +128,12 @@ _REFUSED = [
     ),
     ("blockcopy(DD1..DD4,DS1..DS9)", r"DD1\.\.DD4 fills DS1\.\.DS4"),
     ("blockcopy(C1..C4,Y001..Y016)", r"C1\.\.C4 fills Y001\.\.Y004"),
-    ("blockcopy(X001..X101,C1..C101)", "spans two X slots"),
-    ("blockcopy(C1..C16,Y010..Y101)", "spans two Y slots"),
+    # the Block source stays in one slot (Inst_Copy.dll module check 0x10002870); a Y
+    # destination run that crosses a slot is not captured yet
+    ("blockcopy(X001..X101,C1..C101)", "spans two X slots; the range stays in one 16-point"),
+    ("blockcopy(C1..C16,Y010..Y025)", "into Y010 crosses a Y slot; crossing a slot is not"),
+    ("blockcopy(X001..X008,Y010..Y021)", "crosses a Y slot"),
+    ("blockcopy(C1..C16,Y010..Y101)", "crosses a Y slot"),
     # Pack pairs (Q-M2): X/Y/T/CT/SC pack into DH only; DS into DD/DF; DH into DD
     ("pack_bits(X001..X016,DS1)", "a pack from X goes to DH"),
     ("pack_bits(Y001..Y016,DD1)", "a pack from Y goes to DH"),
@@ -152,7 +155,7 @@ _REFUSED = [
     ("unpack_to_bits(TXT1,C1..C16)", "Unpack.source: 'TXT1' is not allowed"),
     ("unpack_to_bits(XD0u,C1..C16)", "Unpack.source: 'XD0u' is not allowed"),
     ("unpack_to_bits(DS1,C1..C1)", r"C1\.\.C1 is one address"),
-    # Fill's destination range takes the same range check (Inst_Copy.dll 0x10007fb3)
+    # Fill's OnOK runs the same range check on its destination (Inst_Copy.dll 0x10007fb3)
     ("fill(0,DS1..DS1)", r"DS1\.\.DS1 is one address"),
     ("fill(0,DS5..DS1)", r"DS5\.\.DS1 runs backwards"),
 ]
@@ -204,6 +207,9 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "blockcopy(DF1..DF3,CTD1..CTD3)",
         "blockcopy(C1..C16,Y001..Y016)",
         "blockcopy(X021..X036,C1..C16)",
+        "blockcopy(C1..C7,Y010..Y016)",
+        "blockcopy(X001..X008,Y101..Y108)",
+        "pack_text(DS1..DS2,DD1)",  # a non-TXT source is not refused (needs a dialog check)
         "pack_bits(X001..X016,DH1)",
         "pack_bits(X021..X036,DH1)",
         "pack_bits(SC1..SC16,DH1)",
@@ -303,6 +309,7 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
         {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DD1", 0x6077: "DD2", 0x2223: "1"},  # end
         {0x6074: "DS1", 0x6075: "DS1", 0x6076: "DS5", 0x6077: "DS5", 0x2223: "1"},  # one
         {0x6074: "0", 0x6076: "DS5", 0x6077: "DS1", 0x2223: "2"},  # fill runs backwards
+        {0x6074: "C1", 0x6075: "C16", 0x6076: "Y010", 0x6077: "Y025", 0x2223: "1"},  # Y slot
         {0x6074: "10000h", 0x6076: "DH1"},  # hex above FFFFh into DH
         {0x6074: "5000000000", 0x6076: "DD1"},  # outside int32
     ],

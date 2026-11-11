@@ -287,7 +287,8 @@ def _check_range(
     (Inst_Copy.dll range check 0x10011670, which Inst_Search.dll repeats at 0x10003b80).
     With ``one_module``, an X or Y range stays inside one 16-point slot of
     :data:`~laddercodec.model.XY_SLOTS` (OBJ-033, OBJ-035, OBJ-019); the dual option slot,
-    21-36, is a slot of its own.
+    21-36, is a slot of its own.  Inst_Copy.dll runs this module check (0x10002870) on the
+    Pack source, the Block Copy source and the Unpack destination.
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
@@ -309,7 +310,7 @@ def _check_range(
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
             f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "
-            f"a pack or unpack range stays in one 16-point {first.bank} slot"
+            f"the range stays in one 16-point {first.bank} slot"
         )
     return first, last
 
@@ -814,7 +815,7 @@ class BlockCopy(AfInstruction):
         # unordered here and is refused below as an end that doesn't match.
         dest, dest_last = _check_range(
             cls, "dest_start", self.dest_start, "dest_end", self.dest_end,
-            _destinations(_BLOCK_ROWS), one_module=True, ordered=False,
+            _destinations(_BLOCK_ROWS), ordered=False,
         )  # fmt: skip
         _check_row(
             cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}", src.bank,
@@ -823,6 +824,14 @@ class BlockCopy(AfInstruction):
         # Inst_Copy.dll 0x10009540: the destination end is the start plus the source's
         # element count (GetNextAddress), whatever the two banks.
         end = dest.number + src_last.number - src.number
+        if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
+            # GetNextAddress steps a Y run on into the next slot; what CLICK then stores
+            # for the destination is not captured.
+            raise AddressError(
+                f"{cls}.dest_start: {self.source_start}..{self.source_end} into "
+                f"{self.dest_start} crosses a Y slot; crossing a slot is not supported yet: "
+                "it needs a capture"
+            )
         if dest_last.number != end:
             spelled = f"{dest.bank}{end:03d}" if dest.bank in ("X", "Y") else f"{dest.bank}{end}"
             raise AddressError(
@@ -913,6 +922,7 @@ class Fill(AfInstruction):
 
     def __post_init__(self) -> None:
         src = check_operand(self.value, "Fill.value", REGISTER_BANKS, constant=True)
+        # Inst_Copy.dll's Fill OnOK runs the range check on the destination at 0x10007fb3.
         dest, _ = _check_range(
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )
@@ -1014,12 +1024,6 @@ class Pack(AfInstruction):
             "destination", self.destination, dest.bank,
         )  # fmt: skip
         if self.pack_type == "text":
-            # CLICK offers the whitespace options, which write the text conversion types,
-            # only for a TXT source (Inst_Copy.dll context 5).
-            if first.bank != "TXT":
-                raise AddressError(
-                    f"Pack.source_start: {self.source_start!r} is not TXT; text packs a TXT range"
-                )
             return
         _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
         _check_count(

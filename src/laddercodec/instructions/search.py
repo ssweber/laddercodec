@@ -76,11 +76,12 @@ TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
 RESULT_BANKS = frozenset({"DS"})
 #: The Result Flag is a C bit (Inst_Search.dll validator mask 4 at 0x10006e70; OBJ-004).
 FOUND_BANKS = frozenset({"C"})
-#: A text search value hides the four order operators, leaving these (Inst_Search.dll
-#: 0x10002a90, search-value change handler).
+#: A text search value hides the four order operators, leaving these.  The search-value
+#: change handler (Inst_Search.dll 0x10002a90) reaches the same text test (0x140, at
+#: 0x10002c31) from a TXT register (0x10002b66) and from a text constant (0x10002e48).
 _TEXT_OPS = frozenset({"==", "!="})
-#: A hex search value of five or more digits is a 32-bit hex constant, which the value
-#: check refuses (Inst_Search.dll 0x10007861, OBJ-005).
+#: A hex search value above FFFFh is a 32-bit hex constant (baseEx.dll decides by value at
+#: 0x1000cb20), which the value check refuses (Inst_Search.dll 0x10007861, OBJ-005).
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 
 # ---------------------------------------------------------------------------
@@ -155,10 +156,9 @@ class Search(AfInstruction):
         # The search value is a constant or a data register, never a bit (Help CL174).
         source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
         m = _HEX_CONSTANT_RE.fullmatch(self.source)
-        if m and len(m.group(1)) > 4:
+        if m and int(m.group(1), 16) > 0xFFFF:
             raise FieldError(
-                f"Search.source: {self.source!r} has {len(m.group(1))} hex digits; a hex "
-                "search value has at most 4"
+                f"Search.source: {self.source!r} is above FFFFh; a hex search value is 16-bit"
             )
         if (source.kind == "text" or source.bank == "TXT") and self.comparison not in _TEXT_OPS:
             raise FieldError(
