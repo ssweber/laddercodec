@@ -12,13 +12,15 @@ For every field that takes a constant, each value of a fixed list is tried two w
   arc.md question gives ``open``.
 
 Every disagreement is printed: field, value, today's verdict, the classifier's verdict.
-The script changes nothing; a disagreement is a finding for the step that wires the
+``DIFFERS?`` marks one whose classifier verdict rests on a DLL reading with no dialog
+check; it is counted apart from the others.  The script changes nothing; a disagreement is a finding for the step that wires the
 classifier into that field.  ``<src_dir>`` (default ``src``) is the laddercodec source
 tree under test.
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -153,14 +155,16 @@ def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
 
     arc.md Q-B7 (DLL: Inst_Compare.dll, baseEx.dll): numeric pairs with an int32 integer or
     a float, hex with a 16-bit hex constant (32-bit hex is OBJ-005 on either side), text
-    with quoted text or ``$hh``.  arc.md Q-B7 rulings: text is 1 to 128 printable ASCII
-    characters, no quote inside.
+    with quoted text or ``$hh``.  arc.md Q-B7 rulings: text is printable ASCII (the field
+    limit :func:`printable`).
     """
     kinds = {"numeric": {"integer", "float"}, "hex": {"hex"}, "text": {"text", "char"}}[group]
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
         def take(c: Any) -> str | None:
             if c.kind == "hex" and c.wide:
+                return None
+            if c.kind == "text" and not ns.c.printable(c.value):
                 return None
             return ACCEPT if c.kind in kinds else None
 
@@ -173,14 +177,16 @@ def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
     """Single Copy source into ``dest`` (arc.md Q-M5 and the move field rules).
 
     A number constant is an int32 integer, a float or hex; hex above FFFFh goes to DD or
-    CTD only.  A text constant goes to TXT only.  A number into TXT has no DLL reading or
-    ruling: open.
+    CTD only.  A text constant goes to TXT only.  A number into TXT, and text that is not
+    printable ASCII, have no DLL reading or ruling: open.
     """
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
         def take(c: Any) -> str | None:
             if c.kind in ("text", "char"):
-                return ACCEPT if dest == "TXT" else None
+                if dest != "TXT":
+                    return None
+                return ACCEPT if c.kind == "char" or ns.c.printable(c.value) else OPEN
             if dest == "TXT":
                 return OPEN
             if c.kind == "hex" and c.wide:
@@ -195,13 +201,16 @@ def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
 def fill_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
     """Fill value into ``dest``: Copy's constant kinds (Inst_Copy.dll serves both dialogs).
 
-    No reading covers a 32-bit hex constant or a number constant into a TXT fill: open.
+    No reading covers a 32-bit hex constant, a number constant into a TXT fill, or text
+    that is not printable ASCII: open.
     """
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
         def take(c: Any) -> str | None:
             if c.kind in ("text", "char"):
-                return ACCEPT if dest == "TXT" else None
+                if dest != "TXT":
+                    return None
+                return ACCEPT if c.kind == "char" or ns.c.printable(c.value) else OPEN
             if dest == "TXT" or (c.kind == "hex" and c.wide):
                 return OPEN
             return ACCEPT
@@ -211,51 +220,80 @@ def fill_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
     return rule
 
 
+#: The tag on a verdict that rests on a DLL reading with no dialog check.
+UNCONFIRMED = "unconfirmed: "
+
+
 def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
     """Search value against a ``table`` range (arc.md Q-M10 answers and ruling).
 
-    The value's kind picks the table banks: an int32 integer or a float searches DS, DD, DF,
-    TD, CTD; 16-bit hex searches DH; text or ``$hh`` searches TXT.  32-bit hex is OBJ-005.
-    Text is 1 to 128 printable ASCII characters, no quote inside (ruling).
+    32-bit hex is OBJ-005.  Text is printable ASCII (Q-M10 ruling, :func:`printable`).
+    DLL: Inst_Search.dll, the search value's class picks the range banks (no dialog check):
+    an int32 integer or a float searches DS, DD, DF, TD, CTD; 16-bit hex searches DH; text
+    or ``$hh`` searches TXT.  A refusal from that pairing alone is tagged unconfirmed.
     """
     table_kinds = {"DS": {"integer", "float"}, "DH": {"hex"}, "TXT": {"text", "char"}}[table]
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
-        def take(c: Any) -> str | None:
-            if c.kind == "hex" and c.wide:
-                return None
-            return ACCEPT if c.kind in table_kinds else None
-
-        return _by_kind(ns, value, take)
+        const = ns.c.classify(value)
+        verdict, why = _by_kind(ns, value, lambda c: ACCEPT)
+        if verdict != ACCEPT:
+            return verdict, why
+        if const.kind == "hex" and const.wide:
+            return REFUSE, why
+        if const.kind == "text" and not ns.c.printable(const.value):
+            return REFUSE, why
+        if const.kind not in table_kinds:
+            return REFUSE, UNCONFIRMED + why
+        return ACCEPT, why
 
     return rule
+
+
+#: A Math value that is not one constant token is formula syntax, outside the codec.
+SYNTAX = "formula syntax"
+_HEX_TOKEN = re.compile(r"[0-9A-F]+H")
 
 
 def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
     """A constant in a Math formula (arc.md Q-M9, Q-M13, Q-M13b).
 
-    Decimal: an integer whose int32 value prints back as typed (``007``, ``+1``, ``-0``
-    refused), or a float; hex in a decimal Math waits on Q-M13.  Hex: hex of at most four
-    digits and FFFFh; a decimal number in a hex Math waits on Q-M13b.  Math reads its
-    constants with its own check, not the shared one, so ``6000000000`` (accepted by Math's
-    32-bit length test) is a known gap of this rule.
+    Only a value that is one constant token, with at most one leading ``-``, is judged;
+    anything else (``1-2``, ``+1``, ``Q1``, ``1,5``) is formula syntax and open.  Decimal: an
+    integer whose int32 value prints back as typed (``007``, ``-0`` refused), or a float;
+    hex in a decimal Math waits on Q-M13.  Hex: unsigned hex of at most four digits and
+    FFFFh; a decimal number in a hex Math waits on Q-M13b, and a sign on hex is open.  No
+    reading covers text or ``$hh`` in a formula: open.  Math reads its constants with its own check, not the shared one, so ``6000000000``
+    (accepted by Math's 32-bit length test) is a known gap of this rule.
     """
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
-        def take(c: Any) -> str | None:
-            if c.kind in ("text", "char"):
-                return None
-            if mode == "decimal":
-                if c.kind == "hex":
-                    return OPEN
-                if c.kind == "integer":
-                    return ACCEPT if str(c.value) == value else None
-                return ACCEPT
-            if c.kind != "hex":
-                return OPEN
-            return ACCEPT if len(value) - 1 <= 4 and not c.wide else None
-
-        return _by_kind(ns, value, take)
+        if ns.is_address(value):
+            return ADDRESS, "address"
+        body = value[1:] if value.startswith("-") else value
+        if body[:1] in ("+", "-"):
+            return OPEN, SYNTAX
+        if _HEX_TOKEN.fullmatch(body.upper()):
+            const = ns.c.classify(body)
+            if mode == "decimal" or body != value:
+                return OPEN, f"{'signed ' if body != value else ''}{_describe(const)}"
+            if const is None:
+                return REFUSE, "hex of more than eight digits"
+            return (ACCEPT if len(body) - 1 <= 4 and not const.wide else REFUSE), _describe(const)
+        if ns.c.parse_digits(body) is not None:
+            const = ns.c.classify(value)
+            if mode == "hex":
+                return OPEN, f"decimal {_describe(const)}"
+            if const is None:
+                return REFUSE, "no constant"
+            return (ACCEPT if str(const.value) == value else REFUSE), _describe(const)
+        const = ns.c.classify(value)
+        if const is None:
+            return OPEN, SYNTAX
+        why = _describe(const)
+        if const.kind in ("text", "char") or mode == "hex":
+            return OPEN, why
+        return ACCEPT, why
 
     return rule
 
@@ -280,15 +318,30 @@ def termination_rule(ns: Any, value: str) -> tuple[str, str]:
     return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
 
 
-def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): hex in either case, 0h to FFFEh.
+_HEX_SPAN = frozenset("0123456789ABCDEF")
 
-    The dialog upper-cases the text and wants ``H`` last; it counts no digits.  A MODBUS 984
-    number is no constant and is skipped.
+
+def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
+    """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): 0h to FFFEh.
+
+    The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
+    last and every other character a hex digit, and counts no digits.  An uppercase ``H``
+    stays open: laddercodec keeps refusing it until a capture shows the stored text (Q-C7).
+    A MODBUS 984 number is no constant and is skipped.
     """
     if ns.c.parse_digits(value) is not None:
         return ADDRESS, "984 number"
-    return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "hex" and c.value <= 0xFFFE else None)
+    upper = value.upper()
+    digits = upper[:-1]
+    if not upper.endswith("H") or not digits or not _HEX_SPAN.issuperset(digits):
+        if ns.is_address(value):
+            return ADDRESS, "address"
+        return REFUSE, "not hex"
+    number = int(digits.lstrip("0") or "0", 16)
+    why = f"hex {number:#x}"
+    if number > 0xFFFE:
+        return REFUSE, why
+    return (OPEN if value.endswith("H") else ACCEPT), why
 
 
 # ---------------------------------------------------------------------------
@@ -494,8 +547,9 @@ def main(argv: list[str] | None = None) -> int:
     lines: list[str] = []
     print(f"classify() dry run: {len(fields)} fields x {len(VALUES)} values")
     print("format: field | value | today | classifier (what classify() read)")
+    print("DIFFERS? marks a classifier verdict that rests on a DLL reading with no dialog check")
     for field in fields:
-        disagree = opened = addresses = skipped = 0
+        disagree = unconfirmed = opened = addresses = skipped = 0
         lines.clear()
         for value in VALUES:
             if _skip(field, value):
@@ -511,26 +565,34 @@ def main(argv: list[str] | None = None) -> int:
                 lines.append(f"  open     {_show(value)} | today {today} | classifier: {why}")
                 continue
             if verdict != today:
-                disagree += 1
+                tag = "DIFFERS "
+                if why.startswith(UNCONFIRMED):
+                    unconfirmed += 1
+                    tag = "DIFFERS?"
+                    why = why.removeprefix(UNCONFIRMED)
+                else:
+                    disagree += 1
                 shown = f"{today} ({error})" if error else today
                 lines.append(
-                    f"  DIFFERS  {_show(value)} | today {shown} | classifier {verdict} ({why})"
+                    f"  {tag} {_show(value)} | today {shown} | classifier {verdict} ({why})"
                 )
         compared = len(VALUES) - skipped - addresses - opened
         print()
         print(
             f"[{field.family}] {field.label}: {compared} compared, {disagree} differ, "
-            f"{opened} open, {addresses} addresses skipped, {skipped} skipped"
+            f"{unconfirmed} differ unconfirmed, {opened} open, {addresses} addresses skipped, "
+            f"{skipped} skipped"
         )
         print("\n".join(lines) if lines else "  (no differences)")
-        family = totals.setdefault(field.family, [0, 0, 0])
+        family = totals.setdefault(field.family, [0, 0, 0, 0])
         family[0] += compared
         family[1] += disagree
-        family[2] += opened
+        family[2] += unconfirmed
+        family[3] += opened
     print()
-    print("Totals by family (compared / differ / open):")
-    for family, (compared, disagree, opened) in totals.items():
-        print(f"  {family}: {compared} / {disagree} / {opened}")
+    print("Totals by family (compared / differ / differ unconfirmed / open):")
+    for family, (compared, disagree, unconfirmed, opened) in totals.items():
+        print(f"  {family}: {compared} / {disagree} / {unconfirmed} / {opened}")
     return 0
 
 

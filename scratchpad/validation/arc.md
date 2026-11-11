@@ -293,6 +293,9 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
     refuses them.
+  - Needs a dialog check: is `DS1==1-2` refused? The shared check lets a sign stand among
+    the digits; the Counter dialog refuses `1-2` with its own parse (Q-D2), and the
+    constant classifier (`operands/constants.py`) refuses it in every field.
 
 **data**
 - Q-D1 Timer set point: is 32767 accepted? Are 32768 and -1 refused? Is it the same for every

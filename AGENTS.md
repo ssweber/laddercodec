@@ -48,6 +48,8 @@ src/laddercodec/
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
 ├── model.py              # InstructionType enum, operand validation, base classes (ConditionInstruction, AfInstruction)
+├── operands/             # Operand checks
+│   └── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet)
 ├── instructions/         # Instruction dataclasses + blob builders/parsers
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── contact.py        # Contact (NO/NC/edge/immediate), build_blob(), cell_params(), parser
@@ -112,6 +114,8 @@ tests/
 │   ├── test_bundle.py       # Program bundle parsing
 │   ├── test_token_parser.py # Condition + AF token parsing
 │   └── test_writer.py       # CSV writer tests
+├── operands/
+│   └── test_constants.py    # classify() and parse_digits(): accepted and refused forms per kind
 └── fixtures/
     ├── ladder_captures/golden/  # Golden CSV/BIN fixtures
     ├── scr_captures/            # Scr program files + clipboard bins (decode_program)
