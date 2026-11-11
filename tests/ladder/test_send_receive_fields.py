@@ -342,11 +342,7 @@ def test_csv_range_counts_x_numbers() -> None:
     """X and Y ranges count by number, as they always have (Q-C6 is open)."""
     sent = _csv("send", "source=X001..X101", remote="C1")
     assert sent.quantity == 101
-    assert (
-        Send(**{**vars(send(remote_start="C1")), "source": "X1", "quantity": 17})
-        .to_csv()
-        .count("source=X1..X17")
-    )
+    assert "source=X1..X17" in send(remote_start="C1", source="X1", quantity=17).to_csv()
 
 
 def test_csv_range_end_is_an_address() -> None:
