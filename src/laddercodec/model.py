@@ -41,6 +41,10 @@ class ConditionInstruction:
 class AfInstruction:
     """Base class for AF-side instructions (Coil, Timer, Counter, Copy, Fill, RawInstruction)."""
 
+    #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
+    #: see :mod:`laddercodec.legacy`.
+    _legacy_findings: Collection[tuple[str, str, str]] = ()
+
     def to_csv(self) -> str:
         raise NotImplementedError
 

@@ -10,6 +10,9 @@
 
 ## Unreleased
 
+### Added
+- **Legacy encoding warning**: `decode()` and `decode_program()` emit `LegacyEncodingWarning` (a `UserWarning`, exported from `laddercodec`) for a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`), which earlier versions wrote and CLICK runs as its low 16 bits (`RAND ( 70000 , 70002 )` ran as `RAND(4464, 4466)`). The rungs still decode; the warning has `instruction`, `token`, `detail`, `rung` and `program` attributes. Re-paste the rung to store the constant as 32-bit.
+
 ### Changed
 - **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`; X and Y take `X001`-`X016`, `X021`-`X036` (the dual option slot) and `X101`-`X116` to `X801`-`X816`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
 - **Bit instruction rules**: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils), an `out` range stays in one bank and ascends, and a compare takes data registers or constants of one group (hex, numeric or text); a refused value raises `FieldError`, and a refused blob decodes as `raw(...)` or an unknown condition.
