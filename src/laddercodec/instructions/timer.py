@@ -65,6 +65,13 @@ class Timer(PinnedInstruction):
     #: legs beside and below it (native: tumbler ProductionErrors).
     pin_rows: tuple[int] = (1,)
 
+    def __post_init__(self) -> None:
+        if self.timer_type == "off_delay" and self.retained:
+            raise ValueError(
+                "off_delay can't be retentive (no .reset() pin): CLICK's Timer dialog "
+                "offers Retentive only for an On Delay timer"
+            )
+
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
         """Parse v1 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
@@ -205,6 +212,8 @@ def from_tags(
     # Clipboard: byte tag value 0 = on_delay, 1 = off_delay.
     timer_type = "off_delay" if tag_int(tags, 0x21FA) != 0 else "on_delay"
     retained = tag_int(tags, 0x21FB) != 0
+    if timer_type == "off_delay" and retained:
+        return None  # CLICK's dialog never writes it; keep the blob raw
     return Timer(
         timer_type=timer_type,
         done_bit=done_bit,
