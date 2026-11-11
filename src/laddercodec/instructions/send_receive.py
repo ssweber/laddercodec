@@ -16,8 +16,8 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction
+from ..binary_helpers import tag_int, tag_value
+from ..model import ADDRESS_BANKS, Address, AfInstruction, FieldError, check_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ class ModbusRtuTarget:
 
     def __post_init__(self) -> None:
         if self.com_port not in _RTU_PORT_MODE:
-            raise ValueError(
+            raise FieldError(
                 f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
@@ -59,11 +59,16 @@ class ModbusTcpTarget:
 
     def __post_init__(self) -> None:
         if self.com_port not in _TCP_PORT_MODE:
-            raise ValueError(
+            raise FieldError(
                 f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
         _check_device_id(self.device_id)
+        _check_ip(self.ip)
+        if isinstance(self.port, bool) or not isinstance(self.port, int):
+            raise FieldError(f"ModbusTcpTarget port must be an integer, got {self.port!r}")
+        if not 1 <= self.port <= 65535:
+            raise FieldError(f"ModbusTcpTarget port must be 1-65535, got {self.port}")
 
 
 _DS_ADDRESS_RE = re.compile(r"DS([1-9]\d*)")
@@ -74,9 +79,23 @@ def _check_device_id(device_id: int | str) -> None:
     if isinstance(device_id, str):
         m = _DS_ADDRESS_RE.fullmatch(device_id)
         if not m or int(m.group(1)) > 4500:
-            raise ValueError(
+            raise FieldError(
                 f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}"
             )
+    elif isinstance(device_id, bool) or not isinstance(device_id, int):
+        raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
+
+
+_IP_RE = re.compile(r"(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})")
+
+
+def _check_ip(ip: str) -> None:
+    """A TCP server IP is four octets, each 0-255 (0.0.0.0 is accepted)."""
+    m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
+    if m is None or any(int(octet) > 255 for octet in m.groups()):
+        raise FieldError(
+            f"ModbusTcpTarget ip must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
+        )
 
 
 @dataclass(frozen=True)
@@ -85,6 +104,32 @@ class ModbusAddress:
 
     address: str  # "400001" or "0h"
     register_type: str | None = None  # "coil"|"holding"|... — only for hex
+
+    def __post_init__(self) -> None:
+        if self.register_type is not None and self.register_type not in REGISTER_TYPES:
+            raise FieldError(
+                f"ModbusAddress register_type must be one of {', '.join(REGISTER_TYPES)}, "
+                f"got {self.register_type!r}"
+            )
+        if self.is_hex:
+            if not _HEX_RE.fullmatch(self.address) or int(self.address[:-1], 16) > 0xFFFE:
+                raise FieldError(
+                    f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
+                )
+        elif not self.address.isascii() or not self.address.isdigit():
+            raise FieldError(
+                f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
+                f"got {self.address!r}"
+            )
+
+    @property
+    def is_hex(self) -> bool:
+        return self.address.endswith("h")
+
+
+#: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
+REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
+_HEX_RE = re.compile(r"[0-9A-Fa-f]{1,4}h")
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +265,155 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
     if isinstance(remote_start, str):
         return remote_start
     return remote_start.address
+
+
+# ---------------------------------------------------------------------------
+# Field rules (CLICK v4.00 Help topics 180/181 for RTU, 213/214 for TCP)
+# ---------------------------------------------------------------------------
+
+_SEND_REMOTE_BITS = frozenset({"Y", "C"})
+_SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
+_SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
+_SEND_LOCAL_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+_SEND_LOCAL_REGS_FC06 = frozenset({"DS", "DH", "XD", "YD", "TD", "SD", "TXT"})
+_SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "TXT"})
+_RECEIVE_REMOTE_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+_RECEIVE_REGS = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "YD", "TXT"})
+_RECEIVE_LOCAL_BITS = frozenset({"Y", "C"})
+
+_STATUS_BITS = frozenset({"C"})
+_EXCEPTION_BANKS = frozenset({"DS", "DD"})
+
+#: Local banks whose elements are two registers wide, so the count cap halves.
+_WIDE_BANKS = frozenset({"DD", "DF", "CTD"})
+
+#: Count caps: (bits, registers, 32-bit registers).
+_SEND_CAPS = (1968, 123, 61)
+_RECEIVE_CAPS = (2000, 125, 62)
+
+#: MODBUS 984 start addresses by kind.
+_984_COIL = (1, 65535)
+_984_INPUT_BIT = (100001, 165535)
+_984_INPUT_REG = (300001, 365535)
+_984_HOLDING = (400001, 465535)
+
+
+def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
+    """A numeric Slave ID: RTU 0-247 (Receive 1-247), TCP 0-255; a DS address always passes."""
+    device_id = target.device_id
+    if isinstance(device_id, str):
+        return
+    if isinstance(target, ModbusRtuTarget):
+        low, high, link = rtu_low, 247, "RTU"
+    else:
+        low, high, link = 0, 255, "TCP"
+    if not low <= device_id <= high:
+        raise FieldError(f"{who} target.device_id: {device_id} is outside {low}-{high} for {link}")
+
+
+def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> None:
+    if value:
+        check_address(value, f"{who} {name}", banks=banks)
+
+
+def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str:
+    """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to."""
+    n = int(address)
+    for kind, (low, high) in kinds.items():
+        if low <= n <= high:
+            return kind
+    ranges = ", ".join(f"{low}-{high}" for low, high in kinds.values())
+    raise FieldError(f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}")
+
+
+def _check_quantity(
+    who: str, quantity: int, local: Address, caps: tuple[int, int, int], bit: bool
+) -> None:
+    if isinstance(quantity, bool) or not isinstance(quantity, int):
+        raise FieldError(f"{who} quantity: {quantity!r} is not an integer")
+    bits, regs, wide = caps
+    if bit:
+        high, kind = bits, "bits"
+    elif local.bank in _WIDE_BANKS:
+        high, kind = wide, f"{local.bank} registers"
+    else:
+        high, kind = regs, "registers"
+    if not 1 <= quantity <= high:
+        raise FieldError(f"{who} quantity: {quantity} is outside 1-{high} {kind}")
+    if local.bank in ("X", "Y", "XD", "YD"):
+        return  # how CLICK counts across module gaps and XD0u is not known (Q-C6)
+    last_number = ADDRESS_BANKS[local.bank][1]
+    left = last_number - local.number + 1
+    if quantity > left:
+        raise FieldError(
+            f"{who} quantity: {quantity} from {local.bank}{local.number} runs past "
+            f"{local.bank}{last_number} ({left} left)"
+        )
+
+
+def _validate_send(send: Send) -> None:
+    who = "Send"
+    _check_slave_id(who, send.target, 0)
+    remote, quantity = send.remote_start, send.quantity
+    block = isinstance(quantity, int) and quantity > 1
+    if isinstance(remote, str):
+        # One register may go out as FC06 or FC16; a block is always FC16.
+        regs = _SEND_REMOTE_REGS_FC16
+        if not block:
+            regs = regs | _SEND_REMOTE_REGS_FC06
+        found = check_address(remote, f"{who} remote_start", _SEND_REMOTE_BITS | regs)
+        bit = found.bank in _SEND_REMOTE_BITS
+    elif remote.is_hex:
+        register_type = remote.register_type or "holding"
+        if register_type not in ("coil", "holding"):
+            raise FieldError(
+                f"{who} remote_start: register_type {register_type!r} cannot be written; "
+                "a Send takes coil or holding"
+            )
+        bit = register_type == "coil"
+    else:
+        kinds = {"coil": _984_COIL, "holding": _984_HOLDING}
+        bit = _check_984(who, remote.address, kinds) == "coil"
+
+    if bit:
+        banks = _SEND_LOCAL_BITS
+    elif block:
+        banks = _SEND_LOCAL_REGS_FC16
+    else:
+        banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
+    local = check_address(send.source, f"{who} source", banks)
+    _check_quantity(who, quantity, local, _SEND_CAPS, bit)
+    _check_status(who, "sending", send.sending, _STATUS_BITS)
+    _check_status(who, "success", send.success, _STATUS_BITS)
+    _check_status(who, "error", send.error, _STATUS_BITS)
+    _check_status(who, "exception_response", send.exception_response, _EXCEPTION_BANKS)
+
+
+def _validate_receive(receive: Receive) -> None:
+    who = "Receive"
+    _check_slave_id(who, receive.target, 1)
+    remote = receive.remote_start
+    if isinstance(remote, str):
+        found = check_address(remote, f"{who} remote_start", _RECEIVE_REMOTE_BITS | _RECEIVE_REGS)
+        bit = found.bank in _RECEIVE_REMOTE_BITS
+    elif remote.is_hex:
+        bit = (remote.register_type or "holding") in ("coil", "discrete_input")
+    else:
+        kinds = {
+            "coil": _984_COIL,
+            "discrete_input": _984_INPUT_BIT,
+            "input": _984_INPUT_REG,
+            "holding": _984_HOLDING,
+        }
+        bit = _check_984(who, remote.address, kinds) in ("coil", "discrete_input")
+
+    banks = _RECEIVE_LOCAL_BITS if bit else _RECEIVE_REGS
+    local = check_address(receive.dest, f"{who} dest", banks)
+    _check_quantity(who, receive.quantity, local, _RECEIVE_CAPS, bit)
+    _check_status(who, "receiving", receive.receiving, _STATUS_BITS)
+    _check_status(who, "success", receive.success, _STATUS_BITS)
+    _check_status(who, "error", receive.error, _STATUS_BITS)
+    _check_status(who, "exception_response", receive.exception_response, _EXCEPTION_BANKS)
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +597,9 @@ class Receive(AfInstruction):
     exception_response: str  # DS/DD address ("" if disabled)
     word_swap: bool = False
 
+    def __post_init__(self) -> None:
+        _validate_receive(self)
+
     def to_csv(self) -> str:
         parts: list[str] = []
         parts.append(f"target={_target_to_csv(self.target)}")
@@ -490,6 +687,9 @@ class Send(AfInstruction):
     error: str
     exception_response: str
     word_swap: bool = False
+
+    def __post_init__(self) -> None:
+        _validate_send(self)
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -715,10 +915,10 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
         remote_start=remote_start,
         source=source,
         quantity=tag_int(tags, 0x3210),
-        sending=tag_value(tags, 0x607C) if tag_flag(tags, 0x120A) else "",
-        success=tag_value(tags, 0x607B) if tag_flag(tags, 0x1209) else "",
-        error=tag_value(tags, 0x607D) if tag_flag(tags, 0x120B) else "",
-        exception_response=tag_value(tags, 0x6083) if tag_flag(tags, 0x121A) else "",
+        sending=tag_value(tags, 0x607C),
+        success=tag_value(tags, 0x607B),
+        error=tag_value(tags, 0x607D),
+        exception_response=tag_value(tags, 0x6083),
         word_swap=tag_value(tags, 0x221C) == "0",
     )
 
@@ -778,7 +978,10 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         return ModbusRtuTarget(name=name, com_port=com_port, device_id=device_id)
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
-        port = int(kw.get("port", "502"))
+        raw_port = kw.get("port", "502")
+        if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
+            raise FieldError(f"ModbusTcpTarget port must be an integer, got {raw_port!r}")
+        port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise ValueError(f"Unknown target type: {cls_name!r}")
@@ -807,10 +1010,18 @@ def _parse_range_quantity(raw: str) -> tuple[str, int]:
         end = end.strip()
         m_start = _ADDR_NUM_RE.fullmatch(start)
         m_end = _ADDR_NUM_RE.fullmatch(end)
-        if m_start and m_end and m_start.group(1) == m_end.group(1):
-            qty = int(m_end.group(2)) - int(m_start.group(2)) + 1
-            return start, qty
-        return start, 1
+        if not (m_start and m_end):
+            raise FieldError(f"range {raw!r} must run between two addresses of one bank")
+        prefix = m_start.group(1)
+        if m_end.group(1) != prefix:
+            raise FieldError(f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}")
+        if prefix not in ("X", "Y", "XD", "YD"):  # module numbering is open (Q-C6)
+            check_address(end, f"range end of {raw!r}", banks={prefix})
+        first, last = int(m_start.group(2)), int(m_end.group(2))
+        qty = last - first + 1
+        if qty < 1:
+            raise FieldError(f"range {raw!r} runs backwards")
+        return start, qty
     return raw.strip(), 1
 
 
