@@ -47,7 +47,12 @@ src/laddercodec/
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
-├── model.py              # InstructionType enum, operand validation, base classes (ConditionInstruction, AfInstruction)
+├── model.py              # InstructionType enum, base classes (ConditionInstruction, AfInstruction); re-exports operands/
+├── operands/             # Shared operand rules (private; model.py re-exports the public names)
+│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, display form, X/Y slots
+│   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
+│   ├── errors.py         # FieldError, AddressError (.field, .obj, .source)
+│   └── sources.py        # Src: the kind and public reference of a rule's evidence
 ├── instructions/         # Instruction dataclasses + blob builders/parsers
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── contact.py        # Contact (NO/NC/edge/immediate), build_blob(), cell_params(), parser
@@ -81,7 +86,8 @@ src/laddercodec/
 - **cell.py** — Cell object builders. `ClickCell` dataclass builds 0x25-byte header + blob + 16-byte tail. Also: `build_preamble_cell()`, `build_terminal_cell()`, `build_row()`.
 - **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, cell flag constants (+0x19 segment, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
-- **model.py** — `InstructionType` enum (0x2711–0x2718), operand validation, `ConditionInstruction` and `AfInstruction` base classes. All instruction dataclasses inherit from one of these; the pipeline uses them for isinstance dispatch so new types are recognized automatically.
+- **model.py** — `InstructionType` enum (0x2711–0x2718), `ConditionInstruction` and `AfInstruction` base classes. All instruction dataclasses inherit from one of these; the pipeline uses them for isinstance dispatch so new types are recognized automatically. Re-exports the address check and field errors from `operands/`, so `from laddercodec.model import check_address` keeps working.
+- **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), and rule sources (`sources.py`, no DLL addresses). `tests/test_operand_guards.py` lists every constant regex, hand-typed bank set and bare `raise ValueError` in `instructions/`; a new one fails the test, and an entry the code no longer has must be removed.
 - **instructions/** — Instruction dataclasses with `build_blob()` and `cell_params()` methods, func code tables, and blob parsers. Each dataclass knows how to serialize itself — the grid loop just calls `token.build_blob()` and `token.cell_params()`. Registry in `__init__.py` dispatches class name → module.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
 - **csv/converter.py** — RungAst → Rung converter. Handles pin rows (`.reset()` → retentive timers) and tall instruction auto-padding.
@@ -94,6 +100,8 @@ tests/
 ├── test_smoke.py            # Basic sanity check
 ├── test_coverage.py         # Coverage golden fixture tests (instruction variants)
 ├── test_v4_captures.py      # CLICK v4 captures: each rung decodes to its comment; native blob matching
+├── test_operands.py         # operands/: bank masks vs code sets, FieldError attributes, Src
+├── test_operand_guards.py   # Ratchet allowlist: constant regexes, bank sets, raise ValueError
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/
 │   ├── test_encode.py       # encode() pipeline, multi-row, comments, wires, NOP
