@@ -431,15 +431,11 @@ Producer may emit:
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
-  - `device_id` numbers run 0-247 for Send RTU, 1-247 for Receive RTU and 0-255 for TCP. A TCP
-    `port` is 1-65535 and `ip` is four octets of 0-255.
-  - `remote_start` is a CLICK address, a MODBUS 984 `ModbusAddress(address=400001)` or a hex
-    `ModbusAddress(address=0h,register_type=coil)` (`0h`-`FFFEh`; `register_type` is `coil`,
-    `discrete_input`, `holding` or `input`, and a Send takes only `coil` or `holding`). A 984
-    address must sit in its function code's range.
-  - `source` and `dest` take a range (`DS1..DS5`) that runs forward inside one bank. The count
-    is 1-1968 coils or 1-123 registers (1-61 for DD, DF and CTD) on a Send, and 1-2000 bits or
-    1-125 registers (1-62 for DD, DF and CTD) on a Receive, and must fit in the bank.
+  - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
+  - Hex `remote_start` runs `0h`-`FFFEh`; a Send takes `register_type` `coil` or `holding`.
+  - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
+    1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
+    DD, DF, CTD).
   - `sending`, `receiving`, `success` and `error` are C bits; `exception_response` is DS or DD.
 - `call("subroutine_name")`
   - Subroutine names must not contain `"`

@@ -15,7 +15,6 @@
 - **Send/Receive checks**: `Send` and `Receive` raise `FieldError` for a slave ID, TCP port or IP, `register_type`, MODBUS 984 or hex remote address, CLICK bank, count or status operand CLICK refuses, and a CSV range that runs backwards or mixes banks; such a blob decodes as `raw(...)`.
 - **Send decode**: a Send keeps a status operand whose enable flag is 0, as Receive does, since CLICK v4 rederives the flags from the strings.
 - **Call and For**: `Call(subroutine="")` and a blank or whitespace-only `ForLoop` limit raise `FieldError`; a For blob with a blank limit decodes as `raw(...)`.
-
 - **Timer, Counter and Drum fields**: these raise `FieldError` for a value CLICK's dialog refuses: a timer or counter number outside T1-T500 or CT1-CT250, a current value that does not match it, a non-numeric constant set point, an unknown timer unit, and a drum with more than 16 steps or outputs, a pattern that does not match them, or a blank event or duration. A Drum used to drop steps or outputs past 16 without a message.
 
 ## 0.3.3 (2026-11-11)

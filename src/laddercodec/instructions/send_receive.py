@@ -242,30 +242,12 @@ def _sd_fc_subtype(remote_start: str | ModbusAddress, quantity: int) -> str:
 _ADDR_NUM_RE = re.compile(r"^([A-Z]+)(\d+)$")
 
 
-_MODULE_POINTS = 16  # X and Y number by module: X001-X016, X101-X116, ...
-
-
-def _ordinal(prefix: str, num: int) -> int:
-    """Position of an address inside its bank; X and Y skip the numbers between modules."""
-    if prefix in ("X", "Y") and 1 <= num % 100 <= _MODULE_POINTS:
-        return (num // 100) * _MODULE_POINTS + num % 100 - 1
-    return num
-
-
-def _from_ordinal(prefix: str, ordinal: int) -> int:
-    if prefix in ("X", "Y"):
-        return (ordinal // _MODULE_POINTS) * 100 + ordinal % _MODULE_POINTS + 1
-    return ordinal
-
-
 def _addr_end(start: str, quantity: int) -> str:
     """Compute end address from start + quantity (e.g. DS1 + 5 → DS5)."""
     m = _ADDR_NUM_RE.fullmatch(start)
     if not m:
         return start
     prefix, num = m.group(1), int(m.group(2))
-    if prefix in ("X", "Y") and 1 <= num % 100 <= _MODULE_POINTS:
-        return f"{prefix}{_from_ordinal(prefix, _ordinal(prefix, num) + quantity - 1)}"
     return f"{prefix}{num + quantity - 1}"
 
 
@@ -358,10 +340,10 @@ def _check_quantity(
         high, kind = regs, "registers"
     if not 1 <= quantity <= high:
         raise FieldError(f"{who} quantity: {quantity} is outside 1-{high} {kind}")
-    if local.bank in ("XD", "YD"):
-        return
+    if local.bank in ("X", "Y", "XD", "YD"):
+        return  # how CLICK counts across module gaps and XD0u is not known (Q-C6)
     last_number = ADDRESS_BANKS[local.bank][1]
-    left = _ordinal(local.bank, last_number) - _ordinal(local.bank, local.number) + 1
+    left = last_number - local.number + 1
     if quantity > left:
         raise FieldError(
             f"{who} quantity: {quantity} from {local.bank}{local.number} runs past "
@@ -996,7 +978,10 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         return ModbusRtuTarget(name=name, com_port=com_port, device_id=device_id)
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
-        port = int(kw.get("port", "502"))
+        raw_port = kw.get("port", "502")
+        if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
+            raise FieldError(f"ModbusTcpTarget port must be an integer, got {raw_port!r}")
+        port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise ValueError(f"Unknown target type: {cls_name!r}")
@@ -1030,8 +1015,9 @@ def _parse_range_quantity(raw: str) -> tuple[str, int]:
         prefix = m_start.group(1)
         if m_end.group(1) != prefix:
             raise FieldError(f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}")
+        check_address(end, f"range end of {raw!r}", banks={prefix})
         first, last = int(m_start.group(2)), int(m_end.group(2))
-        qty = _ordinal(prefix, last) - _ordinal(prefix, first) + 1
+        qty = last - first + 1
         if qty < 1:
             raise FieldError(f"range {raw!r} runs backwards")
         return start, qty

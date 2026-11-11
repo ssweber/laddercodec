@@ -276,10 +276,9 @@ def test_count_must_fit_local_bank() -> None:
         send(remote_start="C1", source="C1999", quantity=3)
 
 
-def test_count_fits_across_x_modules() -> None:
+def test_room_not_checked_for_x() -> None:
     send(remote_start="C1", source="X101", quantity=16)
-    with pytest.raises(FieldError, match="runs past X816"):
-        send(remote_start="C1", source="X815", quantity=3)
+    send(remote_start="C1", source="X815", quantity=3)  # room is not checked for X (Q-C6)
 
 
 # --- status operands --------------------------------------------------------
@@ -339,10 +338,33 @@ def test_csv_range_error_for_receive() -> None:
         _csv("receive", "dest=DS5..DS1")
 
 
-def test_csv_range_counts_x_points_not_numbers() -> None:
+def test_csv_range_counts_x_numbers() -> None:
+    """X and Y ranges count by number, as they always have (Q-C6 is open)."""
     sent = _csv("send", "source=X001..X101", remote="C1")
-    assert sent.quantity == 17
-    assert "source=X001..X101" in sent.to_csv()
+    assert sent.quantity == 101
+    assert (
+        Send(**{**vars(send(remote_start="C1")), "source": "X1", "quantity": 17})
+        .to_csv()
+        .count("source=X1..X17")
+    )
+
+
+def test_csv_range_end_is_an_address() -> None:
+    with pytest.raises(AddressError, match="range end"):
+        _csv("send", "source=X001..X017", remote="C1")
+    with pytest.raises(AddressError, match="range end"):
+        _csv("send", "source=DS1..DS4501")
+
+
+def test_csv_port_not_a_number() -> None:
+    token = (
+        'send(target=ModbusTcpTarget(name="t",ip="1.2.3.4",port=abc,device_id=1),'
+        'remote_start="DS1",source=DS1)'
+    )
+    node = parse_af_token(token)
+    assert isinstance(node, AfCall)
+    with pytest.raises(FieldError, match="port"):
+        parse_af_call(node)
 
 
 def test_csv_construction_goes_through_rules() -> None:
