@@ -537,7 +537,7 @@ Allowed AF token forms:
 - `out(immediate(Y001))`
 - `latch(immediate(Y001))`
 - `reset(immediate(Y001))`
-- `out(immediate(Y001..Y004))` (contiguous mapped range only)
+- `out(immediate(Y001..Y004))`
 
 Rules:
 
@@ -549,10 +549,11 @@ Rules:
   - edge contacts (`rise(...)`, `fall(...)`),
   - non-coil instruction operands (`copy`, `math`, `search`, etc.).
 - Immediate coil targets must resolve to `Y` bank addresses.
-- Immediate-wrapped ranges must resolve to one contiguous address span to emit
-  compact `BANKstart..BANKend` form.
-  - Non-contiguous mappings fail strict validation/export with explicit
-    diagnostics.
+- An immediate range is any ascending `Y` range, including one that crosses a
+  module (`out(immediate(Y001..Y101))`).
+- pyrung's exporter writes an immediate range in `BANKstart..BANKend` form only when
+  its tags map to one contiguous address span; a mapping that does not fails
+  pyrung's export check with a diagnostic.
 
 ## Strict validation and failure mode
 

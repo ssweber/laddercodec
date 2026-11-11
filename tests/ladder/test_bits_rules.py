@@ -191,9 +191,19 @@ class TestCoil:
             Coil(COIL_TYPES[name], op)
 
     def test_writable_sc_is_the_dialog_list(self) -> None:
-        assert len(WRITABLE_SC) == 25
-        assert {50, 51, 53, 55, 120, 121, 171, 303, 326} <= WRITABLE_SC
-        assert not {1, 52, 54, 122, 327} & WRITABLE_SC
+        # Q-B2, user dialog check 2026-11-11: the 25 bits CLICK's address picker lists.
+        assert WRITABLE_SC == {
+            50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121,
+            162, 165, 168, 171, 303, 304, 305, 306, 323, 324, 325, 326,
+        }  # fmt: skip
+
+    @pytest.mark.parametrize("token", ["out", "latch", "reset", "toggle"])
+    @pytest.mark.parametrize("op", ["SC1", "SC50"])
+    def test_immediate_sc_names_the_immediate_rule(
+        self, tmp_path: Path, token: str, op: str
+    ) -> None:
+        with pytest.raises(FieldError, match=f"'{op}' is not allowed; an immediate coil takes Y"):
+            _read_af(tmp_path, f"{token}(immediate({op}))")
 
     @pytest.mark.parametrize("name", _COILS)
     def test_sc_range_checks_both_ends(self, tmp_path: Path, name: str) -> None:

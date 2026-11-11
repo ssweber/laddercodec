@@ -83,16 +83,17 @@ _WRITABLE_SC_TEXT = ", ".join(f"SC{n}" for n in sorted(WRITABLE_SC))
 def check_out_target(operand: str, name: str, *, immediate: bool = False) -> Address:
     """Check one address a coil writes (Out, Set, Reset or an Out variant); return it.
 
-    The bank is Y, C or SC, an SC bit is one of :data:`WRITABLE_SC`, and an immediate
-    target is Y.
+    The bank is Y, C or SC, an immediate target is Y, and an SC bit is one of
+    :data:`WRITABLE_SC`.
     """
     address = check_address(operand, name, OUT_BANKS)
+    # Immediate first: an immediate SC target is refused whatever its number.
+    if immediate and address.bank != "Y":
+        raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
     if address.bank == "SC" and address.number not in WRITABLE_SC:
         raise AddressError(
             f"{name}: {operand!r} is not a writable SC bit; a coil writes {_WRITABLE_SC_TEXT}"
         )
-    if immediate and address.bank != "Y":
-        raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
     return address
 
 
