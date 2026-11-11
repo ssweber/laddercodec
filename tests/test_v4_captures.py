@@ -10,7 +10,8 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
-``text_q.bin`` and ``text_compare.bin``) are only used by the blob tests below.
+``text_q.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
+``debounce_one_phase.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -376,6 +377,36 @@ def test_out_variant_is_not_a_plain_coil() -> None:
     assert (
         af.to_csv() == "debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=100,unit=Tms)"
     )
+
+
+#: ``debounce_one_phase.bin``: debounces saved in CLICK v4 with one phase left empty
+#: (rung 0 off phase only, rung 1 on phase only).  CLICK writes the empty phase's
+#: accumulator and preset as empty strings.
+_ONE_PHASE_DEBOUNCES = [
+    "debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)",
+    "debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)",
+]
+
+
+def test_one_phase_debounce_capture(tmp_path: Path) -> None:
+    """Each one-phase debounce decodes, re-encodes to CLICK's blob and survives CSV."""
+    path = CAPTURE_DIR / "debounce_one_phase.bin"
+    buf = path.read_bytes()
+    rungs = _decode_file(path)
+    variants = [rung.instructions[0] for rung in rungs]
+    assert [v.to_csv() for v in variants if isinstance(v, OutVariant)] == _ONE_PHASE_DEBOUNCES
+    needle = "Out".encode("utf-16-le") + b"\x00\x00"
+    starts = []
+    i = -1
+    while (i := buf.find(needle, i + 1)) != -1:
+        starts.append(i)
+    assert len(starts) == len(variants)
+    for variant, start in zip(variants, starts, strict=True):
+        assert isinstance(variant, OutVariant)
+        blob = variant.build_blob()
+        assert buf[start : start + len(blob)] == blob, variant.to_csv()
+    write_csv(tmp_path / "rungs.csv", rungs)
+    assert [r.instructions[0] for r in read_csv(tmp_path / "rungs.csv")] == variants
 
 
 # ---------------------------------------------------------------------------

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, decode, decode_program
+from laddercodec import AddressError, FieldError, decode, decode_program, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
@@ -243,3 +245,220 @@ class TestRefusedBlobsDecodeAsRaw:
         [decoded] = decode(data).instructions
         assert isinstance(decoded, RawInstruction)
         assert decoded.class_name == "Drum"
+
+
+# ---------------------------------------------------------------------------
+# Rules from CLICK v4.00's dialog code (Q-D1..Q-D5: the
+# Inst_*.dll OnOK checks and their OBJ ids) and the user's dialog checks of
+# 2026-11-11 (address normalization).
+# ---------------------------------------------------------------------------
+
+
+def _read_af(tmp_path: Path, af: str) -> object:
+    """Read one rung holding ``af``; a counter or drum gets its required ``.reset()`` row."""
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", "X001"] + ["-"] * 30 + [af])
+        if af.startswith(("count_", "event_drum", "time_drum", "time_event_drum")):
+            w.writerow(["", "X002"] + ["-"] * 30 + [".reset()"])
+    return read_csv(path)[0].instructions[0]
+
+
+def _raw_after(model: object, **bad: object) -> RawInstruction:
+    """Encode ``model`` with ``bad`` fields set past the checks; decode it back."""
+    for name, value in bad.items():
+        object.__setattr__(model, name, value)
+    [decoded] = decode(encode_rung(1, [["-"] * 31], [model])).instructions
+    assert isinstance(decoded, RawInstruction)
+    return decoded
+
+
+class TestTimerSetpointRange:
+    # Q-D1: 0..32767 for every unit; 32768 and any sign refused (OBJ-005).
+    @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
+    def test_limits_for_every_unit(self, tmp_path: Path, unit: str) -> None:
+        for value in ("0", "32767"):
+            token = f"on_delay(T1,TD1,preset={value},unit={unit})"
+            assert _read_af(tmp_path, token) == timer(setpoint=value, unit=unit)
+        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is above 32767"):
+            _read_af(tmp_path, f"on_delay(T1,TD1,preset=32768,unit={unit})")
+        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is above 32767"):
+            timer(setpoint="32768", unit=unit)
+
+    @pytest.mark.parametrize("setpoint", ["-1", "+5", "1 0"])
+    def test_sign_refused(self, tmp_path: Path, setpoint: str) -> None:
+        with pytest.raises(FieldError, match="^Timer.setpoint"):
+            _read_af(tmp_path, f"off_delay(T1,TD1,preset={setpoint},unit=Ts)")
+
+    def test_refused_setpoint_decodes_as_raw(self) -> None:
+        assert _raw_after(timer(), setpoint="40000").class_name == "Tmr"
+
+
+class TestCounterPresetRange:
+    # Q-D2: a 32-bit signed constant (OBJ-005); registers DS and DD only (OBJ-004).
+    @pytest.mark.parametrize("preset", ["2147483647", "-2147483648", "0", "DS1", "DD1"])
+    def test_accepted(self, tmp_path: Path, preset: str) -> None:
+        parsed = _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
+        assert parsed == counter(preset=preset, reset_enabled=True)
+
+    @pytest.mark.parametrize("preset", ["2147483648", "-2147483649", "99999999999"])
+    def test_out_of_range(self, tmp_path: Path, preset: str) -> None:
+        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is outside"):
+            _read_af(tmp_path, f"count_down(CT1,CTD1,preset={preset})")
+        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is outside"):
+            counter(preset=preset)
+
+    @pytest.mark.parametrize("preset", ["1.5", "abc", "1-2", "--5"])
+    def test_not_an_integer(self, tmp_path: Path, preset: str) -> None:
+        with pytest.raises(FieldError, match="^Counter.preset"):
+            _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
+
+    def test_text_under_13_characters(self) -> None:
+        # Inst_Counter.dll: a constant's text is under 13 characters (OBJ-005).
+        assert counter(preset="000000000001").preset == "000000000001"
+        with pytest.raises(FieldError, match="13 characters; a constant set point is at most 12"):
+            counter(preset="0000000000001")
+
+    @pytest.mark.parametrize("preset", ["DH1", "DF1", "TD1", "CTD1", "SD1", "XD1"])
+    def test_other_registers_refused(self, tmp_path: Path, preset: str) -> None:
+        message = rf"^Counter.preset: '{preset}' is not allowed; Counter.preset takes DS, DD$"
+        with pytest.raises(AddressError, match=message):
+            _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
+        with pytest.raises(AddressError, match=message):
+            counter(preset=preset)
+
+    @pytest.mark.parametrize("preset", ["DH1", "2147483648", "0000000000001"])
+    def test_refused_presets_decode_as_raw(self, preset: str) -> None:
+        assert _raw_after(counter(reset_enabled=True), preset=preset).class_name == "Cnt"
+
+
+class TestShiftRules:
+    # Q-D3: C only (OBJ-004); start == end refused (OBJ-012); start > end allowed.
+    def test_c_range(self, tmp_path: Path) -> None:
+        assert _read_af(tmp_path, "shift(C1..C2000)") == Shift(start_bit="C1", end_bit="C2000")
+        assert _read_af(tmp_path, "shift(C106..C99)") == Shift(start_bit="C106", end_bit="C99")
+
+    @pytest.mark.parametrize(
+        ("token", "field"),
+        [
+            ("shift(Y1..Y8)", "start_bit"),
+            ("shift(T1..T8)", "start_bit"),
+            ("shift(SC1..SC8)", "start_bit"),
+            ("shift(X001..X008)", "start_bit"),
+            ("shift(C1..X008)", "end_bit"),
+            ("shift(C1..Y8)", "end_bit"),
+        ],
+    )
+    def test_other_banks_refused(self, tmp_path: Path, token: str, field: str) -> None:
+        with pytest.raises(AddressError, match=rf"^Shift.{field}: .* takes C$"):
+            _read_af(tmp_path, token)
+
+    @pytest.mark.parametrize("end", ["C1", "C001"])
+    def test_same_address_refused(self, tmp_path: Path, end: str) -> None:
+        # CLICK normalizes C001 to C1 as it is typed (user dialog check 2026-11-11).
+        with pytest.raises(FieldError, match=rf"^Shift.end_bit: '{end}' is the same address"):
+            _read_af(tmp_path, f"shift(C1..{end})")
+        with pytest.raises(FieldError, match="OBJ-012"):
+            Shift(start_bit="C1", end_bit=end)
+
+    @pytest.mark.parametrize("bad", [{"end_bit": "C1"}, {"start_bit": "Y1", "end_bit": "Y2"}])
+    def test_refused_blobs_decode_as_raw(self, bad: dict[str, str]) -> None:
+        assert _raw_after(Shift(start_bit="C1", end_bit="C2"), **bad).class_name == "SR"
+
+    def test_scr_same_address_decodes_as_raw(self) -> None:
+        # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
+        data = (_SCR_DIR / "shift_scr.scr").read_bytes()
+        assert data.count(_scr_text("C2")) == 2
+        rungs = decode_program(data.replace(_scr_text("C2"), _scr_text("C1"))).rungs
+        assert [type(r.instructions[0]) for r in rungs] == [RawInstruction, RawInstruction]
+
+
+class TestDrumDurations:
+    # Q-D4: 0..32767 for every unit, digits only (OBJ-005); a register is DS (OBJ-004).
+    @pytest.mark.parametrize("kind", ["time", "time_event"])
+    @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
+    def test_limits(self, kind: str, unit: str) -> None:
+        assert drum(kind, events_or_presets=["0", "32767"], unit=unit)
+        assert drum(kind, events_or_presets=["DS1", "5"], unit=unit)
+        with pytest.raises(FieldError, match=r"^Drum.presets\[1\]: '32768' is above 32767"):
+            drum(kind, events_or_presets=["1", "32768"], unit=unit)
+
+    @pytest.mark.parametrize("preset", ["-1", "+5", "1.5"])
+    def test_sign_or_fraction_refused(self, preset: str) -> None:
+        with pytest.raises(FieldError, match=r"^Drum.presets\[0\].*OBJ-005"):
+            drum("time", events_or_presets=[preset, "1"])
+
+    @pytest.mark.parametrize("preset", ["DD1", "TD1", "DH1"])
+    def test_other_registers_refused(self, preset: str) -> None:
+        with pytest.raises(AddressError, match=r"^Drum.presets\[0\]: .* takes DS$"):
+            drum("time", events_or_presets=[preset, "1"])
+
+    def test_csv(self, tmp_path: Path) -> None:
+        token = (
+            "time_drum(outputs=[C1,C2],presets=[32768,1],unit=Ts,pattern=[[1,0],[0,1]],"
+            "current_step=DS1,accumulator=TD1,completion_flag=C9)"
+        )
+        with pytest.raises(FieldError, match=r"^Drum.presets\[0\]: '32768'"):
+            _read_af(tmp_path, token)
+        assert isinstance(_read_af(tmp_path, token.replace("32768", "32767")), Drum)
+
+    def test_refused_duration_decodes_as_raw(self) -> None:
+        raw = _raw_after(drum("time"), events_or_presets=["40000", "1"])
+        assert raw.class_name == "Drum"
+
+
+class TestDrumEventsAndOutputs:
+    # Q-D5: events X, Y, C, T, CT or SC (OBJ-004); outputs differ from each other and
+    # from the completion flag (OBJ-014), compared as addresses.
+    @pytest.mark.parametrize("event", ["X001", "Y1", "C5", "T1", "CT1", "SC1"])
+    def test_event_banks_accepted(self, event: str) -> None:
+        assert drum(events_or_presets=[event, "C10"]).events_or_presets[0] == event
+        assert drum("time_event", events=[event, ""]).events[0] == event
+
+    @pytest.mark.parametrize("event", ["DS1", "TD1", "XD0", "TXT1"])
+    def test_other_event_banks_refused(self, event: str) -> None:
+        message = r"^Drum.events\[0\]: .* takes X, Y, C, T, CT, SC$"
+        with pytest.raises(AddressError, match=message):
+            drum(events_or_presets=[event, "C10"])
+        with pytest.raises(AddressError, match=message):
+            drum("time_event", events=[event, ""])
+
+    @pytest.mark.parametrize("second", ["C1", "C001"])
+    def test_output_twice_refused(self, tmp_path: Path, second: str) -> None:
+        # CLICK normalizes C001 to C1 as it is typed (user dialog check 2026-11-11).
+        token = (
+            f"event_drum(outputs=[C1,{second}],events=[X001,X002],pattern=[[1,0],[0,1]],"
+            "current_step=DS1,completion_flag=C9)"
+        )
+        message = rf"^Drum.outputs\[1\]: '{second}' is already output 0"
+        with pytest.raises(FieldError, match=message):
+            _read_af(tmp_path, token)
+
+    def test_y_output_twice_refused(self) -> None:
+        # CLICK writes Y1 as Y001 (user dialog check 2026-11-11): the same output.
+        with pytest.raises(FieldError, match="OBJ-014"):
+            drum(outputs=["Y001", "Y1"])
+
+    @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
+    def test_output_is_completion_flag(self, kind: str) -> None:
+        message = r"^Drum.outputs\[1\]: 'C050' is the completion flag"
+        with pytest.raises(FieldError, match=message):
+            drum(kind, outputs=["C1", "C050"], completion_flag="C50")
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            {"outputs": ["C1", "C1"]},
+            {"outputs": ["C1", "C50"]},
+            {"events_or_presets": ["DS1", "C10"]},
+        ],
+    )
+    def test_refused_blobs_decode_as_raw(self, bad: dict[str, list[str]]) -> None:
+        assert _raw_after(drum(), **bad).class_name == "Drum"
+
+    @pytest.mark.parametrize(("old", "new"), [("C184", "C183"), ("C184", "C187"), ("C185", "DS18")])
+    def test_scr_refused_blobs_decode_as_raw(self, old: str, new: str) -> None:
+        # coverage: event_drum(outputs=[C183,C184],events=[C185,C186],...,completion_flag=C187).
+        assert _scr_raw_names(old, new) == ["Drum"]

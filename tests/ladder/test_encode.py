@@ -14,10 +14,21 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Coil, CompareContact, Contact, Copy, Return, Timer, decode, encode, read_csv
+from laddercodec import (
+    Coil,
+    CompareContact,
+    Contact,
+    Copy,
+    FieldError,
+    Return,
+    Timer,
+    decode,
+    encode,
+    read_csv,
+)
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import _sanitize_to_ascii, encode_rung
-from laddercodec.instructions.comparison import from_tags as compare_from_tags
+from laddercodec.instructions import from_tags_condition
 from laddercodec.instructions.copy import from_tags as copy_from_tags
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
@@ -362,9 +373,6 @@ _EMPTY_TEXT_SITES = [
     pytest.param("C1", 'copy("",TXT813)', id="copy_source"),
     pytest.param("C1", 'fill("",TXT1..TXT4)', id="fill_value"),
     pytest.param("C1", 'search(TXT1..TXT10 == "",result=DS1,found=C2)', id="search_value"),
-    pytest.param('TXT842==""', "out(Y001)", id="compare_right"),
-    pytest.param('""!=TXT842', "out(Y001)", id="compare_left"),
-    pytest.param('T:TXT842==""', "out(Y001)", id="compare_wire_down"),
 ]
 
 
@@ -379,16 +387,25 @@ def test_encode_refuses_empty_text_constant(tmp_path: Path, condition: str, af: 
 
 def test_encode_refuses_empty_text_constant_names_rung(tmp_path: Path) -> None:
     ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
-    bad = read_csv(_one_row_csv(tmp_path, 'TXT842==""', "out(Y001)"))[0]
-    with pytest.raises(ValueError, match=r'^Rung 1: Empty text constant "" in TXT842=="" at row=0'):
+    bad = read_csv(_one_row_csv(tmp_path, "C1", 'copy("",TXT813)'))[0]
+    with pytest.raises(
+        ValueError, match=r'^Rung 1: Empty text constant "" in copy\("",TXT813\) at row=0'
+    ):
         encode([ok, bad])
 
 
 def test_encode_refuses_empty_text_constant_in_objects() -> None:
     with pytest.raises(ValueError, match="Empty text constant"):
-        encode_rung(1, [_wire_row(CompareContact("==", "TXT1", '""'))], ["NOP"])  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="Empty text constant"):
         encode_rung(2, [_empty(), _empty()], [Copy(source='""', destination="TXT1"), ""])
+
+
+@pytest.mark.parametrize("condition", ['TXT842==""', '""!=TXT842', 'T:TXT842==""'])
+def test_compare_refuses_empty_text_constant_on_read(tmp_path: Path, condition: str) -> None:
+    # A compare refuses "" when it is built (bits.md N4: CLICK's dialog refuses it, OBJ-005).
+    with pytest.raises(FieldError, match="a text constant is one printable ASCII character"):
+        read_csv(_one_row_csv(tmp_path, condition, "out(Y001)"))
+    with pytest.raises(FieldError):
+        CompareContact("==", "TXT1", '""')
 
 
 @pytest.mark.parametrize(
@@ -411,11 +428,14 @@ def test_encode_accepts_nul_and_nonempty_text_constants(
 
 
 def test_decoder_accepts_empty_text_constant() -> None:
-    """The refusal is encode-only: decoded tags holding "" still build models."""
+    """The Copy refusal is encode-only: decoded tags holding "" still build a Copy.
+
+    A compare blob holding "" is refused when built, so it decodes as unknown.
+    """
     c = copy_from_tags("Copy", 0x2721, {0x6074: '""', 0x6076: "TXT1"}, {0x2223: 0, 0x2227: 0})
     assert isinstance(c, Copy) and c.to_csv() == 'copy("",TXT1)'
-    cmp = compare_from_tags("Compare", 0x2714, {0x6066: "TXT1", 0x6067: '""'}, {0x21F7: 0})
-    assert isinstance(cmp, CompareContact) and cmp.to_csv() == 'TXT1==""'
+    tags = {0x6066: "TXT1", 0x6067: '""', 0x21F7: "0"}
+    assert from_tags_condition("Compare", 0x2714, tags) is None
 
 
 # -- ASCII sanitization --

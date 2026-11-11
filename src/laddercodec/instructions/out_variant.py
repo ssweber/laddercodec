@@ -8,6 +8,7 @@ CSV token formats::
     toggle(C1)
     toggle(immediate(Y001))
     debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=DS1,unit=Tms)
+    debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)
     flasher(C1,on_acc=TD1,on_preset=500,off_acc=TD2,off_preset=250,unit=Tms)
     timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)
     timed(C1,on_acc=TD1,on_preset=3,unit=Ts,maintained=1)
@@ -68,6 +69,10 @@ _ACC_BANKS = frozenset({"TD"})
 #: Lowest constant preset: debounce takes 0, flasher and timed 1.
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
+#: Highest constant preset, for every kind (Q-B6: Inst_Out.dll caps a digits-only preset
+#: at 0x7FFF @10007b1c and @10007c45; OnOK refuses a larger one with OBJ-005).
+_PRESET_MAX = 32767
+
 #: Fields each kind uses; any other of them must stay empty.
 _USED_FIELDS: dict[str, frozenset[str]] = {
     "toggle": frozenset(),
@@ -78,8 +83,11 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 
 
 def _check_preset(value: str, name: str, floor: int) -> None:
-    """A preset is a DS register or a digits-only constant of at least *floor*."""
+    """A preset is a DS register or a digits-only constant from *floor* to 32767."""
     if value.isascii() and value.isdigit():
+        # The length guard keeps int() inside Python's digit limit for any input.
+        if len(value.lstrip("0")) > len(str(_PRESET_MAX)) or int(value) > _PRESET_MAX:
+            raise FieldError(f"{name}: {value!r} is above the maximum {_PRESET_MAX}")
         if int(value) < floor:
             raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
         return
@@ -154,11 +162,37 @@ class OutVariant(AfInstruction):
         if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
             raise FieldError(f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}")
         floor = _PRESET_FLOORS[self.kind]
-        check_address(self.on_acc, "OutVariant.on_acc", _ACC_BANKS)
-        _check_preset(self.on_preset, "OutVariant.on_preset", floor)
-        if self.kind in _TWO_PHASE:
-            check_address(self.off_acc, "OutVariant.off_acc", _ACC_BANKS)
-            _check_preset(self.off_preset, "OutVariant.off_preset", floor)
+        phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
+        if self.kind == "debounce":
+            # A debounce phase with both fields empty is skipped (Q-B4: Inst_Out.dll
+            # @100081c6 and @10008236); with both phases empty OnOK refuses the on preset,
+            # OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
+            filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
+            if not filled:
+                raise FieldError(
+                    "OutVariant.on_preset: debounce needs an on phase or an off phase "
+                    "(on_acc and on_preset, or off_acc and off_preset)"
+                )
+            phases = filled
+        accs = []
+        for ph in phases:
+            accs.append(
+                check_address(getattr(self, f"{ph}_acc"), f"OutVariant.{ph}_acc", _ACC_BANKS)
+            )
+            _check_preset(getattr(self, f"{ph}_preset"), f"OutVariant.{ph}_preset", floor)
+        # Q-B5: Inst_Out.dll compares the two TD fields @100080be and OnOK refuses one
+        # register for both with OBJ-012.
+        if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
+            raise FieldError(
+                f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "
+                f"{self.kind} needs two different TD registers"
+            )
+
+    def _phase_fields(self, phase: str) -> tuple[str, str]:
+        """Return ``(accumulator, preset)`` of the on or off phase."""
+        if phase == "on":
+            return (self.on_acc, self.on_preset)
+        return (self.off_acc, self.off_preset)
 
     @classmethod
     def from_csv_token(cls, token: str) -> OutVariant:
@@ -195,6 +229,9 @@ class OutVariant(AfInstruction):
             allowed = set(required)
         else:
             allowed.add("maintained")
+        if kind == "debounce":
+            # A debounce may leave out one phase; the constructor checks what is given.
+            required = {"unit"}
         missing = required - set(kwargs)
         if missing:
             raise ValueError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
@@ -208,9 +245,9 @@ class OutVariant(AfInstruction):
         return cls(
             kind=kind,
             operand=arg,
-            on_acc=kwargs["on_acc"],
-            on_preset=kwargs["on_preset"],
-            off_acc=kwargs["off_acc"] if kind in _TWO_PHASE else "",
+            on_acc=kwargs.get("on_acc", ""),
+            on_preset=kwargs.get("on_preset", ""),
+            off_acc=kwargs.get("off_acc", ""),
             off_preset=kwargs.get("off_preset", ""),
             unit=kwargs["unit"],
             maintained=maintained_raw == "1",
@@ -225,9 +262,12 @@ class OutVariant(AfInstruction):
         if self.kind == "toggle":
             operand = f"immediate({self.operand})" if self.immediate else self.operand
             return f"toggle({operand})"
-        parts = [self.operand, f"on_acc={self.on_acc}", f"on_preset={self.on_preset}"]
-        if self.kind in _TWO_PHASE:
-            parts += [f"off_acc={self.off_acc}", f"off_preset={self.off_preset}"]
+        parts = [self.operand]
+        for ph in ("on", "off") if self.kind in _TWO_PHASE else ("on",):
+            acc, preset = self._phase_fields(ph)
+            # A one-phase debounce leaves out the empty phase's keywords.
+            if self.kind != "debounce" or (acc, preset) != ("", ""):
+                parts += [f"{ph}_acc={acc}", f"{ph}_preset={preset}"]
         parts.append(f"unit={self.unit}")
         if self.maintained:
             parts.append("maintained=1")

@@ -24,7 +24,7 @@ from .encode import (
     _compute_seg_boundaries,
     _normalize_af,
 )
-from .instructions import AfInstruction, CompareContact, ConditionInstruction, Copy, Fill, Search
+from .instructions import AfInstruction, ConditionInstruction, Copy, Fill, Search
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -32,16 +32,14 @@ from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 # ---------------------------------------------------------------------------
 
 #: An empty text constant.  CLICK writes one TXT register per character of a
-#: text constant, so ``""`` writes nothing, and a compare against it is not a
-#: usable compare (a TXT holding "T" read equal to ``""`` on a CLICK).  The
-#: blank / NUL character is spelled with the ASCII-code constant ``$00``.
+#: text constant, so ``""`` writes nothing.  The blank / NUL character is spelled
+#: with the ASCII-code constant ``$00``.  A compare contact refuses ``""`` when it
+#: is built (``CompareContact``), so it is not listed here.
 _EMPTY_TEXT_CONSTANT = '""'
 
 
 def _text_constant_operands(token: object) -> tuple[str, ...]:
     """Return the operands of *token* that may hold a quoted text constant."""
-    if isinstance(token, CompareContact):
-        return (token.left, token.right)
     if isinstance(token, (Copy, Search)):
         return (token.source,)
     if isinstance(token, Fill):

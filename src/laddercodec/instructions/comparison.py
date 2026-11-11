@@ -57,13 +57,17 @@ _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
 def split_comparison(token: str) -> tuple[str, str, str] | None:
     """Split ``left<op>right`` at the first operator outside a quoted text constant.
 
-    Returns ``(left, op, right)``, or None when there is no operator or a side is empty.
+    A quote opens a text constant that runs to the next quote; an unmatched quote is an
+    ordinary character.  Returns ``(left, op, right)``, or None when there is no operator
+    or a side is empty.
     """
     i = 0
     while i < len(token):
-        if token[i] == '"' and token[i + 2 : i + 3] == '"':
-            i += 3
-            continue
+        if token[i] == '"':
+            close = token.find('"', i + 1)
+            if close > i:
+                i = close + 1
+                continue
         for op in ("==", "!=", ">=", "<=", ">", "<"):
             if token.startswith(op, i):
                 left, right = token[:i].strip(), token[i + len(op) :].strip()
@@ -73,7 +77,7 @@ def split_comparison(token: str) -> tuple[str, str, str] | None:
 
 
 # ---------------------------------------------------------------------------
-# Operand rules (CLICK v4.00 Help CL164, CL196, CL202)
+# Operand rules (CLICK v4.00 Help CL164, CL202; Inst_Compare.dll and baseEx.dll)
 # ---------------------------------------------------------------------------
 
 #: Compare data banks by group.  A compare pairs two operands of one group.
@@ -85,18 +89,56 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
 _HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
-_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?")
-_TEXT_CONSTANT_RE = re.compile(r'"[^"]?"|\$[0-9A-Fa-f]{2}')
+_INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
+_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+_ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
+
+#: Limits of a compare constant (baseEx.dll CheckInputData @1000e6c0 and its numeric
+#: classifier @1000d0e0; Inst_Compare.dll OnOK refuses anything else with OBJ-005).
+_HEX_MAX = 0xFFFF
+_INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
+
+#: A quoted text constant is one printable ASCII character (Help CL196: "Single ASCII
+#: Character, surround with double quotation marks"; a TXT register holds one).  The
+#: dialog lets up to 128 characters through (baseEx.dll CheckInputData @1000e81c); the
+#: user's decision 2026-11-11 treats that as a gap in CLICK's validation and refuses it.
+_TEXT_CHARS = range(0x20, 0x7F)
+
+#: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
+#: (Q-B7: Inst_Compare.dll Data A handler 100029d0; user dialog check 2026-11-11: typing
+#: TXT1 into Data A with > selected leaves only = and != to choose).
+_TEXT_OPS = ("==", "!=")
 
 
 def _operand_group(value: str, name: str) -> str:
     """Return the Help 202 group of a compare operand; raise if it is neither a data
-    register nor a constant."""
+    register nor a constant CLICK's compare dialog accepts."""
     if _HEX_CONSTANT_RE.fullmatch(value):
+        if int(value[:-1], 16) > _HEX_MAX:
+            raise FieldError(f"{name}: {value!r} is above FFFFh; a hex constant is 0h to FFFFh")
         return "hex"
+    if _INTEGER_CONSTANT_RE.fullmatch(value):
+        # The length guard keeps int() inside Python's digit limit for any input.
+        too_long = len(value.lstrip("+-").lstrip("0")) > len(str(_INTEGER_MAX))
+        if too_long or not _INTEGER_MIN <= int(value) <= _INTEGER_MAX:
+            raise FieldError(f"{name}: {value!r} is outside {_INTEGER_MIN} to {_INTEGER_MAX}")
+        return "numeric"
     if _NUMERIC_CONSTANT_RE.fullmatch(value):
         return "numeric"
-    if _TEXT_CONSTANT_RE.fullmatch(value):
+    if _ASCII_CODE_CONSTANT_RE.fullmatch(value):
+        return "text"
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        # The text is stored as written, quotes included (text_compare.bin).
+        inner = value[1:-1]
+        if len(inner) != 1 or ord(inner) not in _TEXT_CHARS:
+            raise FieldError(
+                f"{name}: {value!r} is refused; a text constant is one printable ASCII "
+                "character in quotes (use $hh for a character by code)"
+            )
+        # A quote as the character would end the text in the CSV token (split_comparison),
+        # and no capture shows CLICK writing one; $22 spells it.
+        if inner == '"':
+            raise FieldError(f"{name}: {value!r} is a quote; write the quote character as $22")
         return "text"
     bank = check_address(value, name, _DATA_BANKS).bank
     return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)
@@ -123,7 +165,7 @@ class CompareContact(ConditionInstruction):
 
     op: Literal["==", "!=", "<", ">", "<=", ">="]
     left: str  # left operand, e.g. "DS1"
-    right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"'
+    right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"', "$41"
     wire_down: bool = False
 
     def __post_init__(self) -> None:
@@ -133,6 +175,11 @@ class CompareContact(ConditionInstruction):
             raise FieldError(
                 f"CompareContact: {self.left!r} ({left}) and {self.right!r} ({right}) "
                 "are not in one compare group; hex, numeric and text operands do not mix"
+            )
+        if left == "text" and self.op not in _TEXT_OPS:
+            raise FieldError(
+                f"CompareContact.op: {self.op!r} is not offered when Data A is text "
+                f"({self.left!r}); a text compare takes == or !="
             )
 
     @classmethod
