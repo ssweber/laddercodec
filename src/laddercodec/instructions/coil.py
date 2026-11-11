@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_value
 from ..model import (
     TYPE_CODE_TO_ITYPE,
+    Address,
+    AddressError,
     AfInstruction,
     FieldError,
     InstructionType,
@@ -63,20 +65,35 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 # Target rules
 # ---------------------------------------------------------------------------
 
-#: Banks an Out coil writes (CLICK v4.00 Help CL167).  Every SC is accepted; CLICK takes
-#: only some of them.
+#: Banks a coil writes.  Out: CLICK v4.00 Help CL167.  Set and Reset take the same three
+#: (Q-B1, user dialog check 2026-11-11: X1, T1, CT1 and DS1 are refused).
 OUT_BANKS = frozenset({"Y", "C", "SC"})
 
+#: The SC bits a coil writes: CLICK's address picker lists these 25 read-write system bits
+#: for Out, and no other SC is accepted (Q-B2, user dialog check 2026-11-11).  Ruling: the
+#: list belongs to the address, so Set, Reset and the Out variants take the same bits.
+WRITABLE_SC = frozenset(
+    {50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168, 171}
+    | {303, 304, 305, 306, 323, 324, 325, 326}
+)
 
-def check_out_target(operand: str, name: str, *, immediate: bool = False) -> int:
-    """Check an Out target address; return its number.
+_WRITABLE_SC_TEXT = ", ".join(f"SC{n}" for n in sorted(WRITABLE_SC))
 
-    An immediate target takes Y only.
+
+def check_out_target(operand: str, name: str, *, immediate: bool = False) -> Address:
+    """Check one address a coil writes (Out, Set, Reset or an Out variant); return it.
+
+    The bank is Y, C or SC, an SC bit is one of :data:`WRITABLE_SC`, and an immediate
+    target is Y.
     """
     address = check_address(operand, name, OUT_BANKS)
+    if address.bank == "SC" and address.number not in WRITABLE_SC:
+        raise AddressError(
+            f"{name}: {operand!r} is not a writable SC bit; a coil writes {_WRITABLE_SC_TEXT}"
+        )
     if immediate and address.bank != "Y":
         raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
-    return address.number
+    return address
 
 
 # ---------------------------------------------------------------------------
@@ -101,31 +118,25 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        # Set and Reset share this class; only Out is narrowed to Y, C and SC.
-        banks = OUT_BANKS if self.type == InstructionType.COIL_OUT else None
-        start = check_address(self.operand, "Coil.operand", banks)
-        ends = [("operand", self.operand, start)]
-        if self.range_end is not None:
-            end = check_address(self.range_end, "Coil.range_end", banks)
-            # Range direction and bank are known for Out only (Set and Reset wait on Q-B1).
-            out = self.type == InstructionType.COIL_OUT
-            if out and end.bank != start.bank:
-                raise FieldError(
-                    f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
-                    f"the range starts in bank {start.bank} and must stay in it"
-                )
-            if out and end.number < start.number:
-                raise FieldError(
-                    f"Coil.range_end: {self.range_end!r} is below {self.operand!r}; "
-                    "a range runs from a lower to a higher address"
-                )
-            ends.append(("range_end", self.range_end, end))
-        if self.immediate:
-            for name, text, address in ends:
-                if address.bank != "Y":
-                    raise FieldError(
-                        f"Coil.{name}: {text!r} is not allowed; an immediate coil takes Y only"
-                    )
+        # Out, Set and Reset follow the same target and range rules (Q-B1).
+        start = check_out_target(self.operand, "Coil.operand", immediate=self.immediate)
+        if self.range_end is None:
+            return
+        # An SC range needs both ends writable; the bits between are not checked (ruling).
+        end = check_out_target(self.range_end, "Coil.range_end", immediate=self.immediate)
+        # Out: OBJ-008; Set and Reset: Q-B1, user dialog check 2026-11-11 (C5..Y5 refused).
+        if end.bank != start.bank:
+            raise FieldError(
+                f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
+                f"the range starts in bank {start.bank} and must stay in it"
+            )
+        # Out: OBJ-009 and Q-B3 (C5..C5 refused); Set and Reset: Q-B1 (C9..C1 refused),
+        # and the ruling that they refuse C5..C5 as Out does.
+        if end.number <= start.number:
+            raise FieldError(
+                f"Coil.range_end: {self.range_end!r} is not above {self.operand!r}; "
+                "a range runs from a lower to a higher address"
+            )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:

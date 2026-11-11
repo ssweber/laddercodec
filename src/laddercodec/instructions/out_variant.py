@@ -133,6 +133,7 @@ class OutVariant(AfInstruction):
     maintained: bool = False  # timed only
 
     def __post_init__(self) -> None:
+        # The target follows Out's rule, writable SC list included (ruling on Q-B2).
         check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
         if self.kind not in _KIND_INDEX:
             raise FieldError(
