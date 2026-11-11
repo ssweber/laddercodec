@@ -501,7 +501,7 @@ currently emit:
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
   dialogs and raise `AddressError` or `FieldError` naming the field: a bit
   copies to Y or C, a text constant to TXT, both ends of a range sit in one bank,
-  a pack or unpack range stays in one X or Y module and fits its register
+  a pack or unpack range stays in one 16-point X or Y slot and fits its register
   (`pack_bits` takes bits, `pack_words` registers), and a Math result is DS, DD,
   DF, TD or CTD, or DH in hex mode.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an

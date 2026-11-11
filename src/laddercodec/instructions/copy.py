@@ -275,8 +275,8 @@ def _check_range(
     """Check a ``start..end`` range and return its two ends.
 
     Both ends are addresses in one bank (OBJ-008), never pointers.  With ``one_module``, an X
-    or Y range stays inside one 16-point module (OBJ-033, OBJ-035, OBJ-019); the dual option
-    slot, 21-36, is a module of its own.
+    or Y range stays inside one 16-point slot of :data:`~laddercodec.model.XY_SLOTS`
+    (OBJ-033, OBJ-035, OBJ-019); the dual option slot, 21-36, is a slot of its own.
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
@@ -292,8 +292,8 @@ def _check_range(
         )
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
-            f"{cls}.{end_field}: {start}..{end} spans two {first.bank} modules; "
-            "the range stays inside one 16-point module"
+            f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "
+            f"a pack or unpack range stays in one 16-point {first.bank} slot"
         )
     return first, last
 

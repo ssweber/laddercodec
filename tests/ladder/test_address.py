@@ -5,13 +5,15 @@ Bank ranges are CLICK v4.00 Help topic CL195 ("Memory Addresses").
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import laddercodec.instructions as instructions_mod
-from laddercodec import decode, decode_program
+from laddercodec import decode, decode_program, read_csv
+from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
     Coil,
@@ -232,6 +234,19 @@ class TestConstructionRaises:
             ForLoop.from_csv_token("for(DS0)")
         with pytest.raises(ValueError, match="^OutVariant.operand: 'Y900'"):
             OutVariant.from_csv_token("toggle(immediate(Y900))")
+
+    def test_dual_option_slot_through_parse_paths(self, tmp_path: Path) -> None:
+        """X021-X036 and Y021-Y036 are the CPU's dual option slot (Q-A1)."""
+        assert Contact.from_csv_token("X021").operand == "X021"
+        assert Contact.from_csv_token("~X036").operand == "X036"
+        path = tmp_path / "rung.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(CSV_HEADER)
+            w.writerow(["R", "X021"] + ["-"] * 30 + ["out(Y036)"])
+        rung = read_csv(path)[0]
+        assert rung.conditions[0][0].operand == "X021"
+        assert rung.instructions[0].operand == "Y036"
 
     def test_leading_zero_text_kept(self) -> None:
         assert Contact.from_csv_token("X001").operand == "X001"
