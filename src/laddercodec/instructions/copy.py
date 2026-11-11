@@ -79,8 +79,8 @@ _CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
     "8": ("binary", "0", "0"),
 }
 
-_DF_RE = re.compile(r"DF\d+")
-_DD_RE = re.compile(r"DD\d+")
+_DF_RE = re.compile(r"DF[0-9]+")
+_DD_RE = re.compile(r"DD[0-9]+")
 
 
 def _is_df(operand: str) -> bool:
@@ -133,6 +133,8 @@ _COPY_TAGS = (
 
 #: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code).
 _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
+#: A termination code: ``$`` and one or two hex digits (``$D`` is stored as ``$0D``).
+_TERMINATION_CODE_RE = re.compile(r"\$[0-9A-Fa-f]{1,2}")
 
 
 def _is_text_constant(operand: str) -> bool:
@@ -168,7 +170,9 @@ POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD",
 _POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
 #: A number constant (Help CL196): integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
 #: digits then ``h`` (``1Eh``).  The sign, exponent and letter case are not narrowed.
-_NUMBER_CONSTANT_RE = re.compile(r"[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?|[+-]?[0-9A-Fa-f]+[hH]")
+_NUMBER_CONSTANT_RE = re.compile(
+    r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[+-]?[0-9A-Fa-f]+[hH]"
+)
 #: A text constant by character code: ``$`` then hex digits (``$0D``); how many CLICK takes
 #: is not narrowed here.
 _ASCII_CODE_OPERAND_RE = re.compile(r"\$[0-9A-Fa-f]+")
@@ -391,7 +395,7 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 
 #: A single Copy's integer constant is an int32 (OBJ-005, baseEx CheckValueRange).
 _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
-_INT_CONSTANT_RE = re.compile(r"[+-]?\d+")
+_INT_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
 #: (Inst_Copy.dll single row 0x1001ba70, type matrix 0x10010e40; OBJ-024).
@@ -588,11 +592,9 @@ class Copy(AfInstruction):
             raise FieldError(f"Invalid copy format: {self.format!r}")
         # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
         if self.termination_code.startswith("$"):
-            try:
-                code = int(self.termination_code[1:], 16)
-            except ValueError:
-                raise FieldError(f"Invalid termination code: {self.termination_code!r}") from None
-            self.termination_code = _ascii_code(code)
+            if not _TERMINATION_CODE_RE.fullmatch(self.termination_code):
+                raise FieldError(f"Invalid termination code: {self.termination_code!r}")
+            self.termination_code = _ascii_code(int(self.termination_code[1:], 16))
         for option in ("suppress_zero", "exponential"):
             if getattr(self, option) not in ("0", "1"):
                 raise FieldError(
@@ -1242,7 +1244,7 @@ def from_tags(
         # 0x1221 alone marks termination; 0x1201 is also set for a text
         # constant source, so it must not imply a termination code.
         if tag_flag(tags, 0x1221) and term_char:
-            if not term_char.isdigit():
+            if not (term_char.isascii() and term_char.isdigit()):
                 return None
             termination_code = _ascii_code(int(term_char))
 

@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
+from .comparison import check_quoted_text
 from .copy import REGISTER_BANKS, _check_range, check_operand
 from .family import AfInstructionFamilySpec
 
@@ -156,6 +157,8 @@ class Search(AfInstruction):
         )
         check_operand(self.result, "Search.result", RESULT_BANKS)
         check_operand(self.found, "Search.found", FOUND_BANKS)
+        if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
+            check_quoted_text(self.source, "Search.source")
         # The search value is a constant or a data register, never a bit (Help CL174).
         source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
         m = _HEX_CONSTANT_RE.fullmatch(self.source)

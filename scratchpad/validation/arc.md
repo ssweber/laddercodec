@@ -289,6 +289,7 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (user, dialog):** typing TXT1 into Data A leaves only = and != to
     choose; a text compare takes == or != only. Which of the two is saved (bits.md N8) is
     still open.
+  - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
   - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
     refuses them.
@@ -415,6 +416,17 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     order operators are hidden for it too. A hex value is 32-bit, and refused (OBJ-005 at
     0x10007861), only above FFFFh: baseEx decides by value, so `0FFFFh` is accepted.
   - **ANSWERED 2026-11-11 (user, dialog):** `DS1..DS10 > 40000` is accepted.
+  - **Ruling 2026-11-11 (user, then orchestrator):** a Search text value follows the Compare
+    rule: a quoted text of 1 to 128 printable ASCII characters, or `$hh` unquoted. `""`, an
+    inner `"` (spell `$22`), a quoted `"$hh"` (write `$41`), over 128 characters and non-ASCII
+    raise `FieldError` naming `Search.source`; a native blob holding one decodes as raw. The
+    empty-text refusal is the user's; the rest applies the Compare ruling (Q-B7) to Search as
+    an orchestrator ruling. DLL: Inst_Search value field runs baseEx CheckInputData, mask
+    0x6fff, as Compare does; EM_LIMITTEXT 0x82 at Inst_Search 100025ec and `cmp len,0x82` at
+    baseEx 1000e81c; `""` gives OBJ-005 at Inst_Search 1000786c. Hardware: CLICK matches
+    multi-character text as a window over consecutive TXT registers (pyrung case
+    search/text_windows).
+  - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
 - Q-M13 Decimal Math with a hex constant: are `DS1 + 10000h` and `DS1 + 1Fh` accepted in a
@@ -526,6 +538,10 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 
 ## Rulings
 
+- **Ruling 2026-11-11 (user):** constants, counts, presets and address numbers accept only
+  the ASCII digits 0-9. Python's `\d` and `int()` take any Unicode decimal digit
+  (`٣`), which CLICK's validators do not; every regex and digit test in the codec is
+  ASCII.
 - Field rules raise in `__post_init__`, so construction, CSV and encode all go through them.
   Decoders keep the existing ValueError → raw fallback. Cost if wrong: a rule that is too
   strict turns a native blob into raw. The native fixtures in `make test` catch that.

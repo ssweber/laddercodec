@@ -296,7 +296,7 @@ def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
         j += 1
 
     digits_start = j
-    while j < n and body[j].isdigit():
+    while j < n and body[j].isascii() and body[j].isdigit():
         j += 1
     arg = sign * int(body[digits_start:j]) if j > digits_start else None
 

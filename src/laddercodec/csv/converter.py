@@ -48,6 +48,7 @@ that was stripped by the writer's dehydration pass.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast
@@ -59,7 +60,7 @@ from ..instructions import (
     Contact,
     parse_af_call,
 )
-from ..model import AfInstruction, InstructionType, PinnedInstruction
+from ..model import AfInstruction, InstructionType, PinnedInstruction, check_address
 from .ast import (
     AfBlank,
     AfCall,
@@ -418,6 +419,8 @@ def condition_node_to_token(node: object) -> ConditionToken:
             op=node.op, left=node.left, right=node.right, wire_down=node.wire_down
         )
     if isinstance(node, GenericCondition):
+        if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
+            check_address(node.raw, "Contact.operand")  # digits outside 0-9 land here
         raise ValueError(f"Cannot convert generic condition to encode token: {node.raw!r}")
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 

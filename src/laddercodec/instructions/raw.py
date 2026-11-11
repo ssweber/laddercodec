@@ -260,7 +260,7 @@ def _compress_fields(fields: list[tuple[int, bytes, str]]) -> list[str]:
 # Regex for parsing a single field spec.
 _FIELD_SPEC_RE = re.compile(
     r"([0-9a-fA-F]{4})"  # tag (4 hex digits)
-    r"(?:\[(\d+)\])?"  # optional [N] array count
+    r"(?:\[([0-9]+)\])?"  # optional [N] array count
     r"(?::([0-9a-fA-F]{8}))?"  # optional :sentinel (8 hex digits)
     r"=(.*)",  # =value (rest of string)
 )
@@ -397,6 +397,14 @@ class RawInstruction(AfInstruction):
     def _from_fields_token(cls, class_name: str, rest: str) -> RawInstruction:
         """Parse decoded-fields format after the class name."""
         parts = _split_raw_args(rest)
+        if (
+            len(parts) < 2
+            or not re.fullmatch(r"(?:0[xX])?[0-9A-Fa-f]+", parts[0])
+            or not re.fullmatch(r"[0-9]+", parts[1])
+        ):
+            raise ValueError(
+                f"raw({class_name},...): type marker is 0xTTTT and part count is digits"
+            )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
         field_specs = parts[2:]
