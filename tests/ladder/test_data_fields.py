@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from laddercodec import AddressError, FieldError
+from laddercodec import AddressError, FieldError, decode, decode_program
+from laddercodec.encode import encode_rung
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
+from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
 
@@ -173,3 +177,69 @@ class TestDrum:
     def test_unit(self) -> None:
         with pytest.raises(FieldError, match="Drum.unit"):
             drum("time", unit="x")
+
+
+class TestDrumPatternCells:
+    @pytest.mark.parametrize("cell", [1.0, 0.0, "1", None, True])
+    def test_non_int_cell_is_a_field_error(self, cell: object) -> None:
+        with pytest.raises(FieldError, match="Drum.pattern"):
+            drum(steps=1, outs=1, pattern=[[cell]])
+
+
+# A native-shaped blob the rules refuse decodes as raw(...).  The bytes come from
+# a valid instruction, edited past the checks.
+
+_SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
+
+
+def _utf16(text: str) -> bytes:
+    return text.encode("utf-16-le")
+
+
+def _scr_text(text: str) -> bytes:
+    # The SCR fixtures store strings as a length byte, the text and one NUL byte.
+    return bytes([len(text) * 2 + 1]) + _utf16(text) + b"\x00"
+
+
+def _clipboard_raw(af: Timer | Counter | Drum, old: str, new: str) -> RawInstruction:
+    data = encode_rung(1, [["-"] * 31], [af])
+    assert data.count(_utf16(old)) == 1
+    [decoded] = decode(data.replace(_utf16(old), _utf16(new))).instructions
+    assert isinstance(decoded, RawInstruction)
+    return decoded
+
+
+def _scr_raw_names(old: str, new: str, name: str = "coverage") -> list[str]:
+    data = (_SCR_DIR / f"{name}.scr").read_bytes()
+    assert data.count(_scr_text(old)) >= 1
+    rungs = decode_program(data.replace(_scr_text(old), _scr_text(new))).rungs
+    return [a.class_name for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
+
+
+class TestRefusedBlobsDecodeAsRaw:
+    def test_timer_with_mismatched_current(self) -> None:
+        raw = _clipboard_raw(timer(), "TD1", "TD2")
+        assert raw.class_name == "Tmr"
+
+    def test_timer_scr_with_non_numeric_setpoint(self) -> None:
+        assert _scr_raw_names("3000", "abcd") == ["Tmr"]
+
+    def test_counter_scr_with_mismatched_current(self) -> None:
+        assert set(_scr_raw_names("CTD1", "CTD2", "counter_scr")) == {"Cnt"}
+
+    def test_counter_with_non_numeric_preset(self) -> None:
+        raw = _clipboard_raw(counter(preset="100", reset_enabled=True), "100", "abc")
+        assert raw.class_name == "Cnt"
+
+    def test_drum_scr_with_refused_current_step(self) -> None:
+        assert _scr_raw_names("DS182", "DS000") == ["Drum"]
+
+    def test_drum_with_17_steps(self) -> None:
+        d = drum(steps=16, outs=2)
+        object.__setattr__(d, "events_or_presets", d.events_or_presets + ["C99"])
+        object.__setattr__(d, "pattern", d.pattern + [[1, 1]])
+        assert d.num_steps == 17
+        data = encode_rung(1, [["-"] * 31], [d])
+        [decoded] = decode(data).instructions
+        assert isinstance(decoded, RawInstruction)
+        assert decoded.class_name == "Drum"

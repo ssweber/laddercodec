@@ -213,10 +213,10 @@ class Drum(PinnedInstruction):
                 f"Drum.pattern: needs {steps} steps of {outputs} cells each, got "
                 f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells"
             )
-        if any(
-            cell not in (0, 1) or isinstance(cell, bool) for row in self.pattern for cell in row
-        ):
-            raise FieldError("Drum.pattern: every cell must be 0 or 1")
+        for row in self.pattern:
+            for cell in row:
+                if type(cell) is not int or cell not in (0, 1):
+                    raise FieldError(f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1")
         for i, output in enumerate(self.outputs):
             check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
         check_address(self.current_step, "Drum.current_step", banks={"DS"})

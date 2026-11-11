@@ -472,8 +472,7 @@ currently emit:
   - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
     one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
     and a `.jump()` target that is a `DS` address. Each step has an event (event
-    drum) or a duration (time drum); a time and event step needs one of the two.
-  - A value outside these raises `FieldError`.
+    drum) or a duration (time drum); a time and event step needs a duration or an event.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
