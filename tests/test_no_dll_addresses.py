@@ -1,35 +1,20 @@
 """Committed files carry no CLICK DLL addresses.
 
 A citation names its evidence (an OBJ-xxx id, a Help topic, a capture, an arc.md ruling or
-``DLL: <name>.dll, <dialog/field>``), never a location inside a CLICK DLL.
+``DLL: <name>.dll, <dialog/field>``), never a location inside a CLICK DLL.  The rule is
+:func:`laddercodec.operands.sources.dll_address`, the same one ``Src`` uses.
 """
 
 from __future__ import annotations
 
-import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
+from laddercodec.operands.sources import ALLOWED_LONG_HEX, Src, SrcKind, dll_address
+
 ROOT = Path(__file__).resolve().parents[1]
-
-# A location in a DLL's image: 0x100xxxxx, a bare 100xxxxx (optionally with a trailing h),
-# or @xxxxxxxx.
-ADDRESS = re.compile(
-    r"(?<![0-9A-Za-z_])(?:0x)?100[0-9A-Fa-f]{5}h?(?![0-9A-Za-z_])|@[0-9A-Fa-f]{8}\b"
-)
-
-# An 0x value of six or more hex digits is a location in an executable or DLL unless it is
-# one of the data values below.  Exact values, upper-cased, each with its reason.
-LONG_HEX = re.compile(r"\b0[xX]([0-9A-Fa-f]{6,})\b")
-ALLOWED_VALUES: dict[str, str] = {
-    "FFFFFFFF": "all-ones 32-bit mask or sentinel",
-    "80000000": "int32 sign bit (counter span check)",
-    "10FFFF": "highest Unicode code point (decoder)",
-    "00000001": "structural flag value in the binary format",
-    "00000004": "CREATE_SUSPENDED process flag in devtools/mergeq",
-    "00000200": "Win32 process flag in devtools/mergeq",
-    "200000": "2 MiB image window in a disassembly helper script",
-}
 
 # path -> reason.  Keep empty.
 ALLOWED: dict[str, str] = {}
@@ -51,33 +36,83 @@ def test_address_pattern_matches_the_forms_in_use() -> None:
         "at 100" + digits,
         "range ..0x100" + digits,
         "Inst_RD 100" + digits + "h",
+        "Inst_RD 100" + digits + "H",
     ):
-        assert ADDRESS.search(text), text
+        assert dll_address(text), text
     for text in ("0x8bc0", "0x271e", "0x0A60", "0x6fff", "0x10e", "0x1201", "+0x19", "x1000"):
-        assert not ADDRESS.search(text), text
+        assert not dll_address(text), text
 
 
 def test_long_hex_pattern_matches_six_digits_or_more() -> None:
     value = "0x5A" + "7B9B"
-    assert LONG_HEX.search(f"writer at {value}")
-    assert LONG_HEX.search(f"{value}/{value}")
-    assert not LONG_HEX.search("command IDs 0x8036/0x802D, tag 0x1201")
-    assert not LONG_HEX.search("0x12345")
+    assert dll_address(f"writer at {value}")
+    assert dll_address(f"{value}/{value}")
+    assert not dll_address("command IDs 0x8036/0x802D, tag 0x1201")
+    assert not dll_address("0x12345")
 
 
 def test_allowed_values_are_exact_and_explained() -> None:
-    for value, reason in ALLOWED_VALUES.items():
-        assert value == value.upper() and LONG_HEX.fullmatch("0x" + value), value
+    for value, reason in ALLOWED_LONG_HEX.items():
+        assert value == value.upper() and len(value) >= 6, value
+        assert dll_address("0x" + value) is None, value
         assert reason, value
 
 
 def _scan(text: str) -> list[tuple[int, str]]:
-    hits = []
-    for number, line in enumerate(text.splitlines(), 1):
-        long_values = [m.group(1).upper() for m in LONG_HEX.finditer(line)]
-        if ADDRESS.search(line) or any(v not in ALLOWED_VALUES for v in long_values):
-            hits.append((number, line.strip()[:100]))
-    return hits
+    return [
+        (number, line.strip()[:100])
+        for number, line in enumerate(text.splitlines(), 1)
+        if dll_address(line) is not None
+    ]
+
+
+# Built here so this file holds no address itself.
+_FAKE = f"{(0x1000 << 16) + 0x1234:08x}"
+_BASE = f"{0x1000 << 16:x}"
+_DLL = "Inst_SD.dll"
+
+#: (text, refused): each form the rule knows, and text that only looks like one.
+FORMS = [
+    (f"Inst_SD.dll 0x{_FAKE}", True),
+    (f"Inst_SD.dll 0X{_FAKE.upper()}", True),
+    (f"baseEx.dll @{_FAKE}", True),
+    (f"Inst_SD.dll sub_{_FAKE}", True),
+    (f"FUN_{_FAKE}", True),
+    (f"LAB_{_FAKE}", True),
+    (f"Inst_SD.dll {_FAKE}", True),
+    (f"Inst_SD.dll {_FAKE}h", True),
+    (f"Inst_SD.dll {_FAKE}H", True),
+    (f"Inst_SD.dll 0x{_FAKE[:4]}_{_FAKE[4:]}", True),
+    (f"mask 0x{_BASE}", True),
+    (f"capture 0x{(0x1A2B << 16) + 0x3C4D:08X}.bin", True),
+    (f"writer at 0x{(0x5A << 16) + 0x7B9B:X}", True),
+    (f"{_DLL}+0x1234", True),
+    (f"{_DLL} + 1234", True),
+    (f"{_DLL}+6cb1h", True),
+    (f"{_DLL}!0x1234", True),
+    (f"{_DLL}:0x1234", True),
+    ("Inst_SD.dll, Send local banks", False),
+    ("Inst_Copy.dll + dialog", False),
+    ("Inst_SD.dll + 2 fields", False),
+    ("Inst_SD.dll + dead", False),
+    ("Inst_SD.dll: Send local banks", False),
+    ("CL195", False),
+    ("OBJ-004", False),
+    ("mask 0x3f", False),
+    ("0xFFFFFFFF sentinel", False),
+    (f"value {_FAKE}0", False),
+    ("offset 0x6cb1 in Inst_SD.dll", False),  # out of scope: see _DLL_ADDRESS_RE
+]
+
+
+@pytest.mark.parametrize(("text", "refused"), FORMS, ids=[f[0] for f in FORMS])
+def test_src_and_file_scan_agree(text: str, refused: bool) -> None:
+    assert bool(_scan(text)) is refused
+    if refused:
+        with pytest.raises(ValueError, match="DLL address"):
+            Src(SrcKind.DLL, text)
+    else:
+        assert Src(SrcKind.DLL, text).ref == text
 
 
 def test_no_dll_addresses_in_tracked_files() -> None:

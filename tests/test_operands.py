@@ -12,8 +12,13 @@ from laddercodec.instructions import copy, counter, drum, forloop, search, send_
 from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
-from laddercodec.operands.sources import Src, SrcKind, dll_address
-from tests.test_operand_guards import INSTRUCTIONS, _bank_items
+from laddercodec.operands.sources import Src, SrcKind
+from tests.test_operand_guards import (
+    BANK_NAMES_ALLOWED,
+    INSTRUCTIONS,
+    _bank_items,
+    _is_bank_literal,
+)
 
 # ---------------------------------------------------------------------------
 # Bank
@@ -83,15 +88,20 @@ def test_every_bank_set_names_only_banks() -> None:
     """
     checked = 0
     for path in sorted(INSTRUCTIONS.glob("*.py")):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+        for node in ast.walk(tree):
             if isinstance(node, (ast.Tuple, ast.List)):
                 continue
-            items = _bank_items(node)
-            if items is None or not set(items) & set(Bank.__members__):
+            if not _is_bank_literal(node, parents.get(node)):
                 continue
+            items = _bank_items(node)
+            assert items is not None, ast.unparse(node)
             assert set(items) <= set(Bank.__members__), (path.name, ast.unparse(node))
             checked += 1
-    assert checked >= 70
+    # Each set and dict the ratchet lists, counted once (``frozenset({...})`` is one).
+    listed = sum(n for (_, key), n in BANK_NAMES_ALLOWED.items() if not key.startswith(("(", "[")))
+    assert checked == listed
 
 
 def test_banks_refuses_bits_above_txt() -> None:
@@ -207,48 +217,8 @@ def test_src_text() -> None:
     ]
 
 
-#: A made-up address in a CLICK DLL's range and the image base, built here so this file
-#: writes out no address.
-_FAKE = f"{(0x1000 << 16) + 0x1234:08x}"
-_BASE = f"{0x1000 << 16:x}"
-
-
-@pytest.mark.parametrize(
-    "ref",
-    [
-        f"Inst_SD.dll 0x{_FAKE}",
-        f"Inst_SD.dll 0X{_FAKE.upper()}",
-        f"baseEx.dll @{_FAKE}",
-        f"Inst_SD.dll sub_{_FAKE}",
-        f"FUN_{_FAKE}",
-        f"LAB_{_FAKE}",
-        f"Inst_SD.dll {_FAKE}",
-        f"Inst_SD.dll {_FAKE}h",
-        f"Inst_SD.dll 0x{_FAKE[:4]}_{_FAKE[4:]}",
-        "Inst_SD.dll+0x1234",
-        "Inst_SD.dll + 1234",
-    ],
-)
-def test_src_refuses_a_dll_address(ref: str) -> None:
-    with pytest.raises(ValueError, match="DLL address"):
-        Src(SrcKind.DLL, ref)
-
-
-@pytest.mark.parametrize(
-    "ref",
-    [
-        "Inst_SD.dll, Send local banks",
-        "CL195",
-        "OBJ-004",
-        "mask 0x3f",
-        f"mask 0x{_BASE}",
-        f"capture 0x{(0x1A2B << 16) + 0x3C4D:08X}.bin",
-        f"value {_FAKE}0",
-    ],
-)
-def test_src_takes_a_reference_without_an_address(ref: str) -> None:
-    assert dll_address(ref) is None
-    assert Src(SrcKind.DLL, ref).ref == ref
+# The forms Src refuses as a DLL address are in tests/test_no_dll_addresses.py (FORMS),
+# checked through Src and the file scan together.
 
 
 def test_src_refuses_blank_reference() -> None:
