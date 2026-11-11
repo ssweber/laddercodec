@@ -12,6 +12,10 @@
 
 ### Changed
 - **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
+- **Copy, Search and Math checks**: Copy, Block Copy, Fill, Pack, Unpack, Search and Math refuse the operands, bank pairs, converters, ranges and formulas CLICK's dialogs refuse (for example `copy(X001,DS1)`, `fill(0,DS1..DD5)`, `pack_bits(C1..C17,DS1)`, `math(SIN ( DH1 ),DH2,mode=hex)`) with a `FieldError` naming the field, and such a blob decodes as `raw(...)`.
+
+### Fixed
+- **Pack/Unpack decode**: a pack or unpack of X, Y, T, CT or SC bits decoded as `pack_words`/`unpack_to_words`, and one of CTD words as bits; a Math formula of more than 500 operands, which wrote a blob with more fields than its header counts, now raises `FieldError`.
 
 ## 0.3.3 (2026-11-11)
 
