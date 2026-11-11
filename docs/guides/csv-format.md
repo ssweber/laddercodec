@@ -461,8 +461,9 @@ currently emit:
 ## Operand normalization notes
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
-- An address must lie inside its bank's range in the Memory Addresses table of
-  CLICK's help (topic CL195); `X017`, `C2001` or `DS0` raise `ValueError`.
+- An address must name a CLICK bank and lie inside its range (CLICK help topic
+  CL195, Memory Addresses); X and Y number by module, points 01-16 only. `X017`,
+  `C2001` and `DS0` raise `AddressError`.
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
