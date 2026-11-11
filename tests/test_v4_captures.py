@@ -443,3 +443,49 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
     assert len(set(offsets)) == len(compares)
     write_csv(tmp_path / "rung.csv", [rung])
     assert read_csv(tmp_path / "rung.csv")[0].conditions[0][:2] == compares
+
+
+# ---------------------------------------------------------------------------
+# DLL-sweep captures (arc.md): re-encoding gives CLICK's own AF blob
+# ---------------------------------------------------------------------------
+
+#: Tags CLICK writes but doesn't read back, per class name.
+_SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
+    "Call": frozenset({0x3219}),  # dialog drop-down index; CLICK reselects the subroutine by name
+}
+
+_SWEEP = [
+    (path, index, rung)
+    for path in sorted(CAPTURE_DIR.glob("sweep_*.bin"))
+    for index, rung in enumerate(_decode_file(path))
+]
+
+
+def _af_blob(
+    data: bytes, rung_index: int
+) -> tuple[str, int, int, bytes, list[tuple[int, bytes, str]]]:
+    cell = inspect_cells(data, [(rung_index, 0, "AF")])[0]
+    return _decompose_blob(cell.raw[0x25:-0x10])
+
+
+@pytest.mark.parametrize(
+    ("path", "index", "rung"),
+    _SWEEP,
+    ids=[f"{p.stem}:{(r.comment or '').split(chr(10))[0]}" for p, _, r in _SWEEP],
+)
+def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> None:
+    """Every field CLICK wrote, in order, comes back from encode(decode(...)).
+
+    The decode check above can't see func codes: the decoder ignores 0x3218.
+    """
+    if any(isinstance(token, str) and token.startswith("raw(") for token in rung.instructions):
+        pytest.xfail("not decoded yet")
+    native = _af_blob(path.read_bytes(), index)
+    ours = _af_blob(encode(rung), 0)
+    ignored = _SWEEP_IGNORED_TAGS.get(native[0], frozenset())
+
+    def compared(fields: list[tuple[int, bytes, str]]) -> list[tuple[int, bytes, str]]:
+        return [f for f in fields if f[0] not in ignored]
+
+    assert ours[:4] == native[:4]
+    assert compared(ours[4]) == compared(native[4])
