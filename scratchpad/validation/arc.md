@@ -410,9 +410,16 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, RD 0x10015e03, SD 0x100181be, RD 0x10015c54):** a Receive
     into Y uses the slot run in every mode (Y001 gives 32, not 160), capped by a remote C, T,
     CT or SC bank and by a MODBUS 984 coil start (65536 minus the start). A C count to or
-    from a CLICK X/Y address stays in that address's slot run. laddercodec now checks both.
-    Open (dialog): from Y101 on, CLICK gives a C remote the higher start number as room and
-    a T, CT or SC remote no room at all; laddercodec uses the slot run there.
+    from a CLICK X/Y address stays in that address's slot run, and a C count to or from a
+    CLICK C, T, CT or SC address stays in that bank (RD 0x10015c6c, 0x10015dc5, 0x10015de5,
+    0x10015dec; SD 0x100181d6). laddercodec now checks all of these.
+  - **NEEDS DIALOG:** a Receive into Y101 or later from a CLICK C, T, CT or SC address. The
+    remote C case (RD 0x10015e6e) skips its slot formula from Y101 on, so its room is the C
+    room capped by the higher of the two start numbers. laddercodec applies only the C room
+    and the points through Y816 (Y101 from C1 gives 128). The T, CT and SC cases (RD
+    0x10015f84, 0x10016057, 0x1001612a) give a room of 0 from Y101 on, so CLICK seems to
+    refuse every count. laddercodec uses the slot run there (Y101 from T1 gives 16). Check
+    in the dialog: Y101 from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps

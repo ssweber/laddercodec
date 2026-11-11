@@ -227,11 +227,17 @@ def _receive_y_room(
     numbers (0x10015e1b); a remote C, T, CT or SC caps the count at the room left in that bank
     (0x10015e6e, 0x10015f84, 0x10016057, 0x1001612a); a MODBUS 984 start up to 65535 caps it at
     65536 minus the start (0x100161fd).
+
+    From Y101 on, the remote C case skips its slot formula (both range tests at 0x10015f52
+    and 0x10015f64 jump past it), so only the C room and the points that exist through Y816
+    apply there.
     """
     if remote_addr is not None:
         if remote_addr.bank in _XY_BANKS:
             return _xy_click_room(max(local.number, remote_addr.number))
         remote_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+        if remote_addr.bank == "C" and local.number > 36:
+            return min(remote_room, _xy_points_left(local.number))
         return min(remote_room, _xy_click_room(local.number))
     room = _xy_click_room(local.number)
     if isinstance(remote, ModbusAddress) and not remote.is_hex and int(remote.address) <= 0xFFFF:
@@ -239,19 +245,30 @@ def _receive_y_room(
     return room
 
 
-def _check_c_room_from_xy(who: str, quantity: int, remote_addr: Address) -> None:
-    """A count between local C and a CLICK X/Y remote also stays in the remote's slot run.
+def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
+    """A count between local C and a CLICK remote also fits the remote side.
 
-    Inst_SD.dll 0x100181f6 (local C case 0x100181be) and Inst_RD.dll 0x10015c7a (local C case
-    0x10015c54): the room is the lesser of the C room and the slot run from the X/Y start.
+    The room is the lesser of the C room and the remote's: the slot run from an X/Y start
+    (Inst_SD.dll 0x100181f6, Inst_RD.dll 0x10015c7a), or the room left in a C, T, CT or SC
+    bank (SD 0x100181d6, RD 0x10015c6c, 0x10015dc5, 0x10015de5, 0x10015dec).  These are the
+    local C cases (SD 0x100181be, RD 0x10015c54) of each dialog's quantity limit.
     """
-    room = _xy_click_room(remote_addr.number)
-    if quantity > room:
-        bank = remote_addr.bank
+    bank, number = remote_addr.bank, remote_addr.number
+    if bank in _XY_BANKS:
+        room = _xy_click_room(number)
+        if quantity > room:
+            raise FieldError(
+                f"{who} quantity: {quantity} from remote {bank}{number:03d} is outside "
+                f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
+                f"{bank}036, then {bank}101-{bank}116 ...)"
+            )
+        return
+    last_number = ADDRESS_BANKS[bank][1]
+    left = last_number - number + 1
+    if quantity > left:
         raise FieldError(
-            f"{who} quantity: {quantity} from remote {bank}{remote_addr.number:03d} is outside "
-            f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-{bank}036, "
-            f"then {bank}101-{bank}116 ...)"
+            f"{who} quantity: {quantity} from remote {bank}{number} runs past "
+            f"{bank}{last_number} ({left} left)"
         )
 
 
@@ -514,8 +531,8 @@ def _validate_send(send: Send) -> tuple[int, int]:
             c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
             xy_room = min(c_room, _xy_click_room(local.number))
     _check_quantity(who, quantity, local, _SEND_CAPS, bit, xy_room)
-    if local.bank == "C" and remote_addr is not None and remote_addr.bank in _XY_BANKS:
-        _check_c_room_from_xy(who, quantity, remote_addr)
+    if local.bank == "C" and remote_addr is not None:
+        _check_c_remote_room(who, quantity, remote_addr)
 
     if isinstance(remote, ModbusAddress) and remote.is_hex and local.bank in _SEND_HEX_FFFD:
         start = int(remote.address[:-1], 16)
@@ -585,8 +602,8 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         hex_pair = remote_addr.bank in ("XD", "YD")
     xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
     _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit, xy_room)
-    if local.bank == "C" and remote_addr is not None and remote_addr.bank in _XY_BANKS:
-        _check_c_room_from_xy(who, quantity, remote_addr)
+    if local.bank == "C" and remote_addr is not None:
+        _check_c_remote_room(who, quantity, remote_addr)
     if (local.bank == "YD" or hex_pair) and quantity != 1:
         # RD 0x1001420d / 0x100141ec: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
         raise FieldError(f"{who} quantity: {quantity} is outside 1-1 for this dest and remote")

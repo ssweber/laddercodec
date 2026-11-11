@@ -454,13 +454,14 @@ Producer may emit:
     end on one.
   - X and Y counts stay inside a slot run. `X001`-`X016` and `X021`-`X036` are one run
     (`X001` gives 32); from `X101` on, a count stays in the start's slot (`X101` gives 16).
-    This holds for every Receive into Y, for a Send of X or Y to a CLICK address (from the
+    This holds for a Receive into Y, for a Send of X or Y to a CLICK address (from the
     higher of the two start numbers when the remote is X or Y too), and for a C count to or
-    from a CLICK X or Y address. A Send of X or Y to a MODBUS 984 or hex address counts
-    through `X816` (`X001` gives 160).
-  - A count also stays inside the remote bank where CLICK checks it: a Receive into Y from a
-    CLICK C, T, CT or SC address, or from a MODBUS 984 coil (`65530` gives 6), and a Send of
-    X or Y to a CLICK C address.
+    from a CLICK X or Y address. A Send of X or Y to a MODBUS 984 or hex address, and a
+    Receive into `Y101` or later from a CLICK C address, count through `Y816` (`X001` gives
+    160, `Y101` gives 128).
+  - A count also stays inside the remote bank where CLICK checks it: a C, T, CT or SC remote
+    of a Receive into Y or C (`T490` gives 11), a MODBUS 984 coil remote of a Receive into Y
+    (`65530` gives 6), and a C remote of a Send from X, Y or C.
   - `sending`, `receiving`, `success` and `error` are C bits, and no C bit serves two of
     them; `exception_response` is DS or DD.
 - `call("subroutine_name")`

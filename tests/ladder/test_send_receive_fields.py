@@ -355,8 +355,6 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
         ("C1", "Y001", 32),
         ("C1", "Y016", 17),
         ("C1", "Y021", 16),
-        ("C1", "Y101", 16),
-        ("C1", "Y801", 16),
         ("X001", "Y001", 32),
         ("X101", "Y001", 16),  # the higher start number decides
         ("Y005", "Y003", 28),
@@ -365,6 +363,11 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
         ("T495", "Y001", 6),
         ("CT250", "Y021", 1),
         ("SC990", "Y001", 11),
+        ("T1", "Y101", 16),
+        # from Y101 on, a remote C skips the slot run: the C room and the points through Y816
+        ("C1", "Y101", 128),
+        ("C1", "Y801", 16),
+        ("C1995", "Y101", 6),
         (ModbusAddress("1"), "Y001", 32),
         (ModbusAddress("100001"), "Y101", 16),
         (ModbusAddress("FFFEh", "coil"), "Y001", 32),
@@ -386,6 +389,10 @@ def test_receive_y_room_through_csv(tmp_path: Path) -> None:
     assert isinstance(got, Receive) and got.quantity == 32
     with pytest.raises(FieldError, match="outside 1-32 "):
         _read_af(tmp_path, f'receive(target={target},remote_start="C1",dest=Y001..Y101)')
+    wide = receive(remote_start="C1", dest="Y101", quantity=128)
+    assert "dest=Y101..Y816" in wide.to_csv()
+    got = _read_af(tmp_path, f'receive(target={target},remote_start="C1",dest=Y101..Y816)')
+    assert isinstance(got, Receive) and got.quantity == 128
 
 
 @pytest.mark.parametrize(
@@ -410,6 +417,40 @@ def test_c_room_from_a_remote_x_y_keeps_the_c_room() -> None:
     receive(remote_start="X001", dest="C1995", quantity=6)
     with pytest.raises(FieldError, match="runs past C2000"):
         receive(remote_start="X001", dest="C1995", quantity=7)
+
+
+@pytest.mark.parametrize(
+    ("build", "kw", "room", "last"),
+    [
+        (receive, {"remote_start": "T490", "dest": "C1"}, 11, "T500"),
+        (receive, {"remote_start": "CT241", "dest": "C1"}, 10, "CT250"),
+        (receive, {"remote_start": "SC991", "dest": "C1"}, 10, "SC1000"),
+        (receive, {"remote_start": "C1990", "dest": "C1"}, 11, "C2000"),
+        (send, {"remote_start": "C1990", "source": "C1"}, 11, "C2000"),
+    ],
+)
+def test_c_room_from_a_remote_bank(build, kw, room, last) -> None:
+    """RD 0x10015dc5, 0x10015de5, 0x10015dec, 0x10015c6c; SD 0x100181d6 (local C cases)."""
+    build(quantity=room, **kw)
+    with pytest.raises(FieldError, match=f"runs past {last} \\({room} left\\)"):
+        build(quantity=room + 1, **kw)
+
+
+def test_c_room_from_a_remote_bank_through_csv(tmp_path: Path) -> None:
+    target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
+    got = _read_af(tmp_path, f'receive(target={target},remote_start="T490",dest=C1..C11)')
+    assert isinstance(got, Receive) and got.quantity == 11
+    with pytest.raises(FieldError, match="runs past T500"):
+        _read_af(tmp_path, f'receive(target={target},remote_start="T490",dest=C1..C20)')
+
+
+def test_c_room_from_a_remote_bank_decodes_as_raw() -> None:
+    fields = _fields(receive(remote_start="T490", dest="C1", quantity=11))
+    fields[0x3210] = "12"
+    assert from_tags_af("RD", 0x2728, fields) is None
+    fields = _fields(send(remote_start="C1990", source="C1", quantity=11))
+    fields[0x3210] = "12"
+    assert from_tags_af("SD", 0x2729, fields) is None
 
 
 def test_refused_room_decodes_as_raw() -> None:
