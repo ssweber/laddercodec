@@ -806,7 +806,9 @@ def test_receive_word_swap_allowed(kw) -> None:
 
 def test_receive_word_swap_on_one_element_through_csv(tmp_path: Path) -> None:
     target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
-    got = _read_af(tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1..DS2,word_swap=1)')
+    got = _read_af(
+        tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1..DS2,word_swap=1)'
+    )
     assert isinstance(got, Receive) and got.word_swap
     with pytest.raises(FieldError, match="one DS element"):
         _read_af(tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1,word_swap=1)')

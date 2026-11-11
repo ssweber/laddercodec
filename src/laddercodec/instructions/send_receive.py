@@ -217,7 +217,9 @@ def _xy_click_room(number: int) -> int:
     return 17 - number % 100
 
 
-def _receive_y_room(local: Address, remote: str | ModbusAddress, remote_addr: Address | None) -> int:
+def _receive_y_room(
+    local: Address, remote: str | ModbusAddress, remote_addr: Address | None
+) -> int:
     """Points a Receive can count into Y point ``local``: the slot run, capped by the remote.
 
     Inst_RD.dll 0x10015e03, the local Y case of the quantity limit at 0x100155a0, uses the

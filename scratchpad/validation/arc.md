@@ -375,6 +375,8 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     Receives, YD and TXT destinations, DD/DF under CLICK addressing and DH read from XD/YD;
     DS/DH enable it above 1 element. "(1 to 1)" is a YD destination, or DH from a CLICK XD
     or YD. TXT takes an even count of at least 2. laddercodec now refuses the rest.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x10006a3e..0x10006aeb):** at one DS or DH element the
+    disabled Word Swap is forced off; laddercodec now refuses `word_swap=1` there.
 - Q-C4 CLICK-addressed Receive of X1 with the combo set to FC02: does CLICK write FC02? A
   register with FC04: does it write FC04? A capture settles S9.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** CLICK writes FC02 and FC04 as picked,
@@ -384,6 +386,8 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** both refused (OBJ-014; OBJ-010, the
     highest hex start is FFFDh for DD, DF, CTD and TXT); a DD source at FFFDh takes 1
     element. laddercodec now refuses them.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x100092c9, 0x1000a5e9):** a Receive refuses one C bit
+    in two status fields too (0x271e); laddercodec now refuses it.
 - Q-C6 Counts across banks with gaps:
   - Does Send X001 with 17 elements read X001..X016 and then X101, or is it refused?
   - Is X815 with 3 elements refused?
@@ -403,6 +407,12 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
     checks that room and counts an X/Y CSV range along the slots (`X001..X021` is 17).
     Still open (firmware): which point the 17th element from X001 is. CLICK stores only the
     start and the count.
+  - **ANSWERED 2026-11-11 (DLL, RD 0x10015e03, SD 0x100181be, RD 0x10015c54):** a Receive
+    into Y uses the slot run in every mode (Y001 gives 32, not 160), capped by a remote C, T,
+    CT or SC bank and by a MODBUS 984 coil start (65536 minus the start). A C count to or
+    from a CLICK X/Y address stays in that address's slot run. laddercodec now checks both.
+    Open (dialog): from Y101 on, CLICK gives a C remote the higher start number as room and
+    a T, CT or SC remote no room at all; laddercodec uses the slot run there.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
   - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps
