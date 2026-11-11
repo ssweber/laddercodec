@@ -492,14 +492,17 @@ currently emit:
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
-- Indirect refs render as `BANK[pointer]`, the pointer a DS address
-  (`copy(DD[DS100],DS1)`, CLICK help topic CL238). Of the copies only a single
+- Indirect refs render as `BANK[pointer]`, the pointer a DS address and `BANK`
+  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`,
+  CLICK help topic CL238). Of the copies only a single
   `copy` takes one; `blockcopy`, `fill`, `pack_*` and `unpack_to_*` raise
   `AddressError`.
-- Copy, Fill, Search and Math operands follow CLICK's dialogs and raise
-  `AddressError` or `FieldError` naming the field: a bit copies to Y or C, a
-  text constant to TXT, both ends of a range sit in one bank, and a Math result
-  is DS, DD, DF, TD or CTD, or DH in hex mode.
+- Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
+  dialogs and raise `AddressError` or `FieldError` naming the field: a bit
+  copies to Y or C, a text constant to TXT, both ends of a range sit in one bank,
+  a pack or unpack range stays in one X or Y module and fits its register
+  (`pack_bits` takes bits, `pack_words` registers), and a Math result is DS, DD,
+  DF, TD or CTD, or DH in hex mode.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
   one TXT register per character of a text constant, so `""` writes nothing

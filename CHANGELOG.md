@@ -20,9 +20,13 @@
 - **Send/Receive checks**: `Send` and `Receive` raise `FieldError` for a slave ID, TCP port or IP, `register_type`, MODBUS 984 or hex remote address, CLICK bank, count or status operand CLICK refuses, and a CSV range that runs backwards or mixes banks; such a blob decodes as `raw(...)`.
 - **Send decode**: a Send keeps a status operand whose enable flag is 0, as Receive does, since CLICK v4 rederives the flags from the strings.
 - **Copy, Search and Math checks**: Copy, Block Copy, Fill, Pack, Unpack, Search and Math refuse the operands, bank pairs, converters, ranges and formulas CLICK's dialogs refuse (for example `copy(X001,DS1)`, `fill(0,DS1..DD5)`, `pack_bits(C1..C17,DS1)`, `math(SIN ( DH1 ),DH2,mode=hex)`) with a `FieldError` naming the field, and such a blob decodes as `raw(...)`.
+- **Copy pointers**: a pointer is `BANK[DSn]` in C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT; the `BANK[pointer+offset]` and `BANK[pointer-offset]` forms (`copy(DD[DS1+2],DS1)`) and a pointer in any other bank raise `AddressError`.
+- **Copy termination**: a termination code goes with `to_text` only; `Copy(..., format="binary", termination_code=...)` raises `FieldError`.
 
 ### Fixed
-- **Pack/Unpack decode**: a pack or unpack of X, Y, T, CT or SC bits decoded as `pack_words`/`unpack_to_words`, and one of CTD words as bits; a Math formula of more than 500 operands, which wrote a blob with more fields than its header counts, now raises `FieldError`.
+- **Pack/Unpack decode**: a pack or unpack of X, Y, T, CT or SC bits now decodes as `pack_bits`/`unpack_to_bits`, and one of CTD words as `pack_words`/`unpack_to_words`.
+- **Math operand count**: a formula of more than 500 operands raises `FieldError` instead of writing a blob whose field count disagrees with its header.
+- **Search and Copy options**: an unknown `Search.comparison` raises `FieldError` on construction instead of a `KeyError` at encode, and a `Copy.suppress_zero` or `Copy.exponential` other than `"0"` or `"1"` raises `FieldError` instead of writing a conversion code CLICK doesn't have.
 
 ## 0.3.3 (2026-11-11)
 
