@@ -12,6 +12,9 @@
 
 ### Changed
 - **Address checks**: Contact, Coil, Counter, Shift, ForLoop and the Out variants raise `AddressError` (a `ValueError` subclass) naming the field for an address outside CLICK's banks or ranges (`Q1`, `C9999`, `X017`, `DS0`), on direct construction as well as from CSV; such an AF blob decodes as `raw(...)` and such a contact blob as an unknown condition.
+- **Bit instruction rules**: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils), a coil range stays in one bank and ascends, and a compare takes data registers or constants of one group (hex, numeric or text); a refused value raises `FieldError`, and a refused blob decodes as `raw(...)` or an unknown condition.
+- **Out variants**: accumulators are TD, a preset is a DS register or a whole number (at least 0 for debounce, 1 for flasher and timed), and a field the kind does not use must be empty; a bad `unit` raises `FieldError` on construction instead of a `KeyError` at encode.
+- **Compare tokens**: a quoted text constant that holds an operator character (`TXT1<">"`) now parses.
 
 ## 0.3.3 (2026-11-11)
 
