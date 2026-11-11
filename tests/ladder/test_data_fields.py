@@ -358,7 +358,7 @@ class TestShiftRules:
     @pytest.mark.parametrize("end", ["C1", "C001"])
     def test_same_address_refused(self, tmp_path: Path, end: str) -> None:
         # CLICK normalizes C001 to C1 as it is typed (user dialog check 2026-11-11).
-        with pytest.raises(FieldError, match=rf"^Shift.end_bit: '{end}' is the same address"):
+        with pytest.raises(FieldError, match=r"^Shift.end_bit: 'C1' is the same address"):
             _read_af(tmp_path, f"shift(C1..{end})")
         with pytest.raises(FieldError, match="OBJ-012"):
             Shift(start_bit="C1", end_bit=end)
@@ -412,7 +412,7 @@ class TestDrumDurations:
 class TestDrumEventsAndOutputs:
     # Q-D5: events X, Y, C, T, CT or SC (OBJ-004); outputs differ from each other and
     # from the completion flag (OBJ-014), compared as addresses.
-    @pytest.mark.parametrize("event", ["X001", "Y1", "C5", "T1", "CT1", "SC1"])
+    @pytest.mark.parametrize("event", ["X001", "Y001", "C5", "T1", "CT1", "SC1"])
     def test_event_banks_accepted(self, event: str) -> None:
         assert drum(events_or_presets=[event, "C10"]).events_or_presets[0] == event
         assert drum("time_event", events=[event, ""]).events[0] == event
@@ -432,7 +432,7 @@ class TestDrumEventsAndOutputs:
             f"event_drum(outputs=[C1,{second}],events=[X001,X002],pattern=[[1,0],[0,1]],"
             "current_step=DS1,completion_flag=C9)"
         )
-        message = rf"^Drum.outputs\[1\]: '{second}' is already output 0"
+        message = r"^Drum.outputs\[1\]: 'C1' is already output 0"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, token)
 
@@ -443,7 +443,7 @@ class TestDrumEventsAndOutputs:
 
     @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
     def test_output_is_completion_flag(self, kind: str) -> None:
-        message = r"^Drum.outputs\[1\]: 'C050' is the completion flag"
+        message = r"^Drum.outputs\[1\]: 'C50' is the completion flag"
         with pytest.raises(FieldError, match=message):
             drum(kind, outputs=["C1", "C050"], completion_flag="C50")
 

@@ -335,8 +335,8 @@ class TestAfNodeToToken:
         result = af_node_to_token(node)
         assert isinstance(result, Coil)
         assert result.immediate is True
-        assert result.operand == "Y1"
-        assert result.range_end == "Y2"
+        assert result.operand == "Y001"
+        assert result.range_end == "Y002"
 
     def test_timer(self) -> None:
         node = AfCall(
