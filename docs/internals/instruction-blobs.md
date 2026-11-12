@@ -224,6 +224,8 @@ The `RawInstruction` fallback uses this formula to capture the complete blob as 
 
 The blob does not hold the box's height: the cell header does (+0x09 row span, +0x0A sub-rows). A decoded `RawInstruction` keeps the native cell's two bytes as `visual_rows` and `sub_rows`. One read from CSV takes them from its class: the typed family's height when the blob alone gives it (Copy family 2 rows, Search 2, Send/Receive 3, an Out variant by its func code), otherwise `part_count` rows.
 
+Native cells of some classes differ from both the typed height and this rule, which is an open capture question: Email, Home, Position and Velocity `03 03` (typed and raw rule `01 01`), Math `01 03`, some Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`.
+
 At the moment, `Email`, `Home`, `Position`, and `Velocity` still deliberately
 travel through this raw path. They round-trip correctly, but they are not yet
 modeled as dedicated DSL instruction classes.

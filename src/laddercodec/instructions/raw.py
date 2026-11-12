@@ -336,9 +336,13 @@ class RawInstruction(AfInstruction):
         native cell's bytes.  ``None`` takes the height from the class: the
         typed family's height when its blob alone gives it (Copy family,
         Search, Send, Receive, Out variants), otherwise ``part_count`` rows.
-        A ``sub_rows`` of ``None`` with a ``visual_rows`` given is that row
-        span.  The CSV token does not hold them, so they take no part in
-        equality.
+        Native cells of some classes differ from both the typed height and
+        this rule (an open capture question): Email, Home, Position and
+        Velocity ``03 03`` against ``01 01``, Math ``01 03``, some Search
+        ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``.
+        With ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal
+        the row span.  The CSV token does not hold them, so they take no
+        part in equality.
     """
 
     class_name: str

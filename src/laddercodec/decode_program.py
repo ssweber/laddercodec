@@ -22,7 +22,6 @@ from typing import cast
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
 from .decode import Rung, _decode_rtf, _drop_tall_span_nops
 from .instructions import (
-    INSTRUCTION_MODULES,
     RawInstruction,
     _with_pin_rows,
     from_tags_af,
@@ -174,20 +173,20 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         if not (0x2700 <= marker <= 0x2800):
             return None
 
-        # Embedded cell-header fields (matches clipboard cell offsets +0x09..+0x10):
-        #   after_type+0  (1B) — row_span (unused here)
-        #   after_type+1  (1B) — ??? (always 0x00 in observations)
-        #   after_type+2  (2B) — structural bytes
-        #   after_type+4  (2B) — instruction_index (unused here)
-        #   after_type+6  (1B) — visual_sub_rows (0x01 single-row, 0x02+ multi-row)
-        # Followed by visual_sub_rows part-row bytes, then end_offset.
+        # Fields after the type code:
+        #   after_type+0  (2B) — zero in every capture (the box's row span and
+        #                        sub-rows are in the entry header)
+        #   after_type+2  (2B) — opaque, small values (0, 1, 2, ...)
+        #   after_type+4  (2B) — zero in every capture
+        #   after_type+6  (1B) — part count (0x01 single part, 0x02+ pinned)
+        # Followed by one row byte per part, then end_offset.
         after_type = type_off + 2
         if after_type + 12 > data_len:
             return None
-        visual_sub_rows = data[after_type + 6]
-        if not (1 <= visual_sub_rows <= 8):
+        part_count = data[after_type + 6]
+        if not (1 <= part_count <= 8):
             return None
-        eo_pos = after_type + 7 + visual_sub_rows
+        eo_pos = after_type + 7 + part_count
         if eo_pos + 4 > data_len:
             return None
         # end_offset is the explicit blob boundary pointer — the same boundary
@@ -209,7 +208,7 @@ def _parse_scr_tags(
     data: bytes,
     blob_start: int,
     end_offset: int,
-    visual_sub_rows: int,
+    part_count: int,
 ) -> tuple[str, int, dict[int, str], _ScrVariantU16Tags, _ScrVariantStringTags]:
     """Parse SCR blob into scalar tags plus compact variant-tag collections.
 
@@ -223,8 +222,8 @@ def _parse_scr_tags(
     type_code = struct.unpack_from("<H", data, pos)[0]
     pos += 2
     pos += (
-        6 + 1 + visual_sub_rows + 4
-    )  # skip cell-header + visual_sub_rows counting bytes + end_offset
+        6 + 1 + part_count + 4
+    )  # skip the six zero bytes, part count, part-row bytes and end_offset
 
     tags: dict[int, str] = {}
     variant_u16_tags: _ScrVariantU16Tags = {}
@@ -353,8 +352,7 @@ def _infer_af_visual_rows(
 ) -> int:
     """Infer visual row count using parsed instruction metadata when possible.
 
-    A box that stays raw spans at least its entry's stored row span (``cell_rows[0]``),
-    the height its ``RawInstruction`` carries.
+    A box that stays raw spans the rows of the ``RawInstruction`` built for it.
     """
     parsed_af = _scr_af(
         class_name,
@@ -364,12 +362,37 @@ def _infer_af_visual_rows(
         variant_u16_tags,
         variant_string_tags,
     )
-    if parsed_af is not None:
-        return max(1, int(parsed_af.cell_params().get("visual_rows", 1)))
+    box = parsed_af or _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
+    return max(1, int(box.cell_params().get("visual_rows", 1)))
 
-    family_spec = INSTRUCTION_MODULES.get(class_name)
-    min_rows = int(getattr(family_spec, "min_csv_rows", 1))
-    return max(1, min_rows, len(part_rows), cell_rows[0])
+
+def _scr_raw(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    part_rows: bytes,
+    cell_rows: bytes,
+) -> RawInstruction:
+    """A minimal RawInstruction from SCR tag data.
+
+    The entry's row bytes are the clipboard cell's +0x09 and +0x0A.
+    """
+    from .instructions.raw import _compose_blob
+
+    blob = _compose_blob(
+        class_name,
+        type_code,
+        len(part_rows),
+        _clipboard_part_rows(part_rows),
+        [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
+    )
+    return RawInstruction(
+        class_name=class_name,
+        blob=blob,
+        part_count=len(part_rows),
+        visual_rows=cell_rows[0] or None,
+        sub_rows=cell_rows[1] or None,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -678,24 +701,7 @@ def _build_rung(
             if parsed_af is not None:
                 instructions[row] = parsed_af
             else:
-                # Build a minimal RawInstruction from SCR tag data
-                from .instructions.raw import _compose_blob
-
-                blob = _compose_blob(
-                    class_name,
-                    type_code,
-                    len(part_rows),
-                    _clipboard_part_rows(part_rows),
-                    [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
-                )
-                # The entry's row bytes are the clipboard cell's +0x09 and +0x0A.
-                instructions[row] = RawInstruction(
-                    class_name=class_name,
-                    blob=blob,
-                    part_count=len(part_rows),
-                    visual_rows=cell_rows[0] or None,
-                    sub_rows=cell_rows[1] or None,
-                )
+                instructions[row] = _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
 
     # A stored row whose block carries an AF right-wire but no real AF
     # instruction is a NOP (this includes count_down / drum bridge rows).

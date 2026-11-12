@@ -195,6 +195,9 @@ def _typed(path: Path, class_name: str) -> AfInstruction:
 
 
 def test_csv_raw_takes_typed_height() -> None:
+    # A regression lock on the class rule (raw matches typed), not native ground truth.
+    # Native cells it does not cover: Email, Home, Position, Velocity 03 03 (typed 01 01),
+    # Math 01 03 and some Search 02 03 (typed 02 02).
     kinds: set[str] = set()
     for af in _typed_boxes():
         if isinstance(af, PinnedInstruction):
@@ -221,6 +224,9 @@ def test_csv_raw_takes_typed_height() -> None:
 
 
 def test_csv_raw_pinned_box_spans_its_part_count() -> None:
+    # A regression lock on the part-count rule, not native ground truth.  Native cells it
+    # does not cover: Tmr 02 03, Drum 04 05, SR 03 02, and pinned boxes whose OR legs
+    # grow the box (Cnt 04 03 to 0A 03, Drum 05 04, SR 04 03).
     pinned = [af for af in _typed_boxes() if isinstance(af, PinnedInstruction)]
     assert {type(af).__name__ for af in pinned} >= {"Timer", "Counter", "Shift", "Drum"}
     for af in pinned:
@@ -239,6 +245,8 @@ def test_raw_out_with_unknown_func_code_is_one_row() -> None:
 
 @pytest.mark.parametrize("class_name", ["Copy", "Search", "SD", "RD"])
 def test_csv_raw_pads_rung_as_typed(class_name: str) -> None:
+    # A regression lock on the class rule (raw pads as typed), not native ground truth.
+    # Native cells it does not cover: some Search 02 03 (typed and raw rule 02 02).
     path = {"Copy": "sweep_copy.bin", "Search": "sweep_search.bin"}.get(
         class_name, "sweep_comm.bin"
     )

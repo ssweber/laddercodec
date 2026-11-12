@@ -127,6 +127,8 @@ Example: timers currently use `visual_rows=2` and `min_csv_rows=2`, while counte
 (sub-rows). When a native capture shows them differing, add `"sub_rows"` for
 `+0x0A`: CLICK v4's timed coil spans 2 rows but writes 3 (`{"visual_rows": 2, "sub_rows": 3}`).
 
+A fixed-height family must also set `cell_params_from_tags` on its `SPEC` (`fixed_cell_params()` in `family.py`, reading the same table as `cell_params()`); otherwise a `raw(...)` box of the family read from CSV gets 1 row.
+
 **Reading tags in `from_tags()`:** Click's program files (`Scr*.tmp`) leave out every
 tag at its default value, so a tag can be missing even though the clipboard always
 has it. Read tags through the helpers in `binary_helpers.py`, never `tags.get()` with
@@ -154,6 +156,7 @@ Also add a family `SPEC` in the module:
 - `parse_csv_call` (for AF families)
 - `pin_names` if the family uses dot-prefixed continuation rows
 - `min_csv_rows` if the family should auto-pad in CSV
+- `cell_params_from_tags` if every box of the family has one height (a raw box read from CSV takes it)
 
 ### 3. Register and export
 
