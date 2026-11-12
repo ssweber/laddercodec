@@ -148,8 +148,7 @@ and raise `FieldError` for `""`, a longer text and a quote inside the text.
 `CompareContact` and `Search` take 1 to 128 printable ASCII characters in quotes
 (`"AB"` matches consecutive TXT registers) and raise `FieldError` for `""`, a
 longer or non-ASCII text and a quote inside the text. Each refuses when built or
-read from CSV. An ASCII-code constant is `$` and two hex digits (`$D` raises
-`FieldError`). A quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
+read from CSV. A quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
 
 ## Comments
 

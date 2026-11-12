@@ -187,7 +187,7 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy(1FH,DH1)",
         "copy(-1.5E+3,DF1)",
         "copy(.5,DF1)",
-        "copy($0D,TXT1)",
+        "copy($D,TXT1)",
         "copy(DD[DS1],DS1)",
         "copy(DS1,TXT[DS2])",
         "copy(C[DS1],Y001)",
@@ -245,7 +245,6 @@ def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
 _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
-_CHAR_CODE = r"a character code is \$ and two hex digits"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
 
@@ -262,10 +261,6 @@ _COPY_SOURCE_REFUSED = [
     ('"""', "TXT2", _TEXT_RULE),
     ('"a"b"', "TXT2", _TEXT_RULE),
     (_TEXT_129, "TXT2", _TEXT_RULE),
-    ("$1", "TXT2", _CHAR_CODE),
-    ("$D", "TXT2", _CHAR_CODE),
-    ("$100", "TXT2", _CHAR_CODE),
-    ("$4142", "TXT2", _CHAR_CODE),
 ]
 
 
@@ -279,7 +274,7 @@ def test_copy_source_refuses_what_the_constant_check_refuses(
 
 @pytest.mark.parametrize(
     "token",
-    ['copy("",TXT2)', "copy($1,TXT2)", "copy(+1h,DD1)", f"copy({_TEXT_129},TXT2)"],
+    ['copy("",TXT2)', "copy(0FFFFFFFFh,DD1)", "copy(+1h,DD1)", f"copy({_TEXT_129},TXT2)"],
 )
 def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: str) -> None:
     with pytest.raises(FieldError, match="^Copy.source: "):
@@ -309,6 +304,26 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
     assert parse_af_blob(copy.build_blob()) == copy
 
 
+# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
+# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Copy source and
+# a Fill value keep them as written.
+_DOLLAR_FORMS = ["$1", "$D", "$d", "$100", "$4142"]
+
+
+@pytest.mark.parametrize("source", _DOLLAR_FORMS)
+def test_copy_source_dollar_forms_kept_as_written(source: str) -> None:
+    copy = Copy(source, "TXT2")
+    assert copy.source == source
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize("value", _DOLLAR_FORMS)
+def test_fill_value_dollar_forms_kept_as_written(value: str) -> None:
+    fill = Fill(value, "TXT2", "TXT5")
+    assert fill.value == value
+    assert parse_af_blob(fill.build_blob()) == fill
+
+
 _FILL_VALUE_REFUSED = [
     ("2147483648", "DS52", "DS55", _INT32),
     ("-2147483649", "DS52", "DS55", _INT32),
@@ -325,10 +340,6 @@ _FILL_VALUE_REFUSED = [
     ('"""', "TXT2", "TXT5", _TEXT_RULE),
     ('"a"b"', "TXT2", "TXT5", _TEXT_RULE),
     (_TEXT_129, "TXT2", "TXT5", _TEXT_RULE),
-    ("$1", "TXT2", "TXT5", _CHAR_CODE),
-    ("$D", "TXT2", "TXT5", _CHAR_CODE),
-    ("$100", "TXT2", "TXT5", _CHAR_CODE),
-    ("$4142", "TXT2", "TXT5", _CHAR_CODE),
 ]
 
 
@@ -370,7 +381,7 @@ def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) ->
 
 
 @pytest.mark.parametrize("fmt", ["text", "binary"])
-@pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "none", "00", ""])
+@pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "None", "00", ""])
 def test_termination_code_is_a_character_code(fmt: str, code: str) -> None:
     """The blob stores a termination code only as a character code (OBJ-036)."""
     with pytest.raises(FieldError, match=r"^Copy.termination_code: .* is not allowed; it is a"):
@@ -378,7 +389,9 @@ def test_termination_code_is_a_character_code(fmt: str, code: str) -> None:
 
 
 @pytest.mark.parametrize("fmt", ["text", "binary"])
-@pytest.mark.parametrize(("code", "stored"), [("0", "0"), ("$00", "$00"), ("$FF", "$FF")])
+@pytest.mark.parametrize(
+    ("code", "stored"), [("0", "0"), ("none", "0"), ("$00", "$00"), ("$FF", "$FF")]
+)
 def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> None:
     copy = Copy("DS20", "TXT7", format=fmt, termination_code=code)
     assert copy.termination_code == stored
@@ -391,9 +404,9 @@ def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> No
         {0x6074: "+1h", 0x6076: "DS9"},
         {0x6074: "100000000h", 0x6076: "DD1"},
         {0x6074: '""', 0x6076: "TXT2"},
-        {0x6074: "$4142", 0x6076: "TXT2"},
+        {0x6074: '"""', 0x6076: "TXT2"},
         {0x6074: "3000000000", 0x6076: "DS52", 0x6077: "DS55", 0x2223: "2"},
-        {0x6074: "$1", 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},
+        {0x6074: '""', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},
     ],
 )
 def test_refused_constant_blob_is_left_unparsed(tags: dict[int, str]) -> None:

@@ -574,9 +574,8 @@ currently emit:
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
   `FFFFh` copies only to DD or CTD. A `copy` source, a `fill` value and a
-  `search` value take an integer of 32 bits, hex of at most 8 digits with no
-  sign (`+1h` is refused), and an ASCII-code constant of `$` and two hex digits
-  (`$1`, `$D` and `$4142` are refused).
+  `search` value take an integer of 32 bits and hex of at most 8 digits with no
+  sign (`+1h` is refused).
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a

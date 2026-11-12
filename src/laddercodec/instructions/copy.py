@@ -35,7 +35,7 @@ from ..model import (
     normalize_address,
     xy_slot,
 )
-from ..operands.constants import INT32_MAX, INT32_MIN, TEXT_MAX, Constant, classify
+from ..operands.constants import INT32_MAX, INT32_MIN, TEXT_MAX, classify
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -401,25 +401,27 @@ _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
-def check_constant(value: str, name: str) -> Constant:
-    """Return the constant ``value`` spells; raise :class:`FieldError` naming field ``name``
-    if CLICK's shared input check reads none there (OBJ-005).
+def check_constant(value: str, name: str) -> None:
+    """Raise :class:`FieldError` naming field ``name`` if CLICK's shared input check refuses
+    the constant ``value`` (OBJ-005).
 
     The rule is :func:`~laddercodec.operands.constants.classify`: an integer is 32-bit, a hex
-    constant takes no sign and has at most eight digits, quoted text is 1 to 128 characters
-    with no quote inside, and a character code is ``$`` and two hex digits.  A single Copy
-    source, a Fill value and a Search value run it on the constants their own checks pass.
+    constant takes no sign and has at most eight digits, and quoted text is 1 to 128
+    characters with no quote inside.  A single Copy source, a Fill value and a Search value
+    run it on the constants their own checks pass.
     """
-    constant = classify(value)
-    if constant is not None:
-        return constant
+    if value.startswith("$"):
+        # CLICK's shared check accepts $ and one hex digit, and $ codes above FF; classify()
+        # refuses both. arc.md Q-B7 refuses them only in Compare until a capture shows the
+        # form CLICK stores, so a $ code here keeps the caller's own verdict.
+        return
+    if classify(value) is not None:
+        return
     if value.startswith('"'):
         why = (
             f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
             "(write the quote character as $22)"
         )
-    elif value.startswith("$"):
-        why = "a character code is $ and two hex digits ($0D)"
     elif _INT_CONSTANT_RE.fullmatch(value):
         raise FieldError(
             f"{name}: {value!r} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
@@ -598,8 +600,9 @@ class Copy(AfInstruction):
         Text option for a DF source — ``"0"`` (real) or ``"1"`` (exponential).
         An integer source has no such option and rejects ``"1"``.
     termination_code:
-        Text option — ``"0"`` (none) or ``"$HH"`` hex ASCII code, always
-        two digits (``"$0D"`` for 0x0D; ``"$D"`` is accepted and stored as ``"$0D"``).
+        Text option — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or ``"$HH"`` hex
+        ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is accepted and stored as
+        ``"$0D"``).
     """
 
     source: str
@@ -617,7 +620,10 @@ class Copy(AfInstruction):
         if self.format not in _VALID_FORMATS:
             raise FieldError(f"Invalid copy format: {self.format!r}")
         # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
-        if self.termination_code.startswith("$"):
+        # "none" is the CSV spelling of no code, which to_csv writes.
+        if self.termination_code == "none":
+            self.termination_code = "0"
+        elif self.termination_code.startswith("$"):
             if not _TERMINATION_CODE_RE.fullmatch(self.termination_code):
                 raise FieldError(f"Invalid termination code: {self.termination_code!r}")
             self.termination_code = _ascii_code(int(self.termination_code[1:], 16))
@@ -661,7 +667,7 @@ class Copy(AfInstruction):
             # The blob stores a termination code only as a character code (OBJ-036).
             raise FieldError(
                 f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
-                "character code ($0D) or '0' for none"
+                "character code ($0D), or '0' or 'none' for no code"
             )
         if src.kind in ("number", "text"):
             check_constant(self.source, "Copy.source")

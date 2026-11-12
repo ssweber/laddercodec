@@ -108,7 +108,6 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
 
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
-_CHAR_CODE = r"a character code is \$ and two hex digits"
 
 
 @pytest.mark.parametrize(
@@ -120,10 +119,6 @@ _CHAR_CODE = r"a character code is \$ and two hex digits"
         ("DS", "6000000000", _INT32),
         ("DH", "+1h", _HEX_SIGN),
         ("DH", "-1h", _HEX_SIGN),
-        ("TXT", "$1", _CHAR_CODE),
-        ("TXT", "$D", _CHAR_CODE),
-        ("TXT", "$100", _CHAR_CODE),
-        ("TXT", "$4142", _CHAR_CODE),
     ],
 )
 def test_source_refuses_what_the_constant_check_refuses(
@@ -155,6 +150,17 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
     assert parse_af_blob(search.build_blob()) == search
 
 
+# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
+# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Search value
+# keeps them as written.
+@pytest.mark.parametrize("table", ["TXT", "DS"])
+@pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
+def test_source_dollar_forms_kept_as_written(table: str, source: str) -> None:
+    search = Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    assert search.source == source
+    assert parse_af_blob(search.build_blob()) == search
+
+
 @pytest.mark.parametrize(
     "fields",
     [
@@ -166,7 +172,6 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
         {0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"},  # a 32-bit hex value
         {0x6065: "3000000000"},  # outside int32
         {0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"},  # a signed hex value
-        {0x6065: "$4142", 0x6066: "TXT1", 0x6067: "TXT10"},  # not $hh
     ],
 )
 def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
