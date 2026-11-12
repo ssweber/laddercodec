@@ -15,8 +15,8 @@
 
 ### Changed
 - **Math hex constants**: a hex constant in a Math expression is written as CLICK shows it, uppercase digits without leading zeros (`0fH` is `Fh`, `00h` is `0h`); earlier versions kept the typed digits (`0fh`). A constant typed with more than 4 digits, zeros included (`0FFFEh`), is refused.
-- **Math sign on a hex constant**: `DH1 + ( -Ah )` is stored as `( - Ah )`, the sign its own token, as CLICK writes it; earlier versions joined the sign (`-Ah`), which CLICK never writes. A stored `-Ah` still decodes, as `- Ah`.
-- **Math words**: a Math expression with a word that is no address, function name or constant (`DS1 + FOO`, `DS1 + DS1X`, `DH1 + 7H7`), accepted before as an unknown word, raises `FieldError`.
+- **Math sign on a hex constant**: `DH1 + ( -Ah )` is stored as `( - Ah )`, the sign its own token, as CLICK writes it; earlier versions joined the sign (`-Ah`), which CLICK never writes. A stored `-Ah` still decodes, as `- Ah`. Re-encoding a stored lowercase or zero-padded hex constant (`0fh`) writes CLICK's form (`Fh`), so those bytes change though the value does not.
+- **Math words**: a Math expression with a word that is no address, function name or constant (`DS1 + FOO`, `DS1 + DS1X`, `DH1 + 7H7`), accepted before as an unknown word, raises `FieldError`. A stored Math that laddercodec wrote earlier with such a word, with more than four typed hex digits, or with an empty template whose internal-form fallback no longer parses, now decodes as raw and keeps its bytes.
 - **Math nickname**: a Math expression with a `<nickname>` (`math(DS1 + <FOO>,DS2)`), accepted before and copied into the formula CLICK keeps as addresses, raises `FieldError`.
 - **Termination code**: a Copy termination code is `$` and two hex digits (`$0D`); `$D` and `$0` were accepted and stored as `$0D`, and now raise `FieldError`.
 - **Fill into TXT**: a Fill into TXT takes one character, so `fill("AB",TXT1..TXT5)`, accepted before, raises `FieldError`.

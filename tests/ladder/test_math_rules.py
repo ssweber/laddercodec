@@ -215,7 +215,9 @@ def test_hex_constant_digit_limit_counts_typed_zeros() -> None:
         Math("DH1 + 0FFFEh", "DH9", "hex")
 
 
-@pytest.mark.parametrize("expression", ["DS1 + FOO", "DS1 + DS1X", "DH1 + 7H7", "DS1 + _x"])
+@pytest.mark.parametrize(
+    "expression", ["DS1 + FOO", "DS1 + DS1X", "DH1 + 7H7", "DS1 + _x", "DS1 + _", "DS1 + __"]
+)
 def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
     mode = "hex" if expression.startswith("DH") else "decimal"
     with pytest.raises(FieldError, match="Math.expression: '.*' is not an address"):

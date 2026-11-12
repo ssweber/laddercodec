@@ -306,7 +306,7 @@ def _check_expression(expression: str, mode: str) -> None:
                 f"{name}: {expression!r} holds a text constant; a Math formula takes numbers only"
             )
     for token in tokens:
-        word = token.replace("_", "").isalnum()
+        word = token.replace("_", "a").isalnum()
         if (
             word
             and token not in FUNCTION_NAMES
