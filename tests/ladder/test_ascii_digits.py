@@ -234,7 +234,7 @@ def test_drum_pattern_accepts_0_and_1() -> None:
 
 def test_math_refuses_a_nickname_with_unicode_digits() -> None:
     with pytest.raises(FieldError, match="Math.expression.*nickname"):
-        Math("DS1 + <n0663>", "DS2", "decimal")
+        Math("DS1 + <n\u0663>", "DS2", "decimal")
 
 
 def test_contact_with_unicode_digit_names_the_operand(tmp_path: Path) -> None:
