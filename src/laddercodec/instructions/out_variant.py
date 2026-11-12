@@ -82,10 +82,6 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 }
 
 
-#: Blob tag -> field name for the four per-phase string fields.
-_FIELD_TAGS = {0x60B3: "on_preset", 0x60B4: "on_acc", 0x60B5: "off_preset", 0x60B6: "off_acc"}
-
-
 def _check_preset(value: str, name: str, floor: int) -> None:
     """A preset is a DS register or a digits-only constant from *floor* to 32767."""
     if value.isascii() and value.isdigit():
@@ -288,37 +284,50 @@ class OutVariant(AfInstruction):
             return {"visual_rows": 2, "sub_rows": 3}
         return {}
 
+    def _tag_values(self) -> list[str]:
+        """Values written for ``_OUT_VARIANT_TAGS``, in order."""
+        return [
+            self.operand,
+            "",
+            self.on_preset,
+            self.on_acc,
+            self.off_preset,
+            self.off_acc,
+            "0",
+            "1" if self.immediate else "0",
+            "1" if self.kind == "toggle" else "0",
+            "1" if self.maintained else "0",
+            TIMER_UNIT_TO_INDEX[self.unit] if self.unit else "0",
+            _KIND_INDEX[self.kind],
+            self.func_code,
+            "2",
+            "",
+        ]
+
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this Out variant cell."""
         from ..binary_helpers import _build_blob
 
-        return _build_blob(
-            "Out",
-            0x2715,
-            _OUT_VARIANT_TAGS,
-            [
-                self.operand,
-                "",
-                self.on_preset,
-                self.on_acc,
-                self.off_preset,
-                self.off_acc,
-                "0",
-                "1" if self.immediate else "0",
-                "1" if self.kind == "toggle" else "0",
-                "1" if self.maintained else "0",
-                TIMER_UNIT_TO_INDEX[self.unit] if self.unit else "0",
-                _KIND_INDEX[self.kind],
-                self.func_code,
-                "2",
-                "",
-            ],
-        )
+        return _build_blob("Out", 0x2715, _OUT_VARIANT_TAGS, self._tag_values())
 
 
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------
+
+
+def _writes_tags(decoded: OutVariant, tags: dict[int, str]) -> bool:
+    """True when re-encoding *decoded* keeps every value the blob holds.
+
+    A blob that holds a value the kind's dialog never writes (an accumulator, a unit or a
+    range end in a toggle, an immediate flag in a timed) would lose it; it stays raw.
+    A blank or absent tag holds no value: SCR files leave out the tags at their default.
+    """
+    for tag, written in zip(_OUT_VARIANT_TAGS, decoded._tag_values(), strict=True):
+        held = tags.get(tag, "")
+        if held and held != written:
+            return False
+    return True
 
 
 def from_tags(
@@ -337,16 +346,12 @@ def from_tags(
     if variant is None or not operand:
         return None
     kind, unit, flag = variant
-    # A value in a field the kind does not use is a blob CLICK's dialog never writes:
-    # leave it to the raw fallback rather than drop the value.
-    unused = [t for t, n in _FIELD_TAGS.items() if n not in _USED_FIELDS[kind]]
-    if any(tag_value(tags, t) for t in unused):
-        return None
     if kind == "toggle":
-        return OutVariant(kind="toggle", operand=operand, immediate=flag)
+        decoded = OutVariant(kind="toggle", operand=operand, immediate=flag)
+        return decoded if _writes_tags(decoded, tags) else None
     if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
-    return OutVariant(
+    decoded = OutVariant(
         kind=kind,
         operand=operand,
         on_acc=tag_value(tags, 0x60B4),
@@ -356,6 +361,7 @@ def from_tags(
         unit=unit,
         maintained=flag,
     )
+    return decoded if _writes_tags(decoded, tags) else None
 
 
 def parse_af_call(call: AfCall) -> OutVariant:

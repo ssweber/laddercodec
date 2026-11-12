@@ -18,6 +18,7 @@ from laddercodec.instructions.coil import WRITABLE_SC, Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
+from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.model import InstructionType
 
@@ -580,24 +581,40 @@ class TestOutVariant:
             timed(operand="Y1", immediate=True)
 
     @pytest.mark.parametrize(
-        ("kind", "field"),
+        ("kwargs", "field"),
         [
-            ("toggle", "on_acc"),
-            ("toggle", "on_preset"),
-            ("toggle", "off_acc"),
-            ("toggle", "off_preset"),
-            ("toggle", "unit"),
-            ("timed", "off_acc"),
-            ("timed", "off_preset"),
+            ({"kind": "toggle", "operand": "C1", "on_acc": "TD1"}, "on_acc"),
+            ({"kind": "toggle", "operand": "C1", "on_preset": "5"}, "on_preset"),
+            ({"kind": "toggle", "operand": "C1", "off_acc": "TD2"}, "off_acc"),
+            ({"kind": "toggle", "operand": "C1", "off_preset": "5"}, "off_preset"),
+            ({"kind": "toggle", "operand": "C1", "unit": "Ts"}, "unit"),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                    "off_acc": "TD2",
+                },
+                "off_acc",
+            ),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                    "off_preset": "5",
+                },
+                "off_preset",
+            ),
         ],
     )
-    def test_every_unused_field_refused(self, kind: str, field: str) -> None:
-        values = {"on_acc": "TD1", "on_preset": "5", "off_acc": "TD2", "off_preset": "5"}
-        kw = {"kind": kind, "operand": "C1", field: values.get(field, "Ts")}
-        if kind == "timed":
-            kw |= {"on_acc": "TD1", "on_preset": "5", "unit": "Tms"} | {field: kw[field]}
-        with pytest.raises(FieldError, match=f"^OutVariant.{field}: .* is not used by {kind}"):
-            OutVariant(**kw)
+    def test_every_unused_field_refused(self, kwargs: dict, field: str) -> None:
+        with pytest.raises(FieldError, match=f"^OutVariant.{field}: .* is not used by"):
+            OutVariant(**kwargs)
 
     def test_toggle_and_timed_accept_empty_unused_fields(self) -> None:
         OutVariant(kind="toggle", operand="C1")
@@ -609,25 +626,117 @@ class TestOutVariant:
         with pytest.raises(ValueError, match="does not support keyword"):
             OutVariant.from_csv_token("timed(C1,on_acc=TD1,on_preset=5,off_acc=TD2,unit=Tms)")
 
-    _TAGS = {0x6066: "C1", 0x60B3: "5", 0x60B4: "TD1", 0x60B5: "", 0x60B6: "", 0x21F9: "0"}
+    @staticmethod
+    def _decoded_tags(variant: OutVariant, **extra: str) -> dict[int, str]:
+        names = {
+            "range_end": 0x6067,
+            "on_preset": 0x60B3,
+            "on_acc": 0x60B4,
+            "off_preset": 0x60B5,
+            "off_acc": 0x60B6,
+            "immediate": 0x11F5,
+            "toggle": 0x1246,
+            "maintained": 0x1247,
+            "unit": 0x21F9,
+        }
+        tags = {
+            0x6066: variant.operand,
+            0x60B3: variant.on_preset,
+            0x60B4: variant.on_acc,
+            0x60B5: variant.off_preset,
+            0x60B6: variant.off_acc,
+            0x1246: "1" if variant.kind == "toggle" else "0",
+            0x3218: variant.func_code,
+            0x21F9: TIMER_UNIT_TO_INDEX[variant.unit] if variant.unit else "0",
+        }
+        return {**tags, **{names[k]: v for k, v in extra.items()}}
 
     @pytest.mark.parametrize(
-        ("func", "extra"),
+        ("kwargs", "extra"),
         [
-            ("8224", {0x60B4: "Q77"}),  # toggle with on_acc
-            ("8224", {0x60B3: "5"}),  # toggle with on_preset
-            ("8224", {0x60B6: "TD2"}),  # toggle with off_acc
-            ("8230", {0x60B6: "TD2"}),  # timed with off_acc
-            ("8230", {0x60B5: "5"}),  # timed with off_preset
+            ({"kind": "toggle", "operand": "C1"}, {"on_acc": "Q77"}),
+            ({"kind": "toggle", "operand": "C1"}, {"on_preset": "5"}),
+            ({"kind": "toggle", "operand": "C1"}, {"off_acc": "TD2"}),
+            ({"kind": "toggle", "operand": "C1"}, {"off_preset": "5"}),
+            ({"kind": "toggle", "operand": "C1"}, {"unit": "2"}),
+            ({"kind": "toggle", "operand": "C1"}, {"maintained": "1"}),
+            ({"kind": "toggle", "operand": "C1"}, {"range_end": "C5"}),
+            ({"kind": "toggle", "operand": "C1"}, {"toggle": "0"}),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                },
+                {"off_acc": "TD2"},
+            ),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                },
+                {"off_preset": "5"},
+            ),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                },
+                {"immediate": "1"},
+            ),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                },
+                {"maintained": "1"},
+            ),
+            (
+                {
+                    "kind": "timed",
+                    "operand": "C1",
+                    "on_acc": "TD1",
+                    "on_preset": "5",
+                    "unit": "Tms",
+                },
+                {"toggle": "1"},
+            ),
         ],
     )
-    def test_decode_leaves_blob_with_unused_value_to_raw(self, func: str, extra: dict) -> None:
-        tags = {**self._TAGS, 0x3218: func, 0x21F9: "0", **extra}
-        if func == "8224":
-            tags |= {0x60B3: "", 0x60B4: "", 0x60B5: "", 0x60B6: ""} | extra
-        else:
-            tags[0x21F9] = TIMER_UNIT_TO_INDEX["Tms"]
-        assert from_tags_af("Out", 0x2715, tags) is None
+    def test_decode_leaves_blob_with_unused_value_to_raw(self, kwargs: dict, extra: dict) -> None:
+        variant = OutVariant(**kwargs)
+        assert from_tags_af("Out", 0x2715, self._decoded_tags(variant)) == variant
+        assert from_tags_af("Out", 0x2715, self._decoded_tags(variant, **extra)) is None
+
+    def test_full_decode_of_unused_value_is_raw_and_reencodes_identically(self) -> None:
+        good = OutVariant(kind="toggle", operand="C1")
+        blob = good.build_blob()
+        # Put Q77 into the empty on_acc field by rebuilding the blob with that value.
+        from laddercodec.binary_helpers import _build_blob
+        from laddercodec.instructions.out_variant import _OUT_VARIANT_TAGS
+
+        values = good._tag_values()
+        values[3] = "Q77"
+        bad = _build_blob("Out", 0x2715, _OUT_VARIANT_TAGS, values)
+        assert bad != blob
+        rung = decode(encode_rung(1, [["-"] * 31], [RawInstruction("Out", bad)]))
+        raw = rung.instructions[0]
+        assert isinstance(raw, RawInstruction)
+        assert raw.blob == bad
+        again = RawInstruction.from_csv_token(raw.to_csv())
+        assert again.blob == bad
+        assert decode(encode_rung(1, [["-"] * 31], [again])).instructions[0] == raw
 
     def test_bad_unit_is_a_field_error_on_construction(self) -> None:
         with pytest.raises(FieldError, match="^OutVariant.unit"):
