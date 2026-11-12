@@ -242,7 +242,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("copy.py", "re.compile('[+-]?([0-9A-Fa-f]+)[hH]')"): 1,
     ("copy.py", "re.compile('[+-]?[0-9]+')"): 1,
     ("copy.py", "re.compile('\\\\$[0-9A-Fa-f]+')"): 1,
-    ("copy.py", "re.compile('\\\\$[0-9A-Fa-f]{1,2}')"): 1,
     ("copy.py", "re.compile('\\\\$[0-9A-Fa-f]{2}')"): 1,
     ("copy.py", "re.compile('^to_(text|value|binary|ascii)(?:\\\\((.*)\\\\))?$', re.DOTALL)"): 1,
     ("copy.py", "re.fullmatch('copy\\\\((.+)\\\\)', token)"): 1,

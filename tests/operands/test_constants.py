@@ -41,6 +41,11 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("-1.5e-3", Constant(F, -1.5e-3)),
     ("3.4028235E+38", Constant(F, 3.4028235e38)),
     ("0E0", Constant(F, 0.0)),
+    ("3.5E+3", Constant(F, 3500.0)),
+    ("-3.4028235E+38", Constant(F, -3.4028235e38)),
+    # rounds to float32's largest finite value
+    ("3.40282356E+38", Constant(F, 3.40282356e38)),
+    ("-3.40282356E+38", Constant(F, -3.40282356e38)),
     # Hex: 16-bit by value, 32-bit up to eight digits; either case of letter and h.
     ("0h", Constant(H, 0)),
     ("0H", Constant(H, 0)),
@@ -130,6 +135,10 @@ REFUSED: list[str] = [
     "-inf",
     "1E999",
     "-1E999",
+    # above float32 (arc.md Q-M17, dialog 2026-11-12); a value rounding to its largest passes
+    "3.5E+38",
+    "-3.5E+38",
+    "3.4028236E+38",
     "1.5.2",
     # Separators and other spellings.
     "1_000",

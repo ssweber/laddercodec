@@ -230,7 +230,7 @@ def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
     32-bit hex is OBJ-005.  Text is printable ASCII (Q-M10 ruling, :func:`printable`).
     DLL: Inst_Search.dll, the search value's class picks the range banks (no dialog check):
     an int32 integer or a float searches DS, DD, DF, TD, CTD; 16-bit hex searches DH; text
-    or ``$hh`` searches TXT.  A refusal from that pairing alone is tagged unconfirmed.
+    or ``$hh`` searches TXT (arc.md Q-M21, confirmed in the dialog 2026-11-12).
     """
     table_kinds = {"DS": {"integer", "float"}, "DH": {"hex"}, "TXT": {"text", "char"}}[table]
 
@@ -244,7 +244,7 @@ def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
         if const.kind == "text" and not ns.c.printable(const.value):
             return REFUSE, why
         if const.kind not in table_kinds:
-            return REFUSE, UNCONFIRMED + why
+            return REFUSE, why
         return ACCEPT, why
 
     return rule

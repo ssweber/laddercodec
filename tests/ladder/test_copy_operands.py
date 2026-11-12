@@ -97,6 +97,11 @@ _REFUSED = [
     # bits / words is the bank kind: the blob has no flag for it
     ("pack_bits(DS1..DS2,DD1)", "'DS1' is a register; bits needs a bit bank"),
     ("pack_words(C1..C2,DS1)", "'C1' is a bit; words needs a register bank"),
+    # a TXT source packs only as pack_text, and pack_text needs one (arc.md Q-M12)
+    ("pack_text(DS1..DS2,DD1)", "'DS1' is not a TXT register; pack_text takes a TXT source"),
+    ("pack_text(C1..C2,DS1)", "'C1' is not a TXT register; pack_text takes a TXT source"),
+    ("pack_words(TXT1..TXT2,DS1)", "'TXT1' is a TXT register; pack_words has no TXT source"),
+    ("pack_bits(TXT1..TXT2,DS1)", "'TXT1' is a TXT register; pack_bits has no TXT source"),
     ("unpack_to_bits(DD1,DS1..DS2)", "'DS1' is a register; bits needs a bit bank"),
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
     # Single Copy constants (Q-M5): an integer is 32-bit (OBJ-005); hex above FFFFh goes to
@@ -209,7 +214,6 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "blockcopy(X021..X036,C1..C16)",
         "blockcopy(C1..C7,Y010..Y016)",
         "blockcopy(X001..X008,Y101..Y108)",
-        "pack_text(DS1..DS2,DD1)",  # a non-TXT source is not refused (needs a dialog check)
         "pack_bits(X001..X016,DH1)",
         "pack_bits(X021..X036,DH1)",
         "pack_bits(SC1..SC16,DH1)",
@@ -344,6 +348,11 @@ _FILL_VALUE_REFUSED = [
     ('"a"b"', "TXT2", "TXT5", _TEXT_RULE),
     (_TEXT_129, "TXT2", "TXT5", _TEXT_RULE),
     ("1E999", "DF1", "DF4", _FINITE),
+    ("3.5E+38", "DF1", "DF4", _FINITE),
+    ("-3.5E+38", "DF1", "DF4", _FINITE),
+    # OBJ-023: a Fill into TXT takes one character (arc.md, 2026-11-12)
+    ('"AB"', "TXT2", "TXT5", "takes one character"),
+    (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),
 ]
 
@@ -374,7 +383,6 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
         ("10000h", "DS52", "DS55"),
         ("FFFFFFFFh", "DS52", "DS55"),
         ("5", "TXT2", "TXT5"),
-        (_TEXT_128, "TXT2", "TXT5"),
         ('"é"', "TXT2", "TXT5"),
         ("$00", "TXT2", "TXT5"),
         ("$7E", "TXT2", "TXT5"),

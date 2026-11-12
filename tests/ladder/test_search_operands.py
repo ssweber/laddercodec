@@ -181,3 +181,39 @@ def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
     tags = {0x6065: "DS1", 0x6066: "DS1", 0x6067: "DS10", 0x6079: "DS20", 0x607A: "C1"}
     assert from_tags_af("Search", 0x2722, tags) is not None
     assert from_tags_af("Search", 0x2722, tags | fields) is None
+
+
+@pytest.mark.parametrize(
+    ("table", "value"),
+    [
+        ("DS", "5"),
+        ("DD", "-70000"),
+        ("DF", "1.5"),
+        ("TD", "0"),
+        ("CTD", "7"),
+        ("DH", "FFFFh"),
+        ("TXT", '"A"'),
+        ("TXT", "$41"),
+    ],
+)
+def test_search_value_kind_fits_table(table: str, value: str) -> None:
+    Search(f"{table}1", f"{table}10", value, "DS20", "C20", "==")
+
+
+@pytest.mark.parametrize(
+    ("table", "value"),
+    [
+        ("DS", "FFFFh"),
+        ("DS", '"A"'),
+        ("DS", "$41"),
+        ("DH", "5"),
+        ("DH", "1.5"),
+        ("DH", '"A"'),
+        ("TXT", "5"),
+        ("TXT", "0Fh"),
+        ("TXT", "1.5"),
+    ],
+)
+def test_search_value_kind_must_fit_table(table: str, value: str) -> None:
+    with pytest.raises(FieldError, match="^Search.source: "):
+        Search(f"{table}1", f"{table}10", value, "DS20", "C20", "==")

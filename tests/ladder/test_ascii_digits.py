@@ -143,14 +143,14 @@ def test_read_csv_takes_ascii_digit_only(tmp_path: Path, name: str, cond: str, a
 
 class TestSearchEmptyText:
     def _search(self, source: str) -> Search:
-        return Search("DS1", "DS10", source, "DS20", "C20", "==")
+        return Search("TXT1", "TXT10", source, "DS20", "C20", "==")
 
     def test_empty_refused_through_constructor(self) -> None:
         with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
             self._search('""')
 
     def test_empty_refused_through_read_csv(self, tmp_path: Path) -> None:
-        af = 'search(DS1..DS10 == "",result=DS20,found=C20)'
+        af = 'search(TXT1..TXT10 == "",result=DS20,found=C20)'
         with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
             read_csv(_write(tmp_path, "C1", af))
 
@@ -170,12 +170,12 @@ class TestSearchEmptyText:
             self._search(source)
 
     def test_refused_text_through_read_csv(self, tmp_path: Path) -> None:
-        af = f'search(DS1..DS10 == "{"x" * 129}",result=DS20,found=C20)'
+        af = f'search(TXT1..TXT10 == "{"x" * 129}",result=DS20,found=C20)'
         with pytest.raises(FieldError, match=r"^Search\.source: "):
             read_csv(_write(tmp_path, "C1", af))
 
     def test_quoted_character_code_is_text_and_round_trips(self, tmp_path: Path) -> None:
-        af = 'search(DS1..DS10 == "$41",result=DS20,found=C20)'
+        af = 'search(TXT1..TXT10 == "$41",result=DS20,found=C20)'
         search = read_csv(_write(tmp_path, "C1", af))[0].instructions[0]
         assert isinstance(search, Search) and search.source == '"$41"'
         bare = self._search("$41")
@@ -188,7 +188,7 @@ class TestSearchEmptyText:
 
     def test_native_blob_with_empty_text_is_not_parsed(self) -> None:
         # decode() keeps a blob that parse_af_blob does not parse as a RawInstruction.
-        blob = Search("DS1", "DS10", '"A"', "DS20", "C20", "==").build_blob()
+        blob = Search("TXT1", "TXT10", '"A"', "DS20", "C20", "==").build_blob()
         needle = '"A"'.encode("utf-16-le")
         assert blob.count(needle) == 1
         empty = blob.replace(needle, '""'.encode("utf-16-le"))
@@ -197,7 +197,7 @@ class TestSearchEmptyText:
 
 @pytest.mark.parametrize("code", ["$\u0663", "$0x1", "$1_0", "$ 1", "$+1", "$", "$123", "$G1"])
 def test_termination_code_is_two_hex_digits(code: str) -> None:
-    with pytest.raises(FieldError, match="Invalid termination code"):
+    with pytest.raises(FieldError, match="Copy.termination_code"):
         _termination(code)
 
 

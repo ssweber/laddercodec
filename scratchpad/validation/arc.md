@@ -514,8 +514,10 @@ Open asks (checklist; details under each id below):
   check; 114 dry-run rows (devtools/classify_dryrun.py, `DIFFERS?`) wait on this.
   - **ANSWERED 2026-11-12 (user, dialog):** the value's kind ties to the table: a hex value
     (`0h`) to DH, a decimal (`1`) to the integer banks ("INT"), and text (`"T"`) to TXT.
-    This confirms the DLL pairing, so the 114 `DIFFERS?` rows follow it. Unsettled: which
-    banks "INT" covers (DS only, or also DD, TD and CTD), and where a real goes (DF).
+    This confirms the DLL pairing, so the 114 `DIFFERS?` rows follow it. Settled (user,
+    2026-11-12): a decimal integer or a real searches DS, DD, DF, TD or CTD; a 16-bit hex
+    value DH; text or `$hh` TXT. Built in `Search`, with `SEARCH_TABLE_BANKS` in
+    `operands/constants.py`.
 
 **comm**
 - Q-C1 Slave ID: are DD1 and C1 refused?

@@ -120,7 +120,6 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
         ("DF1*1.0E-10", "DF1 * 1.0E-10"),
         ("DF1*-1.5e+10", "DF1 * -1.5e+10"),
         ("DF1+.5", "DF1 + .5"),
-        ("DH1+1Eh-1h", "DH1 + 1Eh - 1h"),
         ("DS1 MOD 2", "DS1 MOD 2"),
         ("DS1 MOD -2", "DS1 MOD -2"),
         ("SUM(DS1:DS9)", "SUM ( DS1 : DS9 )"),
@@ -130,6 +129,10 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
 )
 def test_expression_is_spaced_like_clicks_editor(typed: str, spaced: str) -> None:
     assert Math(typed, "DS9").expression == spaced
+
+
+def test_hex_expression_is_spaced_like_clicks_editor() -> None:
+    assert Math("DH1+1Eh-1h", "DH9", mode="hex").expression == "DH1 + 1Eh - 1h"
 
 
 def test_nickname_display_wraps_each_operand_once() -> None:

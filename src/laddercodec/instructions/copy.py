@@ -135,10 +135,9 @@ _COPY_TAGS = (
     0x0000,  # [12] terminator
 )
 
-#: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code).
+#: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code): ``$`` and
+#: two hex digits, as the ASCII Table picker writes it.  A termination code takes the same form.
 _ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
-#: A termination code: ``$`` and one or two hex digits (``$D`` is stored as ``$0D``).
-_TERMINATION_CODE_RE = re.compile(r"\$[0-9A-Fa-f]{1,2}")
 
 
 def _is_text_constant(operand: str) -> bool:
@@ -409,8 +408,8 @@ def check_constant(value: str, name: str) -> None:
     the constant ``value`` (OBJ-005).
 
     The rule is :func:`~laddercodec.operands.constants.classify`: an integer is 32-bit, a hex
-    constant takes no sign and has at most eight digits above ``FFFFh``, a real is finite,
-    and quoted text is 1 to 128 characters with no quote inside.  A single Copy source, a
+    constant takes no sign and has at most eight digits above ``FFFFh``, a real is finite and within
+    float32, and quoted text is 1 to 128 characters with no quote inside.  A single Copy source, a
     Fill value and a Search value run it on the constants their own checks pass.
     """
     if value.startswith("$"):
@@ -432,7 +431,7 @@ def check_constant(value: str, name: str) -> None:
     elif _HEX_CONSTANT_RE.fullmatch(value):
         why = "a hex constant has no sign and at most 8 digits"
     else:
-        why = "a real constant is a finite number"
+        why = "a real constant is a finite number within float32 (up to about 3.4028235E+38)"
     raise FieldError(f"{name}: {value!r} is refused; {why}")
 
 
@@ -622,13 +621,16 @@ class Copy(AfInstruction):
         self.destination = normalize_address(self.destination)
         if self.format not in _VALID_FORMATS:
             raise FieldError(f"Invalid copy format: {self.format!r}")
-        # One spelling per code, whichever way it came in ($D from CSV, 13 from a blob).
+        # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
         # "none" is the CSV spelling of no code, which to_csv writes.
         if self.termination_code == "none":
             self.termination_code = "0"
         elif self.termination_code.startswith("$"):
-            if not _TERMINATION_CODE_RE.fullmatch(self.termination_code):
-                raise FieldError(f"Invalid termination code: {self.termination_code!r}")
+            if not _ASCII_CODE_CONSTANT_RE.fullmatch(self.termination_code):
+                raise FieldError(
+                    f"Copy.termination_code: {self.termination_code!r} is refused; "
+                    "a code is $ and two hex digits, such as $0D"
+                )
             self.termination_code = _ascii_code(int(self.termination_code[1:], 16))
         for option in ("suppress_zero", "exponential"):
             if getattr(self, option) not in ("0", "1"):
@@ -982,6 +984,14 @@ class Fill(AfInstruction):
         _check_pair("Fill", self.value, src, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
         if src.kind in ("number", "text"):
             check_constant(self.value, "Fill.value")
+        if dest.bank == "TXT" and src.kind == "text":
+            # A ``$hh`` code is one character.
+            chars = self.value[1:-1] if self.value.startswith('"') else "$"
+            if len(chars) != 1:
+                raise FieldError(
+                    f"Fill.value: {self.value!r} is {len(chars)} characters; a Fill into TXT "
+                    "takes one character (OBJ-023)"
+                )
 
     @property
     def func_code(self) -> str:
@@ -1080,6 +1090,14 @@ class Pack(AfInstruction):
             "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}", first.bank,
             "destination", self.destination, dest.bank,
         )  # fmt: skip
+        if (first.bank == "TXT") != (self.pack_type == "text"):
+            raise AddressError(
+                f"Pack.source_start: {self.source_start!r} is "
+                f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
+                f"pack_{self.pack_type} "
+                f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
+                f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does"
+            )
         if self.pack_type == "text":
             return
         _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)

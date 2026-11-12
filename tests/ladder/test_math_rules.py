@@ -55,6 +55,15 @@ _REFUSED = [
     ("DH1 + 10000h", "DH9", "hex", "10000h is outside 0h..FFFFh"),
     ("DH1 + 1FFFFh", "DH9", "hex", "1FFFFh is outside 0h..FFFFh"),
     ("DH1 + 0FFFFh", "DH9", "hex", "0FFFFh is outside 0h..FFFFh"),
+    # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12)
+    ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
+    ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
+    ("DS1 + ( -1Fh )", "DD9", "decimal", "-1Fh is a hex constant"),
+    # a text constant in a formula, either mode (Q-M20, dialog 2026-11-12)
+    ('DS1 + "A"', "DS9", "decimal", "holds a text constant"),
+    ("DS1 + $41", "DS9", "decimal", "holds a text constant"),
+    ('DH1 + "A"', "DH9", "hex", "holds a text constant"),
+    ("DH1 + $41", "DH9", "hex", "holds a text constant"),
     # SUM takes no CT range (Q-M8, OBJ-1002)
     ("SUM ( CT1 : CT3 )", "DS9", "decimal", "SUM over CT1 is refused; SUM takes no CT range"),
     # parentheses: at most 8 deep (OBJ-1010), balanced (OBJ-1004, OBJ-1005)
@@ -133,9 +142,7 @@ def test_unknown_mode_refused() -> None:
         # its low 32 bits print at the same length, so CLICK passes it
         ("DS1 + 6000000000", "DD9", "decimal"),
         ("DS1 + 0", "DS9", "decimal"),
-        # constants in the other mode are not checked (Inst_Math.dll)
-        ("DH1 + 1Eh", "DS9", "decimal"),
-        ("DS1 + 10000h", "DD9", "decimal"),
+        # a decimal integer in a hex Math is not ruled on yet (Q-M13b)
         ("DH1 + 1.5", "DH9", "hex"),
         ("SUM ( DS1 : DS1 )", "DS9", "decimal"),
         ("MAX ( XD0 : XD0u )", "DH9", "hex"),

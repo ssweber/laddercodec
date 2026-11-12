@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import re
+import struct
 from enum import StrEnum
 from typing import NamedTuple
 
@@ -85,7 +86,8 @@ def classify(text: str) -> Constant | None:
     """Return the constant ``text`` spells, or ``None`` if it is no constant.
 
     ``None`` covers an empty text, an address, a value outside its kind (an integer outside
-    int32, hex longer than eight digits, a float that is not finite) and anything else the
+    int32, hex longer than eight digits, a float that is not finite or above the float32
+    range) and anything else the
     shared check refuses.  Only ASCII digits count (arc.md ruling 2026-11-11): ``٣`` is no
     digit.  No space is trimmed; a field that strips its text does so first.
     """
@@ -103,13 +105,35 @@ def classify(text: str) -> Constant | None:
         return _integer(m.group(1), m.group(2))
     if _FLOAT_RE.fullmatch(upper):
         value = float(upper)
-        # Whether the shared check bounds a float to float32 is not known; only a value
-        # that is not finite (``1E999``) is refused.
-        return Constant(Kind.FLOAT, value) if math.isfinite(value) else None
+        return Constant(Kind.FLOAT, value) if _float32(value) else None
     m = _CHAR_RE.fullmatch(upper)
     if m is not None:
         return Constant(Kind.CHAR, int(m.group(1), 16))
     return None
+
+
+#: The table banks a Search value of each kind searches (arc.md Q-M21, dialog 2026-11-12): a
+#: decimal integer or a real the integer and real banks, a hex value DH, text or a character
+#: code TXT.
+SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
+    Kind.INTEGER: frozenset({"DS", "DD", "DF", "TD", "CTD"}),
+    Kind.FLOAT: frozenset({"DS", "DD", "DF", "TD", "CTD"}),
+    Kind.HEX: frozenset({"DH"}),
+    Kind.TEXT: frozenset({"TXT"}),
+    Kind.CHAR: frozenset({"TXT"}),
+}
+
+
+def _float32(value: float) -> bool:
+    """Whether ``value`` is finite and fits float32 (a value that rounds to its largest
+    finite number, about 3.4028235E+38, fits; arc.md Q-M17 dialog answer, 2026-11-12)."""
+    if not math.isfinite(value):
+        return False
+    try:
+        struct.pack("<f", value)
+    except OverflowError:
+        return False
+    return True
 
 
 def _text(inner: str) -> Constant | None:

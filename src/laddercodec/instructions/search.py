@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
+from ..operands.constants import SEARCH_TABLE_BANKS, classify
 from .comparison import check_quoted_text
 from .copy import REGISTER_BANKS, _check_range, check_constant, check_operand
 from .family import AfInstructionFamilySpec, fixed_cell_params
@@ -155,7 +156,7 @@ class Search(AfInstruction):
             )
         # Inst_Search.dll has no pointer path, so no field takes one (Q-M6).  The table is
         # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
-        _check_range(
+        table, _ = _check_range(
             "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
         )
         check_operand(self.result, "Search.result", RESULT_BANKS)
@@ -177,6 +178,13 @@ class Search(AfInstruction):
         if source.kind in ("number", "text"):
             # The value field runs CLICK's shared input check (arc.md Q-M10 ruling).
             check_constant(self.source, "Search.source")
+            # The value's kind ties to the table banks (arc.md Q-M21).
+            const = classify(self.source)
+            if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
+                raise FieldError(
+                    f"Search.source: {self.source!r} is a {const.kind} value, which searches "
+                    f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}"
+                )
 
     @property
     def func_code(self) -> str:

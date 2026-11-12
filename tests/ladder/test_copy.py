@@ -122,16 +122,17 @@ def test_single_copy_with_end_address_is_not_decoded(end_tag: int) -> None:
     assert from_tags("Copy", 0x2721, tags) is None
 
 
-@pytest.mark.parametrize(("given", "stored"), [("$D", "$0D"), ("$0", "$00"), ("$0d", "$0D")])
-def test_one_digit_or_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
+@pytest.mark.parametrize(("given", "stored"), [("$0D", "$0D"), ("$00", "$00"), ("$0d", "$0D")])
+def test_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
     copy = Copy(source="DS20", destination="TXT7", format="text", termination_code=given)
     assert copy.termination_code == stored
     assert f"termination_code={stored})" in copy.to_csv()
 
 
-@pytest.mark.parametrize("bad", ["$", "$ZZ", "$100"])
+@pytest.mark.parametrize("bad", ["$", "$D", "$0", "$ZZ", "$100"])
 def test_invalid_termination_code_rejected(bad: str) -> None:
-    with pytest.raises(ValueError):
+    # The ASCII Table picker writes two digits (arc.md, 2026-11-12).
+    with pytest.raises(FieldError, match="Copy.termination_code"):
         Copy(source="DS20", destination="TXT7", format="text", termination_code=bad)
 
 
