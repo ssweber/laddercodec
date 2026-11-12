@@ -183,6 +183,13 @@ accepted.
   - SUM over X, Y, T and SC is allowed, and MAX over TD is not flagged (see Q-M8).
   - The destination table has no hex/decimal split.
 - **Block Copy:** the pyrung table disagrees with Help 184 (Q-M1).
+- **Fill into TXT:** `fill("AB", txt[1:5])` builds and passes Click validation. Only the
+  simulator objects, with a `ValueError` at scan time (`_as_single_ascii_char`). It also takes
+  codes 128-255, which CLICK's dialog does not. Single Copy is fine: a text literal into TXT
+  fans out one character per register (`_instructions_basic.py:476`), as CLICK's
+  `TXT1..2` rewrite does.
+- **Math:** check that pyrung refuses text constants (`"A"`, `$41`) and hex constants in a
+  decimal Math (Q-M13, Q-M20). Not looked at yet.
 - **End:** an End inside a subroutine is not flagged.
 
 ### Syntax rules (C-codes; no raise in the codec; for pyrung or a later `check()`)
@@ -216,13 +223,18 @@ Answer by opening the dialog in an empty project. "Refused" means OK shows an er
 value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 
 Open asks (checklist; details under each id below):
-- Dialog: Q-M12 pack_text from DS; Q-M13/Q-M13b hex vs decimal Math constants; Q-M14 Block
-  Copy `X001..X008 → Y010`; Q-M16 `1,5`; Q-M17 `3.5E+38`; Q-M18 `000000001h`; Q-M19 numbers into
-  TXT, 32-bit hex in Fill; Q-M20 text in Math; Q-M21 Search value kind vs table; Q-B7
-  `DS1==1-2`; comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over
-  read-only bits; move (hmove): does Copy's Termination Code take one hex digit (`$D`)? Is `"`
-  allowed in a Math formula? Does OBJ-023 "Only one character is allowed in the Source" mean
-  a Fill or Copy into TXT takes a single character?
+- Answered 2026-11-12 (user, dialog), to build: Q-M12, Q-M13, Q-M14, Q-M16, Q-M17, Q-M18,
+  Q-M19, Q-M20, Q-M21, Q-B7 `DS1==1-2`, and the move (hmove) questions below.
+- Dialog: Q-M13b decimal integers in a hex Math (the 2026-11-12 "no" was for Q-M13); comm:
+  Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
+- Move (hmove), ANSWERED 2026-11-12 (user, dialog):
+  - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
+    two digits, one character. laddercodec accepts `$D` and stores `$0D`; refuse it.
+  - A `"` in a Math formula: the user believes it is refused (see Q-M20).
+  - OBJ-023: a Fill into TXT takes one character. A single Copy of `"TT"` into TXT1 is
+    accepted, and the dialog changes the destination to `TXT1..2`. laddercodec accepts
+    `fill("AB",TXT1..TXT5)`; refuse it. Capture wanted: what CLICK stores for `"TT"` →
+    TXT1 (destination TXT1, or TXT1 with an end of TXT2), since laddercodec writes TXT1.
 - Paste and copy back: Q-M15 Math into SD9, YD1, YD0u. Box height (rawheight review): native
   cells store Email/Home/Position/Velocity at `03 03` (cell +0x09/+0x0A), Math `01 03`, some
   Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. The typed encoder writes `01 01`,
@@ -315,6 +327,7 @@ Open asks (checklist; details under each id below):
   - Needs a dialog check: is `DS1==1-2` refused? The shared check lets a sign stand among
     the digits; the Counter dialog refuses `1-2` with its own parse (Q-D2), and the
     constant classifier (`operands/constants.py`) refuses it in every field.
+  - **ANSWERED 2026-11-12 (user, dialog):** `DS1==1-2` is refused.
 
 **data**
 - Q-D1 Timer set point: is 32767 accepted? Are 32768 and -1 refused? Is it the same for every
@@ -454,29 +467,55 @@ Open asks (checklist; details under each id below):
   - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
 - Q-M12 Pack text: is `pack_text(DS1..DS2,DD1)` refused? laddercodec accepts it; no DLL
   trace ties the whitespace options to a TXT source.
+  - **ANSWERED 2026-11-12 (user):** CLICK has no separate text pack. pyrung's `pack_text` is
+    CLICK's Copy → Pack with a TXT source, which is where the whitespace options appear. So
+    `pack_text` needs a TXT source (conv type 9/10), and a TXT source packs only as
+    `pack_text`. laddercodec accepts `pack_text(DS1..DS2,DD1)` and `pack_words(TXT1..TXT2,DS1)`;
+    refuse both. The native fixtures agree: every `pack_text` source is TXT and every
+    `pack_words` source is DS.
 - Q-M13 Decimal Math with a hex constant: are `DS1 + 10000h` and `DS1 + 1Fh` accepted in a
   decimal Math? The hex tests run only in hex mode, and laddercodec accepts both.
+  - **ANSWERED 2026-11-12 (user, dialog):** no, both are refused. laddercodec accepts them;
+    refuse a hex constant in a decimal Math.
 - Q-M13b Hex Math with a decimal integer: does a hex-mode Math refuse `DH1 + 70000` or
   `DH1 + 007`? laddercodec checks only hex constants in hex mode and accepts both.
 - Q-M14 Block Copy into Y across a slot: what does `X001..X008 → Y010` give? CLICK's
   GetNextAddress steps on into the next Y slot; laddercodec refuses the run until a capture
   shows the stored destination.
+  - **ANSWERED 2026-11-12 (user, dialog):** `X001..X008 → Y010` is refused; `→ Y001` works.
+    laddercodec already refuses it; keep that.
 - Q-M15 Math result banks newly accepted: paste a decimal Math into SD9 and a hex Math into
   YD1 and YD0u, and copy them back.
 - Q-M16 Comma float: is `1,5` accepted as a Copy source into DF1? The shared check sends a
   comma to its float test, which was not read; the constant classifier refuses it.
+  - **ANSWERED 2026-11-12 (user, dialog):** refused. laddercodec already refuses it.
 - Q-M17 Float range: is `3.5E+38` (above float32) accepted as a Copy source into DF1? No range
   is known for the shared check's float path; the classifier refuses only non-finite values.
+  - **ANSWERED 2026-11-12 (user, dialog):** `3.5E+38` is refused. `3.5E+3` is accepted, and
+    the dialog rewrites it as `3500.0`. laddercodec accepts both; refuse a real above the
+    float32 range (the exact edge, about 3.4028235E+38, is not checked). Open: does a pasted
+    `3.5E+3` copy back as `3500.0`? If so, CLICK normalizes a real the way it does an
+    address, and laddercodec may want to write the normalized form.
 - Q-M18 32-bit hex digits: is `000000001h` (nine digits, leading zeros) accepted as a Copy
   source into DD1? The classifier counts typed digits (at most 8).
+  - **ANSWERED 2026-11-12 (user, dialog):** accepted; the dialog calls it an "H Value". So the
+    check goes by value, not by typed digits, as in Search (Q-M10). laddercodec already
+    accepts it; check that `classify()` does too.
 - Q-M19 Number into TXT: are `5` and `0Fh` accepted as a Copy source into TXT1, and as a Fill
   value into TXT1..TXT5? Is `10000h` accepted as a Fill value into DD1..DD5?
+  - **ANSWERED 2026-11-12 (user, dialog):** yes to all. laddercodec already accepts them.
 - Q-M20 Text in Math: are `DS1 + "A"` and `DS1 + $41` accepted in a decimal Math? Q-M9 covers
   numbers only.
+  - **ANSWERED 2026-11-12 (user, dialog):** no, both are refused. laddercodec accepts them;
+    refuse text in a Math formula.
 - Q-M21 Search value kind against the table: are a hex value against a DS table
   (`DS1..DS10 == 0FFFFh`), a decimal against a DH table, and a number against a TXT table
   refused? The DLL reading pairs the value's class with the table banks, with no dialog
   check; 114 dry-run rows (devtools/classify_dryrun.py, `DIFFERS?`) wait on this.
+  - **ANSWERED 2026-11-12 (user, dialog):** the value's kind ties to the table: a hex value
+    (`0h`) to DH, a decimal (`1`) to the integer banks ("INT"), and text (`"T"`) to TXT.
+    This confirms the DLL pairing, so the 114 `DIFFERS?` rows follow it. Unsettled: which
+    banks "INT" covers (DS only, or also DD, TD and CTD), and where a real goes (DF).
 
 **comm**
 - Q-C1 Slave ID: are DD1 and C1 refused?
@@ -638,5 +677,13 @@ Open asks (checklist; details under each id below):
   (`retained=2`, `"x"`). None crashes; route them through `check_flag` after the release.
 - Ground truth: does a CLICK dialog accept `X1` and `DS0001`, or only `X001` and `DS1`? Help
   195 lists only the zero-padded X/Y form. Step 0 accepts both forms, as before.
+- Parked 2026-11-12 (user ruling): a stored rung that breaks a dialog rule, such as a
+  pre-rule paste of `DH70 == DS3920`, decodes as before: an AF falls back to raw() and a
+  condition to UnknownCondition, which `write_csv` can't write. ClickNick handles it (the
+  simulator error names the rung and says "Paste it again"; Guided Paste shows "re-paste").
+  The parked design, if more users hit it: on a FieldError, decode builds the object from
+  the stored text and attaches a LegacyFinding, and `read_csv(legacy=True)` does the same
+  for the writer's self-check (`csv/writer.py:347`). Construction, plain `read_csv` and
+  `encode()` stay strict.
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
   arc.
