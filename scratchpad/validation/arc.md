@@ -338,8 +338,11 @@ Open asks (checklist; details under each id below):
     whose CLICK list differs from its true members is refused (decodes as raw). Landed in
     train11 (37e9980). Deferred to the next release by the user: SCR decode of such a
     refused range keeps only 6 of Math's 5510 fields (the "SCR raw drops tags" leftover).
-    Not captured yet: an option-slot start past X021 ending in another slot (`X025 : X101`),
-    a span of more than two expansion slots, a Y range starting in the option slot.
+    Not captured yet: a span of more than two expansion slots, a Y range starting in the
+    option slot.
+  - ANSWERED 2026-11-12 (user, typed; capture `clicknick/math-sum-x25-x101.bin`):
+    `X025 : X101` lists X022..X036 (15), the rule's list (X025 counts as 21); true members
+    X026..X036, so refused. dev (37e9980) decodes it as raw. Not yet a fixture.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
