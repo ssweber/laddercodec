@@ -53,6 +53,7 @@ _ScrSectionInstruction = tuple[
     bytes,  # part rows, 1-based, main row first
     _ScrVariantU16Tags,
     _ScrVariantStringTags,
+    bytes,  # cell rows: the entry's row span and sub-rows (clipboard +0x09, +0x0A)
 ]
 
 
@@ -348,8 +349,13 @@ def _infer_af_visual_rows(
     part_rows: bytes,
     variant_u16_tags: _ScrVariantU16Tags,
     variant_string_tags: _ScrVariantStringTags,
+    cell_rows: bytes,
 ) -> int:
-    """Infer visual row count using parsed instruction metadata when possible."""
+    """Infer visual row count using parsed instruction metadata when possible.
+
+    A box that stays raw spans at least its entry's stored row span (``cell_rows[0]``),
+    the height its ``RawInstruction`` carries.
+    """
     parsed_af = _scr_af(
         class_name,
         type_code,
@@ -363,7 +369,7 @@ def _infer_af_visual_rows(
 
     family_spec = INSTRUCTION_MODULES.get(class_name)
     min_rows = int(getattr(family_spec, "min_csv_rows", 1))
-    return max(1, min_rows, len(part_rows))
+    return max(1, min_rows, len(part_rows), cell_rows[0])
 
 
 # ---------------------------------------------------------------------------
@@ -488,7 +494,8 @@ def _parse_section_entries(
 
     Each entry is a fixed 8-byte header followed by a blob whose explicit
     ``end_offset`` plus the 1-byte trailer length at that offset determine the
-    next entry position.
+    next entry position.  Header bytes 2 and 3 are the box's row span and
+    sub-rows, the bytes a clipboard cell holds at +0x09 and +0x0A.
     """
     results: list[_ScrSectionInstruction] = []
     cursor = pos
@@ -502,7 +509,8 @@ def _parse_section_entries(
         col_idx = data[cursor + 1]
         _cls, _marker, end_off, part_rows = blob
         cn, tc, tags, v_u16, v_str = _parse_scr_tags(data, cursor + 8, end_off, len(part_rows))
-        results.append((row_1based - 1, col_idx, cn, tc, tags, part_rows, v_u16, v_str))
+        cell_rows = bytes(data[cursor + 2 : cursor + 4])
+        results.append((row_1based - 1, col_idx, cn, tc, tags, part_rows, v_u16, v_str, cell_rows))
 
         trailer_len = data[end_off]
         if trailer_len > 8:
@@ -641,6 +649,7 @@ def _build_rung(
         part_rows,
         variant_u16_tags,
         variant_string_tags,
+        cell_rows,
     ) in section_instructions:
         if row < 0 or row >= logical_rows:
             continue
@@ -679,10 +688,13 @@ def _build_rung(
                     _clipboard_part_rows(part_rows),
                     [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
                 )
+                # The entry's row bytes are the clipboard cell's +0x09 and +0x0A.
                 instructions[row] = RawInstruction(
                     class_name=class_name,
                     blob=blob,
                     part_count=len(part_rows),
+                    visual_rows=cell_rows[0] or None,
+                    sub_rows=cell_rows[1] or None,
                 )
 
     # A stored row whose block carries an AF right-wire but no real AF
@@ -788,6 +800,7 @@ def decode_program(data: bytes) -> Program:
             part_rows,
             variant_u16_tags,
             variant_string_tags,
+            cell_rows,
         ) in record.instructions:
             inferred_rows = max(inferred_rows, row + 1)
             if col == _CONDITION_COLUMNS:
@@ -798,6 +811,7 @@ def decode_program(data: bytes) -> Program:
                     part_rows,
                     variant_u16_tags,
                     variant_string_tags,
+                    cell_rows,
                 )
                 inferred_rows = max(inferred_rows, row + visual_rows)
 

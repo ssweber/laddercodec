@@ -31,10 +31,13 @@ from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
 from .comparison import check_quoted_text
 from .copy import REGISTER_BANKS, _check_range, check_constant, check_operand
-from .family import AfInstructionFamilySpec
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: Cell kwargs of a Search box: two rows (cell header +0x09 = +0x0A = 2).
+_CELL_PARAMS: dict = {"visual_rows": 2}
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -189,7 +192,7 @@ class Search(AfInstruction):
         return f"search({expr},{','.join(kw)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
@@ -291,4 +294,5 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("search",),
     parse_csv_call=parse_af_call,
     min_csv_rows=2,
+    cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, ("Search", _SEARCH_TYPE_CODE)),
 )

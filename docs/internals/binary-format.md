@@ -234,8 +234,10 @@ RUNG = [u16 rung_index]       -- zero-based ordinal, asserted sequential
        [u16 instr_count]     -- 0 = no instruction section
        [u32 section_marker]  -- only when instr_count > 0; opaque
        instr_count x ENTRY
-ENTRY = [u8 stored_row][u8 col][u8 b2][u8 b3][u8 entry_seq][3B opaque] + blob
+ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaque] + blob
 ```
+
+`row_span` and `sub_rows` are the bytes a clipboard cell holds at +0x09 and +0x0A: `01 01` for a condition, the box's height for an AF instruction (`02 02` for a Copy, `02 03` for a timed Out, `01 03` for some Math boxes). They match the clipboard copy at every AF cell of the native SCR/clipboard pairs. In those captures the blob's own `row_span` byte (above) is zero.
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 

@@ -80,9 +80,10 @@ class ClickCell:
     def build_header(self) -> bytes:
         """Build the 0x25 (37-byte) structured header."""
         # 8-bit structural bytes at +0x09..+0x0C
-        if self.row_span > 1:
+        if self.row_span > 1 or self.visual_rows > 1:
             # Multi-row AF instruction (timer): +0x09 = row span,
             # +0x0A = visual sub-rows, +0x0B stays 0x00 (no 0xFD marker).
+            # A raw box keeps its native bytes, which can be 01 03 (Math).
             b09, b0a, b0c = self.row_span, self.visual_rows, 0
         elif self.blob or self.rung_has_instructions:
             # Instruction cell or wire cell in an instruction-bearing rung.

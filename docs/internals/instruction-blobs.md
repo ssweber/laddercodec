@@ -222,6 +222,8 @@ For unknown instruction types, the blob boundary can be detected using the gener
 
 The `RawInstruction` fallback uses this formula to capture the complete blob as opaque bytes, enabling round-trip for unsupported instruction types via `raw(ClassName,hex)` CSV tokens.
 
+The blob does not hold the box's height: the cell header does (+0x09 row span, +0x0A sub-rows). A decoded `RawInstruction` keeps the native cell's two bytes as `visual_rows` and `sub_rows`. One read from CSV takes them from its class: the typed family's height when the blob alone gives it (Copy family 2 rows, Search 2, Send/Receive 3, an Out variant by its func code), otherwise `part_count` rows.
+
 At the moment, `Email`, `Home`, `Position`, and `Velocity` still deliberately
 travel through this raw path. They round-trip correctly, but they are not yet
 modeled as dedicated DSL instruction classes.

@@ -50,6 +50,7 @@
 - **Copy pointers**: a pointer is `BANK[DSn]` in C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT; the `BANK[pointer+offset]` and `BANK[pointer-offset]` forms (`copy(DD[DS1+2],DS1)`) and a pointer in any other bank raise `AddressError`.
 
 ### Fixed
+- **Raw box height**: a `raw(...)` box keeps the row span and sub-rows of the cell it was decoded from, and one read from CSV takes its typed class's height (2 rows for the Copy family and Search, 3 for Send and Receive, an Out variant's height from its func code), where it used to encode as one row unless its blob had several parts.
 - **One-phase debounce**: a `debounce` with only its on phase or only its off phase (`debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)`), which CLICK v4 saves, encodes, decodes and round-trips through CSV instead of decoding as `raw(Out,...)`.
 - **Pack/Unpack decode**: a pack of X, Y, T, CT or SC bits into DH now decodes as `pack_bits`, and an unpack of DH into Y bits as `unpack_to_bits`; a pack or unpack of CTD words, or an unpack into X, T, CT or SC, decodes as `raw(...)`, since CLICK's dialog refuses it.
 - **Math formula length**: a formula longer than CLICK's limit of 270 characters as CLICK stores it (a sum of 68 addresses fits, 69 does not) raises `FieldError` instead of writing a blob whose field count disagrees with its header, and such a formula pasted into CLICK and copied back decodes as `raw(Math,...)`.

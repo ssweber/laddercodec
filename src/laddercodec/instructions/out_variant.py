@@ -63,6 +63,15 @@ _FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, str, bool]] = {
 
 _TWO_PHASE = frozenset({"debounce", "flasher"})
 
+#: Cell kwargs per kind.  A timed box spans 2 rows but CLICK writes 3 sub-rows in the
+#: cell header (+0x09 = 2, +0x0A = 3); a toggle is one row like a plain coil.
+_KIND_CELL_PARAMS: dict[str, dict] = {
+    "toggle": {},
+    "debounce": {"visual_rows": 3},
+    "flasher": {"visual_rows": 3},
+    "timed": {"visual_rows": 2, "sub_rows": 3},
+}
+
 #: Accumulators are timer data registers (CLICK v4.00 Help CL348-350).
 _ACC_BANKS = frozenset({"TD"})
 
@@ -277,12 +286,7 @@ class OutVariant(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        if self.kind in _TWO_PHASE:
-            return {"visual_rows": 3}
-        if self.kind == "timed":
-            # Click spans 2 rows but writes 3 visual sub-rows in the cell header.
-            return {"visual_rows": 2, "sub_rows": 3}
-        return {}
+        return dict(_KIND_CELL_PARAMS[self.kind])
 
     def _tag_values(self) -> list[str]:
         """Values written for ``_OUT_VARIANT_TAGS``, in order."""
@@ -364,6 +368,14 @@ def from_tags(
     return decoded if _writes_tags(decoded, tags) else None
 
 
+def cell_params_from_tags(class_name: str, type_code: int, tags: dict[int, str]) -> dict | None:
+    """Cell kwargs of an Out blob whose func code (tag 0x3218) names a variant kind."""
+    if class_name != "Out" or type_code != 0x2715:
+        return None
+    variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
+    return None if variant is None else dict(_KIND_CELL_PARAMS[variant[0]])
+
+
 def parse_af_call(call: AfCall) -> OutVariant:
     """Parse an AF AST call into an OutVariant."""
     return OutVariant.from_csv_token(call.to_token())
@@ -378,4 +390,5 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("toggle", "debounce", "flasher", "timed"),
     parse_csv_call=parse_af_call,
+    cell_params_from_tags=cell_params_from_tags,
 )
