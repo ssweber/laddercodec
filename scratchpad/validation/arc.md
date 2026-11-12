@@ -625,8 +625,11 @@ Open asks (checklist; details under each id below):
 - `Counter(count_up, reset_enabled=False)` still crashes in build_blob. The CSV builds a
   counter without the reset and `with_pins` sets it later, so the fix needs a change to the
   converter's flow.
-- `dll_address` refuses a mask written after a DLL name (`Inst_Counter.dll:0xc0`). No case of
-  this exists today.
+- `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
+  were an address. No case of this exists today.
+- Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,
+  `CompareContact.wire_down`, `Drum.jog_enabled`, `Drum.jump_enabled` accept any truthy value
+  (`retained=2`, `"x"`). None crashes; route them through `check_flag` after the release.
 - Ground truth: does a CLICK dialog accept `X1` and `DS0001`, or only `X001` and `DS1`? Help
   195 lists only the zero-padded X/Y form. Step 0 accepts both forms, as before.
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
