@@ -248,7 +248,16 @@ Open asks (checklist; details under each id below):
   - **Ruling 2026-11-12 (user):** a CLICK bug in the Copy dialog, not a field rule.
     laddercodec keeps accepting and encoding quoted text with an `E` (as with For's `1 0`,
     Q-F1). Unchecked: lowercase `e`, Fill, and what CLICK keeps when such a Copy is pasted.
-- Open from move6 (captures): an SCR save of `"TT"` → TXT1.
+- ANSWERED 2026-11-12 (user, SCR `Scr1.tmp` of a project holding `"TT"` → TXT1): SCR
+  decode gives `copy("TT",TXT1)`, so SCR stores the 0x6077 end too (decode refuses a
+  mismatched end).
+- ANSWERED 2026-11-12 (user, dialog): decimal `DS1 + 1FH` is refused, like `1Fh`.
+  laddercodec accepts it (its Math hex pattern knows only lowercase `h`). Capture
+  `clicknick/7h.bin` (hex `DH1 + 7H` copied back) is byte-identical to laddercodec's
+  `DH1 + 7h` blob; laddercodec's `DH1 + 7H` blob differs. The user typed `7H` and the
+  dialog lowercased it as typed. To build: Math reads `H` like `h` (refused in decimal,
+  checked in hex), and normalizes the constant to lowercase `h` at construction, so `7H`
+  encodes as `7h` does.
 - Open from move6 (dialog): uppercase `H` in Math. Is decimal `DS1 + 1FH` refused like
   `1Fh`? Is hex `DH1 + 7H` accepted, and what does it copy back as? laddercodec stores `7H`
   unconverted, where CLICK's form for `7h` is `UH7`.
