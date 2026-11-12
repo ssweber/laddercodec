@@ -36,10 +36,13 @@ from ..model import (
     xy_slot,
 )
 from ..operands.constants import INT32_MAX, INT32_MIN, TEXT_MAX, classify
-from .family import AfInstructionFamilySpec
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: Cell kwargs of every Copy-family box: two rows (cell header +0x09 = +0x0A = 2).
+_CELL_PARAMS: dict = {"visual_rows": 2}
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -760,7 +763,7 @@ class Copy(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this copy cell."""
@@ -912,7 +915,7 @@ class BlockCopy(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this block copy cell."""
@@ -996,7 +999,7 @@ class Fill(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this fill cell."""
@@ -1103,7 +1106,7 @@ class Pack(AfInstruction):
         return f"pack_{self.pack_type}({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
@@ -1210,7 +1213,7 @@ class Unpack(AfInstruction):
         return f"unpack_to_{self.unpack_type}({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
@@ -1480,4 +1483,5 @@ SPEC = AfInstructionFamilySpec(
     ),
     parse_csv_call=parse_af_call,
     min_csv_rows=2,
+    cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, ("Copy", _COPY_TYPE_CODE)),
 )

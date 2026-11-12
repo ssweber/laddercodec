@@ -922,7 +922,13 @@ PROBES: dict[str, Probe] = {
         "tag_11f5 tag_2231 tag_60a2 tag_60a3 tag_60a4 tag_607b tag_607d tag_6083 tag_3218"
     ),
     "RawInstruction": Probe(
-        fields={"class_name": "classname", "blob": "bytes", "part_count": "int"},
+        fields={
+            "class_name": "classname",
+            "blob": "bytes",
+            "part_count": "int",
+            "visual_rows": "int?",
+            "sub_rows": "int?",
+        },
         baselines=lambda ns: {
             "velocity": dict(class_name="Velocity", blob=VELOCITY_BLOB),
             "widget": dict(class_name="Widget", blob=WIDGET_BLOB),

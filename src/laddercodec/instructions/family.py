@@ -36,6 +36,25 @@ AfFromTagsParser = Callable[
     AfInstruction | None,
 ]
 
+#: Cell kwargs (``visual_rows``, ``sub_rows``) of a box read from its blob alone: class name,
+#: type code and tags.  None when the box is not of the family, or its height needs more
+#: than the blob holds.
+AfCellParamsFromTags = Callable[[str, int, dict[int, str]], dict | None]
+
+
+def fixed_cell_params(params: dict, *types: tuple[str, int]) -> AfCellParamsFromTags:
+    """Height hook for a family whose boxes all have one height.
+
+    Returns a copy of *params* for a blob whose ``(class_name, type_code)`` is in *types*.
+    The family's ``cell_params()`` methods return the same *params*, so a raw box of the
+    family and a typed one get one height.
+    """
+
+    def hook(class_name: str, type_code: int, _tags: dict[int, str]) -> dict | None:
+        return dict(params) if (class_name, type_code) in types else None
+
+    return hook
+
 
 @dataclass(frozen=True)
 class ConditionInstructionFamilySpec:
@@ -59,3 +78,6 @@ class AfInstructionFamilySpec:
     parse_csv_call: AfCallParser | None = None
     pin_names: tuple[str, ...] = ()
     min_csv_rows: int = 1
+    #: Height of a ``RawInstruction`` of this family that has no native cell header
+    #: (one read from CSV).  Families whose height comes from pin rows leave it None.
+    cell_params_from_tags: AfCellParamsFromTags | None = None

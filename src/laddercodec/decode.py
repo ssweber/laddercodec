@@ -653,10 +653,13 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
                     # Try to extract a raw instruction blob.
                     try:
                         class_name, blob_end, part_count = find_blob_boundary(instr_raw)
+                        # Keep the cell's row span (+0x09) and sub-rows (+0x0A).
                         af_token = RawInstruction(
                             class_name=class_name,
                             blob=instr_raw[:blob_end],
                             part_count=part_count,
+                            visual_rows=data[pos + 0x09] or None,
+                            sub_rows=data[pos + 0x0A] or None,
                         )
                     except (ValueError, IndexError):
                         af_token = UnknownInstruction(raw=instr_raw)

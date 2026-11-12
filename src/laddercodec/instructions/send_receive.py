@@ -27,10 +27,13 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from .family import AfInstructionFamilySpec
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: Cell kwargs of a Send or Receive box: three rows (cell header +0x09 = +0x0A = 3).
+_CELL_PARAMS: dict = {"visual_rows": 3}
 
 # ---------------------------------------------------------------------------
 # Helper dataclasses
@@ -869,7 +872,7 @@ class Receive(AfInstruction):
         return f"receive({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 3}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
@@ -967,7 +970,7 @@ class Send(AfInstruction):
         return f"send({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 3}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
@@ -1355,4 +1358,7 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("receive", "send"),
     parse_csv_call=parse_af_call,
     min_csv_rows=3,
+    cell_params_from_tags=fixed_cell_params(
+        _CELL_PARAMS, ("RD", _RD_TYPE_CODE), ("SD", _SD_TYPE_CODE)
+    ),
 )

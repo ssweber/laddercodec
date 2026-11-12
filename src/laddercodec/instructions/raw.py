@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import (
@@ -330,11 +330,26 @@ class RawInstruction(AfInstruction):
     part_count:
         Number of parts (1 = single-row, >1 = multi-row).  Derived from
         the blob during construction.
+    visual_rows, sub_rows:
+        The box's cell header row bytes: ``visual_rows`` is the row span
+        (+0x09), ``sub_rows`` the sub-rows (+0x0A).  The decoders keep the
+        native cell's bytes.  ``None`` takes the height from the class: the
+        typed family's height when its blob alone gives it (Copy family,
+        Search, Send, Receive, Out variants), otherwise ``part_count`` rows.
+        Native cells of some classes differ from both the typed height and
+        this rule (an open capture question): Email, Home, Position and
+        Velocity ``03 03`` against ``01 01``, Math ``01 03``, some Search
+        ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``.
+        With ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal
+        the row span.  The CSV token does not hold them, so they take no
+        part in equality.
     """
 
     class_name: str
     blob: bytes
     part_count: int = 1
+    visual_rows: int | None = field(default=None, compare=False)
+    sub_rows: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         # A decoded blob gives any class name and a 16-bit part count; check only the types.
@@ -347,12 +362,44 @@ class RawInstruction(AfInstruction):
                 f"RawInstruction.part_count: {self.part_count!r} is not a whole number "
                 "from 0 to 65535"
             )
+        for name in ("visual_rows", "sub_rows"):
+            rows = getattr(self, name)
+            if rows is not None and (type(rows) is not int or not 1 <= rows <= 0xFF):
+                raise FieldError(
+                    f"RawInstruction.{name}: {rows!r} is not a whole number from 1 to 255"
+                )
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        if self.part_count > 1:
-            return {"visual_rows": self.part_count}
-        return {}
+        if self.visual_rows is None:
+            params = self._class_cell_params()
+            span = int(params.get("visual_rows", 1))
+            sub = int(params.get("sub_rows", span)) if self.sub_rows is None else self.sub_rows
+        else:
+            span = self.visual_rows
+            sub = span if self.sub_rows is None else self.sub_rows
+        if span == sub == 1:
+            return {}
+        return {"visual_rows": span} if sub == span else {"visual_rows": span, "sub_rows": sub}
+
+    def _class_cell_params(self) -> dict:
+        """Height of a box of this class with no native cell header.
+
+        The first family whose ``cell_params_from_tags`` knows the blob gives it; any
+        other box (the pinned families among them) spans ``part_count`` rows.
+        """
+        from . import AF_FAMILY_SPECS  # the registry imports this module
+
+        try:
+            class_name, type_marker, _pc, _eb, fields = _decompose_blob(self.blob)
+        except (ValueError, IndexError, struct.error):
+            return {"visual_rows": self.part_count} if self.part_count > 1 else {}
+        tags, _u16, _str = _fields_to_tag_dicts(fields)
+        for spec in AF_FAMILY_SPECS:
+            hook = spec.cell_params_from_tags
+            if hook is not None and (params := hook(class_name, type_marker, tags)) is not None:
+                return params
+        return {"visual_rows": self.part_count} if self.part_count > 1 else {}
 
     def build_blob(self) -> bytes:
         """Return the raw blob bytes (no-op — already stored)."""
