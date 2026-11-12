@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, read_csv
+from laddercodec import AddressError, FieldError, decode, encode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import AfCall
 from laddercodec.csv.token_parser import parse_af_token
-from laddercodec.instructions import from_tags_af
+from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.send_receive import (
     ModbusAddress,
@@ -26,6 +26,29 @@ from laddercodec.instructions.send_receive import (
     from_tags,
     parse_af_call,
 )
+
+
+@pytest.mark.parametrize("device_id", [-1, 256, 65536])
+def test_tcp_device_id_range_refused_at_construction(device_id) -> None:
+    """Inst_SD/RD.dll: a literal TCP Slave ID is 0-255."""
+    with pytest.raises(FieldError, match="device_id"):
+        ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=device_id)
+
+
+@pytest.mark.parametrize("device_id", [-1, 248, 255, 256])
+def test_rtu_device_id_range_refused_at_construction(device_id) -> None:
+    """Inst_SD/RD.dll: a literal serial Slave ID is 0-247 (comm.md Q-C1)."""
+    with pytest.raises(FieldError, match="device_id"):
+        ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
+
+
+def test_device_id_range_edges_accepted() -> None:
+    ModbusRtuTarget(name="r", com_port="cpu2", device_id=0)
+    ModbusRtuTarget(name="r", com_port="cpu2", device_id=247)
+    ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=0)
+    ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=248)
+    ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=255)
+
 
 RTU = ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1)
 TCP = ModbusTcpTarget(name="tcp", ip="192.168.1.10", port=502, device_id=1)
@@ -154,7 +177,17 @@ def test_hex_address_ok(address) -> None:
     ModbusAddress(address=address)
 
 
-@pytest.mark.parametrize("address", ["FFFFh", "10000h", "h", "xh", "0H", "abc", "", "-1"])
+@pytest.mark.parametrize(
+    ("address", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "000Fh"), ("00000h", "0000h")]
+)
+def test_hex_address_long_zero_padding_normalised(address, stored) -> None:
+    """The dialog counts no digits (Q-C7); leading zeros past four drop to the four-digit form."""
+    assert ModbusAddress(address=address).address == stored
+
+
+@pytest.mark.parametrize(
+    "address", ["0FFFFh", "100000h", "FFFFh", "10000h", "h", "xh", "0H", "abc", "", "-1"]
+)
 def test_hex_or_984_address_refused(address) -> None:
     with pytest.raises(FieldError, match="address"):
         ModbusAddress(address=address)
@@ -941,3 +974,81 @@ def test_send_dd_hex_count_room() -> None:
     send(remote_start=ModbusAddress("FFC1h", "holding"), source="DD1", quantity=61)
     with pytest.raises(FieldError, match="outside 1-60"):
         send(remote_start=ModbusAddress("FFC2h", "holding"), source="DD1", quantity=61)
+
+
+_RTU_TOKEN = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id={id})'
+_TCP_TOKEN = 'ModbusTcpTarget(name="t",ip="1.2.3.4",port=502,device_id={id})'
+
+
+@pytest.mark.parametrize("kind", ["send", "receive"])
+@pytest.mark.parametrize(
+    "target",
+    [
+        _TCP_TOKEN.format(id=-1),
+        _TCP_TOKEN.format(id=256),
+        _RTU_TOKEN.format(id=248),
+        _RTU_TOKEN.format(id=-1),
+    ],
+)
+def test_device_id_range_refused_through_csv(tmp_path: Path, kind, target) -> None:
+    if kind == "send":
+        af = f'send(target={target},remote_start="DS1",source=DS2)'
+    else:
+        af = f'receive(target={target},remote_start="DS1",dest=DS2)'
+    with pytest.raises(FieldError, match="device_id"):
+        _read_af(tmp_path, af)
+
+
+def test_device_id_range_edges_through_csv(tmp_path: Path) -> None:
+    for target in (_TCP_TOKEN.format(id=255), _RTU_TOKEN.format(id=247)):
+        got = _read_af(tmp_path, f'send(target={target},remote_start="DS1",source=DS2)')
+        assert isinstance(got, Send)
+
+
+@pytest.mark.parametrize("device_id", ["248", "256", "-1"])
+def test_blob_with_out_of_range_device_id_decodes_to_raw(device_id) -> None:
+    fields = _fields(send())
+    fields[0x320E] = device_id
+    fields[0x60B2] = device_id
+    assert from_tags_af("SD", 0x2729, fields) is None
+
+
+@pytest.mark.parametrize(("written", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "000Fh")])
+def test_long_hex_address_through_csv(tmp_path: Path, written, stored) -> None:
+    af = f"send(target={_RTU_TOKEN.format(id=1)},remote_start=ModbusAddress(address={written},register_type=holding),source=DS2)"
+    got = _read_af(tmp_path, af)
+    assert isinstance(got, Send) and got.remote_start.address == stored
+
+
+def test_padded_hex_blob_keeps_its_stored_text() -> None:
+    """Decoding does not normalise: a blob storing 0FFFEh stays raw and re-encodes byte-identically."""
+    sent = send(remote_start=ModbusAddress("FFFEh", "holding"))
+    object.__setattr__(sent.remote_start, "address", "0FFFEh")
+    blob = sent.build_blob()
+    assert parse_af_blob(blob) is None
+    fields = _fields(sent)
+    assert fields[0x6085] == "0FFFEh"
+    assert from_tags_af("SD", 0x2729, fields) is None
+
+
+def test_padded_hex_rung_round_trips_byte_identically(tmp_path: Path) -> None:
+    rung = read_csv(_write_rung(tmp_path))[0]
+    sent = rung.instructions[0]
+    object.__setattr__(sent.remote_start, "address", "0FFFEh")
+    blob = sent.build_blob()
+    got = decode(encode(rung)).instructions[0]
+    assert not isinstance(got, Send)
+    assert got.build_blob() == blob
+
+
+def _write_rung(tmp_path: Path) -> Path:
+    path = tmp_path / "rung.csv"
+    af = (
+        f"send(target={_RTU_TOKEN.format(id=1)},"
+        "remote_start=ModbusAddress(address=FFFEh,register_type=holding),source=DS2)"
+    )
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        w.writerow(["R", "C10"] + ["-"] * 30 + [af])
+    return path

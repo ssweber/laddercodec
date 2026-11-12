@@ -25,6 +25,7 @@ from ..model import (
     FieldError,
     check_address,
     normalize_address,
+    to_display,
 )
 from .family import AfInstructionFamilySpec
 
@@ -52,7 +53,7 @@ class ModbusRtuTarget:
                 f"got {self.com_port!r}"
             )
         _normalize_device_id(self)
-        _check_device_id(self.device_id)
+        _check_device_id(self.device_id, 247)
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
         object.__setattr__(target, "device_id", normalize_address(target.device_id))
 
 
-def _check_device_id(device_id: int | str) -> None:
+def _check_device_id(device_id: int | str, high: int = 255) -> None:
     """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
     if isinstance(device_id, str):
         m = _DS_ADDRESS_RE.fullmatch(device_id)
@@ -100,6 +101,8 @@ def _check_device_id(device_id: int | str) -> None:
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
         raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
+    elif not 0 <= device_id <= high:
+        raise FieldError(f"device_id must be 0-{high} or a DS address, got {device_id!r}")
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
@@ -132,6 +135,13 @@ class ModbusAddress:
                 raise FieldError(
                     f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
                 )
+            # The dialog counts no digits and what it stores for padding past four digits
+            # needs a capture (Q-C7).  The four-digit form is laddercodec's normalisation;
+            # decoding keeps the stored text, so a padded blob stays raw(...).
+            digits = self.address[:-1]
+            if len(digits) > 4:
+                shown = digits.lstrip("0").rjust(4, "0") + "h"
+                object.__setattr__(self, "address", to_display(self.address, shown))
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
@@ -145,7 +155,7 @@ class ModbusAddress:
 
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
-_HEX_RE = re.compile(r"[0-9A-Fa-f]{1,4}h")
+_HEX_RE = re.compile(r"[0-9A-Fa-f]+h")
 
 
 # ---------------------------------------------------------------------------
@@ -379,16 +389,13 @@ _SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
 
 
 def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
-    """A numeric Slave ID: RTU 0-247 (Receive 1-247), TCP 0-255; a DS address always passes."""
+    """A numeric Slave ID: Receive RTU starts at 1 (the 0-247 and 0-255 ceilings are checked
+    when the target is built); a DS address always passes."""
     device_id = target.device_id
     if isinstance(device_id, str):
         return
-    if isinstance(target, ModbusRtuTarget):
-        low, high, link = rtu_low, 247, "RTU"
-    else:
-        low, high, link = 0, 255, "TCP"
-    if not low <= device_id <= high:
-        raise FieldError(f"{who} target.device_id: {device_id} is outside {low}-{high} for {link}")
+    if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
+        raise FieldError(f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU")
 
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
