@@ -118,7 +118,9 @@ def test_hex_mode_legacy_h_stays_raw():
     )
     tags = {tag: value for tag, _, value in fields}
     assert from_tags_af(class_name, type_code, tags) is not None
-    legacy = {tag: value.replace("UH1", "H70000").replace("1h", "70000") for tag, value in tags.items()}
+    legacy = {
+        tag: value.replace("UH1", "H70000").replace("1h", "70000") for tag, value in tags.items()
+    }
     assert legacy[0x61FD] == "H70000#+#DH1"
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", LegacyEncodingWarning)
