@@ -223,7 +223,13 @@ Open asks (checklist; details under each id below):
   read-only bits; move (hmove): does Copy's Termination Code take one hex digit (`$D`)? Is `"`
   allowed in a Math formula? Does OBJ-023 "Only one character is allowed in the Source" mean
   a Fill or Copy into TXT takes a single character?
-- Paste and copy back: Q-M15 Math into SD9, YD1, YD0u.
+- Paste and copy back: Q-M15 Math into SD9, YD1, YD0u. Box height (rawheight review): native
+  cells store Email/Home/Position/Velocity at `03 03` (cell +0x09/+0x0A), Math `01 03`, some
+  Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. The typed encoder writes `01 01`,
+  `01 01`, `02 02`, `02 02`, `04 04` and `03 03`, and those goldens paste. Does a pasted
+  `raw_instructions__email` golden copy back as `03 03`, and should typed encode write the
+  native height? A decoded raw Email-like box loses 2 rows through a CSV round trip (with a
+  warning) until this is settled.
 - Captures: Q-B7 `$1`/`$100`/`$4142`; Q-C7 remote address `0H` stored text, and the stored
   text of a padded `0FFFEh` (laddercodec writes `FFFEh`); the Captures
   wanted list at the end of this section.
@@ -619,12 +625,12 @@ Open asks (checklist; details under each id below):
     Call 3219 data that matters?
 - Bits family: OutVariant's unused `on_acc`/`off_acc` is refused at construction (24740f3),
   and decode leaves a blob raw if any tag differs from what the kind would write (train2).
-- `RawInstruction.cell_params` returns `{}` unless part_count > 1. A raw Receive is
-  re-encoded with 1-row cell params where native has 3 (`03 03` vs `01 01`), so a raw tall
-  box may paste at the wrong height.
-- `Counter(count_up, reset_enabled=False)` still crashes in build_blob. The CSV builds a
-  counter without the reset and `with_pins` sets it later, so the fix needs a change to the
-  converter's flow.
+- Done in train4 (2ae8501): a raw tall box keeps its native height (clipboard +0x09/+0x0A, SCR
+  entry header bytes 2/3), and a CSV-read raw takes its class's height. `Counter` defaults to
+  `reset_enabled=True` and refuses False, since a CLICK counter always has a Reset. The five
+  unchecked flag fields below go through `check_flag`.
+- Open from rawheight's review: the writer's `_af_tokens_match` can't see a raw box height
+  loss, because a raw's height is left out of equality (the CSV token can't hold it).
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,
