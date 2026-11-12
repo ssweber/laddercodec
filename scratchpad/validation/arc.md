@@ -278,6 +278,9 @@ Open asks (checklist; details under each id below):
   - ANSWERED 2026-11-12 (user, dialog): `0H` becomes `0h`. A padded `0FFFEh` is refused
     ("The entered value is outside the range"), although its value fits in FFFFh: the
     four-digit limit counts the digits as typed, leading zeros included.
+  - Open from move9's review (dialog): is `DH1 + -Ah` (a sign right after an operator)
+    accepted, and what does it redisplay as? laddercodec writes `DH1 + - Ah`. Is `00h`
+    shown as `0h` (only `0H` was typed)?
   - ANSWERED 2026-11-12 (user, dialog): decimal `DS1 + EH` is refused (laddercodec agrees).
     `DS1 + FOO` is refused (laddercodec accepts it as an unknown word). In a hex Math,
     `DH1 + 7H7` is rewritten as `DH1 + 77h` (laddercodec stores `7H7` literally).
