@@ -25,6 +25,7 @@ from ..model import (
     FieldError,
     check_address,
     normalize_address,
+    to_display,
 )
 from .family import AfInstructionFamilySpec
 
@@ -134,10 +135,13 @@ class ModbusAddress:
                 raise FieldError(
                     f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
                 )
-            # The dialog counts no digits: leading zeros past four drop to a four-digit form.
+            # The dialog counts no digits and what it stores for padding past four digits
+            # needs a capture (Q-C7).  The four-digit form is laddercodec's normalisation;
+            # decoding keeps the stored text, so a padded blob stays raw(...).
             digits = self.address[:-1]
             if len(digits) > 4:
-                object.__setattr__(self, "address", (digits.lstrip("0").rjust(4, "0")) + "h")
+                shown = digits.lstrip("0").rjust(4, "0") + "h"
+                object.__setattr__(self, "address", to_display(self.address, shown))
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
