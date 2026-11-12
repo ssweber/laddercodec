@@ -242,7 +242,7 @@ Open asks (checklist; details under each id below):
   `raw_instructions__email` golden copy back as `03 03`, and should typed encode write the
   native height? A decoded raw Email-like box loses 2 rows through a CSV round trip (with a
   warning) until this is settled.
-- Captures: Q-B7 `$1`/`$100`/`$4142`; Q-C7 remote address `0H` stored text, and the stored
+- Captures: Q-B7 `$1`/`$100`/`$4142` (Search refuses them too since 2026-11-12, following the Compare rule; Fill and single Copy still accept them); Q-C7 remote address `0H` stored text, and the stored
   text of a padded `0FFFEh` (laddercodec writes `FFFEh`); the Captures
   wanted list at the end of this section.
 
@@ -323,7 +323,8 @@ Open asks (checklist; details under each id below):
   - **Ruling 2026-11-11 (user, revised again):** a quoted "$hh" is literal text, as the dialogs accept it (Compare bits.md N4; Search Inst_Search 0x2040 class).
   - Needs a capture: the `$` character-code forms other than `$hh` (`$1`, `$100`, `$4142`).
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
-    refuses them.
+    refuses them. Search refuses them too since 2026-11-12, following the Compare rule; Fill
+    and single Copy still accept them.
   - Needs a dialog check: is `DS1==1-2` refused? The shared check lets a sign stand among
     the digits; the Counter dialog refuses `1-2` with its own parse (Q-D2), and the
     constant classifier (`operands/constants.py`) refuses it in every field.

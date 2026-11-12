@@ -419,8 +419,9 @@ def check_constant(value: str, name: str) -> None:
     """
     if value.startswith("$"):
         # CLICK's shared check accepts $ and one hex digit, and $ codes above FF; classify()
-        # refuses both. arc.md Q-B7 refuses them only in Compare until a capture shows the
-        # form CLICK stores, so a $ code here keeps the caller's own verdict.
+        # refuses both. Compare, and Search by the Compare rule (arc.md Q-M10 ruling), refuse
+        # a $ form other than $hh; Fill and single Copy keep them until the Q-B7 capture
+        # shows the form CLICK stores.
         return
     if classify(value) is not None:
         return
