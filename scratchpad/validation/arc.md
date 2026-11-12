@@ -324,6 +324,13 @@ Open asks (checklist; details under each id below):
     stepping for X/Y ranges (which numbers are skipped, and whether it depends on the
     project's configured I/O; the capture's CPU is C2-03CPU). Needs its own move with the
     capture as fixture; not part of move10.
+  - ANSWERED 2026-11-12 (user, no I/O modules configured; capture
+    `clicknick/math-sums-slots.bin`, typed): `X001 : X116` lists X002..X016, X021..X036,
+    X101..X115 (46); `X021 : X116` lists X021..X036, X101..X115 (31, the start included);
+    `X001 : X032` lists X002..X016, X021..X027 (22); `X005 : X036` lists X006..X016,
+    X021..X031 (22); `Y001 : Y036` is the same as X (26). Fitted rule (building in move11):
+    an endpoint in the CPU option slot (21..36) counts as its number minus 4; the members
+    are the valid X/Y addresses whose number lies strictly between the two bounds.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
