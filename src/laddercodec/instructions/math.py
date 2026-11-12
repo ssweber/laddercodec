@@ -305,6 +305,18 @@ def _check_expression(expression: str, mode: str) -> None:
             raise FieldError(
                 f"{name}: {expression!r} holds a text constant; a Math formula takes numbers only"
             )
+    for token in tokens:
+        word = token.replace("_", "").isalnum()
+        if (
+            word
+            and token not in FUNCTION_NAMES
+            and not _ADDR_RE.fullmatch(token)
+            and not _CONSTANT_RE.fullmatch(token)
+        ):
+            raise FieldError(
+                f"{name}: {token!r} is not an address, a function name or a constant; "
+                "a Math formula takes only those"
+            )
     depth = 0
     for token in tokens:
         if token == "(":

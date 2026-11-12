@@ -215,6 +215,27 @@ def test_hex_constant_digit_limit_counts_typed_zeros() -> None:
         Math("DH1 + 0FFFEh", "DH9", "hex")
 
 
+@pytest.mark.parametrize("expression", ["DS1 + FOO", "DS1 + DS1X", "DH1 + 7H7", "DS1 + _x"])
+def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
+    mode = "hex" if expression.startswith("DH") else "decimal"
+    with pytest.raises(FieldError, match="Math.expression: '.*' is not an address"):
+        Math(expression, "DH9" if mode == "hex" else "DS9", mode)
+
+
+@pytest.mark.parametrize(
+    ("expression", "result", "mode"),
+    [
+        ("XD0u + 1", "DS9", "decimal"),
+        ("PI * SQRT ( DF1 )", "DF9", "decimal"),
+        ("SUM ( DS1 : DS9 ) MOD 3", "DS9", "decimal"),
+        ("TXT1 + SD1 + CTD1 + TD1 + DD1 + DF1", "DS9", "decimal"),
+        ("LRO ( DH1 , 1h ) RRO 1h", "DH9", "hex"),
+    ],
+)
+def test_math_keeps_its_words(expression: str, result: str, mode: str) -> None:
+    Math(expression, result, mode)
+
+
 def test_pasted_formula_over_the_cap_decodes_as_raw() -> None:
     """CLICK keeps a pasted 69-operand sum (273 characters) that its dialog refuses."""
     path = Path(__file__).parents[1] / "fixtures/v4_captures/retyped/math_wide.bin"
