@@ -287,7 +287,20 @@ Open asks (checklist; details under each id below):
     BOB ruling: Math refuses any word that is not an address, a function name or a
     constant, and refuses `7H7` rather than copying CLICK's rewrite: an `H` inside a
     constant is a typo, and the rewrite's rule (drop every inner `H`?) is a guess from one
-    case. Cost if wrong: `7H7` raises instead of encoding as `77h`.
+    case. Cost if wrong: `7H7` raises instead of encoding as `77h`. Built in train9
+    (eb7b6f1). Update (grammar research): the code fixes the rewrite rule, delete the
+    first `H` anywhere (`7H7` → `77h`, `H7` → `7h`, `7HH` refused), so the "guess" part
+    of the ruling no longer holds; whether to refuse or rewrite is now the user's call.
+- Math grammar research, 2026-11-12: `scratchpad/validation/math-grammar/README.md` (editor
+  model read from the Math dialog's code, EBNF, printers, fixture check, predictions) and
+  `model.py`/`predict.py`. The model re-derives all 82 editor-written Math blobs in the
+  fixtures. Open conflict: the code read accepts hex `DH1 + 7` (no `h`), the dialog refuses
+  it (Q-M13b); the refusing check is unfound. Dialog checks it asks for, by how much they
+  settle: hex `DH1 + 1Eh`, `0Eh`, `2E5h` (predicted refused: the tokenizer splits `1Eh` as a
+  real); decimal `DS1 * -5` refused but `DS1 * ( -5 )` accepted; hex `DH1 + -Ah` refused;
+  hex `DH1 + 7`: which message; hex `LSH ( 1h , 2h )` refused; `SIN ( MAX ( DF1 : DF3 ) )`
+  refused but `SIN ( SUM ( DF1 : DF3 ) )` accepted. Next: move10, one parser from this
+  grammar.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
