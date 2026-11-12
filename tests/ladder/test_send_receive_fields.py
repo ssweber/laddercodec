@@ -29,12 +29,19 @@ from laddercodec.instructions.send_receive import (
 
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
-def test_target_device_id_range_refused_at_construction(device_id) -> None:
-    """Dialog literal Slave ID: 0-255 on TCP; 248-255 on RTU are left to the encode check."""
+def test_tcp_device_id_range_refused_at_construction(device_id) -> None:
+    """Inst_SD/RD.dll: a literal TCP Slave ID is 0-255."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=device_id)
+
+
+@pytest.mark.parametrize("device_id", [-1, 248, 255, 256])
+def test_rtu_device_id_range_refused_at_construction(device_id) -> None:
+    """Inst_SD/RD.dll: a literal serial Slave ID is 0-247 (comm.md Q-C1)."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
+    ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=max(device_id, 0) % 256)
+    ModbusRtuTarget(name="r", com_port="cpu2", device_id=247)
 
 
 RTU = ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1)

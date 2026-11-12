@@ -52,7 +52,7 @@ class ModbusRtuTarget:
                 f"got {self.com_port!r}"
             )
         _normalize_device_id(self)
-        _check_device_id(self.device_id)
+        _check_device_id(self.device_id, 247)
 
 
 @dataclass(frozen=True)
@@ -90,7 +90,7 @@ def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
         object.__setattr__(target, "device_id", normalize_address(target.device_id))
 
 
-def _check_device_id(device_id: int | str) -> None:
+def _check_device_id(device_id: int | str, high: int = 255) -> None:
     """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
     if isinstance(device_id, str):
         m = _DS_ADDRESS_RE.fullmatch(device_id)
@@ -100,8 +100,8 @@ def _check_device_id(device_id: int | str) -> None:
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
         raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
-    elif not 0 <= device_id <= 255:
-        raise FieldError(f"device_id must be 0-255 or a DS address, got {device_id!r}")
+    elif not 0 <= device_id <= high:
+        raise FieldError(f"device_id must be 0-{high} or a DS address, got {device_id!r}")
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
@@ -385,16 +385,13 @@ _SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
 
 
 def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
-    """A numeric Slave ID: RTU 0-247 (Receive 1-247), TCP 0-255; a DS address always passes."""
+    """A numeric Slave ID: Receive RTU starts at 1 (the 0-247 and 0-255 ceilings are checked
+    when the target is built); a DS address always passes."""
     device_id = target.device_id
     if isinstance(device_id, str):
         return
-    if isinstance(target, ModbusRtuTarget):
-        low, high, link = rtu_low, 247, "RTU"
-    else:
-        low, high, link = 0, 255, "TCP"
-    if not low <= device_id <= high:
-        raise FieldError(f"{who} target.device_id: {device_id} is outside {low}-{high} for {link}")
+    if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
+        raise FieldError(f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU")
 
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
