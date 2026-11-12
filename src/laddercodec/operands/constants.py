@@ -107,7 +107,7 @@ def classify(text: str) -> Constant | None:
         return _integer(m.group(1), m.group(2))
     if _FLOAT_RE.fullmatch(upper):
         value = float(upper)
-        return Constant(Kind.FLOAT, value) if _float32(value) else None
+        return Constant(Kind.FLOAT, value) if fits_float32(value) else None
     m = _CHAR_RE.fullmatch(upper)
     if m is not None:
         return Constant(Kind.CHAR, int(m.group(1), 16))
@@ -126,7 +126,7 @@ SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
 }
 
 
-def _float32(value: float) -> bool:
+def fits_float32(value: float) -> bool:
     """Whether ``value`` is finite and fits float32.
 
     A value that rounds to float32's largest finite number, about 3.4028235E+38, fits

@@ -231,7 +231,7 @@ def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
         ("PI * SQRT ( DF1 )", "DF9", "decimal"),
         ("SUM ( DS1 : DS9 ) MOD 3", "DS9", "decimal"),
         ("TXT1 + SD1 + CTD1 + TD1 + DD1 + DF1", "DS9", "decimal"),
-        ("LRO ( DH1 , 1h ) RRO 1h", "DH9", "hex"),
+        ("LRO ( DH1 , 1h ) XOR RRO ( DH2 , 1h )", "DH9", "hex"),
     ],
 )
 def test_math_keeps_its_words(expression: str, result: str, mode: str) -> None:
