@@ -74,7 +74,7 @@ class Timer(PinnedInstruction):
     def __post_init__(self) -> None:
         if self.timer_type not in ("on_delay", "off_delay"):
             raise FieldError(f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay")
-        if self.unit not in TIMER_UNIT_TO_INDEX:
+        if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
             raise FieldError(
                 f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}"
             )
@@ -101,6 +101,7 @@ class Timer(PinnedInstruction):
                 "Timer.retained: off_delay can't be retentive (no .reset() pin); CLICK's "
                 "Timer dialog offers Retentive only for an On Delay timer"
             )
+        self._check_pin_rows()
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:

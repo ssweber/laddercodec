@@ -8,8 +8,12 @@ decode: a blob whose pin rows the checks refuse stays raw.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from laddercodec.csv import read_csv
+from laddercodec.csv.converter import ConvertError
 from laddercodec.instructions import (
     Coil,
     Contact,
@@ -151,3 +155,58 @@ def test_raw_blob_and_name_types_refused() -> None:
 def test_raw_keeps_every_part_count_decode_makes() -> None:
     assert RawInstruction("Zzz", b"", part_count=0).part_count == 0
     assert RawInstruction("Zzz", b"", part_count=0xFFFF).part_count == 0xFFFF
+
+
+@pytest.mark.parametrize("bad", [[], {}, {1}, [1, 2]], ids=repr)
+def test_unhashable_fields_raise_field_error(bad) -> None:
+    with pytest.raises(FieldError, match="Coil.type"):
+        Coil(bad, "C1")
+    with pytest.raises(FieldError, match="Contact.type"):
+        Contact(bad, "X1")
+    with pytest.raises(FieldError, match="Contact.edge_kind"):
+        Contact(InstructionType.CONTACT_EDGE, "X1", edge_kind=bad)
+    with pytest.raises(FieldError, match="Timer.unit"):
+        Timer("on_delay", "T1", "TD1", "5", bad)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="Timer.timer_type"):
+        Timer(bad, "T1", "TD1", "5", "Ts")  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="Counter.counter_type"):
+        Counter(bad, "CT1", "CTD1", "5", reset_enabled=True)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="Coil.oneshot"):
+        Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="Contact.immediate"):
+        Contact(InstructionType.CONTACT_NO, "X1", immediate=bad)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="Counter.down_enabled"):
+        Counter("count_up", "CT1", "CTD1", "5", down_enabled=bad, reset_enabled=True)  # type: ignore[arg-type]
+
+
+def test_pin_rows_error_names_the_instruction() -> None:
+    with pytest.raises(FieldError) as info:
+        _timer(pin_rows=())
+    assert info.value.obj is not None
+    assert "(1 for a Timer)" in str(info.value)
+
+
+def _csv_af(tmp_path: Path, *afs: str) -> list:
+    import csv
+
+    from laddercodec.csv import CSV_HEADER
+
+    path = tmp_path / "rung.csv"
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(CSV_HEADER)
+        for i, af in enumerate(afs):
+            w.writerow(["R" if i == 0 else "", "X1" if i == 0 else ""] + [""] * 30 + [af])
+    return read_csv(path)
+
+
+@pytest.mark.parametrize("token", ["latch(C1,oneshot=1)", "reset(C1..C2,oneshot=1)"])
+def test_csv_set_reset_oneshot_refused(tmp_path: Path, token: str) -> None:
+    with pytest.raises(FieldError, match="Coil.oneshot"):
+        _csv_af(tmp_path, token)
+
+
+def test_csv_off_delay_with_reset_refused(tmp_path: Path) -> None:
+    # The converter reports a pin's refusal as a ConvertError that carries the message.
+    with pytest.raises(ConvertError, match="Timer.retained"):
+        _csv_af(tmp_path, "off_delay(T1,TD1,preset=5,unit=Ts)", ".reset()")

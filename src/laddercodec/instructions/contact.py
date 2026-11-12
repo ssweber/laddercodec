@@ -87,6 +87,8 @@ class Contact(ConditionInstruction):
                 f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
                 "CONTACT_EDGE)"
             )
+        if not isinstance(self.immediate, bool):
+            raise FieldError(f"Contact.immediate: {self.immediate!r} is not True or False")
         self.operand = normalize_address(self.operand)
         address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:
@@ -97,7 +99,7 @@ class Contact(ConditionInstruction):
                 "an immediate contact takes X only"
             )
         if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in CONTACT_EDGE_FUNC_CODES:
+            if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
                 raise FieldError(
                     f"Contact.edge_kind: {self.edge_kind!r} is not rise or fall; "
                     "an edge contact needs one"

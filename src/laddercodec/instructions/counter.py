@@ -88,11 +88,18 @@ class Counter(PinnedInstruction):
             raise FieldError(
                 f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down"
             )
+        for name in ("down_enabled", "reset_enabled"):
+            if not isinstance(getattr(self, name), bool):
+                raise FieldError(f"Counter.{name}: {getattr(self, name)!r} is not True or False")
         if self.down_enabled and self.counter_type == "count_down":
             # count_down's own input is Down; its box has no separate .down() input.
             raise FieldError(
                 "Counter.down_enabled: count_down has no .down() input; only count_up does"
             )
+        self._check_fields()
+        self._check_pin_rows()
+
+    def _check_fields(self) -> None:
         self.done_bit = normalize_address(self.done_bit)
         self.current = normalize_address(self.current)
         self.preset = normalize_address(self.preset)

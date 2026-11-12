@@ -71,6 +71,7 @@ class Shift(PinnedInstruction):
                 f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
                 f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)"
             )
+        self._check_pin_rows()
 
     def pin_names(self) -> tuple[str, ...]:
         return (".clock", ".reset")

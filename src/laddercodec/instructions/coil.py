@@ -120,8 +120,11 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        if self.type not in COIL_TYPE_TO_NAME:
+        if self.type not in tuple(COIL_TYPE_TO_NAME):
             raise FieldError(f"Coil.type: {self.type!r} is not a coil (out, latch or reset)")
+        for name in ("immediate", "oneshot"):
+            if not isinstance(getattr(self, name), bool):
+                raise FieldError(f"Coil.{name}: {getattr(self, name)!r} is not True or False")
         if self.oneshot and self.type != InstructionType.COIL_OUT:
             # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
             raise FieldError(
