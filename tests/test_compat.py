@@ -8,6 +8,7 @@ import pytest
 
 from laddercodec import Break, Continue, Math, find_v4_only, is_v4_only
 from laddercodec.decode import Rung, decode
+from laddercodec.instructions.raw import RawInstruction
 
 FIXTURES = Path(__file__).parent / "fixtures"
 V3_BINS = sorted(
@@ -67,6 +68,26 @@ def test_v4_captures_are_flagged() -> None:
 )
 def test_math_v4_functions(expression: str, v4_only: bool) -> None:
     assert is_v4_only(Math(expression=expression, result="DS100")) is v4_only
+
+
+@pytest.mark.parametrize(
+    ("file", "flagged"),
+    [("math_ranges_x_t.bin", [0, 1, 2, 3]), ("math_ranges_xy_slots.bin", [0, 1, 2, 3, 4])],
+)
+def test_math_decoded_as_raw_is_still_checked(file: str, flagged: list[int]) -> None:
+    """SUM over bits is v4-only, in the X/Y ranges that decode as raw Math too."""
+    rungs = _rungs(FIXTURES / "v4_captures" / file)
+    assert [index for index, _ in find_v4_only(rungs)] == flagged
+    assert any(isinstance(rung.instructions[0], RawInstruction) for rung in rungs)
+
+
+def test_raw_math_past_500_interiors_or_with_rand_is_v4_only() -> None:
+    wide = RawInstruction("Math", Math("SUM ( DS1 : DS503 )", "DS100").build_blob())
+    rand = RawInstruction("Math", Math("RAND ( 1 , 100 )", "DS100").build_blob())
+    plain = RawInstruction("Math", Math("SUM ( DS1 : DS502 )", "DS100").build_blob())
+    assert is_v4_only(wide)
+    assert is_v4_only(rand)
+    assert not is_v4_only(plain)
 
 
 def test_single_rung_and_loop_exits() -> None:

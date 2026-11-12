@@ -146,7 +146,7 @@ _NATIVE_MATH = [
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
     # Typed T, TD and X ranges, the X ones across the slot gaps (C2-03CPU, no I/O modules).
-    # The other rungs of these files hold ranges laddercodec refuses (_REFUSED_XY_RANGES).
+    # The other rungs of these files hold ranges laddercodec refuses (REFUSED_XY_RANGES).
     ("math_ranges_x_t.bin", 0),  # SUM ( T1 : T5 )
     ("math_ranges_x_t.bin", 1),  # MAX ( TD1 : TD5 )
     ("math_ranges_x_t.bin", 3),  # SUM ( X001 : X101 )
@@ -308,8 +308,10 @@ _NATIVE_XY_LISTS = [
 ]
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
-#: The ranges among them whose stored list is not the points between the ends; refused.
-_REFUSED_XY_RANGES = {
+#: The ranges among them whose stored list is not the points between the ends, refused
+#: (user ruling 2026-11-12), and what the refusal says CLICK's list gets wrong.
+#: test_math_grammar.py reads it for the stored formulas it expects refused.
+REFUSED_XY_RANGES = {
     "SUM ( X001 : X036 )": "leave out X032..X035",
     "SUM ( X021 : X116 )": "add X021",
     "SUM ( X001 : X032 )": "leave out X028..X031",
@@ -331,18 +333,20 @@ def test_math_xy_range_lists_in_capture(
     assert _range_interiors(formula) == expected
 
 
-@pytest.mark.parametrize(("file", "index", "formula", "expected"), _NATIVE_XY_LISTS, ids=_XY_IDS)
+@pytest.mark.parametrize(
+    ("file", "index", "formula"), [x[:3] for x in _NATIVE_XY_LISTS], ids=_XY_IDS
+)
 def test_math_xy_range_refused_unless_its_list_holds_the_points_between(
-    file: str, index: int, formula: str, expected: list[str]
+    file: str, index: int, formula: str
 ) -> None:
     """A refused range's rung decodes as raw and keeps CLICK's bytes; the others are Math."""
     path = CAPTURE_DIR / file
     rung = _decode_file(path)[index]
     af = rung.instructions[0]
-    if formula not in _REFUSED_XY_RANGES:
+    if formula not in REFUSED_XY_RANGES:
         assert af == Math(formula, "DS1")
         return
-    with pytest.raises(FieldError, match=f"wrong member list.*{_REFUSED_XY_RANGES[formula]}"):
+    with pytest.raises(FieldError, match=f"wrong member list.*{REFUSED_XY_RANGES[formula]}"):
         Math(formula, "DS1")
     assert isinstance(af, RawInstruction)
     native = _native_math_blobs(path)[index]

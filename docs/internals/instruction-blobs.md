@@ -269,8 +269,9 @@ This rule is fitted to the seven X and Y ranges of
 `v4_captures/math_ranges_x_t.bin` and `math_ranges_xy_slots.bin`, typed in a
 C2-03CPU project with no I/O modules; it is not read from CLICK's code. Those
 captures have no range that starts in the option slot anywhere but X021, none
-with both ends in the option slot, and none between two expansion slots
-(`X101 : X201`).
+that ends at X021, none with both ends in the option slot, and none between two
+expansion slots (`X101 : X201`). Their one Y range is refused, so no accepted Y
+range is captured.
 
 The list for `X001 : X036` leaves out X032..X035, and the list for
 `X021 : X116` holds X021, an endpoint. laddercodec refuses a Math with an X or

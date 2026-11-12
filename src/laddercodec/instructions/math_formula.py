@@ -89,7 +89,7 @@ _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
 _XY_BANKS = banks(Bank.X | Bank.Y)
-#: The CPU slot (1-16) and its option slot (21-36): CLICK counts them as 32 points in a row.
+#: The CPU slot (1-16) and its option slot (21-36), and the 4 numbers between them (17-20).
 _CPU_SLOT, _OPTION_SLOT = XY_SLOTS[0], XY_SLOTS[1]
 _OPTION_GAP = _OPTION_SLOT[0] - _CPU_SLOT[1] - 1
 
