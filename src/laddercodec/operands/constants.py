@@ -31,6 +31,8 @@ import struct
 from enum import StrEnum
 from typing import NamedTuple
 
+from .errors import FieldError
+
 
 class Kind(StrEnum):
     """The kind of a constant."""
@@ -150,10 +152,29 @@ def printable(text: str) -> bool:
     """Whether ``text`` is printable ASCII only.
 
     Not part of the shared check, which takes any character: a field limit.  A Compare text
-    constant (arc.md Q-B7 ruling, 2026-11-11, revised) and a Search text value (arc.md Q-M10
-    ruling) hold printable ASCII only.
+    constant (arc.md Q-B7 ruling, 2026-11-11, revised), a Search text value (arc.md Q-M10
+    ruling) and the text of a single Copy or a Fill (BOB ruling 2026-11-12) hold printable
+    ASCII only; ``$hh`` spells any other code.
     """
     return PRINTABLE_ASCII.issuperset(text)
+
+
+#: Why a ``$`` value is refused; :func:`check_char_code` raises it in every field.
+CHAR_CODE_RULE = "a character code is $ and two hex digits, $00 to $FF, such as $41"
+
+
+def check_char_code(text: str, name: str) -> int:
+    """Return the code ``text`` spells as ``$hh``; raise :class:`FieldError` naming field
+    ``name`` for any other text.
+
+    A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF`` (Help
+    ``ascii table2.gif``), so ``$``, ``$1``, ``$100`` and ``$G1`` are refused.  Compare, Search,
+    Fill, a single Copy source and a Copy termination code call it on every ``$`` value.
+    """
+    m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
+    if m is None:
+        raise FieldError(f"{name}: {text!r} is refused; {CHAR_CODE_RULE}")
+    return int(m.group(1), 16)
 
 
 def _hex(digits: str) -> Constant | None:

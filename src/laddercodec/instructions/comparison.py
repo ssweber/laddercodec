@@ -19,7 +19,7 @@ from ..model import (
     check_flag,
     normalize_address,
 )
-from .copy import check_constant
+from ..operands.constants import check_char_code
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ def _operand_group(value: str, name: str) -> str:
     if _NUMERIC_CONSTANT_RE.fullmatch(value):
         return "numeric"
     if value.startswith("$"):
-        check_constant(value, name)  # $ and two hex digits
+        check_char_code(value, name)
         return "text"
     if len(value) >= 2 and value[0] == value[-1] == '"':
         check_quoted_text(value, name)

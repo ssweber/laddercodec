@@ -16,8 +16,10 @@ import pytest
 from laddercodec import AddressError, FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
+from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy, Fill, Pack, Unpack
 from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.instructions.search import Search
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -298,7 +300,8 @@ def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: st
         (_TEXT_128, "TXT2"),
         ('"A"', "TXT2"),
         ('"$41"', "TXT2"),
-        ('"é"', "TXT2"),  # non-ASCII text into TXT has no ruling yet: accepted
+        ('" "', "TXT2"),  # printable ASCII runs from space to ~
+        ('"~"', "TXT2"),
         ("$00", "TXT2"),
         ("$FF", "TXT2"),
         ("$0d", "TXT2"),
@@ -314,8 +317,34 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
 
 # arc.md Q-B7 (user, Help ascii table2.gif, 2026-11-12): a $ code is picked from CLICK's Embed
 # ASCII Code table, $00 to $FF, so it is $ and two hex digits in every field.
-_DOLLAR_FORMS = ["$1", "$D", "$d", "$100", "$4142"]
+_DOLLAR_FORMS = ["$", "$1", "$D", "$d", "$100", "$4142", "$G1", "$٣٣"]
 _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
+
+
+@pytest.mark.parametrize("code", ["$", "$1", "$G1"])
+@pytest.mark.parametrize(
+    ("field", "build"),
+    [
+        ("Copy.source", lambda code: Copy(code, "TXT2")),
+        ("Fill.value", lambda code: Fill(code, "TXT2", "TXT5")),
+        ("Search.source", lambda code: Search("TXT1", "TXT10", code, "DS20", "C1", "==")),
+        ("CompareContact.right", lambda code: CompareContact("==", "TXT1", code)),
+        ("CompareContact.left", lambda code: CompareContact("==", code, "TXT1")),
+        (
+            "Copy.termination_code",
+            lambda code: Copy("DS20", "TXT7", format="text", termination_code=code),
+        ),
+    ],
+)
+def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: str) -> None:
+    """One check (operands.constants.check_char_code) gives every field the same FieldError."""
+    with pytest.raises(FieldError) as caught:
+        build(code)
+    assert type(caught.value) is FieldError
+    assert str(caught.value) == (
+        f"{field}: {code!r} is refused; a character code is $ and two hex digits, $00 to $FF, "
+        "such as $41"
+    )
 
 
 @pytest.mark.parametrize("source", _DOLLAR_FORMS)
@@ -395,7 +424,7 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
         ("10000h", "DS52", "DS55"),
         ("FFFFFFFFh", "DS52", "DS55"),
         ("5", "TXT2", "TXT5"),
-        ('"é"', "TXT2", "TXT5"),
+        ('"~"', "TXT2", "TXT5"),
         ("$00", "TXT2", "TXT5"),
         ("$7E", "TXT2", "TXT5"),
     ],
@@ -458,7 +487,8 @@ def _destination_end(copy: Copy) -> str:
         (_TEXT_128, "TXT873", "TXT1000"),
         ('"Q"', "TXT1000", ""),
         ("$41", "TXT1000", ""),
-        ('"AB"', "TXT[DS1]", ""),  # a pointer: no capture shows an end
+        ('"Q"', "TXT[DS1]", ""),  # a pointer takes one character or a $hh code
+        ("$41", "TXT[DS1]", ""),
     ],
 )
 def test_text_copy_stores_its_last_txt(source: str, destination: str, end: str) -> None:
@@ -482,6 +512,36 @@ def test_text_copy_past_txt1000_refused(
         Copy(source, destination)
     with pytest.raises(AddressError, match=rf"^Copy.destination: .* {message}"):
         _read_af(tmp_path, f"copy({source},{destination})")
+
+
+# BOB ruling 2026-11-12: no capture shows the end CLICK stores for text through a pointer, so
+# two or more characters into one are refused until a capture exists.
+@pytest.mark.parametrize("source", ['"AB"', '"$41"', _TEXT_128])
+def test_text_copy_into_a_pointer_takes_one_character(tmp_path: Path, source: str) -> None:
+    message = r"^Copy.destination: 'TXT\[DS1\]' can't take .*; a pointer takes one character"
+    with pytest.raises(AddressError, match=message):
+        Copy(source, "TXT[DS1]")
+    with pytest.raises(AddressError, match=message):
+        _read_af(tmp_path, f"copy({source},TXT[DS1])")
+
+
+# BOB ruling 2026-11-12: text in a single Copy or a Fill is printable ASCII only, as in Compare
+# and Search; $hh writes any other code.
+_NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
+_PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
+
+
+@pytest.mark.parametrize("text", _NOT_PRINTABLE)
+def test_text_is_printable_ascii(tmp_path: Path, text: str) -> None:
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_PRINTABLE_RULE}"):
+        Copy(text, "TXT2")
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_PRINTABLE_RULE}"):
+        _read_af(tmp_path, f"copy({text},TXT2)")
+    if len(text) == 3:  # one character: a Fill takes it, and a Copy stores no end
+        with pytest.raises(FieldError, match=rf"^Fill.value: .* {_PRINTABLE_RULE}"):
+            Fill(text, "TXT2", "TXT5")
+        assert from_tags_af("Copy", 0x2721, {0x6074: '"A"', 0x6076: "TXT2"}) is not None
+        assert from_tags_af("Copy", 0x2721, {0x6074: text, 0x6076: "TXT2"}) is None
 
 
 @pytest.mark.parametrize(

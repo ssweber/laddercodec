@@ -590,16 +590,16 @@ currently emit:
   constants, functions and parentheses count too.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
-  two hex digits from `$00` to `$FF`; `$1`, `$100` and `$4142` raise `FieldError`
-  in every field. CLICK writes one TXT register per character of a text
-  constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a
-  `copy` whose text would run past TXT1000 raises `AddressError`. A Copy source
-  or a Fill value takes 1 to 128 characters in quotes and refuses `""`, a longer
-  text and a quote inside the text. A compare or a search takes 1 to 128
-  printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
-  TXT772; a search matches the same window) and refuses `""`, a longer or
-  non-ASCII text and a quote inside the text when it is read or built; spell a
-  quote as `$22`. A quoted `"$41"` is three characters of text, not the code
+  two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise
+  `FieldError` in every field. CLICK writes one TXT register per character of a
+  text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
+  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`, and a
+  `copy` into a pointer (`TXT[DS1]`) takes one character or a `$hh` code. A Copy
+  source, a Fill value, a compare and a search take 1 to 128 printable ASCII
+  characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
+  matches the same window) and refuse `""`, a longer or non-ASCII text and a
+  quote inside the text when it is read or built; spell any other character as
+  its `$hh` code, and a quote as `$22`. A quoted `"$41"` is three characters of text, not the code
   `$41`. Use `$00` for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`

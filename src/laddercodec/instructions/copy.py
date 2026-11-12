@@ -35,7 +35,15 @@ from ..model import (
     normalize_address,
     xy_slot,
 )
-from ..operands.constants import INT32_MAX, INT32_MIN, TEXT_MAX, classify
+from ..operands.constants import (
+    INT32_MAX,
+    INT32_MIN,
+    TEXT_MAX,
+    Kind,
+    check_char_code,
+    classify,
+    printable,
+)
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -135,15 +143,13 @@ _COPY_TAGS = (
     0x0000,  # [12] terminator
 )
 
-#: An ASCII-code constant, e.g. ``$00`` (CLICK's spelling of one character by code): ``$`` and
-#: two hex digits, as the ASCII Table picker writes it.  A termination code takes the same form.
-_ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
-
 
 def _is_text_constant(operand: str) -> bool:
-    """True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``)."""
-    operand = operand.strip()
-    return operand.startswith('"') or _ASCII_CODE_CONSTANT_RE.fullmatch(operand) is not None
+    """True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``).
+
+    ``operand`` is a checked source: a ``$`` value in one is ``$hh`` (check_char_code).
+    """
+    return operand.strip().startswith(('"', "$"))
 
 
 def _ascii_code(code: int) -> str:
@@ -176,9 +182,6 @@ _POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
 _NUMBER_CONSTANT_RE = re.compile(
     r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[+-]?[0-9A-Fa-f]+[hH]"
 )
-#: A text constant by character code: ``$`` then hex digits (``$0D``).  Any count passes here,
-#: so :func:`check_constant` can refuse all but two with its own message.
-_ASCII_CODE_OPERAND_RE = re.compile(r"\$[0-9A-Fa-f]+")
 
 
 class Operand(NamedTuple):
@@ -232,14 +235,16 @@ def check_operand(
 
     An address goes through :func:`check_address`, narrowed to ``banks`` (``None``: any bank).
     With ``constant``, a number constant (``42``, ``-1.5``, ``1Eh``) or a text constant
-    (``"AB"``, ``$0D``) passes too.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
+    (``"AB"``, ``$0D``) passes too; a ``$`` value that is not ``$hh`` raises
+    :class:`FieldError`.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
     in ``banks`` and in :data:`POINTER_BANKS`, and the pointer a DS address (Help CL238).
     ``XD0u`` and ``YD0u`` pass only when ``banks`` names XD or YD (``ADDRESS_BANKS`` does).
     """
     if constant:
-        if (len(value) >= 2 and value[0] == value[-1] == '"') or (
-            _ASCII_CODE_OPERAND_RE.fullmatch(value)
-        ):
+        if value.startswith("$"):
+            check_char_code(value, name)
+            return Operand("text")
+        if len(value) >= 2 and value[0] == value[-1] == '"':
             return Operand("text")
         if _NUMBER_CONSTANT_RE.fullmatch(value):
             return Operand("number")
@@ -413,18 +418,26 @@ def check_constant(value: str, name: str) -> None:
     - a hex constant takes no sign and has at most eight digits above ``FFFFh``;
     - a real is finite and within float32;
     - quoted text is 1 to 128 characters with no quote inside;
-    - a character code is ``$`` and two hex digits, ``$00`` to ``$FF``.
+    - a character code is ``$`` and two hex digits, ``$00`` to ``$FF``
+      (:func:`~laddercodec.operands.constants.check_char_code`).
 
-    A single Copy source, a Fill value, a Search value and a Compare character code run it
-    on the constants their own checks pass.
+    Quoted text also holds printable ASCII only, a field limit the Copy, Fill, Compare and
+    Search text fields share (:func:`~laddercodec.operands.constants.printable`).  A single
+    Copy source, a Fill value and a Search value run it on the constants their own checks
+    pass.
     """
-    if classify(value) is not None:
-        return
     if value.startswith("$"):
-        # CLICK's shared check also takes $ and one hex digit, and $ codes above FF; its
-        # Embed ASCII Code table (Help ascii table2.gif) offers only $00 to $FF.
-        why = "a character code is $ and two hex digits, $00 to $FF, such as $41"
-    elif value.startswith('"'):
+        check_char_code(value, name)
+        return
+    const = classify(value)
+    if const is not None:
+        if const.kind is Kind.TEXT and not printable(str(const.value)):
+            raise FieldError(
+                f"{name}: {value!r} is refused; text holds printable ASCII only (space to ~); "
+                "write another character as its $hh code"
+            )
+        return
+    if value.startswith('"'):
         why = (
             f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
             "(write the quote character as $22)"
@@ -463,7 +476,7 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2,
     ``v4_captures/text_tt.bin``) and leaves the end empty for one character (``"Q"`` into
     TXT2, ``text_q.bin``) and for a ``$hh`` code (``text_blank.bin``).  ``None`` for those,
-    and for a pointer destination, for which no capture shows an end.
+    and for a pointer destination, which Copy refuses for two or more characters.
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
@@ -652,12 +665,8 @@ class Copy(AfInstruction):
         if self.termination_code == "none":
             self.termination_code = "0"
         elif self.termination_code.startswith("$"):
-            if not _ASCII_CODE_CONSTANT_RE.fullmatch(self.termination_code):
-                raise FieldError(
-                    f"Copy.termination_code: {self.termination_code!r} is refused; "
-                    "a code is $ and two hex digits, such as $0D"
-                )
-            self.termination_code = _ascii_code(int(self.termination_code[1:], 16))
+            code = check_char_code(self.termination_code, "Copy.termination_code")
+            self.termination_code = _ascii_code(code)
         for option in ("suppress_zero", "exponential"):
             if getattr(self, option) not in ("0", "1"):
                 raise FieldError(
@@ -702,6 +711,12 @@ class Copy(AfInstruction):
             )
         if src.kind in ("number", "text"):
             check_constant(self.source, "Copy.source")
+        if dst.pointer and len(self.source) >= 4 and self.source[0] == self.source[-1] == '"':
+            # No capture shows the destination end CLICK stores through a pointer.
+            raise AddressError(
+                f"Copy.destination: {self.destination!r} can't take {self.source!r}; a pointer "
+                "takes one character of text or a $hh code"
+            )
         end = _text_fill_end(self.source, self.destination)
         if end is not None and end.number > _TXT_LAST:
             raise AddressError(
