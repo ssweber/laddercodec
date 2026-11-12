@@ -155,8 +155,8 @@ _NUMBER = (
     r"(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)(?![\w.])"
 )
 #: Hex digits then ``h`` or ``H``.  CLICK writes the suffix as ``h`` (``7H`` is stored as
-#: ``7h``, v4_captures/math_hex_upper_h.bin).  laddercodec keeps the digits' case, which no
-#: capture checks yet.
+#: ``7h``, v4_captures/math_hex_upper_h.bin); the digits print uppercase without leading
+#: zeros (``0fH`` is ``Fh``, dialog answers in arc.md).
 _HEX_CONSTANT = r"[0-9A-Fa-f]+[hH]\b"
 _HEX_CONSTANT_RE = re.compile(_HEX_CONSTANT)
 
@@ -177,13 +177,17 @@ def _normalize_spacing(expr: str) -> str:
     constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
     an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).  Each
     address takes its display form (``ds01 + x1`` → ``DS1 + X001``), each function
-    name is uppercase (``sum`` → ``SUM``) and each hex constant ends in a lowercase
-    ``h`` (``7H`` → ``7h``).
+    name is uppercase (``sum`` → ``SUM``) and each hex constant has uppercase digits
+    without leading zeros and a lowercase ``h`` (``0fH`` → ``Fh``).  A sign before a
+    hex constant is its own token (``( - Ah )``, v4_captures/math_hex_signed.bin).
     """
     out: list[str] = []
     for token in _TOKEN_RE.findall(expr):
         if _HEX_CONSTANT_RE.fullmatch(token):
-            token = to_display(token, f"{token[:-1]}h")
+            # An all-zero constant keeps one digit; what CLICK shows for ``00h`` is untested.
+            token = to_display(token, f"{token[:-1].upper().lstrip('0') or '0'}h")
+            out.append(token)
+            continue
         is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
         if is_sign and _CONSTANT_RE.fullmatch(token):
             out[-1] = f"-{token}"
@@ -276,6 +280,17 @@ def _range_position(bank: str, number: str) -> int:
     if bank in ("XD", "YD"):
         return _XY_WORD_ORDER.index(number) if number in _XY_WORD_ORDER else -1
     return int(number.rstrip("u"))
+
+
+def _check_typed_hex_digits(expression: str) -> None:
+    """Refuse a hex constant typed with more than 4 digits, leading zeros included."""
+    for m in _TOKEN_RE.finditer(expression):
+        token = m.group(0)
+        if _HEX_CONSTANT_RE.fullmatch(token) and len(token) > 5:
+            raise FieldError(
+                f"Math.expression: {token[:-1]}h is outside 0h..FFFFh; "
+                "a hex constant has at most 4 digits"
+            )
 
 
 def _check_expression(expression: str, mode: str) -> None:
@@ -554,7 +569,8 @@ class Math(AfInstruction):
     ----------
     expression:
         The formula in Click syntax (e.g. ``"DS65 + DS66"``).
-        Spaces around operators, uppercase function names.
+        Spaces around operators, uppercase function names.  A ``<nickname>`` is
+        refused: Math takes addresses.
     result:
         Destination register (e.g. ``"DS67"``).
     mode:
@@ -576,6 +592,8 @@ class Math(AfInstruction):
                 f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
                 "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)"
             )
+        if self.mode == "hex":
+            _check_typed_hex_digits(self.expression)
         self.expression = _normalize_spacing(self.expression)
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
@@ -686,12 +704,16 @@ def from_tags(
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    math = Math(
-        expression=expression,
-        result=result,
-        mode=mode,
-        oneshot=oneshot,
-    )
+    try:
+        math = Math(
+            expression=expression,
+            result=result,
+            mode=mode,
+            oneshot=oneshot,
+        )
+    except FieldError:
+        # A formula we can't model (nickname display text, say) decodes as raw.
+        return None
     findings = _legacy_findings(tag_value(tags, 0x61FD))
     if findings:
         math._legacy_findings = findings

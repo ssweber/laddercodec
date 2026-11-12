@@ -59,9 +59,9 @@ _REFUSED = [
     # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12), H as h
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
-    ("DS1 + ( -1Fh )", "DD9", "decimal", "-1Fh is a hex constant"),
+    ("DS1 + ( -1Fh )", "DD9", "decimal", "1Fh is a hex constant"),
     ("DS1 + 1FH", "DS9", "decimal", "1Fh is a hex constant; a decimal Math"),
-    ("DS1 + ( -1FH )", "DD9", "decimal", "-1Fh is a hex constant"),
+    ("DS1 + ( -1FH )", "DD9", "decimal", "1Fh is a hex constant"),
     # a decimal constant in a hex Math (Q-M13b, dialog 2026-11-12)
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
     ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
@@ -200,6 +200,19 @@ def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
     tags = {0x6065: "DS9", 0x61FF: "@ + @", 0x61FD: "DS1#+#DS2", 0x3218: "8451"}
     assert from_tags_af("Math", 0x271A, tags) is not None
     assert from_tags_af("Math", 0x271A, tags | fields) is None
+
+
+@pytest.mark.parametrize(
+    ("typed", "display"), [("0H", "0h"), ("00h", "0h"), ("0FFFh", "FFFh"), ("0fH", "Fh")]
+)
+def test_hex_constant_drops_leading_zeros(typed: str, display: str) -> None:
+    assert Math(f"DH1 + {typed}", "DH9", "hex").expression == f"DH1 + {display}"
+
+
+def test_hex_constant_digit_limit_counts_typed_zeros() -> None:
+    """CLICK refuses ``0FFFEh`` (5 digits typed), though its value fits 4."""
+    with pytest.raises(FieldError, match="0FFFEh is outside 0h..FFFFh"):
+        Math("DH1 + 0FFFEh", "DH9", "hex")
 
 
 def test_pasted_formula_over_the_cap_decodes_as_raw() -> None:
