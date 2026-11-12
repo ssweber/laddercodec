@@ -274,8 +274,14 @@ Open asks (checklist; details under each id below):
     laddercodec writes `@ + ( -Ah )` and `DH1#+#(#-Ah#)`, a formula CLICK never writes.
     To build: a hex constant's display form is uppercase digits without leading zeros plus
     `h`; a sign before a hex constant stays spaced (`- Ah`), so the internal form is
-    `-#UH10`. Open: does `0H`/`00h` display as `0h`? Decimal `DS1 + EH` is refused today
-    (dialog not yet checked).
+    `-#UH10`. Open: does `0H`/`00h` display as `0h`? Is a padded `0FFFEh` accepted?
+  - ANSWERED 2026-11-12 (user, dialog): decimal `DS1 + EH` is refused (laddercodec agrees).
+    `DS1 + FOO` is refused (laddercodec accepts it as an unknown word). In a hex Math,
+    `DH1 + 7H7` is rewritten as `DH1 + 77h` (laddercodec stores `7H7` literally).
+    BOB ruling: Math refuses any word that is not an address, a function name or a
+    constant, and refuses `7H7` rather than copying CLICK's rewrite: an `H` inside a
+    constant is a typo, and the rewrite's rule (drop every inner `H`?) is a guess from one
+    case. Cost if wrong: `7H7` raises instead of encoding as `77h`.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
@@ -742,6 +748,8 @@ Open asks (checklist; details under each id below):
   (`retained=2`, `"x"`). None crashes; route them through `check_flag` after the release.
 - Ground truth: does a CLICK dialog accept `X1` and `DS0001`, or only `X001` and `DS1`? Help
   195 lists only the zero-padded X/Y form. Step 0 accepts both forms, as before.
+  ANSWERED 2026-11-12 (user, dialog): both are accepted and rewritten, `X1` → `X001` and
+  `DS0001` → `DS1`, which is what laddercodec's display form already does. Nothing to build.
 - Parked 2026-11-12 (user ruling): a stored rung that breaks a dialog rule, such as a
   pre-rule paste of `DH70 == DS3920`, decodes as before: an AF falls back to raw() and a
   condition to UnknownCondition, which `write_csv` can't write. ClickNick handles it (the
@@ -761,6 +769,7 @@ Open asks (checklist; details under each id below):
     `<nickname>` in a Math expression (spaces or not) writes a formula CLICK never writes.
     To build: refuse `<...>` in `Math.expression`; `test_math_nickname_keeps_its_digits`
     changes to expect the refusal.
-  - `DS1 + FOO` and `DH1 + 7H7` are accepted as unknown words; CLICK likely refuses both.
+  - `DS1 + FOO` and `DH1 + 7H7` are accepted as unknown words. Answered 2026-11-12, see
+    the hex-Math answers: both are refused (building on move9).
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
   arc.
