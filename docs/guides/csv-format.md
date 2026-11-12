@@ -619,6 +619,13 @@ currently emit:
   - In a hex `math`, a constant whose digits run into an `E` (`1Eh`, `0Eh`,
     `2E5h`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
     number. `E1h` and `1Fh` are accepted.
+- A `math` range over X or Y with an end in the CPU's option slot, X021-X036 or
+  Y021-Y036, is refused although CLICK accepts it, because CLICK v4 stores the
+  wrong points for it (`SUM ( X001 : X036 )` would leave out X032..X035). Two
+  kinds are accepted: a range from the CPU slot to X021 (`SUM ( X001 : X021 )`)
+  and one with no point between its ends (`SUM ( X025 : X026 )`). A range with
+  no end in the option slot is accepted (`SUM ( X001 : X101 )`). A stored Math
+  with a refused range decodes as `raw(...)`.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise

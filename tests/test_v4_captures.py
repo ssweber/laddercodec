@@ -34,10 +34,10 @@ from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
-from laddercodec.instructions.math import Math
+from laddercodec.instructions.math import Math, _range_interiors
 from laddercodec.instructions.math import from_tags as from_tags_math
 from laddercodec.instructions.out_variant import OutVariant
-from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.shift import Shift
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
@@ -145,10 +145,12 @@ _NATIVE_MATH = [
     # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
-    # Typed T, TD, X and Y ranges, the X and Y ones across the slot gaps (C2-03CPU, no
-    # I/O modules); test_math_xy_range_lists_in_capture records the X/Y lists.
-    *(("math_ranges_x_t.bin", i) for i in range(4)),
-    *(("math_ranges_xy_slots.bin", i) for i in range(5)),
+    # Typed T, TD and X ranges, the X ones across the slot gaps (C2-03CPU, no I/O modules).
+    # The other rungs of these files hold ranges laddercodec refuses (_REFUSED_XY_RANGES).
+    ("math_ranges_x_t.bin", 0),  # SUM ( T1 : T5 )
+    ("math_ranges_x_t.bin", 1),  # MAX ( TD1 : TD5 )
+    ("math_ranges_x_t.bin", 3),  # SUM ( X001 : X101 )
+    ("math_ranges_xy_slots.bin", 0),  # SUM ( X001 : X116 )
 ]
 
 
@@ -275,67 +277,79 @@ def test_math_refuses_a_nickname(expression: str) -> None:
         Math(expression, "DS1")
 
 
-@pytest.mark.parametrize(
-    ("file", "expected"),
-    [
-        (
-            "math_ranges_x_t.bin",
-            [
-                "SUM ( T1 : T5 )",
-                "MAX ( TD1 : TD5 )",
-                "SUM ( X001 : X036 )",
-                "SUM ( X001 : X101 )",
-                "end()",
-            ],
-        ),
-        (
-            "math_ranges_xy_slots.bin",
-            [
-                "SUM ( X001 : X116 )",
-                "SUM ( X021 : X116 )",
-                "SUM ( X001 : X032 )",
-                "SUM ( X005 : X036 )",
-                "SUM ( Y001 : Y036 )",
-            ],
-        ),
-    ],
-)
-def test_math_ranges_capture_decodes(file: str, expected: list[str]) -> None:
-    """Range Math typed in CLICK v4 (C2-03CPU, no I/O modules), each into DS1."""
-    rungs = _decode_file(CAPTURE_DIR / file)
-    afs = [row[-1] for rung in rungs for row in decoded_rung_to_rows(rung) if row[-1]]
-    assert afs == [e if e == "end()" else f"math({e},DS1,mode=decimal)" for e in expected]
-
-
 def _points(bank: str, *runs: tuple[int, int]) -> list[str]:
     return [f"{bank}{n:03d}" for first, last in runs for n in range(first, last + 1)]
 
 
-#: The reserved slots (tag 0x688C) CLICK v4 wrote for each X and Y range of the two
-#: captures, filled from index 0 with no empty slot between; the slots after them are
-#: empty.  None lists X017..X020 or X037..X100.  An end in the option slot (21-36) stops
-#: the list early, X001 : X036 ends at X031, and a start at X021 lists X021 itself.
+#: Each X and Y range of the two range captures (typed in CLICK v4, C2-03CPU, no I/O
+#: modules, each into DS1): (file, rung, formula, the reserved slots (tag 0x688C) CLICK
+#: wrote).  The slots are filled from index 0 with no empty slot between, and the slots
+#: after them are empty.  None lists X017..X020 or X037..X100.  An end in the option slot
+#: (21-36) stops the list early (X001 : X036 ends at X031), and a start at X021 lists
+#: X021 itself.
 _NATIVE_XY_LISTS = [
-    ("math_ranges_x_t.bin", 2, _points("X", (2, 16), (21, 31))),  # X001 : X036
-    ("math_ranges_x_t.bin", 3, _points("X", (2, 16), (21, 36))),  # X001 : X101
-    ("math_ranges_xy_slots.bin", 0, _points("X", (2, 16), (21, 36), (101, 115))),  # : X116
-    ("math_ranges_xy_slots.bin", 1, _points("X", (21, 36), (101, 115))),  # X021 : X116
-    ("math_ranges_xy_slots.bin", 2, _points("X", (2, 16), (21, 27))),  # X001 : X032
-    ("math_ranges_xy_slots.bin", 3, _points("X", (6, 16), (21, 31))),  # X005 : X036
-    ("math_ranges_xy_slots.bin", 4, _points("Y", (2, 16), (21, 31))),  # Y001 : Y036
+    ("math_ranges_x_t.bin", 2, "SUM ( X001 : X036 )", _points("X", (2, 16), (21, 31))),
+    ("math_ranges_x_t.bin", 3, "SUM ( X001 : X101 )", _points("X", (2, 16), (21, 36))),
+    (
+        "math_ranges_xy_slots.bin",
+        0,
+        "SUM ( X001 : X116 )",
+        _points("X", (2, 16), (21, 36), (101, 115)),
+    ),
+    (
+        "math_ranges_xy_slots.bin",
+        1,
+        "SUM ( X021 : X116 )",
+        _points("X", (21, 36), (101, 115)),
+    ),
+    ("math_ranges_xy_slots.bin", 2, "SUM ( X001 : X032 )", _points("X", (2, 16), (21, 27))),
+    ("math_ranges_xy_slots.bin", 3, "SUM ( X005 : X036 )", _points("X", (6, 16), (21, 31))),
+    ("math_ranges_xy_slots.bin", 4, "SUM ( Y001 : Y036 )", _points("Y", (2, 16), (21, 31))),
 ]
+_XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
+
+#: The ranges among them whose stored list is not the points between the ends; refused.
+_REFUSED_XY_RANGES = {
+    "SUM ( X001 : X036 )": "leave out X032..X035",
+    "SUM ( X021 : X116 )": "add X021",
+    "SUM ( X001 : X032 )": "leave out X028..X031",
+    "SUM ( X005 : X036 )": "leave out X032..X035",
+    "SUM ( Y001 : Y036 )": "leave out Y032..Y035",
+}
 
 
-@pytest.mark.parametrize(
-    ("file", "index", "expected"),
-    _NATIVE_XY_LISTS,
-    ids=[f"{f}:{i}" for f, i, _ in _NATIVE_XY_LISTS],
-)
-def test_math_xy_range_lists_in_capture(file: str, index: int, expected: list[str]) -> None:
-    _, slots = _blob_fields(_native_math_blobs(CAPTURE_DIR / file)[index])
+@pytest.mark.parametrize(("file", "index", "formula", "expected"), _NATIVE_XY_LISTS, ids=_XY_IDS)
+def test_math_xy_range_lists_in_capture(
+    file: str, index: int, formula: str, expected: list[str]
+) -> None:
+    """The stored list is as recorded, and the encoder's rule for X/Y ranges gives it."""
+    header, slots = _blob_fields(_native_math_blobs(CAPTURE_DIR / file)[index])
+    assert dict(header)[0x6228] == formula
     listed = [value for (tag, _), value in sorted(slots.items()) if tag == 0x688C]
     assert listed == expected
     assert {key for key in slots if key[0] == 0x688C} == {(0x688C, i) for i in range(len(expected))}
+    assert _range_interiors(formula) == expected
+
+
+@pytest.mark.parametrize(("file", "index", "formula", "expected"), _NATIVE_XY_LISTS, ids=_XY_IDS)
+def test_math_xy_range_refused_unless_its_list_holds_the_points_between(
+    file: str, index: int, formula: str, expected: list[str]
+) -> None:
+    """A refused range's rung decodes as raw and keeps CLICK's bytes; the others are Math."""
+    path = CAPTURE_DIR / file
+    rung = _decode_file(path)[index]
+    af = rung.instructions[0]
+    if formula not in _REFUSED_XY_RANGES:
+        assert af == Math(formula, "DS1")
+        return
+    with pytest.raises(FieldError, match=f"wrong member list.*{_REFUSED_XY_RANGES[formula]}"):
+        Math(formula, "DS1")
+    assert isinstance(af, RawInstruction)
+    native = _native_math_blobs(path)[index]
+    # The whole blob: 5510 fields, terminator included.
+    assert af.blob == native[: len(af.blob)]
+    assert _blob_fields(af.blob) == _blob_fields(native)
+    assert af.blob in encode(rung)
 
 
 @pytest.mark.parametrize("index", range(17, 21))

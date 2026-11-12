@@ -98,6 +98,14 @@ _REFUSED = [
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
+    # an X/Y range whose member list CLICK v4 stores wrong (user ruling 2026-11-12;
+    # v4_captures/math_ranges_*.bin): an end in the option slot, 21-36
+    ("SUM ( X001 : X036 )", "DS9", "decimal", "wrong member list .* leave out X032..X035"),
+    ("SUM ( Y001 : Y036 )", "DS9", "decimal", "end in Y021-Y036 .* leave out Y032..Y035"),
+    ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused.* add X021\\)"),
+    ("SUM ( X025 : X036 )", "DS9", "decimal", "leave out X032..X035 and add X022..X025"),
+    ("SUM ( X036 : X101 )", "DS9", "decimal", "add X033..X036"),
+    ("DS1 + SUM ( X1 : X36 )", "DS9", "decimal", "SUM \\( X001 : X036 \\) is refused"),
     # 270 characters of the internal template (Q-M7, OBJ-1008): DS1..DS69 is 273
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
     ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
@@ -136,8 +144,14 @@ def test_unknown_mode_refused() -> None:
     [
         ("SUM ( C1 : C16 )", "DS9", "decimal"),
         # SUM over X, Y, T and SC, and MAX over TD and DS (Q-M8)
-        ("SUM ( X001 : X036 )", "DS9", "decimal"),
+        ("SUM ( X001 : X101 )", "DS9", "decimal"),
         ("SUM ( Y001 : Y008 )", "DS9", "decimal"),
+        # an X/Y range whose list, by the rule fitted to the captures, holds the points
+        # between the ends (X001 : X116 captured; the others not)
+        ("SUM ( X001 : X116 )", "DS9", "decimal"),
+        ("SUM ( X001 : X021 )", "DS9", "decimal"),
+        ("SUM ( Y016 : Y021 )", "DS9", "decimal"),
+        ("SUM ( Y101 : Y201 )", "DS9", "decimal"),
         ("SUM ( T1 : T5 )", "DS9", "decimal"),
         ("SUM ( SC1 : SC3 )", "DS9", "decimal"),
         ("SUM ( TD1 : TD3 )", "DS9", "decimal"),

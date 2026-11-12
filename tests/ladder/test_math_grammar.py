@@ -430,6 +430,17 @@ _SLOT_TAGS = (0x6888, 0x688C)
 #: and its 69-address sum is over the 270-character cap.
 _OLD_TEMPLATES = {"XD0 AND 1h", "XD0u AND 1h", "YD1 AND 1h", "MAX ( XD0 : XD3 )"}
 
+#: Stored X/Y ranges with an end in the option slot, whose member list CLICK v4 stores
+#: wrong, so laddercodec refuses them (user ruling 2026-11-12): the typed ones of
+#: v4_captures/math_ranges_*.bin, and the one the encoder wrote into retyped/math_wide.bin.
+_WRONG_XY_LISTS = {
+    "SUM ( X001 : X036 )",
+    "SUM ( X021 : X116 )",
+    "SUM ( X001 : X032 )",
+    "SUM ( X005 : X036 )",
+    "SUM ( Y001 : Y036 )",
+}
+
 
 def _clipboard_files() -> list[tuple[str, bytes]]:
     files = [(p.relative_to(FIXTURES).as_posix(), p.read_bytes()) for p in FIXTURES.rglob("*.bin")]
@@ -518,6 +529,10 @@ def test_reader_prints_every_stored_math(
             assert tags[0x61FF] == formula.display != formula.template
             assert formula.internal() == tags[0x61FD]
             return
+    if expression in _WRONG_XY_LISTS:
+        with pytest.raises(FieldError, match="wrong member list"):
+            parse(expression, mode)
+        return
     formula = parse(expression, mode)
     assert formula.template == tags[0x61FF]
     assert formula.internal(template=True) == tags[0x6229]
