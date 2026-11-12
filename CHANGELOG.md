@@ -14,6 +14,8 @@
 - **Legacy encoding warning**: `decode()` and `decode_program()` emit `LegacyEncodingWarning` (a `UserWarning`, exported from `laddercodec`) for a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`), which earlier versions wrote and CLICK runs as its low 16 bits (`RAND ( 70000 , 70002 )` ran as `RAND(4464, 4466)`). The rungs still decode; the warning has `instruction`, `token`, `detail`, `rung` and `program` attributes. Re-paste the rung to store the constant as 32-bit.
 
 ### Changed
+- **Math hex constants**: a hex constant in a Math expression is written as CLICK shows it, uppercase digits without leading zeros (`0fH` is `Fh`, `00h` is `0h`); earlier versions kept the typed digits (`0fh`). A constant typed with more than 4 digits, zeros included (`0FFFEh`), is refused.
+- **Math sign on a hex constant**: `DH1 + ( -Ah )` is stored as `( - Ah )`, the sign its own token, as CLICK writes it; earlier versions joined the sign (`-Ah`), which CLICK never writes. A stored `-Ah` still decodes, as `- Ah`.
 - **Math words**: a Math expression with a word that is no address, function name or constant (`DS1 + FOO`, `DS1 + DS1X`, `DH1 + 7H7`), accepted before as an unknown word, raises `FieldError`.
 - **Math nickname**: a Math expression with a `<nickname>` (`math(DS1 + <FOO>,DS2)`), accepted before and copied into the formula CLICK keeps as addresses, raises `FieldError`.
 - **Termination code**: a Copy termination code is `$` and two hex digits (`$0D`); `$D` and `$0` were accepted and stored as `$0D`, and now raise `FieldError`.
