@@ -354,11 +354,12 @@ def _check_expression(expression: str, mode: str) -> None:
 def _check_constant(token: str, name: str, mode: str) -> None:
     """Refuse a constant the Math dialog refuses (Inst_Math.dll, OBJ-1009).
 
-    Each mode checks its own constants.  A decimal Math refuses a hex constant.  In hex mode a hex constant has at most 4 digits and
-    is at most FFFFh.  In decimal mode CLICK reads an integer with ``_wtoi64``, keeps the low
-    32 bits, prints them with ``%d`` and refuses the token when the printed length differs
-    from the typed one.  So ``3000000000``, ``007`` and ``-0`` are refused,
-    while ``6000000000``, whose low 32 bits print as ``1705032704``, passes.
+    Each mode checks its own constants.  A decimal Math refuses a hex constant.  In hex mode
+    a hex constant has at most 4 digits and is at most FFFFh.  In decimal mode CLICK reads an
+    integer with ``_wtoi64``, keeps the low 32 bits, prints them with ``%d`` and refuses the
+    token when the printed length differs from the typed one.  So ``3000000000``, ``007`` and
+    ``-0`` are refused, while ``6000000000``, whose low 32 bits print as ``1705032704``,
+    passes.
     """
     if mode == "hex":
         if token.endswith("h"):

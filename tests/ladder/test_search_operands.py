@@ -153,15 +153,13 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
     assert parse_af_blob(search.build_blob()) == search
 
 
-# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
-# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Search value
-# keeps them as written.
+# BOB ruling 2026-11-12: a Search value takes a $ code only as $ and two hex digits (the arc's
+# Search ruling); `$1`, `$D` and `$100` are refused.
 @pytest.mark.parametrize("table", ["TXT", "DS"])
 @pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
-def test_source_dollar_forms_kept_as_written(table: str, source: str) -> None:
-    search = Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
-    assert search.source == source
-    assert parse_af_blob(search.build_blob()) == search
+def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
+    with pytest.raises(FieldError, match="^Search.source: "):
+        Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
 
 
 @pytest.mark.parametrize(
@@ -212,6 +210,13 @@ def test_search_value_kind_fits_table(table: str, value: str) -> None:
         ("TXT", "5"),
         ("TXT", "0Fh"),
         ("TXT", "1.5"),
+        # only $ and two hex digits is a character code
+        ("DS", "$4"),
+        ("DS", "$123"),
+        ("DH", "$4"),
+        ("DH", "$123"),
+        ("TXT", "$4"),
+        ("TXT", "$123"),
     ],
 )
 def test_search_value_kind_must_fit_table(table: str, value: str) -> None:

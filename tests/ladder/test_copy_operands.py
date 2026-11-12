@@ -498,6 +498,9 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
         {0x6074: "0", 0x6076: "DS5", 0x6077: "DS1", 0x2223: "2"},  # fill runs backwards
         {0x6074: "C1", 0x6075: "C16", 0x6076: "Y010", 0x6077: "Y025", 0x2223: "1"},  # Y slot
         {0x6074: "10000h", 0x6076: "DH1"},  # hex above FFFFh into DH
+        {0x6074: "DS1", 0x6075: "DS2", 0x6076: "DD1", 0x2223: "3", 0x2227: "9"},  # text, no TXT
+        {0x6074: "TXT1", 0x6075: "TXT2", 0x6076: "DS1", 0x2223: "3", 0x2227: "0"},  # words, TXT
+        {0x6074: '"AB"', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},  # Fill: one character
         {0x6074: "5000000000", 0x6076: "DD1"},  # outside int32
     ],
 )

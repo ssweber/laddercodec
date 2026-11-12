@@ -85,11 +85,11 @@ _MAX_DIGITS = 20
 def classify(text: str) -> Constant | None:
     """Return the constant ``text`` spells, or ``None`` if it is no constant.
 
-    ``None`` covers an empty text, an address, a value outside its kind (an integer outside
-    int32, hex longer than eight digits, a float that is not finite or above the float32
-    range) and anything else the
-    shared check refuses.  Only ASCII digits count (arc.md ruling 2026-11-11): ``٣`` is no
-    digit.  No space is trimmed; a field that strips its text does so first.
+    ``None`` covers an empty text, an address, a value outside its kind and anything else the
+    shared check refuses.  A value outside its kind is an integer outside int32, hex longer
+    than eight digits, or a float that is not finite or above the float32 range.  Only ASCII
+    digits count (arc.md ruling 2026-11-11): ``٣`` is no digit.  No space is trimmed; a field
+    that strips its text does so first.
     """
     if len(text) >= 2 and text[0] == text[-1] == '"':
         # Quoted text can't end in H, so trying it before hex changes no result.
@@ -125,8 +125,11 @@ SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
 
 
 def _float32(value: float) -> bool:
-    """Whether ``value`` is finite and fits float32 (a value that rounds to its largest
-    finite number, about 3.4028235E+38, fits; arc.md Q-M17 dialog answer, 2026-11-12)."""
+    """Whether ``value`` is finite and fits float32.
+
+    A value that rounds to float32's largest finite number, about 3.4028235E+38, fits
+    (arc.md Q-M17, dialog answer 2026-11-12).
+    """
     if not math.isfinite(value):
         return False
     try:

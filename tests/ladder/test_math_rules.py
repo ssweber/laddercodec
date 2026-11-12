@@ -180,6 +180,8 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
         {0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"},  # SUM over CT
         {0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"},  # outside int32
         {0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"},  # reads back as 7
+        {0x61FF: "@ + 1Fh", 0x61FD: "DS1#+#1Fh"},  # hex constant in a decimal Math
+        {0x61FF: '@ + "A"', 0x61FD: 'DS1#+#"A"'},  # text in a formula
         {0x61FF: " + ".join(["@"] * 69), 0x61FD: "#+#".join(f"DS{i}" for i in range(1, 70))},
     ],
 )

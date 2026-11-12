@@ -404,13 +404,18 @@ _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
 def check_constant(value: str, name: str) -> None:
-    """Raise :class:`FieldError` naming field ``name`` if CLICK's shared input check refuses
-    the constant ``value`` (OBJ-005).
+    """Raise :class:`FieldError` naming field ``name`` if CLICK's shared input check
+    refuses the constant ``value`` (OBJ-005).
 
-    The rule is :func:`~laddercodec.operands.constants.classify`: an integer is 32-bit, a hex
-    constant takes no sign and has at most eight digits above ``FFFFh``, a real is finite and within
-    float32, and quoted text is 1 to 128 characters with no quote inside.  A single Copy source, a
-    Fill value and a Search value run it on the constants their own checks pass.
+    The rule is :func:`~laddercodec.operands.constants.classify`:
+
+    - an integer is 32-bit;
+    - a hex constant takes no sign and has at most eight digits above ``FFFFh``;
+    - a real is finite and within float32;
+    - quoted text is 1 to 128 characters with no quote inside.
+
+    A single Copy source, a Fill value and a Search value run it on the constants their own
+    checks pass.
     """
     if value.startswith("$"):
         # CLICK's shared check accepts $ and one hex digit, and $ codes above FF; classify()
@@ -985,7 +990,7 @@ class Fill(AfInstruction):
         if src.kind in ("number", "text"):
             check_constant(self.value, "Fill.value")
         if dest.bank == "TXT" and src.kind == "text":
-            # A ``$hh`` code is one character.
+            # A ``$hh`` code is one character; other ``$`` forms wait on the Q-B7 capture.
             chars = self.value[1:-1] if self.value.startswith('"') else "$"
             if len(chars) != 1:
                 raise FieldError(
