@@ -281,8 +281,7 @@ def _check_expression(expression: str, mode: str) -> None:
     for token in tokens:
         if token in ('"', "$"):
             raise FieldError(
-                f"{name}: {expression!r} holds a text constant; a Math formula takes numbers only "
-                "(arc.md Q-M20)"
+                f"{name}: {expression!r} holds a text constant; a Math formula takes numbers only"
             )
     depth = 0
     for token in tokens:
@@ -317,10 +316,12 @@ def _check_expression(expression: str, mode: str) -> None:
             raise FieldError(f"{name}: {token} is a bit; a bit stands only in SUM over a bit range")
         if address[0] in _SUM_REFUSED_BANKS:
             raise FieldError(f"{name}: SUM over {token} is refused; SUM takes no CT range")
-    # The spaced form keeps a sign on its constant (``( -5 )``).
-    for token in expression.split(" "):
-        if _CONSTANT_RE.fullmatch(token.removeprefix("-")):
-            _check_constant(token, name, mode)
+    # Constants come from the formula's tokens, so digits inside a ``<nickname>`` are none.
+    # The spaced form keeps a sign on its constant (``( -5 )``), with no space between.
+    for m in _TOKEN_RE.finditer(expression):
+        if _CONSTANT_RE.fullmatch(m.group(0)):
+            signed = m.start() > 0 and expression[m.start() - 1] == "-"
+            _check_constant(f"-{m.group(0)}" if signed else m.group(0), name, mode)
 
     for i in range(1, len(tokens) - 1):
         if tokens[i] != ":":
@@ -355,8 +356,8 @@ def _check_constant(token: str, name: str, mode: str) -> None:
     """Refuse a constant the Math dialog refuses (Inst_Math.dll, OBJ-1009).
 
     Each mode takes only its own constants: a decimal Math refuses a hex constant, and a hex
-    Math a decimal one, integer or real (arc.md Q-M13, Q-M13b).  In hex mode a hex constant
-    has at most 4 digits and is at most FFFFh.  In decimal mode CLICK reads an
+    Math a decimal one, integer or real (arc.md Q-M13, Q-M13b dialog answers).  In hex mode a
+    hex constant has at most 4 digits and is at most FFFFh.  In decimal mode CLICK reads an
     integer with ``_wtoi64``, keeps the low 32 bits, prints them with ``%d`` and refuses the
     token when the printed length differs from the typed one.  So ``3000000000``, ``007`` and
     ``-0`` are refused, while ``6000000000``, whose low 32 bits print as ``1705032704``,
@@ -365,8 +366,7 @@ def _check_constant(token: str, name: str, mode: str) -> None:
     if mode == "hex":
         if not token.endswith("h"):
             raise FieldError(
-                f"{name}: {token} is a decimal constant; a hex Math takes hex constants "
-                "(arc.md Q-M13b)"
+                f"{name}: {token} is a decimal constant; a hex Math takes hex constants such as 7h"
             )
         digits = token.lstrip("-")[:-1]
         if len(digits) > 4 or int(digits, 16) > 0xFFFF:
@@ -376,8 +376,7 @@ def _check_constant(token: str, name: str, mode: str) -> None:
         return
     if token.lower().endswith("h"):
         raise FieldError(
-            f"{name}: {token} is a hex constant; a decimal Math takes decimal constants "
-            "(arc.md Q-M13)"
+            f"{name}: {token} is a hex constant; a decimal Math takes decimal constants such as 7"
         )
     if not re.fullmatch(r"-?[0-9]+", token):
         return

@@ -156,6 +156,10 @@ def test_unknown_mode_refused() -> None:
         ("MDN ( DS1 : DS512 )", "DS9", "decimal"),
         ("MDN ( DD1 : DD256 )", "DD9", "decimal"),
         ("<a> + 1", "DS9", "decimal"),
+        # digits inside a nickname are no constant, in either mode
+        ("DH1 + <Tank 2 x>", "DH9", "hex"),
+        ("DS1 + <A 3000000000 B>", "DD9", "decimal"),
+        ("<Tank 7> AND 1h", "DH9", "hex"),
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
         ("ABS ( DS1 ) ^ 2 + PI", "DF9", "decimal"),
         ("LSH ( DH1 , 1h ) XOR DH2", "DH9", "hex"),
