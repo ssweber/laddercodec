@@ -314,6 +314,16 @@ Open asks (checklist; details under each id below):
     `DS1 LSH 1h`, `RAND ( 1 , 10 ) DS1`, `MAX ( DS1 , DS2 )`, `SUM ( DS1 + DS2 )`,
     `DS1 + DS0` (Math operands take the full address check), and a stray comma
     `DS1 , DS2` ("Please use a period (.) as a decimal point.").
+  - CORRECTED 2026-11-12 (user, typed in the editor, capture `clicknick/math-sums.bin`, cell
+    bytes `01 03`): `SUM ( T1 : T5 )`, `MAX ( TD1 : TD5 )`, `SUM ( X001 : X036 )` and
+    `SUM ( X001 : X101 )` are all accepted. The 2026-11-01 note that the editor refuses
+    them was wrong; laddercodec keeps accepting them. T and TD interiors match
+    laddercodec's. The X interiors do not: CLICK lists `X002..X016, X021..X031` for
+    `X001 : X036` (26) and `X002..X016, X021..X036` for `X001 : X101` (31), where
+    laddercodec lists every number (`X002..X035`, `X002..X100`). Open: CLICK's address
+    stepping for X/Y ranges (which numbers are skipped, and whether it depends on the
+    project's configured I/O; the capture's CPU is C2-03CPU). Needs its own move with the
+    capture as fixture; not part of move10.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
