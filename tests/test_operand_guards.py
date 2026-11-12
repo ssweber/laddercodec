@@ -290,7 +290,7 @@ REGEX_ALLOWED: dict[Key, int] = {
         "re.compile('([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})')",
     ): 1,
     ("send_receive.py", "re.compile('DS([1-9][0-9]*)')"): 1,
-    ("send_receive.py", "re.compile('[0-9A-Fa-f]{1,4}h')"): 1,
+    ("send_receive.py", "re.compile('[0-9A-Fa-f]+h')"): 1,
     ("send_receive.py", "re.compile('^([A-Z]+)([0-9]+)$')"): 1,
     ("send_receive.py", "re.compile('^([A-Za-z_][A-Za-z0-9_]*)\\\\((.+)\\\\)$', re.DOTALL)"): 1,
     ("shift.py", "re.fullmatch('shift\\\\((.+)\\\\)', token)"): 1,

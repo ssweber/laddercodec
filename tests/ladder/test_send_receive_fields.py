@@ -27,6 +27,16 @@ from laddercodec.instructions.send_receive import (
     parse_af_call,
 )
 
+
+@pytest.mark.parametrize("device_id", [-1, 256, 65536])
+def test_target_device_id_range_refused_at_construction(device_id) -> None:
+    """Dialog literal Slave ID: 0-255 on TCP; 248-255 on RTU are left to the encode check."""
+    with pytest.raises(FieldError, match="device_id"):
+        ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=device_id)
+    with pytest.raises(FieldError, match="device_id"):
+        ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
+
+
 RTU = ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1)
 TCP = ModbusTcpTarget(name="tcp", ip="192.168.1.10", port=502, device_id=1)
 
@@ -154,7 +164,17 @@ def test_hex_address_ok(address) -> None:
     ModbusAddress(address=address)
 
 
-@pytest.mark.parametrize("address", ["FFFFh", "10000h", "h", "xh", "0H", "abc", "", "-1"])
+@pytest.mark.parametrize(
+    ("address", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "000Fh"), ("00000h", "0000h")]
+)
+def test_hex_address_long_zero_padding_normalised(address, stored) -> None:
+    """The dialog counts no digits (Q-C7); leading zeros past four drop to the four-digit form."""
+    assert ModbusAddress(address=address).address == stored
+
+
+@pytest.mark.parametrize(
+    "address", ["0FFFFh", "100000h", "FFFFh", "10000h", "h", "xh", "0H", "abc", "", "-1"]
+)
 def test_hex_or_984_address_refused(address) -> None:
     with pytest.raises(FieldError, match="address"):
         ModbusAddress(address=address)

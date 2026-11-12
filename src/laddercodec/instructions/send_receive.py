@@ -100,6 +100,8 @@ def _check_device_id(device_id: int | str) -> None:
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
         raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
+    elif not 0 <= device_id <= 255:
+        raise FieldError(f"device_id must be 0-255 or a DS address, got {device_id!r}")
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
@@ -132,6 +134,10 @@ class ModbusAddress:
                 raise FieldError(
                     f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
                 )
+            # The dialog counts no digits: leading zeros past four drop to a four-digit form.
+            digits = self.address[:-1]
+            if len(digits) > 4:
+                object.__setattr__(self, "address", (digits.lstrip("0").rjust(4, "0")) + "h")
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
@@ -145,7 +151,7 @@ class ModbusAddress:
 
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
-_HEX_RE = re.compile(r"[0-9A-Fa-f]{1,4}h")
+_HEX_RE = re.compile(r"[0-9A-Fa-f]+h")
 
 
 # ---------------------------------------------------------------------------
