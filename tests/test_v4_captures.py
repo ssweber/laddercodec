@@ -11,8 +11,7 @@ A rung whose AF still decodes to ``raw(...)`` is an expected failure (not suppor
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
 ``math_nickname_display.bin``, ``math_unary_plus_pi.bin`` and ``math_ranges_x_t.bin``; text
-constants typed in CLICK v4,
-``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
