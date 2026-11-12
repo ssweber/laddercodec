@@ -9,6 +9,7 @@ pre-v4 CLICK.
 from __future__ import annotations
 
 import re
+import struct
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
@@ -57,9 +58,13 @@ def _raw_math_is_v4_only(blob: bytes) -> bool:
     """The Math check on a Math blob laddercodec decodes as raw, read from its stored fields.
 
     The internal formula (``0x61FD``) is read with spaces for its ``#``; the display
-    formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.
+    formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.  A blob
+    whose fields do not parse (``raw(Math,00)`` from CSV) is not flagged.
     """
-    *_, fields = _decompose_blob(blob)
+    try:
+        *_, fields = _decompose_blob(blob)
+    except (ValueError, IndexError, struct.error):
+        return False
     tags = {tag: value for tag, _, value in fields}
     listed = sum(1 for tag, _, value in fields if tag == _TAG_RESERVED and value)
     return (

@@ -90,6 +90,17 @@ def test_raw_math_past_500_interiors_or_with_rand_is_v4_only() -> None:
     assert not is_v4_only(plain)
 
 
+@pytest.mark.parametrize(
+    "blob", [b"\x00", b"", "Math".encode("utf-16-le") + b"\x00\x00"], ids=["00", "empty", "name"]
+)
+def test_raw_math_whose_fields_do_not_parse_is_not_flagged(blob: bytes) -> None:
+    """``raw(Math,00)`` reads from CSV into such a blob; the check returns False, not raises."""
+    raw = RawInstruction("Math", blob)
+    assert not is_v4_only(raw)
+    rung = Rung(logical_rows=1, conditions=[["-"] * 31], instructions=[raw], comment=None)
+    assert find_v4_only(rung) == []
+
+
 def test_single_rung_and_loop_exits() -> None:
     rung = Rung(logical_rows=1, conditions=[["-"] * 31], instructions=[Break()], comment=None)
     assert find_v4_only(rung) == [(0, Break())]
