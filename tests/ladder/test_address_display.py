@@ -209,7 +209,7 @@ INSTRUCTIONS = [
         "math(ds01 + SUM(x1:x16),df01,mode=decimal)",
         "math(DS1 + SUM ( X001 : X016 ),DF1,mode=decimal)",
     ),
-    ("math(dh01 AND 0Fh,yd0u,mode=hex)", "math(DH1 AND 0Fh,YD0u,mode=hex)"),
+    ("math(dh01 AND 0Fh,yd0u,mode=hex)", "math(DH1 AND Fh,YD0u,mode=hex)"),
     ("math(DH1 + 7H,DH1,mode=hex)", "math(DH1 + 7h,DH1,mode=hex)"),
     (
         'send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",port=502,device_id=ds02),'
@@ -297,7 +297,6 @@ class TestConstructor:
             ("Max(DS1:DS3) + mdn(DS4:DS6) + avg(DS7:DS9) + min(dd1:dd2)",
              "MAX ( DS1 : DS3 ) + MDN ( DS4 : DS6 ) + AVG ( DS7 : DS9 ) + MIN ( DD1 : DD2 )"),
             ("rand(1,100) + sqrt(df1) * pi", "RAND ( 1 , 100 ) + SQRT ( DF1 ) * PI"),
-            ("<sum> + 1", "<sum> + 1"),
         ],
     )  # fmt: skip
     def test_math_function_names_uppercase(self, typed: str, display: str) -> None:
@@ -307,9 +306,12 @@ class TestConstructor:
         ("typed", "display"),
         [
             ("DH1 + 7H", "DH1 + 7h"),
-            ("DH1 AND 0fH", "DH1 AND 0fh"),  # the digits keep their case
+            ("DH1 AND 0fH", "DH1 AND Fh"),  # uppercase digits, no leading zeros
+            ("DH1 + EH", "DH1 + Eh"),
+            ("DH1 + CH", "DH1 + Ch"),
+            ("DH1 + fh", "DH1 + Fh"),
+            ("DH1 + 00h", "DH1 + 0h"),  # an all-zero constant keeps one digit
             ("LSH ( DH1 , 1H ) XOR AH", "LSH ( DH1 , 1h ) XOR Ah"),
-            ("<7H> + 7H", "<7H> + 7h"),  # a nickname is no constant
         ],
     )
     def test_math_hex_suffix_lowercase(self, typed: str, display: str) -> None:

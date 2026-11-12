@@ -204,7 +204,10 @@ encoder does the same.
 Math blobs contain a `nickname_flag` field (tag `0x2224`). When set to `"1"`,
 Click displays project-level tag names instead of raw addresses in the math
 formula. The flag is purely a display hint — the expression itself always
-stores concrete addresses.
+stores concrete addresses. When a nickname is typed in the dialog, the display
+text holds `<Nickname>` and the internal formula holds its address (`DS3#+#H1`).
+laddercodec has no nickname table, so it refuses a `<nickname>` in a Math
+expression and decodes a native one to its address form.
 
 The `encode()` API exposes this via `show_nicknames=True`, which sets the flag
 on all math instructions in the buffer.

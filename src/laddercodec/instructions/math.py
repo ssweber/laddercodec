@@ -155,13 +155,13 @@ _NUMBER = (
     r"(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)(?![\w.])"
 )
 #: Hex digits then ``h`` or ``H``.  CLICK writes the suffix as ``h`` (``7H`` is stored as
-#: ``7h``, v4_captures/math_hex_upper_h.bin).  laddercodec keeps the digits' case, which no
-#: capture checks yet.
+#: ``7h``, v4_captures/math_hex_upper_h.bin); the digits print uppercase without leading
+#: zeros (``0fH`` is ``Fh``, dialog answers in arc.md).
 _HEX_CONSTANT = r"[0-9A-Fa-f]+[hH]\b"
 _HEX_CONSTANT_RE = re.compile(_HEX_CONSTANT)
 
-#: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
-_TOKEN_RE = re.compile(rf"<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
+#: One formula token: a constant, a word, or a single symbol.
+_TOKEN_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
 _CONSTANT_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}")
 
 #: After these a ``-`` is a sign, not a subtraction.
@@ -177,13 +177,17 @@ def _normalize_spacing(expr: str) -> str:
     constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
     an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).  Each
     address takes its display form (``ds01 + x1`` → ``DS1 + X001``), each function
-    name is uppercase (``sum`` → ``SUM``) and each hex constant ends in a lowercase
-    ``h`` (``7H`` → ``7h``).
+    name is uppercase (``sum`` → ``SUM``) and each hex constant has uppercase digits
+    without leading zeros and a lowercase ``h`` (``0fH`` → ``Fh``).  A sign before a
+    hex constant is its own token (``( - Ah )``, v4_captures/math_hex_signed.bin).
     """
     out: list[str] = []
     for token in _TOKEN_RE.findall(expr):
         if _HEX_CONSTANT_RE.fullmatch(token):
-            token = to_display(token, f"{token[:-1]}h")
+            # An all-zero constant keeps one digit; what CLICK shows for ``00h`` is untested.
+            token = to_display(token, f"{token[:-1].upper().lstrip('0') or '0'}h")
+            out.append(token)
+            continue
         is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
         if is_sign and _CONSTANT_RE.fullmatch(token):
             out[-1] = f"-{token}"
@@ -278,17 +282,40 @@ def _range_position(bank: str, number: str) -> int:
     return int(number.rstrip("u"))
 
 
+def _check_typed_hex_digits(expression: str) -> None:
+    """Refuse a hex constant typed with more than 4 digits, leading zeros included."""
+    for m in _TOKEN_RE.finditer(expression):
+        token = m.group(0)
+        if _HEX_CONSTANT_RE.fullmatch(token) and len(token) > 5:
+            raise FieldError(
+                f"Math.expression: {token[:-1]}h is outside 0h..FFFFh; "
+                "a hex constant has at most 4 digits"
+            )
+
+
 def _check_expression(expression: str, mode: str) -> None:
     """Refuse a formula CLICK's Math dialog refuses; the expression is already spaced."""
     tokens = _TOKEN_RE.findall(expression)
     name = "Math.expression"
     for token in tokens:
-        if not token.startswith("<") and any(c.isdecimal() and not c.isascii() for c in token):
+        if any(c.isdecimal() and not c.isascii() for c in token):
             raise FieldError(f"{name}: {token!r} has a digit outside 0-9")
     for token in tokens:
         if token in ('"', "$"):
             raise FieldError(
                 f"{name}: {expression!r} holds a text constant; a Math formula takes numbers only"
+            )
+    for token in tokens:
+        word = token.replace("_", "a").isalnum()
+        if (
+            word
+            and token not in FUNCTION_NAMES
+            and not _ADDR_RE.fullmatch(token)
+            and not _CONSTANT_RE.fullmatch(token)
+        ):
+            raise FieldError(
+                f"{name}: {token!r} is not an address, a function name or a constant; "
+                "a Math formula takes only those"
             )
     depth = 0
     for token in tokens:
@@ -323,7 +350,6 @@ def _check_expression(expression: str, mode: str) -> None:
             raise FieldError(f"{name}: {token} is a bit; a bit stands only in SUM over a bit range")
         if address[0] in _SUM_REFUSED_BANKS:
             raise FieldError(f"{name}: SUM over {token} is refused; SUM takes no CT range")
-    # Constants come from the formula's tokens, so digits inside a ``<nickname>`` are none.
     # The spaced form keeps a sign on its constant (``( -5 )``), with no space between.
     for m in _TOKEN_RE.finditer(expression):
         if _CONSTANT_RE.fullmatch(m.group(0)):
@@ -555,7 +581,8 @@ class Math(AfInstruction):
     ----------
     expression:
         The formula in Click syntax (e.g. ``"DS65 + DS66"``).
-        Spaces around operators, uppercase function names.
+        Spaces around operators, uppercase function names.  A ``<nickname>`` is
+        refused: Math takes addresses.
     result:
         Destination register (e.g. ``"DS67"``).
     mode:
@@ -572,6 +599,13 @@ class Math(AfInstruction):
     def __post_init__(self) -> None:
         if self.mode not in RESULT_BANKS:
             raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
+        if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
+            raise FieldError(
+                f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
+                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)"
+            )
+        if self.mode == "hex":
+            _check_typed_hex_digits(self.expression)
         self.expression = _normalize_spacing(self.expression)
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
@@ -682,12 +716,16 @@ def from_tags(
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    math = Math(
-        expression=expression,
-        result=result,
-        mode=mode,
-        oneshot=oneshot,
-    )
+    try:
+        math = Math(
+            expression=expression,
+            result=result,
+            mode=mode,
+            oneshot=oneshot,
+        )
+    except FieldError:
+        # A formula we can't model (nickname display text, say) decodes as raw.
+        return None
     findings = _legacy_findings(tag_value(tags, 0x61FD))
     if findings:
         math._legacy_findings = findings

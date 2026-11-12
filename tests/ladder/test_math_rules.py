@@ -59,9 +59,9 @@ _REFUSED = [
     # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12), H as h
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
-    ("DS1 + ( -1Fh )", "DD9", "decimal", "-1Fh is a hex constant"),
+    ("DS1 + ( -1Fh )", "DD9", "decimal", "1Fh is a hex constant"),
     ("DS1 + 1FH", "DS9", "decimal", "1Fh is a hex constant; a decimal Math"),
-    ("DS1 + ( -1FH )", "DD9", "decimal", "-1Fh is a hex constant"),
+    ("DS1 + ( -1FH )", "DD9", "decimal", "1Fh is a hex constant"),
     # a decimal constant in a hex Math (Q-M13b, dialog 2026-11-12)
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
     ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
@@ -159,11 +159,6 @@ def test_unknown_mode_refused() -> None:
         ("MAX ( XD0 : XD0u )", "DH9", "hex"),
         ("MDN ( DS1 : DS512 )", "DS9", "decimal"),
         ("MDN ( DD1 : DD256 )", "DD9", "decimal"),
-        ("<a> + 1", "DS9", "decimal"),
-        # digits inside a nickname are no constant, in either mode
-        ("DH1 + <Tank 2 x>", "DH9", "hex"),
-        ("DS1 + <A 3000000000 B>", "DD9", "decimal"),
-        ("<Tank 7> AND 1h", "DH9", "hex"),
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
         ("ABS ( DS1 ) ^ 2 + PI", "DF9", "decimal"),
         ("LSH ( DH1 , 1h ) XOR DH2", "DH9", "hex"),
@@ -205,6 +200,42 @@ def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
     tags = {0x6065: "DS9", 0x61FF: "@ + @", 0x61FD: "DS1#+#DS2", 0x3218: "8451"}
     assert from_tags_af("Math", 0x271A, tags) is not None
     assert from_tags_af("Math", 0x271A, tags | fields) is None
+
+
+@pytest.mark.parametrize(
+    ("typed", "display"), [("0H", "0h"), ("00h", "0h"), ("0FFFh", "FFFh"), ("0fH", "Fh")]
+)
+def test_hex_constant_drops_leading_zeros(typed: str, display: str) -> None:
+    assert Math(f"DH1 + {typed}", "DH9", "hex").expression == f"DH1 + {display}"
+
+
+def test_hex_constant_digit_limit_counts_typed_zeros() -> None:
+    """CLICK refuses ``0FFFEh`` (5 digits typed), though its value fits 4."""
+    with pytest.raises(FieldError, match="0FFFEh is outside 0h..FFFFh"):
+        Math("DH1 + 0FFFEh", "DH9", "hex")
+
+
+@pytest.mark.parametrize(
+    "expression", ["DS1 + FOO", "DS1 + DS1X", "DH1 + 7H7", "DS1 + _x", "DS1 + _", "DS1 + __"]
+)
+def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
+    mode = "hex" if expression.startswith("DH") else "decimal"
+    with pytest.raises(FieldError, match="Math.expression: '.*' is not an address"):
+        Math(expression, "DH9" if mode == "hex" else "DS9", mode)
+
+
+@pytest.mark.parametrize(
+    ("expression", "result", "mode"),
+    [
+        ("XD0u + 1", "DS9", "decimal"),
+        ("PI * SQRT ( DF1 )", "DF9", "decimal"),
+        ("SUM ( DS1 : DS9 ) MOD 3", "DS9", "decimal"),
+        ("TXT1 + SD1 + CTD1 + TD1 + DD1 + DF1", "DS9", "decimal"),
+        ("LRO ( DH1 , 1h ) RRO 1h", "DH9", "hex"),
+    ],
+)
+def test_math_keeps_its_words(expression: str, result: str, mode: str) -> None:
+    Math(expression, result, mode)
 
 
 def test_pasted_formula_over_the_cap_decodes_as_raw() -> None:

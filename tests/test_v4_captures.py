@@ -9,8 +9,9 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin`` and ``math_hex_upper_h.bin``; text constants typed in
-CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin`` and
+``math_nickname_display.bin``; text constants typed in CLICK v4,
+``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
@@ -23,16 +24,18 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import encode, read_csv
+from laddercodec import FieldError, encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
 from laddercodec.instructions.math import Math
+from laddercodec.instructions.math import from_tags as from_tags_math
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.shift import Shift
@@ -193,6 +196,57 @@ def test_math_hex_upper_h_capture() -> None:
     assert rung.instructions[0] == typed
     blob = typed.build_blob()
     assert _native_blob(path.read_bytes(), "Math", len(blob)) == blob
+
+
+def test_math_nickname_display_capture() -> None:
+    """``math_nickname_display.bin``: ``<Test Nickname> + 1`` typed in CLICK v4 for DS3.
+
+    CLICK keeps the nickname in the display text only; the formula holds ``DS3``, so the
+    capture decodes to the address form.
+    """
+    (rung,) = _decode_file(CAPTURE_DIR / "math_nickname_display.bin")
+    rows = decoded_rung_to_rows(rung)
+    assert [row[-1] for row in rows if row[0] != "#" and row[-1]] == [
+        "math(DS3 + 1,DS1,mode=decimal)"
+    ]
+
+
+def test_math_hex_signed_capture() -> None:
+    """``math_hex_signed.bin``: ``DH1 + ( -Ah )`` typed in a hex Math in CLICK v4.
+
+    CLICK redisplays ``( - Ah )`` and stores ``DH1#+#(#-#UH10#)``: the sign is its own token.
+    """
+    path = CAPTURE_DIR / "math_hex_signed.bin"
+    (rung,) = _decode_file(path)
+    rows = decoded_rung_to_rows(rung)
+    assert [row[-1] for row in rows if row[0] != "#" and row[-1]] == [
+        "math(DH1 + ( - Ah ),DH1,mode=hex)"
+    ]
+    typed = Math("DH1 + ( -Ah )", "DH1", "hex")
+    assert rung.instructions[0] == typed
+    # CLICK v4 copies back 5000 reserved slots; the fields are what must match.
+    native_header, native_slots = _blob_fields(_native_math_blobs(path)[0])
+    header, slots = _blob_fields(typed.build_blob())
+    assert header == native_header
+    assert slots == native_slots
+
+
+@pytest.mark.parametrize(("typed", "display"), [("0fH", "Fh"), ("EH", "Eh"), ("fh", "Fh")])
+def test_math_hex_constant_display_form(typed: str, display: str) -> None:
+    assert Math(f"DH1 + {typed}", "DH1", "hex").expression == f"DH1 + {display}"
+
+
+def test_math_with_nickname_display_text_decodes_as_raw() -> None:
+    """Empty template and internal formula leave only the display text, which holds a nickname."""
+    tags = {0x6065: "DS1", 0x61FF: "", 0x61FD: "", 0x6228: "<Test Nickname> + 1", 0x3218: "8451"}
+    assert from_tags_math("Math", 0x271A, tags) is None
+    assert from_tags_af("Math", 0x271A, tags) is None
+
+
+@pytest.mark.parametrize("expression", ["<Test Nickname> + 1", "DS1 + <FOO>", "<my 7H >"])
+def test_math_refuses_a_nickname(expression: str) -> None:
+    with pytest.raises(FieldError, match="Math.expression.*nickname"):
+        Math(expression, "DS1")
 
 
 @pytest.mark.parametrize("index", range(17, 21))

@@ -407,7 +407,7 @@ Producer may emit:
 - `copy(source,target)` or `copy(source,target,oneshot=1)`
 - `blockcopy(source,dest)` or `blockcopy(source,dest,oneshot=1)`
 - `fill(value,dest)` or `fill(value,dest,oneshot=1)`
-- `math(expression,dest,mode=decimal)` or `math(...,mode=hex,oneshot=1)`
+- `math(expression,dest,mode=decimal)` or `math(...,mode=hex,oneshot=1)`; the expression takes addresses, and a `<nickname>` is refused
 - `search(range cond value,result,found)` or `search(...,continuous=1,oneshot=1)`
 - `pack_bits(bit_block,dest)` or `pack_bits(bit_block,dest,oneshot=1)`
 - `pack_words(word_block,dest)` or `pack_words(word_block,dest,oneshot=1)`

@@ -265,7 +265,7 @@ REGEX_ALLOWED: dict[Key, int] = {
     ): 1,
     ("math.py", "re.compile('\\\\b([A-Z]+)([0-9]+u?) : \\\\1([0-9]+u?)\\\\b')"): 1,
     ("math.py", "re.compile(_HEX_CONSTANT)"): 1,
-    ("math.py", "re.compile(f('<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\\\\w+|\\\\S'))"): 1,
+    ("math.py", "re.compile(f('{_HEX_CONSTANT}|{_NUMBER}|\\\\w+|\\\\S'))"): 1,
     ("math.py", "re.compile(f('{_HEX_CONSTANT}|{_NUMBER}'))"): 1,
     ("math.py", "re.fullmatch('-?[0-9]+', token)"): 2,
     ("math.py", "re.fullmatch('H(-?[0-9]+)', token)"): 1,
