@@ -331,6 +331,15 @@ Open asks (checklist; details under each id below):
     X021..X031 (22); `Y001 : Y036` is the same as X (26). Fitted rule (building in move11):
     an endpoint in the CPU option slot (21..36) counts as its number minus 4; the members
     are the valid X/Y addresses whose number lies strictly between the two bounds.
+  - ANSWERED 2026-11-12 (user, typed; capture `clicknick/math-sums-slots-v2.bin`, now
+    fixture `math_ranges_xy_slots2.bin`): `X001 : X021` lists X002..X016; `X025 : X026`
+    lists nothing; `X025 : X027` lists X022 (wrong, X026 left out); `X101 : X201` lists
+    X102..X116; `Y001 : Y116` lists all 46. All five fit the rule. User ruling: a range
+    whose CLICK list differs from its true members is refused (decodes as raw). Landed in
+    train11 (37e9980). Deferred to the next release by the user: SCR decode of such a
+    refused range keeps only 6 of Math's 5510 fields (the "SCR raw drops tags" leftover).
+    Not captured yet: an option-slot start past X021 ending in another slot (`X025 : X101`),
+    a span of more than two expansion slots, a Y range starting in the option slot.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
