@@ -594,10 +594,9 @@ currently emit:
   `FieldError` in every field. CLICK writes one TXT register per character of a
   text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
   TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
-  `copy` of text into a pointer (`TXT[DS1]`) takes any length; CLICK stores no
-  end for it. A Copy
-  source, a Fill value, a compare and a search take 1 to 128 printable ASCII
-  characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
+  `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
+  stores no end for it. A Copy source, a Fill value, a compare and a search take
+  1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
   matches the same window) and refuse `""`, a longer or non-ASCII text and a
   quote inside the text when it is read or built; spell any other character as
   its `$hh` code, and a quote as `$22`. A quoted `"$41"` is three characters of text, not the code

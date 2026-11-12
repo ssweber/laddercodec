@@ -518,6 +518,13 @@ def test_text_copy_past_txt1000_refused(
         _read_af(tmp_path, f"copy({source},{destination})")
 
 
+def test_pointer_copy_with_an_end_stays_raw() -> None:
+    """CLICK writes no 0x6077 through a pointer; a blob that has one is left to raw()."""
+    tags = {0x6074: '"AB"', 0x6076: "TXT[DS1]", 0x6077: "TXT2", 0x2223: "0", 0x2227: "0"}
+    assert from_tags_af("Copy", 0x2721, tags) is None
+    assert from_tags_af("Copy", 0x2721, tags | {0x6077: ""}) is not None
+
+
 @pytest.mark.parametrize("source", ['"AB"', '"$41"', _TEXT_128])
 def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> None:
     """CLICK accepts two or more characters through a pointer and writes an empty 0x6077."""

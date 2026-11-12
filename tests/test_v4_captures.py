@@ -11,8 +11,8 @@ A rung whose AF still decodes to ``raw(...)`` is an expected failure (not suppor
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
 ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``, ``text_dollar_quoted.bin``,
-``text_128.bin``, ``text_pointer.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
-``debounce_one_phase.bin``) are only used by the blob tests below.
+``text_128.bin``, ``text_pointer.bin`` and ``text_compare.bin``; one-phase debounces
+saved in CLICK v4, ``debounce_one_phase.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -414,7 +414,7 @@ def test_one_phase_debounce_capture(tmp_path: Path) -> None:
 # Text constants typed in CLICK v4
 # ---------------------------------------------------------------------------
 
-_TEXT_128 = "GHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZghijklmn"
+_TEXT_128 = "GHIJKLMNOPQRSTUVWXYZ" * 6 + "ghijklmn"
 
 #: ``text_blank.bin``: ``TXT1 == $00`` (ASCII-code constant) -> Copy ``$00`` to TXT1.
 #: ``text_q.bin``: Copy ``"Q"`` (typed with its quotes) to TXT2.
