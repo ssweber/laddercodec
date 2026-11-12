@@ -225,8 +225,16 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 Open asks (checklist; details under each id below):
 - Answered 2026-11-12 (user, dialog), to build: Q-M12, Q-M13, Q-M14, Q-M16, Q-M17, Q-M18,
   Q-M19, Q-M20, Q-M21, Q-B7 `DS1==1-2`, and the move (hmove) questions below.
-- Answered 2026-11-12, to build (bob/move6): Q-M13b, Q-B7 `$` codes, the `"TT"` → TXT1
-  capture.
+- Built 2026-11-12 (bob/move6, dev 00124a1): Q-M13b, Q-B7 `$` codes, the `"TT"` → TXT1
+  capture (fixture `v4_captures/text_tt.bin`). BOB rulings on that branch: a TXT pointer
+  destination takes one character of text until a capture shows more; quoted text in a Copy
+  or Fill into TXT is printable ASCII, as in Compare and Search (write others as `$hh`).
+- Open from move6 (captures): single Copy `"ABC"` → TXT10, `"$41"` → TXT2 and 128
+  characters → TXT873 (the end for 3+ characters is extrapolated as TXTn+len-1);
+  `copy("AB",TXT[DS1])`, accepted and stored how?; an SCR save of `"TT"` → TXT1.
+- Open from move6 (dialog): uppercase `H` in Math. Is decimal `DS1 + 1FH` refused like
+  `1Fh`? Is hex `DH1 + 7H` accepted, and what does it copy back as? laddercodec stores `7H`
+  unconverted, where CLICK's form for `7h` is `UH7`.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
