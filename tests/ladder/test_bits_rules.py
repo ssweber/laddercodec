@@ -579,6 +579,56 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="^OutVariant.immediate"):
             timed(operand="Y1", immediate=True)
 
+    @pytest.mark.parametrize(
+        ("kind", "field"),
+        [
+            ("toggle", "on_acc"),
+            ("toggle", "on_preset"),
+            ("toggle", "off_acc"),
+            ("toggle", "off_preset"),
+            ("toggle", "unit"),
+            ("timed", "off_acc"),
+            ("timed", "off_preset"),
+        ],
+    )
+    def test_every_unused_field_refused(self, kind: str, field: str) -> None:
+        values = {"on_acc": "TD1", "on_preset": "5", "off_acc": "TD2", "off_preset": "5"}
+        kw = {"kind": kind, "operand": "C1", field: values.get(field, "Ts")}
+        if kind == "timed":
+            kw |= {"on_acc": "TD1", "on_preset": "5", "unit": "Tms"} | {field: kw[field]}
+        with pytest.raises(FieldError, match=f"^OutVariant.{field}: .* is not used by {kind}"):
+            OutVariant(**kw)
+
+    def test_toggle_and_timed_accept_empty_unused_fields(self) -> None:
+        OutVariant(kind="toggle", operand="C1")
+        timed()
+
+    def test_csv_refuses_unused_field(self) -> None:
+        with pytest.raises(ValueError, match="toggle takes no keyword arguments"):
+            OutVariant.from_csv_token("toggle(C1,on_acc=TD1)")
+        with pytest.raises(ValueError, match="does not support keyword"):
+            OutVariant.from_csv_token("timed(C1,on_acc=TD1,on_preset=5,off_acc=TD2,unit=Tms)")
+
+    _TAGS = {0x6066: "C1", 0x60B3: "5", 0x60B4: "TD1", 0x60B5: "", 0x60B6: "", 0x21F9: "0"}
+
+    @pytest.mark.parametrize(
+        ("func", "extra"),
+        [
+            ("8224", {0x60B4: "Q77"}),  # toggle with on_acc
+            ("8224", {0x60B3: "5"}),  # toggle with on_preset
+            ("8224", {0x60B6: "TD2"}),  # toggle with off_acc
+            ("8230", {0x60B6: "TD2"}),  # timed with off_acc
+            ("8230", {0x60B5: "5"}),  # timed with off_preset
+        ],
+    )
+    def test_decode_leaves_blob_with_unused_value_to_raw(self, func: str, extra: dict) -> None:
+        tags = {**self._TAGS, 0x3218: func, 0x21F9: "0", **extra}
+        if func == "8224":
+            tags |= {0x60B3: "", 0x60B4: "", 0x60B5: "", 0x60B6: ""} | extra
+        else:
+            tags[0x21F9] = TIMER_UNIT_TO_INDEX["Tms"]
+        assert from_tags_af("Out", 0x2715, tags) is None
+
     def test_bad_unit_is_a_field_error_on_construction(self) -> None:
         with pytest.raises(FieldError, match="^OutVariant.unit"):
             timed(unit="x")

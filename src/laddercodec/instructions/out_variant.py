@@ -82,6 +82,10 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 }
 
 
+#: Blob tag -> field name for the four per-phase string fields.
+_FIELD_TAGS = {0x60B3: "on_preset", 0x60B4: "on_acc", 0x60B5: "off_preset", 0x60B6: "off_acc"}
+
+
 def _check_preset(value: str, name: str, floor: int) -> None:
     """A preset is a DS register or a digits-only constant from *floor* to 32767."""
     if value.isascii() and value.isdigit():
@@ -333,18 +337,22 @@ def from_tags(
     if variant is None or not operand:
         return None
     kind, unit, flag = variant
+    # A value in a field the kind does not use is a blob CLICK's dialog never writes:
+    # leave it to the raw fallback rather than drop the value.
+    unused = [t for t, n in _FIELD_TAGS.items() if n not in _USED_FIELDS[kind]]
+    if any(tag_value(tags, t) for t in unused):
+        return None
     if kind == "toggle":
         return OutVariant(kind="toggle", operand=operand, immediate=flag)
     if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
-    two_phase = kind in _TWO_PHASE
     return OutVariant(
         kind=kind,
         operand=operand,
         on_acc=tag_value(tags, 0x60B4),
         on_preset=tag_value(tags, 0x60B3),
-        off_acc=tag_value(tags, 0x60B6) if two_phase else "",
-        off_preset=tag_value(tags, 0x60B5) if two_phase else "",
+        off_acc=tag_value(tags, 0x60B6),
+        off_preset=tag_value(tags, 0x60B5),
         unit=unit,
         maintained=flag,
     )
