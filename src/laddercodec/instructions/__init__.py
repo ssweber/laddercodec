@@ -221,7 +221,10 @@ def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction 
     """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
     if not isinstance(parsed, PinnedInstruction) or len(extra) != len(parsed.pin_rows):
         return parsed
-    return parsed.with_pin_rows(tuple(extra))
+    try:
+        return parsed.with_pin_rows(tuple(extra))
+    except FieldError:
+        return None  # rows CLICK's dialog would not write: keep the blob raw
 
 
 def from_tags_condition(

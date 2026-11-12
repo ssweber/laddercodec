@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from enum import IntEnum
+from functools import wraps
 from typing import TYPE_CHECKING, Any, cast
 
 from .operands.address import ADDRESS_BANKS as ADDRESS_BANKS
@@ -94,6 +95,35 @@ class PinnedInstruction(AfInstruction):
     """
 
     pin_rows: tuple[int, ...]
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        own = cls.__dict__.get("__post_init__")
+        if own is None:
+            return
+
+        @wraps(own)
+        def checked(self: PinnedInstruction) -> None:
+            own(self)
+            self._check_pin_rows()
+
+        cls.__post_init__ = checked  # type: ignore[attr-defined]
+
+    def _check_pin_rows(self) -> None:
+        """Raise :class:`FieldError` unless ``pin_rows`` is one ascending row per pin.
+
+        A box has ``lead_rows`` slots above its main input and one slot per pin name
+        below it; the blob stores each as one byte, so a row is 1 to 255.
+        """
+        name = f"{type(self).__name__}.pin_rows"
+        rows = self.pin_rows
+        want = self.lead_rows + len(self.pin_names())
+        if not isinstance(rows, tuple) or len(rows) != want:
+            raise FieldError(f"{name}: {rows!r} must be a tuple of {want} rows, one per input")
+        if not all(type(row) is int and 1 <= row <= 255 for row in rows):
+            raise FieldError(f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255")
+        if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
+            raise FieldError(f"{name}: {rows!r} must ascend; each input sits below the last")
 
     @property
     def lead_rows(self) -> int:

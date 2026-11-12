@@ -120,6 +120,14 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
+        if self.type not in COIL_TYPE_TO_NAME:
+            raise FieldError(f"Coil.type: {self.type!r} is not a coil (out, latch or reset)")
+        if self.oneshot and self.type != InstructionType.COIL_OUT:
+            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
+            raise FieldError(
+                f"Coil.oneshot: {COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; "
+                "only out() does"
+            )
         self.operand = normalize_address(self.operand)
         if self.range_end is not None:
             self.range_end = normalize_address(self.range_end)
@@ -177,9 +185,6 @@ class Coil(AfInstruction):
         if oneshot_raw not in {"0", "1"}:
             raise ValueError("coil oneshot must be 0 or 1")
         oneshot = oneshot_raw == "1"
-        if oneshot and coil_type != InstructionType.COIL_OUT:
-            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
-            raise ValueError(f"only out() supports oneshot, not {token!r}")
 
         immediate_inner = False
         inner = re.fullmatch(r"immediate\((.+)\)", arg)
@@ -212,10 +217,9 @@ class Coil(AfInstruction):
 
     @property
     def func_code(self) -> str:
-        key = (self.type, self.range_end is not None, self.immediate, self.oneshot)
-        if key not in COIL_FUNC_CODES:
-            raise ValueError(f"only out() supports oneshot: {self.to_csv()}")
-        return COIL_FUNC_CODES[key]
+        return COIL_FUNC_CODES[
+            (self.type, self.range_end is not None, self.immediate, self.oneshot)
+        ]
 
     def to_csv(self) -> str:
         name = COIL_TYPE_TO_NAME[self.type]

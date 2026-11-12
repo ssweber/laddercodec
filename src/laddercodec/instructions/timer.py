@@ -97,9 +97,9 @@ class Timer(PinnedInstruction):
                 f"a constant set point is 0 to {TIMER_MAX_SETPOINT} (OBJ-005)"
             )
         if self.timer_type == "off_delay" and self.retained:
-            raise ValueError(
-                "off_delay can't be retentive (no .reset() pin): CLICK's Timer dialog "
-                "offers Retentive only for an On Delay timer"
+            raise FieldError(
+                "Timer.retained: off_delay can't be retentive (no .reset() pin); CLICK's "
+                "Timer dialog offers Retentive only for an On Delay timer"
             )
 
     @classmethod

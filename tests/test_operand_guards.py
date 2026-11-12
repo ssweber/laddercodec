@@ -394,11 +394,8 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "coil.py",
         "ValueError(f('Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}'))",
     ): 1,
-    ("coil.py", "ValueError(f('only out() supports oneshot, not {token!r}'))"): 1,
-    ("coil.py", "ValueError(f('only out() supports oneshot: {self.to_csv()}'))"): 1,
     ("comparison.py", "ValueError(f('Cannot parse compare contact: {token!r}'))"): 1,
-    ("contact.py", "ValueError(\"Edge contacts require edge_kind 'rise' or 'fall'\")"): 2,
-    ("contact.py", "ValueError('Immediate edge contacts are unsupported')"): 2,
+    ("contact.py", "ValueError('Immediate edge contacts are unsupported')"): 1,
     ("copy.py", "ValueError(f(\"Expected range with '..': {arg!r}\"))"): 1,
     ("copy.py", "ValueError(f('Cannot parse convert value: {raw!r}'))"): 1,
     ("copy.py", "ValueError(f('Cannot parse copy: {token!r}'))"): 1,
@@ -512,10 +509,6 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("shift.py", "ValueError(f('Cannot parse shift range: {token!r}'))"): 1,
     ("shift.py", "ValueError(f('Cannot parse shift: {token!r}'))"): 1,
     ("shift.py", "ValueError(f('shift expects a range arg (start..end): {token!r}'))"): 1,
-    (
-        "timer.py",
-        "ValueError(\"off_delay can't be retentive (no .reset() pin): CLICK's Timer dialog offers Retentive only for an On Delay timer\")",
-    ): 1,
     ("timer.py", "ValueError(f('Cannot parse timer: {token!r}'))"): 1,
     ("timer.py", "ValueError(f('Unknown timer unit: {unit!r}'))"): 1,
     (
