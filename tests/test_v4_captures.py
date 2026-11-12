@@ -10,8 +10,8 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
-``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_ranges_x_t.bin`` and
-``math_ranges_xy_slots.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_ranges_x_t.bin``,
+``math_ranges_xy_slots.bin`` and ``math_ranges_xy_slots2.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
@@ -145,12 +145,17 @@ _NATIVE_MATH = [
     # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
-    # Typed T, TD and X ranges, the X ones across the slot gaps (C2-03CPU, no I/O modules).
+    # Typed T, TD, X and Y ranges, the X and Y ones across the slot gaps (C2-03CPU, no I/O
+    # modules).
     # The other rungs of these files hold ranges laddercodec refuses (REFUSED_XY_RANGES).
     ("math_ranges_x_t.bin", 0),  # SUM ( T1 : T5 )
     ("math_ranges_x_t.bin", 1),  # MAX ( TD1 : TD5 )
     ("math_ranges_x_t.bin", 3),  # SUM ( X001 : X101 )
     ("math_ranges_xy_slots.bin", 0),  # SUM ( X001 : X116 )
+    ("math_ranges_xy_slots2.bin", 0),  # SUM ( X001 : X021 )
+    ("math_ranges_xy_slots2.bin", 1),  # SUM ( X025 : X026 )
+    ("math_ranges_xy_slots2.bin", 3),  # SUM ( X101 : X201 )
+    ("math_ranges_xy_slots2.bin", 4),  # SUM ( Y001 : Y116 )
 ]
 
 
@@ -281,12 +286,12 @@ def _points(bank: str, *runs: tuple[int, int]) -> list[str]:
     return [f"{bank}{n:03d}" for first, last in runs for n in range(first, last + 1)]
 
 
-#: Each X and Y range of the two range captures (typed in CLICK v4, C2-03CPU, no I/O
+#: Each X and Y range of the three range captures (typed in CLICK v4, C2-03CPU, no I/O
 #: modules, each into DS1): (file, rung, formula, the reserved slots (tag 0x688C) CLICK
 #: wrote).  The slots are filled from index 0 with no empty slot between, and the slots
 #: after them are empty.  None lists X017..X020 or X037..X100.  An end in the option slot
-#: (21-36) stops the list early (X001 : X036 ends at X031), and a start at X021 lists
-#: X021 itself.
+#: (21-36) stops the list early (X001 : X036 ends at X031), a start at X021 lists
+#: X021 itself, and X025 : X027 lists X022.
 _NATIVE_XY_LISTS = [
     ("math_ranges_x_t.bin", 2, "SUM ( X001 : X036 )", _points("X", (2, 16), (21, 31))),
     ("math_ranges_x_t.bin", 3, "SUM ( X001 : X101 )", _points("X", (2, 16), (21, 36))),
@@ -305,6 +310,16 @@ _NATIVE_XY_LISTS = [
     ("math_ranges_xy_slots.bin", 2, "SUM ( X001 : X032 )", _points("X", (2, 16), (21, 27))),
     ("math_ranges_xy_slots.bin", 3, "SUM ( X005 : X036 )", _points("X", (6, 16), (21, 31))),
     ("math_ranges_xy_slots.bin", 4, "SUM ( Y001 : Y036 )", _points("Y", (2, 16), (21, 31))),
+    ("math_ranges_xy_slots2.bin", 0, "SUM ( X001 : X021 )", _points("X", (2, 16))),
+    ("math_ranges_xy_slots2.bin", 1, "SUM ( X025 : X026 )", []),
+    ("math_ranges_xy_slots2.bin", 2, "SUM ( X025 : X027 )", ["X022"]),
+    ("math_ranges_xy_slots2.bin", 3, "SUM ( X101 : X201 )", _points("X", (102, 116))),
+    (
+        "math_ranges_xy_slots2.bin",
+        4,
+        "SUM ( Y001 : Y116 )",
+        _points("Y", (2, 16), (21, 36), (101, 115)),
+    ),
 ]
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
@@ -317,6 +332,7 @@ REFUSED_XY_RANGES = {
     "SUM ( X001 : X032 )": "leave out X028..X031",
     "SUM ( X005 : X036 )": "leave out X032..X035",
     "SUM ( Y001 : Y036 )": "leave out Y032..Y035",
+    "SUM ( X025 : X027 )": "leave out X026 and add X022",
 }
 
 
