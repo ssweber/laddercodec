@@ -229,9 +229,25 @@ Open asks (checklist; details under each id below):
   capture (fixture `v4_captures/text_tt.bin`). BOB rulings on that branch: a TXT pointer
   destination takes one character of text until a capture shows more; quoted text in a Copy
   or Fill into TXT is printable ASCII, as in Compare and Search (write others as `$hh`).
-- Open from move6 (captures): single Copy `"ABC"` → TXT10, `"$41"` → TXT2 and 128
-  characters → TXT873 (the end for 3+ characters is extrapolated as TXTn+len-1);
-  `copy("AB",TXT[DS1])`, accepted and stored how?; an SCR save of `"TT"` → TXT1.
+- ANSWERED 2026-11-12 (user, captures in `clicknick/`; laddercodec's Copy blob is
+  byte-identical to each): `"ABC"` → TXT10 stores end TXT12 (`triple-txt-copy.bin`); a
+  quoted `"$41"` → TXT2 is three characters of text, end TXT4
+  (`triple-txt-copy-hex-quoted.bin`); 128 characters → TXT873 stores end TXT1000
+  (`128-txt.bin`); `copy("AB",TXT[DS1])` is accepted and stores an empty end
+  (`double-txt-copy-pointer.bin`), so the move6 pointer refusal is lifted. To build: add the
+  four as fixtures, accept multi-character text into a TXT pointer with an empty end.
+- New (user, dialog, 2026-11-12): the Copy dialog rewrites some quoted text as a number:
+  `"ABCD"` stays text, `"ABCDE"` becomes `0.0` (Real numbering), and so does a quoted
+  128-character text starting `0123…` or `ABC…`; `"FGHDSFG"` stays text. Likely a text made
+  only of characters a number can hold (digits, A-F, E) is read as a number. laddercodec
+  types `copy("ABCDE",TXT1)` as text. Needs: which quoted texts the dialog turns into
+  numbers (`"ABCD"`, `"EEEE"`, `"1E5"`, `"12"`).
+  - **ANSWERED 2026-11-12 (user, dialog):** `"12"` stays text; `"EEEE"`, `"1EF"` and
+    `"ABCDEF"` become `0.0`. Every text that turns holds an `E`, none that stays does.
+  - **Ruling 2026-11-12 (user):** a CLICK bug in the Copy dialog, not a field rule.
+    laddercodec keeps accepting and encoding quoted text with an `E` (as with For's `1 0`,
+    Q-F1). Unchecked: lowercase `e`, Fill, and what CLICK keeps when such a Copy is pasted.
+- Open from move6 (captures): an SCR save of `"TT"` → TXT1.
 - Open from move6 (dialog): uppercase `H` in Math. Is decimal `DS1 + 1FH` refused like
   `1Fh`? Is hex `DH1 + 7H` accepted, and what does it copy back as? laddercodec stores `7H`
   unconverted, where CLICK's form for `7h` is `UH7`.
