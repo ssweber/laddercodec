@@ -210,6 +210,7 @@ INSTRUCTIONS = [
         "math(DS1 + SUM ( X001 : X016 ),DF1,mode=decimal)",
     ),
     ("math(dh01 AND 0Fh,yd0u,mode=hex)", "math(DH1 AND 0Fh,YD0u,mode=hex)"),
+    ("math(DH1 + 7H,DH1,mode=hex)", "math(DH1 + 7h,DH1,mode=hex)"),
     (
         'send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",port=502,device_id=ds02),'
         'remote_start="c001",source=c011..c012,sending=c01,success=c02,error=c03)',
@@ -302,6 +303,21 @@ class TestConstructor:
     def test_math_function_names_uppercase(self, typed: str, display: str) -> None:
         assert Math(typed, "DF1").expression == display
 
+    @pytest.mark.parametrize(
+        ("typed", "display"),
+        [
+            ("DH1 + 7H", "DH1 + 7h"),
+            ("DH1 AND 0fH", "DH1 AND 0fh"),  # the digits keep their case
+            ("LSH ( DH1 , 1H ) XOR AH", "LSH ( DH1 , 1h ) XOR Ah"),
+            ("<7H> + 7H", "<7H> + 7h"),  # a nickname is no constant
+        ],
+    )
+    def test_math_hex_suffix_lowercase(self, typed: str, display: str) -> None:
+        math = Math(typed, "DH9", mode="hex")
+        assert math.expression == display
+        assert math == Math(display, "DH9", mode="hex")
+        assert math.build_blob() == Math(display, "DH9", mode="hex").build_blob()
+
     def test_math_hex_only_name_refused_in_any_case(self) -> None:
         with pytest.raises(FieldError, match=r"XOR is hex only"):
             Math("ds1 xor 2", "DS4")
@@ -338,6 +354,11 @@ class TestDecodeKeepsText:
         blob = Math(expression, "DS4").build_blob()
         assert isinstance(parse_af_blob(blob), Math)
         assert parse_af_blob(_swap(blob, old, new)) is None
+
+    def test_math_hex_suffix(self) -> None:
+        blob = Math("DH1 + 7h", "DH4", mode="hex").build_blob()
+        assert isinstance(parse_af_blob(blob), Math)
+        assert parse_af_blob(_swap(blob, "7h", "7H")) is None
 
     def test_copy_pointer(self) -> None:
         blob = Copy("DD[DS1]", "DD2").build_blob()

@@ -9,10 +9,11 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
-``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``, ``text_dollar_quoted.bin``,
-``text_128.bin``, ``text_pointer.bin`` and ``text_compare.bin``; one-phase debounces
-saved in CLICK v4, ``debounce_one_phase.bin``) are only used by the blob tests below.
+into CLICK, ``math_typed.bin`` and ``math_hex_upper_h.bin``; text constants typed in
+CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
+``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
+are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -177,6 +178,21 @@ def test_math_blob_fields_match_native(file: str, index: int) -> None:
     header, slots = _blob_fields(math.build_blob())
     assert header == native_header
     assert slots == native_slots
+
+
+def test_math_hex_upper_h_capture() -> None:
+    """``math_hex_upper_h.bin``: hex ``DH1 + 7H`` typed in CLICK v4, which stores ``7h``.
+
+    The capture decodes to ``7h``, and ``7H`` built by hand writes the native blob.
+    """
+    path = CAPTURE_DIR / "math_hex_upper_h.bin"
+    (rung,) = _decode_file(path)
+    rows = decoded_rung_to_rows(rung)
+    assert [row[-1] for row in rows if row[0] != "#" and row[-1]] == ["math(DH1 + 7h,DH1,mode=hex)"]
+    typed = Math("DH1 + 7H", "DH1", mode="hex")
+    assert rung.instructions[0] == typed
+    blob = typed.build_blob()
+    assert _native_blob(path.read_bytes(), "Math", len(blob)) == blob
 
 
 @pytest.mark.parametrize("index", range(17, 21))

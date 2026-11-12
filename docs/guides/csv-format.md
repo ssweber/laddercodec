@@ -584,10 +584,11 @@ currently emit:
 - In a decimal `math`, an integer constant must read back as typed: CLICK keeps
   its low 32 bits and refuses it when they print at a different length
   (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
-  constant (`1Fh`), and a hex `math` no decimal one (`7`, `1.5`); a hex constant
-  has at most 4 digits. `SUM` takes no CT range, and the formula is at most 270
-  characters as CLICK stores it: a sum of 68 addresses fits, 69 does not;
-  constants, functions and parentheses count too.
+  constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`7`, `1.5`); a hex
+  constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
+  writes it (`7H` becomes `7h`). `SUM` takes no CT range, and the formula is at
+  most 270 characters as CLICK stores it: a sum of 68 addresses fits, 69 does
+  not; constants, functions and parentheses count too.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise

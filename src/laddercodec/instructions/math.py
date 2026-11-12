@@ -154,7 +154,11 @@ FUNCTION_NAMES: frozenset[str] = RESERVED_NAMES | {"ABS", "AVG", "MAX", "MDN", "
 _NUMBER = (
     r"(?:(?:[0-9]+\.[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[0-9]+[eE][+-]?[0-9]+|[0-9]+)(?![\w.])"
 )
-_HEX_CONSTANT = r"[0-9A-Fa-f]+h\b"
+#: Hex digits then ``h`` or ``H``.  CLICK writes the suffix as ``h`` (``7H`` is stored as
+#: ``7h``, v4_captures/math_hex_upper_h.bin).  laddercodec keeps the digits' case, which no
+#: capture checks yet.
+_HEX_CONSTANT = r"[0-9A-Fa-f]+[hH]\b"
+_HEX_CONSTANT_RE = re.compile(_HEX_CONSTANT)
 
 #: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
 _TOKEN_RE = re.compile(rf"<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
@@ -172,11 +176,14 @@ def _normalize_spacing(expr: str) -> str:
     these spaces, so ``ABS(`` would be a single unknown token.  A sign stays on its
     constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
     an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).  Each
-    address takes its display form (``ds01 + x1`` → ``DS1 + X001``) and each function
-    name is uppercase (``sum`` → ``SUM``).
+    address takes its display form (``ds01 + x1`` → ``DS1 + X001``), each function
+    name is uppercase (``sum`` → ``SUM``) and each hex constant ends in a lowercase
+    ``h`` (``7H`` → ``7h``).
     """
     out: list[str] = []
     for token in _TOKEN_RE.findall(expr):
+        if _HEX_CONSTANT_RE.fullmatch(token):
+            token = to_display(token, f"{token[:-1]}h")
         is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
         if is_sign and _CONSTANT_RE.fullmatch(token):
             out[-1] = f"-{token}"
@@ -374,7 +381,7 @@ def _check_constant(token: str, name: str, mode: str) -> None:
                 f"{name}: {token} is outside 0h..FFFFh; a hex constant has at most 4 digits"
             )
         return
-    if token.lower().endswith("h"):
+    if token.endswith("h"):
         raise FieldError(
             f"{name}: {token} is a hex constant; a decimal Math takes decimal constants such as 7"
         )
@@ -490,7 +497,7 @@ def _internal_literal(token: str) -> str:
         return f"{prefix}{token}"
     if _REAL_LITERAL_RE.fullmatch(token):
         return f"F{token}"
-    if re.fullmatch(r"[0-9A-Fa-f]+h", token):
+    if _HEX_CONSTANT_RE.fullmatch(token):
         return f"UH{int(token[:-1], 16)}"
     return token
 

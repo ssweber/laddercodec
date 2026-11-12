@@ -55,10 +55,13 @@ _REFUSED = [
     ("DH1 + 10000h", "DH9", "hex", "10000h is outside 0h..FFFFh"),
     ("DH1 + 1FFFFh", "DH9", "hex", "1FFFFh is outside 0h..FFFFh"),
     ("DH1 + 0FFFFh", "DH9", "hex", "0FFFFh is outside 0h..FFFFh"),
-    # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12)
+    ("DH1 + 10000H", "DH9", "hex", "10000h is outside 0h..FFFFh"),
+    # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12), H as h
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
     ("DS1 + ( -1Fh )", "DD9", "decimal", "-1Fh is a hex constant"),
+    ("DS1 + 1FH", "DS9", "decimal", "1Fh is a hex constant; a decimal Math"),
+    ("DS1 + ( -1FH )", "DD9", "decimal", "-1Fh is a hex constant"),
     # a decimal constant in a hex Math (Q-M13b, dialog 2026-11-12)
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
     ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
@@ -148,6 +151,7 @@ def test_unknown_mode_refused() -> None:
         ("DS1 + 2147483647", "DD9", "decimal"),
         ("DS1 + ( -2147483648 )", "DD9", "decimal"),
         ("DH1 + FFFFh", "DH9", "hex"),
+        ("DH1 + FFFFH", "DH9", "hex"),
         # its low 32 bits print at the same length, so CLICK passes it
         ("DS1 + 6000000000", "DD9", "decimal"),
         ("DS1 + 0", "DS9", "decimal"),
@@ -192,6 +196,7 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
         {0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"},  # outside int32
         {0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"},  # reads back as 7
         {0x61FF: "@ + 1Fh", 0x61FD: "DS1#+#1Fh"},  # hex constant in a decimal Math
+        {0x61FF: "@ + 1FH", 0x61FD: "DS1#+#1FH"},
         {0x61FF: '@ + "A"', 0x61FD: 'DS1#+#"A"'},  # text in a formula
         {0x61FF: " + ".join(["@"] * 69), 0x61FD: "#+#".join(f"DS{i}" for i in range(1, 70))},
     ],

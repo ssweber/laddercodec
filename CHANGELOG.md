@@ -20,6 +20,8 @@
 - **Pack text**: `pack_text` needs a TXT source and a TXT source packs only as `pack_text`; `pack_text(DS1..DS2,DD1)` and `pack_words(TXT1..TXT2,DS1)`, accepted before, raise `FieldError`.
 - **Math constants**: a hex constant in a decimal Math (`DS1 + 1Fh`) and text in any Math (`"A"`, `$41`), accepted before, raise `FieldError`.
 - **Hex Math constants**: a decimal constant in a hex Math, integer or real (`DH1 + 7`, `DH1 + 70000`, `DH1 + 1.5`), accepted before, raises `FieldError`; hex constants (`7h`) are still accepted.
+- **Uppercase `H` in a decimal Math**: a hex constant written with `H` in a decimal Math (`DS1 + 1FH`) raises `FieldError`, as `1Fh` does; before, it was accepted and stored as typed.
+- **Uppercase `H` in a hex Math**: a Math keeps, writes to CSV and encodes a hex constant's suffix as `h`, as CLICK does (`DH1 + 7H` becomes `DH1 + 7h`), and checks it against `FFFFh`; the digits keep their case. Before, `7H` was stored as typed and not checked as a constant. A stored formula holding `7H`, which decoded as a Math before, now decodes as `raw(...)`.
 - **Real range**: a real constant above the float32 range (`3.5E+38`), accepted before, raises `FieldError`; `3.5E+3` is still accepted.
 - **Search value kind**: a Search number searches DS, DD, DF, TD or CTD, a hex value DH, and text or `$hh` TXT; other pairings, and a `$` value that is not `$hh`, accepted before, raise `FieldError`.
 - **Character codes**: a `$` code is `$` and two hex digits (`$00` to `$FF`) in every field; `$1`, `$100` and `$4142` as a Copy source or a Fill value, accepted before, raise `FieldError`, and `$` and `$G1` as a Copy source, a Fill value or a Search value raise the same `FieldError` instead of an `AddressError`.
