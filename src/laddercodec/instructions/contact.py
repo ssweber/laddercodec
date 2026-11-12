@@ -89,6 +89,7 @@ class Contact(ConditionInstruction):
                 "CONTACT_EDGE)"
             )
         self.immediate = check_flag(self.immediate, "Contact.immediate")
+        self.wire_down = check_flag(self.wire_down, "Contact.wire_down")
         self.operand = normalize_address(self.operand)
         address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:

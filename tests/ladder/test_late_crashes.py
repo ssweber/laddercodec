@@ -16,6 +16,7 @@ from laddercodec.csv import read_csv
 from laddercodec.csv.converter import ConvertError
 from laddercodec.instructions import (
     Coil,
+    CompareContact,
     Contact,
     Counter,
     Drum,
@@ -256,3 +257,27 @@ def test_counter_csv_read_keeps_reset() -> None:
     assert pinned.to_csv() == "count_up(CT1,CTD1,preset=5)"
     with pytest.raises(ValueError, match="requires a .reset"):
         token.with_pins({}, (1, 2))
+
+
+_FLAG_FIELDS = {
+    "Timer.retained": lambda v: Timer("on_delay", "T1", "TD1", "5", "Ts", retained=v),
+    "Contact.wire_down": lambda v: Contact(InstructionType.CONTACT_NO, "X1", wire_down=v),
+    "CompareContact.wire_down": lambda v: CompareContact("==", "DS1", "5", wire_down=v),
+    "Drum.jog_enabled": lambda v: _drum(jog_enabled=v),
+    "Drum.jump_enabled": lambda v: _drum(jump_enabled=v, jump_target="DS2"),
+}
+
+
+@pytest.mark.parametrize("field", _FLAG_FIELDS)
+def test_flag_field_one_is_true(field) -> None:
+    make = _FLAG_FIELDS[field]
+    assert make(1).build_blob() == make(True).build_blob()
+    assert make(0).build_blob() == make(False).build_blob()
+    assert getattr(make(1), field.split(".")[1]) is True
+
+
+@pytest.mark.parametrize("bad", [2, "x", None, 1.0], ids=repr)
+@pytest.mark.parametrize("field", _FLAG_FIELDS)
+def test_flag_field_other_values_refused(field, bad) -> None:
+    with pytest.raises(FieldError, match=field.replace(".", r"\.")):
+        _FLAG_FIELDS[field](bad)

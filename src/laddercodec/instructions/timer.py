@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import FieldError, PinnedInstruction, check_address, normalize_address
+from ..model import FieldError, PinnedInstruction, check_address, check_flag, normalize_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -72,6 +72,7 @@ class Timer(PinnedInstruction):
     pin_rows: tuple[int] = (1,)
 
     def __post_init__(self) -> None:
+        self.retained = check_flag(self.retained, "Timer.retained")
         if self.timer_type not in ("on_delay", "off_delay"):
             raise FieldError(f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay")
         if self.unit not in tuple(TIMER_UNIT_TO_INDEX):

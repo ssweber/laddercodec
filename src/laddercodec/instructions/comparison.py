@@ -16,6 +16,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_address,
+    check_flag,
     normalize_address,
 )
 from .family import ConditionInstructionFamilySpec
@@ -180,6 +181,7 @@ class CompareContact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
+        self.wire_down = check_flag(self.wire_down, "CompareContact.wire_down")
         # A constant comes back from normalize_address as written.
         self.left = normalize_address(self.left)
         self.right = normalize_address(self.right)

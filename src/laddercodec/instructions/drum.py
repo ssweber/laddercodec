@@ -18,7 +18,14 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import Address, FieldError, PinnedInstruction, check_address, normalize_address
+from ..model import (
+    Address,
+    FieldError,
+    PinnedInstruction,
+    check_address,
+    check_flag,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -260,6 +267,8 @@ class Drum(PinnedInstruction):
     pin_rows: tuple[int, int, int] = (1, 2, 3)
 
     def __post_init__(self) -> None:
+        self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")
+        self.jump_enabled = check_flag(self.jump_enabled, "Drum.jump_enabled")
         self._check_pin_rows()
         self.outputs = [normalize_address(output) for output in self.outputs]
         self.events_or_presets = [normalize_address(value) for value in self.events_or_presets]
