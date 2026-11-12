@@ -1482,6 +1482,5 @@ SPEC = AfInstructionFamilySpec(
         "unpack_to_words",
     ),
     parse_csv_call=parse_af_call,
-    min_csv_rows=2,
     cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, ("Copy", _COPY_TYPE_CODE)),
 )

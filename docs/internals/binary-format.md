@@ -106,7 +106,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x01 | 4B | Column index (uint32 LE) |
 | +0x05 | 4B | Row byte (uint32 LE, `global_row + 1`) |
 | +0x09 | 1B | Row span (0x01 for single-row, 0x02+ for multi-row AF) |
-| +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in some one-row Math cells) |
+| +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell) |
 | +0x0B–0x0C | 2B | Structural: +0x0C = 0x01 in wire-only rungs, 0x00 in instruction-bearing rungs |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |
@@ -196,7 +196,7 @@ The instruction blob content (tag IDs, operand values, wire types) is **identica
 [tagged fields...]
 ```
 
-The first two and the fifth and sixth bytes after the type code are zero in all 1600 blobs of the SCR fixtures; the third and fourth hold small opaque values (0, 1, 2, ...). The box's row span and sub-rows are not in the blob but in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count; each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
+The first two and the fifth and sixth bytes after the type code are zero in all 1600 blobs of the SCR fixtures; the third and fourth are an opaque u16 LE, 0 to about 0x0EFF in the fixtures (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob but in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count; each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 

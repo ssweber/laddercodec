@@ -1357,7 +1357,6 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("receive", "send"),
     parse_csv_call=parse_af_call,
-    min_csv_rows=3,
     cell_params_from_tags=fixed_cell_params(
         _CELL_PARAMS, ("RD", _RD_TYPE_CODE), ("SD", _SD_TYPE_CODE)
     ),

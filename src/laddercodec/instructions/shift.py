@@ -170,5 +170,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("shift",),
     parse_csv_call=parse_af_call,
     pin_names=(".clock", ".reset"),
-    min_csv_rows=3,
 )

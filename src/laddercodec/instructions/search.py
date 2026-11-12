@@ -293,6 +293,5 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("search",),
     parse_csv_call=parse_af_call,
-    min_csv_rows=2,
     cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, ("Search", _SEARCH_TYPE_CODE)),
 )

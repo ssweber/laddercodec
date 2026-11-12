@@ -269,5 +269,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("on_delay", "off_delay"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset",),
-    min_csv_rows=2,
 )

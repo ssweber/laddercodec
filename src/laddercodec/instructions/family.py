@@ -77,7 +77,6 @@ class AfInstructionFamilySpec:
     csv_names: tuple[str, ...] = ()
     parse_csv_call: AfCallParser | None = None
     pin_names: tuple[str, ...] = ()
-    min_csv_rows: int = 1
     #: Height of a ``RawInstruction`` of this family that has no native cell header
     #: (one read from CSV).  Families whose height comes from pin rows leave it None.
     cell_params_from_tags: AfCellParamsFromTags | None = None

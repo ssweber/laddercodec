@@ -36,7 +36,6 @@ In addition, each instruction family module now exposes a small family spec in `
 - CSV token names
 - CSV call parsing
 - supported pin names
-- minimum CSV row count (`min_csv_rows`)
 
 For most new instruction families, the main extension point is: **add the dataclass + codec logic in the family module, then register a `SPEC` for it.**
 
@@ -115,13 +114,7 @@ In `src/laddercodec/instructions/`:
 - Add `InstructionType` enum value in `model.py` if it uses a new type marker
 
 **Tall instructions:** if the new instruction occupies more than 1 grid row in the binary/editor shape, return `{"visual_rows": N}` from `cell_params()`.
-
-If the instruction also needs auto-padding in CSV, set `min_csv_rows=N` on the family `SPEC`. These are related but not always identical:
-
-- `visual_rows` = binary/editor cell height
-- `min_csv_rows` = minimum CSV/logical rows to synthesize on read
-
-Example: timers currently use `visual_rows=2` and `min_csv_rows=2`, while counter/shift/drum families use explicit higher CSV row counts because their lower rows have pin semantics.
+The converter pads a tall box with blank rows from `cell_params()`.
 
 `visual_rows` sets both cell header bytes, `+0x09` (rows spanned) and `+0x0A`
 (sub-rows). When a native capture shows them differing, add `"sub_rows"` for
@@ -155,7 +148,6 @@ Also add a family `SPEC` in the module:
 - `from_tags`
 - `parse_csv_call` (for AF families)
 - `pin_names` if the family uses dot-prefixed continuation rows
-- `min_csv_rows` if the family should auto-pad in CSV
 - `cell_params_from_tags` if every box of the family has one height (a raw box read from CSV takes it)
 
 ### 3. Register and export

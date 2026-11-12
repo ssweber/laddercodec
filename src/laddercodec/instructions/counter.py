@@ -297,5 +297,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("count_up", "count_down"),
     parse_csv_call=parse_af_call,
     pin_names=(".down", ".reset"),
-    min_csv_rows=3,
 )

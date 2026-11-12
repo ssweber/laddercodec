@@ -713,5 +713,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("event_drum", "time_drum", "time_event_drum"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset", ".jump", ".jog"),
-    min_csv_rows=4,
 )
