@@ -573,7 +573,10 @@ currently emit:
     or CTD.
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
-  `FFFFh` copies only to DD or CTD.
+  `FFFFh` copies only to DD or CTD. A `copy` source, a `fill` value and a
+  `search` value take an integer of 32 bits, hex of at most 8 digits with no
+  sign (`+1h` is refused), and an ASCII-code constant of `$` and two hex digits
+  (`$1`, `$D` and `$4142` are refused).
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -586,9 +589,9 @@ currently emit:
   constants, functions and parentheses count too.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
-  one TXT register per character of a text constant, so `""` writes nothing:
-  `encode()` refuses an empty `""` in a Copy or Fill source, and `read_csv()` and
-  `decode()` still accept it there. A compare or a search takes 1 to 128
+  one TXT register per character of a text constant, so `""` writes nothing. A
+  Copy source or a Fill value takes 1 to 128 characters in quotes and refuses
+  `""`, a longer text and a quote inside the text. A compare or a search takes 1 to 128
   printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
   TXT772; a search matches the same window) and refuses `""`, a longer or
   non-ASCII text and a quote inside the text when it is read or built; spell a
@@ -597,7 +600,7 @@ currently emit:
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
-  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`)
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none` or `$` and one or two hex digits (`$D` is written `$0D`); anything else raises `FieldError`.
   - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling
