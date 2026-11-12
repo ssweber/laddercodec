@@ -552,6 +552,9 @@ class Math(AfInstruction):
         self.expression = _normalize_spacing(self.expression)
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
+        if not self.expression:
+            # A Math blob with no formula decodes as raw(), so none is encoded.
+            raise FieldError("Math.expression: the formula is empty; a Math needs a formula")
         _check_expression(self.expression, self.mode)
 
     def to_csv(self) -> str:

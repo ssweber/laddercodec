@@ -35,6 +35,7 @@ from ..model import (
     normalize_address,
     xy_slot,
 )
+from ..operands.constants import INT32_MAX, INT32_MIN, TEXT_MAX, Constant, classify
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -393,8 +394,6 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-#: A single Copy's integer constant is an int32 (OBJ-005, baseEx CheckValueRange).
-_INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 _INT_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
@@ -402,19 +401,45 @@ _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
-def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse a number constant a single Copy can't hold or can't put in ``dest_bank``."""
-    if _INT_CONSTANT_RE.fullmatch(source) and not _INT32_MIN <= int(source) <= _INT32_MAX:
-        raise FieldError(
-            f"Copy.source: {source!r} is outside {_INT32_MIN}..{_INT32_MAX}; an integer "
-            "constant is 32-bit"
+def check_constant(value: str, name: str) -> Constant:
+    """Return the constant ``value`` spells; raise :class:`FieldError` naming field ``name``
+    if CLICK's shared input check reads none there (OBJ-005).
+
+    The rule is :func:`~laddercodec.operands.constants.classify`: an integer is 32-bit, a hex
+    constant takes no sign and has at most eight digits, quoted text is 1 to 128 characters
+    with no quote inside, and a character code is ``$`` and two hex digits.  A single Copy
+    source, a Fill value and a Search value run it on the constants their own checks pass.
+    """
+    constant = classify(value)
+    if constant is not None:
+        return constant
+    if value.startswith('"'):
+        why = (
+            f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
+            "(write the quote character as $22)"
         )
+    elif value.startswith("$"):
+        why = "a character code is $ and two hex digits ($0D)"
+    elif _INT_CONSTANT_RE.fullmatch(value):
+        raise FieldError(
+            f"{name}: {value!r} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
+        )
+    elif _HEX_CONSTANT_RE.fullmatch(value):
+        why = "a hex constant has no sign and at most 8 digits"
+    else:
+        why = "a real constant is a finite number"
+    raise FieldError(f"{name}: {value!r} is refused; {why}")
+
+
+def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
+    """Refuse a constant a single Copy can't hold or can't put in ``dest_bank``."""
     m = _HEX_CONSTANT_RE.fullmatch(source)
     if m and int(m.group(1), 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise AddressError(
             f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
             f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}"
         )
+    check_constant(source, "Copy.source")
 
 
 # ---------------------------------------------------------------------------
@@ -608,7 +633,7 @@ class Copy(AfInstruction):
         _check_pair(
             "Copy", self.source, src, "destination", self.destination, dst.bank, _COPY_PAIRS
         )
-        if src.kind == "number":
+        if src.kind in ("number", "text"):
             _check_copy_constant(self.source, "destination", self.destination, dst.bank)
         self._check_format(src, dst.bank)
         if self.termination_code != "0" and not (
@@ -620,6 +645,12 @@ class Copy(AfInstruction):
                 f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
                 f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
                 f"{self.destination!r} with format {self.format!r}"
+            )
+        if not self.termination_code.startswith("$") and self.termination_code != "0":
+            # The blob stores a termination code only as a character code (OBJ-036).
+            raise FieldError(
+                f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
+                "character code ($0D) or '0' for none"
             )
         if self.format == "text":
             # CLICK's dialog offers suppress zero for an integer source and
@@ -937,6 +968,8 @@ class Fill(AfInstruction):
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )
         _check_pair("Fill", self.value, src, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
+        if src.kind in ("number", "text"):
+            check_constant(self.value, "Fill.value")
 
     @property
     def func_code(self) -> str:

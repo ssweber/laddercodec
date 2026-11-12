@@ -103,6 +103,58 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
+# CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
+# CheckInputData) on the search value: OBJ-005 (arc.md Q-M10 ruling).
+
+_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_HEX_SIGN = "a hex constant has no sign and at most 8 digits"
+_CHAR_CODE = r"a character code is \$ and two hex digits"
+
+
+@pytest.mark.parametrize(
+    ("table", "source", "message"),
+    [
+        ("DS", "2147483648", _INT32),
+        ("DS", "-2147483649", _INT32),
+        ("DS", "3000000000", _INT32),
+        ("DS", "6000000000", _INT32),
+        ("DH", "+1h", _HEX_SIGN),
+        ("DH", "-1h", _HEX_SIGN),
+        ("TXT", "$1", _CHAR_CODE),
+        ("TXT", "$D", _CHAR_CODE),
+        ("TXT", "$100", _CHAR_CODE),
+        ("TXT", "$4142", _CHAR_CODE),
+    ],
+)
+def test_source_refuses_what_the_constant_check_refuses(
+    tmp_path: Path, table: str, source: str, message: str
+) -> None:
+    with pytest.raises(FieldError, match=rf"^Search.source: .* {message}"):
+        Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    token = f"search({table}1..{table}10 == {source},result=DS20,found=C1)"
+    with pytest.raises(FieldError, match="^Search.source: "):
+        _read_af(tmp_path, token)
+
+
+@pytest.mark.parametrize(
+    ("table", "source"),
+    [
+        ("DS", "2147483647"),
+        ("DS", "-2147483648"),
+        ("DF", "-1.5E+3"),
+        ("DH", "0h"),
+        ("DH", "FFFFh"),
+        ("TXT", "$00"),
+        ("TXT", "$FF"),
+        ("TXT", '"$41"'),
+        ("TXT", '"' + "A" * 128 + '"'),
+    ],
+)
+def test_source_constant_edges_accepted(table: str, source: str) -> None:
+    search = Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    assert parse_af_blob(search.build_blob()) == search
+
+
 @pytest.mark.parametrize(
     "fields",
     [
@@ -112,6 +164,9 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
         {0x6065: "TXT20", 0x21F7: "2"},  # > on a TXT register
         {0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"},  # a 32-bit hex value
+        {0x6065: "3000000000"},  # outside int32
+        {0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"},  # a signed hex value
+        {0x6065: "$4142", 0x6066: "TXT1", 0x6067: "TXT10"},  # not $hh
     ],
 )
 def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
