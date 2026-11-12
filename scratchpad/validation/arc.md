@@ -225,8 +225,9 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 Open asks (checklist; details under each id below):
 - Answered 2026-11-12 (user, dialog), to build: Q-M12, Q-M13, Q-M14, Q-M16, Q-M17, Q-M18,
   Q-M19, Q-M20, Q-M21, Q-B7 `DS1==1-2`, and the move (hmove) questions below.
-- Dialog: Q-M13b decimal integers in a hex Math (the 2026-11-12 "no" was for Q-M13); comm:
-  Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
+- Answered 2026-11-12, to build (bob/move6): Q-M13b, Q-B7 `$` codes, the `"TT"` → TXT1
+  capture.
+- Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
     two digits, one character. laddercodec accepts `$D` and stores `$0D`; refuse it.
@@ -235,6 +236,10 @@ Open asks (checklist; details under each id below):
     accepted, and the dialog changes the destination to `TXT1..2`. laddercodec accepts
     `fill("AB",TXT1..TXT5)`; refuse it. Capture wanted: what CLICK stores for `"TT"` →
     TXT1 (destination TXT1, or TXT1 with an end of TXT2), since laddercodec writes TXT1.
+  - **ANSWERED 2026-11-12 (user, capture `clicknick/double-txt-copy.bin`):** CLICK stores
+    destination TXT1 and destination end (tag 6077) TXT2. Every other tag matches
+    laddercodec's `copy("TT",TXT1)` blob, which leaves 6077 empty, so the native rung
+    decodes as raw today. To build: write 6077 as the last TXT the text fills, and decode it.
 - Paste and copy back: Q-M15 Math into SD9, YD1, YD0u. Box height (rawheight review): native
   cells store Email/Home/Position/Velocity at `03 03` (cell +0x09/+0x0A), Math `01 03`, some
   Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. The typed encoder writes `01 01`,
@@ -242,7 +247,7 @@ Open asks (checklist; details under each id below):
   `raw_instructions__email` golden copy back as `03 03`, and should typed encode write the
   native height? A decoded raw Email-like box loses 2 rows through a CSV round trip (with a
   warning) until this is settled.
-- Captures: Q-B7 `$1`/`$100`/`$4142` (Search refuses them too since 2026-11-12, following the Compare rule; Fill and single Copy still accept them); Q-C7 remote address `0H` stored text, and the stored
+- Captures: Q-C7 remote address `0H` stored text, and the stored
   text of a padded `0FFFEh` (laddercodec writes `FFFEh`); the Captures
   wanted list at the end of this section.
 
@@ -325,6 +330,10 @@ Open asks (checklist; details under each id below):
     The DLL classifies `$` up to FF as one type and above it as another; laddercodec
     refuses them. Search refuses them too since 2026-11-12, following the Compare rule; Fill
     and single Copy still accept them.
+  - **ANSWERED 2026-11-12 (user, Help `ascii table2.gif`):** a `$` code is one character
+    picked from CLICK's Embed ASCII Code table, 00h-FFh (80h-FFh on its second page), so it
+    is exactly `$` and two hex digits. `$1`, `$100` and `$4142` are refused in every field,
+    Fill and single Copy included.
   - Needs a dialog check: is `DS1==1-2` refused? The shared check lets a sign stand among
     the digits; the Counter dialog refuses `1-2` with its own parse (Q-D2), and the
     constant classifier (`operands/constants.py`) refuses it in every field.
@@ -480,6 +489,8 @@ Open asks (checklist; details under each id below):
     refuse a hex constant in a decimal Math.
 - Q-M13b Hex Math with a decimal integer: does a hex-mode Math refuse `DH1 + 70000` or
   `DH1 + 007`? laddercodec checks only hex constants in hex mode and accepts both.
+  - **ANSWERED 2026-11-12 (user, dialog):** `DH1 + 70000` and `DH1 + 7` are both refused: a
+    hex Math takes no decimal constant. laddercodec accepts them; refuse them.
 - Q-M14 Block Copy into Y across a slot: what does `X001..X008 → Y010` give? CLICK's
   GetNextAddress steps on into the next Y slot; laddercodec refuses the run until a capture
   shows the stored destination.
@@ -497,6 +508,8 @@ Open asks (checklist; details under each id below):
     float32 range (the exact edge, about 3.4028235E+38, is not checked). Open: does a pasted
     `3.5E+3` copy back as `3500.0`? If so, CLICK normalizes a real the way it does an
     address, and laddercodec may want to write the normalized form.
+  - **ANSWERED 2026-11-12 (user):** the rewrite to `3500.0` is the dialog's, done as it is
+    typed. laddercodec keeps writing a real as given; no normalization.
 - Q-M18 32-bit hex digits: is `000000001h` (nine digits, leading zeros) accepted as a Copy
   source into DD1? The classifier counts typed digits (at most 8).
   - **ANSWERED 2026-11-12 (user, dialog):** accepted; the dialog calls it an "H Value". So the
