@@ -216,6 +216,21 @@ class TestCompare:
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
+    # arc.md Q-B7 (user, Help ascii table2.gif): a $ code is $ and two hex digits, $00-$FF.
+    @pytest.mark.parametrize("code", ["$1", "$D", "$100", "$4142", "$G1"])
+    @pytest.mark.parametrize("field", ["left", "right"])
+    def test_other_dollar_forms_refused(self, code: str, field: str) -> None:
+        operands = {"left": "TXT1", "right": "TXT1"} | {field: code}
+        with pytest.raises(
+            FieldError, match=rf"^CompareContact.{field}: .* \$ and two hex digits, \$00 to \$FF"
+        ):
+            CompareContact(op="==", **operands)
+
+    def test_other_dollar_form_blob_is_an_unknown_condition(self) -> None:
+        tags = {0x3218: "4103", 0x6066: "TXT1", 0x6067: "$41", 0x21F7: "0"}
+        assert isinstance(from_tags_condition("Compare", 0x2714, tags), CompareContact)
+        assert from_tags_condition("Compare", 0x2714, tags | {0x6067: "$4"}) is None
+
     def test_quote_inside_text_refused(self) -> None:
         with pytest.raises(FieldError, match="holds a quote"):
             CompareContact("==", '"a"=="b"', '"c"')

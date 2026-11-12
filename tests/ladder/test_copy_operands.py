@@ -192,7 +192,7 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy(1FH,DH1)",
         "copy(-1.5E+3,DF1)",
         "copy(.5,DF1)",
-        "copy($D,TXT1)",
+        "copy($0D,TXT1)",
         "copy(DD[DS1],DS1)",
         "copy(DS1,TXT[DS2])",
         "copy(C[DS1],Y001)",
@@ -311,24 +311,35 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
-# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Copy source and
-# a Fill value keep them as written.
+# arc.md Q-B7 (user, Help ascii table2.gif, 2026-11-12): a $ code is picked from CLICK's Embed
+# ASCII Code table, $00 to $FF, so it is $ and two hex digits in every field.
 _DOLLAR_FORMS = ["$1", "$D", "$d", "$100", "$4142"]
+_DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
 
 
 @pytest.mark.parametrize("source", _DOLLAR_FORMS)
-def test_copy_source_dollar_forms_kept_as_written(source: str) -> None:
-    copy = Copy(source, "TXT2")
-    assert copy.source == source
-    assert parse_af_blob(copy.build_blob()) == copy
+def test_copy_source_other_dollar_forms_refused(tmp_path: Path, source: str) -> None:
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_DOLLAR_RULE}"):
+        Copy(source, "TXT2")
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_DOLLAR_RULE}"):
+        _read_af(tmp_path, f"copy({source},TXT2)")
 
 
 @pytest.mark.parametrize("value", _DOLLAR_FORMS)
-def test_fill_value_dollar_forms_kept_as_written(value: str) -> None:
-    fill = Fill(value, "TXT2", "TXT5")
-    assert fill.value == value
-    assert parse_af_blob(fill.build_blob()) == fill
+def test_fill_value_other_dollar_forms_refused(tmp_path: Path, value: str) -> None:
+    with pytest.raises(FieldError, match=rf"^Fill.value: .* {_DOLLAR_RULE}"):
+        Fill(value, "TXT2", "TXT5")
+    with pytest.raises(FieldError, match=rf"^Fill.value: .* {_DOLLAR_RULE}"):
+        _read_af(tmp_path, f"fill({value},TXT2..TXT5)")
+
+
+@pytest.mark.parametrize("value", _DOLLAR_FORMS)
+@pytest.mark.parametrize(
+    "tags", [{0x6076: "TXT2"}, {0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"}], ids=["copy", "fill"]
+)
+def test_other_dollar_form_blob_is_left_unparsed(tags: dict[int, str], value: str) -> None:
+    assert from_tags_af("Copy", 0x2721, tags | {0x6074: "$41"}) is not None
+    assert from_tags_af("Copy", 0x2721, tags | {0x6074: value}) is None
 
 
 _FILL_VALUE_REFUSED = [

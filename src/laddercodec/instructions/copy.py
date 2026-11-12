@@ -176,8 +176,8 @@ _POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
 _NUMBER_CONSTANT_RE = re.compile(
     r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[+-]?[0-9A-Fa-f]+[hH]"
 )
-#: A text constant by character code: ``$`` then hex digits (``$0D``); how many CLICK takes
-#: is not narrowed here.
+#: A text constant by character code: ``$`` then hex digits (``$0D``).  Any count passes here,
+#: so :func:`check_constant` can refuse all but two with its own message.
 _ASCII_CODE_OPERAND_RE = re.compile(r"\$[0-9A-Fa-f]+")
 
 
@@ -412,20 +412,19 @@ def check_constant(value: str, name: str) -> None:
     - an integer is 32-bit;
     - a hex constant takes no sign and has at most eight digits above ``FFFFh``;
     - a real is finite and within float32;
-    - quoted text is 1 to 128 characters with no quote inside.
+    - quoted text is 1 to 128 characters with no quote inside;
+    - a character code is ``$`` and two hex digits, ``$00`` to ``$FF``.
 
-    A single Copy source, a Fill value and a Search value run it on the constants their own
-    checks pass.
+    A single Copy source, a Fill value, a Search value and a Compare character code run it
+    on the constants their own checks pass.
     """
-    if value.startswith("$"):
-        # CLICK's shared check accepts $ and one hex digit, and $ codes above FF; classify()
-        # refuses both. Compare, and Search by the Compare rule (arc.md Q-M10 ruling), refuse
-        # a $ form other than $hh; Fill and single Copy keep them until the Q-B7 capture
-        # shows the form CLICK stores.
-        return
     if classify(value) is not None:
         return
-    if value.startswith('"'):
+    if value.startswith("$"):
+        # CLICK's shared check also takes $ and one hex digit, and $ codes above FF; its
+        # Embed ASCII Code table (Help ascii table2.gif) offers only $00 to $FF.
+        why = "a character code is $ and two hex digits, $00 to $FF, such as $41"
+    elif value.startswith('"'):
         why = (
             f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
             "(write the quote character as $22)"
@@ -609,8 +608,8 @@ class Copy(AfInstruction):
         An integer source has no such option and rejects ``"1"``.
     termination_code:
         Text option — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or ``"$HH"`` hex
-        ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is accepted and stored as
-        ``"$0D"``).
+        ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is refused).  A
+        lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
     """
 
     source: str
@@ -991,7 +990,7 @@ class Fill(AfInstruction):
         if src.kind in ("number", "text"):
             check_constant(self.value, "Fill.value")
         if dest.bank == "TXT" and src.kind == "text":
-            # A ``$hh`` code is one character; other ``$`` forms wait on the Q-B7 capture.
+            # A ``$hh`` code, the only ``$`` form check_constant passes, is one character.
             chars = self.value[1:-1] if self.value.startswith('"') else "$"
             if len(chars) != 1:
                 raise FieldError(

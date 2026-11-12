@@ -229,7 +229,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ): 1,
     ("comparison.py", "re.compile('[+-]?[0-9]+')"): 1,
     ("comparison.py", "re.compile('[0-9A-Fa-f]+[hH]')"): 1,
-    ("comparison.py", "re.compile('\\\\$[0-9A-Fa-f]{2}')"): 1,
     ("contact.py", "re.fullmatch('(rise|fall)\\\\((.+)\\\\)', token)"): 1,
     ("contact.py", "re.fullmatch('immediate\\\\((.+)\\\\)', token)"): 1,
     ("copy.py", "re.compile('([A-Z]{1,3})\\\\[(.*)\\\\]')"): 1,

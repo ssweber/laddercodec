@@ -19,6 +19,7 @@ from ..model import (
     check_flag,
     normalize_address,
 )
+from .copy import check_constant
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -98,7 +99,6 @@ _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 _HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 _INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
-_ASCII_CODE_CONSTANT_RE = re.compile(r"\$[0-9A-Fa-f]{2}")
 
 #: Limits of a compare constant (baseEx.dll CheckInputData and its numeric
 #: classifier; Inst_Compare.dll OnOK refuses anything else with OBJ-005).
@@ -147,7 +147,8 @@ def _operand_group(value: str, name: str) -> str:
         return "numeric"
     if _NUMERIC_CONSTANT_RE.fullmatch(value):
         return "numeric"
-    if _ASCII_CODE_CONSTANT_RE.fullmatch(value):
+    if value.startswith("$"):
+        check_constant(value, name)  # $ and two hex digits
         return "text"
     if len(value) >= 2 and value[0] == value[-1] == '"':
         check_quoted_text(value, name)

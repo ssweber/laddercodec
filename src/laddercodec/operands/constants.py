@@ -74,8 +74,8 @@ _INTEGER_RE = re.compile(r"([+-]?)([0-9]+)")
 # CSV arguments.
 _FLOAT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:E[+-]?[0-9]+)?")
 # The shared check also takes ``$1`` as a character code, and a ``$`` value above FF as a
-# second kind; the arc.md Q-B7 note keeps every ``$`` form but two hex digits refused until
-# a capture shows what CLICK stores for them.
+# second kind.  A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``
+# (Help ``ascii table2.gif``), so only ``$`` and two hex digits is one.
 _CHAR_RE = re.compile(r"\$([0-9A-F]{2})")
 _DIGITS_RE = re.compile(r"[0-9]+")
 #: More significant digits than any CLICK limit needs (int() refuses very long text).

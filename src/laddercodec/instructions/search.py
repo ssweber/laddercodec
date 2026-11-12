@@ -180,11 +180,6 @@ class Search(AfInstruction):
             check_constant(self.source, "Search.source")
             # The value's kind ties to the table banks (arc.md Q-M21).
             const = classify(self.source)
-            if const is None and self.source.startswith("$"):
-                raise FieldError(
-                    f"Search.source: {self.source!r} is refused; a character code is $ and "
-                    "two hex digits, such as $41"
-                )
             if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
                 raise FieldError(
                     f"Search.source: {self.source!r} is a {const.kind} value, which searches "

@@ -588,7 +588,9 @@ currently emit:
   characters as CLICK stores it: a sum of 68 addresses fits, 69 does not;
   constants, functions and parentheses count too.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
-  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
+  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
+  two hex digits from `$00` to `$FF`; `$1`, `$100` and `$4142` raise `FieldError`
+  in every field. CLICK writes
   one TXT register per character of a text constant, so `""` writes nothing. A
   Copy source or a Fill value takes 1 to 128 characters in quotes and refuses
   `""`, a longer text and a quote inside the text. A compare or a search takes 1 to 128
@@ -600,7 +602,7 @@ currently emit:
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
-  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and one or two hex digits (`$D` is written `$0D`); anything else raises `FieldError`.
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
   - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling
