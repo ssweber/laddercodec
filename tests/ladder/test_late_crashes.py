@@ -281,3 +281,10 @@ def test_flag_field_one_is_true(field) -> None:
 def test_flag_field_other_values_refused(field, bad) -> None:
     with pytest.raises(FieldError, match=field.replace(".", r"\.")):
         _FLAG_FIELDS[field](bad)
+
+
+def test_counter_reset_cleared_after_construction_fails_at_encode() -> None:
+    counter = _counter()
+    counter.reset_enabled = False
+    with pytest.raises(ValueError, match="Unsupported counter variant"):
+        counter.build_blob()
