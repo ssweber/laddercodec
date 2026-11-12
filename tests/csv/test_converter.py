@@ -438,7 +438,7 @@ class TestAfNodeToToken:
         assert result.current == "CTD1"
         assert result.preset == "100"
         assert result.down_enabled is False
-        assert result.reset_enabled is False
+        assert result.reset_enabled is True
 
     def test_shift(self) -> None:
         node = AfCall(name="shift", args=("C99..C106",), known=True)

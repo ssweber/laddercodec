@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from laddercodec.instructions import Counter, parse_af_blob
 
 
@@ -49,15 +47,3 @@ class TestCounterBlobRoundTrip:
         assert isinstance(parsed, Counter)
         assert parsed == counter
         assert parsed.to_csv() == "count_down(CT3,CTD3,preset=50)"
-
-    def test_reject_unsupported_variant(self) -> None:
-        counter = Counter(
-            counter_type="count_up",
-            done_bit="CT4",
-            current="CTD4",
-            preset="100",
-            down_enabled=False,
-            reset_enabled=False,
-        )
-        with pytest.raises(ValueError, match="Unsupported counter variant"):
-            counter.build_blob()

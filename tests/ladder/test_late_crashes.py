@@ -232,3 +232,27 @@ def test_other_flag_values_refused(bad) -> None:
         Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)
     with pytest.raises(FieldError, match="Contact.immediate"):
         Contact(InstructionType.CONTACT_NO, "X1", immediate=bad)
+
+
+def test_counter_reset_defaults_on() -> None:
+    default = Counter("count_up", "CT1", "CTD1", "5")
+    assert default.reset_enabled is True
+    assert default.build_blob() == _counter().build_blob()
+    assert default == _counter()
+
+
+@pytest.mark.parametrize("off", [False, 0], ids=repr)
+def test_counter_without_reset_refused(off) -> None:
+    for kind in ("count_up", "count_down"):
+        with pytest.raises(FieldError, match=r"Counter\.reset_enabled.*always has a Reset"):
+            Counter(kind, "CT1", "CTD1", "5", reset_enabled=off)
+
+
+def test_counter_csv_read_keeps_reset() -> None:
+    token = Counter.from_csv_token("count_up(CT1,CTD1,preset=5)")
+    assert token.reset_enabled is True
+    pinned = token.with_pins({".reset": ("X1",)}, (1, 2))
+    assert pinned.reset_enabled is True and pinned.pin_labels() == (None, ".reset()")
+    assert pinned.to_csv() == "count_up(CT1,CTD1,preset=5)"
+    with pytest.raises(ValueError, match="requires a .reset"):
+        token.with_pins({}, (1, 2))

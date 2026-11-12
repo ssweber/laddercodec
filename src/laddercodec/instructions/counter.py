@@ -78,7 +78,7 @@ class Counter(PinnedInstruction):
     current: str
     preset: str
     down_enabled: bool = False
-    reset_enabled: bool = False
+    reset_enabled: bool = True
     #: Rows of the down and reset inputs below the up input (row 0).  OR legs
     #: on an input push the later inputs down.  count_down's main input is Down
     #: (row 1, under its unused Up), so legs under it push ``.reset()`` down.
@@ -91,6 +91,8 @@ class Counter(PinnedInstruction):
             )
         self.down_enabled = check_flag(self.down_enabled, "Counter.down_enabled")
         self.reset_enabled = check_flag(self.reset_enabled, "Counter.reset_enabled")
+        if not self.reset_enabled:
+            raise FieldError("Counter.reset_enabled: a counter always has a Reset input")
         if self.down_enabled and self.counter_type == "count_down":
             # count_down's own input is Down; its box has no separate .down() input.
             raise FieldError(
