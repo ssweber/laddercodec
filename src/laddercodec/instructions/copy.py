@@ -432,14 +432,15 @@ def check_constant(value: str, name: str) -> Constant:
 
 
 def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse a constant a single Copy can't hold or can't put in ``dest_bank``."""
+    """Refuse a number constant outside 32 bits, or one ``dest_bank`` can't take."""
+    if _INT_CONSTANT_RE.fullmatch(source):
+        check_constant(source, "Copy.source")
     m = _HEX_CONSTANT_RE.fullmatch(source)
     if m and int(m.group(1), 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise AddressError(
             f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
             f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}"
         )
-    check_constant(source, "Copy.source")
 
 
 # ---------------------------------------------------------------------------
@@ -633,7 +634,7 @@ class Copy(AfInstruction):
         _check_pair(
             "Copy", self.source, src, "destination", self.destination, dst.bank, _COPY_PAIRS
         )
-        if src.kind in ("number", "text"):
+        if src.kind == "number":
             _check_copy_constant(self.source, "destination", self.destination, dst.bank)
         self._check_format(src, dst.bank)
         if self.termination_code != "0" and not (
@@ -646,12 +647,6 @@ class Copy(AfInstruction):
                 f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
                 f"{self.destination!r} with format {self.format!r}"
             )
-        if not self.termination_code.startswith("$") and self.termination_code != "0":
-            # The blob stores a termination code only as a character code (OBJ-036).
-            raise FieldError(
-                f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
-                "character code ($0D) or '0' for none"
-            )
         if self.format == "text":
             # CLICK's dialog offers suppress zero for an integer source and
             # real/exponential for a DF source, never both.
@@ -662,6 +657,14 @@ class Copy(AfInstruction):
                     f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
                     "an integer source only has suppress_zero"
                 )
+        if not self.termination_code.startswith("$") and self.termination_code != "0":
+            # The blob stores a termination code only as a character code (OBJ-036).
+            raise FieldError(
+                f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
+                "character code ($0D) or '0' for none"
+            )
+        if src.kind in ("number", "text"):
+            check_constant(self.source, "Copy.source")
 
     def _check_format(self, src: Operand, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
