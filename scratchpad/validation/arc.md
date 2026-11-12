@@ -314,6 +314,9 @@ Open asks (checklist; details under each id below):
     `DS1 LSH 1h`, `RAND ( 1 , 10 ) DS1`, `MAX ( DS1 , DS2 )`, `SUM ( DS1 + DS2 )`,
     `DS1 + DS0` (Math operands take the full address check), and a stray comma
     `DS1 , DS2` ("Please use a period (.) as a decimal point.").
+  - ANSWERED 2026-11-12 (user, typed; capture `clicknick/plus-2.5.bin`): `DS1 + ( +2.5 )`,
+    result DF1, is stored `@ + ( +2.5 )` / `DS1#+#(#F+2.5#)`: a `+` merges into a real
+    constant too, typed `F`. dev builds the same fields as CLICK. Not yet a fixture.
   - CORRECTED 2026-11-12 (user, typed in the editor, capture `clicknick/math-sums.bin`, cell
     bytes `01 03`): `SUM ( T1 : T5 )`, `MAX ( TD1 : TD5 )`, `SUM ( X001 : X036 )` and
     `SUM ( X001 : X101 )` are all accepted. The 2026-11-01 note that the editor refuses
