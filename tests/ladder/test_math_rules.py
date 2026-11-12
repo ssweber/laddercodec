@@ -80,6 +80,10 @@ _REFUSED = [
     # 270 characters of the internal template (Q-M7, OBJ-1008): DS1..DS69 is 273
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
     ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
+    # a formula is required: a Math blob with none decodes as raw
+    ("", "DS9", "decimal", "Math.expression: the formula is empty"),
+    ("   ", "DS9", "decimal", "Math.expression: the formula is empty"),
+    ("", "DH9", "hex", "Math.expression: the formula is empty"),
 ]
 
 
@@ -142,6 +146,9 @@ def test_unknown_mode_refused() -> None:
         ("ABS ( DS1 ) ^ 2 + PI", "DF9", "decimal"),
         ("LSH ( DH1 , 1h ) XOR DH2", "DH9", "hex"),
         (_sum_of(68), "DD1", "decimal"),
+        # the shortest formulas
+        ("1", "DS9", "decimal"),
+        ("DH1", "DH9", "hex"),
     ],
 )
 def test_accepted(tmp_path: Path, expression: str, result: str, mode: str) -> None:

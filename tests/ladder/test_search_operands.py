@@ -103,6 +103,67 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
+# CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
+# CheckInputData) on the search value: OBJ-005 (arc.md Q-M10 ruling).
+
+_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_HEX_SIGN = "a hex constant has no sign and at most 8 digits"
+_FINITE = "a real constant is a finite number"
+
+
+@pytest.mark.parametrize(
+    ("table", "source", "message"),
+    [
+        ("DS", "2147483648", _INT32),
+        ("DS", "-2147483649", _INT32),
+        ("DS", "3000000000", _INT32),
+        ("DS", "6000000000", _INT32),
+        ("DH", "+1h", _HEX_SIGN),
+        ("DH", "-1h", _HEX_SIGN),
+        ("DF", "1E999", _FINITE),
+        ("DS", "-1E999", _FINITE),
+    ],
+)
+def test_source_refuses_what_the_constant_check_refuses(
+    tmp_path: Path, table: str, source: str, message: str
+) -> None:
+    with pytest.raises(FieldError, match=rf"^Search.source: .* {message}"):
+        Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    token = f"search({table}1..{table}10 == {source},result=DS20,found=C1)"
+    with pytest.raises(FieldError, match="^Search.source: "):
+        _read_af(tmp_path, token)
+
+
+@pytest.mark.parametrize(
+    ("table", "source"),
+    [
+        ("DS", "2147483647"),
+        ("DS", "-2147483648"),
+        ("DF", "-1.5E+3"),
+        ("DH", "0h"),
+        ("DH", "FFFFh"),
+        ("TXT", "$00"),
+        ("TXT", "$FF"),
+        ("TXT", '"$41"'),
+        ("TXT", '"' + "A" * 128 + '"'),
+    ],
+)
+def test_source_constant_edges_accepted(table: str, source: str) -> None:
+    search = Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    assert parse_af_blob(search.build_blob()) == search
+
+
+# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
+# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Search value
+# keeps them as written.
+@pytest.mark.parametrize("table", ["TXT", "DS"])
+@pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
+def test_source_dollar_forms_kept_as_written(table: str, source: str) -> None:
+    search = Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+    assert search.source == source
+    assert parse_af_blob(search.build_blob()) == search
+
+
 @pytest.mark.parametrize(
     "fields",
     [
@@ -112,6 +173,8 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
         {0x6065: "TXT20", 0x21F7: "2"},  # > on a TXT register
         {0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"},  # a 32-bit hex value
+        {0x6065: "3000000000"},  # outside int32
+        {0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"},  # a signed hex value
     ],
 )
 def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:

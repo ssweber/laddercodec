@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
 from .comparison import check_quoted_text
-from .copy import REGISTER_BANKS, _check_range, check_operand
+from .copy import REGISTER_BANKS, _check_range, check_constant, check_operand
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -171,6 +171,9 @@ class Search(AfInstruction):
                 f"Search.comparison: {self.comparison!r} is not offered for text "
                 f"{self.source!r}; text searches with == or !="
             )
+        if source.kind in ("number", "text"):
+            # The value field runs CLICK's shared input check (arc.md Q-M10 ruling).
+            check_constant(self.source, "Search.source")
 
     @property
     def func_code(self) -> str:

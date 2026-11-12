@@ -46,6 +46,7 @@
 - **Timer checks**: `Timer(off_delay, retained=True)` and a value outside the unit list raise `FieldError` rather than a plain `ValueError` or a `TypeError`.
 - **Pin rows**: Timer, Counter, Shift and Drum raise `FieldError` for `pin_rows` that are not a tuple with one ascending row of 1 to 255 per input, instead of an `IndexError` at encode. A pinned blob whose part bytes fail this decodes as `raw(...)`.
 - **Raw instruction checks**: `RawInstruction` raises `FieldError` for a `part_count` that is not a whole number from 0 to 65535, a `blob` that is not bytes, or a `class_name` that is not text, instead of a `TypeError` at encode.
+- **Copy, Fill, Search and Math constants**: a single Copy source, a Fill value and a Search value refuse a constant CLICK's shared input check refuses: a signed hex constant (`+1h`), hex above `FFFFh` longer than 8 digits (`0FFFFFFFFh`), an integer outside 32 bits (`fill(3000000000,DS1..DS4)`), a real that is not finite (`1E999`), and, in a Copy or Fill, text that is empty, over 128 characters or holds a quote (`""`, `"""`); a Copy `termination_code` is `$hh`, `0` or `none` (`abc` and `1` are refused), and `Math(expression="")` is refused. Each raises `FieldError` when built, so `""` in a Copy or Fill now fails in `read_csv()`, and such a blob decodes as `raw(...)`.
 - **Copy pointers**: a pointer is `BANK[DSn]` in C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT; the `BANK[pointer+offset]` and `BANK[pointer-offset]` forms (`copy(DD[DS1+2],DS1)`) and a pointer in any other bank raise `AddressError`.
 
 ### Fixed

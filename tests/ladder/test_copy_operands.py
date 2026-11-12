@@ -16,7 +16,7 @@ import pytest
 from laddercodec import FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
-from laddercodec.instructions.copy import Copy, Pack, Unpack
+from laddercodec.instructions.copy import Copy, Fill, Pack, Unpack
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -237,6 +237,185 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
 def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
     parsed = _read_af(tmp_path, token)
     assert parse_af_blob(parsed.build_blob()) == parsed  # type: ignore[attr-defined]
+
+
+# CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
+# CheckInputData) on a single Copy source and a Fill value: OBJ-005.
+
+_TEXT_129 = '"' + "A" * 129 + '"'
+_TEXT_128 = '"' + "A" * 128 + '"'
+_HEX_SIGN = "a hex constant has no sign and at most 8 digits"
+_TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
+_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_FINITE = "a real constant is a finite number"
+
+_COPY_SOURCE_REFUSED = [
+    ("+1h", "DS9", _HEX_SIGN),
+    ("-1h", "DS9", _HEX_SIGN),
+    ("+1h", "DD1", _HEX_SIGN),
+    ("-1h", "DF1", _HEX_SIGN),
+    ("+1h", "DH1", _HEX_SIGN),
+    ("-1h", "TXT2", _HEX_SIGN),
+    ("100000000h", "DD1", _HEX_SIGN),
+    ("0FFFFFFFFh", "DD1", _HEX_SIGN),
+    ('""', "TXT2", _TEXT_RULE),
+    ('"""', "TXT2", _TEXT_RULE),
+    ('"a"b"', "TXT2", _TEXT_RULE),
+    (_TEXT_129, "TXT2", _TEXT_RULE),
+    ("1E999", "DF1", _FINITE),
+    ("-1E999", "DF1", _FINITE),
+]
+
+
+@pytest.mark.parametrize(("source", "destination", "message"), _COPY_SOURCE_REFUSED)
+def test_copy_source_refuses_what_the_constant_check_refuses(
+    source: str, destination: str, message: str
+) -> None:
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {message}"):
+        Copy(source, destination)
+
+
+@pytest.mark.parametrize(
+    "token",
+    ['copy("",TXT2)', "copy(0FFFFFFFFh,DD1)", "copy(+1h,DD1)", f"copy({_TEXT_129},TXT2)"],
+)
+def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: str) -> None:
+    with pytest.raises(FieldError, match="^Copy.source: "):
+        _read_af(tmp_path, token)
+
+
+@pytest.mark.parametrize(
+    ("source", "destination"),
+    [
+        ("FFFFFFFFh", "DD1"),
+        ("0FFFFh", "DS9"),
+        ("10000h", "CTD1"),
+        (_TEXT_128, "TXT2"),
+        ('"A"', "TXT2"),
+        ('"$41"', "TXT2"),
+        ('"é"', "TXT2"),  # non-ASCII text into TXT has no ruling yet: accepted
+        ("$00", "TXT2"),
+        ("$FF", "TXT2"),
+        ("$0d", "TXT2"),
+        ("5", "TXT2"),  # a number into TXT has no ruling yet: accepted
+        ("2147483647", "DD1"),
+        ("-2147483648", "DD1"),
+    ],
+)
+def test_copy_source_constant_edges_accepted(source: str, destination: str) -> None:
+    copy = Copy(source, destination)
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+# arc.md Q-B7: $ and one hex digit, and a $ code above FF, are refused only in Compare until
+# a capture shows the form CLICK stores (CLICK's shared check accepts both). A Copy source and
+# a Fill value keep them as written.
+_DOLLAR_FORMS = ["$1", "$D", "$d", "$100", "$4142"]
+
+
+@pytest.mark.parametrize("source", _DOLLAR_FORMS)
+def test_copy_source_dollar_forms_kept_as_written(source: str) -> None:
+    copy = Copy(source, "TXT2")
+    assert copy.source == source
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize("value", _DOLLAR_FORMS)
+def test_fill_value_dollar_forms_kept_as_written(value: str) -> None:
+    fill = Fill(value, "TXT2", "TXT5")
+    assert fill.value == value
+    assert parse_af_blob(fill.build_blob()) == fill
+
+
+_FILL_VALUE_REFUSED = [
+    ("2147483648", "DS52", "DS55", _INT32),
+    ("-2147483649", "DS52", "DS55", _INT32),
+    ("3000000000", "DS52", "DS55", _INT32),
+    ("6000000000", "DS52", "DS55", _INT32),
+    ("+1h", "DS52", "DS55", _HEX_SIGN),
+    ("-1h", "DS52", "DS55", _HEX_SIGN),
+    ("100000000h", "DS52", "DS55", _HEX_SIGN),
+    ("0FFFFFFFFh", "DS52", "DS55", _HEX_SIGN),
+    ("2147483648", "TXT2", "TXT5", _INT32),
+    ("+1h", "TXT2", "TXT5", _HEX_SIGN),
+    ("100000000h", "TXT2", "TXT5", _HEX_SIGN),
+    ('""', "TXT2", "TXT5", _TEXT_RULE),
+    ('"""', "TXT2", "TXT5", _TEXT_RULE),
+    ('"a"b"', "TXT2", "TXT5", _TEXT_RULE),
+    (_TEXT_129, "TXT2", "TXT5", _TEXT_RULE),
+    ("1E999", "DF1", "DF4", _FINITE),
+    ("-1E999", "DS52", "DS55", _FINITE),
+]
+
+
+@pytest.mark.parametrize(("value", "start", "end", "message"), _FILL_VALUE_REFUSED)
+def test_fill_value_refuses_what_the_constant_check_refuses(
+    value: str, start: str, end: str, message: str
+) -> None:
+    with pytest.raises(FieldError, match=rf"^Fill.value: .* {message}"):
+        Fill(value, start, end)
+
+
+@pytest.mark.parametrize(
+    "token", ['fill("",TXT2..TXT5)', "fill(3000000000,DS52..DS55)", "fill(-1h,DS52..DS55)"]
+)
+def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str) -> None:
+    with pytest.raises(FieldError, match="^Fill.value: "):
+        _read_af(tmp_path, token)
+
+
+@pytest.mark.parametrize(
+    ("value", "start", "end"),
+    [
+        ("2147483647", "DS52", "DS55"),
+        ("-2147483648", "DS52", "DS55"),
+        ("FFFFh", "DS52", "DS55"),
+        # a 32-bit hex Fill and a number into TXT have no ruling yet: accepted
+        ("10000h", "DS52", "DS55"),
+        ("FFFFFFFFh", "DS52", "DS55"),
+        ("5", "TXT2", "TXT5"),
+        (_TEXT_128, "TXT2", "TXT5"),
+        ('"é"', "TXT2", "TXT5"),
+        ("$00", "TXT2", "TXT5"),
+        ("$7E", "TXT2", "TXT5"),
+    ],
+)
+def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) -> None:
+    fill = Fill(value, start, end)
+    assert parse_af_blob(fill.build_blob()) == fill
+
+
+@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "None", "00", ""])
+def test_termination_code_is_a_character_code(fmt: str, code: str) -> None:
+    """The blob stores a termination code only as a character code (OBJ-036)."""
+    with pytest.raises(FieldError, match=r"^Copy.termination_code: .* is not allowed; it is a"):
+        Copy("DS20", "TXT7", format=fmt, termination_code=code)
+
+
+@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize(
+    ("code", "stored"), [("0", "0"), ("none", "0"), ("$00", "$00"), ("$FF", "$FF")]
+)
+def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> None:
+    copy = Copy("DS20", "TXT7", format=fmt, termination_code=code)
+    assert copy.termination_code == stored
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(
+    "tags",
+    [
+        {0x6074: "+1h", 0x6076: "DS9"},
+        {0x6074: "100000000h", 0x6076: "DD1"},
+        {0x6074: '""', 0x6076: "TXT2"},
+        {0x6074: '"""', 0x6076: "TXT2"},
+        {0x6074: "3000000000", 0x6076: "DS52", 0x6077: "DS55", 0x2223: "2"},
+        {0x6074: '""', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},
+    ],
+)
+def test_refused_constant_blob_is_left_unparsed(tags: dict[int, str]) -> None:
+    assert from_tags_af("Copy", 0x2721, tags) is None
 
 
 def test_copy_csv_paths_agree(tmp_path: Path) -> None:
