@@ -3,7 +3,7 @@
 import pytest
 
 from laddercodec.instructions import Coil, Contact
-from laddercodec.model import InstructionType
+from laddercodec.model import FieldError, InstructionType
 
 
 class TestContact:
@@ -169,7 +169,7 @@ class TestCoil:
     @pytest.mark.parametrize("token", ["latch(Y1,oneshot=1)", "reset(C1..C2,oneshot=1)"])
     def test_latch_reset_oneshot_rejected(self, token):
         # CLICK's Set/Reset dialog has no One Shot box.
-        with pytest.raises(ValueError, match="only out"):
+        with pytest.raises(FieldError, match="Coil.oneshot: .*only out"):
             Coil.from_csv_token(token)
 
     def test_from_csv_token_invalid(self):

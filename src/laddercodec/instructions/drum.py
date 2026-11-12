@@ -260,6 +260,7 @@ class Drum(PinnedInstruction):
     pin_rows: tuple[int, int, int] = (1, 2, 3)
 
     def __post_init__(self) -> None:
+        self._check_pin_rows()
         self.outputs = [normalize_address(output) for output in self.outputs]
         self.events_or_presets = [normalize_address(value) for value in self.events_or_presets]
         self.events = [normalize_address(event) for event in self.events]

@@ -16,6 +16,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_address,
+    check_flag,
     normalize_address,
 )
 from .family import ConditionInstructionFamilySpec
@@ -57,6 +58,12 @@ for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
 #: Banks a NO, NC or edge contact reads (CLICK v4.00 Help CL161, CL163).
 CONTACT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 
+_CONTACT_TYPES = (
+    InstructionType.CONTACT_NO,
+    InstructionType.CONTACT_NC,
+    InstructionType.CONTACT_EDGE,
+)
+
 _CONTACT_NO_TAGS = (0x6065, 0x11F5, 0x3218, 0x0000)
 _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
@@ -76,6 +83,12 @@ class Contact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
+        if self.type not in _CONTACT_TYPES:
+            raise FieldError(
+                f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
+                "CONTACT_EDGE)"
+            )
+        self.immediate = check_flag(self.immediate, "Contact.immediate")
         self.operand = normalize_address(self.operand)
         address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:
@@ -84,6 +97,16 @@ class Contact(ConditionInstruction):
             raise FieldError(
                 f"Contact.immediate: {self.operand!r} is not allowed; "
                 "an immediate contact takes X only"
+            )
+        if self.type == InstructionType.CONTACT_EDGE:
+            if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
+                raise FieldError(
+                    f"Contact.edge_kind: {self.edge_kind!r} is not rise or fall; "
+                    "an edge contact needs one"
+                )
+        elif self.edge_kind is not None:
+            raise FieldError(
+                f"Contact.edge_kind: {self.edge_kind!r} is not allowed; only an edge contact has one"
             )
 
     @classmethod
@@ -142,17 +165,11 @@ class Contact(ConditionInstruction):
     @property
     def func_code(self) -> str:
         if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in CONTACT_EDGE_FUNC_CODES:
-                raise ValueError("Edge contacts require edge_kind 'rise' or 'fall'")
-            if self.immediate:
-                raise ValueError("Immediate edge contacts are unsupported")
-            return CONTACT_EDGE_FUNC_CODES[self.edge_kind]
+            return CONTACT_EDGE_FUNC_CODES[cast(Literal["rise", "fall"], self.edge_kind)]
         return CONTACT_FUNC_CODES[(self.type, self.immediate)]
 
     def to_csv(self) -> str:
         if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in CONTACT_EDGE_FUNC_CODES:
-                raise ValueError("Edge contacts require edge_kind 'rise' or 'fall'")
             inner = f"{self.edge_kind}({self.operand})"
         else:
             prefix = "~" if self.type == InstructionType.CONTACT_NC else ""

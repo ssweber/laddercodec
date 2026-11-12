@@ -36,7 +36,7 @@ from ..binary_helpers import (
     _utf16le_null,
     _variant_tagged_field,
 )
-from ..model import AfInstruction
+from ..model import AfInstruction, FieldError
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -335,6 +335,18 @@ class RawInstruction(AfInstruction):
     class_name: str
     blob: bytes
     part_count: int = 1
+
+    def __post_init__(self) -> None:
+        # A decoded blob gives any class name and a 16-bit part count; check only the types.
+        if not isinstance(self.class_name, str):
+            raise FieldError(f"RawInstruction.class_name: {self.class_name!r} is not text")
+        if not isinstance(self.blob, bytes):
+            raise FieldError(f"RawInstruction.blob: {type(self.blob).__name__} is not bytes")
+        if type(self.part_count) is not int or not 0 <= self.part_count <= 0xFFFF:
+            raise FieldError(
+                f"RawInstruction.part_count: {self.part_count!r} is not a whole number "
+                "from 0 to 65535"
+            )
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""

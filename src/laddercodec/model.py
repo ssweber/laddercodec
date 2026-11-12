@@ -79,6 +79,14 @@ class AfInstruction:
         raise NotImplementedError
 
 
+def check_flag(value: object, name: str) -> bool:
+    """Return ``value`` as a bool; raise :class:`FieldError` naming ``name`` unless it is
+    True, False, 1 or 0."""
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise FieldError(f"{name}: {value!r} is not True, False, 1 or 0")
+
+
 class PinnedInstruction(AfInstruction):
     """An AF box with inputs ("slots") on several rows.
 
@@ -94,6 +102,27 @@ class PinnedInstruction(AfInstruction):
     """
 
     pin_rows: tuple[int, ...]
+
+    def _check_pin_rows(self) -> None:
+        """Raise :class:`FieldError` unless ``pin_rows`` is one ascending row per pin.
+
+        Each pinned class calls this at the end of its ``__post_init__``.
+
+        A box has ``lead_rows`` slots above its main input and one slot per pin name
+        below it; the blob stores each as one byte, so a row is 1 to 255.
+        """
+        name = f"{type(self).__name__}.pin_rows"
+        rows = self.pin_rows
+        want = self.lead_rows + len(self.pin_names())
+        if not isinstance(rows, tuple) or len(rows) != want:
+            raise FieldError(
+                f"{name}: {rows!r} must be a tuple with one row per input "
+                f"({want} for a {type(self).__name__})"
+            )
+        if not all(type(row) is int and 1 <= row <= 255 for row in rows):
+            raise FieldError(f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255")
+        if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
+            raise FieldError(f"{name}: {rows!r} must ascend; each input sits below the last")
 
     @property
     def lead_rows(self) -> int:

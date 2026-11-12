@@ -22,6 +22,7 @@ from ..model import (
     InstructionType,
     PinnedInstruction,
     check_address,
+    check_flag,
     normalize_address,
 )
 from .family import AfInstructionFamilySpec
@@ -84,6 +85,21 @@ class Counter(PinnedInstruction):
     pin_rows: tuple[int, int] = (1, 2)
 
     def __post_init__(self) -> None:
+        if self.counter_type not in ("count_up", "count_down"):
+            raise FieldError(
+                f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down"
+            )
+        self.down_enabled = check_flag(self.down_enabled, "Counter.down_enabled")
+        self.reset_enabled = check_flag(self.reset_enabled, "Counter.reset_enabled")
+        if self.down_enabled and self.counter_type == "count_down":
+            # count_down's own input is Down; its box has no separate .down() input.
+            raise FieldError(
+                "Counter.down_enabled: count_down has no .down() input; only count_up does"
+            )
+        self._check_fields()
+        self._check_pin_rows()
+
+    def _check_fields(self) -> None:
         self.done_bit = normalize_address(self.done_bit)
         self.current = normalize_address(self.current)
         self.preset = normalize_address(self.preset)
