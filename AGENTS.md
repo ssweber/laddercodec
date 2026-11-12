@@ -51,7 +51,7 @@ src/laddercodec/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
 │   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, display form, X/Y slots
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
-│   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet)
+│   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet); fits_float32(), which Math uses
 │   ├── errors.py         # FieldError, AddressError (.field, .obj, .source)
 │   └── sources.py        # Src: the kind and public reference of a rule's evidence
 ├── instructions/         # Instruction dataclasses + blob builders/parsers
@@ -62,6 +62,8 @@ src/laddercodec/
 │   ├── out_variant.py    # OutVariant (CLICK v4 toggle/debounce/flasher/timed), build_blob(), cell_params(), parser
 │   ├── timer.py          # Timer (on_delay/off_delay, retentive), build_blob(), cell_params(), parser
 │   ├── copy.py           # Copy (single/block/fill), BlockCopy, Fill — build_blob(), cell_params(), parser
+│   ├── math.py           # Math (decimal/hex formula, result), build_blob(), cell_params(), parser
+│   ├── math_formula.py   # parse(): the Math formula read as CLICK's Math dialog reads it, and its four stored forms
 │   └── raw.py            # RawInstruction (opaque blob passthrough), build_blob(), cell_params()
 ├── csv/                  # CSV parsing subpackage
 │   ├── __init__.py       # read_csv, CSV_HEADER, CONDITION_COLUMNS
@@ -88,7 +90,7 @@ src/laddercodec/
 - **topology.py** — Buffer structure constants: program header (0x0254), rung preamble layout (comment flag +0x30, length +0x34, body +0x38), cell offset math, cell flag constants (+0x19 segment, +0x1D right, +0x21 down).
 - **empty_multirow.py** — Deterministic empty payload synthesis for 1–32 rows. Key formula: payload length = `0x1000 * (ceil((rows+1)/2) + 1)`.
 - **model.py** — `InstructionType` enum (0x2711–0x2718), `ConditionInstruction` and `AfInstruction` base classes. All instruction dataclasses inherit from one of these; the pipeline uses them for isinstance dispatch so new types are recognized automatically. Re-exports the address check and field errors from `operands/`, so `from laddercodec.model import check_address` keeps working.
-- **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), rule sources (`sources.py`, no DLL addresses), and the constant classifier `classify()` (`constants.py`, not wired in yet; `devtools/classify_dryrun.py` reports where it disagrees with today's checks). `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed.
+- **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), rule sources (`sources.py`, no DLL addresses), and the constant classifier `classify()` (`constants.py`, not wired in yet, though Math uses its `fits_float32()`; `devtools/classify_dryrun.py` reports where it disagrees with today's checks). `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed.
 - **instructions/** — Instruction dataclasses with `build_blob()` and `cell_params()` methods, func code tables, and blob parsers. Each dataclass knows how to serialize itself — the grid loop just calls `token.build_blob()` and `token.cell_params()`. Registry in `__init__.py` dispatches class name → module.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
 - **csv/converter.py** — RungAst → Rung converter. Handles pin rows (`.reset()` → retentive timers) and tall instruction auto-padding.

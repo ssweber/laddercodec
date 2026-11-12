@@ -147,7 +147,8 @@ v4 adds it.
 
 A Math blob (class `Math`, type 0x271A) has 1010 tagged fields: 9 header
 fields, 500 operand slots (tag `0x6888`), 500 reserved slots (tag `0x688C`) and
-a terminator. Source: `math.py`.
+a terminator. Source: `math.py`; the formula reader and its printers are
+`math_formula.py`.
 
 The formula appears four times in the header:
 
@@ -160,10 +161,14 @@ The formula appears four times in the header:
 
 - **Display form** is spaced the way Click's formula editor spaces it: one space
   on each side of every operator, paren, comma and range colon (`ABS ( x )`,
-  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)*2` to this form. A sign
-  stays on its constant (`( -5 )`) and is spaced from an address (`- DS401`).
+  `RAND ( 1 , 100 )`). The encoder normalizes `ABS(x)*2` to this form. In a
+  decimal formula a sign at the start, after `(` or after `,` stays on its
+  constant (`( -5 )`, `( +5 )`) and is spaced from an address (`- DS401`); in a
+  hex formula it is its own token (`( - Ah )`).
 - **Internal form** is the display form with spaces replaced by `#` and each
-  bare decimal literal prefixed with `H`. Click splits it on `#`, so an
+  bare decimal literal prefixed with `H` (`W` outside int16, `F` for a real, each
+  keeping the typed text: `H+5`, `F-2.5`) and each hex constant written `UH` and
+  its decimal value. Click splits it on `#`, so an
   unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
   raises a Math instruction error.
 - **Comma functions** (`RAND`, `LSH`, `RSH`, `LRO`, `RRO`) are stored infix in
@@ -174,12 +179,66 @@ The formula appears four times in the header:
   form (`SUM#(#DS1#:#DS3#)`).
 - Each argument of a comma function must be one operand or constant. CLICK's
   editor refuses `LSH ( DH401 + 1h , 2h )`, `RAND ( ABS ( DD616 ) , 20 )` and
-  any other expression or call as an argument. The encoder
-  writes such a call in its call form (`LSH#(#DH401#+#UH1#,#UH2#)`), which
+  any other expression or call as an argument, and the encoder refuses them
+  too. Written in its call form (`LSH#(#DH401#+#UH1#,#UH2#)`), such a call
   passes Check Program when pasted; written infix, it fails with C0114.
 - Cell header byte `+0x0A` is `03` on a Math that went through CLICK's editor.
   A pasted Math keeps the encoder's `01`, even in a copy-back, so only `03`
   blobs show CLICK's own internal form.
+
+### Math formula grammar
+
+CLICK v4's Math dialog checks a formula on OK in these steps (read from
+`Inst_Math.dll`; `math_formula.py` follows them, and
+`tests/ladder/test_math_grammar.py` has a test per rule):
+
+1. **Tokenizer.** Tokens are split by spaces and tabs (no other white space)
+   and by `+ - * / ^ ( ) , : [ ]`. A run of digits followed by `.`, `E` or `e` is
+   cut at the end of the longest real number it starts, so `1.5E+10` is one
+   token and hex `1Eh` is `1` then `Eh`.
+2. **Keywords.** The names on the two keypads (`SIN` ... `RRO`, `PI`, `MOD`,
+   `AND`, `OR`, `XOR`); everything else is an address, a constant or a word.
+3. **Parentheses** balance and nest at most 8 deep.
+4. **Exponent rejoin** (decimal): `.5E` `+` `3` becomes `.5E+3`. The tokenizer
+   rule of step 1 already keeps such a real whole.
+5. **Sign merge** (decimal only): at the start, after `(` and after `,`, a `-` or
+   `+` joins the number after it (`( + 5 )` is `+5`, stored `H+5`,
+   `v4_captures/math_unary_plus_pi.bin`). Nowhere else, and never in hex.
+6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
+   typed `+` kept) at the typed length, or a real that fits float32. Hex: 1 to 4
+   hex digits and `h`.
+7. **Words** are refused (`FOO`), and so is a bracket. CLICK takes a pointer
+   here; laddercodec refuses one.
+8. **Mode.** A hex formula refuses the decimal keypad's keys (`SIN` ... `DEG`,
+   `PI`, `ABS`, `^`) and a decimal one the hex keypad's (`AND`, `OR`, `XOR`,
+   `LSH` ... `RRO`).
+9. **Grammar.** Each token limits the next:
+
+   | token | may not be followed by |
+   |---|---|
+   | `(` | `* / ^ MOD AND OR XOR , : )` |
+   | `)` | `(`, a function, `PI`, a constant or an address |
+   | operator | `)`, an operator (a sign included), `,` or `:` |
+   | constant, address | `(`, a function, `PI`, a constant or an address |
+   | `PI` | a function, `PI`, a constant, an address, `,` or `:` |
+   | function | anything but `(` |
+   | `,`, `:` | `)`, an operator, `,`, `:`, `LSH` ... `RRO` |
+
+   The formula starts with `(`, a function, `PI`, a sign, a constant or an
+   address, and ends with `)`, `PI`, a constant or an address. The call forms:
+
+   - `RAND`, `LSH`, `RSH`, `LRO`, `RRO`: `F ( a , b )`, one token each; a shift
+     or rotate takes an address as `a`.
+   - `SUM`, `MAX`, `MIN`, `MDN`, `AVG`: `F ( a : b )`, two addresses
+     (`math_unary_plus_pi.bin`: `SUM ( DS1 + DS2 )` is refused).
+   - A trig function, `SQRT`, `LOG`, `LN`, `RAD` or `DEG` holds a `,` or `:` only
+     in a `SUM`.
+   - A `,` outside a two-argument call is a decimal comma (OBJ-037, `DS1 , DS2`
+     in `math_unary_plus_pi.bin`). laddercodec also refuses a `:` outside a range
+     function.
+
+Each address must lie inside its bank's range (`DS1 + DS0` is refused). The
+internal template (`0x6229`) holds at most 270 characters.
 
 ### Operand and reserved slots
 

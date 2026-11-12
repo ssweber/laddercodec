@@ -589,6 +589,36 @@ currently emit:
   writes it (`7H` becomes `7h`). `SUM` takes no CT range, and the formula is at
   most 270 characters as CLICK stores it: a sum of 68 addresses fits, 69 does
   not; constants, functions and parentheses count too.
+- A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
+  refuse raises `FieldError` (`AddressError` for an address):
+  - It holds addresses, constants, function names, operators and parentheses,
+    separated by spaces or tabs. Any other word or character (`DS1 = DS2`, `FOO`,
+    `NAN`, `0x1A`, a lone `.`, a pointer, a line break) is refused, and so is a
+    real constant outside the float32 range (`1E39`).
+  - Each address lies inside its bank's range: `DS1 + DS0` is refused.
+  - A sign goes at the start, after `(` or after `,`, and a decimal `math` joins
+    it to the constant after it (`( + 5 )` is written `( +5 )`). After an
+    operator, put the signed value in parentheses: `DS1 * ( -5 )`, not
+    `DS1 * -5` or `DS1 - -5`.
+  - Each operator stands between two values, and two values never stand side by
+    side: `DS1 +`, `* DS1`, `DS1 DS2`, `2 PI` and `( DS1 ) ( DS2 )` are refused.
+  - A function takes its argument in parentheses (`SIN ( DF1 )`, not `SIN DF1`).
+    `PI` stands alone or before parentheses (`PI ( 2 )`).
+  - `RAND`, `LSH`, `RSH`, `LRO` and `RRO` take `( a , b )`, one token each
+    (`RAND ( DS1 + 1 , 2 )` is refused), and the first argument of a shift or
+    rotate is an address (`LSH ( 1h , 2h )` is refused). A `,` anywhere else is
+    refused (`DS1 , DS2`, `MAX ( DS1 , DS2 )`): CLICK reads it as a decimal
+    comma.
+  - `SUM`, `MAX`, `MIN`, `MDN` and `AVG` take `( a : b )`, a range of two
+    addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )` and `SUM ( 1 : 5 )` are
+    refused). A `:` anywhere else is refused (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
+  - `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `LOG`, `LN`, `SQRT`, `RAD` and
+    `DEG` hold no `RAND`, shift or rotate call, and no range but a `SUM`:
+    `SIN ( SUM ( DF1 : DF3 ) )` is accepted, `SIN ( MAX ( DF1 : DF3 ) )` is
+    refused.
+  - In a hex `math`, a constant whose digits run into an `E` (`1Eh`, `0Eh`,
+    `2E5h`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
+    number. `E1h` and `1Fh` are accepted.
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise

@@ -15,8 +15,23 @@
 
 ### Changed
 - **Math hex constants**: a hex constant in a Math expression is written as CLICK shows it, uppercase digits without leading zeros (`0fH` is `Fh`, `00h` is `0h`); earlier versions kept the typed digits (`0fh`). A constant typed with more than 4 digits, zeros included (`0FFFEh`), is refused.
-- **Math sign on a hex constant**: `DH1 + ( -Ah )` is stored as `( - Ah )`, the sign its own token, as CLICK writes it; earlier versions joined the sign (`-Ah`), which CLICK never writes. A stored `-Ah` still decodes, as `- Ah`. Re-encoding a stored lowercase or zero-padded hex constant (`0fh`) writes CLICK's form (`Fh`), so those bytes change though the value does not.
+- **Math sign on a hex constant**: `DH1 + ( -Ah )` is stored as `( - Ah )`, the sign its own token, as CLICK writes it; earlier versions joined the sign (`-Ah`), which CLICK never writes. A stored `( -Ah )` still decodes, as `( - Ah )`; after an operator (`DH1 + -Ah`) it decodes as `raw(...)`. Re-encoding a stored lowercase or zero-padded hex constant (`0fh`) writes CLICK's form (`Fh`), so those bytes change though the value does not.
 - **Math words**: a Math expression with a word that is no address, function name or constant (`DS1 + FOO`, `DS1 + DS1X`, `DH1 + 7H7`), accepted before as an unknown word, raises `FieldError`. A stored Math that laddercodec wrote earlier with such a word, with more than four typed hex digits, or with an empty template whose internal-form fallback no longer parses, now decodes as raw and keeps its bytes.
+- **Math formula grammar**: a Math formula is read as CLICK's Math dialog reads it, and a formula it refuses raises `FieldError`. Accepted before and refused now:
+  - a sign right after an operator (`DS1 * -5`, `DS1 - -5`; `DS1 * ( -5 )` is still accepted);
+  - an operator or value out of place (`DS1 +`, `* DS1`, `DS1 DS2`, `2 PI`, `( DS1 ) ( DS2 )`, `( )`);
+  - a function without parentheses (`SIN DF1`, `SUM DS1`);
+  - `RAND`, `LSH`, `RSH`, `LRO` or `RRO` without exactly two one-token arguments (`RAND ( DS1 + 1 , 2 )`, `LSH ( RSH ( DH1 , 1h ) , 2h )`), or with a constant as the first argument of a shift or rotate (`LSH ( 1h , 2h )`);
+  - `SUM`, `MAX`, `MIN`, `MDN` or `AVG` around anything but a range of two addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )`, `SUM ( DS1 : DS3 : DS5 )`, `SUM ( 1 : 5 )`);
+  - a `,` outside those two-argument calls (`DS1 , DS2`, `MAX ( DS1 , DS2 )`, `DS1 + 1 , 5`) and a `:` outside those ranges (`DS1 : DS5`, `ABS ( DS1 : DS3 )`);
+  - a `RAND`, shift or rotate call, or a range other than `SUM`, inside `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `LOG`, `LN`, `SQRT`, `RAD` or `DEG` (`SIN ( MAX ( DF1 : DF3 ) )`);
+  - an address outside its bank's range (`DS1 + DS0`, `DS1 + DS4501`);
+  - a hex constant whose digits run into an `E` (`1Eh`, `0Eh`, `2E5h`);
+  - a real constant outside the float32 range (`1E39`);
+  - a lone `.`, white space other than a space or a tab, and characters such as `=`, `#`, `@`, `;` and `&`.
+
+  A stored Math whose formula is refused decodes as `raw(...)`; no Math CLICK wrote in the test captures is refused.
+- **Math unary plus**: a `+` at the start, after `(` or after `,` joins the decimal constant after it, as CLICK does: `DS1 + ( + 5 )` is written `DS1 + ( +5 )` and stored `DS1#+#(#H+5#)`. Earlier versions kept the `+` apart and stored `(#+#H5#)`, so the bytes of such a Math change.
 - **Math nickname**: a Math expression with a `<nickname>` (`math(DS1 + <FOO>,DS2)`), accepted before and copied into the formula CLICK keeps as addresses, raises `FieldError`.
 - **Termination code**: a Copy termination code is `$` and two hex digits (`$0D`); `$D` and `$0` were accepted and stored as `$0D`, and now raise `FieldError`.
 - **Fill into TXT**: a Fill into TXT takes one character, so `fill("AB",TXT1..TXT5)`, accepted before, raises `FieldError`.
