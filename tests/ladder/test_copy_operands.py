@@ -13,10 +13,11 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import FieldError, read_csv
+from laddercodec import AddressError, FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.copy import Copy, Fill, Pack, Unpack
+from laddercodec.instructions.raw import _decompose_blob
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -434,6 +435,71 @@ def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> No
     ],
 )
 def test_refused_constant_blob_is_left_unparsed(tags: dict[int, str]) -> None:
+    assert from_tags_af("Copy", 0x2721, tags) is None
+
+
+# A single Copy of text into TXT stores the last TXT the text fills as the destination end
+# (0x6077): "TT" into TXT1 stores TXT2 (v4_captures/text_tt.bin); one character and a $hh code
+# store none (text_q.bin, text_blank.bin; the blobs are pinned in test_v4_captures.py).
+
+
+def _destination_end(copy: Copy) -> str:
+    fields = {tag: value for tag, _, value in _decompose_blob(copy.build_blob())[4]}
+    return fields[0x6077]
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "end"),
+    [
+        ('"TT"', "TXT1", "TXT2"),
+        ('"ABC"', "txt10", "TXT12"),
+        ('"$41"', "TXT2", "TXT4"),  # three characters of text
+        ('"AB"', "TXT999", "TXT1000"),
+        (_TEXT_128, "TXT873", "TXT1000"),
+        ('"Q"', "TXT1000", ""),
+        ("$41", "TXT1000", ""),
+        ('"AB"', "TXT[DS1]", ""),  # a pointer: no capture shows an end
+    ],
+)
+def test_text_copy_stores_its_last_txt(source: str, destination: str, end: str) -> None:
+    copy = Copy(source, destination)
+    assert _destination_end(copy) == end
+    assert copy.to_csv() == f"copy({source},{copy.destination})"
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "message"),
+    [
+        ('"AB"', "TXT1000", r"2 characters fill TXT1000..TXT1001, past TXT1000"),
+        (_TEXT_128, "TXT874", r"128 characters fill TXT874..TXT1001, past TXT1000"),
+    ],
+)
+def test_text_copy_past_txt1000_refused(
+    tmp_path: Path, source: str, destination: str, message: str
+) -> None:
+    with pytest.raises(AddressError, match=rf"^Copy.destination: .* {message}"):
+        Copy(source, destination)
+    with pytest.raises(AddressError, match=rf"^Copy.destination: .* {message}"):
+        _read_af(tmp_path, f"copy({source},{destination})")
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "end"),
+    [
+        ('"TT"', "TXT1", ""),  # the end is missing
+        ('"TT"', "TXT1", "TXT1"),
+        ('"TT"', "TXT1", "TXT3"),
+        ('"Q"', "TXT2", "TXT2"),  # one character stores no end
+        ("$41", "TXT2", "TXT2"),
+        ('"AB"', "TXT[DS1]", "TXT2"),
+        ("DS1", "TXT1", "TXT2"),
+    ],
+)
+def test_text_copy_blob_with_another_end_is_left_unparsed(
+    source: str, destination: str, end: str
+) -> None:
+    tags = {0x6074: source, 0x6076: destination, 0x6077: end}
     assert from_tags_af("Copy", 0x2721, tags) is None
 
 

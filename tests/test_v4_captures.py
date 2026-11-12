@@ -10,7 +10,7 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
-``text_q.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
+``text_q.bin``, ``text_tt.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
 ``debounce_one_phase.bin``) are only used by the blob tests below.
 """
 
@@ -415,10 +415,31 @@ def test_one_phase_debounce_capture(tmp_path: Path) -> None:
 
 #: ``text_blank.bin``: ``TXT1 == $00`` (ASCII-code constant) -> Copy ``$00`` to TXT1.
 #: ``text_q.bin``: Copy ``"Q"`` (typed with its quotes) to TXT2.
+#: ``text_tt.bin``: Copy ``"TT"`` to TXT1; the dialog shows the destination as TXT1..2.
 _TEXT_CAPTURES = {
     "text_blank.bin": ("TXT1==$00", "copy($00,TXT1)"),
     "text_q.bin": ("-", 'copy("Q",TXT2)'),
+    "text_tt.bin": ("-", 'copy("TT",TXT1)'),
 }
+
+#: What CLICK stores as the destination end (0x6077) of each capture's Copy: the last TXT a
+#: text of two or more characters fills, and nothing for one character or a ``$hh`` code.
+_TEXT_DESTINATION_ENDS = {
+    "text_blank.bin": (Copy("$00", "TXT1"), ""),
+    "text_q.bin": (Copy('"Q"', "TXT2"), ""),
+    "text_tt.bin": (Copy('"TT"', "TXT1"), "TXT2"),
+}
+
+
+@pytest.mark.parametrize("file", list(_TEXT_DESTINATION_ENDS))
+def test_text_copy_destination_end_matches_native(file: str) -> None:
+    """A Copy built by hand writes CLICK's blob, destination end included."""
+    copy, end = _TEXT_DESTINATION_ENDS[file]
+    native = _af_blob((CAPTURE_DIR / file).read_bytes(), 0)
+    assert {tag: value for tag, _, value in native[4]}[0x6077] == end
+    blob = copy.build_blob()
+    assert _decompose_blob(blob) == native
+    assert _native_blob((CAPTURE_DIR / file).read_bytes(), "Copy", len(blob)) == blob
 
 
 def _native_blob(buf: bytes, class_name: str, length: int) -> bytes:

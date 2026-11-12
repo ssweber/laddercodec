@@ -16,6 +16,7 @@
 ### Changed
 - **Termination code**: a Copy termination code is `$` and two hex digits (`$0D`); `$D` and `$0` were accepted and stored as `$0D`, and now raise `FieldError`.
 - **Fill into TXT**: a Fill into TXT takes one character, so `fill("AB",TXT1..TXT5)`, accepted before, raises `FieldError`.
+- **Copy text past TXT1000**: a single Copy whose text would run past TXT1000 (`copy("AB",TXT1000)`), accepted before, raises `AddressError`.
 - **Pack text**: `pack_text` needs a TXT source and a TXT source packs only as `pack_text`; `pack_text(DS1..DS2,DD1)` and `pack_words(TXT1..TXT2,DS1)`, accepted before, raise `FieldError`.
 - **Math constants**: a hex constant in a decimal Math (`DS1 + 1Fh`) and text in any Math (`"A"`, `$41`), accepted before, raise `FieldError`.
 - **Hex Math constants**: a decimal constant in a hex Math, integer or real (`DH1 + 7`, `DH1 + 70000`, `DH1 + 1.5`), accepted before, raises `FieldError`; hex constants (`7h`) are still accepted.
@@ -59,6 +60,7 @@
 - **Copy pointers**: a pointer is `BANK[DSn]` in C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT; the `BANK[pointer+offset]` and `BANK[pointer-offset]` forms (`copy(DD[DS1+2],DS1)`) and a pointer in any other bank raise `AddressError`.
 
 ### Fixed
+- **Copy text into TXT**: a single Copy of two or more characters of text into TXT (`copy("TT",TXT1)`) stores the last TXT the text fills (TXT2) as its destination end, as CLICK does; it was stored empty, and CLICK's own blob decoded as `raw(Copy,...)`.
 - **Raw box height**: a `raw(...)` box keeps the row span and sub-rows of the cell it was decoded from, and one read from CSV takes its typed class's height (2 rows for the Copy family and Search, 3 for Send and Receive, an Out variant's height from its func code), where it used to encode as one row unless its blob had several parts.
 - **One-phase debounce**: a `debounce` with only its on phase or only its off phase (`debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)`), which CLICK v4 saves, encodes, decodes and round-trips through CSV instead of decoding as `raw(Out,...)`.
 - **Pack/Unpack decode**: a pack of X, Y, T, CT or SC bits into DH now decodes as `pack_bits`, and an unpack of DH into Y bits as `unpack_to_bits`; a pack or unpack of CTD words, or an unpack into X, T, CT or SC, decodes as `raw(...)`, since CLICK's dialog refuses it.

@@ -592,8 +592,9 @@ currently emit:
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$1`, `$100` and `$4142` raise `FieldError`
   in every field. CLICK writes
-  one TXT register per character of a text constant, so `""` writes nothing. A
-  Copy source or a Fill value takes 1 to 128 characters in quotes and refuses
+  one TXT register per character of a text constant, so `""` writes nothing, and
+  `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose text would run past
+  TXT1000 raises `AddressError`. A Copy source or a Fill value takes 1 to 128 characters in quotes and refuses
   `""`, a longer text and a quote inside the text. A compare or a search takes 1 to 128
   printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and
   TXT772; a search matches the same window) and refuses `""`, a longer or

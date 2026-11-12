@@ -123,7 +123,7 @@ _COPY_TAGS = (
     0x6074,  # [0]  source
     0x6075,  # [1]  source_end (block copy; empty for single)
     0x6076,  # [2]  destination
-    0x6077,  # [3]  destination_end (block copy; empty for single)
+    0x6077,  # [3]  destination_end (block copy; a single copy of text: its last TXT)
     0x2206,  # [4]  format_option (0=default, 1=text-modified/ascii, 2=binary)
     0x11F8,  # [5]  oneshot (-1 = enabled)
     0x2223,  # [6]  copy_type_idx (0=single, 1=block, 2=fill, 3=pack)
@@ -452,6 +452,27 @@ def _check_copy_constant(source: str, dest_field: str, destination: str, dest_ba
         )
 
 
+#: The last TXT register.
+_TXT_LAST = ADDRESS_BANKS["TXT"][1]
+
+
+def _text_fill_end(source: str, destination: str) -> Address | None:
+    """The last TXT a single Copy of quoted text fills; the blob stores it as the
+    destination end (tag 0x6077).
+
+    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2,
+    ``v4_captures/text_tt.bin``) and leaves the end empty for one character (``"Q"`` into
+    TXT2, ``text_q.bin``) and for a ``$hh`` code (``text_blank.bin``).  ``None`` for those,
+    and for a pointer destination, for which no capture shows an end.
+    """
+    if not (len(source) >= 4 and source[0] == source[-1] == '"'):
+        return None
+    if _POINTER_RE.fullmatch(destination):
+        return None
+    first = check_address(destination, "Copy.destination")  # a TXT: text copies only there
+    return Address("TXT", first.number + len(source) - 3)
+
+
 # ---------------------------------------------------------------------------
 # Block, Pack and Unpack pairs (Inst_Copy.dll pairing rows, table)
 # ---------------------------------------------------------------------------
@@ -681,6 +702,18 @@ class Copy(AfInstruction):
             )
         if src.kind in ("number", "text"):
             check_constant(self.source, "Copy.source")
+        end = _text_fill_end(self.source, self.destination)
+        if end is not None and end.number > _TXT_LAST:
+            raise AddressError(
+                f"Copy.destination: {self.destination!r} can't take {self.source!r}; its "
+                f"{len(self.source) - 2} characters fill {self.destination}..{end.display}, "
+                f"past TXT{_TXT_LAST}"
+            )
+
+    def _destination_end(self) -> str:
+        """Tag 0x6077: the last TXT a text of two or more characters fills, else empty."""
+        end = _text_fill_end(self.source, self.destination)
+        return "" if end is None else end.display
 
     def _check_format(self, src: Operand, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
@@ -812,7 +845,7 @@ class Copy(AfInstruction):
                 self.source,  # [0]
                 "",  # [1] source_end (single = empty)
                 self.destination,  # [2]
-                "",  # [3] destination_end (single = empty)
+                self._destination_end(),  # [3] destination_end (text: its last TXT)
                 field4,  # [4] format_option
                 "-1" if self.oneshot else "0",  # [5]
                 "0",  # [6] copy_type_idx (single)
@@ -1292,9 +1325,10 @@ def from_tags(
     if copy_type == 0:
         if not source or not destination:
             return None
-        # A single copy has no end addresses; one that carries them isn't a shape
-        # CLICK writes, so leave it to raw() rather than drop them.
-        if source_end or destination_end:
+        # A single copy has no source end, and a destination end only for text (checked
+        # below); a blob that carries others isn't a shape CLICK writes, so leave it to
+        # raw() rather than drop them.
+        if source_end:
             return None
         opts = _CONVTYPE_TO_OPTS.get(str(conv_type))
         if opts is None:
@@ -1316,7 +1350,7 @@ def from_tags(
                 return None
             termination_code = _ascii_code(int(term_char))
 
-        return Copy(
+        copy = Copy(
             source=source,
             destination=destination,
             format=fmt,
@@ -1325,6 +1359,11 @@ def from_tags(
             exponential=exponential,
             termination_code=termination_code,
         )
+        # The destination end follows from the text; an end that disagrees with it is
+        # not a blob CLICK writes.
+        if destination_end != copy._destination_end():
+            return None
+        return copy
 
     if copy_type == 1:
         if not all([source, source_end, destination, destination_end]):
