@@ -9,13 +9,22 @@ pre-v4 CLICK.
 from __future__ import annotations
 
 import re
+import struct
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from .instructions.drum import Drum
 from .instructions.forloop import Break, Continue
-from .instructions.math import _RESERVED_SLOTS, Math, _range_interiors
+from .instructions.math import (
+    _RESERVED_SLOTS,
+    _TAG_FORMULA_DISPLAY,
+    _TAG_FORMULA_INTERNAL,
+    _TAG_RESERVED,
+    Math,
+    _range_interiors,
+)
 from .instructions.out_variant import OutVariant
+from .instructions.raw import RawInstruction, _decompose_blob
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -35,12 +44,34 @@ def is_v4_only(instruction: object) -> bool:
     if isinstance(instruction, Math):
         expression = instruction.expression
         # Past 500 range interiors the blob needs v4's capacity; v3 holds 500.
-        return bool(
-            _V4_MATH_RE.search(expression)
-            or _V4_BIT_SUM_RE.search(expression)
-            or len(_range_interiors(expression)) > _RESERVED_SLOTS
-        )
+        return bool(_v4_formula(expression) or len(_range_interiors(expression)) > _RESERVED_SLOTS)
+    if isinstance(instruction, RawInstruction) and instruction.class_name == "Math":
+        return _raw_math_is_v4_only(instruction.blob)
     return False
+
+
+def _v4_formula(text: str) -> bool:
+    return bool(_V4_MATH_RE.search(text) or _V4_BIT_SUM_RE.search(text))
+
+
+def _raw_math_is_v4_only(blob: bytes) -> bool:
+    """The Math check on a Math blob laddercodec decodes as raw, read from its stored fields.
+
+    The internal formula (``0x61FD``) is read with spaces for its ``#``; the display
+    formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.  A blob
+    whose fields do not parse (``raw(Math,00)`` from CSV) is not flagged.
+    """
+    try:
+        *_, fields = _decompose_blob(blob)
+    except (ValueError, IndexError, struct.error):
+        return False
+    tags = {tag: value for tag, _, value in fields}
+    listed = sum(1 for tag, _, value in fields if tag == _TAG_RESERVED and value)
+    return (
+        _v4_formula(tags.get(_TAG_FORMULA_INTERNAL, "").replace("#", " "))
+        or _v4_formula(tags.get(_TAG_FORMULA_DISPLAY, ""))
+        or listed > _RESERVED_SLOTS
+    )
 
 
 def find_v4_only(rungs: Rung | Iterable[Rung]) -> list[tuple[int, object]]:

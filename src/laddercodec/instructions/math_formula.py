@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from ..model import (
     ADDRESS_BANKS,
+    XY_SLOTS,
     Address,
     FieldError,
     check_address,
@@ -87,6 +88,10 @@ _SUM_REFUSED_BANKS = banks(Bank.CT)
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
+_XY_BANKS = banks(Bank.X | Bank.Y)
+#: The CPU slot (1-16) and its option slot (21-36), and the 4 numbers between them (17-20).
+_CPU_SLOT, _OPTION_SLOT = XY_SLOTS[0], XY_SLOTS[1]
+_OPTION_GAP = _OPTION_SLOT[0] - _CPU_SLOT[1] - 1
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +524,10 @@ def _range_position(bank: str, number: str) -> int:
 
 
 def _check_operands(texts: Sequence[str]) -> None:
-    """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high."""
+    """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high.
+
+    An X or Y range CLICK would store a wrong member list for is refused too.
+    """
     # SUM ( a : b ) is the one place a bit may stand, and not a CT bit (Inst_Math.dll SUM
     # handler, OBJ-1002; an older CPU's refusal of every bit is a project rule).
     bit_ok: set[int] = set()
@@ -552,13 +560,77 @@ def _check_operands(texts: Sequence[str]) -> None:
                 f"{_NAME}: MDN ( {shown} ) covers {count * width} bytes; "
                 f"a median covers at most {_MEDIAN_MAX_BYTES}"
             )
+        if low[0] in _XY_BANKS:
+            _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
+
+
+def _check_xy_members(function: str, bank: str, start: int, end: int) -> None:
+    """Refuse an X/Y range whose stored member list is not the points between its ends.
+
+    CLICK v4 stores such a list for a range with an end in the option slot (user ruling
+    2026-11-12: the list is not what the range means, so laddercodec refuses the range).
+    """
+    listed = _xy_points_between(_xy_bound(start), _xy_bound(end))
+    members = _xy_points_between(start, end)
+    if listed == members:
+        return
+    changes = []
+    if left_out := [n for n in members if n not in listed]:
+        changes.append(f"leave out {_xy_runs(bank, left_out)}")
+    if added := [n for n in listed if n not in members]:
+        changes.append(f"add {_xy_runs(bank, added)}")
+    first, last = _OPTION_SLOT
+    raise FieldError(
+        f"{_NAME}: {function} ( {Address(bank, start).display} : {Address(bank, end).display} ) "
+        f"is refused; CLICK v4 stores a wrong member list for a range with an end in "
+        f"{Address(bank, first).display}-{Address(bank, last).display} "
+        f"(it would {' and '.join(changes)})"
+    )
+
+
+def _xy_points_between(low: int, high: int) -> list[int]:
+    """The numbers of the X/Y points of :data:`XY_SLOTS` strictly between ``low`` and ``high``."""
+    return [n for first, last in XY_SLOTS for n in range(first, last + 1) if low < n < high]
+
+
+def _xy_runs(bank: str, numbers: list[int]) -> str:
+    """``X032..X035`` for each run of consecutive numbers, runs joined with ``, ``."""
+    runs: list[list[int]] = []
+    for n in numbers:
+        if runs and n == runs[-1][-1] + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    return ", ".join(
+        Address(bank, run[0]).display
+        if len(run) == 1
+        else f"{Address(bank, run[0]).display}..{Address(bank, run[-1]).display}"
+        for run in runs
+    )
+
+
+def _xy_bound(number: int) -> int:
+    """The bound an X/Y range end sets on the point numbers its range lists.
+
+    An end's own number, but an end in the option slot counts as numbered right after the
+    CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
+    numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
+    itself.  Fitted to the X and Y ranges of ``v4_captures/math_ranges_x_t.bin`` and
+    ``math_ranges_xy_slots.bin`` (typed in CLICK v4, C2-03CPU, no I/O modules), not read
+    from CLICK's code.
+    """
+    if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
+        return number - _OPTION_GAP
+    return number
 
 
 def range_interiors(texts: Sequence[str]) -> list[str]:
-    """Addresses strictly inside each ``A : B`` range of the display tokens, ranges in order.
+    """The addresses each ``A : B`` range of the display tokens lists, ranges in order.
 
     CLICK lists them in the reserved slots (tag ``0x688C``): the endpoints are ordinary
-    operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.
+    operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.  An X or Y range lists the
+    points of :data:`XY_SLOTS` whose number lies between the bounds of its ends
+    (:func:`_xy_bound`).
     """
     interiors: list[str] = []
     for i in range(1, len(texts) - 1):
@@ -572,6 +644,10 @@ def range_interiors(texts: Sequence[str]) -> list[str]:
             if start in _XY_WORD_ORDER and end in _XY_WORD_ORDER:
                 inside = _XY_WORD_ORDER[_XY_WORD_ORDER.index(start) + 1 : _XY_WORD_ORDER.index(end)]
                 interiors.extend(f"{bank}{n}" for n in inside)
+            continue
+        if bank in _XY_BANKS:
+            listed = _xy_points_between(_xy_bound(int(start)), _xy_bound(int(end)))
+            interiors.extend(Address(bank, n).display for n in listed)
             continue
         interiors.extend(Address(bank, n).display for n in range(int(start) + 1, int(end)))
     return interiors

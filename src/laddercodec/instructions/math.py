@@ -98,7 +98,7 @@ RESULT_BANKS: dict[str, frozenset[str]] = {
 
 
 def _range_interiors(expression: str) -> list[str]:
-    """Addresses strictly inside each ``A : B`` range of a display formula, ranges in order."""
+    """The addresses each ``A : B`` range of a display formula lists (``range_interiors``)."""
     return range_interiors(expression.split())
 
 
