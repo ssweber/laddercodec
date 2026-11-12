@@ -14,6 +14,7 @@
 - **Legacy encoding warning**: `decode()` and `decode_program()` emit `LegacyEncodingWarning` (a `UserWarning`, exported from `laddercodec`) for a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`), which earlier versions wrote and CLICK runs as its low 16 bits (`RAND ( 70000 , 70002 )` ran as `RAND(4464, 4466)`). The rungs still decode; the warning has `instruction`, `token`, `detail`, `rung` and `program` attributes. Re-paste the rung to store the constant as 32-bit.
 
 ### Changed
+- **Math nickname**: a Math expression with a `<nickname>` (`math(DS1 + <FOO>,DS2)`), accepted before and copied into the formula CLICK keeps as addresses, raises `FieldError`.
 - **Termination code**: a Copy termination code is `$` and two hex digits (`$0D`); `$D` and `$0` were accepted and stored as `$0D`, and now raise `FieldError`.
 - **Fill into TXT**: a Fill into TXT takes one character, so `fill("AB",TXT1..TXT5)`, accepted before, raises `FieldError`.
 - **Copy text past TXT1000**: a single Copy whose text would run past TXT1000 (`copy("AB",TXT1000)`), accepted before, raises `AddressError`.

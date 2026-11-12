@@ -160,8 +160,8 @@ _NUMBER = (
 _HEX_CONSTANT = r"[0-9A-Fa-f]+[hH]\b"
 _HEX_CONSTANT_RE = re.compile(_HEX_CONSTANT)
 
-#: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
-_TOKEN_RE = re.compile(rf"<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
+#: One formula token: a constant, a word, or a single symbol.
+_TOKEN_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
 _CONSTANT_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}")
 
 #: After these a ``-`` is a sign, not a subtraction.
@@ -283,7 +283,7 @@ def _check_expression(expression: str, mode: str) -> None:
     tokens = _TOKEN_RE.findall(expression)
     name = "Math.expression"
     for token in tokens:
-        if not token.startswith("<") and any(c.isdecimal() and not c.isascii() for c in token):
+        if any(c.isdecimal() and not c.isascii() for c in token):
             raise FieldError(f"{name}: {token!r} has a digit outside 0-9")
     for token in tokens:
         if token in ('"', "$"):
@@ -323,7 +323,6 @@ def _check_expression(expression: str, mode: str) -> None:
             raise FieldError(f"{name}: {token} is a bit; a bit stands only in SUM over a bit range")
         if address[0] in _SUM_REFUSED_BANKS:
             raise FieldError(f"{name}: SUM over {token} is refused; SUM takes no CT range")
-    # Constants come from the formula's tokens, so digits inside a ``<nickname>`` are none.
     # The spaced form keeps a sign on its constant (``( -5 )``), with no space between.
     for m in _TOKEN_RE.finditer(expression):
         if _CONSTANT_RE.fullmatch(m.group(0)):
@@ -572,6 +571,11 @@ class Math(AfInstruction):
     def __post_init__(self) -> None:
         if self.mode not in RESULT_BANKS:
             raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
+        if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
+            raise FieldError(
+                f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
+                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)"
+            )
         self.expression = _normalize_spacing(self.expression)
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])

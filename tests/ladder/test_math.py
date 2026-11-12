@@ -124,7 +124,6 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
         ("DS1 MOD -2", "DS1 MOD -2"),
         ("SUM(DS1:DS9)", "SUM ( DS1 : DS9 )"),
         ("RAND(1,100)", "RAND ( 1 , 100 )"),
-        ("<a-b> + 1", "<a-b> + 1"),
     ],
 )
 def test_expression_is_spaced_like_clicks_editor(typed: str, spaced: str) -> None:

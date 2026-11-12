@@ -9,7 +9,7 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin`` and ``math_hex_upper_h.bin``; text constants typed in
+into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin`` and ``math_nickname_display.bin``; text constants typed in
 CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import encode, read_csv
+from laddercodec import FieldError, encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
@@ -193,6 +193,25 @@ def test_math_hex_upper_h_capture() -> None:
     assert rung.instructions[0] == typed
     blob = typed.build_blob()
     assert _native_blob(path.read_bytes(), "Math", len(blob)) == blob
+
+
+def test_math_nickname_display_capture() -> None:
+    """``math_nickname_display.bin``: ``<Test Nickname> + 1`` typed in CLICK v4 for DS3.
+
+    CLICK keeps the nickname in the display text only; the formula holds ``DS3``, so the
+    capture decodes to the address form.
+    """
+    (rung,) = _decode_file(CAPTURE_DIR / "math_nickname_display.bin")
+    rows = decoded_rung_to_rows(rung)
+    assert [row[-1] for row in rows if row[0] != "#" and row[-1]] == [
+        "math(DS3 + 1,DS1,mode=decimal)"
+    ]
+
+
+@pytest.mark.parametrize("expression", ["<Test Nickname> + 1", "DS1 + <FOO>", "<my 7H >"])
+def test_math_refuses_a_nickname(expression: str) -> None:
+    with pytest.raises(FieldError, match="Math.expression.*nickname"):
+        Math(expression, "DS1")
 
 
 @pytest.mark.parametrize("index", range(17, 21))

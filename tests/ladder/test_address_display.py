@@ -297,7 +297,6 @@ class TestConstructor:
             ("Max(DS1:DS3) + mdn(DS4:DS6) + avg(DS7:DS9) + min(dd1:dd2)",
              "MAX ( DS1 : DS3 ) + MDN ( DS4 : DS6 ) + AVG ( DS7 : DS9 ) + MIN ( DD1 : DD2 )"),
             ("rand(1,100) + sqrt(df1) * pi", "RAND ( 1 , 100 ) + SQRT ( DF1 ) * PI"),
-            ("<sum> + 1", "<sum> + 1"),
         ],
     )  # fmt: skip
     def test_math_function_names_uppercase(self, typed: str, display: str) -> None:
@@ -309,7 +308,6 @@ class TestConstructor:
             ("DH1 + 7H", "DH1 + 7h"),
             ("DH1 AND 0fH", "DH1 AND 0fh"),  # the digits keep their case
             ("LSH ( DH1 , 1H ) XOR AH", "LSH ( DH1 , 1h ) XOR Ah"),
-            ("<7H> + 7H", "<7H> + 7h"),  # a nickname is no constant
         ],
     )
     def test_math_hex_suffix_lowercase(self, typed: str, display: str) -> None:
