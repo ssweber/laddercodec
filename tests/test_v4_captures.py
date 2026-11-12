@@ -10,8 +10,8 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
-``math_nickname_display.bin``, ``math_unary_plus_pi.bin`` and ``math_ranges_x_t.bin``; text
-constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_ranges_x_t.bin`` and
+``math_ranges_xy_slots.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
@@ -145,9 +145,10 @@ _NATIVE_MATH = [
     # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
-    # Typed SUM ( T1 : T5 ) and MAX ( TD1 : TD5 ); the X ranges after them are below.
-    ("math_ranges_x_t.bin", 0),
-    ("math_ranges_x_t.bin", 1),
+    # Typed T, TD, X and Y ranges, the X and Y ones across the slot gaps (C2-03CPU, no
+    # I/O modules); test_math_xy_range_lists_in_capture records the X/Y lists.
+    *(("math_ranges_x_t.bin", i) for i in range(4)),
+    *(("math_ranges_xy_slots.bin", i) for i in range(5)),
 ]
 
 
@@ -274,66 +275,67 @@ def test_math_refuses_a_nickname(expression: str) -> None:
         Math(expression, "DS1")
 
 
-def test_math_ranges_capture_decodes() -> None:
-    """``math_ranges_x_t.bin``: four range Math typed in CLICK v4 (C2-03CPU, no I/O modules)."""
-    rungs = _decode_file(CAPTURE_DIR / "math_ranges_x_t.bin")
-    afs = [row[-1] for rung in rungs for row in decoded_rung_to_rows(rung) if row[-1]]
-    assert afs == [
-        "math(SUM ( T1 : T5 ),DS1,mode=decimal)",
-        "math(MAX ( TD1 : TD5 ),DS1,mode=decimal)",
-        "math(SUM ( X001 : X036 ),DS1,mode=decimal)",
-        "math(SUM ( X001 : X101 ),DS1,mode=decimal)",
-        "end()",
-    ]
-
-
-def _x(*runs: tuple[int, int]) -> list[str]:
-    return [f"X{n:03d}" for first, last in runs for n in range(first, last + 1)]
-
-
-#: The reserved slots (tag 0x688C) CLICK v4 wrote for each X range of
-#: ``math_ranges_x_t.bin``, indices 0 up with no empty slot between; slots after them are
-#: empty.  Both skip X017..X020, but the X001 : X036 list ends at X031, not X035: 26
-#: entries, where the X001 : X101 list holds all 31 points between its ends.
-_NATIVE_X_INTERIORS = {
-    2: _x((2, 16), (21, 31)),
-    3: _x((2, 16), (21, 36)),
-}
-
-
-@pytest.mark.parametrize("index", sorted(_NATIVE_X_INTERIORS))
-def test_math_x_range_interiors_in_capture(index: int) -> None:
-    """The stored list is as recorded, and every other field already matches the encoder's."""
-    path = CAPTURE_DIR / "math_ranges_x_t.bin"
-    native_header, slots = _blob_fields(_native_math_blobs(path)[index])
-    interiors = [slots[(0x688C, i)] for i in range(len(slots)) if (0x688C, i) in slots]
-    assert interiors == _NATIVE_X_INTERIORS[index]
-    assert {key for key in slots if key[0] == 0x688C} == {
-        (0x688C, i) for i in range(len(interiors))
-    }
-    math = _decode_file(path)[index].instructions[0]
-    assert isinstance(math, Math)
-    header, ours = _blob_fields(math.build_blob())
-    assert header == native_header
-    assert {k: v for k, v in ours.items() if k[0] == 0x6888} == {
-        k: v for k, v in slots.items() if k[0] == 0x6888
-    }
-
-
-@pytest.mark.parametrize("index", sorted(_NATIVE_X_INTERIORS))
-@pytest.mark.xfail(
-    strict=True,
-    reason="laddercodec lists every number of an X range; CLICK's rule for which X "
-    "addresses it lists (X001 : X036 ends at X031) is not known",
+@pytest.mark.parametrize(
+    ("file", "expected"),
+    [
+        (
+            "math_ranges_x_t.bin",
+            [
+                "SUM ( T1 : T5 )",
+                "MAX ( TD1 : TD5 )",
+                "SUM ( X001 : X036 )",
+                "SUM ( X001 : X101 )",
+                "end()",
+            ],
+        ),
+        (
+            "math_ranges_xy_slots.bin",
+            [
+                "SUM ( X001 : X116 )",
+                "SUM ( X021 : X116 )",
+                "SUM ( X001 : X032 )",
+                "SUM ( X005 : X036 )",
+                "SUM ( Y001 : Y036 )",
+            ],
+        ),
+    ],
 )
-def test_math_x_range_blob_fields_match_native(index: int) -> None:
-    path = CAPTURE_DIR / "math_ranges_x_t.bin"
-    math = _decode_file(path)[index].instructions[0]
-    assert isinstance(math, Math)
-    native_header, native_slots = _blob_fields(_native_math_blobs(path)[index])
-    header, slots = _blob_fields(math.build_blob())
-    assert header == native_header
-    assert slots == native_slots
+def test_math_ranges_capture_decodes(file: str, expected: list[str]) -> None:
+    """Range Math typed in CLICK v4 (C2-03CPU, no I/O modules), each into DS1."""
+    rungs = _decode_file(CAPTURE_DIR / file)
+    afs = [row[-1] for rung in rungs for row in decoded_rung_to_rows(rung) if row[-1]]
+    assert afs == [e if e == "end()" else f"math({e},DS1,mode=decimal)" for e in expected]
+
+
+def _points(bank: str, *runs: tuple[int, int]) -> list[str]:
+    return [f"{bank}{n:03d}" for first, last in runs for n in range(first, last + 1)]
+
+
+#: The reserved slots (tag 0x688C) CLICK v4 wrote for each X and Y range of the two
+#: captures, filled from index 0 with no empty slot between; the slots after them are
+#: empty.  None lists X017..X020 or X037..X100.  An end in the option slot (21-36) stops
+#: the list early, X001 : X036 ends at X031, and a start at X021 lists X021 itself.
+_NATIVE_XY_LISTS = [
+    ("math_ranges_x_t.bin", 2, _points("X", (2, 16), (21, 31))),  # X001 : X036
+    ("math_ranges_x_t.bin", 3, _points("X", (2, 16), (21, 36))),  # X001 : X101
+    ("math_ranges_xy_slots.bin", 0, _points("X", (2, 16), (21, 36), (101, 115))),  # : X116
+    ("math_ranges_xy_slots.bin", 1, _points("X", (21, 36), (101, 115))),  # X021 : X116
+    ("math_ranges_xy_slots.bin", 2, _points("X", (2, 16), (21, 27))),  # X001 : X032
+    ("math_ranges_xy_slots.bin", 3, _points("X", (6, 16), (21, 31))),  # X005 : X036
+    ("math_ranges_xy_slots.bin", 4, _points("Y", (2, 16), (21, 31))),  # Y001 : Y036
+]
+
+
+@pytest.mark.parametrize(
+    ("file", "index", "expected"),
+    _NATIVE_XY_LISTS,
+    ids=[f"{f}:{i}" for f, i, _ in _NATIVE_XY_LISTS],
+)
+def test_math_xy_range_lists_in_capture(file: str, index: int, expected: list[str]) -> None:
+    _, slots = _blob_fields(_native_math_blobs(CAPTURE_DIR / file)[index])
+    listed = [value for (tag, _), value in sorted(slots.items()) if tag == 0x688C]
+    assert listed == expected
+    assert {key for key in slots if key[0] == 0x688C} == {(0x688C, i) for i in range(len(expected))}
 
 
 @pytest.mark.parametrize("index", range(17, 21))

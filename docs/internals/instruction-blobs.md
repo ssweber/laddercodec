@@ -254,6 +254,24 @@ the reserved slots.
 An `XD` or `YD` range also lists the upper half of address 0:
 `MAX ( XD0 : XD3 )` stores XD0u, XD1 and XD2.
 
+An `X` or `Y` range lists only points that exist (1-16, 21-36, 101-116 ...
+801-816), and an end in the CPU's option slot (21-36) counts as numbered right
+after the CPU slot, 4 less than its number. The range lists each point whose
+number lies strictly between the two counted ends:
+
+| Range | Counted ends | Reserved slots |
+|---|---|---|
+| `X001 : X036` | 1, 32 | X002..X016, X021..X031 |
+| `X001 : X101` | 1, 101 | X002..X016, X021..X036 |
+| `X021 : X116` | 17, 116 | X021..X036, X101..X115 |
+
+This rule is fitted to the seven X and Y ranges of
+`v4_captures/math_ranges_x_t.bin` and `math_ranges_xy_slots.bin`, typed in a
+C2-03CPU project with no I/O modules; it is not read from CLICK's code. Those
+captures have no range that starts in the option slot anywhere but X021, none
+with both ends in the option slot, and none between two expansion slots
+(`X101 : X201`).
+
 CLICK v4 copies Math back with 5000 reserved slots, not 500, for 5510 fields.
 A 500-slot blob still pastes into both v3 and v4, so the encoder writes 500
 unless the ranges have more than 500 interiors. CLICK's editor stops listing

@@ -32,6 +32,7 @@ from dataclasses import dataclass
 
 from ..model import (
     ADDRESS_BANKS,
+    XY_SLOTS,
     Address,
     FieldError,
     check_address,
@@ -87,6 +88,10 @@ _SUM_REFUSED_BANKS = banks(Bank.CT)
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
+_XY_BANKS = banks(Bank.X | Bank.Y)
+#: The CPU slot (1-16) and its option slot (21-36): CLICK counts them as 32 points in a row.
+_CPU_SLOT, _OPTION_SLOT = XY_SLOTS[0], XY_SLOTS[1]
+_OPTION_GAP = _OPTION_SLOT[0] - _CPU_SLOT[1] - 1
 
 
 # ---------------------------------------------------------------------------
@@ -554,11 +559,28 @@ def _check_operands(texts: Sequence[str]) -> None:
             )
 
 
+def _xy_bound(number: int) -> int:
+    """The bound an X/Y range end sets on the point numbers its range lists.
+
+    An end's own number, but an end in the option slot counts as numbered right after the
+    CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
+    numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
+    itself.  Fitted to the X and Y ranges of ``v4_captures/math_ranges_x_t.bin`` and
+    ``math_ranges_xy_slots.bin`` (typed in CLICK v4, C2-03CPU, no I/O modules), not read
+    from CLICK's code.
+    """
+    if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
+        return number - _OPTION_GAP
+    return number
+
+
 def range_interiors(texts: Sequence[str]) -> list[str]:
-    """Addresses strictly inside each ``A : B`` range of the display tokens, ranges in order.
+    """The addresses each ``A : B`` range of the display tokens lists, ranges in order.
 
     CLICK lists them in the reserved slots (tag ``0x688C``): the endpoints are ordinary
-    operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.
+    operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.  An X or Y range lists the
+    points of :data:`XY_SLOTS` whose number lies between the bounds of its ends
+    (:func:`_xy_bound`).
     """
     interiors: list[str] = []
     for i in range(1, len(texts) - 1):
@@ -572,6 +594,15 @@ def range_interiors(texts: Sequence[str]) -> list[str]:
             if start in _XY_WORD_ORDER and end in _XY_WORD_ORDER:
                 inside = _XY_WORD_ORDER[_XY_WORD_ORDER.index(start) + 1 : _XY_WORD_ORDER.index(end)]
                 interiors.extend(f"{bank}{n}" for n in inside)
+            continue
+        if bank in _XY_BANKS:
+            low_bound, high_bound = _xy_bound(int(start)), _xy_bound(int(end))
+            interiors.extend(
+                Address(bank, n).display
+                for first, last in XY_SLOTS
+                for n in range(first, last + 1)
+                if low_bound < n < high_bound
+            )
             continue
         interiors.extend(Address(bank, n).display for n in range(int(start) + 1, int(end)))
     return interiors
