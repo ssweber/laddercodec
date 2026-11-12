@@ -243,7 +243,8 @@ Open asks (checklist; details under each id below):
   types `copy("ABCDE",TXT1)` as text. Needs: which quoted texts the dialog turns into
   numbers (`"ABCD"`, `"EEEE"`, `"1E5"`, `"12"`).
   - **ANSWERED 2026-11-12 (user, dialog):** `"12"` stays text; `"EEEE"`, `"1EF"` and
-    `"ABCDEF"` become `0.0`. Every text that turns holds an `E`, none that stays does.
+    `"ABCDEF"` become `0.0`, and so does `"HELLO"`. Every text that turns holds an `E`, none
+    that stays does.
   - **Ruling 2026-11-12 (user):** a CLICK bug in the Copy dialog, not a field rule.
     laddercodec keeps accepting and encoding quoted text with an `E` (as with For's `1 0`,
     Q-F1). Unchecked: lowercase `e`, Fill, and what CLICK keeps when such a Copy is pasted.
