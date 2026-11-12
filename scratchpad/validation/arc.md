@@ -274,7 +274,10 @@ Open asks (checklist; details under each id below):
     laddercodec writes `@ + ( -Ah )` and `DH1#+#(#-Ah#)`, a formula CLICK never writes.
     To build: a hex constant's display form is uppercase digits without leading zeros plus
     `h`; a sign before a hex constant stays spaced (`- Ah`), so the internal form is
-    `-#UH10`. Open: does `0H`/`00h` display as `0h`? Is a padded `0FFFEh` accepted?
+    `-#UH10`.
+  - ANSWERED 2026-11-12 (user, dialog): `0H` becomes `0h`. A padded `0FFFEh` is refused
+    ("The entered value is outside the range"), although its value fits in FFFFh: the
+    four-digit limit counts the digits as typed, leading zeros included.
   - ANSWERED 2026-11-12 (user, dialog): decimal `DS1 + EH` is refused (laddercodec agrees).
     `DS1 + FOO` is refused (laddercodec accepts it as an unknown word). In a hex Math,
     `DH1 + 7H7` is rewritten as `DH1 + 77h` (laddercodec stores `7H7` literally).
