@@ -257,10 +257,15 @@ Open asks (checklist; details under each id below):
   `DH1 + 7h` blob; laddercodec's `DH1 + 7H` blob differs. The user typed `7H` and the
   dialog lowercased it as typed. To build: Math reads `H` like `h` (refused in decimal,
   checked in hex), and normalizes the constant to lowercase `h` at construction, so `7H`
-  encodes as `7h` does.
-- Open from move6 (dialog): uppercase `H` in Math. Is decimal `DS1 + 1FH` refused like
-  `1Fh`? Is hex `DH1 + 7H` accepted, and what does it copy back as? laddercodec stores `7H`
-  unconverted, where CLICK's form for `7h` is `UH7`.
+  encodes as `7h` does. Built in train8 (f77e06e); fixture
+  `tests/fixtures/v4_captures/math_hex_upper_h.bin`. A stored `7H` blob decodes raw.
+- Open from move8 (dialog), hex Math:
+  - Are `DH1 + EH`, `DH1 + CH` and `DH1 + 0fH` read as hex constants? Does CLICK keep
+    lowercase hex digits as typed (laddercodec keeps the digits' case, lowercases only the
+    suffix)?
+  - Is decimal `DS1 + EH` refused like `1FH`?
+  - Is `( -Ah )` accepted in a hex Math, and what does it copy back as? laddercodec stores
+    the literal `-Ah`, without evidence (`tests/ladder/test_address_display.py` no longer locks it).
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
@@ -735,5 +740,9 @@ Open asks (checklist; details under each id below):
   the stored text and attaches a LegacyFinding, and `read_csv(legacy=True)` does the same
   for the writer's self-check (`csv/writer.py:347`). Construction, plain `read_csv` and
   `encode()` stay strict.
+- Math, from move8's review (predates move8, on dev):
+  - A nickname containing spaces leaks into `_make_internal`: `<my 7H >` becomes
+    `<my#UH7#>` and `<my 200 >` becomes `H200`, so the stored nickname text changes.
+  - `DS1 + FOO` and `DH1 + 7H7` are accepted as unknown words; CLICK likely refuses both.
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
   arc.
