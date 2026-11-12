@@ -210,3 +210,25 @@ def test_csv_off_delay_with_reset_refused(tmp_path: Path) -> None:
     # The converter reports a pin's refusal as a ConvertError that carries the message.
     with pytest.raises(ConvertError, match="Timer.retained"):
         _csv_af(tmp_path, "off_delay(T1,TD1,preset=5,unit=Ts)", ".reset()")
+
+
+def test_int_flags_normalise_to_bool() -> None:
+    one = Coil(InstructionType.COIL_OUT, "Y1", oneshot=1, immediate=1)  # type: ignore[arg-type]
+    true = Coil(InstructionType.COIL_OUT, "Y1", oneshot=True, immediate=True)
+    assert one.oneshot is True and one.immediate is True
+    assert one.build_blob() == true.build_blob()
+    off = Coil(InstructionType.COIL_OUT, "Y1", oneshot=0)  # type: ignore[arg-type]
+    assert off.oneshot is False
+    contact = Contact(InstructionType.CONTACT_NO, "X1", immediate=1)  # type: ignore[arg-type]
+    assert contact.immediate is True
+    assert contact.build_blob() == Contact(InstructionType.CONTACT_NO, "X1", True).build_blob()
+    counter = Counter("count_up", "CT1", "CTD1", "5", down_enabled=1, reset_enabled=1)  # type: ignore[arg-type]
+    assert counter.down_enabled is True and counter.reset_enabled is True
+
+
+@pytest.mark.parametrize("bad", [2, -1, "1", None, 1.0, []], ids=repr)
+def test_other_flag_values_refused(bad) -> None:
+    with pytest.raises(FieldError, match="Coil.oneshot"):
+        Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)
+    with pytest.raises(FieldError, match="Contact.immediate"):
+        Contact(InstructionType.CONTACT_NO, "X1", immediate=bad)

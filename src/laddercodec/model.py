@@ -79,6 +79,14 @@ class AfInstruction:
         raise NotImplementedError
 
 
+def check_flag(value: object, name: str) -> bool:
+    """Return ``value`` as a bool; raise :class:`FieldError` naming ``name`` unless it is
+    True, False, 1 or 0."""
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise FieldError(f"{name}: {value!r} is not True, False, 1 or 0")
+
+
 class PinnedInstruction(AfInstruction):
     """An AF box with inputs ("slots") on several rows.
 

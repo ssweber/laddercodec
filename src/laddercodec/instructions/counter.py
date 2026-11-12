@@ -22,6 +22,7 @@ from ..model import (
     InstructionType,
     PinnedInstruction,
     check_address,
+    check_flag,
     normalize_address,
 )
 from .family import AfInstructionFamilySpec
@@ -88,9 +89,8 @@ class Counter(PinnedInstruction):
             raise FieldError(
                 f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down"
             )
-        for name in ("down_enabled", "reset_enabled"):
-            if not isinstance(getattr(self, name), bool):
-                raise FieldError(f"Counter.{name}: {getattr(self, name)!r} is not True or False")
+        self.down_enabled = check_flag(self.down_enabled, "Counter.down_enabled")
+        self.reset_enabled = check_flag(self.reset_enabled, "Counter.reset_enabled")
         if self.down_enabled and self.counter_type == "count_down":
             # count_down's own input is Down; its box has no separate .down() input.
             raise FieldError(

@@ -16,6 +16,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_address,
+    check_flag,
     normalize_address,
 )
 from .family import ConditionInstructionFamilySpec
@@ -87,8 +88,7 @@ class Contact(ConditionInstruction):
                 f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
                 "CONTACT_EDGE)"
             )
-        if not isinstance(self.immediate, bool):
-            raise FieldError(f"Contact.immediate: {self.immediate!r} is not True or False")
+        self.immediate = check_flag(self.immediate, "Contact.immediate")
         self.operand = normalize_address(self.operand)
         address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:
