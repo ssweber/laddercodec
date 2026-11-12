@@ -283,7 +283,7 @@ def test_shift_may_not_follow_a_comma() -> None:
 
 def test_shift_may_not_follow_a_value() -> None:
     # math_unary_plus_pi.bin refuses DS1 LSH 1h.
-    _refused("DH1 LSH 1h", "hex", "'LSH' after 'DH1'")
+    _refused("DS1 LSH 1h", "hex", "'LSH' after 'DS1'")
 
 
 @pytest.mark.parametrize(
@@ -461,7 +461,12 @@ _DECODE_PROGRAM = importlib.import_module("laddercodec.decode_program")
 
 
 def _scr_blobs() -> list[tuple[str, bool, str, dict[int, str]]]:
-    """(file, native, mode, tags) of each Math the SCR decoder reads in the fixtures."""
+    """(file, native, mode, tags) of each Math the SCR decoder reads in the fixtures.
+
+    ``decode_program`` returns the decoded ``Math``, not the strings the SCR file stores,
+    and no public function returns an SCR instruction's tags.  So this wraps the private
+    ``_scr_af``, which the SCR decoder calls with each AF cell's tags.
+    """
     found: list[tuple[str, bool, str, dict[int, str]]] = []
     read = _DECODE_PROGRAM._scr_af
     name = ""

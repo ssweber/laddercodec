@@ -205,8 +205,10 @@ CLICK v4's Math dialog checks a formula on OK in these steps (read from
    `+` joins the number after it (`( + 5 )` is `+5`, stored `H+5`,
    `v4_captures/math_unary_plus_pi.bin`). Nowhere else, and never in hex.
 6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
-   typed `+` kept) at the typed length, or a real that fits float32. Hex: 1 to 4
-   hex digits and `h`.
+   typed `+` kept) at the typed length, or a real that fits float32. Hex: CLICK
+   uppercases the word and deletes its first `H`, wherever it is, then takes 1 to
+   4 hex digits, so it stores `7` as `7h` and `7H7` as `77h`. laddercodec takes
+   only 1 to 4 hex digits followed by `h` or `H`, and refuses `7` and `7H7`.
 7. **Words** are refused (`FOO`), and so is a bracket. CLICK takes a pointer
    here; laddercodec refuses one.
 8. **Mode.** A hex formula refuses the decimal keypad's keys (`SIN` ... `DEG`,
