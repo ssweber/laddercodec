@@ -215,6 +215,16 @@ system-settings conflicts.
 Answer by opening the dialog in an empty project. "Refused" means OK shows an error or the
 value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
 
+Open asks (checklist; details under each id below):
+- Dialog: Q-M12 pack_text from DS; Q-M13/Q-M13b hex vs decimal Math constants; Q-M14 Block
+  Copy `X001..X008 → Y010`; Q-M16 `1,5`; Q-M17 `3.5E+38`; Q-M18 `000000001h`; Q-M19 numbers into
+  TXT, 32-bit hex in Fill; Q-M20 text in Math; Q-M21 Search value kind vs table; Q-B7
+  `DS1==1-2`; comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over
+  read-only bits.
+- Paste and copy back: Q-M15 Math into SD9, YD1, YD0u.
+- Captures: Q-B7 `$1`/`$100`/`$4142`; Q-C7 remote address `0H` stored text; the Captures
+  wanted list at the end of this section.
+
 **addresses (step 0)**
 - Q-A1 In a CLICK PLUS project with an option slot, is `X021` (or `Y036`) accepted in a
   contact or coil? pyclickplc accepts X021-X036/Y021-Y036 as the option slot
@@ -444,6 +454,20 @@ value cannot be typed. Ordered by how much Phase 2 work each one unblocks.
   shows the stored destination.
 - Q-M15 Math result banks newly accepted: paste a decimal Math into SD9 and a hex Math into
   YD1 and YD0u, and copy them back.
+- Q-M16 Comma float: is `1,5` accepted as a Copy source into DF1? The shared check sends a
+  comma to its float test, which was not read; the constant classifier refuses it.
+- Q-M17 Float range: is `3.5E+38` (above float32) accepted as a Copy source into DF1? No range
+  is known for the shared check's float path; the classifier refuses only non-finite values.
+- Q-M18 32-bit hex digits: is `000000001h` (nine digits, leading zeros) accepted as a Copy
+  source into DD1? The classifier counts typed digits (at most 8).
+- Q-M19 Number into TXT: are `5` and `0Fh` accepted as a Copy source into TXT1, and as a Fill
+  value into TXT1..TXT5? Is `10000h` accepted as a Fill value into DD1..DD5?
+- Q-M20 Text in Math: are `DS1 + "A"` and `DS1 + $41` accepted in a decimal Math? Q-M9 covers
+  numbers only.
+- Q-M21 Search value kind against the table: are a hex value against a DS table
+  (`DS1..DS10 == 0FFFFh`), a decimal against a DH table, and a number against a TXT table
+  refused? The DLL reading pairs the value's class with the table banks, with no dialog
+  check; 114 dry-run rows (devtools/classify_dryrun.py, `DIFFERS?`) wait on this.
 
 **comm**
 - Q-C1 Slave ID: are DD1 and C1 refused?
