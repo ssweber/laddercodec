@@ -59,6 +59,15 @@ _REFUSED = [
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
     ("DS1 + ( -1Fh )", "DD9", "decimal", "-1Fh is a hex constant"),
+    # a decimal constant in a hex Math (Q-M13b, dialog 2026-11-12)
+    ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
+    ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
+    ("DH1 + 007", "DH9", "hex", "007 is a decimal constant"),
+    ("DH1 + 1.5", "DH9", "hex", "1.5 is a decimal constant"),
+    ("DH1 + 1E5", "DH9", "hex", "1E5 is a decimal constant"),
+    ("DH1 + ( -5 )", "DH9", "hex", "-5 is a decimal constant"),
+    ("LSH ( DH1 , 1 )", "DH9", "hex", "1 is a decimal constant"),
+    ("RAND ( 1 , 10 )", "DH9", "hex", "1 is a decimal constant"),
     # a text constant in a formula, either mode (Q-M20, dialog 2026-11-12)
     ('DS1 + "A"', "DS9", "decimal", "holds a text constant"),
     ("DS1 + $41", "DS9", "decimal", "holds a text constant"),
@@ -142,8 +151,6 @@ def test_unknown_mode_refused() -> None:
         # its low 32 bits print at the same length, so CLICK passes it
         ("DS1 + 6000000000", "DD9", "decimal"),
         ("DS1 + 0", "DS9", "decimal"),
-        # a decimal integer in a hex Math is not ruled on yet (Q-M13b)
-        ("DH1 + 1.5", "DH9", "hex"),
         ("SUM ( DS1 : DS1 )", "DS9", "decimal"),
         ("MAX ( XD0 : XD0u )", "DH9", "hex"),
         ("MDN ( DS1 : DS512 )", "DS9", "decimal"),

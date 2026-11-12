@@ -583,7 +583,8 @@ currently emit:
   text constant or a TXT register), and a hex value of at most `FFFFh`.
 - In a decimal `math`, an integer constant must read back as typed: CLICK keeps
   its low 32 bits and refuses it when they print at a different length
-  (`3000000000`, `007` and `-0` are refused). In a hex `math`, a hex constant
+  (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
+  constant (`1Fh`), and a hex `math` no decimal one (`7`, `1.5`); a hex constant
   has at most 4 digits. `SUM` takes no CT range, and the formula is at most 270
   characters as CLICK stores it: a sum of 68 addresses fits, 69 does not;
   constants, functions and parentheses count too.

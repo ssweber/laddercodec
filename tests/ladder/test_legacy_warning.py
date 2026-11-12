@@ -10,6 +10,8 @@ from pathlib import Path
 import pytest
 
 from laddercodec import LegacyEncodingWarning, Math, Rung, decode, decode_program, encode
+from laddercodec.instructions import from_tags_af
+from laddercodec.instructions.raw import _decompose_blob
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -108,18 +110,20 @@ def test_no_fixture_warns():
     assert decoded >= 200
 
 
-def test_hex_mode_legacy_h_warns():
-    rung = Rung(
-        logical_rows=1,
-        conditions=[[""] * 31],
-        instructions=[Math(expression="70000 + DH1", result="DH2", mode="hex")],
-        comment=None,
+def test_hex_mode_legacy_h_stays_raw():
+    """A hex Math takes no decimal constant (arc.md Q-M13b), so an older ``H70000`` in one
+    leaves the blob raw, with no warning."""
+    class_name, type_code, _, _, fields = _decompose_blob(
+        Math(expression="1h + DH1", result="DH2", mode="hex").build_blob()
     )
-    data = encode(rung)
-    old = data.replace(_u16("W70000"), _u16("H70000"))
-    assert old != data
-    _, found = _decode_recording(old)
-    assert [(w.token, w.rung) for w in found] == [("H70000", 0)]
+    tags = {tag: value for tag, _, value in fields}
+    assert from_tags_af(class_name, type_code, tags) is not None
+    legacy = {tag: value.replace("UH1", "H70000").replace("1h", "70000") for tag, value in tags.items()}
+    assert legacy[0x61FD] == "H70000#+#DH1"
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", LegacyEncodingWarning)
+        assert from_tags_af(class_name, type_code, legacy) is None
+    assert caught == []
 
 
 def test_warning_survives_pickle_and_copy():
