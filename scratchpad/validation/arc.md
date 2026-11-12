@@ -307,6 +307,13 @@ Open asks (checklist; details under each id below):
     `LSH ( 1h , 2h )` is refused. `SIN ( MAX ( DF1 : DF3 ) )` is refused and
     `SIN ( SUM ( DF1 : DF3 ) )` accepted. Hex `DH1 + 7` is accepted as `DH1 + 7h`, so there
     is no missing check: the code read was right and the Q-M13b answer is corrected.
+  - ANSWERED 2026-11-12 (user, dialog + capture `clicknick/stricter-math-questions.bin`),
+    move10's open questions: `DS1 + ( +5 )` is accepted and stored `@ + ( +5 )` /
+    `DS1#+#(#H+5#)`: a `+` merges into a decimal constant like `-` (laddercodec wrote
+    `(#+#H5#)`). `PI ( 2 )` is accepted, stored `PI#(#H2#)`. Refused: `DS1 + .`, `SUM DS1`,
+    `DS1 LSH 1h`, `RAND ( 1 , 10 ) DS1`, `MAX ( DS1 , DS2 )`, `SUM ( DS1 + DS2 )`,
+    `DS1 + DS0` (Math operands take the full address check), and a stray comma
+    `DS1 , DS2` ("Please use a period (.) as a decimal point.").
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
