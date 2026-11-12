@@ -743,6 +743,14 @@ Open asks (checklist; details under each id below):
 - Math, from move8's review (predates move8, on dev):
   - A nickname containing spaces leaks into `_make_internal`: `<my 7H >` becomes
     `<my#UH7#>` and `<my 200 >` becomes `H200`, so the stored nickname text changes.
+    ANSWERED 2026-11-12 (user, capture `clicknick/test_nickname_with_space_math.bin`,
+    `DS3` nicknamed "Test Nickname", typed as `<Test Nickname> + 1`): CLICK stores the
+    template `@ + 1`, the display `<Test Nickname> + 1` and the internal formula `DS3#+#H1`.
+    The internal form always holds the address, never the nickname; the clipboard also
+    carries the nickname in a table near its end. laddercodec has no nickname table, so any
+    `<nickname>` in a Math expression (spaces or not) writes a formula CLICK never writes.
+    To build: refuse `<...>` in `Math.expression`; `test_math_nickname_keeps_its_digits`
+    changes to expect the refusal.
   - `DS1 + FOO` and `DH1 + 7H7` are accepted as unknown words; CLICK likely refuses both.
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
   arc.
