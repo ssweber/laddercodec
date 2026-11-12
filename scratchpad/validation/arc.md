@@ -220,9 +220,12 @@ Open asks (checklist; details under each id below):
   Copy `X001..X008 → Y010`; Q-M16 `1,5`; Q-M17 `3.5E+38`; Q-M18 `000000001h`; Q-M19 numbers into
   TXT, 32-bit hex in Fill; Q-M20 text in Math; Q-M21 Search value kind vs table; Q-B7
   `DS1==1-2`; comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over
-  read-only bits.
+  read-only bits; move (hmove): does Copy's Termination Code take one hex digit (`$D`)? Is `"`
+  allowed in a Math formula? Does OBJ-023 "Only one character is allowed in the Source" mean
+  a Fill or Copy into TXT takes a single character?
 - Paste and copy back: Q-M15 Math into SD9, YD1, YD0u.
-- Captures: Q-B7 `$1`/`$100`/`$4142`; Q-C7 remote address `0H` stored text; the Captures
+- Captures: Q-B7 `$1`/`$100`/`$4142`; Q-C7 remote address `0H` stored text, and the stored
+  text of a padded `0FFFEh` (laddercodec writes `FFFEh`); the Captures
   wanted list at the end of this section.
 
 **addresses (step 0)**
@@ -601,16 +604,29 @@ Open asks (checklist; details under each id below):
 - The SCR fallback is lossy and disagrees with clipboard decode. Both cases predate step 0,
   which makes them reachable through bad addresses:
   - `decode_program.py:658` keeps only the class name in `UnknownCondition`, not the blob.
-  - `decode_program.py:674-680` builds the raw AF blob from the standard tags only and drops
-    the variant u16/string tags. A refused Shift decodes from SCR as
-    `raw(SR,...,6066=C1,6067=C0)`, without the clock and reset func codes that clipboard
-    decode keeps.
-  - One fix covers both: pass the SCR variant tags into `_compose_blob` and keep the
-    condition bytes. This is an Opus job (decode_program).
-- Bits family: OutVariant writes the `on_acc`/`off_acc` that a kind doesn't use, without
-  checking them (`out_variant.py:105-110`, `201-221`), so `toggle` with `on_acc="Q77"`
-  encodes Q77 and the decode drops it. Refuse a non-empty unused field (review N3 on
-  operands).
+  - `decode_program.py:674-680` builds the raw AF blob from the tags SCR stores. Correction
+    (scrraw, 2026-11-11): SCR stores only the tags that differ from the defaults (Shift keeps
+    `{6066,6067,0000}` and no 3a05 tags; Out, Drum, Math and RD flags are sparse the same way),
+    so nothing is dropped and passing the variant tags through recovers nothing. The earlier
+    note here, which said the clock and reset func codes were lost, was wrong.
+  - Plan (after the release, the user's idea): one frozen blob dataclass per instruction
+    class, holding the ordered tags, defaults, array sizes and func code. SCR decode lays its
+    sparse tags over it to build the full clipboard blob, and an unknown class fails loudly.
+    Proof: the native SCR and clipboard pairs (793 AF blobs, 755 conditions).
+  - Typed SCR decode is lossy today. SCR decode followed by build_blob differs from the
+    native clipboard blob in 120 of 793 AF blobs: the RD/SD array sentinel form, Call tag
+    3219 (48 cases, e.g. 9 written as 0) and Math 2224 with nickname 6228 (46 cases). Is
+    Call 3219 data that matters?
+- Bits family: OutVariant's unused `on_acc`/`off_acc` is refused at construction (24740f3),
+  and decode leaves a blob raw if any tag differs from what the kind would write (train2).
+- `RawInstruction.cell_params` returns `{}` unless part_count > 1. A raw Receive is
+  re-encoded with 1-row cell params where native has 3 (`03 03` vs `01 01`), so a raw tall
+  box may paste at the wrong height.
+- `Counter(count_up, reset_enabled=False)` still crashes in build_blob. The CSV builds a
+  counter without the reset and `with_pins` sets it later, so the fix needs a change to the
+  converter's flow.
+- `dll_address` refuses a mask written after a DLL name (`Inst_Counter.dll:0xc0`). No case of
+  this exists today.
 - Ground truth: does a CLICK dialog accept `X1` and `DS0001`, or only `X001` and `DS1`? Help
   195 lists only the zero-padded X/Y form. Step 0 accepts both forms, as before.
 - ASCII Send/Receive is not modelled (raw). Its rules are in the comm report, for a later
