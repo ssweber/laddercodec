@@ -476,7 +476,8 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2,
     ``v4_captures/text_tt.bin``) and leaves the end empty for one character (``"Q"`` into
     TXT2, ``text_q.bin``) and for a ``$hh`` code (``text_blank.bin``).  ``None`` for those,
-    and for a pointer destination, which Copy refuses for two or more characters.
+    and for a pointer destination, where CLICK stores no end whatever the length
+    (``copy("AB",TXT[DS1])``, ``text_pointer.bin``).
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
@@ -711,12 +712,6 @@ class Copy(AfInstruction):
             )
         if src.kind in ("number", "text"):
             check_constant(self.source, "Copy.source")
-        if dst.pointer and len(self.source) >= 4 and self.source[0] == self.source[-1] == '"':
-            # No capture shows the destination end CLICK stores through a pointer.
-            raise AddressError(
-                f"Copy.destination: {self.destination!r} can't take {self.source!r}; a pointer "
-                "takes one character of text or a $hh code"
-            )
         end = _text_fill_end(self.source, self.destination)
         if end is not None and end.number > _TXT_LAST:
             raise AddressError(

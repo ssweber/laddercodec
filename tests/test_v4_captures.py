@@ -10,7 +10,8 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``; text constants typed in CLICK v4, ``text_blank.bin``,
-``text_q.bin``, ``text_tt.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
+``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``, ``text_dollar_quoted.bin``,
+``text_128.bin``, ``text_pointer.bin`` and ``text_compare.bin``; one-phase debounces saved in CLICK v4,
 ``debounce_one_phase.bin``) are only used by the blob tests below.
 """
 
@@ -413,13 +414,22 @@ def test_one_phase_debounce_capture(tmp_path: Path) -> None:
 # Text constants typed in CLICK v4
 # ---------------------------------------------------------------------------
 
+_TEXT_128 = "GHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZGHIJKLMNOPQRSTUVWXYZghijklmn"
+
 #: ``text_blank.bin``: ``TXT1 == $00`` (ASCII-code constant) -> Copy ``$00`` to TXT1.
 #: ``text_q.bin``: Copy ``"Q"`` (typed with its quotes) to TXT2.
 #: ``text_tt.bin``: Copy ``"TT"`` to TXT1; the dialog shows the destination as TXT1..2.
+#: ``text_abc.bin``: ``"ABC"`` to TXT10.  ``text_dollar_quoted.bin``: ``"$41"`` (quoted, so
+#: three characters) to TXT2.  ``text_128.bin``: 128 characters to TXT873.
+#: ``text_pointer.bin``: ``"AB"`` to ``TXT[DS1]``, which stores no end.
 _TEXT_CAPTURES = {
     "text_blank.bin": ("TXT1==$00", "copy($00,TXT1)"),
     "text_q.bin": ("-", 'copy("Q",TXT2)'),
     "text_tt.bin": ("-", 'copy("TT",TXT1)'),
+    "text_abc.bin": ("-", 'copy("ABC",TXT10)'),
+    "text_dollar_quoted.bin": ("-", 'copy("$41",TXT2)'),
+    "text_128.bin": ("-", f'copy("{_TEXT_128}",TXT873)'),
+    "text_pointer.bin": ("-", 'copy("AB",TXT[DS1])'),
 }
 
 #: What CLICK stores as the destination end (0x6077) of each capture's Copy: the last TXT a
@@ -428,6 +438,10 @@ _TEXT_DESTINATION_ENDS = {
     "text_blank.bin": (Copy("$00", "TXT1"), ""),
     "text_q.bin": (Copy('"Q"', "TXT2"), ""),
     "text_tt.bin": (Copy('"TT"', "TXT1"), "TXT2"),
+    "text_abc.bin": (Copy('"ABC"', "TXT10"), "TXT12"),
+    "text_dollar_quoted.bin": (Copy('"$41"', "TXT2"), "TXT4"),
+    "text_128.bin": (Copy(f'"{_TEXT_128}"', "TXT873"), "TXT1000"),
+    "text_pointer.bin": (Copy('"AB"', "TXT[DS1]"), ""),
 }
 
 

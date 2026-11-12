@@ -593,8 +593,9 @@ currently emit:
   two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise
   `FieldError` in every field. CLICK writes one TXT register per character of a
   text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
-  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`, and a
-  `copy` into a pointer (`TXT[DS1]`) takes one character or a `$hh` code. A Copy
+  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
+  `copy` of text into a pointer (`TXT[DS1]`) takes any length; CLICK stores no
+  end for it. A Copy
   source, a Fill value, a compare and a search take 1 to 128 printable ASCII
   characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
   matches the same window) and refuse `""`, a longer or non-ASCII text and a

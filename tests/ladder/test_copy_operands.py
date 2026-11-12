@@ -487,8 +487,12 @@ def _destination_end(copy: Copy) -> str:
         (_TEXT_128, "TXT873", "TXT1000"),
         ('"Q"', "TXT1000", ""),
         ("$41", "TXT1000", ""),
-        ('"Q"', "TXT[DS1]", ""),  # a pointer takes one character or a $hh code
+        ('"Q"', "TXT[DS1]", ""),  # a pointer stores no end, whatever the length
+        ('"AB"', "TXT[DS1]", ""),  # text_pointer.bin
+        ('"$41"', "TXT[DS1]", ""),
+        (_TEXT_128, "TXT[DS1]", ""),
         ("$41", "TXT[DS1]", ""),
+        ('"HELLO"', "TXT1", "TXT5"),  # E is accepted: the Copy dialog's E bug is CLICK's
     ],
 )
 def test_text_copy_stores_its_last_txt(source: str, destination: str, end: str) -> None:
@@ -514,15 +518,13 @@ def test_text_copy_past_txt1000_refused(
         _read_af(tmp_path, f"copy({source},{destination})")
 
 
-# BOB ruling 2026-11-12: no capture shows the end CLICK stores for text through a pointer, so
-# two or more characters into one are refused until a capture exists.
 @pytest.mark.parametrize("source", ['"AB"', '"$41"', _TEXT_128])
-def test_text_copy_into_a_pointer_takes_one_character(tmp_path: Path, source: str) -> None:
-    message = r"^Copy.destination: 'TXT\[DS1\]' can't take .*; a pointer takes one character"
-    with pytest.raises(AddressError, match=message):
-        Copy(source, "TXT[DS1]")
-    with pytest.raises(AddressError, match=message):
-        _read_af(tmp_path, f"copy({source},TXT[DS1])")
+def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> None:
+    """CLICK accepts two or more characters through a pointer and writes an empty 0x6077."""
+    copy = Copy(source, "TXT[DS1]")
+    assert _destination_end(copy) == ""
+    assert _read_af(tmp_path, f"copy({source},TXT[DS1])") == copy
+    assert parse_af_blob(copy.build_blob()) == copy
 
 
 # BOB ruling 2026-11-12: text in a single Copy or a Fill is printable ASCII only, as in Compare
