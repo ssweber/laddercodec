@@ -266,6 +266,16 @@ Open asks (checklist; details under each id below):
   - Is decimal `DS1 + EH` refused like `1FH`?
   - Is `( -Ah )` accepted in a hex Math, and what does it copy back as? laddercodec stores
     the literal `-Ah`, without evidence (`tests/ladder/test_address_display.py` no longer locks it).
+  - ANSWERED 2026-11-12 (user, dialog): `DH1 + EH` → `DH1 + Eh`, `DH1 + CH` → `DH1 + Ch`,
+    `DH1 + 0fH` → `DH1 + Fh` (digits uppercased, leading zero dropped, suffix `h`).
+    laddercodec gives `0fh`. Capture `clicknick/minus-ah.bin` (typed `DH1 + ( -Ah )`): CLICK
+    redisplays `DH1 + ( - Ah )`, stores the template `@ + ( - Ah )` and the internal formula
+    `DH1#+#(#-#UH10#)`, so the sign on a hex constant is a separate token, as on an address.
+    laddercodec writes `@ + ( -Ah )` and `DH1#+#(#-Ah#)`, a formula CLICK never writes.
+    To build: a hex constant's display form is uppercase digits without leading zeros plus
+    `h`; a sign before a hex constant stays spaced (`- Ah`), so the internal form is
+    `-#UH10`. Open: does `0H`/`00h` display as `0h`? Decimal `DS1 + EH` is refused today
+    (dialog not yet checked).
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
