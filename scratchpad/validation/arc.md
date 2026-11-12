@@ -301,6 +301,12 @@ Open asks (checklist; details under each id below):
   hex `DH1 + 7`: which message; hex `LSH ( 1h , 2h )` refused; `SIN ( MAX ( DF1 : DF3 ) )`
   refused but `SIN ( SUM ( DF1 : DF3 ) )` accepted. Next: move10, one parser from this
   grammar.
+  - ANSWERED 2026-11-12 (user, dialog): every prediction held. Hex `DH1 + 1Eh`, `0Eh` and
+    `2E5h` are refused. Decimal `DS1 * -5` is refused and `DS1 * ( -5 )` accepted (pyrung
+    already exports the parenthesised form). Hex `DH1 + -Ah` is refused. Hex
+    `LSH ( 1h , 2h )` is refused. `SIN ( MAX ( DF1 : DF3 ) )` is refused and
+    `SIN ( SUM ( DF1 : DF3 ) )` accepted. Hex `DH1 + 7` is accepted as `DH1 + 7h`, so there
+    is no missing check: the code read was right and the Q-M13b answer is corrected.
 - Dialog: comm: Receive into Y101+ from C/T/CT/SC; bits: Compile with an SC range over read-only bits.
 - Move (hmove), ANSWERED 2026-11-12 (user, dialog):
   - Copy's Termination Code does not take one hex digit: the ASCII Table picker shows `$00`,
@@ -565,6 +571,11 @@ Open asks (checklist; details under each id below):
   `DH1 + 007`? laddercodec checks only hex constants in hex mode and accepts both.
   - **ANSWERED 2026-11-12 (user, dialog):** `DH1 + 70000` and `DH1 + 7` are both refused: a
     hex Math takes no decimal constant. laddercodec accepts them; refuse them.
+  - **CORRECTED 2026-11-12 (user, dialog, rechecked after the grammar research):** hex
+    `DH1 + 7` is accepted and rewritten as `DH1 + 7h`, as the Math dialog's code predicts
+    (a bare digit run in hex mode is read as hex: `10` would mean 10h = 16). `70000` is
+    refused (more than four digits). laddercodec refuses both since move6; whether to keep
+    refusing a bare `7` or to rewrite it as CLICK does is the user's call (with `7H7`).
 - Q-M14 Block Copy into Y across a slot: what does `X001..X008 → Y010` give? CLICK's
   GetNextAddress steps on into the next Y slot; laddercodec refuses the run until a capture
   shows the stored destination.
