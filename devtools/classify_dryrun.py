@@ -471,9 +471,9 @@ def _fields() -> list[Field]:
     for mode, (left, result) in {"decimal": ("DS1", "DS2"), "hex": ("DH1", "DH3")}.items():
 
         def build(ns: Any, value: str, left: str = left, result: str = result, mode: str = mode):
-            return ns.inst.Math(expression=f"{left} + {value}", result=result, mode=mode)
+            return ns.inst.Math(expression=f"{left} + ( {value} )", result=result, mode=mode)
 
-        out.append(Field("move", f"Math ({mode}): '{left} + <value>'", build, math_rule(mode)))
+        out.append(Field("move", f"Math ({mode}): '{left} + ( <value> )'", build, math_rule(mode)))
     out.append(
         Field(
             "data",

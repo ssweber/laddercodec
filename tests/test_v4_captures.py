@@ -9,8 +9,8 @@ a labelled rung's comment is
 
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin`` and
-``math_nickname_display.bin``; text constants typed in CLICK v4,
+into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
+``math_nickname_display.bin`` and ``math_unary_plus_pi.bin``; text constants typed in CLICK v4,
 ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
@@ -142,6 +142,9 @@ _NATIVE_MATH = [
     # Copy-back of the math_operands stub; only these rungs were typed.  Past 500
     # interiors, up to the 5496 of SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ).
     *(("retyped/math_wide.bin", i) for i in range(17, 21)),
+    # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
+    ("math_unary_plus_pi.bin", 0),
+    ("math_unary_plus_pi.bin", 1),
 ]
 
 
@@ -196,6 +199,25 @@ def test_math_hex_upper_h_capture() -> None:
     assert rung.instructions[0] == typed
     blob = typed.build_blob()
     assert _native_blob(path.read_bytes(), "Math", len(blob)) == blob
+
+
+def test_math_unary_plus_and_pi_capture() -> None:
+    """``math_unary_plus_pi.bin``: ``DS1 + ( +5 )`` and ``PI ( 2 )`` typed in CLICK v4.
+
+    CLICK joins the ``+`` to its constant (``H+5``) and keeps ``PI ( 2 )`` in call form
+    (``PI#(#H2#)``).  The later rungs are NOPs whose comments name formulas the dialog
+    refused; ``tests/ladder/test_math_grammar.py`` refuses each.
+    """
+    rungs = _decode_file(CAPTURE_DIR / "math_unary_plus_pi.bin")
+    afs = [
+        row[-1]
+        for rung in rungs[:2]
+        for row in decoded_rung_to_rows(rung)
+        if row[0] != "#" and row[-1]
+    ]
+    assert afs == ["math(DS1 + ( +5 ),DS1,mode=decimal)", "math(PI ( 2 ),DS1,mode=decimal)"]
+    assert rungs[0].instructions[0] == Math("DS1 + ( + 5 )", "DS1")
+    assert rungs[1].instructions[0] == Math("PI ( 2 )", "DS1")
 
 
 def test_math_nickname_display_capture() -> None:

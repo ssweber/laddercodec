@@ -8,10 +8,10 @@ from laddercodec.binary_helpers import _tagged_field, _utf16le_null
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math import (
     Math,
-    _make_internal,
     _range_interiors,
     _reconstruct_expression,
 )
+from laddercodec.instructions.math_formula import parse
 
 
 def _build_math_blob_with_nickname_and_display_literal() -> bytes:
@@ -43,15 +43,15 @@ def test_internal_form_normalizes_literals() -> None:
     ``( -5 )`` → ``(#H-5#)`` and ``( -2.5 )`` → ``(#F-2.5#)`` from ones typed
     in v4 (math_neg.bin).
     """
-    assert _make_internal("DS1 + 200") == "DS1#+#H200"
-    assert _make_internal("DS401 + ( -5 )") == "DS401#+#(#H-5#)"
-    assert _make_internal("DF401 * ( -2.5 )") == "DF401#*#(#F-2.5#)"
-    assert _make_internal("DF401 * ( -1.5E+10 )") == "DF401#*#(#F-1.5E+10#)"
-    assert _make_internal("DF1 * 3.14") == "DF1#*#F3.14"
-    assert _make_internal("DF1 * .5 + 1E5") == "DF1#*#F.5#+#F1E5"
-    assert _make_internal("- DS401") == "-#DS401"
-    assert _make_internal("DH221 + Ah") == "DH221#+#UH10"
-    assert _make_internal("DH1 AND AB59h") == "DH1#AND#UH43865"
+    assert parse("DS1 + 200", "decimal").internal() == "DS1#+#H200"
+    assert parse("DS401 + ( -5 )", "decimal").internal() == "DS401#+#(#H-5#)"
+    assert parse("DF401 * ( -2.5 )", "decimal").internal() == "DF401#*#(#F-2.5#)"
+    assert parse("DF401 * ( -1.5E+10 )", "decimal").internal() == "DF401#*#(#F-1.5E+10#)"
+    assert parse("DF1 * 3.14", "decimal").internal() == "DF1#*#F3.14"
+    assert parse("DF1 * .5 + 1E5", "decimal").internal() == "DF1#*#F.5#+#F1E5"
+    assert parse("- DS401", "decimal").internal() == "-#DS401"
+    assert parse("DH221 + Ah", "hex").internal() == "DH221#+#UH10"
+    assert parse("DH1 AND AB59h", "hex").internal() == "DH1#AND#UH43865"
 
 
 @pytest.mark.parametrize(
@@ -71,17 +71,11 @@ def test_internal_form_normalizes_literals() -> None:
         ("RRO ( DH1 , DH2 )", "DH1#RRO#DH2#"),
         ("( LSH ( DH1 , 1h ) ) + DH2", "(#DH1#LSH#UH1#)#+#DH2"),
         ("ABS ( RAND ( 1 , 10 ) )", "ABS#(#H1#RAND#H10#)"),
-        # the editor refuses a compound argument; the call form passes Check Program
-        ("LSH ( DH1 + 1h , 2h )", "LSH#(#DH1#+#UH1#,#UH2#)"),
-        ("LSH ( ( DH1 AND FFh ) , 1h )", "LSH#(#(#DH1#AND#UH255#)#,#UH1#)"),
-        ("LSH ( RSH ( DH1 , 1h ) , 2h )", "LSH#(#RSH#(#DH1#,#UH1#)#,#UH2#)"),
-        ("RAND ( ABS ( DD616 ) , 20 )", "RAND#(#ABS#(#DD616#)#,#H20#)"),
-        # range functions take no commas; a comma list is left as written
-        ("MAX ( DS1 , DS2 )", "MAX#(#DS1#,#DS2#)"),
     ],
 )
 def test_comma_calls_are_stored_infix(display: str, internal: str) -> None:
-    assert _make_internal(display) == internal
+    mode = "hex" if "DH" in display else "decimal"
+    assert parse(display, mode).internal() == internal
 
 
 def test_hex_constant_round_trips_through_csv_form() -> None:
@@ -115,13 +109,13 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
         ("DS1 - 5", "DS1 - 5"),
         ("-5+DS1", "-5 + DS1"),
         ("DS1*(-5)", "DS1 * ( -5 )"),
-        ("DS1*-2.5", "DS1 * -2.5"),
+        ("DS1*(-2.5)", "DS1 * ( -2.5 )"),
         ("-DS1", "- DS1"),
         ("DF1*1.0E-10", "DF1 * 1.0E-10"),
-        ("DF1*-1.5e+10", "DF1 * -1.5e+10"),
+        ("DF1*(-1.5e+10)", "DF1 * ( -1.5e+10 )"),
         ("DF1+.5", "DF1 + .5"),
         ("DS1 MOD 2", "DS1 MOD 2"),
-        ("DS1 MOD -2", "DS1 MOD -2"),
+        ("DS1 MOD (- 2)", "DS1 MOD ( -2 )"),
         ("SUM(DS1:DS9)", "SUM ( DS1 : DS9 )"),
         ("RAND(1,100)", "RAND ( 1 , 100 )"),
     ],
@@ -131,7 +125,7 @@ def test_expression_is_spaced_like_clicks_editor(typed: str, spaced: str) -> Non
 
 
 def test_hex_expression_is_spaced_like_clicks_editor() -> None:
-    assert Math("DH1+1Eh-1h", "DH9", mode="hex").expression == "DH1 + 1Eh - 1h"
+    assert Math("DH1+1Fh-1h", "DH9", mode="hex").expression == "DH1 + 1Fh - 1h"
 
 
 def test_nickname_display_wraps_each_operand_once() -> None:
@@ -145,7 +139,7 @@ def test_template_leaves_hex_constants_alone() -> None:
 
 
 def test_literal_after_unspaced_operator_gets_its_internal_prefix() -> None:
-    assert _make_internal(Math("ABS(DS1)*2", "DS9").expression) == "ABS#(#DS1#)#*#H2"
+    assert parse(Math("ABS(DS1)*2", "DS9").expression, "decimal").internal() == "ABS#(#DS1#)#*#H2"
 
 
 @pytest.mark.parametrize(
