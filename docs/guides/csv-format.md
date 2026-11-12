@@ -573,9 +573,10 @@ currently emit:
     or CTD.
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
-  `FFFFh` copies only to DD or CTD. A `copy` source, a `fill` value and a
-  `search` value take an integer of 32 bits and hex of at most 8 digits with no
-  sign (`+1h` is refused).
+  `FFFFh` copies only to DD or CTD. A `copy` source and a `fill` value take a
+  32-bit integer and unsigned hex up to `FFFFFFFFh`, with at most 8 digits above
+  `FFFFh`; a `search` value takes a 32-bit integer and unsigned hex up to `FFFFh`
+  (`+1h` is refused).
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -599,7 +600,7 @@ currently emit:
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
-  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none` or `$` and one or two hex digits (`$D` is written `$0D`); anything else raises `FieldError`.
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and one or two hex digits (`$D` is written `$0D`); anything else raises `FieldError`.
   - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling

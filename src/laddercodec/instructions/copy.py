@@ -406,9 +406,9 @@ def check_constant(value: str, name: str) -> None:
     the constant ``value`` (OBJ-005).
 
     The rule is :func:`~laddercodec.operands.constants.classify`: an integer is 32-bit, a hex
-    constant takes no sign and has at most eight digits, and quoted text is 1 to 128
-    characters with no quote inside.  A single Copy source, a Fill value and a Search value
-    run it on the constants their own checks pass.
+    constant takes no sign and has at most eight digits above ``FFFFh``, a real is finite,
+    and quoted text is 1 to 128 characters with no quote inside.  A single Copy source, a
+    Fill value and a Search value run it on the constants their own checks pass.
     """
     if value.startswith("$"):
         # CLICK's shared check accepts $ and one hex digit, and $ codes above FF; classify()

@@ -247,6 +247,7 @@ _TEXT_128 = '"' + "A" * 128 + '"'
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_FINITE = "a real constant is a finite number"
 
 _COPY_SOURCE_REFUSED = [
     ("+1h", "DS9", _HEX_SIGN),
@@ -261,6 +262,8 @@ _COPY_SOURCE_REFUSED = [
     ('"""', "TXT2", _TEXT_RULE),
     ('"a"b"', "TXT2", _TEXT_RULE),
     (_TEXT_129, "TXT2", _TEXT_RULE),
+    ("1E999", "DF1", _FINITE),
+    ("-1E999", "DF1", _FINITE),
 ]
 
 
@@ -340,6 +343,8 @@ _FILL_VALUE_REFUSED = [
     ('"""', "TXT2", "TXT5", _TEXT_RULE),
     ('"a"b"', "TXT2", "TXT5", _TEXT_RULE),
     (_TEXT_129, "TXT2", "TXT5", _TEXT_RULE),
+    ("1E999", "DF1", "DF4", _FINITE),
+    ("-1E999", "DS52", "DS55", _FINITE),
 ]
 
 

@@ -108,6 +108,7 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
 
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
+_FINITE = "a real constant is a finite number"
 
 
 @pytest.mark.parametrize(
@@ -119,6 +120,8 @@ _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
         ("DS", "6000000000", _INT32),
         ("DH", "+1h", _HEX_SIGN),
         ("DH", "-1h", _HEX_SIGN),
+        ("DF", "1E999", _FINITE),
+        ("DS", "-1E999", _FINITE),
     ],
 )
 def test_source_refuses_what_the_constant_check_refuses(
