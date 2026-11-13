@@ -192,7 +192,9 @@ def _blank_rows(rung: Rung) -> int:
     count = 0
     for conditions, token in zip(rung.conditions, rung.instructions, strict=False):
         cells = [cell_of(t) for t in conditions]
-        if token not in ("", None) or any(c.contact or c.right or c.down for c in cells):
+        if token not in ("", None) or any(
+            c.contact is not None or c.right or c.down for c in cells
+        ):
             break
         count += 1
     return count
