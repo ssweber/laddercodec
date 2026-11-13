@@ -113,7 +113,12 @@ class _Painter:
             for i, p in self.tree.pins.items()
             if self.network.sinks[i].box == self.network.sinks[sink].box
         }
+        last_used = max(i for i, used in enumerate(box.used) if used)
         for slot in range(box.main + 1, len(box.used)):
+            if slot > last_used:
+                # Unused pins after the last used input sit directly under it.
+                slots.append(slots[-1] + 1)
+                continue
             slots.append(nxt)
             circuit = pin_sinks.get(slot)
             if circuit is None:

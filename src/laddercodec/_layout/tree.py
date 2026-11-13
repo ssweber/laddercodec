@@ -240,7 +240,14 @@ def trees(net: Network) -> list[RungTree]:
         if e.src not in fwd:
             raise LayoutError(f"row {e.row} column {e.col}: the contact's input reaches no rail", "C0202")
     main = [i for i, s in enumerate(net.sinks) if s.slot == net.boxes[s.box].main]
-    pins = [i for i, s in enumerate(net.sinks) if s.slot != net.boxes[s.box].main]
+    # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box
+    # (scr_captures/counter_scr.bin), and the pin's row stays blank.
+    touched = {e.src for e in net.edges} | {e.dst for e in net.edges}
+    pins = [
+        i
+        for i, s in enumerate(net.sinks)
+        if s.slot != net.boxes[s.box].main and (s.net == rail or s.net in touched)
+    ]
     for i in main + pins:
         s = net.sinks[i]
         if s.net != rail and s.net not in fwd:
