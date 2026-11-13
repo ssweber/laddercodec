@@ -248,6 +248,10 @@ def trees(net: Network) -> list[RungTree]:
         for i, s in enumerate(net.sinks)
         if s.slot != net.boxes[s.box].main and (s.net == rail or s.net in touched)
     ]
+    if not net.edges and all(
+        net.boxes[net.sinks[i].box].token == "NOP" and net.sinks[i].net != rail for i in main
+    ):
+        return []  # wires and an unwired NOP at most: nothing to lay out
     for i in main + pins:
         s = net.sinks[i]
         if s.net != rail and s.net not in fwd:
