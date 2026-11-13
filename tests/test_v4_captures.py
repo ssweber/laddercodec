@@ -23,8 +23,10 @@ pasted from laddercodec, then saved by their dialogs, ``box_height_pasted.bin`` 
 ``box_height_dialog_ok.bin``; OR legs under a tall box pasted from laddercodec's
 padded layout, then rewritten by CLICK's syntax check, ``or_compact_pasted.bin`` and
 ``or_compact_checked.bin`` (from ``or_compact_stub.csv``), ``r30_tallbox_pasted.bin``
-and ``r30_tallbox_checked.bin`` (from pyrung's ``r30_tallbox.csv``)) are only used by
-the blob and layout tests below.
+and ``r30_tallbox_checked.bin`` (from pyrung's ``r30_tallbox.csv``); a path drawn
+down the output column in CLICK v4, copied back before and after its syntax check,
+``windy_road_pasted.bin`` and ``windy_road_checked.bin``) are only used by the blob
+and layout tests below.
 """
 
 from __future__ import annotations
@@ -39,7 +41,7 @@ import pytest
 from laddercodec import FieldError, encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
-from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.decode import DecodeError, Rung, decode, inspect_cells
 from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
@@ -52,8 +54,10 @@ from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
+from tests.fixtures_refused import is_refused
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
+_DECODABLE = [p for p in sorted(CAPTURE_DIR.glob("*.bin")) if not is_refused(p)]
 COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
@@ -65,7 +69,7 @@ def _decode_file(path: Path | bytes) -> list[Rung]:
 
 def _load_labelled() -> list[tuple[str, Rung]]:
     cases: list[tuple[str, Rung]] = []
-    for bin_path in sorted(CAPTURE_DIR.glob("*.bin")):
+    for bin_path in _DECODABLE:
         for rung in _decode_file(bin_path):
             lines = (rung.comment or "").split("\n")
             if len(lines) > 1:
@@ -127,7 +131,7 @@ def _current_spelling(token: str) -> str:
     return token
 
 
-@pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
+@pytest.mark.parametrize("bin_path", _DECODABLE, ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
     rungs = [r for r in _decode_file(bin_path) if not _leg_on_unused_pin_row(r)]
@@ -1124,3 +1128,59 @@ def test_pasted_or_legs_drop_the_last_box_padding() -> None:
     assert rung.logical_rows == 6
     data_rows = [row for row in decoded_rung_to_rows(rung) if row[0] != "#"]
     assert [row[-1] for row in data_rows] == ["copy(1,DS1)", "", "copy(2,DS2)", "", "copy(3,DS3)"]
+
+
+def test_down_wire_in_the_output_column_is_refused() -> None:
+    """CLICK keeps a path drawn down the AF column until its syntax check; CSV can't hold it."""
+    with pytest.raises(DecodeError) as err:
+        decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
+    assert str(err.value) == (
+        "Rung 0, row 0 (zero-based): the output column has a down wire, "
+        "which isn't supported. CLICK's syntax check removes it."
+    )
+
+
+def test_checked_windy_road_is_one_straight_row() -> None:
+    """After the syntax check the path runs along one row, with no AF down flag."""
+    (rung,) = _decode_file(CAPTURE_DIR / "windy_road_checked.bin")
+    rows = [row for row in decoded_rung_to_rows(rung) if row[0] != "#"]
+    assert rows == [["R", "X001", "Y001", *["-"] * 29, "out(Y001)"]]
+
+
+def _with_af_down(data: bytes, rung: int, row: int) -> bytes:
+    """*data* with the down flag (+0x21) set on the AF cell of the given rung and row."""
+    (dump,) = inspect_cells(data, [(rung, row, "AF")])
+    patched = bytearray(data)
+    patched[dump.offset + 0x21] = 1
+    return bytes(patched)
+
+
+def test_down_wire_in_the_output_column_names_the_rung() -> None:
+    """In a multi-rung buffer the message names the rung that holds the wire."""
+    data = (
+        COVERAGE_GOLDEN.parent.parent / "ladder_captures" / "golden" / "mr-2rung-wire.bin"
+    ).read_bytes()
+    assert len(decode(data)) == 2
+    with pytest.raises(DecodeError, match=r"Rung 1, row 0 \(zero-based\)"):
+        decode(_with_af_down(data, 1, 0))
+
+
+def test_down_wire_beside_an_output_box_is_refused() -> None:
+    """The flag is read on a cell that holds a box as well as on an empty one."""
+    data = (CAPTURE_DIR / "out.bin").read_bytes()
+    rungs = _decode_file(CAPTURE_DIR / "out.bin")
+    rung, row = next(
+        (i, r)
+        for i, rg in enumerate(rungs)
+        for r, af in enumerate(rg.instructions)
+        if af not in ("", "NOP")
+    )
+    with pytest.raises(DecodeError, match=rf"Rung {rung}, row {row} "):
+        decode(_with_af_down(data, rung, row))
+
+
+def test_inspect_cells_still_dumps_a_refused_capture() -> None:
+    """inspect_cells reads cells without decoding the rung, so the flag shows in its dump."""
+    data = (CAPTURE_DIR / "windy_road_pasted.bin").read_bytes()
+    (dump,) = inspect_cells(data, [(0, 0, "AF")])
+    assert dump.flags[2] == 1

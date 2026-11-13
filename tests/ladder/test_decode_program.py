@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import gzip
 import importlib
 import struct
@@ -1089,3 +1090,24 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
         assert output.read_text(encoding="utf-8") == base.with_suffix(".csv").read_text(
             encoding="utf-8"
         )
+
+
+def test_down_wire_in_the_output_column_is_refused(monkeypatch):
+    """A down list on column 31 raises, as the clipboard decoder does for the AF down flag.
+
+    Blobs hold absolute offsets, so the list is added to the parsed block, not the bytes.
+    """
+    scr_data = (_SCR_FIXTURE_DIR / "time_drums.scr").read_bytes()
+    real = _parse_row_topology_block
+    seen = []
+
+    def with_af_down(data, pos, data_len=0):
+        block = real(data, pos, data_len)
+        seen.append(block)
+        if block is None or len(seen) != 2:  # the second rung's block
+            return block
+        return dataclasses.replace(block, wiredown={**block.wiredown, 31: (0,)})
+
+    monkeypatch.setattr(decode_program_module, "_parse_row_topology_block", with_af_down)
+    with pytest.raises(ValueError, match=r"Rung 1, row 0 \(zero-based\): the output column"):
+        decode_program(scr_data)
