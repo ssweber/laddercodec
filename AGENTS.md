@@ -116,7 +116,7 @@ tests/
 │   ├── test_decode.py       # decode() tests
 │   ├── test_decode_multi.py # decode() multi-rung tests
 │   ├── test_decode_program.py # decode_program() program file tests
-│   ├── test_decode_program_tumbler.py # 34 real programs: scr decode == clipboard CSV
+│   ├── test_decode_program_tumbler.py # 34 real programs: scr decode == clipboard decode, and its CSV
 │   ├── test_verify_status.py # Verification status of ladder and coverage goldens
 │   ├── test_model.py        # InstructionType, operand validation
 │   └── test_empty_multirow.py  # Payload synthesis for rows 1..32
@@ -181,7 +181,7 @@ All tested shapes pass Click round-trip (verified via paste → copy-back):
 
 The clipboard decoder (`decode.py`) reads Click clipboard binaries back into structured data. Validated against a 37-rung native capture covering all basic instruction types.
 
-The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against the 114-rung coverage fixture, shift/counter/drum programs, and the 34-program tumbler fixture (byte-identical CSV vs clipboard captures). SCR headers use counted numeric widths and independent display flags. Every counted topology row, including the special first row, is parsed without recovery; ordinary stored wire rows are preserved. Row topology uses the uniform row-block framing documented in `docs/internals/binary-format.md` §"SCR row-topology blocks".
+The program file decoder (`decode_program.py`) reads Click's internal `Scr*.tmp` files. Returns a `Program` with name, index, and all rungs. Validated against the 114-rung coverage fixture, shift/counter/drum programs, and the 34-program tumbler fixture (the SCR decode gives the clipboard decode's rungs cell for cell, and writes the same CSV). SCR headers use counted numeric widths and independent display flags. Every counted topology row, including the special first row, is parsed without recovery; ordinary stored wire rows are preserved. Row topology uses the uniform row-block framing documented in `docs/internals/binary-format.md` §"SCR row-topology blocks".
 
 **All standard Click instruction types decoded natively:**
 - Contacts: NO, NC, edge (rise/fall), immediate (NO/NC)

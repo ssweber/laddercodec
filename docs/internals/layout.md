@@ -94,10 +94,32 @@ contact of its own (C0205, C0212, layoutq Q4a and Q4b). CLICK pastes and saves t
 refuses them only at its check. A rung of wires alone, or with an unwired `NOP`, has no circuit
 and is kept as drawn too.
 
+Three more shapes are kept as drawn, with no capture of CLICK's check on them:
+
+- A contact on the circuits of a pin and of another box input. Each pin's circuit is drawn
+  on rows of its own, so a layout would draw the contact once per input. `check()` reports a
+  pin whose contacts are all another input's as `pin_without_contact` (the shape of Q4a and
+  Q4b), and one with some of its own as `pin_shares_main` or `pin_shares_pin`.
+- A rung that would split (rule 9) and holds a `NOP`. The captured splits are of coils and
+  Copy boxes.
+- A rung the render cannot fit in 31 columns, or whose nets would cross.
+
 ## Writing CSV
 
 `write_csv` writes each rung's layout and checks that the rows read back to it exactly. A
 decoded rung that is not in CLICK's layout, such as a paste copied back before the syntax
 check, is written in the layout, which may be several rungs; the writer checks that their
-circuit is the decoded rung's. A rung with no layout is written as stored and must read back
-as stored.
+circuit is the decoded rung's, each contact in it exactly once. A rung with no layout is
+written as stored and reads back as stored, except that blank rows at its end can read back
+as a tall box's own rows and be dropped; the writer warns when they are.
+
+## Open questions
+
+For the next capture round:
+
+- An output above a pinned box on one net reached through a branch (`C1,T:C2 -> out(Y1)`
+  above a retentive on_delay on C1's net, Reset C3): Q7a's shape (C000A) with the output
+  behind a contact of its own. `check()` does not report it, and `read_csv` lays it out.
+- A `NOP` on a net of its own beside a coil (`C1 -> out(Y1)`, `- -> NOP`): whether CLICK
+  splits it into a rung of its own. Kept as drawn until a capture shows it.
+- A contact two pins share: CLICK's code for it, if it refuses it.

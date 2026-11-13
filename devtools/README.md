@@ -73,7 +73,9 @@ Besides the public API, the tools import the family registry in `laddercodec.ins
 `laddercodec.csv.writer.decoded_rung_to_rows`, `laddercodec.instructions.raw._decompose_blob`
 and `_compose_blob`, and from `laddercodec.model` `AfInstruction`, `ConditionInstruction`,
 `PinnedInstruction` and `InstructionType`. A step that renames one of them stops the tools on
-that tree.
+that tree. `convert_rung` returns a list of `Rung`, one per CLICK rung the CSV rung lays out
+to; on a tree before the CSV layout it returns a `(logical_rows, conditions, instructions,
+comment)` tuple, and `operand_probe.py` takes either.
 
 ## Constant classifier dry run
 
