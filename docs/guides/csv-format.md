@@ -479,8 +479,8 @@ Producer may emit:
   preserved so CSV -> DSL -> CSV round-trips losslessly for unrecognized
   instruction types. The older form `raw(ClassName,hex)` holds the whole blob
   as a hex string, and may be followed by `rows=R,sub=S`.
-  - `rows` is the box's row span and `sub` its sub-rows, 1 to 255 each. The
-    writer always writes both. On read each is optional: a box without them
+  - `rows` is the box's row span, 1 to 32, and `sub` its sub-rows, 1 to 255.
+    The writer always writes both. On read each is optional: a box without them
     takes its class's height (2 rows for a Copy, 3 for a Send), a box with
     `rows` and no `sub` has sub-rows equal to `rows`, and a box with `sub` and
     no `rows` has its class's row span. They go right after the part count (or

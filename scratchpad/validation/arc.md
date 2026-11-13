@@ -850,10 +850,13 @@ Open asks (checklist; details under each id below):
   read back through CSV as `rows=1,sub=1`. Cost if
   wrong: a native box whose span CLICK varies decodes raw, which round-trips its bytes.
 - Open from rawbox: a multi-part raw token doesn't hold its extra part bytes (the pin rows);
-  a CSV read rebuilds them as `01 02 ...`. Of 124 multi-part boxes in the native fixtures
-  (all forced raw), 12 differ (`v4_captures/count_down_or.bin`, `pins.bin`: Cnt `01 03`
-  reads back `01 02`, Drum `01 03 04` reads back `01 02 03`). Only reachable when such a box
-  is raw; the writer's round-trip check refuses the rung. Needs a ruling on a token field.
+  a CSV read rebuilds them as `01 02 ...` (`raw.py` `from_csv_token`,
+  `bytes(range(1, part_count))`; older than rawbox). Of 211 multi-part boxes in the native
+  fixtures (all forced raw), 18 differ: 12 of 124 on the clipboard side
+  (`v4_captures/count_down_or.bin`, `pins.bin`: Cnt `01 03` reads back `01 02`, Drum
+  `01 03 04` reads back `01 02 03`) and 6 of 87 in SCR files (`scr_captures/pins.scr`: 4
+  Drum, 1 Cnt, 1 SR). Only reachable when such a box is raw; the writer's round-trip check
+  refuses the rung. Needs a ruling on a token field.
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,

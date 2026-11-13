@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import (
@@ -351,8 +351,8 @@ class RawInstruction(AfInstruction):
     class_name: str
     blob: bytes
     part_count: int = 1
-    visual_rows: int | None = field(default=None, compare=False)
-    sub_rows: int | None = field(default=None, compare=False)
+    visual_rows: int | None = None
+    sub_rows: int | None = None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RawInstruction):
@@ -514,15 +514,21 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
     """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
 
     Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
+    A box spans at most a rung's rows; its sub-rows byte may exceed its span
+    (a native Drum stores ``04 05``).
     """
+    from ..encode import MAX_ROWS
+
     values: dict[str, int | None] = {"rows": None, "sub": None}
+    limits = {"rows": MAX_ROWS, "sub": 0xFF}
     i = 0
     for key in values:
         if i < len(parts) and parts[i].startswith(f"{key}="):
             text = parts[i][len(key) + 1 :]
-            if not (text.isascii() and text.isdigit() and 1 <= int(text) <= 0xFF):
+            if not (text.isascii() and text.isdigit() and 1 <= int(text) <= limits[key]):
                 raise FieldError(
-                    f"raw({class_name},...): {key}={text!r} is not a whole number from 1 to 255"
+                    f"raw({class_name},...): {key}={text!r} is not a whole number "
+                    f"from 1 to {limits[key]}"
                 )
             values[key] = int(text)
             i += 1
@@ -533,6 +539,26 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
                 "rows= before sub=, once each"
             )
     return values["rows"], values["sub"], parts[i:]
+
+
+def _take_fixed_cell_rows(class_name: str, parts: list[str], params: dict[str, int]) -> list[str]:
+    """Read the ``rows=``/``sub=`` of a fixed-height class's token *parts*.
+
+    A stated height other than the class's (*params*) raises FieldError, since
+    the typed object always writes its class's height. Returns the parts after them.
+    """
+    rows, sub, rest = _take_cell_rows(class_name, parts)
+    span = params["visual_rows"]
+    want = (span, params.get("sub_rows", span))
+    got_rows = span if rows is None else rows
+    got_sub = sub if sub is not None else (want[1] if rows is None else rows)
+    got = (got_rows, got_sub)
+    if got != want:
+        raise FieldError(
+            f"raw({class_name},...): rows={got[0]},sub={got[1]} is not the {class_name} "
+            f"box's height (rows={want[0]},sub={want[1]})"
+        )
+    return rest
 
 
 def from_tags(

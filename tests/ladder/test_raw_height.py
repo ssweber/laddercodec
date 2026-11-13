@@ -27,8 +27,11 @@ from laddercodec.instructions import (
     AfInstruction,
     Coil,
     Email,
+    Home,
     PinnedInstruction,
+    Position,
     RawInstruction,
+    Velocity,
 )
 from laddercodec.instructions.raw import find_blob_boundary
 from laddercodec.model import FieldError, InstructionType
@@ -385,7 +388,13 @@ def test_writer_sees_a_raw_height_loss() -> None:
 
 @pytest.mark.parametrize(
     ("fields", "visual_rows", "sub_rows"),
-    [("", None, None), ("rows=3,", 3, None), ("sub=2,", None, 2), ("rows=4,sub=1,", 4, 1)],
+    [
+        ("", None, None),
+        ("rows=3,", 3, None),
+        ("sub=2,", None, 2),
+        ("rows=4,sub=1,", 4, 1),
+        ("rows=32,sub=255,", 32, 255),
+    ],
 )
 def test_raw_token_rows_fields_are_optional(
     fields: str, visual_rows: int | None, sub_rows: int | None
@@ -399,8 +408,10 @@ def test_raw_token_rows_fields_are_optional(
 @pytest.mark.parametrize(
     ("fields", "match"),
     [
-        ("rows=0,", "rows='0' is not a whole number from 1 to 255"),
-        ("rows=256,", "rows='256'"),
+        ("rows=0,", "rows='0' is not a whole number from 1 to 32"),
+        ("rows=33,", "rows='33' is not a whole number from 1 to 32"),
+        ("sub=0,", "sub='0' is not a whole number from 1 to 255"),
+        ("rows=3,sub=256,", "sub='256'"),
         ("rows=x,", "rows='x'"),
         ("rows=,", "rows=''"),
         ("sub=3,rows=3,", "goes right after the part count"),
@@ -411,6 +422,17 @@ def test_raw_token_rows_fields_are_optional(
 def test_raw_token_rows_fields_refused(fields: str, match: str) -> None:
     with pytest.raises(FieldError, match=match):
         RawInstruction.from_csv_token(f"raw(Zzz,0x1234,1,{fields}0001=a,0000=)")
+
+
+@pytest.mark.parametrize("cls", [Email, Home, Position, Velocity])
+def test_typed_token_refuses_another_height(cls: type[AfInstruction]) -> None:
+    token = cls().to_csv()
+    assert ",1,rows=3,sub=3," in token
+    for same in ("rows=3,sub=3,", "rows=3,", ""):
+        cls.from_csv_token(token.replace("rows=3,sub=3,", same))
+    for other in ("rows=1,sub=1,", "rows=1,", "sub=2,", "rows=3,sub=1,"):
+        with pytest.raises(FieldError, match=rf"is not the {cls.__name__} box's height"):
+            cls.from_csv_token(token.replace("rows=3,sub=3,", other))
 
 
 def test_legacy_hex_token_takes_rows_fields() -> None:

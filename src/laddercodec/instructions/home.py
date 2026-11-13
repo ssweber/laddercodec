@@ -161,7 +161,7 @@ class Home(AfInstruction):
     @classmethod
     def from_csv_token(cls, token: str) -> Home:
         """Parse ``raw(Home,0x2734,1,...)`` token."""
-        from .raw import _FIELD_SPEC_RE, _split_raw_args
+        from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
             raise ValueError(f"Not a raw Home token: {token!r}")
@@ -170,7 +170,7 @@ class Home(AfInstruction):
             raise ValueError(f"Not a Home token: {token!r}")
 
         tags: dict[int, str] = {}
-        for spec in parts[3:]:
+        for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):
             m = _FIELD_SPEC_RE.fullmatch(spec)
             if m and m.group(2) is None and m.group(3) is None:
                 tags[int(m.group(1), 16)] = m.group(4)
