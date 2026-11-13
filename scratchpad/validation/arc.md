@@ -806,8 +806,11 @@ Open asks (checklist; details under each id below):
     Proof: the native SCR and clipboard pairs (793 AF blobs, 755 conditions).
   - Typed SCR decode is lossy today. SCR decode followed by build_blob differs from the
     native clipboard blob in 120 of 793 AF blobs: the RD/SD array sentinel form, Call tag
-    3219 (48 cases, e.g. 9 written as 0) and Math 2224 with nickname 6228 (46 cases). Is
-    Call 3219 data that matters?
+    3219 (48 cases, e.g. 9 written as 0) and Math 2224 with nickname 6228 (46 cases).
+    Call 3219: ANSWERED 2026-11-13 (user, captures `call_index_pasted.bin` and
+    `call_index_dialog_ok.bin`). It is the dialog's drop-down position. CLICK keeps a pasted
+    0, and the dialog selects the subroutine by name and saves its own index (3). The 48
+    Call cases are this field and need no fix.
 - Bits family: OutVariant's unused `on_acc`/`off_acc` is refused at construction (24740f3),
   and decode leaves a blob raw if any tag differs from what the kind would write (train2).
 - Done in train4 (2ae8501): a raw tall box keeps its native height (clipboard +0x09/+0x0A, SCR

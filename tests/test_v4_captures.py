@@ -16,7 +16,8 @@ into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin`
 in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``;
-Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``)
+Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``; a Call pasted from laddercodec, then saved by its dialog,
+``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``)
 are only used by the blob tests below.
 """
 
@@ -655,6 +656,46 @@ def test_one_phase_debounce_capture(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Call index
+# ---------------------------------------------------------------------------
+
+
+def _call_blob_fields(buf: bytes, length: int) -> tuple[bytes, dict[int, str]]:
+    """The one Call blob of a capture, and its tag -> value map."""
+    needle = "Call".encode("utf-16-le") + bytes(2)
+    assert buf.count(needle) == 1
+    blob = _native_blob(buf, "Call", length)
+    start = buf.index(needle) + 10
+    count = struct.unpack_from("<I", buf, start + 6)[0]
+    fields, _ = _parse_tagged_fields_verbose(buf, start + 10, count)
+    return blob, {tag: value for tag, _, value in fields}
+
+
+def test_call_index_captures() -> None:
+    """Tag 0x3219 is a cached drop-down position: a pasted 0 stays, the dialog saves 3."""
+    from laddercodec.instructions.call import Call
+
+    expected = Call("Conf_RtcSet").build_blob()
+    blobs = {}
+    for name, index in (("call_index_pasted.bin", "0"), ("call_index_dialog_ok.bin", "3")):
+        buf = (CAPTURE_DIR / name).read_bytes()
+        calls = [t for r in _decode_file(CAPTURE_DIR / name) for t in r.instructions]
+        assert [t for t in calls if isinstance(t, Call)] == [Call("Conf_RtcSet")], name
+        blob, fields = _call_blob_fields(buf, len(expected))
+        assert fields[0x3219] == index, name
+        assert fields[0x6208] == "Conf_RtcSet", name
+        blobs[name] = blob
+    assert blobs["call_index_pasted.bin"] == expected
+    diff = [
+        i
+        for i, (a, b) in enumerate(zip(expected, blobs["call_index_dialog_ok.bin"], strict=True))
+        if a != b
+    ]
+    assert len(diff) == 1
+    assert expected[diff[0]] == ord("0") and blobs["call_index_dialog_ok.bin"][diff[0]] == ord("3")
+
+
+# ---------------------------------------------------------------------------
 # Text constants typed in CLICK v4
 # ---------------------------------------------------------------------------
 
@@ -778,7 +819,9 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
 
 #: Tags CLICK writes but doesn't read back, per class name.
 _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
-    "Call": frozenset({0x3219}),  # dialog drop-down index; CLICK reselects the subroutine by name
+    # Drop-down position; the dialog reselects the subroutine by name and saves its own index
+    # (call_index_pasted.bin keeps the pasted 0, call_index_dialog_ok.bin has 3).
+    "Call": frozenset({0x3219}),
     # v4's dialog writes -1 on every save and ignores it on load (InstCtl_Copy.dll);
     # the encoder keeps the pre-v4 rule that native v3 captures match.
     "Copy": frozenset({0x1201}),
