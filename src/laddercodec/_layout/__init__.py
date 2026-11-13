@@ -1,7 +1,7 @@
 """Lay a rung out from its circuit, as CLICK's syntax check draws it (prototype, not wired in).
 
 Pipeline: cell grid -> nets and contact edges (``network``) -> structural series-parallel tree
-per CLICK rung (``tree``) -> packed layout (``render``).  See ``docs/internals/layout.md``.
+per CLICK rung (``tree``) -> packed layout (``render``).  See ``scratchpad/layout/design.md``.
 """
 
 from __future__ import annotations

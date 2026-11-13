@@ -1,0 +1,615 @@
+# Oracle: layout(native) == native
+
+tumbler clipboard (native): 495/497 hit, 2 miss, 0 refused (hits: 81 multi-output, 241 tall box, 38 pinned, 0 grown pins)
+tumbler SCR (native): 495/497 hit, 2 miss, 0 refused (hits: 81 multi-output, 241 tall box, 38 pinned, 0 grown pins)
+scr_captures clipboard (native): 390/402 hit, 10 miss, 2 refused (hits: 3 multi-output, 67 tall box, 23 pinned, 0 grown pins)
+scr_captures SCR (native): 401/417 hit, 14 miss, 2 refused (hits: 3 multi-output, 67 tall box, 34 pinned, 0 grown pins)
+v4 checked (native): 8/8 hit, 0 miss, 0 refused (hits: 5 multi-output, 7 tall box, 0 pinned, 0 grown pins)
+layoutthy checked (native): 24/24 hit, 0 miss, 0 refused (hits: 13 multi-output, 12 tall box, 0 pinned, 0 grown pins)
+v4 pasted, not checked (informational): 158/162 hit, 2 miss, 2 refused (hits: 5 multi-output, 52 tall box, 32 pinned, 10 grown pins)
+ladder_captures drum_weird_branch (informational): 0/1 hit, 0 miss, 1 refused (hits: 0 multi-output, 0 tall box, 0 pinned, 0 grown pins)
+layoutthy pasted -> checked: 24/24 hit, 0 miss, 0 refused (hits: 14 multi-output, 12 tall box, 0 pinned, 0 grown pins)
+v4 pasted -> checked: 7/7 hit, 0 miss, 0 refused (hits: 6 multi-output, 6 tall box, 0 pinned, 0 grown pins)
+pyrung main.csv (CLICK saved, fixed point): 42/42 hit, 0 miss, 0 refused (hits: 30 multi-output, 0 tall box, 5 pinned, 3 grown pins)
+pyrung pasted -> CLICK saved: 57/57 hit, 0 miss, 0 refused (hits: 46 multi-output, 0 tall box, 8 pinned, 4 grown pins)
+every layout: 2130 laid out, 2130 keep the circuit, 2130 idempotent
+
+===== tumbler clipboard (native)
+--- AlmHistorian.clipboard.bin rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A         B C D E
+   0: DS181<1   T T - - -.. | copy(0,DS181)
+   1: DS181>100 . | . .     | 
+   2: .         . T - - -.. | reset(C1061)
+   3: .         . T - - -.. | copy(0,DS182)
+   4: .         . | . .     | 
+   5: .         . - - - -.. | return()
+ layout:
+      A         B C D
+   0: DS181<1   T - - -.. | copy(0,DS181)
+   1: DS181>100 | . .     | 
+   2: .         T - - -.. | reset(C1061)
+   3: .         T - - -.. | copy(0,DS182)
+   4: .         | . .     | 
+   5: .         - - - -.. | return()
+   r0C: - R1D0 vs - R1D1
+   r1B: - R0D1 vs - R0D0
+   r1C: - R0D0 vs - R0D1
+   r2B: - R1D1 vs - R0D0
+   r2C: - R1D0 vs - R1D1
+   r3B: - R1D1 vs - R0D0
+   r3C: - R1D0 vs - R1D1
+   r4B: - R0D1 vs - R0D0
+   r4C: - R0D0 vs - R0D1
+   r5B: - R1D0 vs - R0D0
+--- WarnTimestamp.clipboard.bin rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A        B C D E
+   0: DS191<1  T T - - -.. | copy(0,DS191)
+   1: DS191>50 . | . .     | 
+   2: .        . T - - -.. | reset(C1063)
+   3: .        . - - - -.. | copy(0,DS193)
+   4: .        . . . .     | 
+ layout:
+      A        B C D
+   0: DS191<1  T - - -.. | copy(0,DS191)
+   1: DS191>50 | . .     | 
+   2: .        T - - -.. | reset(C1063)
+   3: .        - - - -.. | copy(0,DS193)
+   4: .        . . .     | 
+   r0C: - R1D0 vs - R1D1
+   r1B: - R0D1 vs - R0D0
+   r1C: - R0D0 vs - R0D1
+   r2B: - R1D1 vs - R0D0
+   r2C: - R1D0 vs - R1D1
+   r3B: - R1D0 vs - R0D0
+
+===== tumbler SCR (native)
+--- AlmHistorian.scr rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A         B C D E
+   0: DS181<1   T T - - -.. | copy(0,DS181)
+   1: DS181>100 . | . .     | 
+   2: .         . T - - -.. | reset(C1061)
+   3: .         . T - - -.. | copy(0,DS182)
+   4: .         . | . .     | 
+   5: .         . - - - -.. | return()
+ layout:
+      A         B C D
+   0: DS181<1   T - - -.. | copy(0,DS181)
+   1: DS181>100 | . .     | 
+   2: .         T - - -.. | reset(C1061)
+   3: .         T - - -.. | copy(0,DS182)
+   4: .         | . .     | 
+   5: .         - - - -.. | return()
+   r0C: - R1D0 vs - R1D1
+   r1B: - R0D1 vs - R0D0
+   r1C: - R0D0 vs - R0D1
+   r2B: - R1D1 vs - R0D0
+   r2C: - R1D0 vs - R1D1
+   r3B: - R1D1 vs - R0D0
+   r3C: - R1D0 vs - R1D1
+   r4B: - R0D1 vs - R0D0
+   r4C: - R0D0 vs - R0D1
+   r5B: - R1D0 vs - R0D0
+--- WarnTimestamp.scr rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A        B C D E
+   0: DS191<1  T T - - -.. | copy(0,DS191)
+   1: DS191>50 . | . .     | 
+   2: .        . T - - -.. | reset(C1063)
+   3: .        . - - - -.. | copy(0,DS193)
+   4: .        . . . .     | 
+ layout:
+      A        B C D
+   0: DS191<1  T - - -.. | copy(0,DS191)
+   1: DS191>50 | . .     | 
+   2: .        T - - -.. | reset(C1063)
+   3: .        - - - -.. | copy(0,DS193)
+   4: .        . . .     | 
+   r0C: - R1D0 vs - R1D1
+   r1B: - R0D1 vs - R0D0
+   r1C: - R0D0 vs - R0D1
+   r2B: - R1D1 vs - R0D0
+   r2C: - R1D0 vs - R1D1
+   r3B: - R1D0 vs - R0D0
+
+===== scr_captures clipboard (native)
+--- coverage.bin rung 101: MISS (1 native rung(s), 1 laid out)
+ native:
+      A   B C
+   0: C10 - - -.. | send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",por
+   1: .   . .     | 
+   2: .   . .     | 
+   3: .   . .     | 
+ layout:
+      A   B C
+   0: C10 - - -.. | send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",por
+   1: .   . .     | 
+   2: .   . .     | 
+   rows 3 vs 4
+--- counter_scr.bin rung 6: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: .    . . . . . . - - -.. | NOP
+   2: X002 - - - - - - - - -.. | 
+ layout:
+      A    B C
+   0: .    . .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: X001 - - -.. | NOP
+   2: X002 - - -.. | 
+   r0A: - R0D0 vs X001 R1D0
+   r0B: - R0D0 vs - R1D0
+   r0C: - R0D0 vs - R1D0
+   r0D: - R0D0 vs - R1D0
+   r0E: - R0D0 vs - R1D0
+   r0F: - R0D0 vs - R1D0
+   r0G: - R0D0 vs - R1D0
+   r0H: - R0D0 vs - R0D1
+   r1A: X001 R1D0 vs - R0D0
+   r1B: - R1D0 vs - R0D0
+   r1C: - R1D0 vs - R0D0
+   r1D: - R1D0 vs - R0D0
+--- counter_scr.bin rung 7: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | 
+   1: X002 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   2: .    . . . . . . - - -.. | NOP
+   3: X002 - - - - - - - - -.. | 
+ layout:
+      A    B C D
+   0: .    . . .     | count_down(CT1,CTD1,preset=1) pins=(1, 3)
+   1: X001 T - - -.. | NOP
+   2: X002 . . .     | 
+   3: X002 - - - -.. | 
+   r0A: - R0D0 vs X001 R1D0
+   r0B: - R0D0 vs - R1D0
+   r0C: - R0D0 vs - R1D0
+   r0D: - R0D0 vs - R1D0
+   r0E: - R0D0 vs - R1D0
+   r0F: - R0D0 vs - R1D0
+   r0G: - R0D0 vs - R1D0
+   r0H: - R0D0 vs - R0D1
+   r0AF: count_down(CT1,CTD1,preset=1) pins=(1, 3 vs .
+   r1A: X001 R1D0 vs X002 R1D0
+   r1B: - R1D1 vs - R1D0
+   r1H: - R1D0 vs - R0D1
+--- or_topology.bin rung 1: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E F
+   0: X001 T T:C1 T - - -.. | out(Y001)
+   1: X002 . C2   . . .     | 
+ layout:
+      A    B    C D E
+   0: X001 T:C1 T - - -.. | out(Y001)
+   1: X002 C2   . . .     | 
+   r0B: C1 R1D1 vs - R1D1
+   r0C: - R1D1 vs C1 R1D1
+   r0D: - R1D0 vs - R1D1
+   r1B: C2 R1D0 vs - R0D0
+   r1C: - R0D0 vs C2 R1D0
+--- or_topology.bin rung 2: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 . C1 - - -.. | out(Y002)
+ layout:
+      A    B  C D
+   0: X001 T  - - -.. | out(Y001)
+   1: X002 C1 - - -.. | out(Y002)
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D0 vs - R0D0
+   r1C: - R1D0 vs C1 R1D0
+--- or_topology.bin rung 3: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 | C1 - - -.. | out(Y002)
+   2: X003 . .  . .     | 
+ layout:
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: X003 .    . .     | 
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D1 vs - R0D1
+   r1C: - R1D0 vs C1 R1D0
+--- or_topology.bin rung 4: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B      C D    E F
+   0: X001 T:X002 T T    - - -.. | out(Y001)
+   1: .    T:X003 | T:C1 - - -.. | out(Y002)
+   2: .    X004   . -    - - -.. | out(Y003)
+ layout:
+      A    B      C    D E
+   0: X001 T:X002 T    - - -.. | out(Y001)
+   1: .    T:X003 T:C1 - - -.. | out(Y002)
+   2: .    X004   -    - - -.. | out(Y003)
+   r0D: - R1D0 vs - R1D1
+   r1C: C1 R1D1 vs - R0D1
+   r1D: - R1D0 vs C1 R1D1
+   r2C: - R1D0 vs - R0D0
+--- or_topology.bin rung 6: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E
+   0: X001 T T    - - -.. | out(Y001)
+   1: X002 . T:C1 - - -.. | out(Y002)
+   2: .    . C2   - - -.. | out(Y003)
+ layout:
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: .    C2   - - -.. | out(Y003)
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D1 vs - R0D0
+   r1C: - R1D0 vs C1 R1D1
+   r2B: C2 R1D0 vs - R0D0
+   r2C: - R1D0 vs C2 R1D0
+--- or_topology.bin rung 7: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E    F G
+   0: X001 T T:C1 T T    - - -.. | out(Y001)
+   1: X002 . C2   . X003 - - -.. | out(Y002)
+ layout:
+      A    B    C    D E
+   0: X001 T:C1 T    - - -.. | out(Y001)
+   1: X002 C2   X003 - - -.. | out(Y002)
+   r0B: C1 R1D1 vs - R1D1
+   r0C: - R1D1 vs C1 R1D1
+   r0D: - R1D0 vs - R1D1
+   r0E: - R1D0 vs - R1D1
+   r1B: C2 R1D0 vs - R0D0
+   r1C: X003 R1D0 vs C2 R1D0
+   r1D: - R1D0 vs - R0D0
+   r1E: - R1D0 vs X003 R1D0
+--- time_drum_b_column.bin rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+   r0A: - R1D0 vs - R0D0
+   r0B: - R1D0 vs - R1D1
+--- time_drum_insert_rows.bin rung 1: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+--- time_drum_insert_rows.bin rung 2: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: . .     | 
+   2: - - -.. | 
+   3: . .     | 
+
+===== scr_captures SCR (native)
+--- coverage.scr rung 101: MISS (1 native rung(s), 1 laid out)
+ native:
+      A   B C
+   0: C10 - - -.. | send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",por
+   1: .   . .     | 
+   2: .   . .     | 
+   3: .   . .     | 
+ layout:
+      A   B C
+   0: C10 - - -.. | send(target=ModbusTcpTarget(name="tcp",ip="192.168.1.10",por
+   1: .   . .     | 
+   2: .   . .     | 
+   rows 3 vs 4
+--- counter_scr.scr rung 6: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: .    . . . . . . - - -.. | NOP
+   2: X002 - - - - - - - - -.. | 
+ layout:
+      A    B C
+   0: .    . .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: X001 - - -.. | NOP
+   2: X002 - - -.. | 
+   r0A: - R0D0 vs X001 R1D0
+   r0B: - R0D0 vs - R1D0
+   r0C: - R0D0 vs - R1D0
+   r0D: - R0D0 vs - R1D0
+   r0E: - R0D0 vs - R1D0
+   r0F: - R0D0 vs - R1D0
+   r0G: - R0D0 vs - R1D0
+   r0H: - R0D0 vs - R0D1
+   r1A: X001 R1D0 vs - R0D0
+   r1B: - R1D0 vs - R0D0
+   r1C: - R1D0 vs - R0D0
+   r1D: - R1D0 vs - R0D0
+--- counter_scr.scr rung 7: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | 
+   1: X002 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   2: .    . . . . . . - - -.. | NOP
+   3: X002 - - - - - - - - -.. | 
+ layout:
+      A    B C D
+   0: .    . . .     | count_down(CT1,CTD1,preset=1) pins=(1, 3)
+   1: X001 T - - -.. | NOP
+   2: X002 . . .     | 
+   3: X002 - - - -.. | 
+   r0A: - R0D0 vs X001 R1D0
+   r0B: - R0D0 vs - R1D0
+   r0C: - R0D0 vs - R1D0
+   r0D: - R0D0 vs - R1D0
+   r0E: - R0D0 vs - R1D0
+   r0F: - R0D0 vs - R1D0
+   r0G: - R0D0 vs - R1D0
+   r0H: - R0D0 vs - R0D1
+   r0AF: count_down(CT1,CTD1,preset=1) pins=(1, 3 vs .
+   r1A: X001 R1D0 vs X002 R1D0
+   r1B: - R1D1 vs - R1D0
+   r1H: - R1D0 vs - R0D1
+--- or_topology.scr rung 1: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E F
+   0: X001 T T:C1 T - - -.. | out(Y001)
+   1: X002 . C2   . . .     | 
+ layout:
+      A    B    C D E
+   0: X001 T:C1 T - - -.. | out(Y001)
+   1: X002 C2   . . .     | 
+   r0B: C1 R1D1 vs - R1D1
+   r0C: - R1D1 vs C1 R1D1
+   r0D: - R1D0 vs - R1D1
+   r1B: C2 R1D0 vs - R0D0
+   r1C: - R0D0 vs C2 R1D0
+--- or_topology.scr rung 2: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 . C1 - - -.. | out(Y002)
+ layout:
+      A    B  C D
+   0: X001 T  - - -.. | out(Y001)
+   1: X002 C1 - - -.. | out(Y002)
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D0 vs - R0D0
+   r1C: - R1D0 vs C1 R1D0
+--- or_topology.scr rung 3: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 | C1 - - -.. | out(Y002)
+   2: X003 . .  . .     | 
+ layout:
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: X003 .    . .     | 
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D1 vs - R0D1
+   r1C: - R1D0 vs C1 R1D0
+--- or_topology.scr rung 4: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B      C D    E F
+   0: X001 T:X002 T T    - - -.. | out(Y001)
+   1: .    T:X003 | T:C1 - - -.. | out(Y002)
+   2: .    X004   . -    - - -.. | out(Y003)
+ layout:
+      A    B      C    D E
+   0: X001 T:X002 T    - - -.. | out(Y001)
+   1: .    T:X003 T:C1 - - -.. | out(Y002)
+   2: .    X004   -    - - -.. | out(Y003)
+   r0D: - R1D0 vs - R1D1
+   r1C: C1 R1D1 vs - R0D1
+   r1D: - R1D0 vs C1 R1D1
+   r2C: - R1D0 vs - R0D0
+--- or_topology.scr rung 6: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E
+   0: X001 T T    - - -.. | out(Y001)
+   1: X002 . T:C1 - - -.. | out(Y002)
+   2: .    . C2   - - -.. | out(Y003)
+ layout:
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: .    C2   - - -.. | out(Y003)
+   r0C: - R1D0 vs - R1D1
+   r1B: C1 R1D1 vs - R0D0
+   r1C: - R1D0 vs C1 R1D1
+   r2B: C2 R1D0 vs - R0D0
+   r2C: - R1D0 vs C2 R1D0
+--- or_topology.scr rung 7: MISS (1 native rung(s), 1 laid out)
+ native:
+      A    B C    D E    F G
+   0: X001 T T:C1 T T    - - -.. | out(Y001)
+   1: X002 . C2   . X003 - - -.. | out(Y002)
+ layout:
+      A    B    C    D E
+   0: X001 T:C1 T    - - -.. | out(Y001)
+   1: X002 C2   X003 - - -.. | out(Y002)
+   r0B: C1 R1D1 vs - R1D1
+   r0C: - R1D1 vs C1 R1D1
+   r0D: - R1D0 vs - R1D1
+   r0E: - R1D0 vs - R1D1
+   r1B: C2 R1D0 vs - R0D0
+   r1C: X003 R1D0 vs C2 R1D0
+   r1D: - R1D0 vs - R0D0
+   r1E: - R1D0 vs X003 R1D0
+--- time_drum_b_column.scr rung 0: MISS (1 native rung(s), 1 laid out)
+ native:
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+   r0A: - R1D0 vs - R0D0
+   r0B: - R1D0 vs - R1D1
+--- time_drum_insert_rows.scr rung 1: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+--- time_drum_insert_rows.scr rung 2: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: . .     | 
+   2: - - -.. | 
+   3: . .     | 
+--- time_drums.scr rung 11: MISS (1 native rung(s), 2 laid out)
+ native:
+      A B    C D
+   0: - T    - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: . |    . .     | 
+   2: . X001 | .     | 
+   3: . .    | .     | 
+   4: . .    - - -.. | out(Y001)
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: . .     | 
+   2: . .     | 
+   3: . .     | 
+      A    B C
+   0: X001 - - -.. | out(Y001)
+   rows 4 vs 5
+   r0B: - R1D0 vs - R1D1
+   r1B: - R0D0 vs - R0D1
+   r2B: - R0D0 vs X001 R1D0
+   r2C: - R0D0 vs - R0D1
+   r3C: - R0D0 vs - R0D1
+--- time_drums.scr rung 12: MISS (1 native rung(s), 1 laid out)
+ native:
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+   r0A: - R1D0 vs - R0D0
+   r0B: - R1D0 vs - R1D1
+--- time_drums.scr rung 13: MISS (1 native rung(s), 1 laid out)
+ native:
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C5],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: . T - - -.. | 
+   2: - - - - -.. | 
+   3: . . . .     | 
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C5],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: - - -.. | 
+   3: . .     | 
+   r0A: - R1D0 vs - R0D0
+   r0B: - R1D0 vs - R1D1
+   r1A: - R1D0 vs - R0D0
+   r1B: - R1D0 vs - R1D1
+--- time_drums.scr rung 14: MISS (1 native rung(s), 1 laid out)
+ native:
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+ layout:
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+   r0A: - R1D0 vs - R0D0
+   r0B: - R1D0 vs - R1D1
+
+===== v4 pasted, not checked (informational)
+--- count_down_or.bin rung 2: REFUSED (None): row 0 column 0: the contact feeds no box
+      A   B C
+   0: C21 - - -.. | count_down(CT3,CTD3,preset=5) pins=(1, 2)
+   1: C22 - - -.. | NOP
+   2: C29 - - -.. | 
+--- count_down_or.bin rung 3: REFUSED (None): row 2 column 0: the contact feeds no box
+      A   B C
+   0: .   . .     | count_down(CT4,CTD4,preset=5) pins=(1, 3)
+   1: C31 - - -.. | NOP
+   2: C32 . .     | 
+   3: C39 - - -.. | 
+--- count_down_or.bin rung 4: MISS (1 native rung(s), 1 laid out)
+ native:
+      A   B C
+   0: .   . .     | count_down(CT5,CTD5,preset=5) pins=(1, 3)
+   1: C41 - - -.. | NOP
+   2: .   . .     | 
+   3: C49 - - -.. | 
+ layout:
+      A   B C
+   0: .   . .     | count_down(CT5,CTD5,preset=5) pins=(1, 2)
+   1: C41 - - -.. | NOP
+   2: C49 - - -.. | 
+   rows 3 vs 4
+   r0AF: count_down(CT5,CTD5,preset=5) pins=(1, 2 vs count_down(CT5,CTD5,preset=5) pins=(1, 3
+   r2A: C49 R1D0 vs - R0D0
+   r2B: - R1D0 vs - R0D0
+   r2C: - R1D0 vs - R0D0
+   r2D: - R1D0 vs - R0D0
+   r2E: - R1D0 vs - R0D0
+   r2F: - R1D0 vs - R0D0
+   r2G: - R1D0 vs - R0D0
+   r2H: - R1D0 vs - R0D0
+   r2I: - R1D0 vs - R0D0
+   r2J: - R1D0 vs - R0D0
+--- pins.bin rung 1: MISS (1 native rung(s), 1 laid out)
+ native:
+      A     B     C D E
+   0: C1058 -     - - - -.. | time_drum(outputs=[C1022],presets=[1000],unit=Tms,pattern=[[
+   1: C1059 -     T - - -.. | 
+   2: C1060 C1061 . . .     | 
+   3: C1062 -     - - - -.. | 
+ layout:
+      A     B     C D E
+   0: C1058 -     - - - -.. | time_drum(outputs=[C1022],presets=[1000],unit=Tms,pattern=[[
+   1: C1059 -     T - - -.. | 
+   2: C1060 C1061 . . .     | 
+   3: .     .     . . .     | 
+   4: C1062 -     - - - -.. | 
+   rows 5 vs 4
+   r0AF: time_drum(outputs=[C1022],presets=[1000] vs time_drum(outputs=[C1022],presets=[1000]
+   r3A: - R0D0 vs C1062 R1D0
+   r3B: - R0D0 vs - R1D0
+   r3C: - R0D0 vs - R1D0
+   r3D: - R0D0 vs - R1D0
+   r3E: - R0D0 vs - R1D0
+   r3F: - R0D0 vs - R1D0
+   r3G: - R0D0 vs - R1D0
+   r3H: - R0D0 vs - R1D0
+   r3I: - R0D0 vs - R1D0
+   r3J: - R0D0 vs - R1D0
+
+===== ladder_captures drum_weird_branch (informational)
+--- drum_weird_branch.bin rung 0: REFUSED (None): row 1: a pin input shares contacts with a main input
+      A B      C D E F
+   0: - T:X001 T T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: . |      | - - - -.. | 
+   2: . |      | . . .     | 
+   3: . |      | . . .     | 
+   4: . |      | . . .     | 
+   5: . |      | . . .     | 
+   6: . X002   . . . .     | 
+
