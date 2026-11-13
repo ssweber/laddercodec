@@ -40,7 +40,8 @@ from ..model import (
 )
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
-from .math_formula import address_parts, parse, range_interiors
+from .math_formula import address_parts, parse
+from .math_formula import range_interiors as formula_range_interiors
 from .raw import _decompose_blob
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ _TAG_RESERVED = 0x688C
 _TAG_TERMINATOR = 0x0000
 
 _OPERAND_SLOTS = 500
-_RESERVED_SLOTS = 500
+RESERVED_SLOTS = 500
 #: CLICK v4's capacity.  Its editor stops listing interiors here, whatever the formula says.
 _V4_RESERVED_SLOTS = 5000
 # The formula's length cap (``math_formula.MAX_INTERNAL_LENGTH``) allows at most 68
@@ -88,7 +89,7 @@ _EMPTY_OPERAND_BYTES = b"".join(
     struct.pack("<HI", _TAG_OPERAND, i) + b"\x00\x00" for i in range(_OPERAND_SLOTS)
 )
 _EMPTY_RESERVED_BYTES = b"".join(
-    struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(_RESERVED_SLOTS)
+    struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
 #: Result banks per mode (Inst_Math.dll result masks; OBJ-004).
@@ -113,9 +114,9 @@ def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
     return tags.get(_TAG_FORMULA_INTERNAL, ""), tags.get(_TAG_FORMULA_DISPLAY, ""), listed
 
 
-def _range_interiors(expression: str) -> list[str]:
+def range_interiors(expression: str) -> list[str]:
     """The addresses each ``A : B`` range of a display formula lists (``range_interiors``)."""
-    return range_interiors(expression.split())
+    return formula_range_interiors(expression.split())
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
@@ -230,9 +231,7 @@ class Math(AfInstruction):
         out += b"\x01\x00"  # part count
         # The 500-slot form pastes into v3 and v4; only wider ranges need v4's capacity.
         interiors = formula.range_interiors
-        reserved_slots = (
-            _RESERVED_SLOTS if len(interiors) <= _RESERVED_SLOTS else _V4_RESERVED_SLOTS
-        )
+        reserved_slots = RESERVED_SLOTS if len(interiors) <= RESERVED_SLOTS else _V4_RESERVED_SLOTS
         interiors = interiors[:reserved_slots]
         out += struct.pack("<I", 9 + _OPERAND_SLOTS + reserved_slots + 1)
 
@@ -257,7 +256,7 @@ class Math(AfInstruction):
         # --- reserved slots: the interior addresses of each range ---
         for i, addr in enumerate(interiors):
             out += _variant_tagged_field(_TAG_RESERVED, struct.pack("<I", i), addr)
-        if reserved_slots == _RESERVED_SLOTS:
+        if reserved_slots == RESERVED_SLOTS:
             out += _EMPTY_RESERVED_BYTES[len(interiors) * _SLOT_EMPTY_SIZE :]
         else:
             for i in range(len(interiors), reserved_slots):

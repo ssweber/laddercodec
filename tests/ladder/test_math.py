@@ -8,8 +8,8 @@ from laddercodec.binary_helpers import _tagged_field, _utf16le_null
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math import (
     Math,
-    _range_interiors,
     _reconstruct_expression,
+    range_interiors,
 )
 from laddercodec.instructions.math_formula import parse
 
@@ -153,7 +153,7 @@ def test_literal_after_unspaced_operator_gets_its_internal_prefix() -> None:
     ],
 )
 def test_range_interiors(expression: str, interiors: list[str]) -> None:
-    assert _range_interiors(expression) == interiors
+    assert range_interiors(expression) == interiors
 
 
 def test_xd_operands_decode_with_their_display_constants() -> None:

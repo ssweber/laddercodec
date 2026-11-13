@@ -10,8 +10,10 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
-``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``,
-``math_ranges_xy_slots.bin``, ``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+``math_nickname_display.bin``, ``math_unary_plus_pi.bin``,
+``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``, ``math_ranges_xy_slots.bin``,
+``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``; text constants typed
+in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
@@ -34,7 +36,7 @@ from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
 from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.forloop import Break, Continue
-from laddercodec.instructions.math import Math, _range_interiors
+from laddercodec.instructions.math import Math, range_interiors
 from laddercodec.instructions.math import from_tags as from_tags_math
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
@@ -349,7 +351,7 @@ def test_math_xy_range_lists_in_capture(
     listed = [value for (tag, _), value in sorted(slots.items()) if tag == 0x688C]
     assert listed == expected
     assert {key for key in slots if key[0] == 0x688C} == {(0x688C, i) for i in range(len(expected))}
-    assert _range_interiors(formula) == expected
+    assert range_interiors(formula) == expected
 
 
 @pytest.mark.parametrize(

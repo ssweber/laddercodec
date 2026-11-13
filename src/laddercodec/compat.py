@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING
 from .instructions.drum import Drum
 from .instructions.forloop import Break, Continue
 from .instructions.math import (
-    _RESERVED_SLOTS,
+    RESERVED_SLOTS,
     Math,
-    _range_interiors,
+    range_interiors,
     raw_formula_fields,
 )
 from .instructions.out_variant import OutVariant
@@ -41,7 +41,7 @@ def is_v4_only(instruction: object) -> bool:
     if isinstance(instruction, Math):
         expression = instruction.expression
         # Past 500 range interiors the blob needs v4's capacity; v3 holds 500.
-        return bool(_v4_formula(expression) or len(_range_interiors(expression)) > _RESERVED_SLOTS)
+        return bool(_v4_formula(expression) or len(range_interiors(expression)) > RESERVED_SLOTS)
     if isinstance(instruction, RawInstruction) and instruction.class_name == "Math":
         return _raw_math_is_v4_only(instruction.blob)
     return False
@@ -63,7 +63,7 @@ def _raw_math_is_v4_only(blob: bytes) -> bool:
         return False
     internal, display, listed = stored
     return (
-        _v4_formula(internal.replace("#", " ")) or _v4_formula(display) or listed > _RESERVED_SLOTS
+        _v4_formula(internal.replace("#", " ")) or _v4_formula(display) or listed > RESERVED_SLOTS
     )
 
 
