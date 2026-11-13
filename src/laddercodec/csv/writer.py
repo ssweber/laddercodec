@@ -246,7 +246,11 @@ def _emit_generic_tall_block(
     start: int,
     af: AfInstruction,
 ) -> tuple[int, int]:
-    """Emit a non-pinned tall AF block, preserving only nonblank continuation rows."""
+    """Emit a non-pinned tall AF block, dropping only its trailing padding rows.
+
+    A padding row above a later nonblank row of the span is kept, so that row
+    keeps its position on reparse (a raw Drum's unused pin row above a used one).
+    """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
     if len(condition_rows) < needed or len(af_tokens) < needed:
@@ -255,6 +259,14 @@ def _emit_generic_tall_block(
         )
 
     keep = _followed_by_floating_row(af_tokens, start + visual_rows)
+    last_content = max(
+        (
+            offset
+            for offset in range(1, visual_rows)
+            if not _is_padding_row(condition_rows[start + offset])
+        ),
+        default=0,
+    )
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], af)
     for offset in range(1, visual_rows):
         _require_blank_af(
@@ -262,7 +274,7 @@ def _emit_generic_tall_block(
             message=f"{type(af).__name__} continuation row must be blank AF",
         )
         data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + offset], keep
+            rows, data_row_count, condition_rows[start + offset], keep or offset < last_content
         )
     return data_row_count, visual_rows
 

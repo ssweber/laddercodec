@@ -278,16 +278,17 @@ def test_csv_raw_takes_typed_height() -> None:
     }
 
 
-def test_csv_raw_pinned_box_spans_its_part_count() -> None:
-    # A regression lock on the part-count rule, not native ground truth.  Native cells it
-    # does not cover: Tmr 02 03, Drum 04 05, SR 03 02, and pinned boxes whose OR legs
-    # grow the box (Cnt 04 03 to 0A 03, Drum 05 04, SR 04 03).
+def test_csv_raw_pinned_box_ends_below_its_last_pin() -> None:
+    # The span a typed pinned box has (last pin row + 1); the sub-rows it doesn't cover:
+    # Tmr 02 03, Cnt 04 03, Drum 04 05, SR 03 02.
     pinned = [af for af in _typed_boxes() if isinstance(af, PinnedInstruction)]
     assert {type(af).__name__ for af in pinned} >= {"Timer", "Counter", "Shift", "Drum"}
+    assert any(af.pin_rows[-1] + 1 > len(af.pin_rows) + 1 for af in pinned)
     for af in pinned:
         raw = _raw_token_of(af)
         assert raw.part_count > 1
-        assert raw.cell_params() == {"visual_rows": raw.part_count}
+        assert raw.cell_params() == {"visual_rows": af.pin_rows[-1] + 1}
+        assert raw.cell_params()["visual_rows"] == af.cell_params()["visual_rows"]
 
 
 def test_raw_out_with_unknown_func_code_is_one_row() -> None:
@@ -442,3 +443,114 @@ def test_legacy_hex_token_takes_rows_fields() -> None:
     stated = RawInstruction.from_csv_token(f"raw(Email,{blob.hex()},rows=1,sub=1)")
     assert stated.cell_params() == {}
     assert stated == RawInstruction("Email", blob, 1, visual_rows=1, sub_rows=1)
+
+
+# ---------------------------------------------------------------------------
+# The raw token holds a multi-part box's pin rows
+# ---------------------------------------------------------------------------
+
+
+def _native_files() -> list[Path]:
+    """Native clipboard and SCR captures (not goldens, not synthetic ``time_drums.bin``)."""
+    return sorted(
+        path
+        for path in FIXTURES.rglob("*")
+        if path.name.endswith((".bin", ".bin.gz", ".scr"))
+        and "golden" not in path.parts
+        and path.name != "time_drums.bin"
+    )
+
+
+def _forced_raw_rungs(path: Path) -> list[Rung]:
+    if path.suffix == ".scr":
+        return decode_program(path.read_bytes()).rungs
+    return _rungs(decode(_load(path)))
+
+
+def test_native_pin_rows_round_trip_through_csv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
+    monkeypatch.setattr(_decode_program, "_scr_af", lambda *args: None)
+    boxes = moved = 0
+    for path in _native_files():
+        rungs = [
+            rung
+            for rung in _forced_raw_rungs(path)
+            if any(isinstance(af, RawInstruction) and af.part_count > 1 for af in rung.instructions)
+        ]
+        if not rungs:
+            continue
+        for af in (af for rung in rungs for af in rung.instructions):
+            if not (isinstance(af, RawInstruction) and af.part_count > 1):
+                continue
+            boxes += 1
+            pins = _decode_blob_pins(af.blob)
+            moved += pins != bytes(range(1, af.part_count))
+            assert f",pins={'/'.join(map(str, pins))}," in af.to_csv()
+            back = RawInstruction.from_csv_token(af.to_csv())
+            assert back.blob == af.blob
+            assert back == af
+        out = tmp_path / f"{path.name}.csv"
+        write_csv(out, rungs)
+        again = read_csv(out)
+        assert [r.instructions for r in again] == [r.instructions for r in rungs], path.name
+        assert [r.conditions for r in again] == [r.conditions for r in rungs], path.name
+    # count_down_or.bin and pins.bin (12 boxes) and scr_captures/pins.scr (6) move a pin.
+    assert moved == 18
+    assert boxes > moved
+
+
+def _decode_blob_pins(blob: bytes) -> bytes:
+    from laddercodec.instructions.raw import _decompose_blob
+
+    return _decompose_blob(blob)[3]
+
+
+def test_raw_token_pins_default_and_height() -> None:
+    plain = RawInstruction.from_csv_token("raw(Zzz,0x1234,3,0001=a,0000=)")
+    assert _decode_blob_pins(plain.blob) == b"\x01\x02"
+    assert plain.cell_params() == {"visual_rows": 3}
+    moved = RawInstruction.from_csv_token("raw(Zzz,0x1234,3,pins=1/3,0001=a,0000=)")
+    assert _decode_blob_pins(moved.blob) == b"\x01\x03"
+    assert moved.cell_params() == {"visual_rows": 4}
+    assert moved.to_csv() == "raw(Zzz,0x1234,3,rows=4,sub=4,pins=1/3,0001=a,0000=)"
+    assert moved != plain
+    one = RawInstruction.from_csv_token("raw(Zzz,0x1234,1,0001=a,0000=)")
+    assert "pins=" not in one.to_csv()
+
+
+@pytest.mark.parametrize(
+    ("token", "match"),
+    [
+        ("raw(Zzz,0x1234,3,pins=1,0000=)", "must hold 2 rows"),
+        ("raw(Zzz,0x1234,3,pins=1/2/3,0000=)", "must hold 2 rows"),
+        ("raw(Zzz,0x1234,3,pins=0/2,0000=)", "not a whole number from 1 to 31"),
+        ("raw(Zzz,0x1234,3,pins=1/32,0000=)", "not a whole number from 1 to 31"),
+        ("raw(Zzz,0x1234,3,pins=1/x,0000=)", "not a whole number from 1 to 31"),
+        ("raw(Zzz,0x1234,3,pins=1/,0000=)", "not a whole number from 1 to 31"),
+        ("raw(Zzz,0x1234,3,pins=3/3,0000=)", "must ascend"),
+        ("raw(Zzz,0x1234,3,pins=3/1,0000=)", "must ascend"),
+        ("raw(Zzz,0x1234,1,pins=1,0000=)", "only for a box of 2 or more parts"),
+        ("raw(Zzz,0x1234,3,pins=1/2,rows=3,0000=)", "goes right after the part count"),
+        ("raw(Zzz,0x1234,3,0001=a,pins=1/2,0000=)", "goes right after the part count"),
+        ("raw(Zzz,0x1234,3,rows=3,sub=3,pins=1/3,0000=)", r"rows=3 does not fit pins=1/3"),
+        ("raw(Zzz,0x1234,3,rows=4,0000=)", r"rows=4 does not fit no pins="),
+        ("raw(Email,4142,pins=1)", "can't follow the hex"),
+    ],
+)
+def test_raw_token_pins_refused(token: str, match: str) -> None:
+    with pytest.raises(FieldError, match=match):
+        RawInstruction.from_csv_token(token)
+
+
+def test_typed_token_refuses_pins() -> None:
+    token = Email().to_csv().replace("rows=3,sub=3,", "rows=3,sub=3,pins=1,")
+    with pytest.raises(FieldError, match="only for a box of 2 or more parts"):
+        Email.from_csv_token(token)
+
+
+def test_raw_token_pins_need_their_rows_in_the_rung() -> None:
+    # The reader pads the rung to the box's span, one row below its last pin.
+    rung = _csv_rung("raw(Zzz,0x1234,3,pins=1/5,0001=a,0000=)")
+    assert rung.logical_rows == 6

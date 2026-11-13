@@ -337,13 +337,15 @@ class RawInstruction(AfInstruction):
         span is not its class's.  ``None`` takes the height from the class:
         the typed family's height when its blob alone gives it (Copy family,
         Search, Send, Receive, Out variants, and 3 rows for Email, Home,
-        Position and Velocity), otherwise ``part_count`` rows.  Boxes the
+        Position and Velocity), otherwise one row below its last part's
+        row (the blob's extra part bytes; 1 row for a 1-part box).  Boxes the
         editor creates may store other sub-rows (Math ``01 03``, some
         Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``); for
         those classes CLICK keeps the height laddercodec writes.  With
         ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal the row
         span.  The CSV token holds the two bytes the box encodes
-        (``rows=``, ``sub=``), and two boxes are equal when they encode the
+        (``rows=``, ``sub=``) and, for a box of 2 or more parts, the extra
+        part bytes (``pins=``).  Two boxes are equal when they encode the
         same bytes: a box with ``None`` equals one that states its class's
         height.
     """
@@ -405,12 +407,13 @@ class RawInstruction(AfInstruction):
         """Height of a box of this class with no native cell header.
 
         The first family whose ``cell_params_from_tags`` knows the blob gives it; any
-        other box (the pinned families among them) spans ``part_count`` rows.
+        other box (the pinned families among them) ends one row below its last
+        part's row, or spans ``part_count`` rows when its part bytes are no pin rows.
         """
         from . import AF_FAMILY_SPECS  # the registry imports this module
 
         try:
-            class_name, type_marker, _pc, _eb, fields = _decompose_blob(self.blob)
+            class_name, type_marker, pc, eb, fields = _decompose_blob(self.blob)
         except (ValueError, IndexError, struct.error):
             return {"visual_rows": self.part_count} if self.part_count > 1 else {}
         tags, _u16, _str = _fields_to_tag_dicts(fields)
@@ -418,6 +421,8 @@ class RawInstruction(AfInstruction):
             hook = spec.cell_params_from_tags
             if hook is not None and (params := hook(class_name, type_marker, tags)) is not None:
                 return params
+        if eb and _pins_spec(eb, pc):
+            return {"visual_rows": eb[-1] + 1}
         return {"visual_rows": self.part_count} if self.part_count > 1 else {}
 
     def build_blob(self) -> bytes:
@@ -430,14 +435,19 @@ class RawInstruction(AfInstruction):
         ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A).  Falls
         back to the legacy hex format, with the same two fields, if decomposition fails.
         """
-        rows = cell_rows_spec(self.cell_params())
+        params = self.cell_params()
+        rows = cell_rows_spec(params)
         try:
-            cn, tm, pc, _eb, flds = _decompose_blob(self.blob)
+            cn, tm, pc, eb, flds = _decompose_blob(self.blob)
             specs = _compress_fields(flds)
-            parts = [cn, f"0x{tm:04x}", str(pc), rows, *specs]
-            return f"raw({','.join(parts)})"
         except (ValueError, IndexError, struct.error):
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
+        pins = _pins_spec(eb, pc)
+        if pins is None or (eb and params.get("visual_rows", 1) != eb[-1] + 1):
+            # Part bytes or a height the fields form refuses: the hex keeps them.
+            return f"raw({self.class_name},{self.blob.hex()},{rows})"
+        parts = [cn, f"0x{tm:04x}", str(pc), rows, *([pins] if pins else []), *specs]
+        return f"raw({','.join(parts)})"
 
     @classmethod
     def from_csv_token(cls, token: str) -> RawInstruction:
@@ -471,7 +481,12 @@ class RawInstruction(AfInstruction):
 
         # Legacy hex format.
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
-        visual_rows, sub_rows, extra = _take_cell_rows(class_name, rest_parts)
+        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts)
+        if pins is not None:
+            raise FieldError(
+                f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
+                "holds the part bytes"
+            )
         if extra:
             raise FieldError(
                 f"raw({class_name},hex,...): only rows= and sub= may follow the hex, "
@@ -498,14 +513,16 @@ class RawInstruction(AfInstruction):
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
-        visual_rows, sub_rows, field_specs = _take_cell_rows(class_name, parts[2:])
+        visual_rows, sub_rows, pins, field_specs = _take_box_rows(class_name, parts[2:])
+        extra_bytes = _pin_rows(class_name, part_count, pins)
+        if extra_bytes and visual_rows is not None and visual_rows != extra_bytes[-1] + 1:
+            stated = "pins=" + pins if pins is not None else "no pins= (rows 1, 2, ...)"
+            raise FieldError(
+                f"raw({class_name},...): rows={visual_rows} does not fit {stated}; the box "
+                f"ends one row below its last pin (rows={extra_bytes[-1] + 1})"
+            )
 
         fields = _parse_field_specs(field_specs)
-
-        # Reconstruct extra bytes: Click numbers parts 1..part_count-1 (Tmr 01,
-        # Cnt/SR 01 02, Drum 01 02 03 in every native capture).
-        extra_bytes = bytes(range(1, max(1, part_count)))
-
         blob = _compose_blob(class_name, type_marker, part_count, extra_bytes, fields)
         return cls(class_name, blob, part_count, visual_rows, sub_rows)
 
@@ -514,8 +531,22 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
     """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
 
     Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
-    A box spans at most a rung's rows; its sub-rows byte may exceed its span
-    (a native Drum stores ``04 05``).
+    A ``pins=`` among the parts raises FieldError (see :func:`_take_box_rows`).
+    """
+    rows, sub, pins, rest = _take_box_rows(class_name, parts)
+    if pins is not None:
+        raise FieldError(f"raw({class_name},...): pins= is only for a box of 2 or more parts")
+    return rows, sub, rest
+
+
+def _take_box_rows(
+    class_name: str, parts: list[str]
+) -> tuple[int | None, int | None, str | None, list[str]]:
+    """Read the leading ``rows=``, ``sub=`` and ``pins=`` of a raw token's *parts*.
+
+    Returns ``(visual_rows, sub_rows, pins text, remaining parts)``; an absent
+    field is None.  A box spans at most a rung's rows; its sub-rows byte may
+    exceed its span (a native Drum stores ``04 05``).
     """
     from ..encode import MAX_ROWS
 
@@ -532,13 +563,62 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
                 )
             values[key] = int(text)
             i += 1
+    pins = None
+    if i < len(parts) and parts[i].startswith("pins="):
+        pins = parts[i][len("pins=") :]
+        i += 1
     for part in parts[i:]:
-        if part.startswith(("rows=", "sub=")):
+        if part.startswith(("rows=", "sub=", "pins=")):
             raise FieldError(
                 f"raw({class_name},...): {part!r} goes right after the part count, "
-                "rows= before sub=, once each"
+                "rows= then sub= then pins=, once each"
             )
-    return values["rows"], values["sub"], parts[i:]
+    return values["rows"], values["sub"], pins, parts[i:]
+
+
+def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
+    """The extra part bytes of a box of *part_count* parts, from a token's ``pins=``.
+
+    Each later part's row below the main row, ascending, 1 to 31 (a box ends inside
+    a rung).  Without ``pins=`` the parts sit on rows 1, 2, ...
+    """
+    want = max(0, part_count - 1)
+    if text is None:
+        return bytes(range(1, want + 1))
+    if want == 0:
+        raise FieldError(
+            f"raw({class_name},...): pins={text} is only for a box of 2 or more parts, "
+            f"not {part_count}"
+        )
+    values = text.split("/")
+    if len(values) != want:
+        raise FieldError(
+            f"raw({class_name},...): pins={text} must hold {want} rows, one per part "
+            f"after the first, joined by /"
+        )
+    if not all(v.isascii() and v.isdigit() and 1 <= int(v) <= 31 for v in values):
+        raise FieldError(
+            f"raw({class_name},...): pins={text} holds a row that is not a whole number "
+            "from 1 to 31"
+        )
+    rows = [int(v) for v in values]
+    if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
+        raise FieldError(f"raw({class_name},...): pins={text} must ascend")
+    return bytes(rows)
+
+
+def _pins_spec(extra_bytes: bytes, part_count: int) -> str | None:
+    """The ``pins=`` field for *extra_bytes*, or None when a token can't state them."""
+    if part_count < 2:
+        return None if extra_bytes else ""
+    rows = list(extra_bytes)
+    if (
+        len(rows) != part_count - 1
+        or not all(1 <= row <= 31 for row in rows)
+        or any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False))
+    ):
+        return None
+    return "pins=" + "/".join(str(row) for row in rows)
 
 
 def _take_fixed_cell_rows(class_name: str, parts: list[str], params: dict[str, int]) -> list[str]:
