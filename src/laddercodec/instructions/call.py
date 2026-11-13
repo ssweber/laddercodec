@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 CALL_TYPE_MARKER = 0x2723
 CALL_FUNC_CODE = "9221"
-# 0x3219 is the dialog's drop-down index; CLICK recomputes it by name
+# 0x3219 is the dialog's drop-down index; the dialog saves its own on OK
 # (tests/fixtures/v4_captures/call_index_dialog_ok.bin), so it is written as 0 and ignored.
 _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 

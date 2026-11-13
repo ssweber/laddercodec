@@ -16,7 +16,8 @@ into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin`
 in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``;
-Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``; a Call pasted from laddercodec, then saved by its dialog,
+Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``;
+a Call pasted from laddercodec, then saved by its dialog,
 ``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``)
 are only used by the blob tests below.
 """
@@ -672,7 +673,7 @@ def _call_blob_fields(buf: bytes, length: int) -> tuple[bytes, dict[int, str]]:
 
 
 def test_call_index_captures() -> None:
-    """Tag 0x3219 is a cached drop-down position: a pasted 0 stays, the dialog saves 3."""
+    """Tag 0x3219 is the dialog's drop-down index: a pasted 0 stays, the dialog saves its own (3)."""
     from laddercodec.instructions.call import Call
 
     expected = Call("Conf_RtcSet").build_blob()
