@@ -339,9 +339,9 @@ class RawInstruction(AfInstruction):
         Position and Velocity), otherwise ``part_count`` rows.  Boxes the
         editor creates may store other sub-rows (Math ``01 03``, some
         Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``);
-        CLICK keeps the height laddercodec writes.  With ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal
-        the row span.  The CSV token does not hold them, so they take no
-        part in equality.
+        CLICK keeps the height laddercodec writes.  With ``visual_rows`` set
+        and ``sub_rows`` None, the sub-rows equal the row span.  The CSV
+        token does not hold them, so they take no part in equality.
     """
 
     class_name: str

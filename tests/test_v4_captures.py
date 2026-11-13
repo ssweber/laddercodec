@@ -148,6 +148,7 @@ def _box_taller_than_rung(rung: Rung) -> bool:
 
 
 def test_box_taller_than_rung_does_not_write() -> None:
+    """The writer refuses CLICK's copy-back of a pasted 1-row box (an arc.md leftover)."""
     short = [
         r for r in _decode_file(CAPTURE_DIR / "box_height_pasted.bin") if _box_taller_than_rung(r)
     ]
