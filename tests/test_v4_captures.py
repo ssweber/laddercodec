@@ -49,7 +49,10 @@ from pathlib import Path
 import pytest
 
 from laddercodec import FieldError, encode, read_csv
+from laddercodec._layout import circuit
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
+from laddercodec.csv.converter import convert_literal
+from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import DecodeError, Rung, decode, inspect_cells
 from laddercodec.instructions import from_tags_af
@@ -90,30 +93,9 @@ def _load_labelled() -> list[tuple[str, Rung]]:
 _LABELLED = _load_labelled()
 
 
-def _leg_on_unused_pin_row(rung: Rung) -> bool:
-    """A pinned box whose unused pin's row holds a leg of the pin above.
-
-    CLICK leaves that layout when a leg is drawn into the row an unused pin
-    already has, instead of an inserted one.  CSV can't express it: on read,
-    an unused pin's row goes below the legs.
-    """
-    af = rung.instructions[0]
-    if not isinstance(af, Drum):
-        return False
-    used = (True, af.jump_enabled, af.jog_enabled)
-    return any(
-        not on and any(c != "" for c in rung.conditions[row])
-        for row, on in zip(af.pin_rows, used, strict=True)
-    )
-
-
 @pytest.mark.parametrize("rung", [r for _, r in _LABELLED], ids=[cid for cid, _ in _LABELLED])
 def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     expected = (rung.comment or "").split("\n")[1:]
-    if _leg_on_unused_pin_row(rung):
-        with pytest.raises(WriterError):
-            decoded_rung_to_rows(rung)
-        return
     rows = decoded_rung_to_rows(rung)
     af_tokens = [row[-1] for row in rows if row[0] != "#" and row[-1]]
     if any(token.startswith("raw(") for token in af_tokens):
@@ -141,32 +123,33 @@ def _current_spelling(token: str) -> str:
     return token
 
 
-#: Rungs (capture stem -> indexes) with no CSV form beyond ``_leg_on_unused_pin_row``.
-#: layoutq2_pasted rung 13 (P14) is a drum at pins (1, 5, 6) with Jump and Jog unused and
-#: blank rows above them; on read, CSV puts unused pins right below the legs, at (1, 2, 3).
-_NO_CSV_FORM = {"layoutq2_pasted": {13}}
-
-
 @pytest.mark.parametrize("bin_path", _DECODABLE, ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
-    skip = _NO_CSV_FORM.get(bin_path.stem, set())
-    rungs = [
-        r
-        for i, r in enumerate(_decode_file(bin_path))
-        if not _leg_on_unused_pin_row(r) and i not in skip
-    ]
-    write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
+    write_csv(tmp_path / f"{bin_path.stem}.csv", _decode_file(bin_path))
 
 
-# The writer first warns that the unused pins' blank rows would be lost, then refuses.
-@pytest.mark.filterwarnings("ignore:CSV round-trip lost:UserWarning")
-def test_drum_with_unused_pins_below_blank_rows_has_no_csv_form(tmp_path: Path) -> None:
+def test_drum_pins_below_blank_rows_write_as_checked(tmp_path: Path) -> None:
+    """layoutq2 P14: a drum at pins (1, 5, 6), Jump and Jog unused, writes as CLICK checks it."""
     rung = _decode_file(CAPTURE_DIR / "layoutq2_pasted.bin")[13]
+    checked = _decode_file(CAPTURE_DIR / "layoutq2_checked.bin")[13]
     assert isinstance(rung.instructions[0], Drum)
     assert rung.instructions[0].pin_rows == (1, 5, 6)
-    with pytest.raises(WriterError, match=r"pins on rows \(1, 5, 6\)"):
-        write_csv(tmp_path / "p14.csv", [rung])
+    write_csv(tmp_path / "p14.csv", [rung])
+    (back,) = read_csv(tmp_path / "p14.csv")
+    assert back.instructions[0].pin_rows == (1, 2, 3)
+    assert (back.conditions, back.instructions) == (checked.conditions, checked.instructions)
+
+
+def test_drum_leg_on_unused_pin_row_writes_as_checked(tmp_path: Path) -> None:
+    """A Reset leg on unused Jump's row: CLICK's check moves Jump and Jog down (layoutq Q3a)."""
+    (rung,) = [r for c, r in _LABELLED if c == "pins:pins__drum_reset_or3"]
+    assert rung.instructions[0].pin_rows == (1, 2, 3)
+    write_csv(tmp_path / "or3.csv", [rung])
+    (back,) = read_csv(tmp_path / "or3.csv")
+    assert back.instructions[0].pin_rows == (1, 3, 4)
+    column_a = [getattr(row[0], "operand", row[0]) for row in back.conditions]
+    assert column_a == ["C1058", "C1059", "C1060", "", "C1062"]
 
 
 def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
@@ -651,13 +634,19 @@ _COUNT_DOWN_SHAPES = {
 
 
 def test_count_down_or_layouts_survive_click() -> None:
-    """CLICK keeps the layout read_csv gives count_down: legs under Down push Reset down."""
+    """CLICK keeps a pasted count_down as drawn: legs under Down push Reset down.
+
+    read_csv lays the CSV out as CLICK's syntax check draws it, which drops empty_row's
+    blank row; the capture, taken before a check, keeps it.
+    """
     native = (CAPTURE_DIR / "count_down_or.bin").read_bytes()
     rungs = _decode_file(CAPTURE_DIR / "count_down_or.bin")
-    sent = read_csv(Path(__file__).parent / "fixtures" / "pinned_or" / "count_down_or.csv")
+    csv_path = Path(__file__).parent / "fixtures" / "pinned_or" / "count_down_or.csv"
+    drawn = [convert_literal(ast) for ast in parse_csv_file(csv_path).rungs]
+    laid_out = read_csv(csv_path)
     assert [r.comment for r in rungs] == list(_COUNT_DOWN_SHAPES)
     encoded = encode(rungs)
-    for index, (rung, ours) in enumerate(zip(rungs, sent, strict=True)):
+    for index, (rung, ours, read) in enumerate(zip(rungs, drawn, laid_out, strict=True)):
         rung_id = rung.comment or ""
         af = rung.instructions[0]
         assert isinstance(af, Counter)
@@ -665,6 +654,10 @@ def test_count_down_or_layouts_survive_click() -> None:
         assert rung.conditions == ours.conditions, rung_id
         assert rung.instructions == ours.instructions, rung_id
         assert _af_cell_shape(encoded, index) == _af_cell_shape(native, index), rung_id
+        moved = (read.conditions, read.instructions) != (rung.conditions, rung.instructions)
+        assert moved == (rung_id == "empty_row"), rung_id
+        if moved:
+            assert circuit([read]) == circuit([rung]), rung_id
 
 
 def test_loop_exit_blobs_match_native() -> None:
@@ -1079,11 +1072,11 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
 
 _GRID_COLUMNS = [*(chr(ord("A") + i) for i in range(26)), "AA", "AB", "AC", "AD", "AE", "AF"]
 
-#: ``(csv, checked capture, {csv rung: checked rung})``.  CLICK's check splits stub
-#: rung 2 (two branches from the rail) into checked rungs 2 and 3.
+#: ``(csv, checked capture)``.  CLICK's check splits stub rung 2 (two branches from the
+#: rail) into checked rungs 2 and 3, and read_csv splits it the same way.
 _OR_COMPACT = [
-    ("or_compact_stub.csv", "or_compact_checked.bin", {0: 0, 2: 3, 3: 4, 4: 5}),
-    ("r30_tallbox.csv", "r30_tallbox_checked.bin", {0: 0}),
+    ("or_compact_stub.csv", "or_compact_checked.bin"),
+    ("r30_tallbox.csv", "r30_tallbox_checked.bin"),
 ]
 
 
@@ -1104,9 +1097,9 @@ def _assert_same_layout(ours: bytes, ours_rung: int, native: bytes, native_rung:
     assert _wire_flags(ours, ours_rung) == _wire_flags(native, native_rung)
 
 
-@pytest.mark.parametrize(("csv_name", "bin_name", "pairs"), _OR_COMPACT, ids=["stub", "r30"])
-def test_or_legs_encode_as_checked(csv_name: str, bin_name: str, pairs: dict[int, int]) -> None:
-    """OR legs under a tall box encode as CLICK's syntax check leaves them.
+@pytest.mark.parametrize(("csv_name", "bin_name"), _OR_COMPACT, ids=["stub", "r30"])
+def test_or_legs_encode_as_checked(csv_name: str, bin_name: str) -> None:
+    """OR legs under a tall box read and encode as CLICK's syntax check leaves them.
 
     The legs keep their rows, each Copy takes the first row below the box above it,
     and the right vertical reaches both.  Stub rung 3 (C2 hangs off X1's vertical,
@@ -1114,19 +1107,10 @@ def test_or_legs_encode_as_checked(csv_name: str, bin_name: str, pairs: dict[int
     """
     rungs = read_csv(CAPTURE_DIR / csv_name)
     native = (CAPTURE_DIR / bin_name).read_bytes()
-    for csv_index, native_index in pairs.items():
-        _assert_same_layout(encode(rungs[csv_index]), 0, native, native_index)
-
-
-def test_or_legs_layout_moves_only_what_check_moves() -> None:
-    """Against the pasted padded layout: stub rungs 1, 4 and 5 move, 2 and 3 don't."""
-    rungs = read_csv(CAPTURE_DIR / "or_compact_stub.csv")
-    pasted = _decode_file(CAPTURE_DIR / "or_compact_pasted.bin")
-    ours = [_decode_file(encode(rung))[0] for rung in rungs]
-    moved = [a.conditions != b.conditions for a, b in zip(ours, pasted, strict=True)]
-    assert moved == [True, False, False, True, True]
-    assert [r.logical_rows for r in ours] == [4, 4, 4, 4, 6]
-    assert [r.logical_rows for r in pasted] == [4, 4, 4, 5, 6]
+    assert len(rungs) == len(_decode_file(native))
+    encoded = encode(rungs)
+    for i in range(len(rungs)):
+        _assert_same_layout(encoded, i, native, i)
 
 
 @pytest.mark.parametrize("bin_name", ["or_compact_checked.bin", "r30_tallbox_checked.bin"])
@@ -1140,25 +1124,26 @@ def test_checked_or_legs_round_trip_through_csv(bin_name: str, tmp_path: Path) -
         _assert_same_layout(again, i, native, i)
 
 
-@pytest.mark.parametrize("bin_name", ["or_compact_pasted.bin", "r30_tallbox_pasted.bin"])
-def test_pasted_or_legs_keep_their_pad_rows_through_csv(bin_name: str, tmp_path: Path) -> None:
-    """The padded layout writes its pad rows, so it reads back padded, not compacted."""
-    native = (CAPTURE_DIR / bin_name).read_bytes()
-    rungs = _decode_file(native)
-    pad_row = ["", "", "|", "|", *[""] * 28, ""]
-    assert pad_row in decoded_rung_to_rows(rungs[0])
+@pytest.mark.parametrize(
+    ("pasted_name", "checked_name"),
+    [
+        ("or_compact_pasted.bin", "or_compact_checked.bin"),
+        ("r30_tallbox_pasted.bin", "r30_tallbox_checked.bin"),
+    ],
+)
+def test_pasted_or_legs_write_as_checked(
+    pasted_name: str, checked_name: str, tmp_path: Path
+) -> None:
+    """The padded layout CLICK took on paste writes, and reads back, as its checked drawing."""
+    rungs = _decode_file(CAPTURE_DIR / pasted_name)
+    checked = (CAPTURE_DIR / checked_name).read_bytes()
+    assert rungs[0].conditions != _decode_file(checked)[0].conditions
     write_csv(tmp_path / "pasted.csv", rungs)
-    again = encode(read_csv(tmp_path / "pasted.csv"))
-    for i in range(len(rungs)):
-        _assert_same_layout(again, i, native, i)
-
-
-def test_pasted_or_legs_drop_the_last_box_padding() -> None:
-    """Only pad rows above a later output are kept: stub rung 5's last Copy row is not."""
-    rung = _decode_file(CAPTURE_DIR / "or_compact_pasted.bin")[4]
-    assert rung.logical_rows == 6
-    data_rows = [row for row in decoded_rung_to_rows(rung) if row[0] != "#"]
-    assert [row[-1] for row in data_rows] == ["copy(1,DS1)", "", "copy(2,DS2)", "", "copy(3,DS3)"]
+    back = read_csv(tmp_path / "pasted.csv")
+    assert len(back) == len(_decode_file(checked))
+    again = encode(back)
+    for i in range(len(back)):
+        _assert_same_layout(again, i, checked, i)
 
 
 def test_down_wire_in_the_output_column_is_refused() -> None:
