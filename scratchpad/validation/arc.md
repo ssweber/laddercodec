@@ -897,7 +897,10 @@ Open asks (checklist; details under each id below):
   `or_compact_stub.csv`, and `r30_tallbox_pasted.bin`, `r30_tallbox_checked.bin` from
   pyrung's `r30_tallbox.csv`). A CSV author writes connections, not box heights. When
   every row is an OR leg between the same two verticals and every output hangs off the
-  right one, `read_csv` writes CLICK's post-check layout: legs keep their rows, each output
-  takes the first row below the box above it. Other shapes keep the blank pad rows. CLICK's
+  right one, `read_csv` lays the rung out compactly: legs keep their rows, and each output
+  keeps its row, or takes the first row below the box above it when that box still covers
+  it. For stacked 2-row Copies this is CLICK's post-check layout (the captures); for other
+  non-pinned boxes it keeps the logic (BOB ruling, review fuzz) but is not captured yet.
+  Other shapes keep the blank pad rows. CLICK's
   split of two rail branches into two rungs (stub rung 2) is out of scope; pyrung writes
   them as separate rungs.

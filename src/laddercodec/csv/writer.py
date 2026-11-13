@@ -253,7 +253,7 @@ def _emit_generic_tall_block(
 
     A padding row above a later nonblank row of the span is kept, so that row
     keeps its position on reparse (a raw Drum's unused pin row above a used one).
-    ``keep_padding`` keeps every padding row.
+    ``keep_padding`` keeps every padding row above a later output.
     """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
@@ -262,7 +262,8 @@ def _emit_generic_tall_block(
             f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
-    keep = keep_padding or _followed_by_floating_row(af_tokens, start + visual_rows)
+    later_output = any(token != "" for token in af_tokens[needed:])
+    keep = (keep_padding and later_output) or _followed_by_floating_row(af_tokens, needed)
     last_content = max(
         (
             offset
@@ -405,19 +406,24 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     grid row.  Multi-row AF families are streamed in order so multiple
     pinned/tall blocks survive CSV round-trip without truncation.
 
-    A tall box's padding rows are kept when the rows without them would
-    read back in CLICK's compact layout for OR legs, which moves the legs
-    up into those rows.
+    A tall box's padding rows above a later output are kept when the rows
+    without them would read back in the compact layout for OR legs, which
+    moves the legs up into those rows.
     """
     rows = _rung_rows(rung, keep_padding=False)
-    if _reads_back_compacted(rows):
+    if _reads_back_compacted(rung, rows):
         rows = _rung_rows(rung, keep_padding=True)
     _validate_roundtrip(rung, rows)
     return rows
 
 
-def _reads_back_compacted(rows: Sequence[Sequence[str]]) -> bool:
-    """True when ``read_csv`` would lay these rows out as compact OR legs."""
+def _reads_back_compacted(rung: Rung, rows: Sequence[Sequence[str]]) -> bool:
+    """True when ``read_csv`` would lay *rung*'s *rows* out as compact OR legs."""
+    if not any(
+        isinstance(af, AfInstruction) and int(af.cell_params().get("visual_rows", 1)) > 1
+        for af in rung.instructions
+    ):
+        return False  # no tall box, nothing to compact
     try:
         return lays_out_or_legs(_parse_single_rung_rows(rows))
     except (TypeError, ValueError):
@@ -425,7 +431,7 @@ def _reads_back_compacted(rows: Sequence[Sequence[str]]) -> bool:
 
 
 def _rung_rows(rung: Rung, *, keep_padding: bool) -> list[list[str]]:
-    """The CSV rows of *rung*; ``keep_padding`` keeps tall boxes' padding rows."""
+    """The CSV rows of *rung*; ``keep_padding`` keeps tall boxes' padding rows above a later output."""
     rows: list[list[str]] = []
 
     # --- Comment rows ---

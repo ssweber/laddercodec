@@ -1116,3 +1116,11 @@ def test_pasted_or_legs_keep_their_pad_rows_through_csv(bin_name: str, tmp_path:
     again = encode(read_csv(tmp_path / "pasted.csv"))
     for i in range(len(rungs)):
         _assert_same_layout(again, i, native, i)
+
+
+def test_pasted_or_legs_drop_the_last_box_padding() -> None:
+    """Only pad rows above a later output are kept: stub rung 5's last Copy row is not."""
+    rung = _decode_file(CAPTURE_DIR / "or_compact_pasted.bin")[4]
+    assert rung.logical_rows == 6
+    data_rows = [row for row in decoded_rung_to_rows(rung) if row[0] != "#"]
+    assert [row[-1] for row in data_rows] == ["copy(1,DS1)", "", "copy(2,DS2)", "", "copy(3,DS3)"]

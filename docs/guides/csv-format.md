@@ -284,8 +284,8 @@ divergent bus.
 
 A box taller than one row (Copy is 2) needs its rows to itself in AF. Write each
 output on the row it belongs to; `read_csv` moves an output down when the box
-above still covers its row. When OR legs feed every output through one vertical,
-as here:
+above still covers its row. When each OR leg is one contact between two adjacent
+verticals and every output hangs off the right one by plain wires, as here:
 
 ```text
      A      B      C     ...   AF
@@ -294,8 +294,9 @@ R    X001   T:C1   T     -...- copy(1,DS1)
             C3
 ```
 
-the legs keep their rows, the second Copy moves to row 3, and the vertical at C
-reaches it. The rung is 4 rows; the last is the second Copy's lower row:
+the legs keep their rows, the second Copy moves down to C3's row, and the
+vertical at C reaches it. The rung is 4 rows; the last is the second Copy's
+lower row:
 
 ```text
      A      B      C     ...   AF
@@ -304,8 +305,9 @@ R    X001   T:C1   T     -...- copy(1,DS1)
             C3     -     -...- copy(2,DS2)
 ```
 
-This is the layout CLICK's syntax check leaves, and the logic is the same. Any
-other shape gets a blank row under the box, with its verticals carried through,
+The logic is the same. For stacked 2-row boxes such as Copy, this is the layout
+CLICK's syntax check leaves; for other boxes the layout is not yet checked
+against CLICK. Any other shape gets a blank row under the box, with its verticals carried through,
 and every row below moves down with the output.
 
 ## Builder pin continuation rows

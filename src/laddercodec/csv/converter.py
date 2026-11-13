@@ -53,8 +53,9 @@ their rows and the right vertical is redrawn to reach them all:
     ,      , C3,    ,  , ...,                     ,      , C3,   -, -, ..., copy(2,DS2)
                                                   ,      ,     ,  ,  , ...,
 
-This is the layout CLICK's syntax check leaves (v4_captures/or_compact_*.bin);
-the logic is the same.
+The logic is the same.  For stacked 2-row boxes (Copy) this is the layout
+CLICK's syntax check leaves (v4_captures/or_compact_*.bin); for other
+non-pinned boxes it is not captured yet.
 
 After padding, a wire-continuation hydration pass propagates ``T`` and
 ``|`` tokens downward into blank cells, restoring vertical wire continuity
@@ -209,21 +210,22 @@ def _vertical_cell(*, right: bool, down: bool) -> ConditionToken:
 def _or_leg_layout(
     rows: Sequence[_ParsedRow],
 ) -> tuple[list[list[ConditionToken]], list[AfToken]] | None:
-    """CLICK's compact layout for OR legs under a tall box, or None when it doesn't apply.
+    """The compact layout for OR legs under a tall box, or None when it doesn't apply.
 
     The shape: row 0 holds contacts or wires from the rail to the left
     vertical at column L.  Every row holds one leg, a contact at L, chained
     down to the last row.  The right vertical at L+1 runs from row 0 to the
-    lower of the last leg and the last output.  Each output row has a right
-    wire at L+1 and plain wires from there to its AF instruction, which is
-    not a pinned box; row 0 has one.  Every other cell is blank.
+    last leg.  Each output row has a right wire at L+1 and plain wires from
+    there to its AF instruction, which is not a pinned box; row 0 has one.
+    Every other cell is blank.
 
-    Each output takes the row it was written on, or the first row below the
-    box above it when that box is taller.  The legs keep their rows and the
-    right vertical is redrawn to reach every leg and every output.  This is
-    the layout CLICK's syntax check leaves.  The logic is the same, since
-    every leg is ORed into every output.  When no output moves, the rung is
-    laid out as written and this returns None.
+    Each output keeps its row, or takes the first row below the box above
+    it when that box still covers it.  The legs keep their rows and the
+    right vertical is redrawn to reach every leg and every output.  The
+    logic is the same, since every leg is ORed into every output.  For
+    stacked 2-row boxes (Copy) this is the layout CLICK's syntax check
+    leaves; for other non-pinned boxes it is not captured yet.  When no
+    output moves, the rung is laid out as written and this returns None.
     """
     if len(rows) < 2 or any(
         row.kind not in ("main", "block_main", "blank") or isinstance(row.token, PinnedInstruction)
@@ -247,9 +249,8 @@ def _or_leg_layout(
             return None
         if i > 0 and not _is_blank_row(cond[:left]):
             return None
-    end = max(last, outputs[-1])
     for i, cond in enumerate(conds):
-        if cond[right] != _vertical_cell(right=i in outputs, down=i < end):
+        if cond[right] != _vertical_cell(right=i in outputs, down=i < last):
             return None
         if any(t != ("-" if i in outputs else "") for t in cond[right + 1 :]):
             return None
