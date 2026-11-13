@@ -498,8 +498,9 @@ def test_native_pin_rows_round_trip_through_csv(
         again = read_csv(out)
         assert [r.instructions for r in again] == [r.instructions for r in rungs], path.name
         assert [r.conditions for r in again] == [r.conditions for r in rungs], path.name
-    # count_down_or.bin and pins.bin (12 boxes) and scr_captures/pins.scr (6) move a pin.
-    assert moved == 18
+    # count_down_or.bin and pins.bin (12 boxes), scr_captures/pins.scr (6), the layoutq
+    # captures (5) and the layoutq2 captures (27) move a pin.
+    assert moved == 50
     assert boxes > moved
 
 

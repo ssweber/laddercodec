@@ -28,8 +28,15 @@ down the output column in CLICK v4, copied back before and after its syntax chec
 ``windy_road_pasted.bin`` and ``windy_road_checked.bin``; a 24-rung layout stub
 pasted from laddercodec, copied back before and after CLICK's syntax check, which
 refused rung 23 and deleted it from the checked copy, ``layoutthy_pasted.bin`` and
-``layoutthy_checked.bin``, used by ``tests/test_layout_check.py``) are only used by the
-blob and layout tests below.
+``layoutthy_checked.bin``; the 21-rung layoutq stub ``layoutq_stub.csv`` pasted and
+copied back before and after CLICK's syntax check, which refused 9 rungs (the
+errors are in ``tests/test_layout_check.py``) that were deleted from the checked
+copy, ``layoutq_pasted.bin`` and ``layoutq_checked.bin``, each ending with the
+subroutine's own ``return()`` rung; a 20-rung stub of pinned boxes drawn off CLICK's
+layout, copied back before and after a syntax check that accepted every rung,
+``layoutq2_pasted.bin`` and ``layoutq2_checked.bin``; the layoutthy and layoutq
+captures are used by ``tests/test_layout_check.py``) are only used by the blob and
+layout tests below.
 """
 
 from __future__ import annotations
@@ -134,11 +141,30 @@ def _current_spelling(token: str) -> str:
     return token
 
 
+#: Rungs (capture stem -> indexes) with no CSV form beyond ``_leg_on_unused_pin_row``.
+#: layoutq2_pasted rung 13 (P14) is a drum at pins (1, 5, 6) with Jump and Jog unused and
+#: blank rows above them; on read, CSV puts unused pins right below the legs, at (1, 2, 3).
+_NO_CSV_FORM = {"layoutq2_pasted": {13}}
+
+
 @pytest.mark.parametrize("bin_path", _DECODABLE, ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
-    rungs = [r for r in _decode_file(bin_path) if not _leg_on_unused_pin_row(r)]
+    skip = _NO_CSV_FORM.get(bin_path.stem, set())
+    rungs = [
+        r
+        for i, r in enumerate(_decode_file(bin_path))
+        if not _leg_on_unused_pin_row(r) and i not in skip
+    ]
     write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
+
+
+def test_drum_with_unused_pins_below_blank_rows_has_no_csv_form(tmp_path: Path) -> None:
+    rung = _decode_file(CAPTURE_DIR / "layoutq2_pasted.bin")[13]
+    assert isinstance(rung.instructions[0], Drum)
+    assert rung.instructions[0].pin_rows == (1, 5, 6)
+    with pytest.raises(WriterError, match=r"pins on rows \(1, 5, 6\)"):
+        write_csv(tmp_path / "p14.csv", [rung])
 
 
 def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
