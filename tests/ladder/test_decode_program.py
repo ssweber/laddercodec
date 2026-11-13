@@ -1089,3 +1089,14 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
         assert output.read_text(encoding="utf-8") == base.with_suffix(".csv").read_text(
             encoding="utf-8"
         )
+
+
+def test_down_wire_in_the_output_column_is_refused():
+    """A down list on column 31 raises, as the clipboard decoder does for the AF down flag."""
+    scr_data = (_SCR_FIXTURE_DIR / "time_drums.scr").read_bytes()
+    header = _parse_header(scr_data)
+    first = _walk_rung_records(scr_data, header)[0].topology
+    # Column 31 is the block's last list: u16 count 0. Make it list stored row 1.
+    patched = scr_data[: first.end - 2] + b"\x01\x00\x01" + scr_data[first.end :]
+    with pytest.raises(ValueError, match=r"Rung 0, row 0 \(zero-based\): the output column"):
+        decode_program(patched)

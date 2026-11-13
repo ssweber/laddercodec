@@ -594,6 +594,12 @@ def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
             raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
         if block.column_count != len(header.column_widths):
             raise ValueError(f"column count mismatch at 0x{pos:X} (rung {index})")
+        af_down = block.wiredown.get(_CONDITION_COLUMNS)
+        if af_down:
+            raise ValueError(
+                f"Rung {index}, row {af_down[0]} (zero-based): the output column has a down wire, "
+                "which isn't supported. CLICK's syntax check removes it."
+            )
         pos = block.end
 
         if pos + 2 > limit:

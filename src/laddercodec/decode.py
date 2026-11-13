@@ -611,8 +611,13 @@ def _walk_row_cells(data: bytes, cursor: int) -> list[_CellBound]:
     return cells
 
 
-def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], AfToken, int]:
+def _decode_data_row(
+    data: bytes, cursor: int, where: tuple[int, int] | None = None
+) -> tuple[list[ConditionToken], AfToken, int]:
     """Decode one grid data row by walking cells sequentially.
+
+    ``where`` is the ``(rung, row)`` index of the row, zero-based; pass it when the row's
+    content is being kept, so a down wire in the AF column raises instead of being dropped.
 
     Returns ``(conditions, af_token, actual_row_size)``.
     """
@@ -644,6 +649,11 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
                     )
                 conditions.append(token)
         else:  # AF column (col 31)
+            if where is not None and data[pos + 0x21] != 0:
+                raise DecodeError(
+                    f"Rung {where[0]}, row {where[1]} (zero-based): the output column has a down wire, "
+                    "which isn't supported. CLICK's syntax check removes it."
+                )
             if has_instr:
                 instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
                 parsed_af = parse_af_blob(instr_raw)
@@ -865,8 +875,8 @@ def _decode_single(
 
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
-    for _, cursor, _ in data_rows:
-        conds, af, _ = _decode_data_row(data, cursor)
+    for row, (_, cursor, _) in enumerate(data_rows):
+        conds, af, _ = _decode_data_row(data, cursor, (0, row))
         conditions.append(conds)
         instructions.append(af)
     _drop_tall_span_nops(instructions)
@@ -902,13 +912,13 @@ def _decode_multi(
             current_data.append(cursor)
         elif tag == _PREAMBLE:
             # Flush the current rung.
-            rungs.append(_build_rung(data, current_data, current_rtf))
+            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
             current_data = []
             current_rtf = cmt_rtf
 
     # Flush the last rung (data rows after the final preamble).
     if current_data:
-        rungs.append(_build_rung(data, current_data, current_rtf))
+        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
 
     return rungs
 
@@ -942,12 +952,12 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
                 instructions[j] = ""
 
 
-def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> Rung:
-    """Build a Rung from a list of data-row cursors."""
+def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None, rung: int) -> Rung:
+    """Build rung number *rung* from a list of data-row cursors."""
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
-    for cursor in data_cursors:
-        conds, af, _ = _decode_data_row(data, cursor)
+    for row, cursor in enumerate(data_cursors):
+        conds, af, _ = _decode_data_row(data, cursor, (rung, row))
         conditions.append(conds)
         instructions.append(af)
     _drop_tall_span_nops(instructions)
