@@ -472,7 +472,7 @@ Producer may emit:
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
 - `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
-- `raw(ClassName,0xTTTT,N,rows=R,sub=S,fields...)` - opaque instruction
+- `raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,fields...)` - opaque instruction
   passthrough for binary round-trip fidelity. `ClassName` is the Click binary
   class name (unquoted), `0xTTTT` the type marker, `N` the part count, and the
   fields are the blob's tagged fields (`60a5=1`, `68b1[250]=`). Runtime no-op;
@@ -485,6 +485,14 @@ Producer may emit:
     `rows` and no `sub` has sub-rows equal to `rows`, and a box with `sub` and
     no `rows` has its class's row span. They go right after the part count (or
     the hex), `rows` first.
+  - `pins` is the row, below the main row, of each later part of a box with 2 or
+    more parts, joined by `/`: `pins=1/3/4` for a drum with an OR leg under its
+    reset. The writer writes it after `sub` for every such box; a 1-part box and
+    the older hex form have none. The rows are 1 to 31 and ascend, one per part
+    after the first. On read it is optional: without it the parts sit on rows
+    1, 2, ... A box ends one row below its last pin, so `rows` must be the last
+    pin + 1, and the reader pads the rung to that height, as it does for other
+    tall boxes.
   - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
     path because they are not yet modeled as dedicated DSL instruction classes.
     Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank

@@ -849,14 +849,17 @@ Open asks (checklist; details under each id below):
   `box_height_pasted.bin` rungs 11-14 do this; they re-encode as stored, and write and
   read back through CSV as `rows=1,sub=1`. Cost if
   wrong: a native box whose span CLICK varies decodes raw, which round-trips its bytes.
-- Open from rawbox: a multi-part raw token doesn't hold its extra part bytes (the pin rows);
-  a CSV read rebuilds them as `01 02 ...` (`raw.py` `from_csv_token`,
-  `bytes(range(1, part_count))`; older than rawbox). Of 211 multi-part boxes in the native
-  fixtures (all forced raw), 18 differ: 12 of 124 on the clipboard side
-  (`v4_captures/count_down_or.bin`, `pins.bin`: Cnt `01 03` reads back `01 02`, Drum
-  `01 03 04` reads back `01 02 03`) and 6 of 87 in SCR files (`scr_captures/pins.scr`: 4
-  Drum, 1 Cnt, 1 SR). Only reachable when such a box is raw; the writer's round-trip check
-  refuses the rung. Needs a ruling on a token field.
+- Done in rawbox (user ruling 2026-11-13): a multi-part raw token holds its extra part
+  bytes (the pin rows) as `pins=1/3/4` after `sub=`; without it a CSV read keeps
+  `01 02 ...`. `rows=` must be the last pin + 1 (all 211 native multi-part boxes store
+  that), and a raw box without `rows=` takes that span. The 18 boxes that lost a pin row
+  (12 clipboard: `v4_captures/count_down_or.bin`, `pins.bin`; 6 SCR:
+  `scr_captures/pins.scr`) now round-trip through CSV; `test_raw_height.py` sweeps every
+  native fixture. 17 forced-raw rungs (16 with pins at `01 02 ...`, e.g. `drum_jog.bin`) also failed
+  the writer: its generic tall block dropped a blank row inside the span (an unused pin)
+  above a used pin row, which then read back one row up. It now keeps such a row.
+  A blob whose part bytes are no ascending rows 1 to 31, or whose stored span is not the
+  last pin + 1 (no native case), writes the hex form.
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,

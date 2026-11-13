@@ -317,9 +317,9 @@ For unknown instruction types, the blob boundary can be detected using the gener
 5. Walk through tagged fields (each: 2B tag + 4B sentinel/marker + UTF-16LE value)
 6. The blob ends after all fields are consumed
 
-The `RawInstruction` fallback uses this formula to capture the complete blob as opaque bytes, enabling round-trip for unsupported instruction types via `raw(ClassName,0xTTTT,N,rows=R,sub=S,fields...)` CSV tokens (or the older `raw(ClassName,hex)`).
+The `RawInstruction` fallback uses this formula to capture the complete blob as opaque bytes, enabling round-trip for unsupported instruction types via `raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,fields...)` CSV tokens (or the older `raw(ClassName,hex)`). `pins` is the extra part bytes (see [Part rows](#part-rows)), joined by `/`; a token without it takes `01 02 ...`. A box whose part bytes are no ascending rows 1 to 31, or whose stored row span is not its last part's row + 1, writes the hex form, which holds them.
 
-The blob does not hold the box's height: the cell header does (+0x09 row span, +0x0A sub-rows). A decoded `RawInstruction` keeps the native cell's two bytes as `visual_rows` and `sub_rows`, and the CSV token holds them as `rows=` and `sub=`. One read from a token without them takes them from its class: the typed family's height when the blob alone gives it (Copy family 2 rows, Search 2, Send/Receive 3, Email/Home/Position/Velocity 3, an Out variant by its func code), otherwise `part_count` rows.
+The blob does not hold the box's height: the cell header does (+0x09 row span, +0x0A sub-rows). A decoded `RawInstruction` keeps the native cell's two bytes as `visual_rows` and `sub_rows`, and the CSV token holds them as `rows=` and `sub=`. One read from a token without them takes them from its class: the typed family's height when the blob alone gives it (Copy family 2 rows, Search 2, Send/Receive 3, Email/Home/Position/Velocity 3, an Out variant by its func code), otherwise the last part's row + 1 (1 row for a 1-part box).
 
 For a Math, Search, Tmr, SR or Drum box, CLICK keeps the height laddercodec writes through paste and through its dialog's OK (`v4_captures/box_height_pasted.bin`, `box_height_dialog_ok.bin`). Boxes the editor creates store other sub-rows: Math `01 03`, some Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. Both forms paste.
 

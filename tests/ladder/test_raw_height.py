@@ -554,3 +554,15 @@ def test_raw_token_pins_need_their_rows_in_the_rung() -> None:
     # The reader pads the rung to the box's span, one row below its last pin.
     rung = _csv_rung("raw(Zzz,0x1234,3,pins=1/5,0001=a,0000=)")
     assert rung.logical_rows == 6
+
+
+@pytest.mark.parametrize(("extra", "rows"), [(b"\x02\x01", None), (b"\x01\x02", 5)])
+def test_raw_box_the_fields_form_refuses_writes_hex(extra: bytes, rows: int | None) -> None:
+    from laddercodec.binary_helpers import _STANDARD_SENTINEL
+    from laddercodec.instructions.raw import _compose_blob
+
+    blob = _compose_blob("Zzz", 0x1234, 3, extra, [(0x0001, _STANDARD_SENTINEL, "a")])
+    raw = RawInstruction("Zzz", blob, 3, visual_rows=rows)
+    token = raw.to_csv()
+    assert token.startswith(f"raw(Zzz,{blob.hex()},rows=")
+    assert RawInstruction.from_csv_token(token) == raw

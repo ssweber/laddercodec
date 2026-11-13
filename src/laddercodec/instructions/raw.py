@@ -432,8 +432,10 @@ class RawInstruction(AfInstruction):
     def to_csv(self) -> str:
         """Serialize to decoded-fields ``raw(ClassName,0xTTTT,N,rows=R,sub=S,...)`` token.
 
-        ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A).  Falls
-        back to the legacy hex format, with the same two fields, if decomposition fails.
+        ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A); a box of
+        2 or more parts adds ``pins=``, its extra part bytes.  Falls back to the legacy
+        hex format, with ``rows`` and ``sub``, if decomposition fails, or if the part
+        bytes are no ascending rows 1 to 31 or the span is not the last one + 1.
         """
         params = self.cell_params()
         rows = cell_rows_spec(params)
@@ -455,7 +457,7 @@ class RawInstruction(AfInstruction):
 
         Decoded-fields format::
 
-            raw(ClassName,0xTTTT,N,rows=R,sub=S,field_specs...)
+            raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,field_specs...)
 
         Legacy hex format::
 
@@ -463,7 +465,9 @@ class RawInstruction(AfInstruction):
 
         ``rows`` (row span) and ``sub`` (sub-rows) come right after the part count, or
         after the hex.  Each is optional: an absent one is ``visual_rows`` or
-        ``sub_rows`` None, which takes the class's height.
+        ``sub_rows`` None, which takes the class's height.  ``pins`` (fields format
+        only, 2 or more parts) is the extra part bytes joined by ``/``; without it they
+        are ``01 02 ...``.  A stated ``rows`` must be the last pin + 1.
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
