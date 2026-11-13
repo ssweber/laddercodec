@@ -9,6 +9,14 @@ Public API
     write_csv(path, rungs)              — list[Rung] → CSV file
     decoded_rung_to_rows(rung)          — Rung → list of CSV row lists
 
+Layout
+------
+
+A rung with a layout is written as CLICK's syntax check draws it
+(``docs/internals/layout.md``), and reads back to exactly that drawing.  A
+rung CLICK would split is written as the rungs it splits into.  A rung
+with no layout (``laddercodec.check()`` reports it) is written as drawn.
+
 Pin row reconstruction
 ----------------------
 
@@ -23,9 +31,7 @@ Tall instruction padding
 Tall AF instructions have trailing padding rows for visual height.  Padding
 rows — those containing only blank cells and vertical pass-through wires
 (``|``) — are stripped before writing.  The forward path's auto-padding and
-wire-continuation hydration restores them.  They are kept in a rung whose
-rows without them would read back in the compact layout for OR legs under
-a tall box (see ``converter._or_leg_layout``).
+wire-continuation hydration restores them.
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import cast
 
+from .._layout import canonical, circuit
 from ..decode import Rung
 from ..instructions import (
     AfInstruction,
@@ -47,7 +54,7 @@ from ..instructions import (
 )
 from ..model import PinnedInstruction
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import _is_blank_row, convert_rung, lays_out_or_legs, pinned_gap_height
+from .converter import _is_blank_row, convert_rung, pinned_gap_height
 from .parser import _parse_single_rung_rows
 
 
@@ -247,13 +254,11 @@ def _emit_generic_tall_block(
     af_tokens: Sequence[object],
     start: int,
     af: AfInstruction,
-    keep_padding: bool = False,
 ) -> tuple[int, int]:
     """Emit a non-pinned tall AF block, dropping only its trailing padding rows.
 
     A padding row above a later nonblank row of the span is kept, so that row
     keeps its position on reparse (a raw Drum's unused pin row above a used one).
-    ``keep_padding`` keeps every padding row above a later output.
     """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
@@ -262,8 +267,7 @@ def _emit_generic_tall_block(
             f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
-    later_output = any(token != "" for token in af_tokens[needed:])
-    keep = (keep_padding and later_output) or _followed_by_floating_row(af_tokens, needed)
+    keep = _followed_by_floating_row(af_tokens, needed)
     last_content = max(
         (
             offset
@@ -310,26 +314,26 @@ def _af_tokens_match(expected: object, actual: object) -> bool:
 
 
 def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
-    """Round-trip emitted CSV rows back into a decoded-style ``Rung``."""
+    """Read one rung's emitted CSV rows back, as ``read_csv`` reads them."""
     try:
-        rung_ast = _parse_single_rung_rows(rows)
-        logical_rows, conditions, instructions, comment = convert_rung(rung_ast)
+        rebuilt = convert_rung(_parse_single_rung_rows(rows))
     except (TypeError, ValueError) as exc:
         raise WriterError(
             f"CSV round-trip validation failed: emitted rows do not reparse: {exc}"
         ) from exc
-
-    return Rung(
-        logical_rows=logical_rows,
-        conditions=cast(list[list[ConditionToken]], conditions),
-        instructions=cast(list[AfToken], instructions),
-        comment=comment,
-        comment_rtf=None,
-    )
+    if len(rebuilt) != 1:
+        raise WriterError(
+            f"CSV round-trip validation failed: the rows read back as {len(rebuilt)} rungs"
+        )
+    return rebuilt[0]
 
 
-def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
-    """Fail loudly when emitted CSV rows lose information from the decoded rung."""
+def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: bool = False) -> None:
+    """Fail loudly when emitted CSV rows lose information from the rung.
+
+    With ``exact`` (a rung in CLICK's layout), the rows must read back to the rung itself.
+    Without it, trailing blank rows the read-back drops only raise a warning.
+    """
     rebuilt = _rebuild_rung_from_rows(rows)
 
     if rebuilt.logical_rows != rung.logical_rows:
@@ -337,9 +341,13 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
         # a tall instruction's stripped continuation absorbs them on
         # read-back.  This is cosmetic — warn instead of failing.
         extra = rung.logical_rows - rebuilt.logical_rows
-        if extra > 0 and all(
-            _is_padding_row(rung.conditions[r]) and rung.instructions[r] == ""
-            for r in range(rebuilt.logical_rows, rung.logical_rows)
+        if (
+            not exact
+            and extra > 0
+            and all(
+                _is_padding_row(rung.conditions[r]) and rung.instructions[r] == ""
+                for r in range(rebuilt.logical_rows, rung.logical_rows)
+            )
         ):
             import warnings
 
@@ -385,8 +393,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
                 raise WriterError(
                     "CSV round-trip validation failed: "
                     f"{_display_token(expected)} at row {row_idx} has its pins on rows "
-                    f"{expected.pin_rows}, which CSV cannot express (it reads back as "
-                    f"{actual.pin_rows}); an OR leg likely sits on an unused pin's row"
+                    f"{expected.pin_rows}, which read back as {actual.pin_rows}"
                 )
             raise WriterError(
                 "CSV round-trip validation failed: "
@@ -402,36 +409,35 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     Comment rows have marker ``"#"`` and text in column A.
     Data rows have marker ``"R"`` (first) or ``""`` (continuation).
 
+    A rung with a layout is written as CLICK's syntax check draws it.  When
+    CLICK would split it, the rows hold one rung per part, each starting with
+    an ``R`` row, and the comment goes on the first.  A rung with no layout
+    is written as drawn.
+
     Retained timers produce a ``.reset()`` pin row from the second
     grid row.  Multi-row AF families are streamed in order so multiple
     pinned/tall blocks survive CSV round-trip without truncation.
-
-    A tall box's padding rows above a later output are kept when the rows
-    without them would read back in the compact layout for OR legs, which
-    moves the legs up into those rows.
     """
-    rows = _rung_rows(rung, keep_padding=False)
-    if _reads_back_compacted(rung, rows):
-        rows = _rung_rows(rung, keep_padding=True)
-    _validate_roundtrip(rung, rows)
+    rows: list[list[str]] = []
+    for part, exact in _drawn(rung):
+        part_rows = _rung_rows(part)
+        _validate_roundtrip(part, part_rows, exact=exact)
+        rows.extend(part_rows)
     return rows
 
 
-def _reads_back_compacted(rung: Rung, rows: Sequence[Sequence[str]]) -> bool:
-    """True when ``read_csv`` would lay *rung*'s *rows* out as compact OR legs."""
-    if not any(
-        isinstance(af, AfInstruction) and int(af.cell_params().get("visual_rows", 1)) > 1
-        for af in rung.instructions
-    ):
-        return False  # no tall box, nothing to compact
-    try:
-        return lays_out_or_legs(_parse_single_rung_rows(rows))
-    except (TypeError, ValueError):
-        return False  # _validate_roundtrip reports it
+def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
+    """The rungs to write for *rung*, and whether each is in CLICK's layout."""
+    parts = canonical(rung)
+    if parts is None:
+        return [(rung, False)]
+    if parts != [rung] and circuit(parts) != circuit([rung]):
+        raise WriterError("CSV layout changed the rung's circuit")
+    return [(part, True) for part in parts]
 
 
-def _rung_rows(rung: Rung, *, keep_padding: bool) -> list[list[str]]:
-    """The CSV rows of *rung*; ``keep_padding`` keeps tall boxes' padding rows above a later output."""
+def _rung_rows(rung: Rung) -> list[list[str]]:
+    """The CSV rows of *rung*'s grid."""
     rows: list[list[str]] = []
 
     # --- Comment rows ---
@@ -459,7 +465,7 @@ def _rung_rows(rung: Rung, *, keep_padding: bool) -> list[list[str]]:
             visual_rows = int(af.cell_params().get("visual_rows", 1))
             if visual_rows > 1:
                 data_row_count, consumed = _emit_generic_tall_block(
-                    rows, data_row_count, condition_rows, af_tokens, row_idx, af, keep_padding
+                    rows, data_row_count, condition_rows, af_tokens, row_idx, af
                 )
                 row_idx += consumed
                 continue
@@ -482,6 +488,10 @@ def write_csv(
     index: bool = False,
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
+
+    Each rung is written as CLICK's syntax check draws it when it has a
+    layout, so the file can hold more rungs than *rungs* when CLICK would
+    split one; a rung ``laddercodec.check()`` reports is written as drawn.
 
     Parameters
     ----------
@@ -506,8 +516,11 @@ def write_csv(
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
-        for rung_number, rung in enumerate(rungs, start=1):  # start=1 → first rung is R1
+        rung_number = 0  # counts the rungs written: a rung CLICK would split writes several
+        for rung in rungs:
             for row in decoded_rung_to_rows(rung):
-                if index and row and row[0] == "R":
-                    row = [f"R{rung_number}", *row[1:]]
+                if row and row[0] == "R":
+                    rung_number += 1
+                    if index:
+                        row = [f"R{rung_number}", *row[1:]]
                 writer.writerow(row)

@@ -31,10 +31,12 @@ def _encode_csv(csv_path: Path) -> bytes:
     converted: list[tuple[int, list[list[ConditionToken]], list[AfToken], str | None]] = []
     for idx, rung in enumerate(program.rungs):
         try:
-            logical_rows, cond_rows, af_tokens, comment = convert_rung(rung)
+            laid_out = convert_rung(rung)
         except (ConvertError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"Cannot encode {csv_path.name} rung {idx}: {exc}") from exc
-        converted.append((logical_rows, cond_rows, af_tokens, comment))
+        converted.extend(
+            (r.logical_rows, r.conditions, r.instructions, r.comment) for r in laid_out
+        )
 
     if len(converted) == 1:
         logical_rows, cond_rows, af_tokens, comment = converted[0]

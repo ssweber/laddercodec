@@ -44,6 +44,10 @@ def _load_golden_pairs() -> list[tuple[str, Path, Path]]:
     return pairs
 
 
+def _args(rung: Rung) -> tuple[int, list[list[object]], list[object], str | None]:
+    return rung.logical_rows, list(rung.conditions), list(rung.instructions), rung.comment
+
+
 def _convert_program(
     csv_path: Path,
 ) -> tuple[list[object], list[tuple[int, list[list[object]], list[object], str | None]]]:
@@ -52,7 +56,7 @@ def _convert_program(
     converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
     for idx, rung in enumerate(rungs):
         try:
-            converted.append(convert_rung(rung))
+            converted.extend(_args(r) for r in convert_rung(rung))
         except (ConvertError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"rung {idx}: {exc}") from exc
     return rungs, converted
@@ -143,7 +147,7 @@ def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
 
     out_converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
     for idx, rung in enumerate(out_rungs):
-        out_converted.append(convert_rung(rung))
+        out_converted.extend(_args(r) for r in convert_rung(rung))
         if idx >= len(converted):
             pytest.fail(f"unexpected extra rung {idx} in roundtrip output for {rid}")
 

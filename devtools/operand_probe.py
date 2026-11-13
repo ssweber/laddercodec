@@ -1137,10 +1137,15 @@ class Runner:
         """The case's token read back from CSV rows, and the rung it read (or None)."""
         ns = self.ns
         try:
-            logical, conditions, instructions, comment = ns.convert_rung(ns.parse_rows(rows))
+            got = ns.convert_rung(ns.parse_rows(rows))
         except Exception as exc:
             return error_text(exc), None
-        rung = ns.Rung(logical, conditions, instructions, comment)
+        if isinstance(got, list):  # laddercodec lays the rung out: one Rung per CLICK rung
+            rung = got[0]
+            conditions, instructions = rung.conditions, rung.instructions
+        else:
+            logical, conditions, instructions, comment = got
+            rung = ns.Rung(logical, conditions, instructions, comment)
         return self.main_token(conditions, instructions, condition), rung
 
     def round_trip(self, rung: Any, condition: bool, expect: str) -> str:

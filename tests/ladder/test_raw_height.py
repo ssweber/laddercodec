@@ -104,10 +104,8 @@ def _all_raw(rungs: list[Rung]) -> bool:
 
 def _csv_rung(token: str) -> Rung:
     """The rung a CSV row of ``A..AE`` wires and *token* in AF reads back as."""
-    logical_rows, conditions, instructions, comment = convert_rung(
-        _parse_single_rung_rows([["R", *["-"] * 31, token]])
-    )
-    return Rung(logical_rows, conditions, instructions, comment, None)
+    [rung] = convert_rung(_parse_single_rung_rows([["R", *["-"] * 31, token]]))
+    return rung
 
 
 def _raw_token_of(af: AfInstruction) -> RawInstruction:

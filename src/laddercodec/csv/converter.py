@@ -1,7 +1,12 @@
-"""RungAst → encode_rung() arguments converter.
+"""RungAst → ``Rung`` converter.
 
-Converts parsed CSV AST into the (logical_rows, condition_rows, af_tokens)
-tuple consumed by ``encode_rung()``.  Handles:
+``convert_rung`` reads a parsed CSV rung's circuit and lays it out as
+CLICK's syntax check draws it (``docs/internals/layout.md``): pin rows
+become the box's pin inputs, box heights come from ``cell_params()``, and
+pad rows the CSV holds or leaves out change nothing.  A rung with no
+layout keeps the grid ``convert_literal`` reads, described below.
+
+``convert_literal`` handles:
 
 - Condition/contact/compare token conversion to model objects
 - AF token conversion (coils, timers, NOP)
@@ -43,20 +48,6 @@ the correct ``logical_rows``.  A row that starts another AF instruction
 inside a tall box's span gets blank rows inserted above it, which push it
 and every later row down.
 
-OR legs under a tall box are the exception (``_or_leg_layout``): when
-every row is one OR leg between the same two verticals and every output
-hangs off the right vertical, only the outputs move down.  The legs keep
-their rows and the right vertical is redrawn to reach them all:
-
-    R, X001, T:C1, T, -, ..., -, copy(1,DS1)      R, X001, T:C1, T, -, ..., copy(1,DS1)
-    ,      , T:C2, T, -, ..., -, copy(2,DS2)  ->  ,      , T:C2, |,  , ...,
-    ,      , C3,    ,  , ...,                     ,      , C3,   -, -, ..., copy(2,DS2)
-                                                  ,      ,     ,  ,  , ...,
-
-The logic is the same.  For stacked 2-row boxes (Copy) this is the layout
-CLICK's syntax check leaves (v4_captures/or_compact_*.bin); for other
-non-pinned boxes it is not captured yet.
-
 After padding, a wire-continuation hydration pass propagates ``T`` and
 ``|`` tokens downward into blank cells, restoring vertical wire continuity
 that was stripped by the writer's dehydration pass.
@@ -69,6 +60,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast
 
+from .._layout import canonical
+from ..decode import Rung
 from ..encode import AfToken, ConditionToken
 from ..instructions import (
     KNOWN_PIN_NAMES,
@@ -191,90 +184,6 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
                     if left not in ("", "|"):
                         continue  # horizontal path snaps to vertical — no | needed
                 condition_rows[row_idx + 1][col_idx] = cast(ConditionToken, "|")
-
-
-def _has_down(token: object) -> bool:
-    """True when a condition cell carries a vertical wire down to the next row."""
-    return token in ("T", "|") or bool(getattr(token, "wire_down", False))
-
-
-def _is_contact(token: object) -> bool:
-    return isinstance(token, (Contact, CompareContact))
-
-
-def _vertical_cell(*, right: bool, down: bool) -> ConditionToken:
-    """The wire token for one cell of a vertical: right wire, down wire, both or neither."""
-    return cast(ConditionToken, {(1, 1): "T", (1, 0): "-", (0, 1): "|", (0, 0): ""}[right, down])
-
-
-def _or_leg_layout(
-    rows: Sequence[_ParsedRow],
-) -> tuple[list[list[ConditionToken]], list[AfToken]] | None:
-    """The compact layout for OR legs under a tall box, or None when it doesn't apply.
-
-    The shape: row 0 holds contacts or wires from the rail to the left
-    vertical at column L.  Every row holds one leg, a contact at L, chained
-    down to the last row.  The right vertical at L+1 runs from row 0 to the
-    last leg.  Each output row has a right wire at L+1 and plain wires from
-    there to its AF instruction, which is not a pinned box; row 0 has one.
-    Every other cell is blank.
-
-    Each output keeps its row, or takes the first row below the box above
-    it when that box still covers it.  The legs keep their rows and the
-    right vertical is redrawn to reach every leg and every output.  The
-    logic is the same, since every leg is ORed into every output.  For
-    stacked 2-row boxes (Copy) this is the layout CLICK's syntax check
-    leaves; for other non-pinned boxes it is not captured yet.  When no
-    output moves, the rung is laid out as written and this returns None.
-    """
-    if len(rows) < 2 or any(
-        row.kind not in ("main", "block_main", "blank") or isinstance(row.token, PinnedInstruction)
-        for row in rows
-    ):
-        return None
-    conds = [row.conditions for row in rows]
-    outputs = [i for i, row in enumerate(rows) if row.kind != "blank"]
-    if not outputs or outputs[0] != 0:
-        return None
-
-    left = next((col for col, token in enumerate(conds[0]) if _has_down(token)), None)
-    if left is None or left == 0 or left + 1 >= CONDITION_COLUMNS:
-        return None
-    right = left + 1
-    if not all(_is_contact(t) or t == "-" for t in conds[0][:left]):
-        return None
-    last = len(rows) - 1
-    for i, cond in enumerate(conds):
-        if not _is_contact(cond[left]) or _has_down(cond[left]) != (i < last):
-            return None
-        if i > 0 and not _is_blank_row(cond[:left]):
-            return None
-    for i, cond in enumerate(conds):
-        if cond[right] != _vertical_cell(right=i in outputs, down=i < last):
-            return None
-        if any(t != ("-" if i in outputs else "") for t in cond[right + 1 :]):
-            return None
-
-    placed: list[int] = []
-    next_free = 0
-    for i in outputs:
-        placed.append(max(i, next_free))
-        next_free = placed[-1] + _af_visual_rows(rows[i].token)
-    if placed == outputs:
-        return None
-
-    height = max(len(rows), next_free)
-    end = max(last, placed[-1])
-    grid = [_blank_condition_row() for _ in range(height)]
-    af_tokens: list[AfToken] = [""] * height
-    for i, cond in enumerate(conds):
-        grid[i][:right] = cond[:right]
-    for r in range(height):
-        grid[r][right] = _vertical_cell(right=r in placed, down=r < end)
-    for i, r in zip(outputs, placed, strict=True):
-        grid[r][right + 1 :] = conds[i][right + 1 :]
-        af_tokens[r] = rows[i].token
-    return grid, af_tokens
 
 
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
@@ -555,19 +464,25 @@ class ConvertError(ValueError):
     """Raised when a RungAst cannot be converted to encode arguments."""
 
 
-def lays_out_or_legs(rung: RungAst, *, strict: bool = True) -> bool:
-    """True when ``convert_rung`` moves this rung's outputs into CLICK's compact OR-leg layout."""
-    return _or_leg_layout([_parse_rung_row(row, strict=strict) for row in rung.rows]) is not None
+def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
+    """The CLICK rungs a CSV rung reads to, drawn as CLICK's syntax check draws them.
+
+    The rung's circuit is read from its rows (:func:`convert_literal`) and laid out again
+    (``docs/internals/layout.md``).  A rung whose circuit CLICK would split comes back as
+    several rungs, the comment on the first.  A rung with no layout
+    (``laddercodec.check()`` reports it) comes back as written.
+
+    Raises
+    ------
+    ConvertError
+        If the rung contains unsupported constructs.
+    """
+    literal = convert_literal(rung, strict=strict)
+    return canonical(literal) or [literal]
 
 
-def convert_rung(
-    rung: RungAst,
-    *,
-    strict: bool = True,
-) -> tuple[int, list[list[ConditionToken]], list[AfToken], str | None]:
-    """Convert a ``RungAst`` to ``encode_rung()`` arguments.
-
-    Returns ``(logical_rows, condition_rows, af_tokens, comment)``.
+def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
+    """The rung's grid as written: pin rows on their slots, tall boxes padded to their height.
 
     Raises
     ------
@@ -587,11 +502,9 @@ def convert_rung(
     af_tokens: list[AfToken] = []
     plain_rows: list[_ParsedRow] = []
     active_block: _ActiveBlock | None = None
-    parsed_rows: list[_ParsedRow] = []
 
     for row in rung.rows:
         parsed = _parse_rung_row(row, strict=strict)
-        parsed_rows.append(parsed)
 
         if active_block is not None:
             if _consume_active_row(active_block, parsed):
@@ -639,13 +552,7 @@ def convert_rung(
                 condition_rows.append(_blank_condition_row())
                 af_tokens.append("")
 
-    # --- OR legs under a tall box: CLICK's compact layout ---
-    compact = _or_leg_layout(parsed_rows)
-    if compact is not None:
-        condition_rows, af_tokens = compact
-
     # --- Hydrate wire continuations ---
     _hydrate_wire_continuations(condition_rows)
 
-    logical_rows = len(condition_rows)
-    return logical_rows, condition_rows, af_tokens, comment
+    return Rung(len(condition_rows), condition_rows, af_tokens, comment)
