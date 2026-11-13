@@ -100,6 +100,10 @@ rungs = result if isinstance(result, list) else [result]
 write_csv("output.csv", rungs)
 ```
 
+`write_csv` writes each rung as CLICK's syntax check draws it. A rung copied
+before the check can come out redrawn, or split where its outputs' circuits
+meet only at the rail; the logic is the same ([CSV layout](csv-format.md#layout)).
+
 ## Decode a program file
 
 `decode_program()` reads a Click program file (`Scr*.tmp`) and returns a `Program` containing all rungs. These are the internal temp files Click Programming Software writes to disk — much more compact than clipboard format (~17x smaller).

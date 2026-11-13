@@ -45,7 +45,7 @@ src/laddercodec/
 ├── decode_program.py     # Program file decoder: decode_program() — Scr*.tmp to Program
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── layout_check.py       # check(): Finding per shape CLICK's syntax check cannot lay out (C0001, C0202, ...)
-├── _layout/              # nets and series-parallel tree of a rung (check() uses them); render.py is a prototype, not wired in
+├── _layout/              # canonical(): a rung as CLICK's syntax check draws it (read_csv, write_csv); nets and series-parallel tree (check() uses them)
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
@@ -72,7 +72,7 @@ src/laddercodec/
 │   ├── ast.py            # Typed AST (CanonicalRow, condition/AF nodes, RungAst)
 │   ├── contract.py       # Constants (CONDITION_COLUMNS, CSV_HEADER) + validators
 │   ├── parser.py         # CSV file parser (canonical syntax)
-│   ├── converter.py      # RungAst → Rung converter (pin rows, tall padding)
+│   ├── converter.py      # RungAst → Rung converter: convert_literal (pin rows, tall padding), then the layout
 │   ├── writer.py         # CSV writer (Rung → CSV file)
 │   ├── bundle.py         # Program bundle parser (main.csv + sub_*.csv)
 │   └── token_parser.py   # Condition + AF token parsers
@@ -95,7 +95,7 @@ src/laddercodec/
 - **operands/** — Address check and display form (`address.py`), bank flags in CLICK's type order (`banks.py`), `FieldError`/`AddressError` with `.field`, `.obj` and `.source` (`errors.py`), rule sources (`sources.py`, no DLL addresses), and the constant classifier `classify()` (`constants.py`, not wired in yet, though Math uses its `fits_float32()`, and Math and Send/Receive share its `hex_display()`; `devtools/classify_dryrun.py` reports where it disagrees with today's checks). `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed.
 - **instructions/** — Instruction dataclasses with `build_blob()` and `cell_params()` methods, func code tables, and blob parsers. Each dataclass knows how to serialize itself — the grid loop just calls `token.build_blob()` and `token.cell_params()`. Registry in `__init__.py` dispatches class name → module.
 - **csv/contract.py** — Constants (CONDITION_COLUMNS, CSV_HEADER) used by golden fixture IO and clicknick.
-- **csv/converter.py** — RungAst → Rung converter. Handles pin rows (`.reset()` → retentive timers) and tall instruction auto-padding.
+- **csv/converter.py** — RungAst → Rung converter. `convert_literal()` reads the grid as written: pin rows (`.reset()` → retentive timers) and tall instruction auto-padding. `convert_rung()` then lays it out as CLICK's syntax check draws it (`_layout.canonical()`, [layout](docs/internals/layout.md)), which may split it into several rungs; a rung `check()` reports stays as written.
 - **csv/parser.py, writer.py, bundle.py, token_parser.py** — CSV parsing and writing. `parser.py` reads canonical CSV into AST; `writer.py` serializes Rung to CSV; `bundle.py` handles multi-file programs; `token_parser.py` parses condition/AF tokens.
 
 ## Tests
@@ -107,6 +107,7 @@ tests/
 ├── test_v4_captures.py      # CLICK v4 captures: each rung decodes to its comment; native blob matching
 ├── test_operands.py         # operands/: bank masks vs code sets, FieldError attributes, Src
 ├── test_layout_check.py     # check(): CLICK-refused rungs (bridge, layoutthy 23), accepted captures, ladder goldens
+├── test_layout.py           # layout: checked captures are CSV fixed points, pasted ones read as checked, circuits kept
 ├── test_operand_guards.py   # Ratchet allowlist: re calls, bank-name literals, ValueError raises
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/

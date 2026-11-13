@@ -113,6 +113,43 @@ Cells can contain:
 No shorthand markers (`->`, `...`) are emitted.
 No explicit `+` topology token is emitted.
 
+## Layout
+
+Write the circuit: contacts, wires and boxes. `read_csv` lays each rung out as
+CLICK's syntax check draws it, so a CSV doesn't need pad rows under a tall box,
+rows for unused pins, or a merge in any particular column. A wire between two
+series contacts goes:
+
+```text
+     A      B      C      ...   AF
+R    X001   -      X002   -...- out(Y001)
+```
+
+reads as
+
+```text
+     A      B      C      ...   AF
+R    X001   X002   -      -...- out(Y001)
+```
+
+- Contacts pack left, and each OR merges in the column after its last contact.
+- Each box goes on the first free output row below the box above it; the
+  conditions pack up beside it.
+- Blank rows inside an OR, blank rows at the top or bottom, and wire stubs that
+  join nothing are dropped.
+- A pinned box's pins go on the rows CLICK gives them
+  ([Builder pin continuation rows](#builder-pin-continuation-rows)).
+
+The logic never changes. Outputs whose circuits meet only at the rail become one
+rung each, in order, with the comment on the first, as CLICK splits them, so
+`read_csv` can return more rungs than the CSV holds.
+
+`write_csv` writes the same layout, so a CSV it wrote reads back unchanged. A
+rung `laddercodec.check()` reports
+([Decoding](decoding.md#check-for-line-connection-errors)) has no layout and is
+read and written as drawn. The rules and their evidence are in
+[Layout](../internals/layout.md).
+
 ## Vertical topology
 
 OR conditions (`Or()`), multi-output stacking, and `branch()` conditions all
@@ -283,9 +320,8 @@ divergent bus.
 ### Outputs under a tall box
 
 A box taller than one row (Copy is 2) needs its rows to itself in AF. Write each
-output on the row it belongs to; `read_csv` moves an output down when the box
-above still covers its row. When each OR leg is one contact between two adjacent
-verticals and every output hangs off the right one by plain wires, as here:
+output on the row after the one above; `read_csv` moves an output down when the
+box above still covers its row, and the conditions stay beside the box. Here:
 
 ```text
      A      B      C     ...   AF
@@ -305,10 +341,9 @@ R    X001   T:C1   T     -...- copy(1,DS1)
             C3     -     -...- copy(2,DS2)
 ```
 
-The logic is the same. For stacked 2-row boxes such as Copy, this is the layout
-CLICK's syntax check leaves; for other boxes the layout is not yet checked
-against CLICK. Any other shape gets a blank row under the box, with its verticals carried through,
-and every row below moves down with the output.
+The logic is the same, and this is the layout CLICK's syntax check leaves. A
+box with nothing beside it keeps blank rows under it for its height, with its
+verticals carried through, and every row below moves down with the output.
 
 ## Builder pin continuation rows
 
@@ -338,8 +373,10 @@ R,C1,-,...,-,"time_drum(...)"
 Here `.jump()` is on row 3, not row 2. An unused pin still takes a row of its
 own, below the legs of the pin above it: with Jump off, `.reset()` with one leg
 then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK lays out a leg
-added with Insert Row the same way). Blank rows just above the next pin are read
-as the unused pins' rows, not legs. Legs under the last pin sit below the box.
+added with Insert Row the same way, and its check moves a leg drawn on the unused
+Jump row there). Unused pins after the last used one sit directly under it,
+beside its legs. The CSV doesn't place an unused pin: blank rows are dropped, and
+these rules give the row. Legs under the last pin sit below the box.
 
 The same holds for legs under the main input:
 
@@ -355,9 +392,9 @@ so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
 the unused Down row under the main input's legs. A timer without `.reset()`
 stays 2 rows, with its main input's legs beside and below it.
 
-"OR leg" only says where a row sits. `read_csv` doesn't check wires, and it takes
-`T` or `|` to join a leg to the row above. CLICK accepts a leg without them, but
-that contact feeds nothing:
+A leg needs `T` or `|` to join the row above. Without them the contact feeds
+nothing, which CLICK's syntax check refuses (C0202, C0003); `laddercodec.check()`
+reports it, and `read_csv` keeps the rung as drawn:
 
 ```csv
 R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
@@ -367,7 +404,7 @@ R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
 
 Here C31 drives Down and C32 goes nowhere. With `NOP` in the second row's AF, the
 box is 3 rows and C32 drives Down, but C31 then sits on the unused top row, where
-its wire stops at the box and it feeds nothing.
+its wire stops at the box, and it is refused the same way.
 
 ## Parsing conveniences
 

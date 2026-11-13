@@ -135,8 +135,9 @@ binary = encode(rung)
 
 Tall instructions such as timers, copy-family instructions, shift, drum, and
 some counters occupy multiple visual rows. `encode()` accepts the fully expanded
-rows directly. When you come from canonical CSV, `read_csv()` handles the
-padding and pin-row shaping for you.
+rows directly and writes them as given. When you come from canonical CSV,
+`read_csv()` handles the padding and pin rows for you, and lays each rung out as
+CLICK's syntax check draws it ([CSV layout](csv-format.md#layout)).
 
 ## Text Constants
 
