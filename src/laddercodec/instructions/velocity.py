@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
 from ..model import AfInstruction
-from .family import AfInstructionFamilySpec
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -22,6 +22,12 @@ if TYPE_CHECKING:
 
 _TYPE_CODE = 0x2735
 _CLASS_NAME = "Velocity"
+
+#: Cell kwargs of the box: three rows (cell header +0x09 = +0x0A = 3), as CLICK's editor
+#: creates it (scr_captures/coverage.bin).  Saving the dialog of a pasted 1-row box grows
+#: it to 3 rows (v4_captures/box_height_dialog_ok.bin).
+_CELL_PARAMS: dict = {"visual_rows": 3}
+
 _FIELD_COUNT = 15
 
 # ---------------------------------------------------------------------------
@@ -76,7 +82,7 @@ class Velocity(AfInstruction):
     tag_3218: str = "9744"
 
     def cell_params(self) -> dict:
-        return {}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         out = bytearray()
@@ -171,4 +177,5 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Velocity,),
     binary_class_names=(_CLASS_NAME,),
     from_tags=from_tags,
+    cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),
 )
