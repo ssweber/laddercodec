@@ -566,3 +566,90 @@ def test_raw_box_the_fields_form_refuses_writes_hex(extra: bytes, rows: int | No
     token = raw.to_csv()
     assert token.startswith(f"raw(Zzz,{blob.hex()},rows=")
     assert RawInstruction.from_csv_token(token) == raw
+
+
+# ---------------------------------------------------------------------------
+# A raw box whose field values the token can't carry is written as hex
+# ---------------------------------------------------------------------------
+
+_VALUES_TOKEN_CANT_CARRY = [
+    "MAX ( DS1 , 100 )",  # the Math form of the native captures; a comma splits the token
+    "a,b",
+    'a,"',
+    '"',
+    'a"b',
+    "trail ",
+    " ",
+    "\t",
+    "a\nb",
+    "a\r\nb",
+]
+_VALUES_TOKEN_CARRIES = ["", "100 )", "(a", "a=b", " lead", "Ã©", "rows=3", "x:y", '"a,b"']
+
+
+def _field_box(value: str) -> RawInstruction:
+    from laddercodec.binary_helpers import _STANDARD_SENTINEL
+    from laddercodec.instructions.raw import _compose_blob
+
+    fields = [(0x6065, _STANDARD_SENTINEL, value), (0x11FE, _STANDARD_SENTINEL, "0")]
+    return RawInstruction("Math", _compose_blob("Math", 0x271A, 1, b"", fields), 1)
+
+
+@pytest.mark.parametrize("value", _VALUES_TOKEN_CANT_CARRY)
+def test_raw_field_value_the_token_cant_carry_is_written_as_hex(tmp_path: Path, value: str) -> None:
+    box = _field_box(value)
+    assert box.to_csv() == f"raw(Math,{box.blob.hex()},rows=1,sub=1)"
+    assert RawInstruction.from_csv_token(box.to_csv()) == box
+    out = tmp_path / "x.csv"
+    write_csv(out, [Rung(1, [["-"] * 31], [box], None, None)])
+    (back,) = read_csv(out)
+    assert back.instructions == [box]
+    assert back.instructions[0].blob == box.blob
+
+
+@pytest.mark.parametrize("value", _VALUES_TOKEN_CARRIES)
+def test_raw_field_value_the_token_carries_stays_in_the_fields_form(
+    tmp_path: Path, value: str
+) -> None:
+    box = _field_box(value)
+    assert box.to_csv().startswith("raw(Math,0x271a,1,rows=1,sub=1,6065=")
+    out = tmp_path / "x.csv"
+    write_csv(out, [Rung(1, [["-"] * 31], [box], None, None)])
+    (back,) = read_csv(out)
+    assert back.instructions[0].blob == box.blob
+
+
+def test_native_raw_math_with_a_comma_in_a_field_round_trips_through_csv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
+    cases = [(V4 / "math.bin", (21, 22, 23)), (V4 / "math_typed.bin", (1,))]
+    for path, numbers in cases:
+        rungs = _rungs(decode(_load(path)))
+        for number in numbers:
+            rung = rungs[number - 1]
+            out = tmp_path / f"{path.stem}_{number}.csv"
+            write_csv(out, [rung])
+            (back,) = read_csv(out)
+            assert back.instructions == rung.instructions
+
+
+def test_forced_raw_sweep_round_trips_every_native_rung(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
+    monkeypatch.setattr(_decode_program, "_scr_af", lambda *args: None)
+    failures = []
+    for path in _native_files():
+        rungs = _forced_raw_rungs(path)
+        out = tmp_path / f"{path.name}.csv"
+        for number, rung in enumerate(rungs, 1):
+            try:
+                write_csv(out, [rung])
+                back = read_csv(out)
+            except Exception as err:  # noqa: BLE001 - report every failing rung
+                failures.append(f"{path.name} #{number}: {err}"[:150])
+                continue
+            if [r.instructions for r in back] != [rung.instructions]:
+                failures.append(f"{path.name} #{number}: instructions differ")
+    assert failures == []

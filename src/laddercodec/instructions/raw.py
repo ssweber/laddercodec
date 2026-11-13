@@ -435,7 +435,8 @@ class RawInstruction(AfInstruction):
         ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A); a box of
         2 or more parts adds ``pins=``, its extra part bytes.  Falls back to the legacy
         hex format, with ``rows`` and ``sub``, if decomposition fails, or if the part
-        bytes are no ascending rows 1 to 31 or the span is not the last one + 1.
+        bytes are no ascending rows 1 to 31 or the span is not the last one + 1, or if
+        the fields text does not read back as this box (a field value holding a comma).
         """
         params = self.cell_params()
         rows = cell_rows_spec(params)
@@ -449,7 +450,18 @@ class RawInstruction(AfInstruction):
             # Part bytes or a height the fields form refuses: the hex keeps them.
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
         parts = [cn, f"0x{tm:04x}", str(pc), rows, *([pins] if pins else []), *specs]
-        return f"raw({','.join(parts)})"
+        token = f"raw({','.join(parts)})"
+        if not self._reads_back(token):
+            # A field value the token can't carry (a comma, say): the hex keeps it.
+            return f"raw({self.class_name},{self.blob.hex()},{rows})"
+        return token
+
+    def _reads_back(self, token: str) -> bool:
+        """Whether *token* reads back as this box, bytes and height."""
+        try:
+            return self.from_csv_token(token) == self
+        except ValueError:
+            return False
 
     @classmethod
     def from_csv_token(cls, token: str) -> RawInstruction:
