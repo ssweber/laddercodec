@@ -37,7 +37,7 @@ from ..binary_helpers import (
     _variant_tagged_field,
 )
 from ..model import AfInstruction, FieldError
-from .family import AfInstructionFamilySpec
+from .family import AfInstructionFamilySpec, cell_rows_spec
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -341,8 +341,11 @@ class RawInstruction(AfInstruction):
         editor creates may store other sub-rows (Math ``01 03``, some
         Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``); for
         those classes CLICK keeps the height laddercodec writes.  With
-        ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal the row span.  The CSV
-        token does not hold them, so they take no part in equality.
+        ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal the row
+        span.  The CSV token holds the two bytes the box encodes
+        (``rows=``, ``sub=``), and two boxes are equal when they encode the
+        same bytes: a box with ``None`` equals one that states its class's
+        height.
     """
 
     class_name: str
@@ -350,6 +353,22 @@ class RawInstruction(AfInstruction):
     part_count: int = 1
     visual_rows: int | None = field(default=None, compare=False)
     sub_rows: int | None = field(default=None, compare=False)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, RawInstruction):
+            return NotImplemented
+        return (self.class_name, self.blob, self.part_count, self._cell_rows()) == (
+            other.class_name,
+            other.blob,
+            other.part_count,
+            other._cell_rows(),
+        )
+
+    def _cell_rows(self) -> tuple[int, int]:
+        """The row span (+0x09) and sub-rows (+0x0A) this box encodes."""
+        params = self.cell_params()
+        span = int(params.get("visual_rows", 1))
+        return span, int(params.get("sub_rows", span))
 
     def __post_init__(self) -> None:
         # A decoded blob gives any class name and a 16-bit part count; check only the types.
@@ -406,17 +425,19 @@ class RawInstruction(AfInstruction):
         return self.blob
 
     def to_csv(self) -> str:
-        """Serialize to decoded-fields ``raw(ClassName,0xTTTT,N,...)`` token.
+        """Serialize to decoded-fields ``raw(ClassName,0xTTTT,N,rows=R,sub=S,...)`` token.
 
-        Falls back to legacy hex format if decomposition fails.
+        ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A).  Falls
+        back to the legacy hex format, with the same two fields, if decomposition fails.
         """
+        rows = cell_rows_spec(self.cell_params())
         try:
             cn, tm, pc, _eb, flds = _decompose_blob(self.blob)
             specs = _compress_fields(flds)
-            parts = [cn, f"0x{tm:04x}", str(pc), *specs]
+            parts = [cn, f"0x{tm:04x}", str(pc), rows, *specs]
             return f"raw({','.join(parts)})"
         except (ValueError, IndexError, struct.error):
-            return f"raw({self.class_name},{self.blob.hex()})"
+            return f"raw({self.class_name},{self.blob.hex()},{rows})"
 
     @classmethod
     def from_csv_token(cls, token: str) -> RawInstruction:
@@ -424,11 +445,15 @@ class RawInstruction(AfInstruction):
 
         Decoded-fields format::
 
-            raw(ClassName,0xTTTT,N,field_specs...)
+            raw(ClassName,0xTTTT,N,rows=R,sub=S,field_specs...)
 
         Legacy hex format::
 
-            raw(ClassName,hex_blob)
+            raw(ClassName,hex_blob,rows=R,sub=S)
+
+        ``rows`` (row span) and ``sub`` (sub-rows) come right after the part count, or
+        after the hex.  Each is optional: an absent one is ``visual_rows`` or
+        ``sub_rows`` None, which takes the class's height.
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
@@ -445,12 +470,19 @@ class RawInstruction(AfInstruction):
             return cls._from_fields_token(class_name, rest)
 
         # Legacy hex format.
-        blob = bytes.fromhex(rest)
+        hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
+        visual_rows, sub_rows, extra = _take_cell_rows(class_name, rest_parts)
+        if extra:
+            raise FieldError(
+                f"raw({class_name},hex,...): only rows= and sub= may follow the hex, "
+                f"not {extra[0]!r}"
+            )
+        blob = bytes.fromhex(hex_blob)
         try:
             _, _, part_count = find_blob_boundary(blob)
         except (ValueError, IndexError):
             part_count = 1
-        return cls(class_name=class_name, blob=blob, part_count=part_count)
+        return cls(class_name, blob, part_count, visual_rows, sub_rows)
 
     @classmethod
     def _from_fields_token(cls, class_name: str, rest: str) -> RawInstruction:
@@ -466,7 +498,7 @@ class RawInstruction(AfInstruction):
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
-        field_specs = parts[2:]
+        visual_rows, sub_rows, field_specs = _take_cell_rows(class_name, parts[2:])
 
         fields = _parse_field_specs(field_specs)
 
@@ -475,7 +507,35 @@ class RawInstruction(AfInstruction):
         extra_bytes = bytes(range(1, max(1, part_count)))
 
         blob = _compose_blob(class_name, type_marker, part_count, extra_bytes, fields)
-        return cls(class_name=class_name, blob=blob, part_count=part_count)
+        return cls(class_name, blob, part_count, visual_rows, sub_rows)
+
+
+def _take_cell_rows(
+    class_name: str, parts: list[str]
+) -> tuple[int | None, int | None, list[str]]:
+    """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
+
+    Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
+    """
+    values: dict[str, int | None] = {"rows": None, "sub": None}
+    i = 0
+    for key in values:
+        if i < len(parts) and parts[i].startswith(f"{key}="):
+            text = parts[i][len(key) + 1 :]
+            if not (text.isascii() and text.isdigit() and 1 <= int(text) <= 0xFF):
+                raise FieldError(
+                    f"raw({class_name},...): {key}={text!r} is not a whole number "
+                    "from 1 to 255"
+                )
+            values[key] = int(text)
+            i += 1
+    for part in parts[i:]:
+        if part.startswith(("rows=", "sub=")):
+            raise FieldError(
+                f"raw({class_name},...): {part!r} goes right after the part count, "
+                "rows= before sub=, once each"
+            )
+    return values["rows"], values["sub"], parts[i:]
 
 
 def from_tags(

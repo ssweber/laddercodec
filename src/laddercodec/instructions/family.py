@@ -49,6 +49,12 @@ AfCellParamsFromTags = Callable[[str, int, dict[int, str]], dict | None]
 EMAIL_MOTION_CELL_PARAMS: dict = {"visual_rows": 3}
 
 
+def cell_rows_spec(params: dict) -> str:
+    """The ``rows=R,sub=S`` fields of a raw token for a box with cell kwargs *params*."""
+    span = int(params.get("visual_rows", 1))
+    return f"rows={span},sub={int(params.get('sub_rows', span))}"
+
+
 def fixed_cell_params(params: dict, *types: tuple[str, int]) -> AfCellParamsFromTags:
     """Height hook for a family whose boxes all have one height.
 

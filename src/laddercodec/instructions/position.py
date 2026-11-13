@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
 from ..model import AfInstruction
-from .family import EMAIL_MOTION_CELL_PARAMS, AfInstructionFamilySpec, fixed_cell_params
+from .family import (
+    EMAIL_MOTION_CELL_PARAMS,
+    AfInstructionFamilySpec,
+    cell_rows_spec,
+    fixed_cell_params,
+)
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -137,7 +142,8 @@ class Position(AfInstruction):
             f"3218={self.tag_3218}",
             "0000=",
         ]
-        return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{','.join(specs)})"
+        rows = cell_rows_spec(EMAIL_MOTION_CELL_PARAMS)
+        return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{rows},{','.join(specs)})"
 
     @classmethod
     def from_csv_token(cls, token: str) -> Position:

@@ -276,7 +276,9 @@ def parse_af_token(token: str) -> AfNode:
     kwargs: dict[str, str] = {}
     in_kwargs = False
     for seg in segments:
-        eq_idx = _kwarg_eq_index(seg)
+        # A raw token's arguments are its own field specs (``rows=3``, ``60a5=1``), which
+        # RawInstruction reads from the token text; keep them all positional.
+        eq_idx = -1 if name == "raw" else _kwarg_eq_index(seg)
         if eq_idx >= 0:
             in_kwargs = True
             key = seg[:eq_idx].strip()

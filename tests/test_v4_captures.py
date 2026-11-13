@@ -126,25 +126,19 @@ def _current_spelling(token: str) -> str:
 @pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
-    rungs = [
-        r
-        for i, r in enumerate(_decode_file(bin_path))
-        if not _leg_on_unused_pin_row(r) and (bin_path.name, i) not in _SHORT_BOX_RUNGS
-    ]
+    rungs = [r for r in _decode_file(bin_path) if not _leg_on_unused_pin_row(r)]
     write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
 
 
-#: ``(file, rung index)`` of the 1-row Email, Home, Position and Velocity boxes CLICK
-#: copies back after a paste from an earlier laddercodec.  CSV can't express them: a raw
-#: box of these classes reads back at its class's 3 rows.
-_SHORT_BOX_RUNGS = {("box_height_pasted.bin", i) for i in range(10, 14)}
+def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
+    """A box stored at 1 row decodes raw, writes ``rows=1,sub=1`` and re-encodes as stored.
 
-
-def test_short_box_decodes_raw_and_does_not_write() -> None:
-    """A box stored at 1 row decodes raw, re-encodes as stored, and write_csv refuses it."""
+    CLICK copies back a 1-row Email, Home, Position or Velocity pasted from an earlier
+    laddercodec at 1 row (``box_height_pasted.bin`` rungs 11-14).
+    """
     data = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
     rungs = _decode_file(data)
-    short = [rungs[i] for _name, i in sorted(_SHORT_BOX_RUNGS)]
+    short = rungs[10:14]
     boxes = [r.instructions[0] for r in short]
     assert all(isinstance(box, RawInstruction) for box in boxes)
     assert [getattr(box, "class_name", None) for box in boxes] == [
@@ -153,12 +147,21 @@ def test_short_box_decodes_raw_and_does_not_write() -> None:
         "Position",
         "Velocity",
     ]
-    again = encode(short)
-    for i, rung in enumerate(short):
-        assert rung.logical_rows == 1
-        assert _af_box(again, i) == _af_box(data, 10 + i) == (1, 1, 1)
-        with pytest.raises(WriterError, match="logical row count mismatch: expected 1, got 3"):
-            decoded_rung_to_rows(rung)
+    write_csv(tmp_path / "pasted.csv", rungs)
+    text = (tmp_path / "pasted.csv").read_text(encoding="utf-8")
+    assert text.count(",rows=1,sub=1,") == 4
+    back = read_csv(tmp_path / "pasted.csv")
+    assert [r.logical_rows for r in back[10:14]] == [1, 1, 1, 1]
+    assert [r.instructions for r in back[10:14]] == [r.instructions for r in short]
+    again = encode(back)
+    assert again == encode(rungs)
+    for i, box in zip(range(10, 14), boxes, strict=True):
+        assert _af_box(again, i) == _af_box(data, i) == (1, 1, 1)
+        # Cell header and blob; the last cell's dump runs on into the capture's trailer.
+        end = 0x25 + len(box.build_blob())
+        (ours,) = inspect_cells(again, [(i, 0, "AF")])
+        (native,) = inspect_cells(data, [(i, 0, "AF")])
+        assert ours.raw[:end] == native.raw[:end], i + 1
 
 
 # ---------------------------------------------------------------------------

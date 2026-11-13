@@ -17,7 +17,12 @@ import pytest
 from laddercodec import Rung, decode, decode_program, encode, read_csv
 from laddercodec.csv.converter import convert_rung
 from laddercodec.csv.parser import _parse_single_rung_rows
-from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
+from laddercodec.csv.writer import (
+    WriterError,
+    _validate_roundtrip,
+    decoded_rung_to_rows,
+    write_csv,
+)
 from laddercodec.instructions import (
     AfInstruction,
     Coil,
@@ -187,13 +192,16 @@ def test_tall_classes_are_in_the_captures() -> None:
         assert cell in seen
 
 
-def test_cell_rows_take_no_part_in_equality() -> None:
+def test_cell_rows_take_part_in_equality() -> None:
+    # Two boxes are equal when they encode the same +0x09/+0x0A.
     blob = _raw_token_of(_typed(V4 / "sweep_search.bin", "Search")).blob
     native = RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=3)
-    from_csv = RawInstruction("Search", blob, 1)
-    assert native == from_csv
+    class_rule = RawInstruction("Search", blob, 1)
+    assert native != class_rule
+    assert class_rule == RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=2)
+    assert class_rule == RawInstruction("Search", blob, 1, visual_rows=2)
     assert native.cell_params() == {"visual_rows": 2, "sub_rows": 3}
-    assert from_csv.cell_params() == {"visual_rows": 2}
+    assert class_rule.cell_params() == {"visual_rows": 2}
 
 
 @pytest.mark.parametrize("bad", [0, 256, -1, True, "2", 2.0])
@@ -338,7 +346,7 @@ def test_writer_lays_out_raw_as_typed(class_name: str) -> None:
 
 
 def test_writer_keeps_native_sub_rows_raw(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # A native Search with +0x0A = 3 writes and reads back; the CSV holds no sub-rows.
+    # A native Search with +0x0A = 3 writes ``rows=2,sub=3`` and reads back as stored.
     native = _load(FIXTURES / "scr_captures" / "coverage.bin")
     monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
     rungs = [
@@ -351,8 +359,64 @@ def test_writer_keeps_native_sub_rows_raw(tmp_path: Path, monkeypatch: pytest.Mo
         rung.instructions[0].cell_params() == {"visual_rows": 2, "sub_rows": 3} for rung in rungs
     )
     write_csv(tmp_path / "out.csv", rungs)
+    assert (tmp_path / "out.csv").read_text().count(",rows=2,sub=3,") == 8
     back = read_csv(tmp_path / "out.csv")
     assert [(r.logical_rows, r.conditions, r.instructions) for r in back] == [
         (r.logical_rows, r.conditions, r.instructions) for r in rungs
     ]
-    assert all(rung.instructions[0].cell_params() == {"visual_rows": 2} for rung in back)
+    assert all(
+        rung.instructions[0].cell_params() == {"visual_rows": 2, "sub_rows": 3} for rung in back
+    )
+    assert _af_cells(encode(back)) == _af_cells(encode(rungs))
+
+
+def test_writer_sees_a_raw_height_loss() -> None:
+    # The writer's round-trip check compares raw heights: a box that would read back at
+    # another height than it encodes fails it.
+    blob = _raw_token_of(_typed(V4 / "sweep_search.bin", "Search")).blob
+    native = RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=3)
+    rows = decoded_rung_to_rows(_rung_of(native, 2))
+    token = rows[0][-1]
+    assert ",rows=2,sub=3," in token
+    stripped = [*rows[0][:-1], token.replace(",rows=2,sub=3,", ",")]
+    with pytest.raises(WriterError, match="AF mismatch"):
+        _validate_roundtrip(_rung_of(native, 2), [stripped])
+
+
+@pytest.mark.parametrize(
+    ("fields", "visual_rows", "sub_rows"),
+    [("", None, None), ("rows=3,", 3, None), ("sub=2,", None, 2), ("rows=4,sub=1,", 4, 1)],
+)
+def test_raw_token_rows_fields_are_optional(
+    fields: str, visual_rows: int | None, sub_rows: int | None
+) -> None:
+    raw = RawInstruction.from_csv_token(f"raw(Zzz,0x1234,1,{fields}0001=a,0000=)")
+    assert (raw.visual_rows, raw.sub_rows) == (visual_rows, sub_rows)
+    assert raw.to_csv().startswith("raw(Zzz,0x1234,1,rows=")
+    assert RawInstruction.from_csv_token(raw.to_csv()) == raw
+
+
+@pytest.mark.parametrize(
+    ("fields", "match"),
+    [
+        ("rows=0,", "rows='0' is not a whole number from 1 to 255"),
+        ("rows=256,", "rows='256'"),
+        ("rows=x,", "rows='x'"),
+        ("rows=,", "rows=''"),
+        ("sub=3,rows=3,", "goes right after the part count"),
+        ("rows=3,rows=3,", "goes right after the part count"),
+        ("0001=a,rows=3,", "goes right after the part count"),
+    ],
+)
+def test_raw_token_rows_fields_refused(fields: str, match: str) -> None:
+    with pytest.raises(FieldError, match=match):
+        RawInstruction.from_csv_token(f"raw(Zzz,0x1234,1,{fields}0001=a,0000=)")
+
+
+def test_legacy_hex_token_takes_rows_fields() -> None:
+    blob = Email().build_blob()
+    legacy = RawInstruction.from_csv_token(f"raw(Email,{blob.hex()})")
+    assert legacy.cell_params() == {"visual_rows": 3}
+    stated = RawInstruction.from_csv_token(f"raw(Email,{blob.hex()},rows=1,sub=1)")
+    assert stated.cell_params() == {}
+    assert stated == RawInstruction("Email", blob, 1, visual_rows=1, sub_rows=1)

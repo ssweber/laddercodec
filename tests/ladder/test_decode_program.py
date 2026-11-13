@@ -411,7 +411,7 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
 
     assert parsed is not None
     assert (
-        parsed.to_csv() == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
+        parsed.to_csv() == "raw(Home,0x2734,1,rows=3,sub=3,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
         "609c=DD102,609d=DD103,222f=0,11f5=0,2230=255,60a1=0,60a3=C102,60a4=,607b=C103,"
         "607d=,6083=,2232=0,2233=0,3218=9739,0000=)"
     )
@@ -457,7 +457,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
     assert parsed is not None
     assert (
         parsed.to_csv()
-        == "raw(Position,0x2736,1,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
+        == "raw(Position,0x2736,1,rows=3,sub=3,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
         "609c=DD120,609d=DD121,222f=2,11f5=0,2231=0,60a2=,60a3=C315,60a4=,607b=C316,"
         "607d=,6083=,3218=9745,0000=)"
     )
