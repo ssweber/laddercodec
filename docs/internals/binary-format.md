@@ -106,7 +106,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x01 | 4B | Column index (uint32 LE) |
 | +0x05 | 4B | Row byte (uint32 LE, `global_row + 1`) |
 | +0x09 | 1B | Row span (0x01 for single-row, 0x02+ for multi-row AF) |
-| +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell) |
+| +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell the editor creates, 0x01 under a row span of 3 in an Email/Home/Position/Velocity cell pasted at 1 row and then saved by its dialog) |
 | +0x0B–0x0C | 2B | Structural: +0x0C = 0x01 in wire-only rungs, 0x00 in instruction-bearing rungs |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |

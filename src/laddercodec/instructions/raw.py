@@ -335,12 +335,11 @@ class RawInstruction(AfInstruction):
         (+0x09), ``sub_rows`` the sub-rows (+0x0A).  The decoders keep the
         native cell's bytes.  ``None`` takes the height from the class: the
         typed family's height when its blob alone gives it (Copy family,
-        Search, Send, Receive, Out variants), otherwise ``part_count`` rows.
-        Native cells of some classes differ from both the typed height and
-        this rule (an open capture question): Email, Home, Position and
-        Velocity ``03 03`` against ``01 01``, Math ``01 03``, some Search
-        ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``.
-        With ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal
+        Search, Send, Receive, Out variants, and 3 rows for Email, Home,
+        Position and Velocity), otherwise ``part_count`` rows.  Boxes the
+        editor creates may store other sub-rows (Math ``01 03``, some
+        Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``);
+        CLICK keeps the height laddercodec writes.  With ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal
         the row span.  The CSV token does not hold them, so they take no
         part in equality.
     """

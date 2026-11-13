@@ -142,6 +142,7 @@ def test_tall_classes_are_in_the_captures() -> None:
         ("Out", 3, 3),
         ("Out", 2, 3),
         ("Math", 1, 3),
+        *((name, 3, 3) for name in ("Email", "Home", "Position", "Velocity")),
     ]:
         assert cell in seen
 
@@ -196,8 +197,7 @@ def _typed(path: Path, class_name: str) -> AfInstruction:
 
 def test_csv_raw_takes_typed_height() -> None:
     # A regression lock on the class rule (raw matches typed), not native ground truth.
-    # Native cells it does not cover: Email, Home, Position, Velocity 03 03 (typed 01 01),
-    # Math 01 03 and some Search 02 03 (typed 02 02).
+    # Native cells it does not cover: Math 01 03 and some Search 02 03 (typed 02 02).
     kinds: set[str] = set()
     for af in _typed_boxes():
         if isinstance(af, PinnedInstruction):
@@ -220,6 +220,10 @@ def test_csv_raw_takes_typed_height() -> None:
         "OutVariant:debounce",
         "OutVariant:flasher",
         "OutVariant:timed",
+        "Email:",
+        "Home:",
+        "Position:",
+        "Velocity:",
     }
 
 
@@ -243,14 +247,19 @@ def test_raw_out_with_unknown_func_code_is_one_row() -> None:
     assert unknown.cell_params() == {}
 
 
-@pytest.mark.parametrize("class_name", ["Copy", "Search", "SD", "RD"])
+@pytest.mark.parametrize(
+    "class_name", ["Copy", "Search", "SD", "RD", "Email", "Home", "Position", "Velocity"]
+)
 def test_csv_raw_pads_rung_as_typed(class_name: str) -> None:
     # A regression lock on the class rule (raw pads as typed), not native ground truth.
     # Native cells it does not cover: some Search 02 03 (typed and raw rule 02 02).
-    path = {"Copy": "sweep_copy.bin", "Search": "sweep_search.bin"}.get(
-        class_name, "sweep_comm.bin"
-    )
-    typed = _typed(V4 / path, class_name)
+    path = {
+        "Copy": V4 / "sweep_copy.bin",
+        "Search": V4 / "sweep_search.bin",
+        "SD": V4 / "sweep_comm.bin",
+        "RD": V4 / "sweep_comm.bin",
+    }.get(class_name, FIXTURES / "scr_captures" / "coverage.bin")
+    typed = _typed(path, class_name)
     raw_rung = _csv_rung(_raw_token_of(typed).to_csv())
     typed_rung = _csv_rung(typed.to_csv())
     assert raw_rung.logical_rows == typed_rung.logical_rows > 1

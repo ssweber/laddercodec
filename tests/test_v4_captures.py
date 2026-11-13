@@ -148,7 +148,9 @@ def _box_taller_than_rung(rung: Rung) -> bool:
 
 
 def test_box_taller_than_rung_does_not_write() -> None:
-    short = [r for r in _decode_file(CAPTURE_DIR / "box_height_pasted.bin") if _box_taller_than_rung(r)]
+    short = [
+        r for r in _decode_file(CAPTURE_DIR / "box_height_pasted.bin") if _box_taller_than_rung(r)
+    ]
     assert [type(r.instructions[0]).__name__ for r in short] == [
         "Email",
         "Home",

@@ -478,6 +478,8 @@ Producer may emit:
   round-trips losslessly for unrecognized instruction types.
   `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
   path because they are not yet modeled as dedicated DSL instruction classes.
+  Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
+  rows, as it does for other tall boxes.
 
 Pin tokens:
 

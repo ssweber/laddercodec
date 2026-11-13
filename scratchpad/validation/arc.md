@@ -366,6 +366,24 @@ Open asks (checklist; details under each id below):
   `raw_instructions__email` golden copy back as `03 03`, and should typed encode write the
   native height? A decoded raw Email-like box loses 2 rows through a CSV round trip (with a
   warning) until this is settled.
+  **ANSWERED 2026-11-13 (user, captures `clicknick/box-height-pasted.bin` and
+  `clicknick/box-height.bin`, now `v4_captures/box_height_pasted.bin` and
+  `box_height_dialog_ok.bin`):** the user pasted 14 coverage goldens (math__decimal,
+  math__hex, search__eq, search__continuous, on_delay__ton, on_delay__rton, off_delay__tof,
+  shift__basic, event_drum__basic, time_drum__basic, raw_instructions__email, __home,
+  __position, __velocity), copied back, then opened each dialog, pressed OK and copied back
+  again.
+  - Typed classes: CLICK keeps the height laddercodec writes through paste and through dialog
+    OK (Math `01 01`, Search and Tmr `02 02`, SR `03 03`, Drum `04 04`). The other `+0x0A`
+    of older native cells comes from creating the box in the editor; both forms are CLICK's
+    and paste. Typed encode does not change.
+  - Email, Home, Position, Velocity: CLICK's box spans 3 rows. A 1-row paste copies back
+    `01 01` in a 1-row rung; saving its dialog rewrites `+0x09` to 3 and grows the rung by 2
+    rows (`03 01`). Editor-created cells store `03 03` (`scr_captures/coverage.bin`).
+  - Built (rawbox): these four classes have a 3-row height, typed and raw from CSV, written
+    `03 03` (BOB ruling: the editor's form, not the `03 01` a dialog OK leaves on a pasted
+    box; cost if wrong: none seen, CLICK writes and keeps both). The four
+    `raw_instructions__*` goldens grow to 3 rows and need a paste check.
 - Captures: Q-C7 remote address `0H` stored text, and the stored
   text of a padded `0FFFEh`. **ANSWERED 2026-11-13 (user, capture
   `clicknick/hex-modbus.bin`, now `v4_captures/comm_hex_address.bin`):** CLICK stores uppercase
@@ -820,6 +838,16 @@ Open asks (checklist; details under each id below):
   unchecked flag fields below go through `check_flag`.
 - Open from rawheight's review: the writer's `_af_tokens_match` can't see a raw box height
   loss, because a raw's height is left out of equality (the CSV token can't hold it).
+  rawbox: a raw Email, Home, Position or Velocity no longer loses rows (it and the CSV read
+  both span 3); the blind cases left are sub-rows that differ from the class's (Math
+  `01 03`, Search `02 03`, ...), which CLICK accepts either way.
+- Open from rawbox: a 1-row Email, Home, Position or Velocity box that CLICK copies back
+  after a paste from an earlier laddercodec (`box_height_pasted.bin` rungs 11-14) decodes
+  typed in a 1-row rung. `write_csv` refuses it ("requires 3 decoded rows"), and `encode`
+  writes it as a `03 03` box in a 1-row rung, a form no capture holds. Options: the decoders
+  keep a box raw (with its stored bytes) when its stored row span differs from its class's
+  (in every native fixture this happens only for these four cells), and/or the writer grows
+  the rung to the class height with a warning, as CLICK does on dialog OK.
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,
