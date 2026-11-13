@@ -577,6 +577,9 @@ _VALUES_TOKEN_CANT_CARRY = [
     "a,b",
     'a,"',
     '"',
+    '"a',
+    'a"',
+    ' "',
     'a"b',
     "trail ",
     " ",
@@ -584,7 +587,7 @@ _VALUES_TOKEN_CANT_CARRY = [
     "a\nb",
     "a\r\nb",
 ]
-_VALUES_TOKEN_CARRIES = ["", "100 )", "(a", "a=b", " lead", "Ã©", "rows=3", "x:y", '"a,b"']
+_VALUES_TOKEN_CARRIES = ["", "100 )", "(a", "a=b", " lead", "é", "rows=3", "x:y", '"a,b"']
 
 
 def _field_box(value: str, last: bool = False) -> RawInstruction:
@@ -598,9 +601,12 @@ def _field_box(value: str, last: bool = False) -> RawInstruction:
     return RawInstruction("Math", _compose_blob("Math", 0x271A, 1, b"", fields), 1)
 
 
+@pytest.mark.parametrize("last", [False, True])
 @pytest.mark.parametrize("value", _VALUES_TOKEN_CANT_CARRY)
-def test_raw_field_value_the_token_cant_carry_is_written_as_hex(tmp_path: Path, value: str) -> None:
-    box = _field_box(value)
+def test_raw_field_value_the_token_cant_carry_is_written_as_hex(
+    tmp_path: Path, value: str, last: bool
+) -> None:
+    box = _field_box(value, last)
     assert box.to_csv() == f"raw(Math,{box.blob.hex()},rows=1,sub=1)"
     assert RawInstruction.from_csv_token(box.to_csv()) == box
     out = tmp_path / "x.csv"
