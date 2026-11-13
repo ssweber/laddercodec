@@ -159,6 +159,8 @@ def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
 
 
+# The writer first warns that the unused pins' blank rows would be lost, then refuses.
+@pytest.mark.filterwarnings("ignore:CSV round-trip lost:UserWarning")
 def test_drum_with_unused_pins_below_blank_rows_has_no_csv_form(tmp_path: Path) -> None:
     rung = _decode_file(CAPTURE_DIR / "layoutq2_pasted.bin")[13]
     assert isinstance(rung.instructions[0], Drum)
