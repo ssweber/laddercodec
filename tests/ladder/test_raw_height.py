@@ -15,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import Rung, decode, decode_program, encode, read_csv
+from laddercodec._layout import canonical
 from laddercodec.csv.converter import convert_rung
 from laddercodec.csv.parser import _parse_single_rung_rows
 from laddercodec.csv.writer import (
@@ -461,6 +462,11 @@ def _native_files() -> list[Path]:
     )
 
 
+def _drawn(rungs: list[Rung]) -> list[Rung]:
+    """*rungs* as ``write_csv`` writes them: in CLICK's layout where they have one."""
+    return [part for rung in rungs for part in canonical(rung) or [rung]]
+
+
 def _forced_raw_rungs(path: Path) -> list[Rung]:
     if path.suffix == ".scr":
         return decode_program(path.read_bytes()).rungs
@@ -494,8 +500,9 @@ def test_native_pin_rows_round_trip_through_csv(
         out = tmp_path / f"{path.name}.csv"
         write_csv(out, rungs)
         again = read_csv(out)
-        assert [r.instructions for r in again] == [r.instructions for r in rungs], path.name
-        assert [r.conditions for r in again] == [r.conditions for r in rungs], path.name
+        drawn = _drawn(rungs)
+        assert [r.instructions for r in again] == [r.instructions for r in drawn], path.name
+        assert [r.conditions for r in again] == [r.conditions for r in drawn], path.name
     # count_down_or.bin and pins.bin (12 boxes), scr_captures/pins.scr (6), the layoutq
     # captures (5) and the layoutq2 captures (27) move a pin.
     assert moved == 50
@@ -661,6 +668,6 @@ def test_forced_raw_sweep_round_trips_every_native_rung(
             except Exception as err:  # noqa: BLE001 - report every failing rung
                 failures.append(f"{path.name} #{number}: {err}"[:150])
                 continue
-            if [r.instructions for r in back] != [rung.instructions]:
+            if [r.instructions for r in back] != [r.instructions for r in _drawn([rung])]:
                 failures.append(f"{path.name} #{number}: instructions differ")
     assert failures == []

@@ -39,8 +39,8 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_encode(csv_path: Path) -> None:
-    r = read_csv(csv_path)[0]
-    result = encode(r)
+    rungs = read_csv(csv_path)  # several rungs when CLICK splits the CSV's one
+    result = encode(rungs if len(rungs) > 1 else rungs[0])
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
     expected = bin_path.read_bytes()
