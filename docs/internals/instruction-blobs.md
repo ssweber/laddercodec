@@ -265,21 +265,24 @@ number lies strictly between the two counted ends:
 | `X001 : X101` | 1, 101 | X002..X016, X021..X036 |
 | `X021 : X116` | 17, 116 | X021..X036, X101..X115 |
 | `X025 : X027` | 21, 23 | X022 |
+| `X025 : X101` | 21, 101 | X022..X036 |
 | `X001 : X021` | 1, 17 | X002..X016 |
 
-This rule is fitted to the twelve X and Y ranges of
-`v4_captures/math_ranges_x_t.bin`, `math_ranges_xy_slots.bin` and
-`math_ranges_xy_slots2.bin`, typed in a C2-03CPU project with no I/O modules;
+This rule is fitted to the thirteen X and Y ranges of
+`v4_captures/math_ranges_x_t.bin`, `math_ranges_xy_slots.bin`,
+`math_ranges_xy_slots2.bin` and `math_ranges_x25_x101.bin`, typed in a C2-03CPU
+project with no I/O modules;
 it is not read from CLICK's code. They include ranges with both ends in the
 option slot (`X025 : X026`, `X025 : X027`), a range ending at X021, one between
 two expansion slots (`X101 : X201`, which lists X102..X116) and two Y ranges,
-which follow the same rule as X. None starts in the option slot past X021 and
-ends in another slot, and none spans more than two expansion slots.
+which follow the same rule as X, and one that starts in the option slot past
+X021 and ends in another slot (`X025 : X101`). None spans more than two
+expansion slots, and no Y range starts in the option slot.
 
 The list for `X001 : X036` leaves out X032..X035, the list for
 `X021 : X116` holds X021, an endpoint, and the list for `X025 : X027` holds
-X022 in place of X026. laddercodec refuses a Math with an X or
-Y range whose list by this rule is not every point strictly between its ends:
+X022 in place of X026. The list for `X025 : X101` starts at X022, not X026.
+laddercodec refuses a Math with an X or Y range whose list by this rule is not every point strictly between its ends:
 by the rule, any range with an end in the option slot, except a range from the
 CPU slot to X021 and a range with no point between its ends. A stored Math with
 such a range, CLICK's own included, decodes as `raw(...)` and keeps its bytes.

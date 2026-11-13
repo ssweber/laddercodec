@@ -615,8 +615,9 @@ def _xy_bound(number: int) -> int:
     An end's own number, but an end in the option slot counts as numbered right after the
     CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
     numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
-    itself.  Fitted to the X and Y ranges of ``v4_captures/math_ranges_x_t.bin`` and
-    ``math_ranges_xy_slots.bin`` (typed in CLICK v4, C2-03CPU, no I/O modules), not read
+    itself.  Fitted to the X and Y ranges of ``v4_captures/math_ranges_x_t.bin``,
+    ``math_ranges_xy_slots.bin``, ``math_ranges_xy_slots2.bin`` and
+    ``math_ranges_x25_x101.bin`` (typed in CLICK v4, C2-03CPU, no I/O modules), not read
     from CLICK's code.
     """
     if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
