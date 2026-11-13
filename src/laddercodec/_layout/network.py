@@ -105,9 +105,7 @@ class _UnionFind:
             self.parent[ra] = rb
 
 
-def boxes_of(
-    instructions: Sequence[object], rows: int, *, raw_pins: bool = False
-) -> list[Box]:
+def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = False) -> list[Box]:
     """Every box in an AF column, with the rows of its inputs.
 
     With ``raw_pins``, a raw box of several parts takes an input on each part's row, every

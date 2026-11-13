@@ -221,7 +221,10 @@ def test_tumbler_program_has_no_findings(path: Path) -> None:
 #: The ladder goldens CLICK's check would refuse: (rung, kind, code, row, column) per finding.
 _LADDER_FINDINGS = {
     # Q6a's shape: X003 X004 on row 1 run to an AF cell with no box.
-    "instr-2row-cond__and": [(0, "feeds_no_box", "C0202", 1, 1), (0, "no_coil", "C0003", None, None)],
+    "instr-2row-cond__and": [
+        (0, "feeds_no_box", "C0202", 1, 1),
+        (0, "no_coil", "C0003", None, None),
+    ],
     "instr-2row-spread": [(0, "feeds_no_box", "C0202", 1, 10), (0, "no_coil", "C0003", None, None)],
     # X001's output joins the rail through B's vertical and the row 2 wire.
     "instr-3row-branch": [(0, "shorted_contact", None, 0, 0), (0, "unpowered_box", None, 1, 31)],

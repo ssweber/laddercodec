@@ -9,13 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 from ._layout.network import AF_X, Edge, Network, cell_of, network
 from ._layout.tree import (
     Arc,
     Circuits,
     LayoutError,
+    Leaf,
     circuits,
     nothing_to_lay_out,
     reachable,
@@ -300,7 +301,7 @@ def _dead_ends(c: Circuits, edges: list[Edge]) -> list[Edge]:
 
 def _edge(a: Arc) -> Edge:
     """The contact of one of ``Circuits.arcs``: each is a leaf."""
-    return a.node.edge  # type: ignore[union-attr]
+    return cast(Leaf, a.node).edge
 
 
 def _below_a_box(net: Network, c: Circuits) -> list[int]:

@@ -146,8 +146,8 @@ a single instruction.
 
 ## Check for line connection errors
 
-CLICK pastes and saves a rung whose circuit it cannot lay out, and reports it
-only at its syntax check. laddercodec encodes and writes such a rung as drawn;
+CLICK pastes and saves a rung whose lines its syntax check refuses, and reports
+it only at that check. laddercodec encodes and writes such a rung as drawn;
 `check()` reports it, on decoded rungs or rungs read from CSV:
 
 ```python
@@ -160,22 +160,29 @@ for finding in check(read_csv("main.csv")):
 
 Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
 `message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
-is AF); `row` and `column` are `None` for a finding about the whole circuit. The
-message names the cell as CLICK prints it, rows from 1: `row=2, column=3` reads
-"row 3, column D in CLICK's numbering". `captured` is `True` where a CLICK
-capture shows its syntax check reporting the shape with that code:
+is AF); `row` and `column` are `None` for a finding about the whole rung. The
+message names the cell as CLICK prints it, rows from 1 after any blank rows at the
+top of the rung: `row=2, column=3` reads "row 3, column D in CLICK's numbering".
+`captured` is `True` where a CLICK capture shows its syntax check reporting the
+shape with that code:
 
 | `kind` | shape | `code` |
 |---|---|---|
 | `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
-| `no_rail` | contacts that no wire or contact connects to the rail, one finding per group | `C0202` |
+| `no_rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
+| `feeds_no_box` | a path from the rail that reaches no box input, at its last contact | `C0202` |
+| `no_coil` | a rung with a `feeds_no_box` finding, once per rung | `C0003` |
+| `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off one net | `C000A` |
+| `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 
-The `no_rail` cell is the check's choice of contact in the group; CLICK can name
-another cell. Other shapes (an unpowered box, a contact that feeds no box, a
-shorted contact, a pin input fed through a main input's contacts, and a pin circuit
-that is not series-parallel) are reported with `captured=False`; those
-kinds are provisional and may be renamed or dropped once CLICK's response to
-them is captured.
+A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
+`pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
+and on a reset wired straight from the rail it has the box's code with
+`captured=False`. Other shapes (an unpowered box, a shorted contact, a pin circuit
+that shares contacts with a main input but has some of its own, and a pin circuit
+that is not series-parallel) are reported with `captured=False`; those kinds are
+provisional and may be renamed or dropped once CLICK's response to them is
+captured.
 
 ## Round-trip identity
 
