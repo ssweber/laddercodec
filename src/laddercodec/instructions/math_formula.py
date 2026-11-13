@@ -40,7 +40,7 @@ from ..model import (
     to_display,
 )
 from ..operands.banks import Bank, banks
-from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32
+from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display
 from .copy import BIT_BANKS
 
 _NAME = "Math.expression"
@@ -137,11 +137,6 @@ def _hex_digits(word: str) -> str | None:
     if len(word) < 2 or word[-1] not in "hH" or not all(c in _HEX_DIGITS for c in word[:-1]):
         return None
     return word[:-1]
-
-
-def _hex_display(digits: str) -> str:
-    """CLICK's form of a hex constant: uppercase digits without leading zeros, then ``h``."""
-    return f"{digits.upper().lstrip('0') or '0'}h"
 
 
 def _real_end(text: str, start: int) -> int:
@@ -278,7 +273,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
     if hex_digits is not None:
         if mode == "decimal":
             raise FieldError(
-                f"{_NAME}: {_hex_display(hex_digits)} is a hex constant; a decimal Math "
+                f"{_NAME}: {hex_display(hex_digits)} is a hex constant; a decimal Math "
                 "takes decimal constants such as 7"
             )
         if len(hex_digits) > 4:
@@ -286,9 +281,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
             raise FieldError(
                 f"{_NAME}: {hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits"
             )
-        return Token(
-            "const", to_display(word, _hex_display(hex_digits)), f"UH{int(hex_digits, 16)}"
-        )
+        return Token("const", to_display(word, hex_display(hex_digits)), f"UH{int(hex_digits, 16)}")
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             raise FieldError(

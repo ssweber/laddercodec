@@ -15,13 +15,16 @@ into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin`
 ``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``; text constants typed
 in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
-``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
+``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``;
+Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``)
 are only used by the blob tests below.
 """
 
 from __future__ import annotations
 
+import re
 import struct
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -40,6 +43,7 @@ from laddercodec.instructions.math import Math, range_interiors
 from laddercodec.instructions.math import from_tags as from_tags_math
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
+from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
@@ -213,6 +217,47 @@ def test_math_hex_upper_h_capture() -> None:
     assert rung.instructions[0] == typed
     blob = typed.build_blob()
     assert _native_blob(path.read_bytes(), "Math", len(blob)) == blob
+
+
+#: Remote address text (0x6085) and its type (0x320F), 1 for hex.
+_HEX_ADDRESS_TAGS = (0x6085, 0x320F)
+
+
+@pytest.mark.parametrize(
+    ("index", "typed", "stored"),
+    [
+        (0, "0H", "0h"),
+        (1, "0FFFEh", "FFFEh"),
+        (2, "0000Fh", "Fh"),
+        (3, "ffeh", "FFEh"),
+        (4, "0H", "0h"),
+        (5, "0FFFEh", "FFFEh"),
+    ],
+)
+def test_comm_hex_address_capture(index: int, typed: str, stored: str) -> None:
+    """``comm_hex_address.bin``: hex remote addresses typed in CLICK v4 for Send and Receive.
+
+    CLICK stores uppercase digits without leading zeros and a lowercase ``h``.  The
+    instruction built from the typed text writes the native address fields.  The rest of
+    the blob is not compared: CLICK keeps a stale TCP IP in an RTU target and writes one
+    0x6889 field per pin row, which the encoder does not (the box-height question, arc.md).
+    """
+    path = CAPTURE_DIR / "comm_hex_address.bin"
+    rung = _decode_file(path)[index]
+    native = rung.instructions[0]
+    assert isinstance(native, Send if index < 4 else Receive)
+    assert native.remote_start.address == stored
+    built = replace(native, remote_start=ModbusAddress(typed, "holding"))
+    assert built == native
+    blob = built.build_blob()
+    buf = path.read_bytes()
+    starts = [m.start() for m in re.finditer(re.escape(blob[:40]), buf)]
+    at = starts[index % 4]  # the four Sends, then the two Receives
+    got = _decompose_blob(buf[at : at + len(blob)])
+    want = _decompose_blob(blob)
+    assert got[:3] == want[:3]
+    for tag in _HEX_ADDRESS_TAGS:
+        assert [f for f in got[4] if f[0] == tag] == [f for f in want[4] if f[0] == tag]
 
 
 def test_math_unary_plus_and_pi_capture() -> None:

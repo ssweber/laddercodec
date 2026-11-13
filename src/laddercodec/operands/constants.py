@@ -141,6 +141,14 @@ def fits_float32(value: float) -> bool:
     return True
 
 
+def hex_display(digits: str) -> str:
+    """CLICK's form of a hex value: uppercase digits without leading zeros, then ``h``.
+
+    ``0000Fh`` is stored ``Fh``, ``ffeh`` is ``FFEh`` and zero is ``0h``.
+    """
+    return f"{digits.upper().lstrip('0') or '0'}h"
+
+
 def _text(inner: str) -> Constant | None:
     # A quote inside the text is refused: the CSV token can't hold one ($22 spells it).
     if not 1 <= len(inner) <= TEXT_MAX or '"' in inner:

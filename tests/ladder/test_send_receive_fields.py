@@ -178,15 +178,27 @@ def test_hex_address_ok(address) -> None:
 
 
 @pytest.mark.parametrize(
-    ("address", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "000Fh"), ("00000h", "0000h")]
+    ("address", "stored"),
+    [
+        ("0H", "0h"),
+        ("0FFFEh", "FFFEh"),
+        ("0000Fh", "Fh"),
+        ("000Fh", "Fh"),
+        ("00000h", "0h"),
+        ("0000h", "0h"),
+        ("ffeh", "FFEh"),
+        ("0fH", "Fh"),
+        ("aBcDH", "ABCDh"),
+        ("1Ah", "1Ah"),
+    ],
 )
-def test_hex_address_long_zero_padding_normalised(address, stored) -> None:
-    """The dialog counts no digits (Q-C7); leading zeros past four drop to the four-digit form."""
+def test_hex_address_written_as_click_stores_it(address, stored) -> None:
+    """CLICK stores uppercase digits, no leading zeros and a lowercase h (comm_hex_address.bin)."""
     assert ModbusAddress(address=address).address == stored
 
 
 @pytest.mark.parametrize(
-    "address", ["0FFFFh", "100000h", "FFFFh", "10000h", "h", "xh", "0H", "abc", "", "-1"]
+    "address", ["0FFFFh", "100000h", "FFFFh", "10000h", "h", "xh", "H", "abc", "", "-1"]
 )
 def test_hex_or_984_address_refused(address) -> None:
     with pytest.raises(FieldError, match="address"):
@@ -1013,7 +1025,7 @@ def test_blob_with_out_of_range_device_id_decodes_to_raw(device_id) -> None:
     assert from_tags_af("SD", 0x2729, fields) is None
 
 
-@pytest.mark.parametrize(("written", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "000Fh")])
+@pytest.mark.parametrize(("written", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "Fh")])
 def test_long_hex_address_through_csv(tmp_path: Path, written, stored) -> None:
     af = f"send(target={_RTU_TOKEN.format(id=1)},remote_start=ModbusAddress(address={written},register_type=holding),source=DS2)"
     got = _read_af(tmp_path, af)
@@ -1029,6 +1041,23 @@ def test_padded_hex_blob_keeps_its_stored_text() -> None:
     fields = _fields(sent)
     assert fields[0x6085] == "0FFFEh"
     assert from_tags_af("SD", 0x2729, fields) is None
+
+
+@pytest.mark.parametrize("stored", ["000Fh", "ffeh", "0000h"])
+def test_non_canonical_hex_blob_stays_raw(stored) -> None:
+    """CLICK never writes these forms, so a blob storing one decodes as raw(...)."""
+    sent = send(remote_start=ModbusAddress("Fh", "holding"))
+    object.__setattr__(sent.remote_start, "address", stored)
+    fields = _fields(sent)
+    assert fields[0x6085] == stored
+    assert from_tags_af("SD", 0x2729, fields) is None
+
+
+def test_hex_address_limits_see_the_normalised_value() -> None:
+    """The FFFDh limit for a DD source reads the value, not the typed digits."""
+    with pytest.raises(FieldError, match="FFFDh"):
+        send(remote_start=ModbusAddress("0FFFEH", "holding"), source="DD1")
+    send(remote_start=ModbusAddress("00FFFDh", "holding"), source="DD1", quantity=1)
 
 
 def test_padded_hex_rung_round_trips_byte_identically(tmp_path: Path) -> None:

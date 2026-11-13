@@ -27,6 +27,7 @@ from ..model import (
     normalize_address,
     to_display,
 )
+from ..operands.constants import hex_display
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -133,18 +134,16 @@ class ModbusAddress:
                 f"ModbusAddress register_type must be one of {', '.join(REGISTER_TYPES)}, "
                 f"got {self.register_type!r}"
             )
-        if self.is_hex:
+        if self.address.endswith(("h", "H")):
             if not _HEX_RE.fullmatch(self.address) or int(self.address[:-1], 16) > 0xFFFE:
                 raise FieldError(
                     f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
                 )
-            # The dialog counts no digits and what it stores for padding past four digits
-            # needs a capture (Q-C7).  The four-digit form is laddercodec's normalisation;
-            # decoding keeps the stored text, so a padded blob stays raw(...).
-            digits = self.address[:-1]
-            if len(digits) > 4:
-                shown = digits.lstrip("0").rjust(4, "0") + "h"
-                object.__setattr__(self, "address", to_display(self.address, shown))
+            # CLICK stores uppercase digits without leading zeros and a lowercase h
+            # (0FFFEh -> FFFEh, 0H -> 0h; v4_captures/comm_hex_address.bin).
+            object.__setattr__(
+                self, "address", to_display(self.address, hex_display(self.address[:-1]))
+            )
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
@@ -158,7 +157,7 @@ class ModbusAddress:
 
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
-_HEX_RE = re.compile(r"[0-9A-Fa-f]+h")
+_HEX_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 
 
 # ---------------------------------------------------------------------------

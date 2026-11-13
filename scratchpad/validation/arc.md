@@ -367,8 +367,10 @@ Open asks (checklist; details under each id below):
   native height? A decoded raw Email-like box loses 2 rows through a CSV round trip (with a
   warning) until this is settled.
 - Captures: Q-C7 remote address `0H` stored text, and the stored
-  text of a padded `0FFFEh` (laddercodec writes `FFFEh`); the Captures
-  wanted list at the end of this section.
+  text of a padded `0FFFEh`. **ANSWERED 2026-11-13 (user, capture
+  `clicknick/hex-modbus.bin`, now `v4_captures/comm_hex_address.bin`):** CLICK stores uppercase
+  digits without leading zeros and a lowercase `h`, for Send and Receive: `0H` is `0h`,
+  `0FFFEh` is `FFFEh`, `0000Fh` is `Fh`, `ffeh` is `FFEh`.
 
 **addresses (step 0)**
 - Q-A1 In a CLICK PLUS project with an option slot, is `X021` (or `Y036`) accepted in a
@@ -719,9 +721,13 @@ Open asks (checklist; details under each id below):
     from C1 with 17 and with 102 elements; Y101 from T1 with 1 element.
 - Q-C7 Remote hex address: does the dialog accept `0H` (uppercase)? Does it accept a Send of
   one DD/DF/CTD element as FC16? (The codec writes FC06 for any single element.)
-  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted (laddercodec keeps
-    refusing it until a capture shows the stored text). One DD/DF/CTD element must be FC16
+  - **ANSWERED 2026-11-11 (DLL, jobs/dllqa/comm.md):** `0H` is accepted. One DD/DF/CTD element must be FC16
     (FC06 refuses them), and XD/YD FC06 only; laddercodec now writes FC16 for them.
+  - **ANSWERED 2026-11-13 (user, capture `clicknick/hex-modbus.bin`, now
+    `v4_captures/comm_hex_address.bin`):** the stored text of a hex remote address is uppercase
+    digits without leading zeros and a lowercase `h` (`0H` is `0h`, `0FFFEh` is `FFFEh`,
+    `0000Fh` is `Fh`, `ffeh` is `FFEh`), for Send and Receive. laddercodec writes that form and
+    accepts `0H`.
 
 **flow**
 - Q-F1 For:
