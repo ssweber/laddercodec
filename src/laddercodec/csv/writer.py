@@ -45,7 +45,7 @@ from ..instructions import (
 )
 from ..model import PinnedInstruction
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import _is_blank_row, convert_rung, pinned_gap_height
+from .converter import _is_blank_row, convert_rung, lays_out_or_legs, pinned_gap_height
 from .parser import _parse_single_rung_rows
 
 
@@ -245,11 +245,13 @@ def _emit_generic_tall_block(
     af_tokens: Sequence[object],
     start: int,
     af: AfInstruction,
+    keep_padding: bool = False,
 ) -> tuple[int, int]:
     """Emit a non-pinned tall AF block, dropping only its trailing padding rows.
 
     A padding row above a later nonblank row of the span is kept, so that row
     keeps its position on reparse (a raw Drum's unused pin row above a used one).
+    ``keep_padding`` keeps every padding row.
     """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
@@ -258,7 +260,7 @@ def _emit_generic_tall_block(
             f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
-    keep = _followed_by_floating_row(af_tokens, start + visual_rows)
+    keep = keep_padding or _followed_by_floating_row(af_tokens, start + visual_rows)
     last_content = max(
         (
             offset
@@ -400,7 +402,28 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     Retained timers produce a ``.reset()`` pin row from the second
     grid row.  Multi-row AF families are streamed in order so multiple
     pinned/tall blocks survive CSV round-trip without truncation.
+
+    A tall box's padding rows are kept when the rows without them would
+    read back in CLICK's compact layout for OR legs, which moves the legs
+    up into those rows.
     """
+    rows = _rung_rows(rung, keep_padding=False)
+    if _reads_back_compacted(rows):
+        rows = _rung_rows(rung, keep_padding=True)
+    _validate_roundtrip(rung, rows)
+    return rows
+
+
+def _reads_back_compacted(rows: Sequence[Sequence[str]]) -> bool:
+    """True when ``read_csv`` would lay these rows out as compact OR legs."""
+    try:
+        return lays_out_or_legs(_parse_single_rung_rows(rows))
+    except (TypeError, ValueError):
+        return False  # _validate_roundtrip reports it
+
+
+def _rung_rows(rung: Rung, *, keep_padding: bool) -> list[list[str]]:
+    """The CSV rows of *rung*; ``keep_padding`` keeps tall boxes' padding rows."""
     rows: list[list[str]] = []
 
     # --- Comment rows ---
@@ -428,7 +451,7 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
             visual_rows = int(af.cell_params().get("visual_rows", 1))
             if visual_rows > 1:
                 data_row_count, consumed = _emit_generic_tall_block(
-                    rows, data_row_count, condition_rows, af_tokens, row_idx, af
+                    rows, data_row_count, condition_rows, af_tokens, row_idx, af, keep_padding
                 )
                 row_idx += consumed
                 continue
@@ -436,7 +459,6 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[row_idx], af)
         row_idx += consumed
 
-    _validate_roundtrip(rung, rows)
     return rows
 
 
