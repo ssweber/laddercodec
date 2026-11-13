@@ -252,7 +252,8 @@ def test_comm_hex_address_capture(index: int, typed: str, stored: str) -> None:
     blob = built.build_blob()
     buf = path.read_bytes()
     starts = [m.start() for m in re.finditer(re.escape(blob[:40]), buf)]
-    at = starts[index % 4]  # the four Sends, then the two Receives
+    assert len(starts) == (4 if index < 4 else 2)  # four Sends, two Receives
+    at = starts[index % 4]
     got = _decompose_blob(buf[at : at + len(blob)])
     want = _decompose_blob(blob)
     assert got[:3] == want[:3]

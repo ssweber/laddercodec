@@ -139,6 +139,7 @@ class ModbusAddress:
                 raise FieldError(
                     f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
                 )
+            # The range check reads the typed value: padding past four digits is still in range.
             # CLICK stores uppercase digits without leading zeros and a lowercase h
             # (0FFFEh -> FFFEh, 0H -> 0h; v4_captures/comm_hex_address.bin).
             object.__setattr__(

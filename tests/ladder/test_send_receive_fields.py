@@ -1032,8 +1032,8 @@ def test_long_hex_address_through_csv(tmp_path: Path, written, stored) -> None:
     assert isinstance(got, Send) and got.remote_start.address == stored
 
 
-def test_padded_hex_blob_keeps_its_stored_text() -> None:
-    """Decoding does not normalise: a blob storing 0FFFEh stays raw and re-encodes byte-identically."""
+def test_zero_padded_hex_blob_stays_raw() -> None:
+    """A stored text CLICK never writes (0FFFEh) stays raw(...)."""
     sent = send(remote_start=ModbusAddress("FFFEh", "holding"))
     object.__setattr__(sent.remote_start, "address", "0FFFEh")
     blob = sent.build_blob()
@@ -1043,13 +1043,11 @@ def test_padded_hex_blob_keeps_its_stored_text() -> None:
     assert from_tags_af("SD", 0x2729, fields) is None
 
 
-@pytest.mark.parametrize("stored", ["000Fh", "ffeh", "0000h"])
+@pytest.mark.parametrize("stored", ["000Fh", "ffeh", "0000h", "0H", "FFFEH"])
 def test_non_canonical_hex_blob_stays_raw(stored) -> None:
     """CLICK never writes these forms, so a blob storing one decodes as raw(...)."""
-    sent = send(remote_start=ModbusAddress("Fh", "holding"))
-    object.__setattr__(sent.remote_start, "address", stored)
-    fields = _fields(sent)
-    assert fields[0x6085] == stored
+    fields = _fields(send(remote_start=ModbusAddress("Fh", "holding")))
+    fields[0x6085] = stored
     assert from_tags_af("SD", 0x2729, fields) is None
 
 
@@ -1060,7 +1058,7 @@ def test_hex_address_limits_see_the_normalised_value() -> None:
     send(remote_start=ModbusAddress("00FFFDh", "holding"), source="DD1", quantity=1)
 
 
-def test_padded_hex_rung_round_trips_byte_identically(tmp_path: Path) -> None:
+def test_zero_padded_hex_rung_stays_raw_and_round_trips(tmp_path: Path) -> None:
     rung = read_csv(_write_rung(tmp_path))[0]
     sent = rung.instructions[0]
     object.__setattr__(sent.remote_start, "address", "0FFFEh")

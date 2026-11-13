@@ -433,7 +433,9 @@ Producer may emit:
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
   - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
   - Hex `remote_start` runs `0h`-`FFFEh` (`0h`-`FFFDh` for a DD, DF, CTD or TXT source); a
-    Send takes `register_type` `coil` or `holding`.
+    Send takes `register_type` `coil` or `holding`. It may be typed with `H`, zero padding or
+    lowercase digits and is written in CLICK's form (`0H` is `0h`, `000Fh` is `Fh`, `ffeh` is
+    `FFEh`).
   - `function_code=N` picks the Modbus code when the address leaves a choice. Receive from a
     CLICK address reads with FC01 (bits) or FC03 (registers) unless `function_code=2` or `4`.
     Send writes one element with FC05/FC06 and a block with FC15/FC16; `function_code=15` or
