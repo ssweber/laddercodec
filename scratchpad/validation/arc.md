@@ -837,18 +837,23 @@ Open asks (checklist; details under each id below):
   entry header bytes 2/3), and a CSV-read raw takes its class's height. `Counter` defaults to
   `reset_enabled=True` and refuses False, since a CLICK counter always has a Reset. The five
   unchecked flag fields below go through `check_flag`.
-- Open from rawheight's review: the writer's `_af_tokens_match` can't see a raw box height
-  loss, because a raw's height is left out of equality (the CSV token can't hold it).
-  rawbox: a raw Email, Home, Position or Velocity no longer loses rows (it and the CSV read
-  both span 3); the blind cases left are sub-rows that differ from the class's (Math
-  `01 03`, Search `02 03`, ...), which CLICK accepts either way.
+- Done in rawbox (user ruling 2026-11-13), from rawheight's review: the `raw(...)` token
+  holds the box height right after the part count, `rows=R,sub=S` (+0x09, +0x0A), and the
+  writer always writes both; on read each is optional and an absent one takes the class
+  rule. A raw's height joins its equality (the height it encodes), so the writer's
+  round-trip check sees a height loss.
 - Done in rawbox (BOB ruling, the review's option (a)): a typed AF box whose stored row span
   (+0x09, SCR entry byte 2) is not its class's height decodes as raw with its stored bytes,
   in both decoders (`decode._fits_stored_span`, `decode_program._scr_box`). Of 1823 typed
   boxes in the native fixtures, only the 1-row Email, Home, Position and Velocity of
-  `box_height_pasted.bin` rungs 11-14 do this; they re-encode as stored. `write_csv` still
-  refuses those rungs (the CSV raw token can't hold a 1-row height); accepted. Cost if
+  `box_height_pasted.bin` rungs 11-14 do this; they re-encode as stored, and write and
+  read back through CSV as `rows=1,sub=1`. Cost if
   wrong: a native box whose span CLICK varies decodes raw, which round-trips its bytes.
+- Open from rawbox: a multi-part raw token doesn't hold its extra part bytes (the pin rows);
+  a CSV read rebuilds them as `01 02 ...`. Of 124 multi-part boxes in the native fixtures
+  (all forced raw), 12 differ (`v4_captures/count_down_or.bin`, `pins.bin`: Cnt `01 03`
+  reads back `01 02`, Drum `01 03 04` reads back `01 02 03`). Only reachable when such a box
+  is raw; the writer's round-trip check refuses the rung. Needs a ruling on a token field.
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,

@@ -510,9 +510,7 @@ class RawInstruction(AfInstruction):
         return cls(class_name, blob, part_count, visual_rows, sub_rows)
 
 
-def _take_cell_rows(
-    class_name: str, parts: list[str]
-) -> tuple[int | None, int | None, list[str]]:
+def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int | None, list[str]]:
     """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
 
     Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
@@ -524,8 +522,7 @@ def _take_cell_rows(
             text = parts[i][len(key) + 1 :]
             if not (text.isascii() and text.isdigit() and 1 <= int(text) <= 0xFF):
                 raise FieldError(
-                    f"raw({class_name},...): {key}={text!r} is not a whole number "
-                    "from 1 to 255"
+                    f"raw({class_name},...): {key}={text!r} is not a whole number from 1 to 255"
                 )
             values[key] = int(text)
             i += 1

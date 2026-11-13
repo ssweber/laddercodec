@@ -47,7 +47,7 @@ Example: adding oneshot to the Out coil (func code 8205, field[2] = "-1").
 
 ```
 [0][AF] RawInstruction class='Out'
-      csv: raw(Out,4f00...)
+      csv: raw(Out,0x2715,1,rows=1,sub=1,6066=Y001,6067=,11f8=-1,11f5=0,3218=8205,0000=)
       class: 'Out'
       type_marker: 0x2715
       field[0]: tag=0x6066 (std) value='Y001'     # operand

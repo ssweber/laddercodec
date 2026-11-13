@@ -472,14 +472,25 @@ Producer may emit:
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
 - `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
-- `raw(ClassName,hex)` - opaque instruction passthrough for binary round-trip
-  fidelity. `ClassName` is the Click binary class name (unquoted) and `hex` is
-  the raw blob as a hex string. Runtime no-op; preserved so CSV -> DSL -> CSV
-  round-trips losslessly for unrecognized instruction types.
-  `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
-  path because they are not yet modeled as dedicated DSL instruction classes.
-  Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
-  rows, as it does for other tall boxes.
+- `raw(ClassName,0xTTTT,N,rows=R,sub=S,fields...)` - opaque instruction
+  passthrough for binary round-trip fidelity. `ClassName` is the Click binary
+  class name (unquoted), `0xTTTT` the type marker, `N` the part count, and the
+  fields are the blob's tagged fields (`60a5=1`, `68b1[250]=`). Runtime no-op;
+  preserved so CSV -> DSL -> CSV round-trips losslessly for unrecognized
+  instruction types. The older form `raw(ClassName,hex)` holds the whole blob
+  as a hex string, and may be followed by `rows=R,sub=S`.
+  - `rows` is the box's row span and `sub` its sub-rows, 1 to 255 each. The
+    writer always writes both. On read each is optional: a box without them
+    takes its class's height (2 rows for a Copy, 3 for a Send), a box with
+    `rows` and no `sub` has sub-rows equal to `rows`, and a box with `sub` and
+    no `rows` has its class's row span. They go right after the part count (or
+    the hex), `rows` first.
+  - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
+    path because they are not yet modeled as dedicated DSL instruction classes.
+    Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
+    rows, as it does for other tall boxes. A box CLICK stores at 1 row (one pasted
+    from an earlier version and not yet saved by its dialog) writes `rows=1,sub=1`
+    and reads back at 1 row.
 
 Pin tokens:
 
