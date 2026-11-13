@@ -9,7 +9,6 @@ pre-v4 CLICK.
 from __future__ import annotations
 
 import re
-import struct
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
@@ -17,14 +16,12 @@ from .instructions.drum import Drum
 from .instructions.forloop import Break, Continue
 from .instructions.math import (
     _RESERVED_SLOTS,
-    _TAG_FORMULA_DISPLAY,
-    _TAG_FORMULA_INTERNAL,
-    _TAG_RESERVED,
     Math,
     _range_interiors,
+    raw_formula_fields,
 )
 from .instructions.out_variant import OutVariant
-from .instructions.raw import RawInstruction, _decompose_blob
+from .instructions.raw import RawInstruction
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -61,16 +58,12 @@ def _raw_math_is_v4_only(blob: bytes) -> bool:
     formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.  A blob
     whose fields do not parse (``raw(Math,00)`` from CSV) is not flagged.
     """
-    try:
-        *_, fields = _decompose_blob(blob)
-    except (ValueError, IndexError, struct.error):
+    stored = raw_formula_fields(blob)
+    if stored is None:
         return False
-    tags = {tag: value for tag, _, value in fields}
-    listed = sum(1 for tag, _, value in fields if tag == _TAG_RESERVED and value)
+    internal, display, listed = stored
     return (
-        _v4_formula(tags.get(_TAG_FORMULA_INTERNAL, "").replace("#", " "))
-        or _v4_formula(tags.get(_TAG_FORMULA_DISPLAY, ""))
-        or listed > _RESERVED_SLOTS
+        _v4_formula(internal.replace("#", " ")) or _v4_formula(display) or listed > _RESERVED_SLOTS
     )
 
 

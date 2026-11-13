@@ -41,6 +41,7 @@ from ..model import (
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse, range_interiors
+from .raw import _decompose_blob
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -95,6 +96,21 @@ RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
 }
+
+
+def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
+    """The stored formulas of a raw Math blob: ``(internal, display, filled reserved slots)``.
+
+    The internal formula is tag ``0x61FD``, the display formula ``0x6228``; each is ``""``
+    when the blob lacks it.  ``None`` when the blob's fields do not parse.
+    """
+    try:
+        *_, fields = _decompose_blob(blob)
+    except (ValueError, IndexError, struct.error):
+        return None
+    tags = {tag: value for tag, _, value in fields}
+    listed = sum(1 for tag, _, value in fields if tag == _TAG_RESERVED and value)
+    return tags.get(_TAG_FORMULA_INTERNAL, ""), tags.get(_TAG_FORMULA_DISPLAY, ""), listed
 
 
 def _range_interiors(expression: str) -> list[str]:
