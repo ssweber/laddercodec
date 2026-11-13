@@ -36,6 +36,7 @@ from .instructions import (
     Timer,
     Unpack,
 )
+from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
 from .model import AddressError, FieldError, Program, Project
 
@@ -47,6 +48,8 @@ __all__ = [
     "write_csv",
     "find_v4_only",
     "is_v4_only",
+    "check",
+    "Finding",
     "Rung",
     "Program",
     "Project",

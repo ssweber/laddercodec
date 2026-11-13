@@ -1,0 +1,180 @@
+"""check(): rungs with no CLICK layout are reported, never refused.
+
+Ground truth (``fixtures/layout_check/README.md``): CLICK's syntax check refused the bridge
+(C0001) and layoutthy rung 23 (C0202 at row 3, column D, then C0001), and accepted every other
+rung in those captures. The ladder-golden expectations below are the check's rules applied to
+rungs CLICK pasted but was never asked to check (design questions Q4 and Q6).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from laddercodec import Finding, Rung, check, decode, encode, read_csv
+from laddercodec.instructions import Coil, Contact, Timer
+from laddercodec.model import InstructionType
+
+FIX = Path(__file__).parent / "fixtures"
+LC = FIX / "layout_check"
+V4 = FIX / "v4_captures"
+LADDER = FIX / "ladder_captures" / "golden"
+
+
+def _rungs(path: Path) -> list[Rung]:
+    if path.suffix == ".csv":
+        return read_csv(path)
+    got = decode(path.read_bytes())
+    return got if isinstance(got, list) else [got]
+
+
+def _cells(findings: list[Finding]) -> list[tuple[int, str, str | None, int | None, int | None]]:
+    return [(f.rung, f.kind, f.code, f.row, f.column) for f in findings]
+
+
+def test_bridge_is_c0001() -> None:
+    rungs = read_csv(LC / "wheatstone_bridge.csv")
+    assert _cells(check(rungs)) == [(0, "not_series_parallel", "C0001", None, None)]
+    encode(rungs)  # reported, not refused: the rung encodes as drawn
+
+
+def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
+    """CLICK: "Row 3, Column D : Missing line connection" (listed twice), then C0001.
+
+    Only the contact X010 has an input no line reaches; the legs after it are not reported.
+    """
+    findings = check(_rungs(LC / "layoutthy-pasted.bin"))
+    assert _cells(findings) == [
+        (22, "no_rail", "C0202", 3, 3),
+        (22, "not_series_parallel", "C0001", None, None),
+    ]
+    assert findings[0].message.startswith("row 3 (from 0), column D: ")
+    assert findings[0].message.endswith("(CLICK: C0202)")
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        LC / "layoutthy-checked.bin",
+        LC / "windy-road-after-syntax.bin",
+        LC / "pyrung_topology_saved.csv",
+        LC / "pyrung_topology_pasted-2026-11-12.csv",
+        LC / "pyrung_topology_pasted-2026-11-13.csv",
+        V4 / "or_compact_pasted.bin",
+        V4 / "or_compact_checked.bin",
+        V4 / "r30_tallbox_pasted.bin",
+        V4 / "r30_tallbox_checked.bin",
+    ],
+    ids=lambda p: p.name,
+)
+def test_rungs_click_accepted_have_no_findings(path: Path) -> None:
+    assert check(_rungs(path)) == []
+
+
+@pytest.mark.xfail(
+    strict=True, reason="decode drops the AF column's down flag that carries this rung's path"
+)
+def test_windy_road_pasted_has_no_findings() -> None:
+    """CLICK's check accepted this rung and redrew it as windy-road-after-syntax.bin."""
+    assert check(_rungs(LC / "windy-road.bin")) == []
+
+
+_COVERAGE = sorted((FIX / "coverage" / "golden").glob("*.csv")) + sorted(
+    (FIX / "coverage" / "subroutines").glob("*.csv")
+)
+
+
+@pytest.mark.parametrize("path", _COVERAGE, ids=lambda p: p.name)
+def test_coverage_golden_has_no_findings(path: Path) -> None:
+    assert check(read_csv(path)) == []
+
+
+_TUMBLER = sorted(FIX.glob("tumbler/**/*.clipboard.bin"))
+
+
+@pytest.mark.parametrize("path", _TUMBLER, ids=lambda p: p.name)
+def test_tumbler_program_has_no_findings(path: Path) -> None:
+    """Real programs, copied from CLICK (whether after a syntax check is not recorded)."""
+    assert check(_rungs(path)) == []
+
+
+#: The ladder goldens with no layout: (rung, kind, code, row, column) of each finding.
+_LADDER_FINDINGS = {
+    "instr-2row-cond__and": [(0, "feeds_no_box", None, 1, 0), (0, "feeds_no_box", None, 1, 1)],
+    "instr-2row-spread": [(0, "feeds_no_box", None, 1, 10)],
+    # X001's output joins the rail through B's vertical and the row 2 wire.
+    "instr-3row-branch": [(0, "shorted_contact", None, 0, 0), (0, "unpowered_box", None, 1, 31)],
+    "instr-3row-scatter": [(0, "feeds_no_box", None, 1, 5), (0, "feeds_no_box", None, 2, 15)],
+    # The reset shares the out(Y001) circuit, which is the bridge.
+    "instr-coil-timer-ret": [
+        (0, "pin_shares_main", None, 2, 31),
+        (0, "not_series_parallel", "C0001", None, None),
+    ],
+    "instr-copy-multirow-2af-T": [(0, "pin_shares_main", None, 1, 31)],
+    "mr-cmt-3rung-multirow": [(1, "unpowered_box", None, 1, 31)],
+}
+
+
+@pytest.mark.parametrize("path", sorted(LADDER.glob("*.csv")), ids=lambda p: p.stem)
+def test_ladder_golden_findings(path: Path) -> None:
+    assert _cells(check(read_csv(path))) == _LADDER_FINDINGS.get(path.stem, [])
+
+
+def test_unknown_shapes_say_so() -> None:
+    (finding,) = check(read_csv(LADDER / "instr-2row-spread.csv"))
+    assert finding.code is None
+    assert finding.message == (
+        "row 1 (from 0), column K: the contact's output reaches no box"
+        " (CLICK's response to this shape is not captured)"
+    )
+
+
+def _contact(name: str, *, down: bool = False) -> Contact:
+    return Contact(type=InstructionType.CONTACT_NO, operand=name, wire_down=down)
+
+
+def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
+    rows = [row + [""] * (31 - len(row)) for row in conditions]
+    return Rung(len(rows), rows, instructions, None)  # type: ignore[arg-type]
+
+
+def _bridge_rows() -> list[list[object]]:
+    # X001 X003 | X001 X005 X004 | X002 X004, as wheatstone_bridge.csv draws it
+    return [
+        [_contact("X001"), _contact("X003", down=True), "-", "T", *["-"] * 27],
+        ["", _contact("X005"), "|", "|"],
+        [_contact("X002"), "-", _contact("X004")],
+    ]
+
+
+def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
+    timer = Timer(
+        timer_type="on_delay", done_bit="T1", current="TD1", setpoint="1", unit="Tms",
+        retained=True,
+    )
+    rung = _rung([[_contact("X010"), *["-"] * 30], *_bridge_rows()], [timer, "", "", ""])
+    assert _cells(check(rung)) == [(0, "not_series_parallel", "C0001", 1, 31)]
+
+
+def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
+    rung = _rung(
+        [["", "", _contact("X001"), _contact("X002"), *["-"] * 27]],
+        [Coil(type=InstructionType.COIL_OUT, operand="Y001")],
+    )
+    assert _cells(check(rung)) == [
+        (0, "no_rail", "C0202", 0, 2),
+        (0, "not_series_parallel", "C0001", None, None),
+    ]
+
+
+def test_one_rung_or_a_list() -> None:
+    bridge = read_csv(LC / "wheatstone_bridge.csv")[0]
+    plain = read_csv(LADDER / "instr-series.csv")[0]
+    assert _cells(check(bridge)) == [(0, "not_series_parallel", "C0001", None, None)]
+    assert [f.rung for f in check([plain, plain, bridge])] == [2]
+
+
+def test_wires_and_unwired_nop_have_no_findings() -> None:
+    rung = _rung([["-", "-", "T"], ["", "", "-"]], ["NOP", ""])
+    assert check(rung) == []
