@@ -280,6 +280,34 @@ a branch-local condition on the middle row. Middle OR rows reach the output
 split by routing up through `|` to `T`, then right and back down through the
 divergent bus.
 
+### Outputs under a tall box
+
+A box taller than one row (Copy is 2) needs its rows to itself in AF. Write each
+output on the row it belongs to; `read_csv` moves an output down when the box
+above still covers its row. When OR legs feed every output through one vertical,
+as here:
+
+```text
+     A      B      C     ...   AF
+R    X001   T:C1   T     -...- copy(1,DS1)
+            T:C2   T     -...- copy(2,DS2)
+            C3
+```
+
+the legs keep their rows, the second Copy moves to row 3, and the vertical at C
+reaches it. The rung is 4 rows; the last is the second Copy's lower row:
+
+```text
+     A      B      C     ...   AF
+R    X001   T:C1   T     -...- copy(1,DS1)
+            T:C2   |
+            C3     -     -...- copy(2,DS2)
+```
+
+This is the layout CLICK's syntax check leaves, and the logic is the same. Any
+other shape gets a blank row under the box, with its verticals carried through,
+and every row below moves down with the output.
+
 ## Builder pin continuation rows
 
 Builder side conditions are emitted as continuation rows with dot tokens in `AF`:

@@ -23,7 +23,9 @@ Tall instruction padding
 Tall AF instructions have trailing padding rows for visual height.  Padding
 rows — those containing only blank cells and vertical pass-through wires
 (``|``) — are stripped before writing.  The forward path's auto-padding and
-wire-continuation hydration restores them.
+wire-continuation hydration restores them.  They are kept in a rung whose
+rows without them would read back in the compact layout for OR legs under
+a tall box (see ``converter._or_leg_layout``).
 """
 
 from __future__ import annotations

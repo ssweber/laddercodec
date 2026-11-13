@@ -20,7 +20,11 @@ Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``;
 a Call pasted from laddercodec, then saved by its dialog,
 ``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``; fourteen coverage goldens
 pasted from laddercodec, then saved by their dialogs, ``box_height_pasted.bin`` and
-``box_height_dialog_ok.bin``) are only used by the blob tests below.
+``box_height_dialog_ok.bin``; OR legs under a tall box pasted from laddercodec's
+padded layout, then rewritten by CLICK's syntax check, ``or_compact_pasted.bin`` and
+``or_compact_checked.bin`` (from ``or_compact_stub.csv``), ``r30_tallbox_pasted.bin``
+and ``r30_tallbox_checked.bin`` (from pyrung's ``r30_tallbox.csv``)) are only used by
+the blob and layout tests below.
 """
 
 from __future__ import annotations
@@ -1032,3 +1036,83 @@ def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> N
 
     assert ours[:4] == native[:4]
     assert compared(ours[4]) == compared(native[4])
+
+
+# ---------------------------------------------------------------------------
+# OR legs under a tall box: pasted, then after CLICK's syntax check
+# ---------------------------------------------------------------------------
+
+_GRID_COLUMNS = [*(chr(ord("A") + i) for i in range(26)), "AA", "AB", "AC", "AD", "AE", "AF"]
+
+#: ``(csv, checked capture, {csv rung: checked rung})``.  CLICK's check splits stub
+#: rung 2 (two branches from the rail) into checked rungs 2 and 3.
+_OR_COMPACT = [
+    ("or_compact_stub.csv", "or_compact_checked.bin", {0: 0, 2: 3, 3: 4, 4: 5}),
+    ("r30_tallbox.csv", "r30_tallbox_checked.bin", {0: 0}),
+]
+
+
+def _wire_flags(data: bytes, rung: int) -> list[list[tuple[int, int]]]:
+    """The (right, down) flags of every cell of *rung*; segment flags keep editing history."""
+    rows = len(_decode_file(data)[rung].conditions)
+    return [
+        [d.flags[1:] for d in inspect_cells(data, [(rung, r, c) for c in _GRID_COLUMNS])]
+        for r in range(rows)
+    ]
+
+
+def _assert_same_layout(ours: bytes, ours_rung: int, native: bytes, native_rung: int) -> None:
+    mine, theirs = _decode_file(ours)[ours_rung], _decode_file(native)[native_rung]
+    assert mine.logical_rows == theirs.logical_rows
+    assert mine.conditions == theirs.conditions
+    assert mine.instructions == theirs.instructions
+    assert _wire_flags(ours, ours_rung) == _wire_flags(native, native_rung)
+
+
+@pytest.mark.parametrize(("csv_name", "bin_name", "pairs"), _OR_COMPACT, ids=["stub", "r30"])
+def test_or_legs_encode_as_checked(csv_name: str, bin_name: str, pairs: dict[int, int]) -> None:
+    """OR legs under a tall box encode as CLICK's syntax check leaves them.
+
+    The legs keep their rows, each Copy takes the first row below the box above it,
+    and the right vertical reaches both.  Stub rung 3 (C2 hangs off X1's vertical,
+    not an OR leg) keeps its padding, as CLICK does.
+    """
+    rungs = read_csv(CAPTURE_DIR / csv_name)
+    native = (CAPTURE_DIR / bin_name).read_bytes()
+    for csv_index, native_index in pairs.items():
+        _assert_same_layout(encode(rungs[csv_index]), 0, native, native_index)
+
+
+def test_or_legs_layout_moves_only_what_check_moves() -> None:
+    """Against the pasted padded layout: stub rungs 1, 4 and 5 move, 2 and 3 don't."""
+    rungs = read_csv(CAPTURE_DIR / "or_compact_stub.csv")
+    pasted = _decode_file(CAPTURE_DIR / "or_compact_pasted.bin")
+    ours = [_decode_file(encode(rung))[0] for rung in rungs]
+    moved = [a.conditions != b.conditions for a, b in zip(ours, pasted, strict=True)]
+    assert moved == [True, False, False, True, True]
+    assert [r.logical_rows for r in ours] == [4, 4, 4, 4, 6]
+    assert [r.logical_rows for r in pasted] == [4, 4, 4, 5, 6]
+
+
+@pytest.mark.parametrize("bin_name", ["or_compact_checked.bin", "r30_tallbox_checked.bin"])
+def test_checked_or_legs_round_trip_through_csv(bin_name: str, tmp_path: Path) -> None:
+    """CLICK's compact layout writes to CSV, reads back and encodes to the same layout."""
+    native = (CAPTURE_DIR / bin_name).read_bytes()
+    rungs = _decode_file(native)
+    write_csv(tmp_path / "checked.csv", rungs)
+    again = encode(read_csv(tmp_path / "checked.csv"))
+    for i in range(len(rungs)):
+        _assert_same_layout(again, i, native, i)
+
+
+@pytest.mark.parametrize("bin_name", ["or_compact_pasted.bin", "r30_tallbox_pasted.bin"])
+def test_pasted_or_legs_keep_their_pad_rows_through_csv(bin_name: str, tmp_path: Path) -> None:
+    """The padded layout writes its pad rows, so it reads back padded, not compacted."""
+    native = (CAPTURE_DIR / bin_name).read_bytes()
+    rungs = _decode_file(native)
+    pad_row = ["", "", "|", "|", *[""] * 28, ""]
+    assert pad_row in decoded_rung_to_rows(rungs[0])
+    write_csv(tmp_path / "pasted.csv", rungs)
+    again = encode(read_csv(tmp_path / "pasted.csv"))
+    for i in range(len(rungs)):
+        _assert_same_layout(again, i, native, i)

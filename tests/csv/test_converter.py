@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from laddercodec.csv import converter
 from laddercodec.csv.ast import (
     AfBlank,
     AfCall,
@@ -23,6 +24,7 @@ from laddercodec.csv.converter import (
     af_node_to_token,
     condition_node_to_token,
     convert_rung,
+    lays_out_or_legs,
 )
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.instructions import (
@@ -178,6 +180,132 @@ class TestGenericTallRows:
         assert isinstance(afs[1], Search)
         assert afs[2] == ""
         assert all(c == "" for c in conds[2])
+
+
+def _cells(cells: dict[int, str], wire_from: int | None = None) -> list[str]:
+    """A condition row with *cells* set and ``-`` from column *wire_from* to AE."""
+    row = _blank()
+    for col, token in cells.items():
+        row[col] = token
+    if wire_from is not None:
+        row[wire_from:] = [token or "-" for token in row[wire_from:]]
+    return row
+
+
+_COPY1 = "copy(1,DS1)"
+_COPY2 = "copy(2,DS2)"
+
+#: Rung 1 of v4_captures/or_compact_stub.csv: legs C1..C3 join on one vertical
+#: before two Copies.
+_OR_LEGS = [
+    ("R", _cells({0: "X1", 1: "T:C1", 2: "T"}, 3), _COPY1),
+    ("", _cells({1: "T:C2", 2: "T"}, 3), _COPY2),
+    ("", _cells({1: "C3"}), ""),
+]
+
+
+def _convert(tmp_path: Path, rows: list[tuple[str, list[str], str]]):
+    csv_path = tmp_path / "main.csv"
+    _write_csv(csv_path, rows)
+    rung = parse_csv_file(csv_path).rungs[0]
+    return rung, convert_rung(rung)
+
+
+class TestOrLegsUnderTallBox:
+    """The compact layout for OR legs under a tall box (v4_captures/or_compact_*.bin)."""
+
+    def test_legs_keep_their_rows(self, tmp_path: Path) -> None:
+        rung, (lr, conds, afs, _) = _convert(tmp_path, _OR_LEGS)
+        assert lays_out_or_legs(rung)
+        assert lr == 4
+        assert [type(a).__name__ for a in afs] == ["Copy", "str", "Copy", "str"]
+        legs = [conds[r][1] for r in range(4)]
+        assert [(leg.operand, leg.wire_down) for leg in legs[:3]] == [
+            ("C1", True),
+            ("C2", True),
+            ("C3", False),
+        ]
+        assert legs[3] == ""
+        assert [conds[r][2] for r in range(4)] == ["T", "|", "-", ""]
+        assert conds[1][3:] == [""] * 28
+        assert conds[2][3:] == ["-"] * 28
+        assert all(c == "" for c in conds[3])
+
+    def test_one_row_output_below_a_copy(self, tmp_path: Path) -> None:
+        rows = [*_OR_LEGS]
+        rows[1] = ("", rows[1][1], "out(Y001)")
+        rung, (lr, conds, afs, _) = _convert(tmp_path, rows)
+        assert lays_out_or_legs(rung)
+        assert lr == 3
+        assert isinstance(afs[2], Coil)
+        assert [conds[r][2] for r in range(3)] == ["T", "|", "-"]
+
+    def test_written_compact_layout_reads_as_written(self, tmp_path: Path) -> None:
+        rows = [
+            _OR_LEGS[0],
+            ("", _cells({1: "T:C2", 2: "|"}), ""),
+            ("", _cells({1: "C3"}, 2), _COPY2),
+        ]
+        rung, (lr, conds, afs, _) = _convert(tmp_path, rows)
+        assert not lays_out_or_legs(rung)
+        _, (lr2, conds2, afs2, _) = _convert(tmp_path, _OR_LEGS)
+        assert (lr, conds, afs) == (lr2, conds2, afs2)
+
+    @pytest.mark.parametrize(
+        "rows",
+        [
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1", 1: "T:C1", 2: "C5", 3: "T"}, 4), _COPY1),
+                    ("", _cells({1: "T:C2", 2: "-", 3: "T"}, 4), _COPY2),
+                    ("", _cells({1: "C3", 2: "-"}), ""),
+                ],
+                id="two-column legs",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T:C2", 2: "T", 3: "X5"}, 4), _COPY2), _OR_LEGS[2]],
+                id="contact right of the vertical",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T", 2: "T"}, 3), _COPY2), _OR_LEGS[2]],
+                id="wire leg",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T:C2", 2: "-"}, 3), _COPY2), _OR_LEGS[2]],
+                id="right vertical stops above the last leg",
+            ),
+            pytest.param([*_OR_LEGS, ("", _blank(), "")], id="row below the legs"),
+            pytest.param(
+                [_OR_LEGS[0], ("", _OR_LEGS[1][1], "on_delay(T1,TD1,preset=1000,unit=Tms)")],
+                id="timer output",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _OR_LEGS[1][1], "NOP"), _OR_LEGS[2]],
+                id="NOP row",
+            ),
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1"}, 1), _COPY1),
+                    ("", _cells({0: "X2"}, 1), _COPY2),
+                ],
+                id="branches from the rail",
+            ),
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1", 1: "T"}, 2), _COPY1),
+                    ("", _cells({1: "C2"}, 2), _COPY2),
+                ],
+                id="contact on a branch, not an OR leg",
+            ),
+        ],
+    )
+    def test_other_shapes_keep_their_padding(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, rows
+    ) -> None:
+        rung, got = _convert(tmp_path, rows)
+        assert not lays_out_or_legs(rung)
+        monkeypatch.setattr(converter, "_or_leg_layout", lambda _rows: None)
+        assert convert_rung(rung) == got
 
 
 class TestPinRows:

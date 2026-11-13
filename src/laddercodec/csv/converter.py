@@ -39,7 +39,22 @@ Tall instructions
 Some AF instructions occupy more than one grid row visually (timers = 2,
 search/copy = 2, send/receive = 3, etc.).  If the user CSV omits blank
 continuation rows, they are auto-appended so ``encode_rung()`` receives
-the correct ``logical_rows``.
+the correct ``logical_rows``.  A row that starts another AF instruction
+inside a tall box's span gets blank rows inserted above it, which push it
+and every later row down.
+
+OR legs under a tall box are the exception (``_or_leg_layout``): when
+every row is one OR leg between the same two verticals and every output
+hangs off the right vertical, only the outputs move down.  The legs keep
+their rows and the right vertical is redrawn to reach them all:
+
+    R, X001, T:C1, T, -, ..., -, copy(1,DS1)      R, X001, T:C1, T, -, ..., copy(1,DS1)
+    ,      , T:C2, T, -, ..., -, copy(2,DS2)  ->  ,      , T:C2, |,  , ...,
+    ,      , C3,    ,  , ...,                     ,      , C3,   -, -, ..., copy(2,DS2)
+                                                  ,      ,     ,  ,  , ...,
+
+This is the layout CLICK's syntax check leaves (v4_captures/or_compact_*.bin);
+the logic is the same.
 
 After padding, a wire-continuation hydration pass propagates ``T`` and
 ``|`` tokens downward into blank cells, restoring vertical wire continuity
