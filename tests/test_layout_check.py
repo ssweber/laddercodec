@@ -1,9 +1,11 @@
 """check(): rungs with no CLICK layout are reported, never refused.
 
-Ground truth (``fixtures/layout_check/README.md``): CLICK's syntax check refused the bridge
-(C0001) and layoutthy rung 23 (C0202 at row 3, column D, then C0001), and accepted every other
-rung in those captures. The ladder-golden expectations below are the check's rules applied to
-rungs CLICK pasted but was never asked to check (design questions Q4 and Q6).
+Ground truth: CLICK's syntax check refused the bridge (C0001,
+``fixtures/layout_check/README.md``) and layoutthy rung 23 (C0202 at row 3, column D, then
+C0001; ``v4_captures/layoutthy_pasted.bin``, copied back right after paste), and accepted every
+other rung in those captures and in the pyrung topology CSVs. The ladder-golden expectations
+below are the check's rules applied to rungs CLICK pasted but was never asked to check (design
+questions Q4 and Q6).
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import Finding, Rung, check, decode, encode, read_csv
+from laddercodec.decode import DecodeError
 from laddercodec.instructions import Coil, Contact, Timer
 from laddercodec.model import InstructionType
 
@@ -35,7 +38,9 @@ def _cells(findings: list[Finding]) -> list[tuple[int, str, str | None, int | No
 
 def test_bridge_is_c0001() -> None:
     rungs = read_csv(LC / "wheatstone_bridge.csv")
-    assert _cells(check(rungs)) == [(0, "not_series_parallel", "C0001", None, None)]
+    findings = check(rungs)
+    assert _cells(findings) == [(0, "not_series_parallel", "C0001", None, None)]
+    assert findings[0].captured
     encode(rungs)  # reported, not refused: the rung encodes as drawn
 
 
@@ -44,20 +49,21 @@ def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
 
     Only the contact X010 has an input no line reaches; the legs after it are not reported.
     """
-    findings = check(_rungs(LC / "layoutthy-pasted.bin"))
+    findings = check(_rungs(V4 / "layoutthy_pasted.bin"))
     assert _cells(findings) == [
         (22, "no_rail", "C0202", 3, 3),
         (22, "not_series_parallel", "C0001", None, None),
     ]
     assert findings[0].message.startswith("row 3 (from 0), column D: ")
     assert findings[0].message.endswith("(CLICK: C0202)")
+    assert [f.captured for f in findings] == [True, True]
 
 
 @pytest.mark.parametrize(
     "path",
     [
-        LC / "layoutthy-checked.bin",
-        LC / "windy-road-after-syntax.bin",
+        V4 / "layoutthy_checked.bin",
+        V4 / "windy_road_checked.bin",
         LC / "pyrung_topology_saved.csv",
         LC / "pyrung_topology_pasted-2026-11-12.csv",
         LC / "pyrung_topology_pasted-2026-11-13.csv",
@@ -72,12 +78,15 @@ def test_rungs_click_accepted_have_no_findings(path: Path) -> None:
     assert check(_rungs(path)) == []
 
 
-@pytest.mark.xfail(
-    strict=True, reason="decode drops the AF column's down flag that carries this rung's path"
-)
-def test_windy_road_pasted_has_no_findings() -> None:
-    """CLICK's check accepted this rung and redrew it as windy-road-after-syntax.bin."""
-    assert check(_rungs(LC / "windy-road.bin")) == []
+def test_windy_road_pasted_is_refused_by_decode() -> None:
+    """CLICK's check accepted this rung and redrew it as windy_road_checked.bin.
+
+    Its path runs down the AF column, which decode refuses, so there is no Rung to check.
+    layout-afdown (layout phase 2, step 4) decodes that flag; this then becomes a
+    "no findings" test.
+    """
+    with pytest.raises(DecodeError):
+        decode((V4 / "windy_road_pasted.bin").read_bytes())
 
 
 _COVERAGE = sorted((FIX / "coverage" / "golden").glob("*.csv")) + sorted(
@@ -118,12 +127,16 @@ _LADDER_FINDINGS = {
 
 @pytest.mark.parametrize("path", sorted(LADDER.glob("*.csv")), ids=lambda p: p.stem)
 def test_ladder_golden_findings(path: Path) -> None:
-    assert _cells(check(read_csv(path))) == _LADDER_FINDINGS.get(path.stem, [])
+    findings = check(read_csv(path))
+    assert _cells(findings) == _LADDER_FINDINGS.get(path.stem, [])
+    # Only the main-circuit C0001 is a shape a CLICK capture shows.
+    assert [f.captured for f in findings] == [f.code == "C0001" for f in findings]
 
 
 def test_unknown_shapes_say_so() -> None:
     (finding,) = check(read_csv(LADDER / "instr-2row-spread.csv"))
     assert finding.code is None
+    assert not finding.captured
     assert finding.message == (
         "row 1 (from 0), column K: the contact's output reaches no box"
         " (CLICK's response to this shape is not captured)"
@@ -158,7 +171,19 @@ def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
         retained=True,
     )
     rung = _rung([[_contact("X010"), *["-"] * 30], *_bridge_rows()], [timer, "", "", ""])
-    assert _cells(check(rung)) == [(0, "not_series_parallel", "C0001", 1, 31)]
+    (finding,) = check(rung)
+    assert _cells([finding]) == [(0, "not_series_parallel", "C0001", 1, 31)]
+    assert not finding.captured  # no capture shows CLICK's check on a pin's bridge
+    assert finding.message == (
+        "row 1 (from 0), column AF: the pin's circuit is not series-parallel"
+        " (C0001 as for a main input; CLICK's response to this shape is not captured)"
+    )
+
+
+def test_shorted_contact_is_not_captured() -> None:
+    shorted = check(read_csv(LADDER / "instr-3row-branch.csv"))[0]
+    assert (shorted.kind, shorted.code, shorted.captured) == ("shorted_contact", None, False)
+    assert shorted.message.endswith("(CLICK's response to this shape is not captured)")
 
 
 def test_contact_after_a_dead_contact_is_not_reported_again() -> None:

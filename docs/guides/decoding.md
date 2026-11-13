@@ -158,20 +158,22 @@ for finding in check(read_csv("main.csv")):
 # rung 0: the circuit is not series-parallel (CLICK: C0001)
 ```
 
-Each `Finding` has `rung`, `kind`, `code`, `row`, `column` and `message`. Rows and
-columns count from 0 (column 0 is A, 31 is AF); `row` and `column` are `None` for a
-finding about the whole circuit.
+Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
+`message`. Rows and columns count from 0 (column 0 is A, 31 is AF); `row` and
+`column` are `None` for a finding about the whole circuit. `captured` is `True`
+only where a CLICK capture shows its syntax check reporting the shape with that
+code; the message then ends `(CLICK: <code>)`, and otherwise ends with "CLICK's
+response to this shape is not captured".
 
-| `kind` | shape | `code` |
-|---|---|---|
-| `not_series_parallel` | a circuit into a box input is not series-parallel (a bridge) | `C0001` |
-| `no_rail` | a contact whose input no wire or contact connects to the rail | `C0202` |
-| `unpowered_box` | a box input that neither the rail nor a contact reaches | `None` |
-| `feeds_no_box` | a contact on a path from the rail that ends at no box | `None` |
-| `pin_shares_main` | a reset, jog or other pin input fed through contacts of a main input | `None` |
-| `shorted_contact` | a contact whose two sides a wire joins | `None` |
-
-`code` is `None` where CLICK's response to the shape has not been captured.
+| `kind` | shape | `code` | `captured` |
+|---|---|---|---|
+| `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` | `True` |
+| `not_series_parallel` | the circuit into a pin input (reset, jog) is not series-parallel | `C0001` | `False` |
+| `no_rail` | a contact whose input no wire or contact connects to the rail | `C0202` | `True` |
+| `unpowered_box` | a box input that neither the rail nor a contact reaches | `None` | `False` |
+| `feeds_no_box` | a contact on a path from the rail that ends at no box | `None` | `False` |
+| `pin_shares_main` | a pin input fed through contacts of a main input | `None` | `False` |
+| `shorted_contact` | a contact whose two sides a wire joins | `None` | `False` |
 
 ## Round-trip identity
 

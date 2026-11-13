@@ -25,8 +25,11 @@ padded layout, then rewritten by CLICK's syntax check, ``or_compact_pasted.bin``
 ``or_compact_checked.bin`` (from ``or_compact_stub.csv``), ``r30_tallbox_pasted.bin``
 and ``r30_tallbox_checked.bin`` (from pyrung's ``r30_tallbox.csv``); a path drawn
 down the output column in CLICK v4, copied back before and after its syntax check,
-``windy_road_pasted.bin`` and ``windy_road_checked.bin``) are only used by the blob
-and layout tests below.
+``windy_road_pasted.bin`` and ``windy_road_checked.bin``; a 24-rung layout stub
+pasted from laddercodec, copied back before and after CLICK's syntax check, which
+refused rung 23 and deleted it from the checked copy, ``layoutthy_pasted.bin`` and
+``layoutthy_checked.bin``, used by ``tests/test_layout_check.py``) are only used by the
+blob and layout tests below.
 """
 
 from __future__ import annotations

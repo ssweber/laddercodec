@@ -1,15 +1,16 @@
 # Layout check fixtures
 
 Evidence for `laddercodec.check()`: rungs CLICK's syntax check accepted, and the two it refused.
+The CLICK captures are in `v4_captures/`; the pyrung CSVs are here.
 
-- `layoutthy-pasted.bin`: CLICK v4 copy-back of a 24-rung stub right after paste, before the
-  syntax check. The check refused rung 23 (index 22) with `error C0202: Row 3, Column D : Missing
-  line connection` (listed twice) and `error C0001: Line connection error`; it accepted the other
-  23 and redrew some of them.
-- `layoutthy-checked.bin`: the same stub copied back after the syntax check, with rung 23 deleted.
-- `windy-road.bin`: a hand-drawn rung whose path runs through the AF column's down flag on row 0;
-  CLICK's check accepted it and redrew it as `windy-road-after-syntax.bin`. laddercodec's decode
-  drops that flag, so the decoded rung has no path (the check's test for it is expected to fail).
+- `v4_captures/layoutthy_pasted.bin`: CLICK v4 copy-back of a 24-rung stub right after paste,
+  before the syntax check. The check refused rung 23 (index 22) with `error C0202: Row 3, Column
+  D : Missing line connection` (listed twice) and `error C0001: Line connection error`; it
+  accepted the other 23 and redrew some of them.
+- `v4_captures/layoutthy_checked.bin`: the same stub copied back after the syntax check, with
+  rung 23 deleted.
+- `v4_captures/windy_road_checked.bin`: CLICK's check redrawing `windy_road_pasted.bin`, whose
+  path runs down the AF column (decode refuses the pasted one).
 - `wheatstone_bridge.csv`: pyrung's bridge rung (`tests/fixtures/wheatstone_bridge.csv` in
   pyrung). CLICK pastes and saves it; its check reports C0001.
 - `pyrung_topology_pasted-2026-11-12.csv`, `pyrung_topology_pasted-2026-11-13.csv`: pyrung's
