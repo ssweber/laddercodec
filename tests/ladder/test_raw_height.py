@@ -587,11 +587,14 @@ _VALUES_TOKEN_CANT_CARRY = [
 _VALUES_TOKEN_CARRIES = ["", "100 )", "(a", "a=b", " lead", "Ã©", "rows=3", "x:y", '"a,b"']
 
 
-def _field_box(value: str) -> RawInstruction:
+def _field_box(value: str, last: bool = False) -> RawInstruction:
+    """A Math box with *value* in its first field, or in its last when *last*."""
     from laddercodec.binary_helpers import _STANDARD_SENTINEL
     from laddercodec.instructions.raw import _compose_blob
 
     fields = [(0x6065, _STANDARD_SENTINEL, value), (0x11FE, _STANDARD_SENTINEL, "0")]
+    if last:
+        fields.reverse()
     return RawInstruction("Math", _compose_blob("Math", 0x271A, 1, b"", fields), 1)
 
 
@@ -607,12 +610,13 @@ def test_raw_field_value_the_token_cant_carry_is_written_as_hex(tmp_path: Path, 
     assert back.instructions[0].blob == box.blob
 
 
+@pytest.mark.parametrize("last", [False, True])
 @pytest.mark.parametrize("value", _VALUES_TOKEN_CARRIES)
 def test_raw_field_value_the_token_carries_stays_in_the_fields_form(
-    tmp_path: Path, value: str
+    tmp_path: Path, value: str, last: bool
 ) -> None:
-    box = _field_box(value)
-    assert box.to_csv().startswith("raw(Math,0x271a,1,rows=1,sub=1,6065=")
+    box = _field_box(value, last)
+    assert box.to_csv().startswith("raw(Math,0x271a,1,rows=1,sub=1,")
     out = tmp_path / "x.csv"
     write_csv(out, [Rung(1, [["-"] * 31], [box], None, None)])
     (back,) = read_csv(out)

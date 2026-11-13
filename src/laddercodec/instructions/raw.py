@@ -436,7 +436,7 @@ class RawInstruction(AfInstruction):
         2 or more parts adds ``pins=``, its extra part bytes.  Falls back to the legacy
         hex format, with ``rows`` and ``sub``, if decomposition fails, or if the part
         bytes are no ascending rows 1 to 31 or the span is not the last one + 1, or if
-        the fields text does not read back as this box (a field value holding a comma).
+        the fields text does not read back as this box (a field value the token can't carry).
         """
         params = self.cell_params()
         rows = cell_rows_spec(params)
@@ -452,14 +452,19 @@ class RawInstruction(AfInstruction):
         parts = [cn, f"0x{tm:04x}", str(pc), rows, *([pins] if pins else []), *specs]
         token = f"raw({','.join(parts)})"
         if not self._reads_back(token):
-            # A field value the token can't carry (a comma, say): the hex keeps it.
+            # A field value the token can't carry: the hex keeps it.
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
         return token
 
     def _reads_back(self, token: str) -> bool:
         """Whether *token* reads back as this box, bytes and height."""
+        from ..csv.ast import AfCall
+        from ..csv.token_parser import parse_af_token  # the csv package imports this module
+
         try:
-            return self.from_csv_token(token) == self
+            # The CSV reader's path: the token parser first, then the token it hands on.
+            node = parse_af_token(token)
+            return isinstance(node, AfCall) and self.from_csv_token(node.to_token()) == self
         except ValueError:
             return False
 
