@@ -106,3 +106,7 @@ drum__v4: worked
 out__oneshot: worked
 forloop__oneshot: worked
 loop__v4: worked
+raw_instructions__email: worked
+raw_instructions__home: worked
+raw_instructions__position: worked
+raw_instructions__velocity: worked
