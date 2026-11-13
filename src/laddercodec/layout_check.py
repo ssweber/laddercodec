@@ -183,8 +183,10 @@ def _blank_rows(rung: Rung) -> int:
     CLICK's check also removes a blank first row (layoutthy rung 19).  No capture shows two
     blank first rows, so only one is skipped.
     """
+    if not rung.conditions:
+        return 0
     cells = [cell_of(t) for t in rung.conditions[0]]
-    token = rung.instructions[0]
+    token = rung.instructions[0] if rung.instructions else ""
     if token not in ("", None) or any(c.contact is not None or c.right or c.down for c in cells):
         return 0
     return 1
@@ -217,7 +219,7 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
         add(rule, (e.row, e.col), what)
     if dead_ends:
         rule = _NO_COIL_LOOP if all(loop for _, loop in dead_ends) else _NO_COIL
-        what = "a path from the rail reaches no box; CLICK: no Coil instruction in the rung"
+        what = "a path from the rail reaches no box (CLICK's text: no Coil instruction in the rung)"
         add(rule, None, what)
 
     for e in net.bypassed:

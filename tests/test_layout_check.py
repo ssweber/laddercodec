@@ -29,6 +29,7 @@ from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.decode import DecodeError
 from laddercodec.instructions import Coil, Contact, Timer
+from laddercodec.layout_check import _blank_rows
 from laddercodec.model import InstructionType
 
 FIX = Path(__file__).parent / "fixtures"
@@ -455,7 +456,8 @@ def test_path_ending_in_a_loop_is_c0202_once() -> None:
 def test_no_coil_message_says_what_triggers_it() -> None:
     findings = check(read_csv(LADDER / "instr-2row-spread.csv"))
     assert findings[1].message == (
-        "a path from the rail reaches no box; CLICK: no Coil instruction in the rung (CLICK: C0003)"
+        "a path from the rail reaches no box"
+        " (CLICK's text: no Coil instruction in the rung) (CLICK: C0003)"
     )
 
 
@@ -473,6 +475,11 @@ def test_message_rows_skip_no_more_than_one_blank_row() -> None:
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (2, 2)
     assert finding.message.startswith("row 2, column C in CLICK's numbering: ")
+
+
+def test_blank_first_row_count_takes_a_rung_with_no_outputs() -> None:
+    assert _blank_rows(Rung(1, [[""] * 31], [], None)) == 1
+    assert _blank_rows(Rung(0, [], [], None)) == 0
 
 
 def test_one_rung_or_a_list() -> None:
