@@ -54,11 +54,10 @@ from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
+from tests.fixtures_refused import is_refused
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
-#: Captures the decoder refuses: a down wire in the output column.
-_REFUSED = {"windy_road_pasted.bin"}
-_DECODABLE = [p for p in sorted(CAPTURE_DIR.glob("*.bin")) if p.name not in _REFUSED]
+_DECODABLE = [p for p in sorted(CAPTURE_DIR.glob("*.bin")) if not is_refused(p)]
 COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
@@ -1146,3 +1145,42 @@ def test_checked_windy_road_is_one_straight_row() -> None:
     (rung,) = _decode_file(CAPTURE_DIR / "windy_road_checked.bin")
     rows = [row for row in decoded_rung_to_rows(rung) if row[0] != "#"]
     assert rows == [["R", "X001", "Y001", *["-"] * 29, "out(Y001)"]]
+
+
+def _with_af_down(data: bytes, rung: int, row: int) -> bytes:
+    """*data* with the down flag (+0x21) set on the AF cell of the given rung and row."""
+    (dump,) = inspect_cells(data, [(rung, row, "AF")])
+    patched = bytearray(data)
+    patched[dump.offset + 0x21] = 1
+    return bytes(patched)
+
+
+def test_down_wire_in_the_output_column_names_the_rung() -> None:
+    """In a multi-rung buffer the message names the rung that holds the wire."""
+    data = (
+        COVERAGE_GOLDEN.parent.parent / "ladder_captures" / "golden" / "mr-2rung-wire.bin"
+    ).read_bytes()
+    assert len(decode(data)) == 2
+    with pytest.raises(DecodeError, match=r"Rung 1, row 0 \(zero-based\)"):
+        decode(_with_af_down(data, 1, 0))
+
+
+def test_down_wire_beside_an_output_box_is_refused() -> None:
+    """The flag is read on a cell that holds a box as well as on an empty one."""
+    data = (CAPTURE_DIR / "out.bin").read_bytes()
+    rungs = _decode_file(CAPTURE_DIR / "out.bin")
+    rung, row = next(
+        (i, r)
+        for i, rg in enumerate(rungs)
+        for r, af in enumerate(rg.instructions)
+        if af not in ("", "NOP")
+    )
+    with pytest.raises(DecodeError, match=rf"Rung {rung}, row {row} "):
+        decode(_with_af_down(data, rung, row))
+
+
+def test_inspect_cells_still_dumps_a_refused_capture() -> None:
+    """inspect_cells reads cells without decoding the rung, so the flag shows in its dump."""
+    data = (CAPTURE_DIR / "windy_road_pasted.bin").read_bytes()
+    (dump,) = inspect_cells(data, [(0, 0, "AF")])
+    assert dump.flags[2] == 1

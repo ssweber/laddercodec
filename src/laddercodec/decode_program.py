@@ -594,12 +594,6 @@ def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
             raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
         if block.column_count != len(header.column_widths):
             raise ValueError(f"column count mismatch at 0x{pos:X} (rung {index})")
-        af_down = block.wiredown.get(_CONDITION_COLUMNS)
-        if af_down:
-            raise ValueError(
-                f"Rung {index}, row {af_down[0]} (zero-based): the output column has a down wire, "
-                "which isn't supported. CLICK's syntax check removes it."
-            )
         pos = block.end
 
         if pos + 2 > limit:
@@ -804,7 +798,7 @@ def decode_program(data: bytes) -> Program:
     Raises
     ------
     ValueError
-        If the file cannot be parsed.
+        If the file cannot be parsed, or a rung has a down wire in the output column.
     """
     header = _parse_header(data)
     records = _walk_rung_records(data, header)
@@ -842,10 +836,19 @@ def decode_program(data: bytes) -> Program:
                 )
                 inferred_rows = max(inferred_rows, row + visual_rows)
 
+        logical_rows = max(1, record.topology.row_word - 1, inferred_rows)
+        af_down = [
+            r for r in record.topology.wiredown.get(_CONDITION_COLUMNS, ()) if 0 <= r < logical_rows
+        ]
+        if af_down:
+            raise ValueError(
+                f"Rung {len(rungs)}, row {af_down[0]} (zero-based): the output column has a "
+                "down wire, which isn't supported. CLICK's syntax check removes it."
+            )
         rungs.append(
             _build_topology_backed_rung(
                 topology_block=record.topology,
-                logical_rows=max(1, record.topology.row_word - 1, inferred_rows),
+                logical_rows=logical_rows,
                 section_instructions=record.instructions,
                 comment=record.comment,
                 comment_rtf=record.comment_rtf,

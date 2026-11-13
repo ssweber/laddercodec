@@ -770,7 +770,7 @@ def decode(data: bytes) -> Rung | list[Rung]:
     Raises
     ------
     DecodeError
-        If the buffer is invalid.
+        If the buffer is invalid, or a rung has a down wire in the output column.
     """
     _validate_buffer(data)
     row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
@@ -803,7 +803,8 @@ def decode_rung(data: bytes) -> Rung:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains multiple rungs.
+        If the buffer is invalid or contains multiple rungs, or the rung has a down wire
+        in the output column.
     """
     _validate_buffer(data)
 
@@ -839,7 +840,8 @@ def decode_rungs(data: bytes) -> list[Rung]:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains only a single rung.
+        If the buffer is invalid or contains only a single rung, or a rung has a down wire
+        in the output column.
     """
     _validate_buffer(data)
 
