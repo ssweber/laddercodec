@@ -17,6 +17,9 @@ from laddercodec import check, decode, encode, read_csv, write_csv
 from laddercodec._layout import LayoutError, canonical, circuit, layout
 from laddercodec._layout.network import cell_of
 from laddercodec.csv.contract import CSV_HEADER
+from laddercodec.csv.converter import convert_literal, convert_rung
+from laddercodec.csv.parser import parse_csv_file
+from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact
 from laddercodec.model import InstructionType
@@ -173,9 +176,6 @@ def _csv_row(marker: str, cells: list[str], af: str) -> list[str]:
 
 def _read_rows(tmp_path: Path, rows: list[list[str]]) -> tuple[Rung, list[Rung]]:
     """The rung as drawn, and as ``read_csv`` lays it out."""
-    from laddercodec.csv.converter import convert_literal, convert_rung
-    from laddercodec.csv.parser import parse_csv_file
-
     path = tmp_path / "main.csv"
     with path.open("w", encoding="utf-8", newline="") as handle:
         csv_mod.writer(handle).writerows([CSV_HEADER, *rows])
@@ -193,8 +193,8 @@ def _contacts(rungs: list[Rung]) -> list[str]:
     )
 
 
-#: Pins of one box fed by one contact (review 1 of layoutio).  Each pin's circuit is drawn on
-#: rows of its own, so a layout would draw the shared contact once per pin.
+#: Pins of one box fed by one contact.  Each pin's circuit is drawn on rows of its own, so a
+#: layout would draw the shared contact once per pin.
 _SHARED_PINS = {
     "shift clock and reset": (
         [
@@ -282,7 +282,6 @@ def test_circuit_catches_a_contact_drawn_twice(
     ``test_layout_keeps_the_circuit``.
     """
     import laddercodec._layout as layout_mod
-    from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 
     drawn = _shift_with_two_pins(tmp_path)
     real = layout_mod.trees

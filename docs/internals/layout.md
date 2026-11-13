@@ -96,10 +96,11 @@ and is kept as drawn too.
 
 Three more shapes are kept as drawn, with no capture of CLICK's check on them:
 
-- A contact on the circuits of a pin and of another box input. Each pin's circuit is drawn
-  on rows of its own, so a layout would draw the contact once per input. `check()` reports a
-  pin whose contacts are all another input's as `pin_without_contact` (the shape of Q4a and
-  Q4b), and one with some of its own as `pin_shares_main` or `pin_shares_pin`.
+- A contact on the circuits of two pins, or of a main input and a pin that has contacts of
+  its own as well. Each pin's circuit is drawn on rows of its own, so a layout would draw the
+  contact once per input. `check()` reports the later pin: `pin_without_contact` when all its
+  contacts are the other pin's (the shape of Q4a and Q4b), else `pin_shares_pin` or
+  `pin_shares_main`.
 - A rung that would split (rule 9) and holds a `NOP`. The captured splits are of coils and
   Copy boxes.
 - A rung the render cannot fit in 31 columns, or whose nets would cross.
