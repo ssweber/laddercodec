@@ -18,8 +18,9 @@ in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``;
 Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``;
 a Call pasted from laddercodec, then saved by its dialog,
-``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``)
-are only used by the blob tests below.
+``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``; fourteen coverage goldens
+pasted from laddercodec, then saved by their dialogs, ``box_height_pasted.bin`` and
+``box_height_dialog_ok.bin``) are only used by the blob tests below.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ from laddercodec import FieldError, encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
-from laddercodec.instructions import from_tags_af
+from laddercodec.instructions import AfInstruction, from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
@@ -124,8 +125,39 @@ def _current_spelling(token: str) -> str:
 @pytest.mark.parametrize("bin_path", sorted(CAPTURE_DIR.glob("*.bin")), ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
-    rungs = [r for r in _decode_file(bin_path) if not _leg_on_unused_pin_row(r)]
+    rungs = [
+        r
+        for r in _decode_file(bin_path)
+        if not _leg_on_unused_pin_row(r) and not _box_taller_than_rung(r)
+    ]
     write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
+
+
+def _box_taller_than_rung(rung: Rung) -> bool:
+    """An AF box whose class height is more rows than the rung has.
+
+    CLICK keeps a 1-row Email, Home, Position or Velocity pasted from laddercodec at
+    1 row until its dialog is saved (``box_height_pasted.bin``).  CSV can't express it:
+    on read, the box takes its class's 3 rows.
+    """
+    return any(
+        isinstance(af, AfInstruction)
+        and int(af.cell_params().get("visual_rows", 1)) > rung.logical_rows
+        for af in rung.instructions
+    )
+
+
+def test_box_taller_than_rung_does_not_write() -> None:
+    short = [r for r in _decode_file(CAPTURE_DIR / "box_height_pasted.bin") if _box_taller_than_rung(r)]
+    assert [type(r.instructions[0]).__name__ for r in short] == [
+        "Email",
+        "Home",
+        "Position",
+        "Velocity",
+    ]
+    for rung in short:
+        with pytest.raises(WriterError, match="requires 3 decoded rows; got 1"):
+            decoded_rung_to_rows(rung)
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +726,102 @@ def test_call_index_captures() -> None:
     ]
     assert len(diff) == 1
     assert expected[diff[0]] == ord("0") and blobs["call_index_dialog_ok.bin"][diff[0]] == ord("3")
+
+
+# ---------------------------------------------------------------------------
+# Box height: coverage goldens pasted, then saved by their dialogs
+# ---------------------------------------------------------------------------
+
+#: The coverage goldens pasted into ``box_height_pasted.bin`` and
+#: ``box_height_dialog_ok.bin``, one rung each, in order.  The dialog capture adds an
+#: ``end()`` rung 15, and its Email, Home, Position and Velocity have the status fields
+#: filled in so their dialogs save.
+_BOX_HEIGHT_GOLDENS = (
+    "math__decimal",
+    "math__hex",
+    "search__eq",
+    "search__continuous",
+    "on_delay__ton",
+    "on_delay__rton",
+    "off_delay__tof",
+    "shift__basic",
+    "event_drum__basic",
+    "time_drum__basic",
+    "raw_instructions__email",
+    "raw_instructions__home",
+    "raw_instructions__position",
+    "raw_instructions__velocity",
+)
+_RAW_BOX_GOLDENS = _BOX_HEIGHT_GOLDENS[10:]
+
+
+def _rungs_of(data: bytes) -> list[Rung]:
+    decoded = decode(data)
+    return decoded if isinstance(decoded, list) else [decoded]
+
+
+def _af_box(data: bytes, rung: int) -> tuple[int, int, int]:
+    """``(rung rows, +0x09, +0x0A)`` of the AF box on *rung*'s first row."""
+    rows = len(_rungs_of(data)[rung].conditions)
+    (dump,) = inspect_cells(data, [(rung, 0, "AF")])
+    assert dump.size > 0x40, f"rung {rung + 1}: no AF box on its first row"
+    return rows, dump.raw[0x09], dump.raw[0x0A]
+
+
+def test_box_height_captures() -> None:
+    """CLICK keeps a typed box's height through paste and dialog OK; it grows the raw four.
+
+    A pasted 1-row Email, Home, Position or Velocity copies back as ``01 01``; saving its
+    dialog rewrites +0x09 to 3 and grows the rung to 3 rows (``03 01``).  CLICK v4 rewrites
+    a pasted Math or Drum blob in its own form, so the boxes compare decoded.
+    """
+    pasted = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
+    dialog = (CAPTURE_DIR / "box_height_dialog_ok.bin").read_bytes()
+    pasted_rungs = _rungs_of(pasted)
+    dialog_rungs = _rungs_of(dialog)
+    assert len(pasted_rungs) == len(_BOX_HEIGHT_GOLDENS)
+    assert len(dialog_rungs) == len(_BOX_HEIGHT_GOLDENS) + 1
+    assert [type(t).__name__ for t in dialog_rungs[-1].instructions] == ["End"]
+    for i, name in enumerate(_BOX_HEIGHT_GOLDENS):
+        for rungs in (pasted_rungs, dialog_rungs):
+            assert (rungs[i].comment or "").startswith(f"{i + 1} {name}:"), rungs[i].comment
+        (golden,) = read_csv(COVERAGE_GOLDEN / f"{name}.csv")
+        ours = _af_box(encode(golden), 0)
+        box = golden.instructions[0]
+        if name in _RAW_BOX_GOLDENS:
+            assert ours == (3, 3, 3), name
+            assert pasted_rungs[i].instructions[0].build_blob() == box.build_blob(), name
+            assert _af_box(pasted, i) == (1, 1, 1), name
+            assert _af_box(dialog, i) == (3, 3, 1), name
+        else:
+            assert pasted_rungs[i].instructions[0] == box, name
+            assert dialog_rungs[i].instructions[0] == box, name
+            assert _af_box(pasted, i) == ours, name
+            assert _af_box(dialog, i) == ours, name
+
+
+@pytest.mark.parametrize("name", _RAW_BOX_GOLDENS)
+def test_csv_raw_box_is_3_rows(name: str) -> None:
+    """A raw Email, Home, Position or Velocity read from CSV is written as a 3-row box."""
+    (rung,) = read_csv(COVERAGE_GOLDEN / f"{name}.csv")
+    assert isinstance(rung.instructions[0], RawInstruction)
+    assert rung.logical_rows == 3
+    assert _af_box(encode(rung), 0) == (3, 3, 3)
+
+
+def test_dialog_saved_box_reencodes_at_3_rows() -> None:
+    """The dialog-saved boxes decode typed and re-encode as ``03 03`` over their 3 rows."""
+    rungs = _rungs_of((CAPTURE_DIR / "box_height_dialog_ok.bin").read_bytes())[10:14]
+    assert [type(r.instructions[0]).__name__ for r in rungs] == [
+        "Email",
+        "Home",
+        "Position",
+        "Velocity",
+    ]
+    again = encode(rungs)
+    for i, rung in enumerate(rungs):
+        assert rung.instructions[0].cell_params() == {"visual_rows": 3}
+        assert _af_box(again, i) == (3, 3, 3)
 
 
 # ---------------------------------------------------------------------------
