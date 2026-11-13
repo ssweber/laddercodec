@@ -67,6 +67,22 @@ def _edge_row(operand: str) -> list[object]:
     return [Contact(InstructionType.CONTACT_EDGE, operand, edge_kind="rise")] + ["-"] * 30
 
 
+def _branch_row(operand: str) -> list[object]:
+    """A row whose wire branches down at column B: a NO contact at A, or no contact."""
+    first: object = Contact(InstructionType.CONTACT_NO, operand) if operand else ""
+    return [first, "T"] + ["-"] * 29
+
+
+def _down_row() -> list[object]:
+    """A row that only carries the vertical at column B down."""
+    return ["", "|"] + [""] * 29
+
+
+def _wire_row() -> list[object]:
+    """A row fed by the vertical at column B, wired through to the output column."""
+    return ["", "-"] + ["-"] * 29
+
+
 def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
     """Return representative non-pinned tall AF instructions."""
     return [
@@ -365,7 +381,8 @@ class TestDecodedRungToRows:
         assert rows[1][1] == "rise(C78)"
         assert rows[2][32] == ".reset()"
 
-    def test_count_down_preserves_wire_only_top_row(self) -> None:
+    def test_count_down_drops_a_dead_wire_top_row(self) -> None:
+        """A wire stub that joins nothing is not part of the circuit, so the layout drops it."""
         counter = Counter(
             counter_type="count_down",
             done_bit="CT3",
@@ -387,12 +404,11 @@ class TestDecodedRungToRows:
         )
 
         rows = decoded_rung_to_rows(rung)
-        assert len(rows) == 3
-        assert rows[0][32] == ""
-        assert rows[0][9] == "|"
-        assert rows[1][32] == "count_down(CT3,CTD3,preset=50)"
-        assert rows[1][1] == "rise(C78)"
-        assert rows[2][32] == ".reset()"
+        assert len(rows) == 2
+        assert rows[0][32] == "count_down(CT3,CTD3,preset=50)"
+        assert rows[0][1] == "rise(C78)"
+        assert rows[1][32] == ".reset()"
+        assert rows[1][1] == "C79"
 
     def test_count_up_then_retained_timer_emits_both_blocks(self) -> None:
         counter = Counter(
@@ -514,7 +530,7 @@ class TestDecodedRungToRows:
         ]
         assert rows[4][1] == "C94"
 
-    def test_shift_requires_three_rows(self) -> None:
+    def test_two_row_shift_is_laid_out_on_three_rows(self) -> None:
         shift = Shift("C99", "C106")
         rung = Rung(
             logical_rows=2,
@@ -523,6 +539,20 @@ class TestDecodedRungToRows:
                 [Contact(InstructionType.CONTACT_NO, "C97")] + ["-"] * 30,
             ],
             instructions=[shift, ""],
+            comment_rtf=None,
+            comment=None,
+        )
+
+        rows = decoded_rung_to_rows(rung)
+        assert [row[32] for row in rows] == ["shift(C99..C106)", ".clock()", ".reset()"]
+        assert [row[1] for row in rows] == ["C96", "C97", ""]
+
+    def test_shift_without_a_layout_requires_three_rows(self) -> None:
+        """With no contact to lay out, the rung is written as stored, and a 2-row shift has no CSV form."""
+        rung = Rung(
+            logical_rows=2,
+            conditions=[_blank_conditions(), _blank_conditions()],
+            instructions=[Shift("C99", "C106"), ""],
             comment_rtf=None,
             comment=None,
         )
@@ -591,8 +621,8 @@ class TestGenericTallRoundTrip:
         rung = Rung(
             logical_rows=visual_rows + 1,
             conditions=[
-                _contact_row("C200"),
-                _contact_row("C201"),
+                _branch_row("C200"),
+                _wire_row(),
                 *[_blank_conditions() for _ in range(visual_rows - 1)],
             ],
             instructions=[lead, af, *([""] * (visual_rows - 1))],
@@ -624,10 +654,10 @@ class TestGenericTallRoundTrip:
         rung = Rung(
             logical_rows=visual_rows + 2,
             conditions=[
-                _contact_row("C210"),
-                _contact_row("C211"),
-                *[_blank_conditions() for _ in range(visual_rows - 1)],
-                _contact_row("C212"),
+                _branch_row("C210"),
+                _branch_row(""),
+                *[_down_row() for _ in range(visual_rows - 1)],
+                _wire_row(),
             ],
             instructions=[lead, af, *([""] * (visual_rows - 1)), tail],
             comment_rtf=None,
@@ -653,11 +683,7 @@ class TestDehydrateHydrateWires:
         search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
         rung = Rung(
             logical_rows=3,
-            conditions=[
-                [Contact(InstructionType.CONTACT_NO, "C10"), "T"] + ["-"] * 29,
-                ["", "|"] + [""] * 29,
-                [Contact(InstructionType.CONTACT_NO, "C11")] + ["-"] * 30,
-            ],
+            conditions=[_branch_row("C10"), _down_row(), _wire_row()],
             instructions=[search, "", Coil(InstructionType.COIL_OUT, "Y001")],
             comment_rtf=None,
             comment=None,
@@ -673,12 +699,10 @@ class TestDehydrateHydrateWires:
         write_csv(out, [rung])
         [rt] = read_csv(out)
 
-        assert rt.logical_rows == 3
-        assert rt.conditions[0][1] == "T"
-        assert rt.conditions[1][1] == "|"  # hydrated back
+        assert rt == rung  # the | under T is hydrated back
 
-    def test_multi_column_T_wires_roundtrip(self, tmp_path: Path) -> None:
-        """Multiple T wires in different non-A columns all hydrate correctly."""
+    def test_redundant_verticals_read_as_one_merge(self, tmp_path: Path) -> None:
+        """Two verticals joining the same rows are one OR merge, drawn after the last contact."""
         search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
         conds_row0 = [Contact(InstructionType.CONTACT_NO, "C20")] + ["-"] * 30
         conds_row0[5] = "T"  # col F
@@ -700,10 +724,12 @@ class TestDehydrateHydrateWires:
         [rt] = read_csv(out)
 
         assert rt.logical_rows == 3
-        assert rt.conditions[0][5] == "T"
-        assert rt.conditions[0][15] == "T"
-        assert rt.conditions[1][5] == "|"  # hydrated
-        assert rt.conditions[1][15] == "|"  # hydrated
+        assert [row[:3] for row in rt.conditions] == [
+            [rung.conditions[0][0], "T", "-"],
+            [rung.conditions[2][0], "|", ""],
+            ["", "-", "-"],
+        ]
+        assert all(cell not in {"T", "|"} for row in rt.conditions for cell in row[2:])
 
 
 class TestMultiPinnedRoundTrip:
@@ -733,16 +759,16 @@ class TestMultiPinnedRoundTrip:
 
         out_csv = tmp_path / "count-up-timer.csv"
         write_csv(out_csv, [rung])
-        [round_tripped] = read_csv(out_csv)
+        # The counter's and the timer's circuits meet only at the rail: one rung each.
+        counter_rung, timer_rung = read_csv(out_csv)
 
-        assert round_tripped.logical_rows == 5
-        assert isinstance(round_tripped.instructions[0], Counter)
-        assert isinstance(round_tripped.instructions[3], Timer)
-        assert round_tripped.instructions[3].retained is True
-        assert isinstance(round_tripped.conditions[2][0], Contact)
-        assert round_tripped.conditions[2][0].operand == "C96"
-        assert isinstance(round_tripped.conditions[4][0], Contact)
-        assert round_tripped.conditions[4][0].operand == "C98"
+        assert counter_rung.logical_rows == 3  # Down's row, unused, stays above Reset
+        assert counter_rung.instructions == [counter, "", ""]
+        column_a = [getattr(row[0], "operand", row[0]) for row in counter_rung.conditions]
+        assert column_a == ["C95", "", "C96"]
+        assert timer_rung.logical_rows == 2
+        assert timer_rung.instructions == [timer, ""]
+        assert [row[0].operand for row in timer_rung.conditions] == ["C97", "C98"]
 
     def test_shift_then_timer_roundtrip_preserves_blank_timer_row(self, tmp_path: Path) -> None:
         shift = Shift("C120", "C127")
