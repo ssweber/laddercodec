@@ -8,6 +8,7 @@ per CLICK rung (``tree``) -> packed layout (``render``).  The rules and their ev
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import replace
 from typing import Any, cast
@@ -100,21 +101,32 @@ def circuit(rungs: Sequence[Any]) -> list[object]:
     """The circuits of *rungs*, one per CLICK rung, with every row and column left out.
 
     Two lists of rungs with equal circuits hold the same contacts, in the same series and
-    parallel blocks, feeding the same boxes with the same pin circuits.  A rung that holds
-    wires and unwired NOPs at most has no circuit.  Raises :class:`LayoutError` for a rung
-    with no series-parallel circuit.
+    parallel blocks, feeding the same boxes with the same pin circuits: each contact of a
+    rung is in its circuit exactly once, so a contact drawn twice or lost makes the circuits
+    differ.  A rung that holds wires and unwired NOPs at most has no circuit.  Raises
+    :class:`LayoutError` for a rung with no series-parallel circuit, or whose circuit would
+    hold a contact twice or not at all.
     """
     out: list[object] = []
     for rung in rungs:
         net = network_of_rung(rung)
+        seen: Counter[int] = Counter()
         for tree in trees(net):
-            out.append(_Circuit(net, tree).branch(tree.branch))
+            found = _Circuit(net, tree)
+            out.append(found.branch(tree.branch))
+            seen.update(found.leaves)
+        for e in net.edges:
+            if seen[id(e)] != 1:
+                raise LayoutError(
+                    f"row {e.row} column {e.col}: the circuit holds the contact {seen[id(e)]} times"
+                )
     return out
 
 
 class _Circuit:
     def __init__(self, net: Network, tree: RungTree) -> None:
         self.net = net
+        self.leaves: list[int] = []  # ``id`` of each contact edge, once per appearance
         self.pins: dict[int, list[tuple[int, object]]] = {}
         for i, pin in tree.pins.items():
             sink = net.sinks[i]
@@ -138,6 +150,7 @@ class _Circuit:
 
     def node(self, node: Node) -> object:
         if isinstance(node, Leaf):
+            self.leaves.append(id(node.edge))
             contact = node.edge.contact
             if hasattr(contact, "wire_down"):
                 return replace(cast(Any, contact), wire_down=False)

@@ -40,7 +40,7 @@ import csv as csv_mod
 from collections.abc import Sequence
 from pathlib import Path
 
-from .._layout import canonical, circuit
+from .._layout import LayoutError, canonical, circuit
 from ..decode import Rung
 from ..instructions import (
     AfInstruction,
@@ -428,8 +428,13 @@ def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
     parts = canonical(rung)
     if parts is None:
         return [(rung, False)]
-    if parts != [rung] and circuit(parts) != circuit([rung]):
-        raise WriterError("CSV layout changed the rung's circuit")
+    if parts != [rung]:
+        try:
+            same = circuit(parts) == circuit([rung])
+        except LayoutError as exc:
+            raise WriterError(f"CSV layout changed the rung's circuit: {exc}") from exc
+        if not same:
+            raise WriterError("CSV layout changed the rung's circuit")
     return [(part, True) for part in parts]
 
 

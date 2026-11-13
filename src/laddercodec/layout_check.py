@@ -38,6 +38,7 @@ FindingKind = Literal[
     "output_above_pinned_box",
     "pin_without_contact",
     "pin_shares_main",
+    "pin_shares_pin",
     "unpowered_box",
     "shorted_contact",
 ]
@@ -63,8 +64,9 @@ class Finding:
         Whether a CLICK capture shows its syntax check reporting this shape with ``code``.
         ``False`` for every kind with no code, and for two shapes that have one:
         ``"not_series_parallel"`` on a pin input (C0001, as for a main input), and
-        ``"pin_without_contact"`` on a reset wired straight from the rail (C0205 or C0212,
-        as for a reset whose contacts are all the main input's).  A ``"no_rail"`` or
+        ``"pin_without_contact"`` on a reset wired straight from the rail or whose contacts
+        are all another pin's (C0205 or C0212, as for a reset whose contacts are all the main
+        input's).  A ``"no_rail"`` or
         ``"feeds_no_box"`` finding on a loop of contacts, and a ``"no_coil"`` finding whose
         paths all end in such a loop, are not captured either.  The findings with
         ``captured`` ``False`` are provisional: their kinds may be renamed or dropped once
@@ -129,6 +131,7 @@ _NO_COIL = _Rule("no_coil", "C0003", True)
 _NO_COIL_LOOP = _Rule("no_coil", "C0003", False, "a path that ends at a contact")
 _ABOVE_PINNED = _Rule("output_above_pinned_box", "C000A", True)
 _PIN_SHARES = _Rule("pin_shares_main", None, False)
+_PIN_SHARES_PIN = _Rule("pin_shares_pin", None, False)
 _UNPOWERED = _Rule("unpowered_box", None, False)
 _SHORTED = _Rule("shorted_contact", None, False)
 
@@ -140,13 +143,16 @@ _PIN_CODES: dict[tuple[type[PinnedInstruction], str], str] = {
 }
 
 
-def _pin_rule(token: object, slot: int, lead: int, *, on_rail: bool) -> _Rule:
-    """The rule for a pin input with no contact of its own, at ``slot`` of its box."""
+def _pin_rule(token: object, slot: int, lead: int, *, as_captured: bool) -> _Rule:
+    """The rule for a pin input with no contact of its own, at ``slot`` of its box.
+
+    ``as_captured``: its contacts are all the main input's, the shape Q4a and Q4b capture.
+    """
     if isinstance(token, PinnedInstruction):
         name = token.pin_names()[slot - lead - 1]
         for (cls, pin), code in _PIN_CODES.items():
             if isinstance(token, cls) and name == pin:
-                if on_rail:
+                if not as_captured:
                     like = "a reset whose contacts are all the main input's"
                     return _Rule("pin_without_contact", code, False, like)
                 return _Rule("pin_without_contact", code, True)
@@ -232,7 +238,10 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
     for row in _below_a_box(net, c):
         add(_ABOVE_PINNED, (row, AF_X), "a box above this one hangs off its main input's net")
 
+    # A contact on two pins' circuits counts as the earlier pin's.  No capture shows CLICK's
+    # check on such a pair; a pin whose contacts are all another's is the shape of Q4a and Q4b.
     main_used = {id(a) for a in c.main_arcs}
+    pin_used: set[int] = set()
     for i in c.pins:
         if i in unpowered:
             continue
@@ -240,11 +249,16 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
         box = net.boxes[s.box]
         mine = c.pin_arcs[i]
         shared = [a for a in mine if id(a) in main_used]
-        if len(shared) == len(mine):
-            rule = _pin_rule(box.token, s.slot, box.main, on_rail=not mine)
+        shared_pin = [a for a in mine if id(a) in pin_used and id(a) not in main_used]
+        pin_used.update(id(a) for a in mine)
+        if len(shared) + len(shared_pin) == len(mine):
+            captured = bool(mine) and not shared_pin
+            rule = _pin_rule(box.token, s.slot, box.main, as_captured=captured)
             add(rule, (s.row, AF_X), "the pin has no contact of its own")
         elif shared:
             add(_PIN_SHARES, (s.row, AF_X), "the pin's circuit shares contacts with a main input")
+        elif shared_pin:
+            add(_PIN_SHARES_PIN, (s.row, AF_X), "the pin's circuit shares contacts with another pin")
         elif s.net in c.fwd and not _reduces(rail, s.net, mine):
             add(_C0001_PIN, (s.row, AF_X), "the pin's circuit is not series-parallel")
 

@@ -297,7 +297,7 @@ def trees(net: Network) -> list[RungTree]:
     """The rung's SP trees: one per CLICK rung it splits into.
 
     Raises LayoutError for a shape CLICK refuses (C0001, C0202) or one this layout does not
-    cover yet.
+    cover yet, such as a contact on the circuits of two box inputs where one is a pin.
     """
     rail = net.rail
     c = circuits(net)
@@ -314,13 +314,19 @@ def trees(net: Network) -> list[RungTree]:
         if s.net != rail and s.net not in c.fwd:
             raise LayoutError(f"row {s.row}: the box input reaches no rail", "C0202")
 
+    # Each pin's circuit is drawn on rows of its own, so a contact two box inputs share would
+    # be drawn once per input.
     main_used = {id(a) for a in c.main_arcs}
+    pin_used: set[int] = set()
     pin_trees: dict[int, PinCircuit] = {}
     for i in pins:
         s = net.sinks[i]
         mine = c.pin_arcs[i]
         if any(id(a) in main_used for a in mine):
             raise LayoutError(f"row {s.row}: a pin input shares contacts with a main input")
+        if any(id(a) in pin_used for a in mine):
+            raise LayoutError(f"row {s.row}: a pin input shares contacts with another pin input")
+        pin_used.update(id(a) for a in mine)
         node = None if s.net == rail else reduce(rail, s.net, mine)
         pin_trees[i] = PinCircuit(i, _series_terms(node))
     used = c.used()
@@ -334,6 +340,10 @@ def trees(net: Network) -> list[RungTree]:
         return []
     root = reduce(rail, c.top, c.main_arcs)
     items = _items(root)
+    if len(items) > 1 and any(net.boxes[net.sinks[i].box].token == "NOP" for i in main):
+        # The captured splits (layoutq Q5a to Q5c, layoutthy rung 21, or_compact rung 1) are
+        # of coils and Copy boxes.
+        raise LayoutError("no capture shows CLICK splitting a rung that holds a NOP")
     out: list[RungTree] = []
     for item in items:
         branch = item if isinstance(item, Branch) else Branch([], [item])

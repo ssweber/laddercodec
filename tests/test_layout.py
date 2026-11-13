@@ -7,13 +7,16 @@ refused deleted, and a rung CLICK split stands as its parts.
 
 from __future__ import annotations
 
+import csv as csv_mod
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from laddercodec import check, decode, read_csv, write_csv
+from laddercodec import check, decode, encode, read_csv, write_csv
 from laddercodec._layout import LayoutError, canonical, circuit, layout
 from laddercodec._layout.network import cell_of
+from laddercodec.csv.contract import CSV_HEADER
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact
 from laddercodec.model import InstructionType
@@ -151,3 +154,209 @@ def test_bridge_is_not_series_parallel() -> None:
     with pytest.raises(LayoutError) as info:
         layout(rung)
     assert info.value.code == "C0001"
+
+
+
+# ---------------------------------------------------------------------------
+# A contact on the circuits of two box inputs
+# ---------------------------------------------------------------------------
+
+_TIME_DRUM = (
+    "time_drum(outputs=[C141],presets=[1000],unit=Tms,pattern=[[1]],"
+    "current_step=DS41,accumulator=TD41,completion_flag=C142)"
+)
+
+
+def _csv_row(marker: str, cells: list[str], af: str) -> list[str]:
+    """A CSV data row: ``cells`` from column A, then wire to AE when ``af`` is set."""
+    return [marker, *cells, *(["-"] if af else [""]) * (31 - len(cells)), af]
+
+
+def _read_rows(tmp_path: Path, rows: list[list[str]]) -> tuple[Rung, list[Rung]]:
+    """The rung as drawn, and as ``read_csv`` lays it out."""
+    from laddercodec.csv.converter import convert_literal, convert_rung
+    from laddercodec.csv.parser import parse_csv_file
+
+    path = tmp_path / "main.csv"
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        csv_mod.writer(handle).writerows([CSV_HEADER, *rows])
+    ast = parse_csv_file(path).rungs[0]
+    return convert_literal(ast), convert_rung(ast)
+
+
+def _contacts(rungs: list[Rung]) -> list[str]:
+    return sorted(
+        cell.contact.to_csv().removeprefix("T:")
+        for rung in rungs
+        for row in rung.conditions
+        for cell in map(cell_of, row)
+        if cell.contact is not None
+    )
+
+
+#: Pins of one box fed by one contact (review 1 of layoutio).  Each pin's circuit is drawn on
+#: rows of its own, so a layout would draw the shared contact once per pin.
+_SHARED_PINS = {
+    "shift clock and reset": (
+        [
+            _csv_row("R", ["C1"], "shift(C99..C106)"),
+            _csv_row("", ["C5", "T"], ".clock()"),
+            _csv_row("", ["", "-"], ".reset()"),
+        ],
+        "pin_without_contact",
+    ),
+    "count_up down and reset": (
+        [
+            _csv_row("R", ["C1"], "count_up(CT1,CTD1,preset=5)"),
+            _csv_row("", ["rise(C5)", "T"], ".down()"),
+            _csv_row("", ["", "-"], ".reset()"),
+        ],
+        "pin_without_contact",
+    ),
+    "shift reset with a contact of its own": (
+        [
+            _csv_row("R", ["C1"], "shift(C99..C106)"),
+            _csv_row("", ["C5", "T"], ".clock()"),
+            _csv_row("", ["", "C6"], ".reset()"),
+        ],
+        "pin_shares_pin",
+    ),
+    "time drum reset and jog past the jump row": (
+        [
+            _csv_row("R", ["C1"], _TIME_DRUM),
+            _csv_row("", ["C5", "T"], ".reset()"),
+            _csv_row("", ["", "|"], ""),
+            _csv_row("", ["", "-"], ".jog()"),
+        ],
+        "pin_without_contact",
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_SHARED_PINS))
+def test_contact_on_two_pins_stays_as_drawn(name: str, tmp_path: Path) -> None:
+    rows, kind = _SHARED_PINS[name]
+    drawn, got = _read_rows(tmp_path, rows)
+    assert got == [drawn]
+    (finding,) = check(drawn)
+    assert (finding.kind, finding.captured) == (kind, False)
+    with pytest.raises(LayoutError, match="another pin input"):
+        layout(drawn)
+    # The decoded rung writes as drawn too.
+    decoded = decode(encode(drawn))
+    assert isinstance(decoded, Rung)
+    assert _contacts(_through_csv([decoded], tmp_path)) == _contacts([decoded])
+
+
+def test_time_drum_jog_sharing_the_reset_is_not_captured(tmp_path: Path) -> None:
+    rows, _ = _SHARED_PINS["time drum reset and jog past the jump row"]
+    drawn, _ = _read_rows(tmp_path, rows)
+    (finding,) = check(drawn)
+    assert (finding.code, finding.row, finding.column) == (None, 4, 31)
+    assert finding.message == (
+        "row 4 from 0, column AF: the pin has no contact of its own"
+        " (CLICK's response to this shape is not captured)"
+    )
+
+
+def _shift_with_two_pins(tmp_path: Path) -> Rung:
+    drawn, got = _read_rows(
+        tmp_path,
+        [
+            _csv_row("R", ["C1"], "shift(C99..C106)"),
+            _csv_row("", ["C5"], ".clock()"),
+            _csv_row("", ["C6"], ".reset()"),
+        ],
+    )
+    assert got == [drawn]  # already in CLICK's layout
+    return drawn
+
+
+@pytest.mark.parametrize("lose", [False, True], ids=["drawn twice", "drawn twice and lost"])
+def test_circuit_catches_a_contact_drawn_twice(
+    lose: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A layout that draws the clock's contact on the reset's rows too changes the circuit.
+
+    ``trees`` is patched to give the reset the clock's circuit (before or instead of its own);
+    ``circuit()`` then holds C5 twice, the writer refuses the layout, and so would
+    ``test_layout_keeps_the_circuit``.
+    """
+    import laddercodec._layout as layout_mod
+    from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
+
+    drawn = _shift_with_two_pins(tmp_path)
+    real = layout_mod.trees
+
+    def doubled(net):
+        found = real(net)
+        for tree in found:
+            clock, reset = sorted(tree.pins, key=lambda i: net.sinks[i].slot)
+            series = tree.pins[clock].series + ([] if lose else tree.pins[reset].series)
+            tree.pins[reset] = replace(tree.pins[reset], series=series)
+        return found
+
+    monkeypatch.setattr(layout_mod, "trees", doubled)
+    parts = canonical(drawn)
+    assert parts is not None
+    assert _contacts(parts) == (["C1", "C5", "C5"] if lose else ["C1", "C5", "C5", "C6"])
+    with pytest.raises(LayoutError, match="2 times"):
+        circuit([drawn])
+    with pytest.raises(WriterError, match="changed the rung's circuit"):
+        decoded_rung_to_rows(drawn)
+
+
+#: Contacts on two box inputs where neither is a pin: one SP tree holds each contact once.
+_SHARED_MAIN = {
+    "a box and a branch after it": [
+        _csv_row("R", ["C1", "T"], "out(Y1)"),
+        _csv_row("", ["", "C2"], "out(Y2)"),
+    ],
+    "two branches": [
+        _csv_row("R", ["C1", "T", "C2"], "out(Y1)"),
+        _csv_row("", ["", "-", "C3"], "out(Y2)"),
+    ],
+    "two boxes, an Or block before them": [
+        _csv_row("R", ["C1", "T"], "out(Y1)"),
+        _csv_row("", ["C2", "-"], "out(Y2)"),
+    ],
+    "a pinned box below a branch": [
+        _csv_row("R", ["C1", "T", "C2"], "out(Y1)"),
+        _csv_row("", ["", "-"], "count_up(CT1,CTD1,preset=5)"),
+        _csv_row("", ["C3"], ".reset()"),
+    ],
+}
+
+
+@pytest.mark.parametrize("name", sorted(_SHARED_MAIN))
+def test_contact_on_two_main_inputs_is_drawn_once(name: str, tmp_path: Path) -> None:
+    drawn, got = _read_rows(tmp_path, _SHARED_MAIN[name])
+    assert not check(drawn)
+    assert _contacts(got) == _contacts([drawn])
+    assert circuit(got) == circuit([drawn])
+
+
+@pytest.mark.parametrize(
+    "rows",
+    [
+        [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["-"], "NOP")],
+        [_csv_row("R", ["-"], "NOP"), _csv_row("", ["C2"], "out(Y2)")],
+        [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["C2"], "NOP")],
+    ],
+    ids=["wired from the rail", "first", "behind a contact"],
+)
+def test_rung_that_would_split_off_a_nop_stays_as_drawn(rows, tmp_path: Path) -> None:
+    """No capture shows CLICK splitting a NOP into a rung of its own."""
+    drawn, got = _read_rows(tmp_path, rows)
+    assert got == [drawn]
+    assert canonical(drawn) is None
+
+
+def test_nop_behind_a_contact_with_a_coil_lays_out(tmp_path: Path) -> None:
+    """A NOP beside a coil on one net is not a split; the rung lays out."""
+    drawn, got = _read_rows(
+        tmp_path,
+        [_csv_row("R", ["C1", "T"], "out(Y1)"), _csv_row("", ["", "-"], "NOP")],
+    )
+    assert len(got) == 1
+    assert circuit(got) == circuit([drawn])

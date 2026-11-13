@@ -183,11 +183,13 @@ shape with that code:
 
 A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
 `pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
-and on a reset wired straight from the rail it has the box's code with
-`captured=False`. A `no_rail` or `feeds_no_box` finding on a loop of contacts is
+and on a reset wired straight from the rail, or whose contacts are all another
+pin's (a contact two pins share counts as the earlier pin's), it has the box's code
+with `captured=False`. A `no_rail` or `feeds_no_box` finding on a loop of contacts is
 also `captured=False`. Other shapes (an unpowered box, a shorted contact, a pin circuit
-that shares contacts with a main input but has some of its own, and a pin circuit
-that is not series-parallel) are reported with `captured=False`; those kinds are
+that shares contacts with a main input (`pin_shares_main`) or another pin
+(`pin_shares_pin`) but has some of its own, and a pin circuit that is not
+series-parallel) are reported with `captured=False`; those kinds are
 provisional and may be renamed or dropped once CLICK's response to them is
 captured. A finding with `captured=False` may be a shape CLICK accepts.
 
