@@ -36,8 +36,7 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
     circuit, and the rows, columns and box heights come from the layout.  A
     CSV rung whose outputs' circuits meet only at the rail reads as one rung
     per circuit, as CLICK splits it, so the list can hold more rungs than the
-    CSV.
-    A rung ``laddercodec.check()`` reports reads as written.
+    CSV.  A rung ``laddercodec.check()`` reports reads as written.
 
     Instruction tokens (e.g. ``X001``, ``out(Y001)``) are parsed into
     ``Contact`` / ``Coil`` objects; wire tokens remain as strings.

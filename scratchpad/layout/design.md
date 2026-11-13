@@ -1,11 +1,8 @@
 # One layout pass, as CLICK's syntax check draws it (design, phase 1)
 
-Status: design and prototype for the user to approve. Nothing here changes `read_csv`, `encode`,
-`decode` or `write_csv` yet. The prototype is `src/laddercodec/_layout/` (private, not wired
-in). The oracle and its tools are in this directory; `oracle.txt` holds every miss.
-
-This lives in `scratchpad/` because it holds open questions and unapproved choices. Phase 2 moves
-the settled rules to `docs/internals/layout.md`.
+Status: superseded. `read_csv` and `write_csv` use `src/laddercodec/_layout/`; the settled
+rules and their evidence are in `docs/internals/layout.md`. This file keeps the design record,
+the oracle tables and the questions the layoutq and layoutq2 captures answered.
 
 ## 1. Pipeline
 
