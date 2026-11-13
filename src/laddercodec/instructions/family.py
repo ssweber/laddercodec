@@ -42,6 +42,13 @@ AfFromTagsParser = Callable[
 AfCellParamsFromTags = Callable[[str, int, dict[int, str]], dict | None]
 
 
+#: Cell kwargs of an Email, Home, Position or Velocity box: three rows (cell header
+#: +0x09 = +0x0A = 3), as CLICK's editor creates it (scr_captures/coverage.bin).  Saving
+#: the dialog of a pasted 1-row box rewrites +0x09 to 3 and grows the rung
+#: (v4_captures/box_height_dialog_ok.bin).
+EMAIL_MOTION_CELL_PARAMS: dict = {"visual_rows": 3}
+
+
 def fixed_cell_params(params: dict, *types: tuple[str, int]) -> AfCellParamsFromTags:
     """Height hook for a family whose boxes all have one height.
 

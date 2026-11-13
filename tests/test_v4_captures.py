@@ -36,7 +36,7 @@ from laddercodec import FieldError, encode, read_csv
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
-from laddercodec.instructions import AfInstruction, from_tags_af
+from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
@@ -53,8 +53,9 @@ CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
 COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
-def _decode_file(path: Path) -> list[Rung]:
-    decoded = decode(path.read_bytes())
+def _decode_file(path: Path | bytes) -> list[Rung]:
+    """The rungs of a capture file, or of a buffer already read."""
+    decoded = decode(path if isinstance(path, bytes) else path.read_bytes())
     return decoded if isinstance(decoded, list) else [decoded]
 
 
@@ -127,39 +128,36 @@ def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
     """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
     rungs = [
         r
-        for r in _decode_file(bin_path)
-        if not _leg_on_unused_pin_row(r) and not _box_taller_than_rung(r)
+        for i, r in enumerate(_decode_file(bin_path))
+        if not _leg_on_unused_pin_row(r) and (bin_path.name, i) not in _SHORT_BOX_RUNGS
     ]
     write_csv(tmp_path / f"{bin_path.stem}.csv", rungs)
 
 
-def _box_taller_than_rung(rung: Rung) -> bool:
-    """An AF box whose class height is more rows than the rung has.
-
-    CLICK keeps a 1-row Email, Home, Position or Velocity pasted from laddercodec at
-    1 row until its dialog is saved (``box_height_pasted.bin``).  CSV can't express it:
-    on read, the box takes its class's 3 rows.
-    """
-    return any(
-        isinstance(af, AfInstruction)
-        and int(af.cell_params().get("visual_rows", 1)) > rung.logical_rows
-        for af in rung.instructions
-    )
+#: ``(file, rung index)`` of the 1-row Email, Home, Position and Velocity boxes CLICK
+#: copies back after a paste from an earlier laddercodec.  CSV can't express them: a raw
+#: box of these classes reads back at its class's 3 rows.
+_SHORT_BOX_RUNGS = {("box_height_pasted.bin", i) for i in range(10, 14)}
 
 
-def test_box_taller_than_rung_does_not_write() -> None:
-    """The writer refuses CLICK's copy-back of a pasted 1-row box (an arc.md leftover)."""
-    short = [
-        r for r in _decode_file(CAPTURE_DIR / "box_height_pasted.bin") if _box_taller_than_rung(r)
-    ]
-    assert [type(r.instructions[0]).__name__ for r in short] == [
+def test_short_box_decodes_raw_and_does_not_write() -> None:
+    """A box stored at 1 row decodes raw, re-encodes as stored, and write_csv refuses it."""
+    data = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
+    rungs = _decode_file(data)
+    short = [rungs[i] for _name, i in sorted(_SHORT_BOX_RUNGS)]
+    boxes = [r.instructions[0] for r in short]
+    assert all(isinstance(box, RawInstruction) for box in boxes)
+    assert [getattr(box, "class_name", None) for box in boxes] == [
         "Email",
         "Home",
         "Position",
         "Velocity",
     ]
-    for rung in short:
-        with pytest.raises(WriterError, match="requires 3 decoded rows; got 1"):
+    again = encode(short)
+    for i, rung in enumerate(short):
+        assert rung.logical_rows == 1
+        assert _af_box(again, i) == _af_box(data, 10 + i) == (1, 1, 1)
+        with pytest.raises(WriterError, match="logical row count mismatch: expected 1, got 3"):
             decoded_rung_to_rows(rung)
 
 
@@ -758,14 +756,9 @@ _BOX_HEIGHT_GOLDENS = (
 _RAW_BOX_GOLDENS = _BOX_HEIGHT_GOLDENS[10:]
 
 
-def _rungs_of(data: bytes) -> list[Rung]:
-    decoded = decode(data)
-    return decoded if isinstance(decoded, list) else [decoded]
-
-
 def _af_box(data: bytes, rung: int) -> tuple[int, int, int]:
     """``(rung rows, +0x09, +0x0A)`` of the AF box on *rung*'s first row."""
-    rows = len(_rungs_of(data)[rung].conditions)
+    rows = len(_decode_file(data)[rung].conditions)
     (dump,) = inspect_cells(data, [(rung, 0, "AF")])
     assert dump.size > 0x40, f"rung {rung + 1}: no AF box on its first row"
     return rows, dump.raw[0x09], dump.raw[0x0A]
@@ -780,8 +773,8 @@ def test_box_height_captures() -> None:
     """
     pasted = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
     dialog = (CAPTURE_DIR / "box_height_dialog_ok.bin").read_bytes()
-    pasted_rungs = _rungs_of(pasted)
-    dialog_rungs = _rungs_of(dialog)
+    pasted_rungs = _decode_file(pasted)
+    dialog_rungs = _decode_file(dialog)
     assert len(pasted_rungs) == len(_BOX_HEIGHT_GOLDENS)
     assert len(dialog_rungs) == len(_BOX_HEIGHT_GOLDENS) + 1
     assert [type(t).__name__ for t in dialog_rungs[-1].instructions] == ["End"]
@@ -814,7 +807,7 @@ def test_csv_raw_box_is_3_rows(name: str) -> None:
 
 def test_dialog_saved_box_reencodes_at_3_rows() -> None:
     """The dialog-saved boxes decode typed and re-encode as ``03 03`` over their 3 rows."""
-    rungs = _rungs_of((CAPTURE_DIR / "box_height_dialog_ok.bin").read_bytes())[10:14]
+    rungs = _decode_file(CAPTURE_DIR / "box_height_dialog_ok.bin")[10:14]
     assert [type(r.instructions[0]).__name__ for r in rungs] == [
         "Email",
         "Home",

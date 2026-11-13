@@ -647,7 +647,7 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
             if has_instr:
                 instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
                 parsed_af = parse_af_blob(instr_raw)
-                if parsed_af is not None:
+                if parsed_af is not None and _fits_stored_span(parsed_af, data[pos + 0x09]):
                     af_token = parsed_af
                 else:
                     # Try to extract a raw instruction blob.
@@ -911,6 +911,16 @@ def _decode_multi(
         rungs.append(_build_rung(data, current_data, current_rtf))
 
     return rungs
+
+
+def _fits_stored_span(af: AfInstruction, span: int) -> bool:
+    """True when *af*'s class height is the row span its cell stores (+0x09; 0 stores none).
+
+    A box stored at another span stays raw with its stored bytes: CLICK keeps a 1-row
+    Email, Home, Position or Velocity pasted from an earlier laddercodec at 1 row until
+    its dialog is saved (``v4_captures/box_height_pasted.bin``).
+    """
+    return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 
 
 def _drop_tall_span_nops(instructions: list[AfToken]) -> None:

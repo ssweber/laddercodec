@@ -383,7 +383,8 @@ Open asks (checklist; details under each id below):
   - Built (rawbox): these four classes have a 3-row height, typed and raw from CSV, written
     `03 03` (BOB ruling: the editor's form, not the `03 01` a dialog OK leaves on a pasted
     box; cost if wrong: none seen, CLICK writes and keeps both). The four
-    `raw_instructions__*` goldens grow to 3 rows and need a paste check.
+    `raw_instructions__*` goldens grow to 3 rows and need a paste check. A box stored at a
+    span other than its class's decodes raw (see the rawbox leftover).
 - Captures: Q-C7 remote address `0H` stored text, and the stored
   text of a padded `0FFFEh`. **ANSWERED 2026-11-13 (user, capture
   `clicknick/hex-modbus.bin`, now `v4_captures/comm_hex_address.bin`):** CLICK stores uppercase
@@ -841,13 +842,13 @@ Open asks (checklist; details under each id below):
   rawbox: a raw Email, Home, Position or Velocity no longer loses rows (it and the CSV read
   both span 3); the blind cases left are sub-rows that differ from the class's (Math
   `01 03`, Search `02 03`, ...), which CLICK accepts either way.
-- Open from rawbox: a 1-row Email, Home, Position or Velocity box that CLICK copies back
-  after a paste from an earlier laddercodec (`box_height_pasted.bin` rungs 11-14) decodes
-  typed in a 1-row rung. `write_csv` refuses it ("requires 3 decoded rows"), and `encode`
-  writes it as a `03 03` box in a 1-row rung, a form no capture holds. Options: the decoders
-  keep a box raw (with its stored bytes) when its stored row span differs from its class's
-  (in every native fixture this happens only for these four cells), and/or the writer grows
-  the rung to the class height with a warning, as CLICK does on dialog OK.
+- Done in rawbox (BOB ruling, the review's option (a)): a typed AF box whose stored row span
+  (+0x09, SCR entry byte 2) is not its class's height decodes as raw with its stored bytes,
+  in both decoders (`decode._fits_stored_span`, `decode_program._scr_box`). Of 1823 typed
+  boxes in the native fixtures, only the 1-row Email, Home, Position and Velocity of
+  `box_height_pasted.bin` rungs 11-14 do this; they re-encode as stored. `write_csv` still
+  refuses those rungs (the CSV raw token can't hold a 1-row height); accepted. Cost if
+  wrong: a native box whose span CLICK varies decodes raw, which round-trips its bytes.
 - `dll_address` refuses a short mask written right after a DLL name and a colon, as if it
   were an address. No case of this exists today.
 - Flag fields without `check_flag` (hcrash review): `Timer.retained`, `Contact.wire_down`,

@@ -321,9 +321,11 @@ The `RawInstruction` fallback uses this formula to capture the complete blob as 
 
 The blob does not hold the box's height: the cell header does (+0x09 row span, +0x0A sub-rows). A decoded `RawInstruction` keeps the native cell's two bytes as `visual_rows` and `sub_rows`. One read from CSV takes them from its class: the typed family's height when the blob alone gives it (Copy family 2 rows, Search 2, Send/Receive 3, Email/Home/Position/Velocity 3, an Out variant by its func code), otherwise `part_count` rows.
 
-CLICK keeps the height laddercodec writes for a box through paste and through its dialog's OK (`v4_captures/box_height_pasted.bin`, `box_height_dialog_ok.bin`). Boxes the editor creates store other sub-rows: Math `01 03`, some Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. Both forms paste.
+For a Math, Search, Tmr, SR or Drum box, CLICK keeps the height laddercodec writes through paste and through its dialog's OK (`v4_captures/box_height_pasted.bin`, `box_height_dialog_ok.bin`). Boxes the editor creates store other sub-rows: Math `01 03`, some Search `02 03`, Tmr `02 03`, Drum `04 05` and SR `03 02`. Both forms paste.
 
 Email, Home, Position and Velocity boxes span 3 rows; the editor stores `03 03`. A pasted 1-row box of one of these classes shows 1 row until its dialog is saved, which rewrites +0x09 to 3 and grows the rung by 2 rows (`03 01`).
+
+A box whose stored row span (+0x09) is not its class's height decodes as `raw(...)` and keeps its stored bytes, in both decoders. In the native captures only the 1-row Email, Home, Position and Velocity copy-backs do this. The CSV token does not hold the height, so `write_csv` refuses such a rung.
 
 At the moment, `Email`, `Home`, `Position`, and `Velocity` still deliberately
 travel through this raw path. They round-trip correctly, but they are not yet

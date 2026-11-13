@@ -18,9 +18,15 @@ from laddercodec import Rung, decode, decode_program, encode, read_csv
 from laddercodec.csv.converter import convert_rung
 from laddercodec.csv.parser import _parse_single_rung_rows
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
-from laddercodec.instructions import AfInstruction, PinnedInstruction, RawInstruction
+from laddercodec.instructions import (
+    AfInstruction,
+    Coil,
+    Email,
+    PinnedInstruction,
+    RawInstruction,
+)
 from laddercodec.instructions.raw import find_blob_boundary
-from laddercodec.model import FieldError
+from laddercodec.model import FieldError, InstructionType
 from laddercodec.topology import GRID_FIRST_ROW_START, PROGRAM_HEADER_BASE
 
 _decode = importlib.import_module("laddercodec.decode")
@@ -129,6 +135,40 @@ def test_scr_raw_takes_entry_row_bytes(
     rungs = decode_program((FIXTURES / "scr_captures" / scr).read_bytes()).rungs
     assert _all_raw(rungs)
     assert _af_cells(encode(rungs)) == _af_cells(native)
+
+
+# ---------------------------------------------------------------------------
+# A box stored at another span than its class's stays raw
+# ---------------------------------------------------------------------------
+
+
+def _short_email() -> RawInstruction:
+    """An Email box stored at 1 row, as CLICK copies back a pasted 1-row box."""
+    return RawInstruction("Email", Email().build_blob(), 1, visual_rows=1, sub_rows=1)
+
+
+@pytest.mark.parametrize(
+    "below", ["NOP", Coil(InstructionType.COIL_OUT, "Y001")], ids=["nop", "coil"]
+)
+def test_clipboard_short_box_stays_raw(below: object) -> None:
+    rung = Rung(2, [["-"] * 31, ["-"] * 31], [_short_email(), below], None, None)
+    data = encode(rung)
+    assert _af_cells(data)[0] == ("Email", 1, 1)
+    (back,) = _rungs(decode(data))
+    assert back.logical_rows == 2
+    assert isinstance(back.instructions[0], RawInstruction)
+    assert back.instructions[0].cell_params() == {}
+    assert back.instructions[1] == below
+    assert _af_cells(encode(back)) == _af_cells(data)
+
+
+@pytest.mark.parametrize(("cell_rows", "rows"), [(b"\x01\x01", 1), (b"\x03\x03", 3)])
+def test_scr_box_takes_entry_span(cell_rows: bytes, rows: int) -> None:
+    # The SCR entry header holds the clipboard cell's +0x09/+0x0A.
+    args = ("Email", 0x2737, {}, b"\x01", None, None, cell_rows)
+    box = _decode_program._scr_box(*args)
+    assert isinstance(box, RawInstruction) == (rows == 1)
+    assert _decode_program._infer_af_visual_rows(*args) == rows
 
 
 def test_tall_classes_are_in_the_captures() -> None:

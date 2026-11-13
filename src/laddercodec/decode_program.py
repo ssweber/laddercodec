@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import cast
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
-from .decode import Rung, _decode_rtf, _drop_tall_span_nops
+from .decode import Rung, _decode_rtf, _drop_tall_span_nops, _fits_stored_span
 from .instructions import (
     RawInstruction,
     _with_pin_rows,
@@ -350,9 +350,26 @@ def _infer_af_visual_rows(
     variant_string_tags: _ScrVariantStringTags,
     cell_rows: bytes,
 ) -> int:
-    """Infer visual row count using parsed instruction metadata when possible.
+    """Rows the AF box of an SCR entry spans: those of the box ``_scr_box`` builds."""
+    box = _scr_box(
+        class_name, type_code, tags, part_rows, variant_u16_tags, variant_string_tags, cell_rows
+    )
+    return max(1, int(box.cell_params().get("visual_rows", 1)))
 
-    A box that stays raw spans the rows of the ``RawInstruction`` built for it.
+
+def _scr_box(
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    part_rows: bytes,
+    variant_u16_tags: _ScrVariantU16Tags,
+    variant_string_tags: _ScrVariantStringTags,
+    cell_rows: bytes,
+) -> AfInstruction:
+    """The AF box of an SCR entry: typed when its class height is the stored row span.
+
+    Otherwise, as in the clipboard decoder, it stays raw with the entry's row bytes
+    (the clipboard cell's +0x09 and +0x0A).
     """
     parsed_af = _scr_af(
         class_name,
@@ -362,8 +379,9 @@ def _infer_af_visual_rows(
         variant_u16_tags,
         variant_string_tags,
     )
-    box = parsed_af or _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
-    return max(1, int(box.cell_params().get("visual_rows", 1)))
+    if parsed_af is not None and _fits_stored_span(parsed_af, cell_rows[0]):
+        return parsed_af
+    return _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
 
 
 def _scr_raw(
@@ -690,18 +708,15 @@ def _build_rung(
                 conditions[row][col] = UnknownCondition(raw=class_name.encode())
             instr_positions.add((row, col))
         elif col == _CONDITION_COLUMNS:
-            parsed_af = _scr_af(
+            instructions[row] = _scr_box(
                 class_name,
                 type_code,
                 tags,
                 part_rows,
                 variant_u16_tags,
                 variant_string_tags,
+                cell_rows,
             )
-            if parsed_af is not None:
-                instructions[row] = parsed_af
-            else:
-                instructions[row] = _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
 
     # A stored row whose block carries an AF right-wire but no real AF
     # instruction is a NOP (this includes count_down / drum bridge rows).

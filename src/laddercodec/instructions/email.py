@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field, tag_value
 from ..model import AfInstruction
-from .family import AfInstructionFamilySpec, fixed_cell_params
+from .family import EMAIL_MOTION_CELL_PARAMS, AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -22,11 +22,6 @@ if TYPE_CHECKING:
 
 _TYPE_CODE = 0x2737
 _CLASS_NAME = "Email"
-
-#: Cell kwargs of the box: three rows (cell header +0x09 = +0x0A = 3), as CLICK's editor
-#: creates it (scr_captures/coverage.bin).  Saving the dialog of a pasted 1-row box grows
-#: it to 3 rows (v4_captures/box_height_dialog_ok.bin).
-_CELL_PARAMS: dict = {"visual_rows": 3}
 
 _ARRAY_TAG_B1 = 0x68B1
 _ARRAY_TAG_B0 = 0x68B0
@@ -101,7 +96,7 @@ class Email(AfInstruction):
     tag_3218: str = "9748"
 
     def cell_params(self) -> dict:
-        return dict(_CELL_PARAMS)
+        return dict(EMAIL_MOTION_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         out = bytearray()
@@ -217,5 +212,5 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Email,),
     binary_class_names=(_CLASS_NAME,),
     from_tags=from_tags,
-    cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),
+    cell_params_from_tags=fixed_cell_params(EMAIL_MOTION_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),
 )
