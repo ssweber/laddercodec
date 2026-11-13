@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from typing import cast
 
 from .network import Edge, Network
 
@@ -238,7 +239,9 @@ def trees(net: Network) -> list[RungTree]:
     fwd = _reachable(rail, arcs)
     for e in net.edges:
         if e.src not in fwd:
-            raise LayoutError(f"row {e.row} column {e.col}: the contact's input reaches no rail", "C0202")
+            raise LayoutError(
+                f"row {e.row} column {e.col}: the contact's input reaches no rail", "C0202"
+            )
     main = [i for i, s in enumerate(net.sinks) if s.slot == net.boxes[s.box].main]
     # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box
     # (scr_captures/counter_scr.bin), and the pin's row stays blank.
@@ -274,7 +277,7 @@ def trees(net: Network) -> list[RungTree]:
         pin_trees[i] = PinCircuit(i, _series_terms(node))
     for a in arcs:
         if id(a) not in main_used and id(a) not in pin_used:
-            e = a.node.edge  # type: ignore[union-attr]
+            e = cast(Leaf, a.node).edge
             raise LayoutError(f"row {e.row} column {e.col}: the contact feeds no box")
     if not main:
         if net.edges:

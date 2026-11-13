@@ -115,7 +115,11 @@ def boxes_of(instructions: Sequence[object], rows: int) -> list[Box]:
         elif isinstance(token, PinnedInstruction):
             lead = token.lead_rows
             slots = (r, *(r + off for off in token.pin_rows))
-            used = (*(False for _ in range(lead)), True, *(lab is not None for lab in token.pin_labels()))
+            used = (
+                *(False for _ in range(lead)),
+                True,
+                *(lab is not None for lab in token.pin_labels()),
+            )
             boxes.append(Box(token, r, tuple(s for s in slots if s < rows), used, lead))
         elif isinstance(token, AfInstruction):
             boxes.append(Box(token, r, (r,), (True,), 0))

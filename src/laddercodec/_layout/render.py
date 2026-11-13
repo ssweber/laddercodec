@@ -16,6 +16,7 @@ ends on its last slot's row.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from typing import Any, cast
 
 from ..model import AfInstruction, PinnedInstruction
 from .network import COLUMNS, Network
@@ -139,7 +140,9 @@ class _Painter:
         self.cond_bottom = max(self.cond_bottom, row)
         return max(1, height)
 
-    def place_series(self, terms: list[Node], start: int, end: int | None, top: int) -> tuple[int, int]:
+    def place_series(
+        self, terms: list[Node], start: int, end: int | None, top: int
+    ) -> tuple[int, int]:
         if not terms:
             if end is None:
                 return start, 0
@@ -233,7 +236,7 @@ class _Painter:
 
 def _with_down(contact: object, down: bool) -> object:
     if hasattr(contact, "wire_down"):
-        return replace(contact, wire_down=down)  # type: ignore[type-var]
+        return replace(cast(Any, contact), wire_down=down)
     if down:
         raise LayoutError("a contact this layout cannot mark with a down wire")
     return contact
