@@ -19,11 +19,14 @@ was never asked to check.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from laddercodec import Finding, Rung, check, decode, encode, read_csv
+from laddercodec.csv.converter import convert_literal
+from laddercodec.csv.parser import parse_csv_file
 from laddercodec.decode import DecodeError
 from laddercodec.instructions import Coil, Contact, Timer
 from laddercodec.model import InstructionType
@@ -137,8 +140,17 @@ def test_layoutq_pasted_gets_clicks_errors() -> None:
 
 
 def test_layoutq_stub_csv_matches_the_pasted_capture() -> None:
-    """read_csv of the stub gives the findings decode of its copy-back gives."""
-    assert check(read_csv(V4 / "layoutq_stub.csv")) == check(_layoutq_pasted()[:21])
+    """The stub as written gives the findings decode of its copy-back gives.
+
+    read_csv gives the same findings on more rungs: it splits Q5a-c's outputs off the rail
+    into rungs of their own, as CLICK's check does, and keeps every reported rung as written.
+    """
+    pasted = check(_layoutq_pasted()[:21])
+    stub = parse_csv_file(V4 / "layoutq_stub.csv").rungs
+    assert check([convert_literal(r) for r in stub]) == pasted
+    read = read_csv(V4 / "layoutq_stub.csv")
+    assert len(read) == 21 + 5
+    assert [replace(f, rung=0) for f in check(read)] == [replace(f, rung=0) for f in pasted]
 
 
 def test_layoutq_kinds() -> None:

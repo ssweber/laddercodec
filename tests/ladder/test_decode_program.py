@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import decode
+from laddercodec._layout import canonical
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
@@ -642,18 +643,23 @@ def test_send_receive_elided_device_id_defaults():
 
 
 def test_time_drums_synthetic_bin_matches_canonical_csv():
-    """The BIN is generated, not a native clipboard capture (be211ee)."""
+    """The BIN is generated, not a native clipboard capture (be211ee).
+
+    It was encoded from the CSV as written; read_csv gives the CSV's rungs as CLICK's check
+    draws them, so the BIN's rungs are compared in that layout.
+    """
     csv_rungs = read_csv(_SCR_FIXTURE_DIR / "time_drums.csv")
     clip_rungs, scr_rungs = _load_fixture_pair("time_drums")
 
     csv_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in csv_rungs]
     scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
     bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
+    drawn = [part for rung in clip_rungs for part in canonical(rung) or [rung]]
 
-    assert len(scr_rungs) == 15
-    assert bin_lines == csv_lines
+    assert len(scr_rungs) == len(clip_rungs) == 15
+    assert [_strip_blank_tail(_rung_to_lines(r)) for r in drawn] == csv_lines
     # Native stored wires above later rail rows must survive decoding.
-    assert [i for i in range(15) if scr_lines[i] != csv_lines[i]] == [12, 13]
+    assert [i for i in range(15) if scr_lines[i] != bin_lines[i]] == [12, 13]
 
 
 def test_time_drums_scr_drops_stray_pin_row_nop():
