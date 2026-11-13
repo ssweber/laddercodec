@@ -76,6 +76,7 @@ def test_math_v4_functions(expression: str, v4_only: bool) -> None:
         ("math_ranges_x_t.bin", [0, 1, 2, 3]),
         ("math_ranges_xy_slots.bin", [0, 1, 2, 3, 4]),
         ("math_ranges_xy_slots2.bin", [0, 1, 2, 3, 4]),
+        ("math_ranges_x25_x101.bin", [0]),
     ],
 )
 def test_math_decoded_as_raw_is_still_checked(file: str, flagged: list[int]) -> None:

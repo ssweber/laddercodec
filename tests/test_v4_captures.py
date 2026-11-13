@@ -10,8 +10,8 @@ a labelled rung's comment is
 A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
 Any other difference fails.  Rungs without a two-line comment (formulas typed straight
 into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
-``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_ranges_x_t.bin``,
-``math_ranges_xy_slots.bin`` and ``math_ranges_xy_slots2.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
+``math_nickname_display.bin``, ``math_unary_plus_pi.bin``, ``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``,
+``math_ranges_xy_slots.bin``, ``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``; text constants typed in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
 ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
 ``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``)
 are only used by the blob tests below.
@@ -145,6 +145,7 @@ _NATIVE_MATH = [
     # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
+    ("math_unary_plus_real.bin", 0),  # DS1 + ( +2.5 ), result DF1: stored F+2.5
     # Typed T, TD, X and Y ranges, the X and Y ones across the slot gaps (C2-03CPU, no I/O
     # modules).
     # The other rungs of these files hold ranges laddercodec refuses (REFUSED_XY_RANGES).
@@ -320,6 +321,7 @@ _NATIVE_XY_LISTS = [
         "SUM ( Y001 : Y116 )",
         _points("Y", (2, 16), (21, 36), (101, 115)),
     ),
+    ("math_ranges_x25_x101.bin", 0, "SUM ( X025 : X101 )", _points("X", (22, 36))),
 ]
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
@@ -333,6 +335,7 @@ REFUSED_XY_RANGES = {
     "SUM ( X005 : X036 )": "leave out X032..X035",
     "SUM ( Y001 : Y036 )": "leave out Y032..Y035",
     "SUM ( X025 : X027 )": "leave out X026 and add X022",
+    "SUM ( X025 : X101 )": "add X022..X025",
 }
 
 
