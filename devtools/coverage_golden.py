@@ -12,6 +12,7 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 from laddercodec.csv.converter import ConvertError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
@@ -35,7 +36,13 @@ def _encode_csv(csv_path: Path) -> bytes:
         except (ConvertError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"Cannot encode {csv_path.name} rung {idx}: {exc}") from exc
         converted.extend(
-            (r.logical_rows, r.conditions, r.instructions, r.comment) for r in laid_out
+            (
+                r.logical_rows,
+                cast(list[list[ConditionToken]], r.conditions),
+                cast(list[AfToken], r.instructions),
+                r.comment,
+            )
+            for r in laid_out
         )
 
     if len(converted) == 1:

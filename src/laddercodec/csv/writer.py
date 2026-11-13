@@ -39,15 +39,12 @@ from __future__ import annotations
 import csv as csv_mod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
 
 from .._layout import canonical, circuit
 from ..decode import Rung
 from ..instructions import (
     AfInstruction,
-    AfToken,
     ConditionInstruction,
-    ConditionToken,
     RawInstruction,
     UnknownCondition,
     UnknownInstruction,

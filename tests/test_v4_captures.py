@@ -53,7 +53,7 @@ from laddercodec._layout import circuit
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.csv.writer import WriterError, decoded_rung_to_rows, write_csv
+from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
 from laddercodec.decode import DecodeError, Rung, decode, inspect_cells
 from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.comparison import CompareContact

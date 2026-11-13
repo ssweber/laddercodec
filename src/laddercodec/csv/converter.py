@@ -69,6 +69,8 @@ from ..instructions import (
     Contact,
     parse_af_call,
 )
+from ..instructions import AfToken as RungAfToken
+from ..instructions import ConditionToken as RungConditionToken
 from ..model import AfInstruction, InstructionType, PinnedInstruction, check_address
 from .ast import (
     AfBlank,
@@ -555,4 +557,9 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
     # --- Hydrate wire continuations ---
     _hydrate_wire_continuations(condition_rows)
 
-    return Rung(len(condition_rows), condition_rows, af_tokens, comment)
+    return Rung(
+        len(condition_rows),
+        cast(list[list[RungConditionToken]], condition_rows),
+        cast(list[RungAfToken], af_tokens),
+        comment,
+    )
