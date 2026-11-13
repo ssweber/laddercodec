@@ -490,9 +490,10 @@ Producer may emit:
     reset. The writer writes it after `sub` for every such box; a 1-part box and
     the older hex form have none. The rows are 1 to 31 and ascend, one per part
     after the first. On read it is optional: without it the parts sit on rows
-    1, 2, ... A box ends one row below its last pin, so `rows` must be the last
-    pin + 1, and the reader pads the rung to that height, as it does for other
-    tall boxes.
+    1, 2, ... A box ends one row below its last pin, so in this form `rows`
+    must be the last pin + 1, and the reader pads the rung to that height, as it
+    does for other tall boxes. The hex form does not check this; the writer uses
+    it for a box stored at any other span.
   - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
     path because they are not yet modeled as dedicated DSL instruction classes.
     Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
