@@ -55,30 +55,8 @@ class Finding:
     rung:
         Index of the rung in the checked list, from 0.
     kind:
-        What is wrong with the rung's lines, with CLICK's code in brackets.  The last three
-        kinds have no code and are provisional.
-
-        - ``"not_series_parallel"`` (C0001): a circuit into a box input is not
-          series-parallel.  Contacts no rail reaches count as part of the circuit when the
-          rail reaches a main box input too; when it reaches none, CLICK reports only C0202.
-        - ``"no_rail"`` (C0202): a contact whose input no line connects to the rail,
-          reported once per group: at each contact whose input no other contact feeds,
-          and, for a group whose contacts feed each other in a loop, at its first contact.
-        - ``"feeds_no_box"`` (C0202): a path from the rail that ends at no box input,
-          reported at its last contact: each contact whose output no other contact
-          continues, and, for a path that ends in a loop of contacts, the loop's first
-          contact.
-        - ``"no_coil"`` (C0003): the rung has a ``"feeds_no_box"`` finding; one per rung.
-        - ``"output_above_pinned_box"`` (C000A): a box sits above a box with a used pin
-          row, and both main inputs hang off one net that is not the rail.
-        - ``"pin_without_contact"`` (C0205 for a Timer's reset, C0212 for a Drum's reset,
-          ``None`` for other pins): a pin input (a timer's or counter's reset, a drum's
-          jog) has no contact of its own: every contact on its circuit is on a main
-          input's circuit too, or it is wired straight from the rail.
-        - ``"pin_shares_main"``: a pin input's circuit has contacts of its own and shares
-          others with a main input.
-        - ``"unpowered_box"``: a box input that neither the rail nor any contact reaches.
-        - ``"shorted_contact"``: a contact whose two sides a wire joins.
+        The shape, one of ``FindingKind``.  The decoding guide's "Check for line connection
+        errors" table gives each kind's shape, code and evidence.
     code:
         CLICK's syntax check error code for the shape, or ``None`` where no code is known.
     captured:
@@ -86,20 +64,25 @@ class Finding:
         ``False`` for every kind with no code, and for two shapes that have one:
         ``"not_series_parallel"`` on a pin input (C0001, as for a main input), and
         ``"pin_without_contact"`` on a reset wired straight from the rail (C0205 or C0212,
-        as for a reset whose contacts are all the main input's).  The findings with
+        as for a reset whose contacts are all the main input's).  A ``"no_rail"`` or
+        ``"feeds_no_box"`` finding on a loop of contacts, and a ``"no_coil"`` finding whose
+        paths all end in such a loop, are not captured either.  The findings with
         ``captured`` ``False`` are provisional: their kinds may be renamed or dropped once
         CLICK's response to those shapes is captured.
     row, column:
         The cell, both counted from 0: ``row`` 0 is the rung's first row, ``column`` 0 is A
         and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no_rail"`` or
-        ``"feeds_no_box"`` finding is at the contact CLICK names for C0202; a finding about
+        ``"feeds_no_box"`` finding is at a contact; when captured, it is the contact CLICK
+        named for C0202 in the layoutq captures (Q6a-c, Q8a-b).  A finding about
         a box input is at its AF cell, and one about a whole box at its first row's AF cell.
     message:
-        The finding in words.  It gives the cell as CLICK prints it: rows counted from 1,
-        starting at the rung's first row that is not blank, so ``row`` 2, ``column`` 3 of a
-        rung whose first row holds something reads ``row 3, column D in CLICK's
-        numbering``.  It ends with ``(CLICK: <code>)`` when ``captured``, else with
-        ``not captured``.
+        The finding in words.  A captured C0202 finding gives the cell as CLICK prints it,
+        rows counted from 1: ``row`` 2, ``column`` 3 reads ``row 3, column D in CLICK's
+        numbering``.  When the rung's first row is blank, the count starts on the second
+        row, so the same cell reads ``row 2``; this rests on one capture (layoutthy rung 23)
+        and CLICK may count otherwise.  Every other finding with a cell gives it counted
+        from 0, ``row 2 from 0, column D``.  The message ends with ``(CLICK: <code>)`` when
+        ``captured``, else with ``not captured``.
     """
 
     rung: int
@@ -116,7 +99,9 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
 
     Empty means every rung has a series-parallel circuit from the rail into each box, with
     no box above a pinned box on its net and contacts of its own on every pin input.
-    Findings never stop ``encode()`` or ``write_csv()``: the rungs encode as drawn.
+    Findings never stop ``encode()`` or ``write_csv()``: the rungs encode as drawn.  A
+    finding with ``captured`` ``False`` may be a shape CLICK accepts, such as a reset wired
+    straight from the rail.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
@@ -137,8 +122,11 @@ class _Rule:
 _C0001 = _Rule("not_series_parallel", "C0001", True)
 _C0001_PIN = _Rule("not_series_parallel", "C0001", False, "a main input")
 _NO_RAIL = _Rule("no_rail", "C0202", True)
+_NO_RAIL_LOOP = _Rule("no_rail", "C0202", False, "a contact whose input no contact feeds")
 _FEEDS_NO_BOX = _Rule("feeds_no_box", "C0202", True)
+_FEEDS_NO_BOX_LOOP = _Rule("feeds_no_box", "C0202", False, "a contact no contact continues")
 _NO_COIL = _Rule("no_coil", "C0003", True)
+_NO_COIL_LOOP = _Rule("no_coil", "C0003", False, "a path that ends at a contact")
 _ABOVE_PINNED = _Rule("output_above_pinned_box", "C000A", True)
 _PIN_SHARES = _Rule("pin_shares_main", None, False)
 _UNPOWERED = _Rule("unpowered_box", None, False)
@@ -178,26 +166,28 @@ def _finding(
     if cell is None:
         return Finding(rung, kind, code, captured, None, None, f"{what} ({why})")
     row, column = cell
-    where = f"row {row - blank_rows + 1}, column {_COLUMN_NAMES[column]} in CLICK's numbering"
+    name = _COLUMN_NAMES[column]
+    if captured and code == "C0202":
+        where = f"row {row - blank_rows + 1}, column {name} in CLICK's numbering"
+    else:
+        where = f"row {row} from 0, column {name}"
     return Finding(rung, kind, code, captured, row, column, f"{where}: {what} ({why})")
 
 
 def _blank_rows(rung: Rung) -> int:
-    """How many rows at the top of *rung* hold nothing.  CLICK's check numbers the rows after.
+    """1 when the rung's first row holds nothing, else 0: where CLICK starts counting rows.
 
-    layoutthy rung 23 (``v4_captures/layoutthy_pasted.bin``) has one blank first row, and
-    CLICK names its contact on zero-based row 3 as "Row 3"; CLICK's check also removes a
-    blank first row (layoutthy rung 19).
+    Inferred from one capture: layoutthy rung 23 (``v4_captures/layoutthy_pasted.bin``) has a
+    blank first row, and CLICK prints "Row 3" for it.  Read this way, that is its one dead
+    contact, on zero-based row 3; CLICK may instead have named the blank cell (2, D).
+    CLICK's check also removes a blank first row (layoutthy rung 19).  No capture shows two
+    blank first rows, so only one is skipped.
     """
-    count = 0
-    for conditions, token in zip(rung.conditions, rung.instructions, strict=False):
-        cells = [cell_of(t) for t in conditions]
-        if token not in ("", None) or any(
-            c.contact is not None or c.right or c.down for c in cells
-        ):
-            break
-        count += 1
-    return count
+    cells = [cell_of(t) for t in rung.conditions[0]]
+    token = rung.instructions[0]
+    if token not in ("", None) or any(c.contact is not None or c.right or c.down for c in cells):
+        return 0
+    return 1
 
 
 def _check_rung(index: int, rung: Rung) -> list[Finding]:
@@ -214,13 +204,21 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
         out.append(_finding(index, rule, cell, what, blank))
 
     # C0202 at the broken end of each path, in row and column order, then C0003.
-    no_rail = [(e, _NO_RAIL, "the contact's input has no line connection") for e in _no_rail(c)]
+    no_rail = [
+        (e, _NO_RAIL_LOOP if loop else _NO_RAIL, "the contact's input has no line connection")
+        for e, loop in _no_rail(c)
+    ]
     dead_ends = _dead_ends(c, net.edges)
-    lost = [(e, _FEEDS_NO_BOX, "the contact's output reaches no box input") for e in dead_ends]
+    lost = [
+        (e, _FEEDS_NO_BOX_LOOP if loop else _FEEDS_NO_BOX, "the contact's output reaches no box")
+        for e, loop in dead_ends
+    ]
     for e, rule, what in sorted(no_rail + lost, key=lambda b: (b[0].row, b[0].col)):
         add(rule, (e.row, e.col), what)
     if dead_ends:
-        add(_NO_COIL, None, "a path from the rail ends at no box")
+        rule = _NO_COIL_LOOP if all(loop for _, loop in dead_ends) else _NO_COIL
+        what = "a path from the rail reaches no box; CLICK: no Coil instruction in the rung"
+        add(rule, None, what)
 
     for e in net.bypassed:
         add(_SHORTED, (e.row, e.col), "a wire joins the contact's two sides")
@@ -258,8 +256,8 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
     return out
 
 
-def _no_rail(c: Circuits) -> list[Edge]:
-    """One contact per group the rail does not reach.
+def _no_rail(c: Circuits) -> list[tuple[Edge, bool]]:
+    """One contact per group the rail does not reach, and whether it is on a loop.
 
     A contact whose input no contact feeds starts a group; a group whose contacts feed each
     other in a loop starts at its first contact.  A contact a reported one reaches is part of
@@ -267,20 +265,20 @@ def _no_rail(c: Circuits) -> list[Edge]:
     """
     dead = [a for a in c.arcs if a.src not in c.fwd]
     covered: set[object] = set()
-    picked: list[Edge] = []
+    picked: list[tuple[Edge, bool]] = []
     for a in (a for a in dead if a.src not in c.fed):
-        picked.append(_edge(a))
+        picked.append((_edge(a), False))
         covered |= reachable(a.src, c.arcs)
     for a in dead:
         # a contact on a loop no reported contact reaches; every other contact is reached
         if a.src not in covered and a.src in reachable(a.dst, c.arcs):
-            picked.append(_edge(a))
+            picked.append((_edge(a), True))
             covered |= reachable(a.src, c.arcs)
     return picked
 
 
-def _dead_ends(c: Circuits, edges: list[Edge]) -> list[Edge]:
-    """One contact per end of a path from the rail that reaches no box input.
+def _dead_ends(c: Circuits, edges: list[Edge]) -> list[tuple[Edge, bool]]:
+    """One contact per end of a path from the rail that reaches no box, and whether on a loop.
 
     A contact whose output no contact continues ends a path; a path that runs into a loop of
     contacts ends at the loop's first contact.  A contact that reaches a reported one is on
@@ -290,13 +288,13 @@ def _dead_ends(c: Circuits, edges: list[Edge]) -> list[Edge]:
     lost = [a for a in c.arcs if id(a) not in used and a.src in c.fwd]
     starts = {e.src for e in edges}
     covered: set[object] = set()
-    picked: list[Edge] = []
+    picked: list[tuple[Edge, bool]] = []
     for a in (a for a in lost if a.dst not in starts):
-        picked.append(_edge(a))
+        picked.append((_edge(a), False))
         covered |= reachable(a.dst, c.arcs, reverse=True)
     for a in lost:
         if a.dst not in covered and a.src in reachable(a.dst, c.arcs):
-            picked.append(_edge(a))
+            picked.append((_edge(a), True))
             covered |= reachable(a.dst, c.arcs, reverse=True)
     return picked
 

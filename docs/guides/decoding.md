@@ -160,9 +160,11 @@ for finding in check(read_csv("main.csv")):
 
 Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
 `message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
-is AF); `row` and `column` are `None` for a finding about the whole rung. The
-message names the cell as CLICK prints it, rows from 1 after any blank rows at the
-top of the rung: `row=2, column=3` reads "row 3, column D in CLICK's numbering".
+is AF); `row` and `column` are `None` for a finding about the whole rung. A
+captured C0202 message names the cell as CLICK prints it, rows from 1:
+`row=2, column=3` reads "row 3, column D in CLICK's numbering". When the rung's
+first row is blank, the count starts on the second row; that rests on one capture,
+and CLICK may count otherwise. Every other message gives the cell counted from 0.
 `captured` is `True` where a CLICK capture shows its syntax check reporting the
 shape with that code:
 
@@ -170,19 +172,20 @@ shape with that code:
 |---|---|---|
 | `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
 | `no_rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
-| `feeds_no_box` | a path from the rail that reaches no box input, at its last contact | `C0202` |
-| `no_coil` | a rung with a `feeds_no_box` finding, once per rung | `C0003` |
+| `feeds_no_box` | a path from the rail that reaches no box input, at its last contact (the cell CLICK named in three captured rungs) | `C0202` |
+| `no_coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
 | `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off one net | `C000A` |
 | `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 
 A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
 `pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
 and on a reset wired straight from the rail it has the box's code with
-`captured=False`. Other shapes (an unpowered box, a shorted contact, a pin circuit
+`captured=False`. A `no_rail` or `feeds_no_box` finding on a loop of contacts is
+also `captured=False`. Other shapes (an unpowered box, a shorted contact, a pin circuit
 that shares contacts with a main input but has some of its own, and a pin circuit
 that is not series-parallel) are reported with `captured=False`; those kinds are
 provisional and may be renamed or dropped once CLICK's response to them is
-captured.
+captured. A finding with `captured=False` may be a shape CLICK accepts.
 
 ## Round-trip identity
 

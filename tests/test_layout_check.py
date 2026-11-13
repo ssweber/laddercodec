@@ -57,7 +57,8 @@ def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
     """CLICK: "Row 3, Column D : Missing line connection" (listed twice), then C0001.
 
     X010 at zero-based (3, D) is the one contact whose input no line reaches.  The rung's
-    first row is blank, and CLICK numbers its rows from 1 after it, so it prints row 3.  Why
+    first row is blank; read as counting from 1 after it, CLICK's "Row 3" is X010.  That
+    reading rests on this rung alone: CLICK may instead name the blank cell (2, D).  Why
     CLICK lists the C0202 line twice is not known; the check reports it once.
     """
     rungs = _rungs(V4 / "layoutthy_pasted.bin")
@@ -268,7 +269,7 @@ def test_unknown_shapes_say_so() -> None:
     assert finding.code is None
     assert not finding.captured
     assert finding.message == (
-        "row 2, column AF in CLICK's numbering: no rail or contact reaches the box"
+        "row 1 from 0, column AF: no rail or contact reaches the box"
         " (CLICK's response to this shape is not captured)"
     )
 
@@ -277,7 +278,7 @@ def test_reset_wired_from_the_rail_is_not_captured() -> None:
     (finding,) = check(read_csv(LADDER / "instr-timer-ret.csv"))
     assert (finding.kind, finding.code, finding.captured) == ("pin_without_contact", "C0205", False)
     assert finding.message == (
-        "row 2, column AF in CLICK's numbering: the pin has no contact of its own"
+        "row 1 from 0, column AF: the pin has no contact of its own"
         " (C0205 as for a reset whose contacts are all the main input's;"
         " CLICK's response to this shape is not captured)"
     )
@@ -322,7 +323,7 @@ def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
     assert _cells([finding]) == [(0, "not_series_parallel", "C0001", 1, 31)]
     assert not finding.captured  # no capture shows CLICK's check on a pin's bridge
     assert finding.message == (
-        "row 2, column AF in CLICK's numbering: the pin's circuit is not series-parallel"
+        "row 1 from 0, column AF: the pin's circuit is not series-parallel"
         " (C0001 as for a main input; CLICK's response to this shape is not captured)"
     )
 
@@ -398,7 +399,14 @@ def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
         ],
         [_out("Y001"), "", ""],
     )
-    assert _cells(check(rung)) == [(0, "no_rail", "C0202", 0, 1)]
+    (finding,) = check(rung)
+    assert _cells([finding]) == [(0, "no_rail", "C0202", 0, 1)]
+    assert not finding.captured  # no capture shows a loop
+    assert finding.message == (
+        "row 0 from 0, column B: the contact's input has no line connection"
+        " (C0202 as for a contact whose input no contact feeds;"
+        " CLICK's response to this shape is not captured)"
+    )
 
 
 def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
@@ -424,17 +432,35 @@ def test_path_ending_in_a_loop_is_c0202_once() -> None:
         ],
         ["", "", "", _out("Y001")],
     )
-    assert _cells(check(rung)) == [
+    findings = check(rung)
+    assert _cells(findings) == [
         (0, "feeds_no_box", "C0202", 0, 1),
         (0, "no_coil", "C0003", None, None),
     ]
+    assert [f.captured for f in findings] == [False, False]  # no capture shows a loop
 
 
-def test_message_rows_count_from_the_first_row_that_is_not_blank() -> None:
+def test_no_coil_message_says_what_triggers_it() -> None:
+    findings = check(read_csv(LADDER / "instr-2row-spread.csv"))
+    assert findings[1].message == (
+        "a path from the rail reaches no box; CLICK: no Coil instruction in the rung (CLICK: C0003)"
+    )
+
+
+def test_message_rows_skip_one_blank_first_row() -> None:
+    """Inferred from layoutthy rung 23 alone, which has one blank first row."""
     rung = _rung([[], ["", "", _contact("X001"), *["-"] * 28]], ["", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (1, 2)
     assert finding.message.startswith("row 1, column C in CLICK's numbering: ")
+
+
+def test_message_rows_skip_no_more_than_one_blank_row() -> None:
+    """No capture shows two blank first rows; only the first is skipped."""
+    rung = _rung([[], [], ["", "", _contact("X001"), *["-"] * 28]], ["", "", _out("Y001")])
+    (finding,) = check(rung)
+    assert (finding.row, finding.column) == (2, 2)
+    assert finding.message.startswith("row 2, column C in CLICK's numbering: ")
 
 
 def test_one_rung_or_a_list() -> None:

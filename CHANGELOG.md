@@ -11,7 +11,7 @@
 ## Unreleased
 
 ### Added
-- **Line connection check**: `check(rungs)` returns a `Finding` for each shape CLICK's syntax check refuses for its lines, with CLICK's code: a circuit that is not series-parallel (C0001), a contact no line connects to the rail or whose path reaches no box (C0202, with C0003 for the rung), a box above a box with a used pin row on one net (C000A), and a timer or drum reset with no contact of its own (C0205, C0212). Shapes whose CLICK response is not captured are reported with `captured=False`; all such rungs still encode and write as drawn.
+- **Line connection check**: `check(rungs)` returns a `Finding` for each rung shape that CLICK's syntax check refuses, with CLICK's error code where a capture shows it: C0001, C0202, C0003, C000A, C0205 and C0212. Findings with `captured=False` are shapes no capture shows, and CLICK may accept them. The rungs still encode and write as drawn.
 - **Legacy encoding warning**: `decode()` and `decode_program()` emit `LegacyEncodingWarning` (a `UserWarning`, exported from `laddercodec`) for a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`), which earlier versions wrote and CLICK runs as its low 16 bits (`RAND ( 70000 , 70002 )` ran as `RAND(4464, 4466)`). The rungs still decode; the warning has `instruction`, `token`, `detail`, `rung` and `program` attributes. Re-paste the rung to store the constant as 32-bit.
 
 ### Changed
