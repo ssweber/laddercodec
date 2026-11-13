@@ -159,21 +159,23 @@ for finding in check(read_csv("main.csv")):
 ```
 
 Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
-`message`. Rows and columns count from 0 (column 0 is A, 31 is AF); `row` and
-`column` are `None` for a finding about the whole circuit. `captured` is `True`
-only where a CLICK capture shows its syntax check reporting the shape with that
-code; the message then ends `(CLICK: <code>)`, and otherwise ends with "CLICK's
-response to this shape is not captured".
+`message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
+is AF); `row` and `column` are `None` for a finding about the whole circuit. The
+message names the cell as CLICK prints it, rows from 1: `row=2, column=3` reads
+"row 3, column D in CLICK's numbering". `captured` is `True` where a CLICK
+capture shows its syntax check reporting the shape with that code:
 
-| `kind` | shape | `code` | `captured` |
-|---|---|---|---|
-| `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` | `True` |
-| `not_series_parallel` | the circuit into a pin input (reset, jog) is not series-parallel | `C0001` | `False` |
-| `no_rail` | a contact whose input no wire or contact connects to the rail | `C0202` | `True` |
-| `unpowered_box` | a box input that neither the rail nor a contact reaches | `None` | `False` |
-| `feeds_no_box` | a contact on a path from the rail that ends at no box | `None` | `False` |
-| `pin_shares_main` | a pin input fed through contacts of a main input | `None` | `False` |
-| `shorted_contact` | a contact whose two sides a wire joins | `None` | `False` |
+| `kind` | shape | `code` |
+|---|---|---|
+| `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
+| `no_rail` | contacts that no wire or contact connects to the rail, one finding per group | `C0202` |
+
+The `no_rail` cell is the check's choice of contact in the group; CLICK can name
+another cell. Other shapes (an unpowered box, a contact that feeds no box, a
+shorted contact, a pin input fed through a main input's contacts, and a pin circuit
+that is not series-parallel) are reported with `captured=False`; those
+kinds are provisional and may be renamed or dropped once CLICK's response to
+them is captured.
 
 ## Round-trip identity
 

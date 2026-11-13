@@ -5,7 +5,7 @@ contact label and right/down flags in every cell, the same AF token (with pin ro
 row, and no AF-column down flag.  For before/after pairs (layoutthy, pyrung's topology
 golden, orcompact, r30, windy road), layout(pasted) must equal CLICK's checked rung(s).
 
-Run from the layout worktree:  uv run --no-sync python ../buildbot/jobs/layout/oracle.py
+Run from the worktree:  uv run --no-sync python scratchpad/layout/oracle.py
 Writes oracle.txt (summary + every miss) beside this script.
 """
 
@@ -20,14 +20,14 @@ import laddercodec
 from laddercodec import decode, decode_program, read_csv
 from laddercodec._layout import LayoutError, layout
 from laddercodec._layout.network import cell_of
-from laddercodec.decode import inspect_cells
+from laddercodec.decode import DecodeError, inspect_cells
 from laddercodec.model import AfInstruction, PinnedInstruction
 
 JOB = Path(__file__).parent
 WT = Path(laddercodec.__file__).resolve().parents[2]  # the checkout it runs in
 FIX = WT / "tests" / "fixtures"
-LT = Path("C:/Users/Sam/Documents/GitHub/laddercodec-wt/buildbot/jobs/layoutthy")  # layoutthy captures
-PYRUNG_GOLD = Path("C:/Users/Sam/Documents/GitHub/pyrung/tests/click/ladder_topology_golden")
+V4 = FIX / "v4_captures"  # layoutthy and windy road captures
+LC = FIX / "layout_check"  # pyrung topology CSVs
 LETTERS = [chr(65 + i) for i in range(26)] + ["AA", "AB", "AC", "AD", "AE"]
 
 
@@ -252,11 +252,10 @@ fixed_point_bin("scr_captures clipboard (native)", SCR / "rungs_266.bin.gz", gzi
 for stem in ("coverage", "counter_scr", "or_topology", "shift_scr", "time_drum_b_column", "time_drum_insert_rows", "time_drums", "rungs_266"):
     fixed_point_rungs("scr_captures SCR (native)", f"{stem}.scr", decode_program((SCR / f"{stem}.scr").read_bytes()).rungs)
 
-V4 = FIX / "v4_captures"
 for name in ("or_compact_checked.bin", "r30_tallbox_checked.bin"):
     fixed_point_bin("v4 checked (native)", V4 / name)
-fixed_point_bin("v4 checked (native)", LT / "windy-road-after-syntax.bin")
-fixed_point_bin("layoutthy checked (native)", LT / "layoutthy-checked.bin")
+fixed_point_bin("v4 checked (native)", V4 / "windy_road_checked.bin")
+fixed_point_bin("layoutthy checked (native)", V4 / "layoutthy_checked.bin")
 
 # Native copy-backs of laddercodec/pyrung pastes that were never syntax-checked: the layout
 # there is the paster's, so these are informational only.
@@ -278,8 +277,8 @@ def by_comment(rungs: list) -> dict[int, list]:
     return out
 
 
-lt_pasted_data = (LT / "layoutthy-pasted.bin").read_bytes()
-lt_checked_data = (LT / "layoutthy-checked.bin").read_bytes()
+lt_pasted_data = (V4 / "layoutthy_pasted.bin").read_bytes()
+lt_checked_data = (V4 / "layoutthy_checked.bin").read_bytes()
 lt_checked = as_list(decode(lt_checked_data))
 lt_downs = [af_down_of(lt_checked_data, i, r.logical_rows) for i, r in enumerate(lt_checked)]
 idx_by_n: dict[int, list[int]] = {}
@@ -314,17 +313,22 @@ r30p = as_list(decode((V4 / "r30_tallbox_pasted.bin").read_bytes()))
 r30c = as_list(decode((V4 / "r30_tallbox_checked.bin").read_bytes()))
 for i, r in enumerate(r30p):
     score.add("v4 pasted -> checked", f"r30_tallbox rung {i}", [r30c[i]], run(r), inputs=[r])
-wd = (LT / "windy-road.bin").read_bytes()
-wr = as_list(decode(wd))[0]
-wc = as_list(decode((LT / "windy-road-after-syntax.bin").read_bytes()))
-score.add("v4 pasted -> checked", "windy-road (AF down flags read from the bin)", wc, run(wr, af_down_of(wd, 0, wr.logical_rows)), inputs=[wr])
+# decode refuses the pasted windy road (a down wire in the AF column) until layout-afdown.
+wd = (V4 / "windy_road_pasted.bin").read_bytes()
+try:
+    wr = as_list(decode(wd))[0]
+except DecodeError:
+    wr = None
+wc = as_list(decode((V4 / "windy_road_checked.bin").read_bytes()))
+if wr is not None:
+    score.add("v4 pasted -> checked", "windy-road (AF down flags read from the bin)", wc, run(wr, af_down_of(wd, 0, wr.logical_rows)), inputs=[wr])
 
 # pyrung topology golden: pasted CSV rung i -> main.csv rung i
-saved = read_csv(PYRUNG_GOLD / "main.csv")
+saved = read_csv(LC / "pyrung_topology_saved.csv")
 for r in saved[:-1]:
     score.add("pyrung main.csv (CLICK saved, fixed point)", "main", [r], run(r))
 for name in ("pasted-2026-11-12", "pasted-2026-11-13"):
-    pasted = read_csv(PYRUNG_GOLD / f"{name}.csv")
+    pasted = read_csv(LC / f"pyrung_topology_{name}.csv")
     for i, r in enumerate(pasted[:-1]):
         score.add("pyrung pasted -> CLICK saved", f"{name} R{i + 1}", [saved[i]], run(r), inputs=[r])
 

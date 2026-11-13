@@ -1,8 +1,8 @@
 """check(): rungs with no CLICK layout are reported, never refused.
 
 Ground truth: CLICK's syntax check refused the bridge (C0001,
-``fixtures/layout_check/README.md``) and layoutthy rung 23 (C0202 at row 3, column D, then
-C0001; ``v4_captures/layoutthy_pasted.bin``, copied back right after paste), and accepted every
+``fixtures/layout_check/README.md``) and layoutthy rung 23 (C0202, then C0001;
+``v4_captures/layoutthy_pasted.bin``, copied back right after paste), and accepted every
 other rung in those captures and in the pyrung topology CSVs. The ladder-golden expectations
 below are the check's rules applied to rungs CLICK pasted but was never asked to check (design
 questions Q4 and Q6).
@@ -47,16 +47,28 @@ def test_bridge_is_c0001() -> None:
 def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
     """CLICK: "Row 3, Column D : Missing line connection" (listed twice), then C0001.
 
-    Only the contact X010 has an input no line reaches; the legs after it are not reported.
+    The codes are CLICK's.  The C0202 cell is the check's own answer, X010 at (3, D), the one
+    contact whose input no line reaches: CLICK counts rows from 1 (layoutq Q8a, Q8b), so it
+    names zero-based (2, D).  Which cell CLICK names for C0202 is open.
     """
-    findings = check(_rungs(V4 / "layoutthy_pasted.bin"))
+    rungs = _rungs(V4 / "layoutthy_pasted.bin")
+    findings = check(rungs)
     assert _cells(findings) == [
         (22, "no_rail", "C0202", 3, 3),
         (22, "not_series_parallel", "C0001", None, None),
     ]
-    assert findings[0].message.startswith("row 3 (from 0), column D: ")
+    assert findings[0].message.startswith("row 4, column D in CLICK's numbering: ")
     assert findings[0].message.endswith("(CLICK: C0202)")
     assert [f.captured for f in findings] == [True, True]
+
+
+def test_layoutthy_rungs_click_accepted_have_no_findings() -> None:
+    """CLICK's check accepted every pasted layoutthy rung but rung 23 (index 22)."""
+    rungs = _rungs(V4 / "layoutthy_pasted.bin")
+    assert len(rungs) == 24
+    for index, rung in enumerate(rungs):
+        if index != 22:
+            assert check(rung) == [], index
 
 
 @pytest.mark.parametrize(
@@ -138,7 +150,7 @@ def test_unknown_shapes_say_so() -> None:
     assert finding.code is None
     assert not finding.captured
     assert finding.message == (
-        "row 1 (from 0), column K: the contact's output reaches no box"
+        "row 2, column K in CLICK's numbering: the contact's output reaches no box"
         " (CLICK's response to this shape is not captured)"
     )
 
@@ -175,7 +187,7 @@ def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
     assert _cells([finding]) == [(0, "not_series_parallel", "C0001", 1, 31)]
     assert not finding.captured  # no capture shows CLICK's check on a pin's bridge
     assert finding.message == (
-        "row 1 (from 0), column AF: the pin's circuit is not series-parallel"
+        "row 2, column AF in CLICK's numbering: the pin's circuit is not series-parallel"
         " (C0001 as for a main input; CLICK's response to this shape is not captured)"
     )
 
@@ -193,6 +205,22 @@ def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
     )
     assert _cells(check(rung)) == [
         (0, "no_rail", "C0202", 0, 2),
+        (0, "not_series_parallel", "C0001", None, None),
+    ]
+
+
+def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
+    """X002 and X001 feed each other through B's vertical and the row 2 wire; A is blank."""
+    rung = _rung(
+        [
+            ["", _contact("X002", down=True), _contact("X001"), "T", *["-"] * 27],
+            ["", "|", "", "|"],
+            ["", "-", "-"],
+        ],
+        [Coil(type=InstructionType.COIL_OUT, operand="Y001"), "", ""],
+    )
+    assert _cells(check(rung)) == [
+        (0, "no_rail", "C0202", 0, 1),
         (0, "not_series_parallel", "C0001", None, None),
     ]
 

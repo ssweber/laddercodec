@@ -1,6 +1,6 @@
 """Find native rungs whose Or merge net also feeds rows below its last leg (one vertical or two).
 
-Run from the layout worktree: uv run --no-sync python ../buildbot/jobs/layout/merge_extent.py
+Run from the worktree: uv run --no-sync python scratchpad/layout/merge_extent.py
 """
 
 from __future__ import annotations
@@ -15,8 +15,8 @@ from laddercodec._layout import network_of_rung
 
 JOB = Path(__file__).parent
 FIX = Path(laddercodec.__file__).resolve().parents[2] / "tests" / "fixtures"  # the checkout it runs in
-LT = Path("C:/Users/Sam/Documents/GitHub/laddercodec-wt/buildbot/jobs/layoutthy")  # layoutthy captures
-PY = Path("C:/Users/Sam/Documents/GitHub/pyrung/tests/click/ladder_topology_golden")
+V4 = FIX / "v4_captures"  # layoutthy and windy road captures
+LC = FIX / "layout_check"  # pyrung topology CSVs
 
 
 def as_list(x):
@@ -52,5 +52,5 @@ for p in srcs["tumbler"]:
 for stem in ("coverage", "counter_scr", "or_topology", "shift_scr"):
     report(stem, as_list(decode((FIX / "scr_captures" / f"{stem}.bin").read_bytes())))
 report("rungs_266", as_list(decode(gzip.decompress((FIX / "scr_captures" / "rungs_266.bin.gz").read_bytes()))))
-report("layoutthy-checked", as_list(decode((LT / "layoutthy-checked.bin").read_bytes())))
-report("pyrung main", read_csv(PY / "main.csv"))
+report("layoutthy-checked", as_list(decode((V4 / "layoutthy_checked.bin").read_bytes())))
+report("pyrung main", read_csv(LC / "pyrung_topology_saved.csv"))
