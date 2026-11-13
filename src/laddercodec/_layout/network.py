@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from ..instructions import UnknownCondition
+from ..instructions.raw import RawInstruction
 from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
 
 COLUMNS = 31
@@ -104,8 +105,14 @@ class _UnionFind:
             self.parent[ra] = rb
 
 
-def boxes_of(instructions: Sequence[object], rows: int) -> list[Box]:
-    """Every box in an AF column, with the rows of its inputs."""
+def boxes_of(
+    instructions: Sequence[object], rows: int, *, raw_pins: bool = False
+) -> list[Box]:
+    """Every box in an AF column, with the rows of its inputs.
+
+    With ``raw_pins``, a raw box of several parts takes an input on each part's row, every
+    one of them used: which of its pins the box uses is not known.
+    """
     boxes: list[Box] = []
     for r, token in enumerate(instructions):
         if token == "NOP":
@@ -121,6 +128,9 @@ def boxes_of(instructions: Sequence[object], rows: int) -> list[Box]:
                 *(lab is not None for lab in token.pin_labels()),
             )
             boxes.append(Box(token, r, tuple(s for s in slots if s < rows), used, lead))
+        elif raw_pins and isinstance(token, RawInstruction) and token.part_rows():
+            slots = tuple(s for s in (r, *(r + off for off in token.part_rows())) if s < rows)
+            boxes.append(Box(token, r, slots, tuple(True for _ in slots), 0))
         elif isinstance(token, AfInstruction):
             boxes.append(Box(token, r, (r,), (True,), 0))
         elif token not in ("", None):
@@ -132,8 +142,13 @@ def network(
     cells: Sequence[Sequence[GridCell]],
     instructions: Sequence[object],
     af_down: Sequence[bool] | None = None,
+    *,
+    raw_pins: bool = False,
 ) -> Network:
-    """The nets of a grid: ``cells`` is rows x 31, ``instructions`` one AF token per row."""
+    """The nets of a grid: ``cells`` is rows x 31, ``instructions`` one AF token per row.
+
+    ``raw_pins`` is passed to :func:`boxes_of`.
+    """
     rows = len(cells)
     uf = _UnionFind()
     for r in range(rows):
@@ -163,7 +178,7 @@ def network(
             edge = Edge(net((r, c)), net((r, c + 1)), cell.contact, r, c)
             (bypassed if edge.src == edge.dst else edges).append(edge)
 
-    boxes = boxes_of(instructions, rows)
+    boxes = boxes_of(instructions, rows, raw_pins=raw_pins)
     sinks: list[Sink] = []
     for b, box in enumerate(boxes):
         for s, (row, used) in enumerate(zip(box.slots, box.used, strict=False)):

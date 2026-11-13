@@ -425,6 +425,18 @@ class RawInstruction(AfInstruction):
             return {"visual_rows": eb[-1] + 1}
         return {"visual_rows": self.part_count} if self.part_count > 1 else {}
 
+    def part_rows(self) -> tuple[int, ...]:
+        """Each later part's row below the main row: the blob's part bytes.
+
+        Empty for a 1-part box, and when the part bytes are not one ascending row from 1
+        to 31 per later part.
+        """
+        try:
+            _cn, _tm, pc, eb, _fields = _decompose_blob(self.blob)
+        except (ValueError, IndexError, struct.error):
+            return ()
+        return tuple(eb) if eb and _pins_spec(eb, pc) else ()
+
     def build_blob(self) -> bytes:
         """Return the raw blob bytes (no-op — already stored)."""
         return self.blob
