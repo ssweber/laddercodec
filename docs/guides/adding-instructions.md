@@ -194,7 +194,7 @@ Coverage golden fixtures live in `tests/fixtures/coverage/golden/`. Each fixture
 1. Create `tests/fixtures/coverage/golden/<rung_id>.csv` by hand in the 33-column canonical format. Usually one rung per file; a file can hold several rungs (`math__v4.csv` holds 23) and is verified as one paste.
 2. Run `make coverage-golden` to generate the `.bin` from the CSV.
 3. Paste-verify in Click using `clicknick-rung guided`.
-4. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded output to golden binaries.
+4. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded output to golden binaries, and fails if the fixture has no `worked` entry in the directory's `verify_progress.log`.
 
 ### Regenerating coverage bins
 

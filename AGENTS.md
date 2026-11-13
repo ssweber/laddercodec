@@ -17,7 +17,7 @@ Extracted from [clicknick](https://github.com/ssweber/clicknick) as a standalone
 make                # install + lint + test (default)
 make install        # uv sync --all-extras --dev
 make lint           # ruff (check + format) + ty
-make test           # pytest (src + tests) — fails if any golden is unverified
+make test           # pytest (src + tests) — fails if any ladder or coverage golden is unverified
 make golden         # regenerate .bin from .csv + prune verify log + clean debris
 make build          # uv build
 make docs-serve     # local docs dev server (auto-reload)
@@ -113,7 +113,7 @@ tests/
 │   ├── test_decode_multi.py # decode() multi-rung tests
 │   ├── test_decode_program.py # decode_program() program file tests
 │   ├── test_decode_program_tumbler.py # 34 real programs: scr decode == clipboard CSV
-│   ├── test_verify_status.py # Golden verification status check
+│   ├── test_verify_status.py # Verification status of ladder and coverage goldens
 │   ├── test_model.py        # InstructionType, operand validation
 │   └── test_empty_multirow.py  # Payload synthesis for rows 1..32
 ├── csv/
