@@ -142,8 +142,7 @@ def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
     out_rungs = list(parse_csv_file(out_csv).rungs)
     if len(out_rungs) != len(converted):
         pytest.fail(
-            f"roundtrip output rung count mismatch for {rid}: "
-            f"{len(out_rungs)} != {len(converted)}"
+            f"roundtrip output rung count mismatch for {rid}: {len(out_rungs)} != {len(converted)}"
         )
 
     out_converted: list[tuple[int, list[list[object]], list[object], str | None]] = []

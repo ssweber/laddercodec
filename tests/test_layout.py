@@ -156,7 +156,6 @@ def test_bridge_is_not_series_parallel() -> None:
     assert info.value.code == "C0001"
 
 
-
 # ---------------------------------------------------------------------------
 # A contact on the circuits of two box inputs
 # ---------------------------------------------------------------------------

@@ -258,7 +258,9 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
         elif shared:
             add(_PIN_SHARES, (s.row, AF_X), "the pin's circuit shares contacts with a main input")
         elif shared_pin:
-            add(_PIN_SHARES_PIN, (s.row, AF_X), "the pin's circuit shares contacts with another pin")
+            add(
+                _PIN_SHARES_PIN, (s.row, AF_X), "the pin's circuit shares contacts with another pin"
+            )
         elif s.net in c.fwd and not _reduces(rail, s.net, mine):
             add(_C0001_PIN, (s.row, AF_X), "the pin's circuit is not series-parallel")
 
