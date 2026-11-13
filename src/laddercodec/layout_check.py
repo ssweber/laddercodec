@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ._layout.network import AF_X, cell_of, network
-from ._layout.tree import LayoutError, circuits, nothing_to_lay_out, reduce
+from ._layout.tree import Arc, LayoutError, circuits, nothing_to_lay_out, reduce
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ class Finding:
     rung:
         Index of the rung in the checked list, from 0.
     kind:
-        ``"not_series_parallel"``: the circuit into the boxes is not series-parallel
+        ``"not_series_parallel"``: a circuit into a box input is not series-parallel
         (CLICK: C0001).  ``"no_rail"``: a contact whose input has no line connection, by
         wire or contact, from the rail (CLICK: C0202); contacts after it are not reported
         again.  ``"unpowered_box"``: a box input that neither the rail nor any contact
@@ -69,7 +69,7 @@ class Finding:
 def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     """Every shape in *rungs* that has no CLICK layout, in rung order.
 
-    Empty means CLICK's syntax check finds no line connection error in the rungs.  Findings
+    Empty means every rung has a series-parallel circuit from the rail into each box.  Findings
     never stop ``encode()`` or ``write_csv()``: the rungs encode as drawn.
     """
     from .decode import Rung  # decode imports csv, which imports decode
@@ -112,8 +112,7 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
     for i in sorted(unpowered, key=lambda i: net.sinks[i].row):
         add("unpowered_box", None, (net.sinks[i].row, AF_X), "no rail or contact reaches the box")
     used = c.used()
-    for a in c.arcs:
-        e = a.node.edge  # type: ignore[union-attr]
+    for a, e in zip(c.arcs, net.edges, strict=True):
         if id(a) not in used and e.src in c.fwd:
             add("feeds_no_box", None, (e.row, e.col), "the contact's output reaches no box")
     main_used = {id(a) for a in c.main_arcs}
@@ -121,7 +120,9 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
         s = net.sinks[i]
         cell = (s.row, AF_X)
         if any(id(a) in main_used for a in c.pin_arcs[i]):
-            add("pin_shares_main", None, cell, "the pin's circuit shares contacts with a main input")
+            add(
+                "pin_shares_main", None, cell, "the pin's circuit shares contacts with a main input"
+            )
         elif i not in unpowered and s.net != rail and not _reduces(rail, s.net, c.pin_arcs[i]):
             add("not_series_parallel", "C0001", cell, "the pin's circuit is not series-parallel")
     # A box input fed by nothing is reported above; its arc into ``top`` would only stop the
@@ -133,7 +134,7 @@ def _check_rung(index: int, rung: Rung) -> list[Finding]:
     return out
 
 
-def _reduces(source: object, sink: object, arcs: list) -> bool:
+def _reduces(source: object, sink: object, arcs: list[Arc]) -> bool:
     try:
         reduce(source, sink, arcs)
     except LayoutError:

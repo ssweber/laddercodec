@@ -1,7 +1,9 @@
-"""Lay a rung out from its circuit, as CLICK's syntax check draws it (prototype, not wired in).
+"""Lay a rung out from its circuit, as CLICK's syntax check draws it.
 
 Pipeline: cell grid -> nets and contact edges (``network``) -> structural series-parallel tree
 per CLICK rung (``tree``) -> packed layout (``render``).  See ``scratchpad/layout/design.md``.
+``laddercodec.check()`` uses ``network`` and ``tree.circuits``; ``layout()`` and ``render``
+are a prototype, not wired into ``read_csv`` or ``write_csv``.
 """
 
 from __future__ import annotations

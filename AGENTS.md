@@ -44,6 +44,8 @@ src/laddercodec/
 ├── decode.py             # Decoder: decode() + internal decode_rung(), decode_rungs()
 ├── decode_program.py     # Program file decoder: decode_program() — Scr*.tmp to Program
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
+├── layout_check.py       # check(): Finding per shape CLICK's syntax check cannot lay out (C0001, C0202, ...)
+├── _layout/              # nets and series-parallel tree of a rung (check() uses them); render.py is a prototype, not wired in
 ├── cell.py               # Cell object builders: ClickCell, preamble, terminal, row
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
@@ -104,6 +106,7 @@ tests/
 ├── test_coverage.py         # Coverage golden fixture tests (instruction variants)
 ├── test_v4_captures.py      # CLICK v4 captures: each rung decodes to its comment; native blob matching
 ├── test_operands.py         # operands/: bank masks vs code sets, FieldError attributes, Src
+├── test_layout_check.py     # check(): CLICK-refused rungs (bridge, layoutthy 23), accepted captures, ladder goldens
 ├── test_operand_guards.py   # Ratchet allowlist: re calls, bank-name literals, ValueError raises
 ├── golden_io.py             # Golden CSV/BIN read/write helpers
 ├── ladder/

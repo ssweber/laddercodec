@@ -33,7 +33,7 @@ print(rung.instructions)
 
 **[Encoder](guides/encoding.md)** — `encode()` takes `Rung` objects or canonical CSV and produces clipboard binary ready to paste into Click. Supports all standard instruction types, including those new in CLICK v4, wire topologies, and styled comments.
 
-**[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files. `find_v4_only()` lists the instructions an older CLICK would silently change.
+**[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files. `find_v4_only()` lists the instructions an older CLICK would silently change; `check()` reports the rungs CLICK's syntax check cannot lay out.
 
 **[CSV I/O](guides/csv-format.md)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 

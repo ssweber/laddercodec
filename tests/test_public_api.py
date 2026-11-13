@@ -47,6 +47,8 @@ EXPECTED_ROOT_EXPORTS = (
     "write_csv",
     "find_v4_only",
     "is_v4_only",
+    "check",
+    "Finding",
     "Rung",
     "Program",
     "Project",

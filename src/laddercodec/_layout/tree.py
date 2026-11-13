@@ -234,8 +234,8 @@ class Circuits:
 
     ``main_arcs`` holds every arc on a path into a main box input, including the arc from
     each main input's net to ``top``; ``pin_arcs`` holds, per used pin input, the contact arcs
-    on a path into it.  Arcs no rail reaches are included: CLICK's check reads them as part
-    of the circuit (layoutthy rung 23 gets C0001 as well as C0202).
+    on a path into it.  Arcs no rail reaches are included: layoutthy rung 23, where CLICK
+    reports C0001 as well as C0202, is series-parallel only without them.
     """
 
     arcs: list[Arc]  # one per contact edge

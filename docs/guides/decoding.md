@@ -144,6 +144,35 @@ with a duration from a register, and `Math` using MAX, MIN, MDN, AVG, ABS, RAND,
 SUM over a bit range, or ranges past 500 interior addresses. `is_v4_only()` checks
 a single instruction.
 
+## Check for line connection errors
+
+CLICK pastes and saves a rung whose circuit it cannot lay out, and reports it
+only at its syntax check. laddercodec encodes and writes such a rung as drawn;
+`check()` reports it, on decoded rungs or rungs read from CSV:
+
+```python
+from laddercodec import check, read_csv
+
+for finding in check(read_csv("main.csv")):
+    print(f"rung {finding.rung}: {finding.message}")
+# rung 0: the circuit is not series-parallel (CLICK: C0001)
+```
+
+Each `Finding` has `rung`, `kind`, `code`, `row`, `column` and `message`. Rows and
+columns count from 0 (column 0 is A, 31 is AF); `row` and `column` are `None` for a
+finding about the whole circuit.
+
+| `kind` | shape | `code` |
+|---|---|---|
+| `not_series_parallel` | a circuit into a box input is not series-parallel (a bridge) | `C0001` |
+| `no_rail` | a contact whose input no wire or contact connects to the rail | `C0202` |
+| `unpowered_box` | a box input that neither the rail nor a contact reaches | `None` |
+| `feeds_no_box` | a contact on a path from the rail that ends at no box | `None` |
+| `pin_shares_main` | a reset, jog or other pin input fed through contacts of a main input | `None` |
+| `shorted_contact` | a contact whose two sides a wire joins | `None` |
+
+`code` is `None` where CLICK's response to the shape has not been captured.
+
 ## Round-trip identity
 
 For all supported instruction types:

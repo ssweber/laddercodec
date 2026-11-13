@@ -150,7 +150,11 @@ def _bridge_rows() -> list[list[object]]:
 
 def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
     timer = Timer(
-        timer_type="on_delay", done_bit="T1", current="TD1", setpoint="1", unit="Tms",
+        timer_type="on_delay",
+        done_bit="T1",
+        current="TD1",
+        setpoint="1",
+        unit="Tms",
         retained=True,
     )
     rung = _rung([[_contact("X010"), *["-"] * 30], *_bridge_rows()], [timer, "", "", ""])
