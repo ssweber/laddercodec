@@ -232,6 +232,9 @@ def test_nested_run_takes_no_slot(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(sys.platform != "win32", reason="priority classes are Windows-only")
 def test_run_and_its_descendants_are_below_normal(tmp_path: Path) -> None:
+    assert (
+        sys.platform == "win32"
+    )  # for the type checker: the priority classes exist only on Windows
     probe = tmp_path / "probe.py"
     probe.write_text(
         "import ctypes, subprocess, sys\n"
