@@ -36,3 +36,11 @@ instr-coil-timer-ret: worked
 instr-6row-multi-output: worked
 instr-3row-branch: worked
 instr-copy-multirow-2af-T: worked
+instr-series: worked
+instr-compare-series: worked
+instr-2row-r0only: worked
+instr-3row-or: worked
+instr-count_down-row0-data: worked
+instr-copy-multirow-2af: worked
+mr-cmt-3rung-multirow: worked
+mr-cmt-3rung-multirow-multiinstructions: worked
