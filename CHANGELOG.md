@@ -23,7 +23,7 @@ This release writes rungs as CLICK writes them and refuses what CLICK refuses. R
 
 ### Behaviour changes
 - **Stricter validation**: a value CLICK refuses raises `FieldError` (`AddressError` for an address, both `ValueError` subclasses) on construction or `read_csv`, where it was stored or failed at encode; a blob holding one decodes as `raw(...)` or an unknown condition and keeps its bytes. What each instruction accepts is in [Operand normalization notes](https://pyrung.com/laddercodec/guides/csv-format/#operand-normalization-notes).
-  - Do: catch `FieldError` around `read_csv` and the constructors, and fix the rung.
+  - Do: catch `ValueError` around `read_csv` and the constructors (`FieldError`, `AddressError` and `ConvertError` are subclasses), and fix the rung.
 - **Display form of addresses**: addresses are kept, written and encoded as CLICK shows them (`X1` becomes `X001`, `C001` becomes `C1`, `ds07` becomes `DS7`), and a blob not in that form decodes as `raw(...)`.
   - Do: expect the display form when you read addresses back or compare them with your own text.
 - **Re-encoded bytes change**: Math hex constants and signs, Math unary plus, Math X and Y ranges, single-register Send FC16, Copy text into TXT, 3-row Email, Home, Position and Velocity, and raw box heights.
@@ -32,7 +32,7 @@ This release writes rungs as CLICK writes them and refuses what CLICK refuses. R
   - Do: check code that expected `pack_words` or `unpack_to_words` for a bit pack.
 - **`read_csv` returns more rungs than the CSV holds**: a rung whose circuits meet only at the rail reads as one rung per circuit, each laid out as CLICK's syntax check draws it.
   - Do: use the rungs `read_csv` returns; do not match them to CSV rows by index.
-- **Down wire in the output column**: `decode()` and `decode_program()` raise `DecodeError` naming the rung and row, where the wire was dropped without a word.
+- **Down wire in the output column**: `decode()` and `decode_program()` raise `DecodeError` naming the rung and row, where the wire was dropped without a word; one such rung fails the whole call, so `decode_program()` returns no rungs for that program.
   - Do: catch `DecodeError`, or let CLICK's syntax check remove the wire before you copy the rung.
 - **Raw tokens from CSV**: a `raw(...)` token without `rows`, `sub` or `pins` takes its class's height.
   - Do: rewrite old CSV with `write_csv` to keep a decoded box's height and pins.
