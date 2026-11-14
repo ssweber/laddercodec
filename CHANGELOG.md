@@ -22,15 +22,7 @@ This release writes rungs as CLICK writes them and refuses what CLICK refuses. R
 - **Tall boxes in CSV**: `write_csv` keeps a blank row inside a tall box when a later row holds wires or contacts, where it raised `WriterError`.
 
 ### Behaviour changes
-- **Stricter validation**: a value CLICK refuses raises `FieldError` (`AddressError` for an address, both `ValueError` subclasses) on construction or `read_csv`, where it was stored or failed at encode; a blob holding one decodes as `raw(...)` or an unknown condition and keeps its bytes.
-  - Digits and text: ASCII digits only, `$hh` character codes, text of 1 to 128 printable ASCII characters.
-  - Bit instructions: CLICK's banks, ranges and writable SC bits for contacts, coils and Compare.
-  - Out variants: accumulator, preset and unused-field rules.
-  - Timer, Counter, Shift, Drum, For and Call: CLICK's number, set-point, step, bank and subroutine-name limits.
-  - Copy, Block Copy, Fill, Pack, Unpack and Search: CLICK's operand, bank-pair, converter, pointer and range rules.
-  - Math: the formula grammar of CLICK's Math dialog, display-form constants, and CLICK's 270-character limit.
-  - Send and Receive: slave ID, port, IP, address, count, status and dialog pairing rules.
-  - Raw: `RawInstruction` field types, and `rows`, `sub` and pin ranges.
+- **Stricter validation**: a value CLICK refuses raises `FieldError` (`AddressError` for an address, both `ValueError` subclasses) on construction or `read_csv`, where it was stored or failed at encode; a blob holding one decodes as `raw(...)` or an unknown condition and keeps its bytes. What each instruction accepts is in [Operand normalization notes](https://pyrung.com/laddercodec/guides/csv-format/#operand-normalization-notes).
   - Do: catch `FieldError` around `read_csv` and the constructors, and fix the rung.
 - **Display form of addresses**: addresses are kept, written and encoded as CLICK shows them (`X1` becomes `X001`, `C001` becomes `C1`, `ds07` becomes `DS7`), and a blob not in that form decodes as `raw(...)`.
   - Do: expect the display form when you read addresses back or compare them with your own text.
