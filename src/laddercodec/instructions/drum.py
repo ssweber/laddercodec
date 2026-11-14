@@ -264,7 +264,7 @@ class Drum(PinnedInstruction):
     events: list[str] = field(default_factory=list)  # time & event drum only
     #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
     #: a pin push the later pins down; an unused pin keeps its row.
-    pin_rows: tuple[int, int, int] = (1, 2, 3)
+    pin_rows: tuple[int, ...] = (1, 2, 3)
 
     def __post_init__(self) -> None:
         self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")

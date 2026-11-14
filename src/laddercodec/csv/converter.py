@@ -119,7 +119,7 @@ class _ActiveBlock:
 
 def _blank_condition_row() -> list[ConditionToken]:
     """Return one all-blank condition row."""
-    return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+    return [""] * CONDITION_COLUMNS
 
 
 def _is_blank_row(conditions: Sequence[object]) -> bool:

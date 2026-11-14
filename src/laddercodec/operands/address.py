@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import functools
 import re
-from collections.abc import Collection, Iterator
+from collections.abc import Collection, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, NamedTuple
@@ -84,7 +84,7 @@ _DISPLAY_FORM_ONLY: ContextVar[bool] = ContextVar("_DISPLAY_FORM_ONLY", default=
 
 
 @contextmanager
-def display_form_only() -> Iterator[None]:
+def display_form_only() -> Generator[None]:
     """Refuse, rather than normalize, text that is not in CLICK's display form.
 
     The ``from_tags`` dispatchers build instructions inside this block: a blob holding

@@ -98,7 +98,7 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
         return 2
     lines = diff_cases(a["cases"], b["cases"])
     if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(errors="backslashreplace")  # ty: ignore[call-non-callable]
+        sys.stdout.reconfigure(errors="backslashreplace")  # ty: ignore[not-callable]
     for line in lines:
         print(line)
     print(f"{len(lines)} difference(s) in {len(a['cases'])} vs {len(b['cases'])} cases")

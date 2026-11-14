@@ -556,7 +556,7 @@ def _skip(field: Field, value: str) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[unresolved-attribute]
+    sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[missing-union-attribute]
     args = sys.argv[1:] if argv is None else argv
     ns = Namespace(args[0] if args else "src")
     fields = _fields()

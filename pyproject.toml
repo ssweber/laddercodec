@@ -71,7 +71,7 @@ bump = true
 packages = ["src/laddercodec"]
 
 [tool.uv]
-required-version = ">=0.11.29"
+required-version = ">=0.13.8"
 exclude-newer = "7 days"
 exclude-newer-package = { ty = "0 days" }
 
@@ -116,7 +116,7 @@ root = ["./src", "./tests", "./devtools"]
 exclude = ["tests", "scratchpad", "devtools/pdf_to_png.py"]
 
 [tool.ty.rules]
-unresolved-import = "ignore"
+import-not-found = "ignore"
 
 [tool.pytest.ini_options]
 python_files = ["*.py"]

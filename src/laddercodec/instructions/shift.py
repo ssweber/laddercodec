@@ -53,7 +53,7 @@ class Shift(PinnedInstruction):
     end_bit: str
     #: Rows of the clock and reset inputs below the main row.  OR legs under
     #: the data input push both down; legs under ``.clock()`` push ``.reset()``.
-    pin_rows: tuple[int, int] = (1, 2)
+    pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
         self.start_bit = normalize_address(self.start_bit)

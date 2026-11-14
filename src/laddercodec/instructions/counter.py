@@ -82,7 +82,7 @@ class Counter(PinnedInstruction):
     #: Rows of the down and reset inputs below the up input (row 0).  OR legs
     #: on an input push the later inputs down.  count_down's main input is Down
     #: (row 1, under its unused Up), so legs under it push ``.reset()`` down.
-    pin_rows: tuple[int, int] = (1, 2)
+    pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
         if self.counter_type not in ("count_up", "count_down"):

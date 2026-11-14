@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
-from typing import cast
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
 from .decode import Rung, _decode_rtf, _drop_tall_span_nops, _fits_stored_span
@@ -675,9 +674,9 @@ def _build_rung(
 
     # Initialize grids
     conditions: list[list[ConditionToken]] = [
-        cast(list[ConditionToken], [""] * _CONDITION_COLUMNS) for _ in range(logical_rows)
+        [""] * _CONDITION_COLUMNS for _ in range(logical_rows)
     ]
-    instructions: list[AfToken] = cast(list[AfToken], [""] * logical_rows)
+    instructions: list[AfToken] = [""] * logical_rows
 
     # 1. Place instructions from instruction section
     instr_positions: set[tuple[int, int]] = set()
