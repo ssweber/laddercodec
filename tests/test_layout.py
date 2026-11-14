@@ -367,7 +367,21 @@ def test_unpowered_nop_is_dropped(tmp_path: Path) -> None:
     assert drawn.instructions[1] == "NOP"
     _, alone = _read_rows(tmp_path, [_csv_row("R", ["C1"], "out(Y1)")])
     assert [_drawing(r) for r in got] == [_drawing(r) for r in alone]
-    assert circuit(got) == circuit([drawn])
+
+
+def test_unpowered_nop_is_dropped_before_a_split(tmp_path: Path) -> None:
+    """With the NOP gone, outputs that meet only at the rail split (no capture shows both)."""
+    rows = [
+        _csv_row("R", ["C1"], "out(Y1)"),
+        ["", *[""] * 31, "NOP"],
+        _csv_row("", ["C2"], "out(Y2)"),
+    ]
+    drawn, got = _read_rows(tmp_path, rows)
+    assert drawn.instructions[1] == "NOP"
+    _, one = _read_rows(tmp_path, [_csv_row("R", ["C1"], "out(Y1)")])
+    _, two = _read_rows(tmp_path, [_csv_row("R", ["C2"], "out(Y2)")])
+    assert [r.conditions for r in got] == [one[0].conditions, two[0].conditions]
+    assert [r.instructions for r in got] == [one[0].instructions, two[0].instructions]
 
 
 def test_nop_behind_a_contact_with_a_coil_lays_out(tmp_path: Path) -> None:

@@ -194,8 +194,8 @@ that shares contacts with a main input (`pin_shares_main`) or another pin
 series-parallel) are reported with `captured=False`; those kinds are
 provisional and may be renamed or dropped once CLICK's response to them is
 captured. A finding with `captured=False` may be a shape CLICK accepts. A `NOP` that
-no rail or contact reaches is not reported: CLICK's check drops it, and so does
-`read_csv`.
+no rail or contact reaches is not reported: CLICK's check drops it, and `read_csv`
+drops it from a rung with a circuit.
 
 ## Round-trip identity
 

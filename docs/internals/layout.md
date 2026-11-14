@@ -60,11 +60,10 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
    starts on the row of its first box (layoutthy rung 6).
 8. A rung is as tall as its lowest contact, box input or box span. Blank rows below, a blank
    first row and wire stubs that join nothing are dropped (layoutthy rungs 9, 19, 24).
-   So is a `NOP` that no rail or contact reaches, in a rung with a circuit, and `check()`
-   reports nothing for it. Evidence: `unpowered_nop_checked.bin`, the ladder golden
-   `mr-cmt-3rung-multirow` copied back after CLICK's check, which gave no error and left its
-   middle rung (`~X002` to `latch(Y002)`, then wire stubs at A and C and an unwired `NOP`, then
-   a blank row) one row. Any other box no rail or contact reaches is reported as
+   So is a `NOP` that no rail or contact reaches, in a rung with a circuit; `check()` reports
+   nothing for it (`unpowered_nop_checked.bin`: the golden `mr-cmt-3rung-multirow` copied
+   back after CLICK's check, which gave no error and left its middle rung, `~X002` to
+   `latch(Y002)` with stubs at A and C, an unwired `NOP` and a blank row, one row). Any other box no rail or contact reaches is reported as
    `unpowered_box` and its rung stays as drawn: no capture shows CLICK's check on one.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
    on the first (layoutthy rung 21, `or_compact_stub.csv` rung 2, layoutq Q5a to Q5c). So
@@ -107,7 +106,8 @@ Three more shapes are kept as drawn, with no capture of CLICK's check on them:
   contact once per input. `check()` reports the later pin: `pin_without_contact` when all its
   contacts are the other pin's (the shape of Q4a and Q4b), else `pin_shares_pin` or
   `pin_shares_main`.
-- A rung that would split (rule 9) and holds a `NOP`. The captured splits are of coils and
+- A rung that would split (rule 9) and holds a `NOP` that a rail or contact reaches. The
+  captured splits are of coils and
   Copy boxes.
 - A rung the render cannot fit in 31 columns, or whose nets would cross.
 
@@ -129,4 +129,7 @@ For the next capture round:
   behind a contact of its own. `check()` does not report it, and `read_csv` lays it out.
 - A `NOP` on a net of its own beside a coil (`C1 -> out(Y1)`, `- -> NOP`): whether CLICK
   splits it into a rung of its own. Kept as drawn until a capture shows it.
+- A rung with a `NOP` no rail or contact reaches and outputs that meet only at the rail
+  (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`): `read_csv` drops the `NOP`, then
+  splits the rung in two. No capture shows CLICK's check doing both on one rung.
 - A contact two pins share: CLICK's code for it, if it refuses it.
