@@ -236,4 +236,4 @@ When the user provides a `.bin` + `.csv` from a Click capture:
 
 For CLICK v4 instructions captured from pyrung stubs (`tests/fixtures/v4_captures/`, `tests/test_v4_captures.py`), see "Capturing from CLICK v4" in the guide.
 
-See [`docs/guides/adding-instructions.md`](docs/guides/adding-instructions.md) for the full guide.
+See [`docs/contributing/adding-instructions.md`](docs/contributing/adding-instructions.md) for the full guide.

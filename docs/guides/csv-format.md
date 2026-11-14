@@ -1,5 +1,9 @@
 # CSV Format (v1)
 
+This page is the CSV contract that pyrung's exporter produces, for anyone reading
+or generating that CSV. The [Layout](#layout) section is for authors writing a CSV
+by hand.
+
 This document describes the canonical 33-column Click ladder CSV contract
 used by `laddercodec` CSV tooling and by `pyrung.click.to_ladder()`.
 

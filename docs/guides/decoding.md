@@ -148,7 +148,9 @@ with a duration from a register, and `Math` using MAX, MIN, MDN, AVG, ABS, RAND,
 SUM over a bit range, or ranges past 500 interior addresses. `is_v4_only()` checks
 a single instruction.
 
-## Check for line connection errors
+<a id="check-for-line-connection-errors"></a>
+
+## Check for rungs CLICK's syntax check rejects or redraws
 
 CLICK pastes and saves a rung whose lines its syntax check refuses, and reports
 it only at that check. laddercodec encodes and writes such a rung as drawn;

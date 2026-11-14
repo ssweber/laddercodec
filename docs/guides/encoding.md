@@ -37,7 +37,7 @@ rung = Rung(
 binary = encode(rung)
 ```
 
-Every `Rung` has four fields:
+Every `Rung` has five fields:
 
 | Field | Type | Notes |
 |---|---|---|
@@ -45,6 +45,7 @@ Every `Rung` has four fields:
 | `conditions` | `list[list[object]]` | One row per logical row, exactly 31 condition columns each |
 | `instructions` | `list[object]` | One AF token per logical row |
 | `comment` | `str \| None` | Optional plain text with lightweight markdown styling |
+| `comment_rtf` | `bytes \| None` | Raw RTF payload from a decode; leave it `None` when you build a rung |
 
 ## Wire Tokens
 
@@ -65,7 +66,7 @@ conds = [
     ["", "-", "-", "-"] + [""] * 27,
 ]
 
-binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", "NOP"], comment=None))
+binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", ""], comment=None))
 ```
 
 ## Condition-Side Instructions
@@ -202,7 +203,14 @@ raw address for that operand.
 All standard Click instruction families are supported from the root package:
 
 - Condition side: `Contact`, `CompareContact`
-- AF side: `Coil`, `OutVariant`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`
+- AF side: `Coil`, `OutVariant`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue`, `Send`, `Receive`
 
 Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
 binary payload intact for lossless round-trip.
+
+## If a paste fails
+
+If CLICK crashes on a paste or draws the rung wrong, open an issue at
+[github.com/ssweber/laddercodec/issues](https://github.com/ssweber/laddercodec/issues)
+with the CSV or Python that built the rung, the `.bin` you pasted, your CLICK
+version, and what CLICK showed.

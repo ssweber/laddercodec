@@ -35,6 +35,8 @@ print(rung.instructions)
 
 **[Decoder](guides/decoding.md)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files. `find_v4_only()` lists the instructions an older CLICK would silently change; `check()` reports the rungs CLICK's syntax check cannot lay out.
 
+**[Line check](guides/decoding.md#check-for-rungs-clicks-syntax-check-rejects-or-redraws)** — `check()` reports the rungs CLICK's syntax check would reject or redraw, before you paste.
+
 **[CSV I/O](guides/csv-format.md)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 
 **[CLICK format reference](internals/binary-format.md)** — Technical reference for CLICK's native clipboard and program representations, including binary layouts and instruction records.
@@ -49,6 +51,7 @@ print(rung.instructions)
 
 | Section | What's in it |
 |---|---|
-| [Guides](guides/encoding.md) | Encoding, decoding, CSV format, adding new instruction types |
+| [Guides](guides/encoding.md) | Encoding, decoding, CSV format |
+| [Contributing](contributing/adding-instructions.md) | Adding instruction types, debugging a failed paste |
 | [Internals](internals/binary-format.md) | Binary format spec, wire rendering rules, instruction blob structure |
 | [API Reference](reference/index.md) | Auto-generated from docstrings |
