@@ -34,7 +34,11 @@ errors are in ``tests/test_layout_check.py``) that were deleted from the checked
 copy, ``layoutq_pasted.bin`` and ``layoutq_checked.bin``, each ending with the
 subroutine's own ``return()`` rung; a 20-rung stub of pinned boxes drawn off CLICK's
 layout, copied back before and after a syntax check that accepted every rung,
-``layoutq2_pasted.bin`` and ``layoutq2_checked.bin``; the layoutthy and layoutq
+``layoutq2_pasted.bin`` and ``layoutq2_checked.bin``; the ladder golden
+``mr-cmt-3rung-multirow`` pasted from laddercodec as drawn, its middle rung holding wire
+stubs at A and C, a NOP no wire reaches and a blank row, copied back after a syntax check
+that reported nothing and left that rung one row, ``~X002`` to ``latch(Y002)``,
+``unpowered_nop_checked.bin``; the layoutthy and layoutq
 captures are used by ``tests/test_layout_check.py``) are only used by the blob and
 layout tests below.
 """

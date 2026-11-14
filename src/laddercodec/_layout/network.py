@@ -7,7 +7,8 @@ adds an edge from ``(row, c)`` to ``(row, c + 1)``.  A cell's down flag joins ``
 ``(row + 1, c)``: the vertical on the column's left edge.  The AF cell's down flag joins
 ``(row, 31)`` to ``(row + 1, 31)``.  Every ``(row, 0)`` is the rail.
 
-Points joined by wires form one net.  Contacts conduct left to right only.
+Points joined by wires form one net.  Contacts conduct left to right only.  A ``NOP`` on a
+net that is not the rail and that no contact ends on is left out of the boxes.
 """
 
 from __future__ import annotations
@@ -176,7 +177,14 @@ def network(
             edge = Edge(net((r, c)), net((r, c + 1)), cell.contact, r, c)
             (bypassed if edge.src == edge.dst else edges).append(edge)
 
-    boxes = boxes_of(instructions, rows, raw_pins=raw_pins)
+    # A NOP that neither the rail nor a contact reaches is absent: CLICK's syntax check drops it
+    # with no error (v4_captures/unpowered_nop_checked.bin).
+    fed = {rail} | {e.dst for e in edges}
+    boxes = [
+        box
+        for box in boxes_of(instructions, rows, raw_pins=raw_pins)
+        if box.token != "NOP" or net((box.row, AF_X)) in fed
+    ]
     sinks: list[Sink] = []
     for b, box in enumerate(boxes):
         for s, (row, used) in enumerate(zip(box.slots, box.used, strict=False)):

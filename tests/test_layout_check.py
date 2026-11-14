@@ -257,7 +257,6 @@ _LADDER_FINDINGS = {
     "instr-copy-multirow-2af-T": [(0, "pin_without_contact", "C0212", 1, 31)],
     # The Reset row is a wire from the rail.
     "instr-timer-ret": [(0, "pin_without_contact", "C0205", 1, 31)],
-    "mr-cmt-3rung-multirow": [(1, "unpowered_box", None, 1, 31)],
 }
 
 #: Findings above whose shape no capture shows with that code.
@@ -265,7 +264,6 @@ _UNCAPTURED = {
     ("instr-3row-branch", 0),
     ("instr-3row-branch", 1),
     ("instr-timer-ret", 0),
-    ("mr-cmt-3rung-multirow", 0),
 }
 
 
@@ -278,7 +276,7 @@ def test_ladder_golden_findings(path: Path) -> None:
 
 
 def test_unknown_shapes_say_so() -> None:
-    (finding,) = check(read_csv(LADDER / "mr-cmt-3rung-multirow.csv"))
+    _, finding = check(read_csv(LADDER / "instr-3row-branch.csv"))
     assert finding.code is None
     assert not finding.captured
     assert finding.message == (
@@ -492,3 +490,20 @@ def test_one_rung_or_a_list() -> None:
 def test_wires_and_unwired_nop_have_no_findings() -> None:
     rung = _rung([["-", "-", "T"], ["", "", "-"]], ["NOP", ""])
     assert check(rung) == []
+
+
+def test_unpowered_nop_has_no_finding() -> None:
+    """CLICK's check dropped the golden's unpowered NOP with no error (unpowered_nop_checked)."""
+    ast = parse_csv_file(LADDER / "mr-cmt-3rung-multirow.csv")
+    drawn = [convert_literal(r) for r in ast.rungs]
+    assert drawn[1].instructions[1] == "NOP"
+    assert check(drawn) == []
+
+
+@pytest.mark.parametrize("box", ["NOP", _out("Y2")], ids=["nop", "coil"])
+def test_only_an_unpowered_nop_goes_unreported(box: object) -> None:
+    """An unpowered coil keeps its finding: no capture shows CLICK's check on one."""
+    stub = ["-"] + [""] * 30
+    rung = _rung([[_contact("C1")] + ["-"] * 30, stub], [_out("Y1"), box])
+    want = [] if box == "NOP" else [(0, "unpowered_box", None, 1, 31)]
+    assert _cells(check(rung)) == want

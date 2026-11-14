@@ -26,6 +26,7 @@ from laddercodec.model import InstructionType
 from tests.fixtures_refused import is_refused
 
 V4 = Path(__file__).parent / "fixtures" / "v4_captures"
+LADDER = Path(__file__).parent / "fixtures" / "ladder_captures" / "golden"
 TUMBLER = Path(__file__).parent / "fixtures" / "tumbler"
 
 
@@ -51,6 +52,7 @@ _CHECKED = [
     "or_compact_checked.bin",
     "r30_tallbox_checked.bin",
     "windy_road_checked.bin",
+    "unpowered_nop_checked.bin",
 ]
 
 
@@ -348,6 +350,24 @@ def test_rung_that_would_split_off_a_nop_stays_as_drawn(rows, tmp_path: Path) ->
     drawn, got = _read_rows(tmp_path, rows)
     assert got == [drawn]
     assert canonical(drawn) is None
+
+
+def test_golden_reads_as_click_checked_its_unpowered_nop() -> None:
+    """The middle rung's NOP, its stubs at A and C and its blank row go (no error from CLICK)."""
+    golden = read_csv(LADDER / "mr-cmt-3rung-multirow.csv")
+    native = _rungs("unpowered_nop_checked.bin")
+    assert [_drawing(r) for r in golden] == [_drawing(r) for r in native]
+    assert native[1].logical_rows == 1
+
+
+def test_unpowered_nop_is_dropped(tmp_path: Path) -> None:
+    """A NOP no rail or contact reaches goes, and the rung lays out without it."""
+    nop_row = ["", "-", "", "-", *[""] * 28, "NOP"]
+    drawn, got = _read_rows(tmp_path, [_csv_row("R", ["C1"], "out(Y1)"), nop_row])
+    assert drawn.instructions[1] == "NOP"
+    _, alone = _read_rows(tmp_path, [_csv_row("R", ["C1"], "out(Y1)")])
+    assert [_drawing(r) for r in got] == [_drawing(r) for r in alone]
+    assert circuit(got) == circuit([drawn])
 
 
 def test_nop_behind_a_contact_with_a_coil_lays_out(tmp_path: Path) -> None:
