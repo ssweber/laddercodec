@@ -60,6 +60,12 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
    starts on the row of its first box (layoutthy rung 6).
 8. A rung is as tall as its lowest contact, box input or box span. Blank rows below, a blank
    first row and wire stubs that join nothing are dropped (layoutthy rungs 9, 19, 24).
+   So is a `NOP` that no rail or contact reaches, in a rung with a circuit, and `check()`
+   reports nothing for it. Evidence: `unpowered_nop_checked.bin`, the ladder golden
+   `mr-cmt-3rung-multirow` copied back after CLICK's check, which gave no error and left its
+   middle rung (`~X002` to `latch(Y002)`, then wire stubs at A and C and an unwired `NOP`, then
+   a blank row) one row. Any other box no rail or contact reaches is reported as
+   `unpowered_box` and its rung stays as drawn: no capture shows CLICK's check on one.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
    on the first (layoutthy rung 21, `or_compact_stub.csv` rung 2, layoutq Q5a to Q5c). So
    `read_csv` can return more rungs than the CSV holds.
