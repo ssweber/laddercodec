@@ -13,42 +13,42 @@
 This release writes rungs as CLICK writes them and refuses what CLICK refuses. Read "Behaviour changes" before upgrading.
 
 ### Added
-- **`check(rungs)`**: returns a `Finding` for each rung shape CLICK's syntax check refuses, with CLICK's error code where a capture shows it (C0001, C0202, C0003, C000A, C0205, C0212). A finding with `captured=False` is a shape no capture shows, and CLICK may accept it. The rungs still encode and write as drawn.
-- **CSV layout as CLICK draws it**: `read_csv` lays each rung out as CLICK's syntax check does, and `write_csv` writes that drawing with the logic unchanged.
-- **`LegacyEncodingWarning`**: `decode()` and `decode_program()` warn (a `UserWarning`, exported from `laddercodec`) for a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`), which earlier versions wrote and CLICK runs as its low 16 bits (`RAND ( 70000 , 70002 )` ran as `RAND(4464, 4466)`). The rung still decodes; the warning has `instruction`, `token`, `detail`, `rung` and `program` attributes.
-- **Raw box height and pins in CSV**: `raw(Email,0x2737,1,rows=3,sub=3,...)` holds the box's row span (`rows`, 1 to 32) and sub-rows (`sub`, 1 to 255), and a raw box of 2 or more parts adds its part rows as `pins=1/3/4`. `write_csv` always writes `rows` and `sub`, so a box that decodes as raw keeps its stored height and pins through CSV.
-- **Written as CLICK writes it**: a one-phase `debounce` (`debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)`) encodes and decodes instead of reading as `raw(Out,...)`; `function_code=N` keeps a Receive's FC02 or FC04 and a one-element Send's FC15 or FC16 through re-encoding; `write_csv` keeps a blank row inside a tall box when a later row of the box holds wires or contacts (it raised `WriterError`).
+- **`check(rungs)`**: returns a `Finding` for each rung shape CLICK's syntax check refuses, with CLICK's error code where a capture shows it.
+- **CSV layout as CLICK draws it**: `read_csv` lays each rung out as CLICK's syntax check does, and `write_csv` writes that drawing.
+- **`LegacyEncodingWarning`**: `decode()` and `decode_program()` warn on a Math decimal constant stored as 16-bit past 16 bits, which CLICK runs as its low 16 bits.
+- **Raw box height and pins in CSV**: `raw(Email,0x2737,1,rows=3,sub=3,pins=...)` keeps a box's row span, sub-rows and part rows through CSV.
+- **One-phase `debounce`**: a debounce with only its on or only its off phase encodes and decodes instead of reading as `raw(Out,...)`.
+- **Send/Receive `function_code=N`**: keeps a Receive's FC02 or FC04 and a one-element Send's FC15 or FC16 through re-encoding.
+- **Tall boxes in CSV**: `write_csv` keeps a blank row inside a tall box when a later row holds wires or contacts, where it raised `WriterError`.
 
 ### Behaviour changes
-- **Stricter validation**: a value CLICK refuses raises `FieldError`, or `AddressError` for an address (both `ValueError` subclasses), when the object is built or read from CSV, where it was stored or failed at encode with `KeyError`, `TypeError` or `IndexError`. A blob that holds such a value decodes as `raw(...)` (an unknown condition for a contact) and keeps its bytes.
-  - Do: catch `FieldError` around `read_csv` and the constructors, and fix the rung. The refusals, by area:
-  - Digits and text: only 0-9 count as digits; a `$` code is `$` and two hex digits in every field (`$D` is refused); text in Copy, Fill, Compare and Search is 1 to 128 printable ASCII characters (`""`, `é` and a quote inside the text are refused; write a quote as `$22`).
-  - Bit instructions: contacts take X, Y, C, T, CT or SC, `out` and the Out variants take Y, C or SC, immediate takes X (contacts) or Y (coils); an address outside CLICK's banks (`Q1`, `C9999`, `X017`, `DS0`; X and Y take `X001`-`X016`, `X021`-`X036` and `X101`-`X116` up to `X801`-`X816`); an SC bit outside CLICK's 25 writable ones; `latch` or `reset` on X, T, CT or a data bank; a range that leaves its bank, runs backwards or ends where it starts (`C5..C5`); a flag that is not `True`, `False`, 1 or 0.
-  - Compare: operands of one group (hex, numeric or text), a whole number within 32 bits, a hex constant up to `FFFFh`, and only `==` or `!=` on text.
-  - Out variants: accumulators are TD, a preset is a DS register or a whole number up to 32767 (at least 0 for debounce, 1 for flasher and timed), one TD register is not used for both phases, a field the kind does not use must be empty, and a bad `unit` raises on construction.
-  - Timer, Counter, Shift, Drum, For and Call: a number outside T1-T500 or CT1-CT250, a set point above 32767 (counter: outside 32 bits, over 12 characters, or not in DS or DD), an unknown unit or `counter_type`, `down_enabled` on `count_down`, `reset_enabled=False`, a drum with more than 16 steps or outputs (it dropped them without a message), a drum output used twice or as the completion flag, a For count above 2147483647 or in a bank other than DS, DD, TD, CTD or SD, a blank For limit, a shift outside C or with both ends equal, and a subroutine name CLICK refuses (blank, over 24 characters, one of `\ / : * ? " < > |`, a device name such as `CON`). `pin_rows` must be a tuple with one ascending row of 1 to 255 per input.
-  - Copy, Block Copy, Fill, Pack, Unpack and Search: the operands, bank pairs, converters and ranges CLICK's dialogs refuse (`copy(X001,DS1)`, `fill(0,DS1..DD5)`, `pack_bits(X001..X016,DS1)`, a Block Copy destination not as long as its source), a range whose end equals or precedes its start, a Fill into TXT of more than one character, text past TXT1000, `pack_text` with a non-TXT source or `pack_words` with a TXT one, a pointer other than `BANK[DSn]` (`DD[DS1+2]`), a `termination_code` other than `$hh`, `0` or `none`, an X or Y range in a Pack source, Block Copy source or Unpack destination that crosses a 16-point slot, a Search value of the wrong kind for its register, a Search Result Flag that is not a C bit, and a `suppress_zero`, `exponential` or Search `comparison` outside its values.
-  - Math: the formula grammar of CLICK's Math dialog (a sign after an operator, a misplaced operator, a function without parentheses, wrong arguments to `RAND`, shifts, rotates and `SUM`-type functions, a stray `,` or `:`, an address out of its bank's range, `1Eh`, a real above float32, text, a `<nickname>`, an unknown word, `DS1 + 1Fh` or `DH1 + 7` in the wrong mode, an empty formula, a formula over 270 characters as CLICK stores it, a hex constant of more than 4 digits); an X or Y range with an end in X021-X036 or Y021-Y036, which CLICK v4 stores wrongly. No Math CLICK wrote in the test captures is refused.
-  - Send and Receive: a slave ID, port, IP, `register_type`, MODBUS 984 or hex remote address, count or status operand CLICK refuses, a `device_id` outside 0-255 (TCP) or 0-247 (RTU), a backwards or mixed-bank range, and the pairings CLICK's dialog refuses (a Receive into TD, CTD, SD or XD, an odd TXT count, a Word Swap CLICK turns off, one C bit in two status fields, X and Y counts past CLICK's slot runs, a bit count past the remote bank). An X or Y range counts the points that exist (`X001..X021` is 17 elements), and `X17` or `Y020` as an end raises `AddressError`.
-  - Raw: `RawInstruction` needs a `part_count` from 0 to 65535, a bytes `blob` and a text `class_name`; a `raw(...)` token needs `rows` in 1 to 32, `sub` in 1 to 255 and pins that are one ascending row from 1 to 31 per later part; `Email`, `Home`, `Position` and `Velocity` take only `rows=3,sub=3`.
-- **Display form of addresses**: every instruction keeps, writes and encodes its addresses as CLICK displays them (`X1` becomes `X001`, `C001` becomes `C1`, `ds07` becomes `DS7`, `DS[ds01]` becomes `DS[DS1]`), accepts any letter case, and compares `C1` and `C001` as equal; a Math formula writes function names in uppercase and a hex constant as `Fh` (uppercase digits, no leading zeros, lowercase `h`), as does a Modbus hex remote address (`FFFEh`). Constants are kept as written. Decoding does not rewrite: a blob with an address or function name not in display form (`X1`, `c1`, `sum`) decodes as `raw(...)` or an unknown condition.
+- **Stricter validation**: a value CLICK refuses raises `FieldError` (`AddressError` for an address, both `ValueError` subclasses) on construction or `read_csv`, where it was stored or failed at encode; a blob holding one decodes as `raw(...)` or an unknown condition and keeps its bytes.
+  - Digits and text: ASCII digits only, `$hh` character codes, text of 1 to 128 printable ASCII characters.
+  - Bit instructions: CLICK's banks, ranges and writable SC bits for contacts, coils and Compare.
+  - Out variants: accumulator, preset and unused-field rules.
+  - Timer, Counter, Shift, Drum, For and Call: CLICK's number, set-point, step, bank and subroutine-name limits.
+  - Copy, Block Copy, Fill, Pack, Unpack and Search: CLICK's operand, bank-pair, converter, pointer and range rules.
+  - Math: the formula grammar of CLICK's Math dialog, display-form constants, and CLICK's 270-character limit.
+  - Send and Receive: slave ID, port, IP, address, count, status and dialog pairing rules.
+  - Raw: `RawInstruction` field types, and `rows`, `sub` and pin ranges.
+  - Do: catch `FieldError` around `read_csv` and the constructors, and fix the rung.
+- **Display form of addresses**: addresses are kept, written and encoded as CLICK shows them (`X1` becomes `X001`, `C001` becomes `C1`, `ds07` becomes `DS7`), and a blob not in that form decodes as `raw(...)`.
   - Do: expect the display form when you read addresses back or compare them with your own text.
-- **Re-encoded bytes change**: re-encoding a decoded rung can write other bytes for the same meaning.
-  - Do: re-record any stored `.bin` and paste-check it in CLICK. The cases: a Math hex constant such as `0fh` (now `Fh`) or a signed one (`( -Ah )` is stored `( - Ah )`); a Math unary plus (`DS1 + ( + 5 )` is stored `DS1#+#(#H+5#)`); a Math X or Y range (only the addresses that exist: `SUM ( X001 : X101 )` stores X002..X016 and X021..X036, not X002..X100); a single DD, DF or CTD Send (FC16, not FC06); a Copy of text into TXT (the destination end is the last TXT the text fills); an Email, Home, Position or Velocity box (3 rows, not 1, so a CSV with such a box and an output on the next row reads with blank rows under the box and the output below them); a `raw(...)` box (it keeps its decoded height, or takes its class's from CSV: 2 rows for the Copy family and Search, 3 for Send and Receive, an Out variant's from its func code; it was 1 row unless the blob had several parts).
-- **Decoding**: a Pack of X, Y, T, CT or SC bits into DH decodes as `pack_bits`, and an Unpack of DH into Y bits as `unpack_to_bits`; a Pack or Unpack of CTD words, or an Unpack into X, T, CT or SC, decodes as `raw(...)`. A Send keeps a status operand whose enable flag is 0, as Receive does.
+- **Re-encoded bytes change**: Math hex constants and signs, Math unary plus, Math X and Y ranges, single-register Send FC16, Copy text into TXT, 3-row Email, Home, Position and Velocity, and raw box heights.
+  - Do: re-record stored `.bin` files and paste-check them in CLICK.
+- **Decoding**: a bit Pack or Unpack decodes as `pack_bits` or `unpack_to_bits` (it decoded as words), and a Send keeps a status operand whose enable flag is 0.
   - Do: check code that expected `pack_words` or `unpack_to_words` for a bit pack.
-- **`read_csv` returns more rungs than the CSV holds**: a rung whose circuits meet only at the rail reads as one rung per circuit, the comment on the first, and each rung is laid out as CLICK's syntax check draws it; `write_csv` writes that drawing, and a rung `check()` reports keeps its drawing.
-  - Do: do not match rungs to CSV rows by index; use the rungs `read_csv` returns.
-- **`decode()` and `decode_program()` raise on a down wire in the output column (AF)**: a `DecodeError` (a `ValueError`) names the rung and row; earlier versions dropped the wire without a word, which changed the rung's path. CLICK keeps such a path until its syntax check removes it, and the CSV has no syntax for it.
+- **`read_csv` returns more rungs than the CSV holds**: a rung whose circuits meet only at the rail reads as one rung per circuit, each laid out as CLICK's syntax check draws it.
+  - Do: use the rungs `read_csv` returns; do not match them to CSV rows by index.
+- **Down wire in the output column**: `decode()` and `decode_program()` raise `DecodeError` naming the rung and row, where the wire was dropped without a word.
   - Do: catch `DecodeError`, or let CLICK's syntax check remove the wire before you copy the rung.
-- **Warning on a 16-bit Math constant**: `decode()` and `decode_program()` emit `LegacyEncodingWarning` (see Added).
-  - Do: re-paste the rung in CLICK to store the constant as 32-bit, or filter the warning.
-- **Raw tokens from CSV**: a `raw(...)` token without `rows`, `sub` or `pins`, such as one from an earlier version, takes its class's height and puts its parts on rows 1, 2, ...
-  - Do: write old CSV again with `write_csv` to keep a decoded box's height and pins.
+- **Raw tokens from CSV**: a `raw(...)` token without `rows`, `sub` or `pins` takes its class's height.
+  - Do: rewrite old CSV with `write_csv` to keep a decoded box's height and pins.
 
 ### Fixed
-- **Raw box with an unreadable field value**: a raw box whose field value holds a comma, quote, newline, tab or trailing space is written in the hex form and reads back; earlier versions wrote a token that failed to read or read other bytes.
-- **Math formula length**: a formula over CLICK's 270-character limit no longer writes a blob whose field count disagrees with its header; it raises `FieldError`.
+- **Raw box field values**: a raw box whose field value holds a comma, quote, newline, tab or trailing space reads back; it wrote a token that failed to read or read other bytes.
+- **Copy text into TXT**: a single Copy of 2 or more characters into TXT stores the last TXT it fills as its destination end, as CLICK does.
+- **Math formula length**: a formula over CLICK's limit raises `FieldError` instead of writing a blob whose field count disagrees with its header.
 
 ## 0.3.3 (2026-11-11)
 
