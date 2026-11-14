@@ -16,8 +16,10 @@ from laddercodec.operands.sources import ALLOWED_LONG_HEX, Src, SrcKind, dll_add
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# path -> reason.  Keep empty.
-ALLOWED: dict[str, str] = {}
+# path -> reason.  Only files a tool generates, which can't hold a DLL address.
+ALLOWED: dict[str, str] = {
+    "uv.lock": "written by uv: package URLs and hashes, whose hex runs can look like an address",
+}
 
 
 def _tracked_files() -> list[str]:
