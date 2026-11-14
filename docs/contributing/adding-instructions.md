@@ -36,7 +36,6 @@ In addition, each instruction family module now exposes a small family spec in `
 - CSV token names
 - CSV call parsing
 - supported pin names
-- minimum CSV row count (`min_csv_rows`)
 
 For most new instruction families, the main extension point is: **add the dataclass + codec logic in the family module, then register a `SPEC` for it.**
 
@@ -48,7 +47,7 @@ Example: adding oneshot to the Out coil (func code 8205, field[2] = "-1").
 
 ```
 [0][AF] RawInstruction class='Out'
-      csv: raw(Out,4f00...)
+      csv: raw(Out,0x2715,1,rows=1,sub=1,6066=Y001,6067=,11f8=-1,11f5=0,3218=8205,0000=)
       class: 'Out'
       type_marker: 0x2715
       field[0]: tag=0x6066 (std) value='Y001'     # operand
@@ -115,17 +114,13 @@ In `src/laddercodec/instructions/`:
 - Add `InstructionType` enum value in `model.py` if it uses a new type marker
 
 **Tall instructions:** if the new instruction occupies more than 1 grid row in the binary/editor shape, return `{"visual_rows": N}` from `cell_params()`.
-
-If the instruction also needs auto-padding in CSV, set `min_csv_rows=N` on the family `SPEC`. These are related but not always identical:
-
-- `visual_rows` = binary/editor cell height
-- `min_csv_rows` = minimum CSV/logical rows to synthesize on read
-
-Example: timers currently use `visual_rows=2` and `min_csv_rows=2`, while counter/shift/drum families use explicit higher CSV row counts because their lower rows have pin semantics.
+The converter pads a tall box with blank rows from `cell_params()`.
 
 `visual_rows` sets both cell header bytes, `+0x09` (rows spanned) and `+0x0A`
 (sub-rows). When a native capture shows them differing, add `"sub_rows"` for
 `+0x0A`: CLICK v4's timed coil spans 2 rows but writes 3 (`{"visual_rows": 2, "sub_rows": 3}`).
+
+A fixed-height family must also set `cell_params_from_tags` on its `SPEC` (`fixed_cell_params()` in `family.py`, reading the same table as `cell_params()`); otherwise a `raw(...)` box of the family read from CSV gets 1 row.
 
 **Reading tags in `from_tags()`:** Click's program files (`Scr*.tmp`) leave out every
 tag at its default value, so a tag can be missing even though the clipboard always
@@ -153,7 +148,7 @@ Also add a family `SPEC` in the module:
 - `from_tags`
 - `parse_csv_call` (for AF families)
 - `pin_names` if the family uses dot-prefixed continuation rows
-- `min_csv_rows` if the family should auto-pad in CSV
+- `cell_params_from_tags` if every box of the family has one height (a raw box read from CSV takes it)
 
 ### 3. Register and export
 
@@ -199,7 +194,7 @@ Coverage golden fixtures live in `tests/fixtures/coverage/golden/`. Each fixture
 1. Create `tests/fixtures/coverage/golden/<rung_id>.csv` by hand in the 33-column canonical format. Usually one rung per file; a file can hold several rungs (`math__v4.csv` holds 23) and is verified as one paste.
 2. Run `make coverage-golden` to generate the `.bin` from the CSV.
 3. Paste-verify in Click using `clicknick-rung guided`.
-4. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded output to golden binaries.
+4. `make test` — each `.csv` with a matching `.bin` gets a parametrized test comparing encoded output to golden binaries, and fails if the fixture has no `worked` entry in the directory's `verify_progress.log`.
 
 ### Regenerating coverage bins
 

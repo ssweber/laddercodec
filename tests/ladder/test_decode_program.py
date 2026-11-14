@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import gzip
 import importlib
 import struct
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import decode
+from laddercodec._layout import canonical
 from laddercodec.csv import read_csv
 from laddercodec.decode import inspect_cells
 from laddercodec.decode_program import (
@@ -411,7 +413,8 @@ def test_parse_scr_tags_handles_compact_home_raw_fields():
 
     assert parsed is not None
     assert (
-        parsed.to_csv() == "raw(Home,0x2734,1,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
+        parsed.to_csv()
+        == "raw(Home,0x2734,1,rows=3,sub=3,222d=1,222e=1,6096=DD101,6097=,609e=,609f=X003,60a0=,"
         "609c=DD102,609d=DD103,222f=0,11f5=0,2230=255,60a1=0,60a3=C102,60a4=,607b=C103,"
         "607d=,6083=,2232=0,2233=0,3218=9739,0000=)"
     )
@@ -457,7 +460,7 @@ def test_parse_scr_tags_handles_compact_position_raw_fields():
     assert parsed is not None
     assert (
         parsed.to_csv()
-        == "raw(Position,0x2736,1,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
+        == "raw(Position,0x2736,1,rows=3,sub=3,222d=2,6098=DD301,6099=,609a=DD304,2206=0,609b=DD119,"
         "609c=DD120,609d=DD121,222f=2,11f5=0,2231=0,60a2=,60a3=C315,60a4=,607b=C316,"
         "607d=,6083=,3218=9745,0000=)"
     )
@@ -614,11 +617,13 @@ def test_send_receive_elided_device_id_defaults():
     per class: a Send with no 0x320E/0x60B2 tag is device_id 0, a Receive is
     device_id 1.  Verified against a native scr+clipboard pair where a Send at
     device_id 0 stored no tag while one at 1 stored both."""
+    # No 0x2211 tag: the elided function code is FC05 (Send) / FC01 (Receive), so
+    # the addresses are bits.
     base = {
         0x220C: "2",  # protocol: modbus tcp
         0x320F: "2",  # remote_start address type: raw string
-        0x6085: "DS12",  # remote_start
-        0x607E: "DS3",  # source / dest
+        0x6085: "C12",  # remote_start
+        0x607E: "C3",  # source / dest
         0x622B: "10.0.0.9",
     }
 
@@ -638,18 +643,23 @@ def test_send_receive_elided_device_id_defaults():
 
 
 def test_time_drums_synthetic_bin_matches_canonical_csv():
-    """The BIN is generated, not a native clipboard capture (be211ee)."""
+    """The BIN is generated, not a native clipboard capture (be211ee).
+
+    It was encoded from the CSV as written; read_csv gives the CSV's rungs as CLICK's check
+    draws them, so the BIN's rungs are compared in that layout.
+    """
     csv_rungs = read_csv(_SCR_FIXTURE_DIR / "time_drums.csv")
     clip_rungs, scr_rungs = _load_fixture_pair("time_drums")
 
     csv_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in csv_rungs]
     scr_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in scr_rungs]
     bin_lines = [_strip_blank_tail(_rung_to_lines(r)) for r in clip_rungs]
+    drawn = [part for rung in clip_rungs for part in canonical(rung) or [rung]]
 
-    assert len(scr_rungs) == 15
-    assert bin_lines == csv_lines
+    assert len(scr_rungs) == len(clip_rungs) == 15
+    assert [_strip_blank_tail(_rung_to_lines(r)) for r in drawn] == csv_lines
     # Native stored wires above later rail rows must survive decoding.
-    assert [i for i in range(15) if scr_lines[i] != csv_lines[i]] == [12, 13]
+    assert [i for i in range(15) if scr_lines[i] != bin_lines[i]] == [12, 13]
 
 
 def test_time_drums_scr_drops_stray_pin_row_nop():
@@ -1086,3 +1096,24 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
         assert output.read_text(encoding="utf-8") == base.with_suffix(".csv").read_text(
             encoding="utf-8"
         )
+
+
+def test_down_wire_in_the_output_column_is_refused(monkeypatch):
+    """A down list on column 31 raises, as the clipboard decoder does for the AF down flag.
+
+    Blobs hold absolute offsets, so the list is added to the parsed block, not the bytes.
+    """
+    scr_data = (_SCR_FIXTURE_DIR / "time_drums.scr").read_bytes()
+    real = _parse_row_topology_block
+    seen = []
+
+    def with_af_down(data, pos, data_len=0):
+        block = real(data, pos, data_len)
+        seen.append(block)
+        if block is None or len(seen) != 2:  # the second rung's block
+            return block
+        return dataclasses.replace(block, wiredown={**block.wiredown, 31: (0,)})
+
+    monkeypatch.setattr(decode_program_module, "_parse_row_topology_block", with_af_down)
+    with pytest.raises(ValueError, match=r"Rung 1, row 0 \(zero-based\): the output column"):
+        decode_program(scr_data)

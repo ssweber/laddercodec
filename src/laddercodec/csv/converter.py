@@ -1,7 +1,12 @@
-"""RungAst → encode_rung() arguments converter.
+"""RungAst → ``Rung`` converter.
 
-Converts parsed CSV AST into the (logical_rows, condition_rows, af_tokens)
-tuple consumed by ``encode_rung()``.  Handles:
+``convert_rung`` reads a parsed CSV rung's circuit and lays it out as
+CLICK's syntax check draws it (``docs/internals/layout.md``): pin rows
+become the box's pin inputs, box heights come from ``cell_params()``, and
+pad rows the CSV holds or leaves out change nothing.  A rung with no
+layout keeps the grid ``convert_literal`` reads, described below.
+
+``convert_literal`` handles:
 
 - Condition/contact/compare token conversion to model objects
 - AF token conversion (coils, timers, NOP)
@@ -39,7 +44,9 @@ Tall instructions
 Some AF instructions occupy more than one grid row visually (timers = 2,
 search/copy = 2, send/receive = 3, etc.).  If the user CSV omits blank
 continuation rows, they are auto-appended so ``encode_rung()`` receives
-the correct ``logical_rows``.
+the correct ``logical_rows``.  A row that starts another AF instruction
+inside a tall box's span gets blank rows inserted above it, which push it
+and every later row down.
 
 After padding, a wire-continuation hydration pass propagates ``T`` and
 ``|`` tokens downward into blank cells, restoring vertical wire continuity
@@ -48,10 +55,13 @@ that was stripped by the writer's dehydration pass.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import cast
 
+from .._layout import canonical
+from ..decode import Rung
 from ..encode import AfToken, ConditionToken
 from ..instructions import (
     KNOWN_PIN_NAMES,
@@ -59,7 +69,9 @@ from ..instructions import (
     Contact,
     parse_af_call,
 )
-from ..model import AfInstruction, InstructionType, PinnedInstruction
+from ..instructions import AfToken as RungAfToken
+from ..instructions import ConditionToken as RungConditionToken
+from ..model import AfInstruction, InstructionType, PinnedInstruction, check_address
 from .ast import (
     AfBlank,
     AfCall,
@@ -107,7 +119,7 @@ class _ActiveBlock:
 
 def _blank_condition_row() -> list[ConditionToken]:
     """Return one all-blank condition row."""
-    return cast(list[ConditionToken], [""] * CONDITION_COLUMNS)
+    return [""] * CONDITION_COLUMNS
 
 
 def _is_blank_row(conditions: Sequence[object]) -> bool:
@@ -418,6 +430,8 @@ def condition_node_to_token(node: object) -> ConditionToken:
             op=node.op, left=node.left, right=node.right, wire_down=node.wire_down
         )
     if isinstance(node, GenericCondition):
+        if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
+            check_address(node.raw, "Contact.operand")  # digits outside 0-9 land here
         raise ValueError(f"Cannot convert generic condition to encode token: {node.raw!r}")
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
@@ -452,14 +466,25 @@ class ConvertError(ValueError):
     """Raised when a RungAst cannot be converted to encode arguments."""
 
 
-def convert_rung(
-    rung: RungAst,
-    *,
-    strict: bool = True,
-) -> tuple[int, list[list[ConditionToken]], list[AfToken], str | None]:
-    """Convert a ``RungAst`` to ``encode_rung()`` arguments.
+def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
+    """The CLICK rungs a CSV rung reads to, drawn as CLICK's syntax check draws them.
 
-    Returns ``(logical_rows, condition_rows, af_tokens, comment)``.
+    The rung's circuit is read from its rows (:func:`convert_literal`) and laid out again
+    (``docs/internals/layout.md``).  A rung whose circuit CLICK would split comes back as
+    several rungs, the comment on the first.  A rung with no layout
+    (``laddercodec.check()`` reports it) comes back as written.
+
+    Raises
+    ------
+    ConvertError
+        If the rung contains unsupported constructs.
+    """
+    literal = convert_literal(rung, strict=strict)
+    return canonical(literal) or [literal]
+
+
+def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
+    """The rung's grid as written: pin rows on their slots, tall boxes padded to their height.
 
     Raises
     ------
@@ -532,5 +557,9 @@ def convert_rung(
     # --- Hydrate wire continuations ---
     _hydrate_wire_continuations(condition_rows)
 
-    logical_rows = len(condition_rows)
-    return logical_rows, condition_rows, af_tokens, comment
+    return Rung(
+        len(condition_rows),
+        cast(list[list[RungConditionToken]], condition_rows),
+        cast(list[RungAfToken], af_tokens),
+        comment,
+    )

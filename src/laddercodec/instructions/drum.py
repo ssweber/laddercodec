@@ -18,7 +18,14 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import PinnedInstruction
+from ..model import (
+    Address,
+    FieldError,
+    PinnedInstruction,
+    check_address,
+    check_flag,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -59,6 +66,9 @@ _TIME_EVENT_FC_BASE: dict[str, int] = {
     "Th": 10524,
     "Td": 10532,
 }
+
+#: A drum has at most 16 steps and 16 outputs.
+_MAX_DRUM_SIZE = 16
 
 # Drum base (tag 0x2200).
 _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT = "0", "1", "2"
@@ -121,7 +131,15 @@ def _parse_pattern(val: str) -> list[list[int]]:
             rows.append(inner[start:i].strip())
             start = i + 1
     rows.append(inner[start:].strip())
-    return [[int(x) for x in _parse_simple_list(row_str)] for row_str in rows if row_str]
+    pattern: list[list[int]] = []
+    for row_str in rows:
+        if not row_str:
+            continue
+        cells = _parse_simple_list(row_str)
+        if any(x not in ("0", "1") for x in cells):
+            raise ValueError(f"A pattern cell is 0 or 1: {row_str!r}")
+        pattern.append([int(x) for x in cells])
+    return pattern
 
 
 def _parse_optional_list(val: str) -> list[str]:
@@ -134,7 +152,7 @@ def _format_optional_list(values: list[str]) -> str:
 
 
 #: A preset that names a register rather than a literal duration.
-_REGISTER_RE = re.compile(r"[A-Z]+\d+")
+_REGISTER_RE = re.compile(r"[A-Z]+[0-9]+")
 
 
 def is_register_preset(preset: str) -> bool:
@@ -153,6 +171,58 @@ def _constant_preset_mask(presets: list[str]) -> str:
         if is_register_preset(preset):
             mask &= ~(1 << i)
     return str(mask)
+
+
+#: Banks an event step reads: Inst_Drum.dll event validator mask 0x3f, else OBJ-004
+#: (Q-D5).
+DRUM_EVENT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+
+#: A constant step duration is 0 to 32767 for every unit, digits only: Inst_Drum.dll's
+#: step validator wants an int16 with no ``-`` or ``+``, else OBJ-005 (Q-D4).
+DRUM_MAX_DURATION = 32767
+_DIGITS_RE = re.compile(r"[0-9]+")
+
+
+def _check_duration(preset: str, name: str) -> None:
+    """Refuse a step duration CLICK's drum dialog refuses.
+
+    A register duration is DS (OBJ-004 for another bank).  Whether the CPU takes a
+    register at all is a project rule and is not checked.
+    """
+    if not _DIGITS_RE.fullmatch(preset):
+        if not preset[:1].isalpha():
+            raise FieldError(
+                f"{name}: {preset!r} is not allowed; a duration is 0 to {DRUM_MAX_DURATION} "
+                "or a DS register (OBJ-005)"
+            )
+        check_address(preset, name, banks={"DS"})
+    elif int(preset) > DRUM_MAX_DURATION:
+        raise FieldError(
+            f"{name}: {preset!r} is above {DRUM_MAX_DURATION}; a duration is 0 to "
+            f"{DRUM_MAX_DURATION} (OBJ-005)"
+        )
+
+
+def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Address) -> None:
+    """Refuse an output used twice, or used as the completion flag (OBJ-014).
+
+    CLICK normalizes an address as it is typed (``C001`` becomes ``C1``) before it
+    compares, so ``C1`` and ``C001`` are the same output (Q-D5, user dialog check
+    2026-11-11).
+    """
+    seen: dict[Address, int] = {}
+    for i, (output, text) in enumerate(zip(outputs, texts, strict=True)):
+        if output in seen:
+            raise FieldError(
+                f"Drum.outputs[{i}]: {text!r} is already output {seen[output]}; "
+                "each output is a different bit (OBJ-014)"
+            )
+        seen[output] = i
+        if output == flag:
+            raise FieldError(
+                f"Drum.outputs[{i}]: {text!r} is the completion flag; an output is "
+                "a different bit (OBJ-014)"
+            )
 
 
 def _timer_done_bit(accumulator: str) -> str:
@@ -194,7 +264,71 @@ class Drum(PinnedInstruction):
     events: list[str] = field(default_factory=list)  # time & event drum only
     #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
     #: a pin push the later pins down; an unused pin keeps its row.
-    pin_rows: tuple[int, int, int] = (1, 2, 3)
+    pin_rows: tuple[int, ...] = (1, 2, 3)
+
+    def __post_init__(self) -> None:
+        self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")
+        self.jump_enabled = check_flag(self.jump_enabled, "Drum.jump_enabled")
+        self._check_pin_rows()
+        self.outputs = [normalize_address(output) for output in self.outputs]
+        self.events_or_presets = [normalize_address(value) for value in self.events_or_presets]
+        self.events = [normalize_address(event) for event in self.events]
+        for name in ("current_step", "completion_flag", "accumulator", "jump_target"):
+            setattr(self, name, normalize_address(getattr(self, name)))
+        kind = self.drum_kind
+        if kind not in ("event", "time", "time_event"):
+            raise FieldError(f"Drum.drum_kind: {kind!r} is not event, time or time_event")
+        steps, outputs = self.num_steps, self.num_outputs
+        if not 1 <= steps <= _MAX_DRUM_SIZE:
+            raise FieldError(f"Drum steps: {steps} is outside 1-{_MAX_DRUM_SIZE}")
+        if not 1 <= outputs <= _MAX_DRUM_SIZE:
+            raise FieldError(f"Drum outputs: {outputs} is outside 1-{_MAX_DRUM_SIZE}")
+        if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
+            raise FieldError(
+                f"Drum.pattern: needs {steps} steps of {outputs} cells each, got "
+                f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells"
+            )
+        for row in self.pattern:
+            for cell in row:
+                if type(cell) is not int or cell not in (0, 1):
+                    raise FieldError(f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1")
+        outputs = [
+            check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
+            for i, output in enumerate(self.outputs)
+        ]
+        check_address(self.current_step, "Drum.current_step", banks={"DS"})
+        flag = check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
+        _check_distinct_outputs(outputs, self.outputs, flag)
+        step_events = self.events_or_presets if kind == "event" else self.events
+        for i, event in enumerate(step_events):
+            if event:
+                check_address(event, f"Drum.events[{i}]", banks=DRUM_EVENT_BANKS)
+        if kind != "event":
+            for i, preset in enumerate(self.events_or_presets):
+                if preset:
+                    _check_duration(preset, f"Drum.presets[{i}]")
+        if self.jump_enabled:
+            check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
+        if kind == "event":
+            if any(not event for event in self.events_or_presets):
+                raise FieldError("Drum.events: every step needs an event (OBJ-021)")
+            return
+        if self.unit not in _DRUM_UNIT_TO_INDEX:
+            raise FieldError(
+                f"Drum.unit: {self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}"
+            )
+        check_address(self.accumulator, "Drum.accumulator", banks={"TD"})
+        if kind == "time":
+            if any(not preset for preset in self.events_or_presets):
+                raise FieldError("Drum.presets: every step needs a duration (OBJ-022)")
+            return
+        if len(self.events) != steps:
+            raise FieldError(
+                f"Drum.events: needs one event per step ({steps}), got {len(self.events)}"
+            )
+        for i, (preset, event) in enumerate(zip(self.events_or_presets, self.events, strict=True)):
+            if not preset and not event:
+                raise FieldError(f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)")
 
     @property
     def num_outputs(self) -> int:
@@ -534,7 +668,7 @@ def parse_af_call(call: AfCall) -> Drum:
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_EVENT_FC_BASE:
             raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
-        accumulator = call.kwargs.get("accumulator", "")
+        accumulator = normalize_address(call.kwargs.get("accumulator", ""))
         _timer_done_bit(accumulator)
         return Drum(
             drum_kind="time_event",
@@ -579,5 +713,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("event_drum", "time_drum", "time_event_drum"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset", ".jump", ".jog"),
-    min_csv_rows=4,
 )

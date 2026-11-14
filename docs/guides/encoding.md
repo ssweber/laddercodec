@@ -37,7 +37,7 @@ rung = Rung(
 binary = encode(rung)
 ```
 
-Every `Rung` has four fields:
+Every `Rung` has five fields:
 
 | Field | Type | Notes |
 |---|---|---|
@@ -45,6 +45,7 @@ Every `Rung` has four fields:
 | `conditions` | `list[list[object]]` | One row per logical row, exactly 31 condition columns each |
 | `instructions` | `list[object]` | One AF token per logical row |
 | `comment` | `str \| None` | Optional plain text with lightweight markdown styling |
+| `comment_rtf` | `bytes \| None` | Raw RTF payload from a decode; leave it `None` when you build a rung |
 
 ## Wire Tokens
 
@@ -65,7 +66,7 @@ conds = [
     ["", "-", "-", "-"] + [""] * 27,
 ]
 
-binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", "NOP"], comment=None))
+binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", ""], comment=None))
 ```
 
 ## Condition-Side Instructions
@@ -135,17 +136,21 @@ binary = encode(rung)
 
 Tall instructions such as timers, copy-family instructions, shift, drum, and
 some counters occupy multiple visual rows. `encode()` accepts the fully expanded
-rows directly. When you come from canonical CSV, `read_csv()` handles the
-padding and pin-row shaping for you.
+rows directly and writes them as given. When you come from canonical CSV,
+`read_csv()` handles the padding and pin rows for you, and lays each rung out as
+CLICK's syntax check draws it ([CSV layout](csv-format.md#layout)).
 
 ## Text Constants
 
 Text constants are written with their double quotes (`Copy(source='"Q"', ...)`,
 `CompareContact("==", "TXT1", '"T"')`), and an ASCII-code constant as `$hh`
 (`"$00"`). CLICK writes one TXT register per character of a text constant, so an
-empty `""` writes nothing and is not a usable compare. `encode()` raises
-`ValueError` for `""` in a Copy or Fill source, a Search value, or either side
-of a compare contact; use `$00` for the blank (NUL) character.
+empty `""` writes nothing. `Copy` and `Fill` take 1 to 128 characters in quotes
+and raise `FieldError` for `""`, a longer text and a quote inside the text.
+`CompareContact` and `Search` take 1 to 128 printable ASCII characters in quotes
+(`"AB"` matches consecutive TXT registers) and raise `FieldError` for `""`, a
+longer or non-ASCII text and a quote inside the text. Each refuses when built or
+read from CSV. A quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
 
 ## Comments
 
@@ -198,7 +203,14 @@ raw address for that operand.
 All standard Click instruction families are supported from the root package:
 
 - Condition side: `Contact`, `CompareContact`
-- AF side: `Coil`, `OutVariant`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Send`, `Receive`
+- AF side: `Coil`, `OutVariant`, `Timer`, `Counter`, `Copy`, `BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Shift`, `Search`, `Drum`, `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue`, `Send`, `Receive`
 
 Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
 binary payload intact for lossless round-trip.
+
+## If a paste fails
+
+If CLICK crashes on a paste or draws the rung wrong, open an issue at
+[github.com/ssweber/laddercodec/issues](https://github.com/ssweber/laddercodec/issues)
+with the CSV or Python that built the rung, the `.bin` you pasted, your CLICK
+version, and what CLICK showed.

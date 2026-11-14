@@ -36,6 +36,38 @@ AfFromTagsParser = Callable[
     AfInstruction | None,
 ]
 
+#: Cell kwargs (``visual_rows``, ``sub_rows``) of a box read from its blob alone: class name,
+#: type code and tags.  None when the box is not of the family, or its height needs more
+#: than the blob holds.
+AfCellParamsFromTags = Callable[[str, int, dict[int, str]], dict | None]
+
+
+#: Cell kwargs of an Email, Home, Position or Velocity box: three rows (cell header
+#: +0x09 = +0x0A = 3), as CLICK's editor creates it (scr_captures/coverage.bin).  Saving
+#: the dialog of a pasted 1-row box rewrites +0x09 to 3 and grows the rung
+#: (v4_captures/box_height_dialog_ok.bin).
+EMAIL_MOTION_CELL_PARAMS: dict = {"visual_rows": 3}
+
+
+def cell_rows_spec(params: dict) -> str:
+    """The ``rows=R,sub=S`` fields of a raw token for a box with cell kwargs *params*."""
+    span = int(params.get("visual_rows", 1))
+    return f"rows={span},sub={int(params.get('sub_rows', span))}"
+
+
+def fixed_cell_params(params: dict, *types: tuple[str, int]) -> AfCellParamsFromTags:
+    """Height hook for a family whose boxes all have one height.
+
+    Returns a copy of *params* for a blob whose ``(class_name, type_code)`` is in *types*.
+    The family's ``cell_params()`` methods return the same *params*, so a raw box of the
+    family and a typed one get one height.
+    """
+
+    def hook(class_name: str, type_code: int, _tags: dict[int, str]) -> dict | None:
+        return dict(params) if (class_name, type_code) in types else None
+
+    return hook
+
 
 @dataclass(frozen=True)
 class ConditionInstructionFamilySpec:
@@ -58,4 +90,6 @@ class AfInstructionFamilySpec:
     csv_names: tuple[str, ...] = ()
     parse_csv_call: AfCallParser | None = None
     pin_names: tuple[str, ...] = ()
-    min_csv_rows: int = 1
+    #: Height of a ``RawInstruction`` of this family that has no native cell header
+    #: (one read from CSV).  Families whose height comes from pin rows leave it None.
+    cell_params_from_tags: AfCellParamsFromTags | None = None

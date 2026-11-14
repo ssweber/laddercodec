@@ -8,6 +8,7 @@ CSV token formats::
     toggle(C1)
     toggle(immediate(Y001))
     debounce(C1,on_acc=TD1,on_preset=100,off_acc=TD2,off_preset=DS1,unit=Tms)
+    debounce(C1,off_acc=TD1,off_preset=100,unit=Tms)
     flasher(C1,on_acc=TD1,on_preset=500,off_acc=TD2,off_preset=250,unit=Tms)
     timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)
     timed(C1,on_acc=TD1,on_preset=3,unit=Ts,maintained=1)
@@ -23,7 +24,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, _validate_operand
+from ..model import AfInstruction, FieldError, check_address, normalize_address
+from .coil import check_out_target
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -60,6 +62,51 @@ _FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, str, bool]] = {
 }
 
 _TWO_PHASE = frozenset({"debounce", "flasher"})
+
+#: Cell kwargs per kind.  A timed box spans 2 rows but CLICK writes 3 sub-rows in the
+#: cell header (+0x09 = 2, +0x0A = 3); a toggle is one row like a plain coil.
+_KIND_CELL_PARAMS: dict[str, dict] = {
+    "toggle": {},
+    "debounce": {"visual_rows": 3},
+    "flasher": {"visual_rows": 3},
+    "timed": {"visual_rows": 2, "sub_rows": 3},
+}
+
+#: Accumulators are timer data registers (CLICK v4.00 Help CL348-350).
+_ACC_BANKS = frozenset({"TD"})
+
+#: Lowest constant preset: debounce takes 0, flasher and timed 1.
+_PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
+
+#: Highest constant preset, for every kind (Q-B6: Inst_Out.dll caps a digits-only preset
+#: at 0x7FFF; OnOK refuses a larger one with OBJ-005).
+_PRESET_MAX = 32767
+
+#: Fields each kind uses; any other of them must stay empty.
+_USED_FIELDS: dict[str, frozenset[str]] = {
+    "toggle": frozenset(),
+    "debounce": frozenset({"on_acc", "on_preset", "off_acc", "off_preset", "unit"}),
+    "flasher": frozenset({"on_acc", "on_preset", "off_acc", "off_preset", "unit"}),
+    "timed": frozenset({"on_acc", "on_preset", "unit"}),
+}
+
+
+def _check_preset(value: str, name: str, floor: int) -> None:
+    """A preset is a DS register or a digits-only constant from *floor* to 32767."""
+    if value.isascii() and value.isdigit():
+        # The length guard keeps int() inside Python's digit limit for any input.
+        if len(value.lstrip("0")) > len(str(_PRESET_MAX)) or int(value) > _PRESET_MAX:
+            raise FieldError(f"{name}: {value!r} is above the maximum {_PRESET_MAX}")
+        if int(value) < floor:
+            raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
+        return
+    if re.fullmatch(r"[+-][0-9]+", value):
+        raise FieldError(f"{name}: {value!r} is below the minimum {floor}; a preset is unsigned")
+    if value[:1].isalpha():
+        check_address(value, name, {"DS"})
+        return
+    raise FieldError(f"{name}: {value!r} is not a DS register or a whole number")
+
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -102,6 +149,62 @@ class OutVariant(AfInstruction):
     immediate: bool = False  # toggle only
     maintained: bool = False  # timed only
 
+    def __post_init__(self) -> None:
+        for name in ("operand", "on_acc", "on_preset", "off_acc", "off_preset"):
+            setattr(self, name, normalize_address(getattr(self, name)))
+        # The target follows Out's rule, writable SC list included (ruling on Q-B2).
+        check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
+        if self.kind not in _KIND_INDEX:
+            raise FieldError(
+                f"OutVariant.kind: {self.kind!r} is not one of {', '.join(_KIND_INDEX)}"
+            )
+        used = _USED_FIELDS[self.kind]
+        for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
+            if name not in used and getattr(self, name):
+                raise FieldError(
+                    f"OutVariant.{name}: {getattr(self, name)!r} is not used by {self.kind}"
+                )
+        if self.kind != "toggle" and self.immediate:
+            raise FieldError(f"OutVariant.immediate: {self.kind} has no immediate form")
+        if self.kind != "timed" and self.maintained:
+            raise FieldError("OutVariant.maintained: only timed has an Output Maintained box")
+        if self.kind == "toggle":
+            return
+        if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
+            raise FieldError(f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}")
+        floor = _PRESET_FLOORS[self.kind]
+        phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
+        if self.kind == "debounce":
+            # A debounce phase with both fields empty is skipped (Q-B4:
+            # Inst_Out.dll); with both phases empty OnOK refuses the on preset,
+            # OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
+            filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
+            if not filled:
+                raise FieldError(
+                    "OutVariant.on_preset: debounce needs an on phase or an off phase "
+                    "(on_acc and on_preset, or off_acc and off_preset)"
+                )
+            phases = filled
+        accs = []
+        for ph in phases:
+            accs.append(
+                check_address(getattr(self, f"{ph}_acc"), f"OutVariant.{ph}_acc", _ACC_BANKS)
+            )
+            _check_preset(getattr(self, f"{ph}_preset"), f"OutVariant.{ph}_preset", floor)
+        # Q-B5: Inst_Out.dll compares the two TD fields and OnOK refuses one
+        # register for both with OBJ-012.
+        if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
+            raise FieldError(
+                f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "
+                f"{self.kind} needs two different TD registers"
+            )
+
+    def _phase_fields(self, phase: str) -> tuple[str, str]:
+        """Return ``(accumulator, preset)`` of the on or off phase."""
+        if phase == "on":
+            return (self.on_acc, self.on_preset)
+        return (self.off_acc, self.off_preset)
+
     @classmethod
     def from_csv_token(cls, token: str) -> OutVariant:
         """Parse ``toggle(...)``, ``debounce(...)``, ``flasher(...)`` or ``timed(...)``."""
@@ -127,8 +230,8 @@ class OutVariant(AfInstruction):
                 raise ValueError(f"toggle takes no keyword arguments: {token!r}")
             inner = re.fullmatch(r"immediate\((.+)\)", arg)
             if inner:
-                return cls(kind="toggle", operand=_validate_operand(inner.group(1)), immediate=True)
-            return cls(kind="toggle", operand=_validate_operand(arg))
+                return cls(kind="toggle", operand=inner.group(1).strip(), immediate=True)
+            return cls(kind="toggle", operand=arg)
 
         required = {"on_acc", "on_preset", "unit"}
         allowed = set(required)
@@ -137,6 +240,9 @@ class OutVariant(AfInstruction):
             allowed = set(required)
         else:
             allowed.add("maintained")
+        if kind == "debounce":
+            # A debounce may leave out one phase; the constructor checks what is given.
+            required = {"unit"}
         missing = required - set(kwargs)
         if missing:
             raise ValueError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
@@ -147,19 +253,16 @@ class OutVariant(AfInstruction):
         if maintained_raw not in {"0", "1"}:
             raise ValueError("timed maintained must be 0 or 1")
 
-        variant = cls(
+        return cls(
             kind=kind,
-            operand=_validate_operand(arg),
-            on_acc=_validate_operand(kwargs["on_acc"]),
-            on_preset=kwargs["on_preset"],
-            off_acc=_validate_operand(kwargs["off_acc"]) if kind in _TWO_PHASE else "",
+            operand=arg,
+            on_acc=kwargs.get("on_acc", ""),
+            on_preset=kwargs.get("on_preset", ""),
+            off_acc=kwargs.get("off_acc", ""),
             off_preset=kwargs.get("off_preset", ""),
             unit=kwargs["unit"],
             maintained=maintained_raw == "1",
         )
-        if (variant.kind, variant.unit, variant.maintained) not in OUT_VARIANT_FUNC_CODES:
-            raise ValueError(f"{kind} does not support unit={variant.unit!r}: {token!r}")
-        return variant
 
     @property
     def func_code(self) -> str:
@@ -170,9 +273,12 @@ class OutVariant(AfInstruction):
         if self.kind == "toggle":
             operand = f"immediate({self.operand})" if self.immediate else self.operand
             return f"toggle({operand})"
-        parts = [self.operand, f"on_acc={self.on_acc}", f"on_preset={self.on_preset}"]
-        if self.kind in _TWO_PHASE:
-            parts += [f"off_acc={self.off_acc}", f"off_preset={self.off_preset}"]
+        parts = [self.operand]
+        for ph in ("on", "off") if self.kind in _TWO_PHASE else ("on",):
+            acc, preset = self._phase_fields(ph)
+            # A one-phase debounce leaves out the empty phase's keywords.
+            if self.kind != "debounce" or (acc, preset) != ("", ""):
+                parts += [f"{ph}_acc={acc}", f"{ph}_preset={preset}"]
         parts.append(f"unit={self.unit}")
         if self.maintained:
             parts.append("maintained=1")
@@ -180,44 +286,52 @@ class OutVariant(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        if self.kind in _TWO_PHASE:
-            return {"visual_rows": 3}
-        if self.kind == "timed":
-            # Click spans 2 rows but writes 3 visual sub-rows in the cell header.
-            return {"visual_rows": 2, "sub_rows": 3}
-        return {}
+        return dict(_KIND_CELL_PARAMS[self.kind])
+
+    def _tag_values(self) -> list[str]:
+        """Values written for ``_OUT_VARIANT_TAGS``, in order."""
+        return [
+            self.operand,
+            "",
+            self.on_preset,
+            self.on_acc,
+            self.off_preset,
+            self.off_acc,
+            "0",
+            "1" if self.immediate else "0",
+            "1" if self.kind == "toggle" else "0",
+            "1" if self.maintained else "0",
+            TIMER_UNIT_TO_INDEX[self.unit] if self.unit else "0",
+            _KIND_INDEX[self.kind],
+            self.func_code,
+            "2",
+            "",
+        ]
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this Out variant cell."""
         from ..binary_helpers import _build_blob
 
-        return _build_blob(
-            "Out",
-            0x2715,
-            _OUT_VARIANT_TAGS,
-            [
-                self.operand,
-                "",
-                self.on_preset,
-                self.on_acc,
-                self.off_preset,
-                self.off_acc,
-                "0",
-                "1" if self.immediate else "0",
-                "1" if self.kind == "toggle" else "0",
-                "1" if self.maintained else "0",
-                TIMER_UNIT_TO_INDEX[self.unit] if self.unit else "0",
-                _KIND_INDEX[self.kind],
-                self.func_code,
-                "2",
-                "",
-            ],
-        )
+        return _build_blob("Out", 0x2715, _OUT_VARIANT_TAGS, self._tag_values())
 
 
 # ---------------------------------------------------------------------------
 # Shared from_tags factory
 # ---------------------------------------------------------------------------
+
+
+def _writes_tags(decoded: OutVariant, tags: dict[int, str]) -> bool:
+    """True when re-encoding *decoded* keeps every value the blob holds.
+
+    A blob that holds a value the kind's dialog never writes (an accumulator, a unit or a
+    range end in a toggle, an immediate flag in a timed) would lose it; it stays raw.
+    A blank or absent tag holds no value: SCR files leave out the tags at their default.
+    """
+    for tag, written in zip(_OUT_VARIANT_TAGS, decoded._tag_values(), strict=True):
+        held = tags.get(tag, "")
+        if held and held != written:
+            return False
+    return True
 
 
 def from_tags(
@@ -237,20 +351,29 @@ def from_tags(
         return None
     kind, unit, flag = variant
     if kind == "toggle":
-        return OutVariant(kind="toggle", operand=operand, immediate=flag)
+        decoded = OutVariant(kind="toggle", operand=operand, immediate=flag)
+        return decoded if _writes_tags(decoded, tags) else None
     if TIMER_UNITS.get(tag_value(tags, 0x21F9)) != unit:
         return None
-    two_phase = kind in _TWO_PHASE
-    return OutVariant(
+    decoded = OutVariant(
         kind=kind,
         operand=operand,
         on_acc=tag_value(tags, 0x60B4),
         on_preset=tag_value(tags, 0x60B3),
-        off_acc=tag_value(tags, 0x60B6) if two_phase else "",
-        off_preset=tag_value(tags, 0x60B5) if two_phase else "",
+        off_acc=tag_value(tags, 0x60B6),
+        off_preset=tag_value(tags, 0x60B5),
         unit=unit,
         maintained=flag,
     )
+    return decoded if _writes_tags(decoded, tags) else None
+
+
+def cell_params_from_tags(class_name: str, type_code: int, tags: dict[int, str]) -> dict | None:
+    """Cell kwargs of an Out blob whose func code (tag 0x3218) names a variant kind."""
+    if class_name != "Out" or type_code != 0x2715:
+        return None
+    variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
+    return None if variant is None else dict(_KIND_CELL_PARAMS[variant[0]])
 
 
 def parse_af_call(call: AfCall) -> OutVariant:
@@ -267,4 +390,5 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("toggle", "debounce", "flasher", "timed"),
     parse_csv_call=parse_af_call,
+    cell_params_from_tags=cell_params_from_tags,
 )

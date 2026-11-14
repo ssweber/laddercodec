@@ -19,7 +19,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, InstructionType, _validate_operand
+from ..model import (
+    AddressError,
+    AfInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -33,7 +40,13 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-_FOR_LITERAL_RE = re.compile(r"^\d+$")
+#: Inst_For.dll OnOK (Q-F1): a constant count is digits only (0 is
+#: allowed, a sign is not) up to 2147483647, else OBJ-005; a register count is DS, DD, TD,
+#: CTD or SD (validator mask 0x70c0), else OBJ-004.
+_FOR_LITERAL_RE = re.compile(r"[0-9]+")
+_FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
+FOR_MAX_LIMIT = 2**31 - 1
+FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
 
 # Class "Next" func codes (0x3218).  v3 writes Next without one; v4 writes 9220.
 _NEXT_FUNC_CODE = "9220"
@@ -45,10 +58,26 @@ _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 def _validate_for_limit(value: str) -> str:
     text = value.strip()
     if not text:
-        raise ValueError("for() limit cannot be blank")
+        raise FieldError("ForLoop.limit cannot be blank")
     if _FOR_LITERAL_RE.fullmatch(text):
+        if int(text) > FOR_MAX_LIMIT:
+            raise FieldError(
+                f"ForLoop.limit: {text!r} is above {FOR_MAX_LIMIT}; a constant count is "
+                f"0 to {FOR_MAX_LIMIT} (OBJ-005)"
+            )
         return text
-    return _validate_operand(text)
+    if _FOR_SPACED_RE.fullmatch(text):
+        # Q-F1: the dialog lets ``1 0`` through, a gap in its check; the user's decision
+        # (2026-11-11) is to refuse it, since it is not a number.
+        raise FieldError(
+            f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only"
+        )
+    if "[" in text:
+        # Q-F1, user dialog check 2026-11-11: the For count refuses a pointer.
+        raise AddressError(f"ForLoop.limit: {text!r} is a pointer; the For count takes no pointer")
+    text = normalize_address(text)
+    check_address(text, "ForLoop.limit", banks=FOR_LIMIT_BANKS)
+    return text
 
 
 @dataclass
@@ -205,10 +234,7 @@ def from_tags(
         if not limit:
             return None
         oneshot = tag_flag(tags, 0x11F8)
-        try:
-            return ForLoop(limit=limit, oneshot=oneshot)
-        except ValueError:
-            return None
+        return ForLoop(limit=limit, oneshot=oneshot)
 
     return None
 

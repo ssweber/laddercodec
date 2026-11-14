@@ -11,7 +11,12 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_int, tag_value
 from ..model import AfInstruction
-from .family import AfInstructionFamilySpec
+from .family import (
+    EMAIL_MOTION_CELL_PARAMS,
+    AfInstructionFamilySpec,
+    cell_rows_spec,
+    fixed_cell_params,
+)
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -91,7 +96,7 @@ class Home(AfInstruction):
     tag_3218: str = "9738"
 
     def cell_params(self) -> dict:
-        return {}
+        return dict(EMAIL_MOTION_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         out = bytearray()
@@ -150,12 +155,13 @@ class Home(AfInstruction):
             f"3218={self.tag_3218}",
             "0000=",
         ]
-        return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{','.join(specs)})"
+        rows = cell_rows_spec(EMAIL_MOTION_CELL_PARAMS)
+        return f"raw({_CLASS_NAME},0x{_TYPE_CODE:04x},1,{rows},{','.join(specs)})"
 
     @classmethod
     def from_csv_token(cls, token: str) -> Home:
         """Parse ``raw(Home,0x2734,1,...)`` token."""
-        from .raw import _FIELD_SPEC_RE, _split_raw_args
+        from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
             raise ValueError(f"Not a raw Home token: {token!r}")
@@ -164,7 +170,7 @@ class Home(AfInstruction):
             raise ValueError(f"Not a Home token: {token!r}")
 
         tags: dict[int, str] = {}
-        for spec in parts[3:]:
+        for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):
             m = _FIELD_SPEC_RE.fullmatch(spec)
             if m and m.group(2) is None and m.group(3) is None:
                 tags[int(m.group(1), 16)] = m.group(4)
@@ -200,4 +206,5 @@ SPEC = AfInstructionFamilySpec(
     instruction_types=(Home,),
     binary_class_names=(_CLASS_NAME,),
     from_tags=from_tags,
+    cell_params_from_tags=fixed_cell_params(EMAIL_MOTION_CELL_PARAMS, (_CLASS_NAME, _TYPE_CODE)),
 )

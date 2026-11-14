@@ -44,6 +44,10 @@ def _load_golden_pairs() -> list[tuple[str, Path, Path]]:
     return pairs
 
 
+def _args(rung: Rung) -> tuple[int, list[list[object]], list[object], str | None]:
+    return rung.logical_rows, list(rung.conditions), list(rung.instructions), rung.comment
+
+
 def _convert_program(
     csv_path: Path,
 ) -> tuple[list[object], list[tuple[int, list[list[object]], list[object], str | None]]]:
@@ -52,7 +56,7 @@ def _convert_program(
     converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
     for idx, rung in enumerate(rungs):
         try:
-            converted.append(convert_rung(rung))
+            converted.extend(_args(r) for r in convert_rung(rung))
         except (ConvertError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"rung {idx}: {exc}") from exc
     return rungs, converted
@@ -133,19 +137,17 @@ def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
     write_csv(out_csv, list(decoded_rungs))
 
     # Compare normalized convert signatures (robust to equivalent token spellings
-    # like immediate(X1) vs X1.immediate).
-    out_program = parse_csv_file(out_csv)
-    out_rungs = list(out_program.rungs)
-    if len(out_rungs) != len(rungs):
+    # like immediate(X1) vs X1.immediate).  ``converted`` holds the rungs as laid out, one
+    # per CLICK rung, and write_csv writes one CSV rung for each.
+    out_rungs = list(parse_csv_file(out_csv).rungs)
+    if len(out_rungs) != len(converted):
         pytest.fail(
-            f"roundtrip output rung count mismatch for {rid}: {len(out_rungs)} != {len(rungs)}"
+            f"roundtrip output rung count mismatch for {rid}: {len(out_rungs)} != {len(converted)}"
         )
 
     out_converted: list[tuple[int, list[list[object]], list[object], str | None]] = []
-    for idx, rung in enumerate(out_rungs):
-        out_converted.append(convert_rung(rung))
-        if idx >= len(converted):
-            pytest.fail(f"unexpected extra rung {idx} in roundtrip output for {rid}")
+    for rung in out_rungs:
+        out_converted.extend(_args(r) for r in convert_rung(rung))
 
     assert out_converted == converted
 

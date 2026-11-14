@@ -16,12 +16,25 @@ import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction
-from .family import AfInstructionFamilySpec
+from ..binary_helpers import tag_int, tag_value
+from ..model import (
+    ADDRESS_BANKS,
+    XY_SLOTS,
+    Address,
+    AfInstruction,
+    FieldError,
+    check_address,
+    normalize_address,
+    to_display,
+)
+from ..operands.constants import hex_display
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: Cell kwargs of a Send or Receive box: three rows (cell header +0x09 = +0x0A = 3).
+_CELL_PARAMS: dict = {"visual_rows": 3}
 
 # ---------------------------------------------------------------------------
 # Helper dataclasses
@@ -39,11 +52,12 @@ class ModbusRtuTarget:
 
     def __post_init__(self) -> None:
         if self.com_port not in _RTU_PORT_MODE:
-            raise ValueError(
+            raise FieldError(
                 f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
-        _check_device_id(self.device_id)
+        _normalize_device_id(self)
+        _check_device_id(self.device_id, 247)
 
 
 @dataclass(frozen=True)
@@ -59,24 +73,52 @@ class ModbusTcpTarget:
 
     def __post_init__(self) -> None:
         if self.com_port not in _TCP_PORT_MODE:
-            raise ValueError(
+            raise FieldError(
                 f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
                 f"got {self.com_port!r}"
             )
+        _normalize_device_id(self)
         _check_device_id(self.device_id)
+        _check_ip(self.ip)
+        if isinstance(self.port, bool) or not isinstance(self.port, int):
+            raise FieldError(f"ModbusTcpTarget port must be an integer, got {self.port!r}")
+        if not 1 <= self.port <= 65535:
+            raise FieldError(f"ModbusTcpTarget port must be 1-65535, got {self.port}")
 
 
-_DS_ADDRESS_RE = re.compile(r"DS([1-9]\d*)")
+_DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 
-def _check_device_id(device_id: int | str) -> None:
+def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
+    """Write a Slave ID address in display form (the target is frozen)."""
+    if isinstance(target.device_id, str):
+        object.__setattr__(target, "device_id", normalize_address(target.device_id))
+
+
+def _check_device_id(device_id: int | str, high: int = 255) -> None:
     """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
     if isinstance(device_id, str):
         m = _DS_ADDRESS_RE.fullmatch(device_id)
         if not m or int(m.group(1)) > 4500:
-            raise ValueError(
+            raise FieldError(
                 f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}"
             )
+    elif isinstance(device_id, bool) or not isinstance(device_id, int):
+        raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
+    elif not 0 <= device_id <= high:
+        raise FieldError(f"device_id must be 0-{high} or a DS address, got {device_id!r}")
+
+
+_IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
+
+
+def _check_ip(ip: str) -> None:
+    """A TCP server IP is four octets, each 0-255 (0.0.0.0 is accepted)."""
+    m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
+    if m is None or any(int(octet) > 255 for octet in m.groups()):
+        raise FieldError(
+            f"ModbusTcpTarget ip must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
+        )
 
 
 @dataclass(frozen=True)
@@ -85,6 +127,38 @@ class ModbusAddress:
 
     address: str  # "400001" or "0h"
     register_type: str | None = None  # "coil"|"holding"|... — only for hex
+
+    def __post_init__(self) -> None:
+        if self.register_type is not None and self.register_type not in REGISTER_TYPES:
+            raise FieldError(
+                f"ModbusAddress register_type must be one of {', '.join(REGISTER_TYPES)}, "
+                f"got {self.register_type!r}"
+            )
+        if self.address.endswith(("h", "H")):
+            if not _HEX_RE.fullmatch(self.address) or int(self.address[:-1], 16) > 0xFFFE:
+                raise FieldError(
+                    f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
+                )
+            # The range check reads the typed value: padding past four digits is still in range.
+            # CLICK stores uppercase digits without leading zeros and a lowercase h
+            # (0FFFEh -> FFFEh, 0H -> 0h; v4_captures/comm_hex_address.bin).
+            object.__setattr__(
+                self, "address", to_display(self.address, hex_display(self.address[:-1]))
+            )
+        elif not self.address.isascii() or not self.address.isdigit():
+            raise FieldError(
+                f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
+                f"got {self.address!r}"
+            )
+
+    @property
+    def is_hex(self) -> bool:
+        return self.address.endswith("h")
+
+
+#: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
+REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
+_HEX_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 
 
 # ---------------------------------------------------------------------------
@@ -109,108 +183,143 @@ _RTU_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _RTU_PORT_MODE.items()}
 _TCP_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _TCP_PORT_MODE.items()}
 
 # ---------------------------------------------------------------------------
-# FC inference
+# Function codes
 # ---------------------------------------------------------------------------
 
-#: CLICK bit-address prefixes (coil / discrete input).
-_CLICK_BIT_PREFIXES = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-#: CLICK register-address prefixes.
-_CLICK_REG_PREFIXES = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT", "YD", "SD", "XD"})
-#: CLICK writable-bit prefixes (for Send).
-_CLICK_WRITABLE_BIT = frozenset({"Y", "C"})
+#: fc_subtype (0x2211) per Modbus function code: the item index in each dialog's
+#: Function Code box.
+_RD_FC_SUBTYPE: dict[int, str] = {1: "0", 2: "1", 3: "2", 4: "3"}
+_SD_FC_SUBTYPE: dict[int, str] = {5: "0", 6: "1", 15: "2", 16: "3"}
+_RD_FC_FROM_SUBTYPE: dict[str, int] = {v: k for k, v in _RD_FC_SUBTYPE.items()}
+_SD_FC_FROM_SUBTYPE: dict[str, int] = {v: k for k, v in _SD_FC_SUBTYPE.items()}
 
-_ADDR_PREFIX_RE = re.compile(r"^([A-Z]+)")
-
-
-def _click_prefix(addr: str) -> str:
-    m = _ADDR_PREFIX_RE.match(addr)
-    if not m:
-        raise ValueError(f"Cannot extract prefix from CLICK address: {addr!r}")
-    return m.group(1)
+#: Register types of a hex remote address, by Receive function code.
+_RD_FC_REGISTER_TYPE: dict[int, str] = dict(zip((1, 2, 3, 4), REGISTER_TYPES, strict=True))
+_RD_REGISTER_TYPE_FC: dict[str, int] = {v: k for k, v in _RD_FC_REGISTER_TYPE.items()}
 
 
-def _is_click_bit(addr: str) -> bool:
-    return _click_prefix(addr) in _CLICK_BIT_PREFIXES
-
-
-def _is_click_register(addr: str) -> bool:
-    return _click_prefix(addr) in _CLICK_REG_PREFIXES
-
-
-def _modbus984_is_coil(addr: str) -> bool:
-    """True if a MODBUS 984 address falls in the coil range (0xxxxx)."""
-    n = int(addr)
-    return n < 100001
-
-
-def _modbus984_fc_subtype_rd(addr: str) -> str:
-    n = int(addr)
-    if n < 100001:
-        return "0"  # FC01
-    if n < 200001:
-        return "1"  # FC02
-    if n < 400001:
-        return "3"  # FC04
-    return "2"  # FC03
-
-
-def _rd_fc_subtype(remote_start: str | ModbusAddress) -> str:
-    """Compute RD fc_subtype from the remote address."""
-    if isinstance(remote_start, str):
-        # CLICK address — bits → FC01, registers → FC03
-        if _is_click_bit(remote_start):
-            return "0"  # FC01
-        return "2"  # FC03
-    if remote_start.address.endswith("h"):
-        # Hex address — use register_type
-        rt = remote_start.register_type or "holding"
-        return {"coil": "0", "discrete_input": "1", "holding": "2", "input": "3"}[rt]
-    # MODBUS 984
-    return _modbus984_fc_subtype_rd(remote_start.address)
-
-
-def _sd_fc_subtype(remote_start: str | ModbusAddress, quantity: int) -> str:
-    """Compute SD fc_subtype from address and quantity."""
-    is_coil = False
-
-    if isinstance(remote_start, str):
-        # CLICK address
-        prefix = _click_prefix(remote_start)
-        is_coil = prefix in _CLICK_WRITABLE_BIT
-    elif remote_start.address.endswith("h"):
-        # Hex
-        rt = remote_start.register_type or "holding"
-        is_coil = rt == "coil"
-    else:
-        # MODBUS 984
-        is_coil = _modbus984_is_coil(remote_start.address)
-
-    if is_coil:
-        return "0" if quantity == 1 else "2"  # FC05 / FC15
-    return "1" if quantity == 1 else "3"  # FC06 / FC16
+def _check_function_code(who: str, function_code: object, allowed: tuple[int, ...]) -> None:
+    if function_code is None:
+        return
+    if type(function_code) is not int or function_code not in allowed:
+        listed = ", ".join(str(fc) for fc in allowed)
+        raise FieldError(f"{who} function_code: {function_code!r} is not one of {listed}")
 
 
 # ---------------------------------------------------------------------------
 # Address helpers
 # ---------------------------------------------------------------------------
 
-_ADDR_NUM_RE = re.compile(r"^([A-Z]+)(\d+)$")
+_ADDR_NUM_RE = re.compile(r"^([A-Z]+)([0-9]+)$")
+_XY_BANKS = frozenset({"X", "Y"})
+
+
+def _xy_points(first: int, last: int) -> int:
+    """How many X/Y points of :data:`XY_SLOTS` lie in ``first..last``."""
+    return sum(max(0, min(last, hi) - max(first, lo) + 1) for lo, hi in XY_SLOTS)
+
+
+def _xy_points_left(number: int) -> int:
+    """X/Y points from ``number`` through the last slot (X816), counted along the slots."""
+    return _xy_points(number, XY_SLOTS[-1][1])
+
+
+def _xy_click_room(number: int) -> int:
+    """Points the slot run from X/Y point ``number`` holds.
+
+    The CPU slot and its dual option slot count as one run (X001 gives 32); a count from an
+    expansion slot stays in that slot (X101 gives 16).  Inst_SD.dll, the X/Y case
+    of the quantity limit, uses it for a CLICK-addressed Send; Inst_RD.dll uses it
+    for every Receive into Y.
+    """
+    if number <= 16:
+        return 33 - number
+    if number <= 36:
+        return 37 - number
+    return 17 - number % 100
+
+
+def _receive_y_room(
+    local: Address, remote: str | ModbusAddress, remote_addr: Address | None
+) -> int:
+    """Points a Receive can count into Y point ``local``: the slot run, capped by the remote.
+
+    Inst_RD.dll, the local Y case of the quantity limit, uses the
+    slot run in every addressing mode.  A remote X/Y start takes the higher of the two start
+    numbers; a remote C, T, CT or SC caps the count at the room left in that bank;
+    a MODBUS 984 start up to 65535 caps it at 65536 minus the start.
+
+    From Y101 on, the remote C case skips its slot formula (both range tests
+    jump past it), so only the C room and the points that exist through Y816
+    apply there.
+    """
+    if remote_addr is not None:
+        if remote_addr.bank in _XY_BANKS:
+            return _xy_click_room(max(local.number, remote_addr.number))
+        remote_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+        if remote_addr.bank == "C" and local.number > 36:
+            return min(remote_room, _xy_points_left(local.number))
+        return min(remote_room, _xy_click_room(local.number))
+    room = _xy_click_room(local.number)
+    if isinstance(remote, ModbusAddress) and not remote.is_hex and int(remote.address) <= 0xFFFF:
+        room = min(room, 0x10000 - int(remote.address))
+    return room
+
+
+def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
+    """A count between local C and a CLICK remote also fits the remote side.
+
+    The room is the lesser of the C room and the remote's: the slot run from an X/Y start
+    (Inst_SD.dll, Inst_RD.dll), or the room left in a C, T, CT or SC
+    bank.  These are the local C cases of each dialog's quantity limit.
+    """
+    bank, number = remote_addr.bank, remote_addr.number
+    if bank in _XY_BANKS:
+        room = _xy_click_room(number)
+        if quantity > room:
+            raise FieldError(
+                f"{who} quantity: {quantity} from remote {remote_addr.display} is outside "
+                f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
+                f"{bank}036, then {bank}101-{bank}116 ...)"
+            )
+        return
+    last_number = ADDRESS_BANKS[bank][1]
+    left = last_number - number + 1
+    if quantity > left:
+        raise FieldError(
+            f"{who} quantity: {quantity} from remote {remote_addr.display} runs past "
+            f"{bank}{last_number} ({left} left)"
+        )
+
+
+def _xy_nth(number: int, steps: int) -> int:
+    """The X/Y point ``steps`` points after ``number``, counted along the slots."""
+    for lo, hi in XY_SLOTS:
+        if hi < number:
+            continue
+        first = max(lo, number)
+        if first + steps <= hi:
+            return first + steps
+        steps -= hi - first + 1
+    raise FieldError(f"X/Y count runs past the last slot from point {number}")
 
 
 def _addr_end(start: str, quantity: int) -> str:
-    """Compute end address from start + quantity (e.g. DS1 + 5 → DS5)."""
+    """End address of ``quantity`` elements from ``start`` (DS1 + 5 is DS5, X001 + 17 is X021)."""
     m = _ADDR_NUM_RE.fullmatch(start)
     if not m:
         return start
-    prefix, num = m.group(1), int(m.group(2))
-    return f"{prefix}{num + quantity - 1}"
+    prefix, number = m.group(1), int(m.group(2))
+    if prefix in _XY_BANKS:
+        return Address(prefix, _xy_nth(number, quantity - 1)).display
+    return Address(prefix, number + quantity - 1).display
 
 
 def _addr_type_code(remote_start: str | ModbusAddress) -> str:
     """Return the binary address_type field value."""
     if isinstance(remote_start, str):
         return "2"  # CLICK
-    if remote_start.address.endswith("h"):
+    if remote_start.is_hex:
         return "1"  # hex
     return "0"  # MODBUS 984
 
@@ -220,6 +329,335 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
     if isinstance(remote_start, str):
         return remote_start
     return remote_start.address
+
+
+# ---------------------------------------------------------------------------
+# Field rules
+#
+# CLICK v4.00 Help topics 180/181 (RTU) and 213/214 (TCP), and the dialog code in
+# Inst_SD.dll / Inst_RD.dll.  Address masks are baseEx CreateAddressInstValidator masks: a
+# bank outside the mask raises OBJ-004, a number outside the limit OBJ-010.
+# ---------------------------------------------------------------------------
+
+_SEND_REMOTE_BITS = frozenset({"Y", "C"})
+_SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
+_SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
+#: Send local banks per function code (Inst_SD.dll; masks 0x3f, 0xdd40, 0xf3c0).
+_SEND_LOCAL_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+_SEND_LOCAL_REGS_FC06 = frozenset({"DS", "DH", "XD", "YD", "TD", "SD", "TXT"})
+_SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "TXT"})
+#: Banks that only FC16 carries; one of them makes a single-element Send FC16.
+_FC16_ONLY = frozenset({"CTD", "DD", "DF"})
+#: Local data types whose hex remote start stops at FFFDh (int32, float, text; Inst_SD.dll).
+_SEND_HEX_FFFD = frozenset({"DD", "CTD", "DF", "TXT"})
+
+_RECEIVE_REMOTE_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+#: CLICK-addressed Receive remote banks per local bank (Inst_RD.dll):
+#: int16, int32, float, hex and text pair only with their own kind.
+_RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
+    "DS": frozenset({"DS", "TD", "SD"}),
+    "DD": frozenset({"DD", "CTD"}),
+    "DF": frozenset({"DF"}),
+    "DH": frozenset({"DH", "XD", "YD"}),
+    "YD": frozenset({"DH", "XD", "YD"}),
+    "TXT": frozenset({"TXT"}),
+}
+_RECEIVE_REMOTE_REGS = frozenset().union(*_RECEIVE_REMOTE_FOR_DEST.values())
+#: Receive local banks: FC01/02 mask 6, FC03/04 mask 0x8bc0 (Inst_RD.dll).
+_RECEIVE_LOCAL_BITS = frozenset({"Y", "C"})
+_RECEIVE_LOCAL_REGS = frozenset(_RECEIVE_REMOTE_FOR_DEST)
+
+_STATUS_BITS = frozenset({"C"})
+_EXCEPTION_BANKS = frozenset({"DS", "DD"})
+
+#: Local banks whose elements are two registers wide, so the count cap halves.
+_WIDE_BANKS = frozenset({"DD", "DF", "CTD"})
+
+#: Count caps: (bits, registers, 32-bit registers).
+_SEND_CAPS = (1968, 123, 61)
+_RECEIVE_CAPS = (2000, 125, 62)
+
+#: MODBUS 984 start addresses by kind.
+_984_COIL = (1, 65535)
+_984_INPUT_BIT = (100001, 165535)
+_984_INPUT_REG = (300001, 365535)
+_984_HOLDING = (400001, 465535)
+_RECEIVE_984_KINDS = {
+    "coil": _984_COIL,
+    "discrete_input": _984_INPUT_BIT,
+    "input": _984_INPUT_REG,
+    "holding": _984_HOLDING,
+}
+_SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
+
+
+def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
+    """A numeric Slave ID: Receive RTU starts at 1 (the 0-247 and 0-255 ceilings are checked
+    when the target is built); a DS address always passes."""
+    device_id = target.device_id
+    if isinstance(device_id, str):
+        return
+    if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
+        raise FieldError(f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU")
+
+
+def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
+    """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
+    if isinstance(inst.remote_start, str):
+        inst.remote_start = normalize_address(inst.remote_start)
+    for name in names:
+        value = getattr(inst, name)
+        if isinstance(value, str):
+            setattr(inst, name, normalize_address(value))
+
+
+def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:
+    if value:
+        return check_address(value, f"{who} {name}", banks=banks)
+    return None
+
+
+def _check_status_bits(who: str, inst: Send | Receive, names: tuple[str, str, str]) -> None:
+    """Each status field is a C bit, and no C bit serves two of them."""
+    seen: dict[tuple[str, int], str] = {}
+    for name in names:
+        value = getattr(inst, name)
+        found = _check_status(who, name, value, _STATUS_BITS)
+        if found is None:
+            continue
+        key = (found.bank, found.number)
+        if key in seen:
+            raise FieldError(f"{who} {name}: {value} is already the {seen[key]} bit")
+        seen[key] = name
+
+
+def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str:
+    """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to."""
+    n = int(address)
+    for kind, (low, high) in kinds.items():
+        if low <= n <= high:
+            return kind
+    ranges = ", ".join(f"{low}-{high}" for low, high in kinds.values())
+    raise FieldError(f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}")
+
+
+def _check_int_quantity(who: str, quantity: object) -> None:
+    if isinstance(quantity, bool) or not isinstance(quantity, int):
+        raise FieldError(f"{who} quantity: {quantity!r} is not an integer")
+
+
+def _check_quantity(
+    who: str,
+    quantity: int,
+    local: Address,
+    caps: tuple[int, int, int],
+    bit: bool,
+    xy_room: int | None = None,
+) -> None:
+    """The count cap per kind, then the room left from the local start.
+
+    ``xy_room`` is the room from an X/Y start, which depends on the remote side.  None, for
+    a Send to a MODBUS 984 or hex address, is the points left through the last slot.
+    """
+    bits, regs, wide = caps
+    if bit:
+        high, kind = bits, "bits"
+    elif local.bank in _WIDE_BANKS:
+        high, kind = wide, f"{local.bank} registers"
+    else:
+        high, kind = regs, "registers"
+    if not 1 <= quantity <= high:
+        raise FieldError(f"{who} quantity: {quantity} is outside 1-{high} {kind}")
+    if local.bank in _XY_BANKS:
+        room = _xy_points_left(local.number) if xy_room is None else xy_room
+        if quantity > room:
+            raise FieldError(
+                f"{who} quantity: {quantity} from {local.display} is outside "
+                f"1-{room} (X/Y points count by slot: {local.bank}001-{local.bank}016 with "
+                f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)"
+            )
+        return
+    if local.bank in ("XD", "YD"):
+        return  # one element only; the function code or local bank rule says so
+    last_number = ADDRESS_BANKS[local.bank][1]
+    left = last_number - local.number + 1
+    if quantity > left:
+        raise FieldError(
+            f"{who} quantity: {quantity} from {local.display} runs past "
+            f"{local.bank}{last_number} ({left} left)"
+        )
+
+
+def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | None) -> int:
+    """FC05/FC15 for bits, FC06/FC16 for registers; one element is FC05/FC06 unless a bank
+    only FC16 carries (DD, DF, CTD) is on either side."""
+    single = send.quantity == 1
+    if bit:
+        return 5 if single else 15
+    if single and local.bank not in _FC16_ONLY and remote_bank not in _FC16_ONLY:
+        return 6
+    return 16
+
+
+def _validate_send(send: Send) -> tuple[int, int]:
+    """Check every field; return the function code the Send is written with, and the default."""
+    who = "Send"
+    _check_slave_id(who, send.target, 0)
+    _check_function_code(who, send.function_code, tuple(_SD_FC_SUBTYPE))
+    remote, quantity = send.remote_start, send.quantity
+    _check_int_quantity(who, quantity)
+    remote_addr: Address | None = None
+    if isinstance(remote, str):
+        remote_addr = check_address(
+            remote,
+            f"{who} remote_start",
+            _SEND_REMOTE_BITS | _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16,
+        )
+        bit = remote_addr.bank in _SEND_REMOTE_BITS
+    elif remote.is_hex:
+        register_type = remote.register_type or "holding"
+        if register_type not in ("coil", "holding"):
+            raise FieldError(
+                f"{who} remote_start: register_type {register_type!r} cannot be written; "
+                "a Send takes coil or holding"
+            )
+        bit = register_type == "coil"
+    else:
+        bit = _check_984(who, remote.address, _SEND_984_KINDS) == "coil"
+
+    if bit:
+        banks = _SEND_LOCAL_BITS
+    else:
+        banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
+    local = check_address(send.source, f"{who} source", banks)
+    remote_bank = remote_addr.bank if remote_addr is not None else None
+    default_fc = _send_default_fc(send, bit, local, remote_bank)
+    fc = send.function_code or default_fc
+
+    # The function code must suit the remote kind, and FC05/FC06 carry one element.
+    if fc not in ((5, 15) if bit else (6, 16)):
+        kind = "a coil" if bit else "a register"
+        raise FieldError(f"{who} function_code: FC{fc:02d} cannot write {kind}")
+    if fc in (5, 6) and quantity != 1:
+        raise FieldError(f"{who} function_code: FC{fc:02d} writes one element, not {quantity}")
+    if not bit:
+        fc06 = fc == 6
+        local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
+        check_address(send.source, f"{who} source (FC{fc:02d})", local_banks)
+        if isinstance(remote, str):
+            remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
+            check_address(remote, f"{who} remote_start (FC{fc:02d})", remote_banks)
+
+    xy_room = None
+    if local.bank in _XY_BANKS and remote_addr is not None:
+        if remote_addr.bank in _XY_BANKS:
+            # Inst_SD.dll: the higher of the two start numbers decides the room.
+            xy_room = _xy_click_room(max(local.number, remote_addr.number))
+        else:
+            # Remote C: the room left in C (Inst_SD.dll) or in the local slot run.
+            c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+            xy_room = min(c_room, _xy_click_room(local.number))
+    _check_quantity(who, quantity, local, _SEND_CAPS, bit, xy_room)
+    if local.bank == "C" and remote_addr is not None:
+        _check_c_remote_room(who, quantity, remote_addr)
+
+    if isinstance(remote, ModbusAddress) and remote.is_hex and local.bank in _SEND_HEX_FFFD:
+        start = int(remote.address[:-1], 16)
+        if start > 0xFFFD:  # Inst_SD.dll, OBJ-010
+            raise FieldError(
+                f"{who} remote_start: {remote.address!r} is outside 0h-FFFDh for a "
+                f"{local.bank} source"
+            )
+        room = min(_SEND_CAPS[2], 0xFFFE - start)  # Inst_SD.dll
+        if local.bank == "DD" and quantity > room:
+            raise FieldError(
+                f"{who} quantity: {quantity} from hex {remote.address!r} is outside 1-{room}"
+            )
+
+    # Inst_SD.dll: one C bit can't serve two status fields (OBJ-014).
+    _check_status_bits(who, send, ("sending", "success", "error"))
+    _check_status(who, "exception_response", send.exception_response, _EXCEPTION_BANKS)
+    return fc, default_fc
+
+
+def _receive_default_fc(remote: str | ModbusAddress, bit: bool) -> int:
+    """FC01 or FC03 for a CLICK address; a hex or 984 address names its own code."""
+    if isinstance(remote, str):
+        return 1 if bit else 3
+    if remote.is_hex:
+        return _RD_REGISTER_TYPE_FC[remote.register_type or "holding"]
+    return _RD_REGISTER_TYPE_FC[_check_984("Receive", remote.address, _RECEIVE_984_KINDS)]
+
+
+def _validate_receive(receive: Receive) -> tuple[int, int]:
+    """Check every field; return the function code the Receive is written with, and the default."""
+    who = "Receive"
+    _check_slave_id(who, receive.target, 1)
+    _check_function_code(who, receive.function_code, tuple(_RD_FC_SUBTYPE))
+    remote, quantity = receive.remote_start, receive.quantity
+    _check_int_quantity(who, quantity)
+    remote_addr: Address | None = None
+    if isinstance(remote, str):
+        remote_addr = check_address(
+            remote, f"{who} remote_start", _RECEIVE_REMOTE_BITS | _RECEIVE_REMOTE_REGS
+        )
+        bit = remote_addr.bank in _RECEIVE_REMOTE_BITS
+    elif remote.is_hex:
+        bit = (remote.register_type or "holding") in ("coil", "discrete_input")
+    else:
+        bit = _check_984(who, remote.address, _RECEIVE_984_KINDS) in ("coil", "discrete_input")
+    default_fc = _receive_default_fc(remote, bit)
+    fc = receive.function_code or default_fc
+    if remote_addr is not None:
+        # Inst_RD.dll: a CLICK address is read with whichever code is picked.
+        if fc not in ((1, 2) if bit else (3, 4)):
+            kind = "a bit" if bit else "a register"
+            raise FieldError(f"{who} function_code: FC{fc:02d} cannot read {kind}")
+    elif fc != default_fc:
+        raise FieldError(
+            f"{who} function_code: FC{fc:02d} does not match remote_start "
+            f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}"
+        )
+
+    local = check_address(
+        receive.dest, f"{who} dest", _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS
+    )
+    hex_pair = False
+    if isinstance(remote, str) and remote_addr is not None and not bit:
+        name = f"{who} remote_start (for a {local.bank} dest)"
+        check_address(remote, name, _RECEIVE_REMOTE_FOR_DEST[local.bank])
+        hex_pair = remote_addr.bank in ("XD", "YD")
+    xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
+    _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit, xy_room)
+    if local.bank == "C" and remote_addr is not None:
+        _check_c_remote_room(who, quantity, remote_addr)
+    if (local.bank == "YD" or hex_pair) and quantity != 1:
+        # Inst_RD.dll: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
+        raise FieldError(f"{who} quantity: {quantity} is outside 1-1 for this dest and remote")
+    if local.bank == "TXT" and (quantity < 2 or quantity % 2):
+        # Inst_RD.dll: text arrives two characters per register.
+        raise FieldError(f"{who} quantity: {quantity} TXT characters must be an even count of 2+")
+
+    if receive.word_swap:
+        # Inst_RD.dll: CLICK forces Word Swap off here.
+        if bit:
+            reason = "bits"
+        elif local.bank in ("YD", "TXT") or hex_pair:
+            reason = f"a {local.bank} dest"
+        elif local.bank in ("DD", "DF") and remote_addr is not None:
+            reason = f"a {local.bank} dest read from a CLICK address"
+        elif local.bank in ("DS", "DH") and quantity == 1:
+            # Inst_RD.dll: a DS or DH dest enables Word Swap above one element.
+            reason = f"one {local.bank} element"
+        else:
+            reason = ""
+        if reason:
+            raise FieldError(f"{who} word_swap: CLICK turns Word Swap off for {reason}")
+
+    # Inst_RD.dll: one C bit can't serve two status fields (0x271e).
+    _check_status_bits(who, receive, ("receiving", "success", "error"))
+    _check_status(who, "exception_response", receive.exception_response, _EXCEPTION_BANKS)
+    return fc, default_fc
 
 
 # ---------------------------------------------------------------------------
@@ -402,11 +840,21 @@ class Receive(AfInstruction):
     error: str
     exception_response: str  # DS/DD address ("" if disabled)
     word_swap: bool = False
+    #: Modbus function code 1-4.  None reads a CLICK bit address with FC01 and a register
+    #: with FC03; FC02 and FC04 must be named.  A hex or 984 address fixes its own code.
+    function_code: int | None = None
+
+    def __post_init__(self) -> None:
+        _normalize_operands(self, ("dest", "receiving", "success", "error", "exception_response"))
+        fc, default_fc = _validate_receive(self)
+        self.function_code = None if fc == default_fc else fc
 
     def to_csv(self) -> str:
         parts: list[str] = []
         parts.append(f"target={_target_to_csv(self.target)}")
         parts.append(f"remote_start={_remote_start_to_csv(self.remote_start)}")
+        if self.function_code is not None:
+            parts.append(f"function_code={self.function_code}")
         if self.quantity > 1:
             parts.append(f"dest={self.dest}..{_addr_end(self.dest, self.quantity)}")
         else:
@@ -424,13 +872,13 @@ class Receive(AfInstruction):
         return f"receive({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 3}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
 
         t = _target_fields(self.target, _RD_FUNC)
-        fc_subtype = _rd_fc_subtype(self.remote_start)
+        fc_subtype = _RD_FC_SUBTYPE[_validate_receive(self)[0]]
         address_type = _addr_type_code(self.remote_start)
 
         fields: list[str] = [
@@ -490,11 +938,21 @@ class Send(AfInstruction):
     error: str
     exception_response: str
     word_swap: bool = False
+    #: Modbus function code 5, 6, 15 or 16.  None writes one element with FC05/FC06 (FC16
+    #: when DD, DF or CTD is on either side) and a block with FC15/FC16.
+    function_code: int | None = None
+
+    def __post_init__(self) -> None:
+        _normalize_operands(self, ("source", "sending", "success", "error", "exception_response"))
+        fc, default_fc = _validate_send(self)
+        self.function_code = None if fc == default_fc else fc
 
     def to_csv(self) -> str:
         parts: list[str] = []
         parts.append(f"target={_target_to_csv(self.target)}")
         parts.append(f"remote_start={_remote_start_to_csv(self.remote_start)}")
+        if self.function_code is not None:
+            parts.append(f"function_code={self.function_code}")
         if self.quantity > 1:
             parts.append(f"source={self.source}..{_addr_end(self.source, self.quantity)}")
         else:
@@ -512,13 +970,13 @@ class Send(AfInstruction):
         return f"send({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 3}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null
 
         t = _target_fields(self.target, _SD_FUNC)
-        fc_subtype = _sd_fc_subtype(self.remote_start, self.quantity)
+        fc_subtype = _SD_FC_SUBTYPE[_validate_send(self)[0]]
         address_type = _addr_type_code(self.remote_start)
 
         fields: list[str] = [
@@ -657,35 +1115,29 @@ def _build_target(
     return None
 
 
-def _build_remote_start(
-    tags: dict[int, str],
-    rd: bool,
-) -> str | ModbusAddress | None:
+def _build_remote_start(tags: dict[int, str], function_code: int) -> str | ModbusAddress | None:
     remote_start_raw = tag_value(tags, 0x6085)
     if not remote_start_raw:
         return None
 
     address_type = tag_value(tags, 0x320F)
-    fc_subtype = tag_value(tags, 0x2211)
-
     if address_type == "2":
         return remote_start_raw
     if address_type == "1":
-        if rd:
-            rt = {"0": "coil", "1": "discrete_input", "2": "holding", "3": "input"}.get(
-                fc_subtype, "holding"
-            )
+        if function_code in _RD_FC_REGISTER_TYPE:
+            rt = _RD_FC_REGISTER_TYPE[function_code]
         else:
-            rt = {"0": "coil", "1": "holding", "2": "coil", "3": "holding"}.get(
-                fc_subtype, "holding"
-            )
+            rt = "coil" if function_code in (5, 15) else "holding"
         return ModbusAddress(address=remote_start_raw, register_type=rt)
     return ModbusAddress(address=remote_start_raw)
 
 
 def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
     target = _build_target(tags, "RD")
-    remote_start = _build_remote_start(tags, rd=True)
+    function_code = _RD_FC_FROM_SUBTYPE.get(tag_value(tags, 0x2211))
+    if function_code is None:
+        return None
+    remote_start = _build_remote_start(tags, function_code)
     dest = tag_value(tags, 0x607E)
     if target is None or remote_start is None or not dest:
         return None
@@ -700,12 +1152,16 @@ def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
         error=tag_value(tags, 0x607D),
         exception_response=tag_value(tags, 0x6083),
         word_swap=tag_value(tags, 0x221C) == "0",
+        function_code=function_code,
     )
 
 
 def _from_tags_sd(tags: dict[int, str]) -> Send | None:
     target = _build_target(tags, "SD")
-    remote_start = _build_remote_start(tags, rd=False)
+    function_code = _SD_FC_FROM_SUBTYPE.get(tag_value(tags, 0x2211))
+    if function_code is None:
+        return None
+    remote_start = _build_remote_start(tags, function_code)
     source = tag_value(tags, 0x607E)
     if target is None or remote_start is None or not source:
         return None
@@ -715,11 +1171,12 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
         remote_start=remote_start,
         source=source,
         quantity=tag_int(tags, 0x3210),
-        sending=tag_value(tags, 0x607C) if tag_flag(tags, 0x120A) else "",
-        success=tag_value(tags, 0x607B) if tag_flag(tags, 0x1209) else "",
-        error=tag_value(tags, 0x607D) if tag_flag(tags, 0x120B) else "",
-        exception_response=tag_value(tags, 0x6083) if tag_flag(tags, 0x121A) else "",
+        sending=tag_value(tags, 0x607C),
+        success=tag_value(tags, 0x607B),
+        error=tag_value(tags, 0x607D),
+        exception_response=tag_value(tags, 0x6083),
         word_swap=tag_value(tags, 0x221C) == "0",
+        function_code=function_code,
     )
 
 
@@ -771,14 +1228,19 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
 
     name = _strip_quotes(kw.get("name", ""))
     raw_id = _strip_quotes(kw.get("device_id", "0"))
-    device_id: int | str = int(raw_id) if raw_id.lstrip("-").isdigit() else raw_id
+    device_id: int | str = (
+        int(raw_id) if raw_id.isascii() and raw_id.lstrip("-").isdigit() else raw_id
+    )
 
     if cls_name == "ModbusRtuTarget":
         com_port = _strip_quotes(kw.get("com_port", "cpu2"))
         return ModbusRtuTarget(name=name, com_port=com_port, device_id=device_id)
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
-        port = int(kw.get("port", "502"))
+        raw_port = kw.get("port", "502")
+        if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
+            raise FieldError(f"ModbusTcpTarget port must be an integer, got {raw_port!r}")
+        port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise ValueError(f"Unknown target type: {cls_name!r}")
@@ -800,18 +1262,38 @@ def _parse_remote_start(raw: str) -> str | ModbusAddress:
 
 
 def _parse_range_quantity(raw: str) -> tuple[str, int]:
-    """Parse 'DS1..DS5' → ('DS1', 5) or 'DS1' → ('DS1', 1)."""
+    """Parse 'DS1..DS5' → ('DS1', 5) or 'DS1' → ('DS1', 1).
+
+    CLICK stores a start and a count.  An X/Y range counts the points of the slots it
+    covers, so X001..X021 is 17 (X001-X016, then X021).
+    """
     if ".." in raw:
         start, end = raw.split("..", 1)
-        start = start.strip()
-        end = end.strip()
+        start = normalize_address(start.strip())
+        end = normalize_address(end.strip())
         m_start = _ADDR_NUM_RE.fullmatch(start)
         m_end = _ADDR_NUM_RE.fullmatch(end)
-        if m_start and m_end and m_start.group(1) == m_end.group(1):
-            qty = int(m_end.group(2)) - int(m_start.group(2)) + 1
-            return start, qty
-        return start, 1
+        if not (m_start and m_end):
+            raise FieldError(f"range {raw!r} must run between two addresses of one bank")
+        prefix = m_start.group(1)
+        if m_end.group(1) != prefix:
+            raise FieldError(f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}")
+        check_address(end, f"range end of {raw!r}", banks={prefix})
+        first, last = int(m_start.group(2)), int(m_end.group(2))
+        if last < first:
+            raise FieldError(f"range {raw!r} runs backwards")
+        qty = _xy_points(first, last) if prefix in _XY_BANKS else last - first + 1
+        return start, qty
     return raw.strip(), 1
+
+
+def _parse_function_code(kw: dict[str, str]) -> int | None:
+    raw = kw.get("function_code")
+    if raw is None:
+        return None
+    if not raw.isascii() or not raw.isdigit():
+        raise FieldError(f"function_code must be a number, got {raw!r}")
+    return int(raw)
 
 
 def parse_af_call(call: AfCall) -> Receive | Send:
@@ -821,6 +1303,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
     target = _parse_target(kw["target"])
     remote_start = _parse_remote_start(kw["remote_start"])
     word_swap = kw.get("word_swap") == "1"
+    function_code = _parse_function_code(kw)
 
     receiving = kw.get("receiving", "")
     sending = kw.get("sending", "")
@@ -841,6 +1324,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             error=error,
             exception_response=exception_response,
             word_swap=word_swap,
+            function_code=function_code,
         )
 
     if call.name == "send":
@@ -856,6 +1340,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             error=error,
             exception_response=exception_response,
             word_swap=word_swap,
+            function_code=function_code,
         )
 
     raise ValueError(f"Unsupported send_receive instruction: {call.name!r}")
@@ -872,5 +1357,7 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("receive", "send"),
     parse_csv_call=parse_af_call,
-    min_csv_rows=3,
+    cell_params_from_tags=fixed_cell_params(
+        _CELL_PARAMS, ("RD", _RD_TYPE_CODE), ("SD", _SD_TYPE_CODE)
+    ),
 )

@@ -106,7 +106,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x01 | 4B | Column index (uint32 LE) |
 | +0x05 | 4B | Row byte (uint32 LE, `global_row + 1`) |
 | +0x09 | 1B | Row span (0x01 for single-row, 0x02+ for multi-row AF) |
-| +0x0A | 1B | Visual sub-rows (0x01 for single-row, 0x02+ for timers) |
+| +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell the editor creates, 0x01 under a row span of 3 in an Email/Home/Position/Velocity cell pasted at 1 row and then saved by its dialog) |
 | +0x0B–0x0C | 2B | Structural: +0x0C = 0x01 in wire-only rungs, 0x00 in instruction-bearing rungs |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |
@@ -187,16 +187,16 @@ The instruction blob content (tag IDs, operand values, wire types) is **identica
 
 **Clipboard:** blobs are embedded in the cell grid. Each instruction cell is a 0x25-byte cell header + blob + 16-byte cell tail. The blob boundary is found by scanning tagged fields (no explicit length). The 4-byte sentinel `FFFFFFFF` precedes each string value.
 
-**SCR (Scr\*.tmp):** blobs are stored in instruction sections with explicit framing. Each blob has embedded cell-header fields and an `end_offset` pointer:
+**SCR (Scr\*.tmp):** blobs are stored in instruction sections with explicit framing. Each blob has six bytes after the type code, the part rows and an `end_offset` pointer:
 
 ```
 [1B class_name_len][UTF-16LE class_name][2B type_code]
-[1B row_span][1B pad][2B structural][2B instr_index][1B visual_sub_rows]
-[visual_sub_rows counting bytes][4B end_offset]
+[2B zero][2B opaque][2B zero][1B part_count]
+[part_count part-row bytes][4B end_offset]
 [tagged fields...]
 ```
 
-The embedded fields at offsets +0 through +6 after the type code correspond to clipboard cell header offsets +0x09 through +0x10. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
+The first two and the fifth and sixth bytes after the type code are zero in all 1600 blobs of the SCR fixtures; the third and fourth are an opaque u16 LE, 0 to about 0x0EFF in the fixtures (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob but in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count; each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 
@@ -234,8 +234,10 @@ RUNG = [u16 rung_index]       -- zero-based ordinal, asserted sequential
        [u16 instr_count]     -- 0 = no instruction section
        [u32 section_marker]  -- only when instr_count > 0; opaque
        instr_count x ENTRY
-ENTRY = [u8 stored_row][u8 col][u8 b2][u8 b3][u8 entry_seq][3B opaque] + blob
+ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaque] + blob
 ```
+
+`row_span` and `sub_rows` are the bytes a clipboard cell holds at +0x09 and +0x0A: `01 01` for a condition, the box's height for an AF instruction (`02 02` for a Copy, `02 03` for a timed Out, `01 03` for a Math box). They match the clipboard copy at every AF cell of the native SCR/clipboard pairs.
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
@@ -282,11 +284,11 @@ The public `Rung` model retains instructions and wire geometry, but does not ret
 
 ### Native evidence
 
-These corrections were checked against CLICK Ver3.92's native x86 `CLICK.exe` on 2026-09-10 (SHA-256 `E31A8130BC6D6261BAC841AF3062DAB70DD68B4307A1B3B58DA37F994C6FE13A`). Addresses are preferred-image virtual addresses, image base `0x400000`:
+These corrections were checked against the native x86 `CLICK.exe` of CLICK v3.92 on 2026-09-10 (SHA-256 `E31A8130BC6D6261BAC841AF3062DAB70DD68B4307A1B3B58DA37F994C6FE13A`):
 
-- Program writer `0x5A77F0`: numeric widths at `0x5A791C` with scaling at `0x5A794B`; display bits at `0x5A79D5`; u16 rung count backpatch at `0x5A7B9B`; u16 rung indices at `0x5A7AD0`.
-- Display toggle handlers `0x5BF360/0x5BF430/0x5BF500/0x5B1A00` toggle the four serialized fields. MFC command IDs `0x8036/0x802D/0x8095/0x8090` and executable string resources supply the setting names above.
-- Rung serializer `0x61C540`: stored row count at `0x61C637`, row flags at `0x61C66F`, u16 entry counts at `0x61C6DD`, pair bytes at `0x61C754/0x61C795`, down-column count at `0x61C7F7`.
-- Clipboard writer `0x5BC2F0`: row-bit/column-A tests at `0x5BC4DB/0x5BC4E1`, entry bit at `0x5BC54B`, right presence at `0x5BC552`, down-list matching from `0x5BC5B4`. Native record origins are eight bytes before this document's clipboard cell origins.
+- Program writer: numeric widths with their scaling, display bits, the u16 rung count backpatched after the rungs, and u16 rung indices.
+- Display toggle handlers toggle the four serialized fields. MFC command IDs `0x8036/0x802D/0x8095/0x8090` and executable string resources supply the setting names above.
+- Rung serializer: stored row count, row flags, u16 entry counts, pair bytes and the down-column count.
+- Clipboard writer: row-bit and column-A tests, entry bit, right presence and down-list matching. Native record origins are eight bytes before this document's clipboard cell origins.
 
 The investigation walked 39 SCR files / 704 records without resynchronization. Comparing four flag mappings at 46,208 cell positions found no mismatches outside the synthetic time_drums pair. These are static-binary and fixture results, not a new live paste/reopen validation. `InstCtl_Drum.dll` confirms a four-row instruction footprint; it does not establish the disputed row-removal behavior.

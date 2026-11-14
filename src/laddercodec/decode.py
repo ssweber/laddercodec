@@ -52,6 +52,7 @@ from .instructions import (
     parse_condition_blob,
 )
 from .instructions.raw import find_blob_boundary
+from .legacy import warn_legacy
 from .model import PinnedInstruction
 from .topology import (
     CELL_SIZE,
@@ -295,7 +296,7 @@ def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
         j += 1
 
     digits_start = j
-    while j < n and body[j].isdigit():
+    while j < n and body[j].isascii() and body[j].isdigit():
         j += 1
     arg = sign * int(body[digits_start:j]) if j > digits_start else None
 
@@ -610,8 +611,13 @@ def _walk_row_cells(data: bytes, cursor: int) -> list[_CellBound]:
     return cells
 
 
-def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], AfToken, int]:
+def _decode_data_row(
+    data: bytes, cursor: int, where: tuple[int, int] | None = None
+) -> tuple[list[ConditionToken], AfToken, int]:
     """Decode one grid data row by walking cells sequentially.
+
+    ``where`` is the ``(rung, row)`` index of the row, zero-based; pass it when the row's
+    content is being kept, so a down wire in the AF column raises instead of being dropped.
 
     Returns ``(conditions, af_token, actual_row_size)``.
     """
@@ -643,19 +649,27 @@ def _decode_data_row(data: bytes, cursor: int) -> tuple[list[ConditionToken], Af
                     )
                 conditions.append(token)
         else:  # AF column (col 31)
+            if where is not None and data[pos + 0x21] != 0:
+                raise DecodeError(
+                    f"Rung {where[0]}, row {where[1]} (zero-based): the output column has a down wire, "
+                    "which isn't supported. CLICK's syntax check removes it."
+                )
             if has_instr:
                 instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
                 parsed_af = parse_af_blob(instr_raw)
-                if parsed_af is not None:
+                if parsed_af is not None and _fits_stored_span(parsed_af, data[pos + 0x09]):
                     af_token = parsed_af
                 else:
                     # Try to extract a raw instruction blob.
                     try:
                         class_name, blob_end, part_count = find_blob_boundary(instr_raw)
+                        # Keep the cell's row span (+0x09) and sub-rows (+0x0A).
                         af_token = RawInstruction(
                             class_name=class_name,
                             blob=instr_raw[:blob_end],
                             part_count=part_count,
+                            visual_rows=data[pos + 0x09] or None,
+                            sub_rows=data[pos + 0x0A] or None,
                         )
                     except (ValueError, IndexError):
                         af_token = UnknownInstruction(raw=instr_raw)
@@ -756,7 +770,7 @@ def decode(data: bytes) -> Rung | list[Rung]:
     Raises
     ------
     DecodeError
-        If the buffer is invalid.
+        If the buffer is invalid, or a rung has a down wire in the output column.
     """
     _validate_buffer(data)
     row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
@@ -765,8 +779,12 @@ def decode(data: bytes) -> Rung | list[Rung]:
     grid_start = GRID_FIRST_ROW_START + payload_len
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
     if is_multi:
-        return _decode_multi(data, row_infos, rung0_rtf)
-    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+        rungs = _decode_multi(data, row_infos, rung0_rtf)
+        warn_legacy(rungs)
+        return rungs
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    warn_legacy([rung])
+    return rung
 
 
 def decode_rung(data: bytes) -> Rung:
@@ -785,7 +803,8 @@ def decode_rung(data: bytes) -> Rung:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains multiple rungs.
+        If the buffer is invalid or contains multiple rungs, or the rung has a down wire
+        in the output column.
     """
     _validate_buffer(data)
 
@@ -800,7 +819,9 @@ def decode_rung(data: bytes) -> Rung:
     if is_multi:
         raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    return _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    warn_legacy([rung])
+    return rung
 
 
 def decode_rungs(data: bytes) -> list[Rung]:
@@ -819,7 +840,8 @@ def decode_rungs(data: bytes) -> list[Rung]:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains only a single rung.
+        If the buffer is invalid or contains only a single rung, or a rung has a down wire
+        in the output column.
     """
     _validate_buffer(data)
 
@@ -834,7 +856,9 @@ def decode_rungs(data: bytes) -> list[Rung]:
     if not is_multi:
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
-    return _decode_multi(data, row_infos, rung0_rtf)
+    rungs = _decode_multi(data, row_infos, rung0_rtf)
+    warn_legacy(rungs)
+    return rungs
 
 
 def _decode_single(
@@ -853,8 +877,8 @@ def _decode_single(
 
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
-    for _, cursor, _ in data_rows:
-        conds, af, _ = _decode_data_row(data, cursor)
+    for row, (_, cursor, _) in enumerate(data_rows):
+        conds, af, _ = _decode_data_row(data, cursor, (0, row))
         conditions.append(conds)
         instructions.append(af)
     _drop_tall_span_nops(instructions)
@@ -890,15 +914,25 @@ def _decode_multi(
             current_data.append(cursor)
         elif tag == _PREAMBLE:
             # Flush the current rung.
-            rungs.append(_build_rung(data, current_data, current_rtf))
+            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
             current_data = []
             current_rtf = cmt_rtf
 
     # Flush the last rung (data rows after the final preamble).
     if current_data:
-        rungs.append(_build_rung(data, current_data, current_rtf))
+        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
 
     return rungs
+
+
+def _fits_stored_span(af: AfInstruction, span: int) -> bool:
+    """True when *af*'s class height is the row span its cell stores (+0x09; 0 stores none).
+
+    A box stored at another span stays raw with its stored bytes: CLICK keeps a 1-row
+    Email, Home, Position or Velocity pasted from an earlier laddercodec at 1 row until
+    its dialog is saved (``v4_captures/box_height_pasted.bin``).
+    """
+    return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 
 
 def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
@@ -920,12 +954,12 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
                 instructions[j] = ""
 
 
-def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None) -> Rung:
-    """Build a Rung from a list of data-row cursors."""
+def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None, rung: int) -> Rung:
+    """Build rung number *rung* from a list of data-row cursors."""
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
-    for cursor in data_cursors:
-        conds, af, _ = _decode_data_row(data, cursor)
+    for row, cursor in enumerate(data_cursors):
+        conds, af, _ = _decode_data_row(data, cursor, (rung, row))
         conditions.append(conds)
         instructions.append(af)
     _drop_tall_span_nops(instructions)

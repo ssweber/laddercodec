@@ -48,18 +48,21 @@ TIME_EVENT_DRUM = (
 
 
 def _or_input(n: int) -> list[list[str]]:
-    """Condition rows of an input gated by X1 and ORed over ``n`` rows (as pyrung writes it)."""
+    """Condition rows of an input gated by X001 and ORed over ``n`` rows (as pyrung writes it).
+
+    The addresses are in display form, which is what the writer gives back.
+    """
     if n == 1:
-        return [["X1", "X2"] + ["-"] * (COLUMNS - 2)]
-    rows = [["X1", "T:X2", "T"] + ["-"] * (COLUMNS - 3)]
+        return [["X001", "X002"] + ["-"] * (COLUMNS - 2)]
+    rows = [["X001", "T:X002", "T"] + ["-"] * (COLUMNS - 3)]
     for k in range(1, n - 1):
-        rows.append(["", f"T:X{k + 2}", "|"] + [""] * (COLUMNS - 3))
-    rows.append(["", f"X{n + 1}"] + [""] * (COLUMNS - 2))
+        rows.append(["", f"T:X{k + 2:03d}", "|"] + [""] * (COLUMNS - 3))
+    rows.append(["", f"X{n + 1:03d}"] + [""] * (COLUMNS - 2))
     return rows
 
 
 def _pin_row(index: int) -> list[str]:
-    return [f"Y{index + 1}"] + ["-"] * (COLUMNS - 1)
+    return [f"Y{index + 1:03d}"] + ["-"] * (COLUMNS - 1)
 
 
 def _csv_rows(token: str, n: int, pins: tuple[str, ...]) -> list[list[str]]:
@@ -134,7 +137,11 @@ def test_or_input_pushes_pins_down(
 
 @pytest.mark.parametrize("n", [2, 3, 8])
 def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
-    """count_down's NOP-bridge and lead-row CSV forms take OR legs too."""
+    """count_down's NOP-bridge and lead-row CSV forms take OR legs too.
+
+    C1 on the token row is one more leg of Down's input; the layout draws it on
+    the Down row, as CLICK's check does (layoutq Q2c), with the OR below it.
+    """
     conds = _or_input(n)
     lead = ["C1"] + ["-"] * 6 + ["T"] + [""] * (COLUMNS - 8)
     token = "count_down(CT3,CTD3,preset=50)"
@@ -148,10 +155,12 @@ def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
     assert from_bridge.instructions == from_leading.instructions
     counter = from_bridge.instructions[0]
     assert isinstance(counter, Counter)
-    assert counter.pin_rows == (1, n + 1)
+    assert counter.pin_rows == (1, n + 2)
+    assert from_bridge.conditions[1][0] == Contact(InstructionType.CONTACT_NO, "C1")
 
     back = _roundtrip(from_bridge)
-    assert decoded_rung_to_rows(back) == leading
+    (again,) = read_csv(_write(tmp_path / "again.csv", decoded_rung_to_rows(back)))
+    assert again == from_bridge
 
 
 def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:

@@ -1,7 +1,9 @@
 # CSV Format (v1)
 
-This document describes the canonical 33-column Click ladder CSV contract
-used by `laddercodec` CSV tooling and by `pyrung.click.to_ladder()`.
+This page defines laddercodec's 33-column CSV format: what `read_csv` reads and
+`write_csv` writes. pyrung's exporter produces it; the sections that describe that
+exporter (bundle naming, the subroutine `return()` tail, export validation) say so.
+If you write a CSV by hand, start at [Layout](#layout).
 
 Relevant entry points:
 
@@ -112,6 +114,43 @@ Cells can contain:
 
 No shorthand markers (`->`, `...`) are emitted.
 No explicit `+` topology token is emitted.
+
+## Layout
+
+Write the circuit: contacts, wires and boxes. `read_csv` lays each rung out as
+CLICK's syntax check draws it, so a CSV doesn't need pad rows under a tall box,
+rows for unused pins, or a merge in any particular column. A wire between two
+series contacts goes:
+
+```text
+     A      B      C      ...   AF
+R    X001   -      X002   -...- out(Y001)
+```
+
+reads as
+
+```text
+     A      B      C      ...   AF
+R    X001   X002   -      -...- out(Y001)
+```
+
+- Contacts pack left, and each OR merges in the column after its last contact.
+- Each box goes on the first free output row below the box above it; the
+  conditions pack up beside it.
+- Blank rows inside an OR, blank rows at the top or bottom, and wire stubs that
+  join nothing are dropped.
+- A pinned box's pins go on the rows CLICK gives them
+  ([Builder pin continuation rows](#builder-pin-continuation-rows)).
+
+The logic never changes. Outputs whose circuits meet only at the rail become one
+rung each, in order, with the comment on the first, as CLICK splits them, so
+`read_csv` can return more rungs than the CSV holds.
+
+`write_csv` writes the same layout, so a CSV it wrote reads back unchanged. A
+rung `laddercodec.check()` reports
+([Decoding](decoding.md#check-for-line-connection-errors)) has no layout and is
+read and written as drawn. The rules and their evidence are in
+[Layout](../internals/layout.md).
 
 ## Vertical topology
 
@@ -280,6 +319,34 @@ a branch-local condition on the middle row. Middle OR rows reach the output
 split by routing up through `|` to `T`, then right and back down through the
 divergent bus.
 
+### Outputs under a tall box
+
+A box taller than one row (Copy is 2) needs its rows to itself in AF. Write each
+output on the row after the one above; `read_csv` moves an output down when the
+box above still covers its row, and the conditions stay beside the box. Here:
+
+```text
+     A      B      C     ...   AF
+R    X001   T:C1   T     -...- copy(1,DS1)
+            T:C2   T     -...- copy(2,DS2)
+            C3
+```
+
+the legs keep their rows, the second Copy moves down to C3's row, and the
+vertical at C reaches it. The rung is 4 rows; the last is the second Copy's
+lower row:
+
+```text
+     A      B      C     ...   AF
+R    X001   T:C1   T     -...- copy(1,DS1)
+            T:C2   |
+            C3     -     -...- copy(2,DS2)
+```
+
+The logic is the same, and this is the layout CLICK's syntax check leaves. A
+box with nothing beside it keeps blank rows under it for its height, with its
+verticals carried through, and every row below moves down with the output.
+
 ## Builder pin continuation rows
 
 Builder side conditions are emitted as continuation rows with dot tokens in `AF`:
@@ -308,8 +375,10 @@ R,C1,-,...,-,"time_drum(...)"
 Here `.jump()` is on row 3, not row 2. An unused pin still takes a row of its
 own, below the legs of the pin above it: with Jump off, `.reset()` with one leg
 then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK lays out a leg
-added with Insert Row the same way). Blank rows just above the next pin are read
-as the unused pins' rows, not legs. Legs under the last pin sit below the box.
+added with Insert Row the same way, and its check moves a leg drawn on the unused
+Jump row there). Unused pins after the last used one sit directly under it,
+beside its legs. The CSV doesn't place an unused pin: blank rows are dropped, and
+these rules give the row. Legs under the last pin sit below the box.
 
 The same holds for legs under the main input:
 
@@ -325,9 +394,9 @@ so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
 the unused Down row under the main input's legs. A timer without `.reset()`
 stays 2 rows, with its main input's legs beside and below it.
 
-"OR leg" only says where a row sits. `read_csv` doesn't check wires, and it takes
-`T` or `|` to join a leg to the row above. CLICK accepts a leg without them, but
-that contact feeds nothing:
+A leg needs `T` or `|` to join the row above. Without them the contact feeds
+nothing, which CLICK's syntax check refuses (C0202, C0003); `laddercodec.check()`
+reports it, and `read_csv` keeps the rung as drawn:
 
 ```csv
 R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
@@ -337,7 +406,7 @@ R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
 
 Here C31 drives Down and C32 goes nowhere. With `NOP` in the second row's AF, the
 box is 3 rows and C32 drives Down, but C31 then sits on the unused top row, where
-its wire stops at the box and it feeds nothing.
+its wire stops at the box, and it is refused the same way.
 
 ## Parsing conveniences
 
@@ -407,7 +476,7 @@ Producer may emit:
 - `copy(source,target)` or `copy(source,target,oneshot=1)`
 - `blockcopy(source,dest)` or `blockcopy(source,dest,oneshot=1)`
 - `fill(value,dest)` or `fill(value,dest,oneshot=1)`
-- `math(expression,dest,mode=decimal)` or `math(...,mode=hex,oneshot=1)`
+- `math(expression,dest,mode=decimal)` or `math(...,mode=hex,oneshot=1)`; the expression takes addresses, and a `<nickname>` is refused
 - `search(range cond value,result,found)` or `search(...,continuous=1,oneshot=1)`
 - `pack_bits(bit_block,dest)` or `pack_bits(bit_block,dest,oneshot=1)`
 - `pack_words(word_block,dest)` or `pack_words(word_block,dest,oneshot=1)`
@@ -424,25 +493,82 @@ Producer may emit:
 - `shift(bit_range)`
 - `event_drum(outputs=[...],events=[...],pattern=[[...],...],current_step=X,completion_flag=X)`
 - `time_drum(outputs=[...],presets=[...],unit=Tms,pattern=[[...],...],current_step=X,accumulator=X,completion_flag=X)`
-- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,count=N)`
-- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,count=N)`
+- `send(target=X,remote_start="addr",source=X,sending=X,success=X,error=X,exception_response=X,function_code=N)`
+- `receive(target=X,remote_start="addr",dest=X,receiving=X,success=X,error=X,exception_response=X,function_code=N)`
   - `target` is `ModbusRtuTarget(name="rtu",com_port="cpu2",device_id=1)` (ports `cpu2`,
     `cpu3`, `slot0_1`, `slot0_2`, `slot1_1`, `slot1_2`) or
     `ModbusTcpTarget(name="tcp",ip="192.168.1.20",port=502,device_id=1)`, with
     `com_port="wlan"` for the WLAN port (omitted = Ethernet)
   - `device_id` is a number or a DS address (`device_id=DS2420`), as CLICK's Slave ID box allows
+  - Slave ID numbers: Send RTU 0-247, Receive RTU 1-247, TCP 0-255. TCP `port` is 1-65535.
+  - Hex `remote_start` runs `0h`-`FFFEh` (`0h`-`FFFDh` for a DD, DF, CTD or TXT source); a
+    Send takes `register_type` `coil` or `holding`. It may be typed with `H`, zero padding or
+    lowercase digits and is written in CLICK's form (`0H` is `0h`, `000Fh` is `Fh`, `ffeh` is
+    `FFEh`).
+  - `function_code=N` picks the Modbus code when the address leaves a choice. Receive from a
+    CLICK address reads with FC01 (bits) or FC03 (registers) unless `function_code=2` or `4`.
+    Send writes one element with FC05/FC06 and a block with FC15/FC16; `function_code=15` or
+    `16` writes one element as a block. One DD, DF or CTD element is always FC16, and XD and
+    YD go out only as FC06.
+  - A Receive into registers takes DS, DD, DH, DF, YD or TXT. A CLICK `remote_start` matches
+    the destination's type: DS from DS, TD or SD; DD from DD or CTD; DF from DF; DH or YD
+    from DH, XD or YD; TXT from TXT. A YD destination, or DH read from XD or YD, takes one
+    element; TXT takes an even count of at least 2.
+  - `word_swap=1` is refused where CLICK turns Word Swap off: a bit Receive, a YD or TXT
+    destination, one DS or DH element, DH read from XD or YD, and DD or DF read from a CLICK
+    address.
+  - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
+    1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
+    DD, DF).
+  - An X or Y range counts the points that exist in the slots it covers: `X001..X021` is 17
+    elements (`X001`-`X016`, then `X021`). `X017`-`X020` are not addresses, so a range can't
+    end on one.
+  - X and Y counts stay inside a slot run. `X001`-`X016` and `X021`-`X036` are one run
+    (`X001` gives 32); from `X101` on, a count stays in the start's slot (`X101` gives 16).
+    This holds for a Receive into Y, for a Send of X or Y to a CLICK address (from the
+    higher of the two start numbers when the remote is X or Y too), and for a C count to or
+    from a CLICK X or Y address. A Send of X or Y to a MODBUS 984 or hex address, and a
+    Receive into `Y101` or later from a CLICK C address, count through `Y816` (`X001` gives
+    160, `Y101` gives 128).
+  - A count also stays inside the remote bank where CLICK checks it: a C, T, CT or SC remote
+    of a Receive into Y or C (`T490` gives 11), a MODBUS 984 coil remote of a Receive into Y
+    (`65530` gives 6), and a C remote of a Send from X, Y or C.
+  - `sending`, `receiving`, `success` and `error` are C bits, and no C bit serves two of
+    them; `exception_response` is DS or DD.
 - `call("subroutine_name")`
-  - Subroutine names must not contain `"`
+  - Subroutine names follow CLICK's naming rules (see "Operand normalization notes")
 - `return()`
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
 - `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
-- `raw(ClassName,hex)` - opaque instruction passthrough for binary round-trip
-  fidelity. `ClassName` is the Click binary class name (unquoted) and `hex` is
-  the raw blob as a hex string. Runtime no-op; preserved so CSV -> DSL -> CSV
-  round-trips losslessly for unrecognized instruction types.
-  `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
-  path because they are not yet modeled as dedicated DSL instruction classes.
+- `raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,fields...)` - opaque instruction
+  passthrough for binary round-trip fidelity. `ClassName` is the Click binary
+  class name (unquoted), `0xTTTT` the type marker, `N` the part count, and the
+  fields are the blob's tagged fields (`60a5=1`, `68b1[250]=`). Runtime no-op;
+  preserved so CSV -> DSL -> CSV round-trips losslessly for unrecognized
+  instruction types. The older form `raw(ClassName,hex)` holds the whole blob
+  as a hex string, and may be followed by `rows=R,sub=S`.
+  - `rows` is the box's row span, 1 to 32, and `sub` its sub-rows, 1 to 255.
+    The writer always writes both. On read each is optional: a box without them
+    takes its class's height (2 rows for a Copy, 3 for a Send), a box with
+    `rows` and no `sub` has sub-rows equal to `rows`, and a box with `sub` and
+    no `rows` has its class's row span. They go right after the part count (or
+    the hex), `rows` first.
+  - `pins` is the row, below the main row, of each later part of a box with 2 or
+    more parts, joined by `/`: `pins=1/3/4` for a drum with an OR leg under its
+    reset. The writer writes it after `sub` for every such box; a 1-part box and
+    the older hex form have none. The rows are 1 to 31 and ascend, one per part
+    after the first. On read it is optional: without it the parts sit on rows
+    1, 2, ... A box ends one row below its last pin, so in this form `rows`
+    must be the last pin + 1, and the reader pads the rung to that height, as it
+    does for other tall boxes. The hex form does not check this; the writer uses
+    it for a box stored at any other span.
+  - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
+    path because they are not yet modeled as dedicated DSL instruction classes.
+    Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
+    rows, as it does for other tall boxes. A box CLICK stores at 1 row (one pasted
+    from an earlier version and not yet saved by its dialog) writes `rows=1,sub=1`
+    and reads back at 1 row.
 
 Pin tokens:
 
@@ -461,22 +587,154 @@ currently emit:
 ## Operand normalization notes
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
+- An address is read in any letter case, with or without leading zeros, and is kept
+  and written in CLICK's display form: X and Y pad to 3 digits (`x1` is `X001`), every
+  other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`, `DS[ds01]` is `DS[DS1]`),
+  and `xd0U` is `XD0u`. Constants are kept as written. A Math formula's function
+  names are uppercase (`sum(x1:x16)` is `SUM ( X001 : X016 )`).
+- An address must name a CLICK bank and lie inside its range (CLICK help topic
+  CL195, Memory Addresses). X and Y number by 16-point slot: `X001`-`X016` on the
+  CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`
+  on expansion modules 1-8. `X017`, `C2001` and `DS0` raise `AddressError`.
+- Each instruction narrows the banks it takes:
+  - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
+  - `out(...)`, `latch(...)`, `reset(...)` and the Out variants (`toggle`, `debounce`,
+    `flasher`, `timed`) take Y, C or SC; `immediate(...)` only on Y, and both ends of
+    an immediate range.
+  - The SC bits a coil writes are SC50, SC51, SC53, SC55, SC60, SC61, SC65, SC66, SC67,
+    SC75, SC76, SC120, SC121, SC162, SC165, SC168, SC171, SC303, SC304, SC305, SC306,
+    SC323, SC324, SC325 and SC326. An SC range needs both ends on this list.
+  - A coil range stays in one bank and its end is above its start: `out(C1..C2000)`
+    and `out(immediate(Y001..Y101))` are accepted, `out(C9..C1)`, `out(C5..C5)` and
+    `out(C5..Y5)` are refused.
+  - Variant accumulators are TD, and the on and off phases of `debounce` and
+    `flasher` use two different TD registers. A preset is a DS register or a whole
+    number up to 32767, at least 0 for `debounce` and at least 1 for `flasher` and
+    `timed`.
+  - A `debounce` may leave out one phase's keywords
+    (`debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)`); it needs at least one phase.
+    `flasher` needs both.
+  - A compare takes data registers or constants, never bits, on either side. Both
+    sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
+    DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
+    (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
+    is `$22`, and `"$41"` is text). A text compare takes `==` or `!=` only.
+- Timer, counter, shift and drum fields take CLICK's banks:
+  - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
+    set point that is a `DS` address or digits only, `0`-`32767` for every unit.
+  - Counter: done bit `CT1`-`CT250` with current value `CTD` of the same number,
+    and a set point that is a `DS` or `DD` address or an integer from
+    `-2147483648` to `2147483647` (a `-` only in front, at most 12 characters).
+  - Shift: both ends are `C` bits and differ (`shift(C1..C1)` and `shift(C1..C001)`
+    are refused); `shift(C106..C99)` runs backwards.
+  - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
+    one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
+    and a `.jump()` target that is a `DS` address. Each step has an event (event
+    drum) or a duration (time drum); a time and event step needs a duration or an event.
+  - Drum events are X, Y, C, T, CT or SC; a duration is `0`-`32767` (no sign) or a
+    `DS` address. No output appears twice or equals the completion flag, compared as
+    addresses (`C1` and `C001` are the same bit).
+- `for(count)`: a `DS`, `DD`, `TD`, `CTD` or `SD` address, or digits only from `0` to
+  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are refused.
+- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows. With
+  outer spaces trimmed, the name is not blank, has at most 24 characters and none of
+  `\ / : * ? " < > |`, and the part before its last dot is not a Windows device name
+  (`CON`, `NUL`, `COM1`, ...).
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
-- Indirect refs render as `BANK[pointer]` or `BANK[pointer+offset]` /
-  `BANK[pointer-offset]`.
+- Indirect refs render as `BANK[pointer]`, the pointer a DS address and `BANK`
+  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`,
+  CLICK help topic CL238). Only a single `copy` takes one; `blockcopy`,
+  `fill`, `pack_*`, `unpack_to_*` and `search` raise `AddressError`.
+- Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
+  dialogs and raise `AddressError` or `FieldError` naming the field: a bit
+  copies to Y or C, a text constant to TXT, both ends of a range sit in one bank
+  and the end comes after the start (`DS1..DS1` is refused), an X or Y range in
+  a Pack source, a Block Copy source or an Unpack destination stays in one
+  16-point slot, a pack or unpack range fits its register (`pack_bits` takes
+  bits, `pack_words` registers), and a Math result is DS, DD, DF, TD, CTD or SD
+  in decimal mode, DH or YD in hex mode.
+- Block Copy, Pack and Unpack pair banks as CLICK's dialog does:
+  - `blockcopy`: bits go to Y or C; DS, DD, DH, DF and SD to DS, DD, DH, DF,
+    TD, CTD or SD; TXT to DS, DD, DH or TXT. The destination end is the start
+    plus the source's length, whatever the banks (`blockcopy(DS1..DS4,DD1..DD4)`).
+    A run into Y that would cross a slot (`blockcopy(C1..C16,Y010..Y025)`) is
+    refused: what CLICK writes for it is not captured yet.
+  - `pack_*`: X, Y, T, CT and SC bits pack into DH; C bits into DS, DD, DH or
+    DF; DS words into DD or DF; DH words into DD; TXT into DS, DD, DH, DF, TD
+    or CTD.
+  - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
+- A single `copy` takes a 32-bit integer constant, and a hex constant above
+  `FFFFh` copies only to DD or CTD. A `copy` source and a `fill` value take a
+  32-bit integer and unsigned hex up to `FFFFFFFFh`, with at most 8 digits above
+  `FFFFh`; a `search` value takes a 32-bit integer and unsigned hex up to `FFFFh`
+  (`+1h` is refused).
+- Constants, counts and address numbers use the digits 0-9 only; a digit from
+  another script (`٣`) is refused.
+- `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
+  text constant or a TXT register), and a hex value of at most `FFFFh`.
+- In a decimal `math`, an integer constant must read back as typed: CLICK keeps
+  its low 32 bits and refuses it when they print at a different length
+  (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
+  constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`7`, `1.5`); a hex
+  constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
+  writes it (`7H` becomes `7h`). `SUM` takes no CT range, and the formula is at
+  most 270 characters as CLICK stores it: a sum of 68 addresses fits, 69 does
+  not; constants, functions and parentheses count too.
+- A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
+  refuse raises `FieldError` (`AddressError` for an address):
+  - It holds addresses, constants, function names, operators and parentheses,
+    separated by spaces or tabs. Any other word or character (`DS1 = DS2`, `FOO`,
+    `NAN`, `0x1A`, a lone `.`, a pointer, a line break) is refused, and so is a
+    real constant outside the float32 range (`1E39`).
+  - Each address lies inside its bank's range: `DS1 + DS0` is refused.
+  - A sign goes at the start, after `(` or after `,`, and a decimal `math` joins
+    it to the constant after it (`( + 5 )` is written `( +5 )`). After an
+    operator, put the signed value in parentheses: `DS1 * ( -5 )`, not
+    `DS1 * -5` or `DS1 - -5`.
+  - Each operator stands between two values, and two values never stand side by
+    side: `DS1 +`, `* DS1`, `DS1 DS2`, `2 PI` and `( DS1 ) ( DS2 )` are refused.
+  - A function takes its argument in parentheses (`SIN ( DF1 )`, not `SIN DF1`).
+    `PI` stands alone or before parentheses (`PI ( 2 )`).
+  - `RAND`, `LSH`, `RSH`, `LRO` and `RRO` take `( a , b )`, one token each
+    (`RAND ( DS1 + 1 , 2 )` is refused), and the first argument of a shift or
+    rotate is an address (`LSH ( 1h , 2h )` is refused). A `,` anywhere else is
+    refused (`DS1 , DS2`, `MAX ( DS1 , DS2 )`): CLICK reads it as a decimal
+    comma.
+  - `SUM`, `MAX`, `MIN`, `MDN` and `AVG` take `( a : b )`, a range of two
+    addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )` and `SUM ( 1 : 5 )` are
+    refused). A `:` anywhere else is refused (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
+  - `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `LOG`, `LN`, `SQRT`, `RAD` and
+    `DEG` hold no `RAND`, shift or rotate call, and no range but a `SUM`:
+    `SIN ( SUM ( DF1 : DF3 ) )` is accepted, `SIN ( MAX ( DF1 : DF3 ) )` is
+    refused.
+  - In a hex `math`, a constant whose digits run into an `E` (`1Eh`, `0Eh`,
+    `2E5h`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
+    number. `E1h` and `1Fh` are accepted.
+- A `math` range over X or Y with an end in the CPU's option slot, X021-X036 or
+  Y021-Y036, is refused although CLICK accepts it, because CLICK v4 stores the
+  wrong points for it (`SUM ( X001 : X036 )` would leave out X032..X035). A
+  range with no end in the option slot is accepted (`SUM ( X001 : X101 )`); the
+  few option-slot ranges that are accepted, and the rule behind the refusal, are
+  in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
-  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`). CLICK writes
-  one TXT register per character of a text constant, so `""` writes nothing
-  and does not compare usefully: `encode()` refuses an empty `""` in a Copy
-  or Fill source, a Search value, or either side of a compare contact. Use
-  `$00` for the blank (NUL) character. `read_csv()` and `decode()` still
-  accept `""`.
+  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
+  two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise
+  `FieldError` in every field. CLICK writes one TXT register per character of a
+  text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
+  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
+  `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
+  stores no end for it. A Copy source, a Fill value, a compare and a search take
+  1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
+  matches the same window) and refuse `""`, a longer or non-ASCII text and a
+  quote inside the text when it is read or built; spell any other character as
+  its `$hh` code, and a quote as `$22`. A quoted `"$41"` is three characters of text, not the code
+  `$41`. Use `$00` for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value`
   - `convert=to_ascii`
-  - `convert=to_binary`
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
   - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
 
 ## Immediate handling
@@ -493,7 +751,7 @@ Allowed AF token forms:
 - `out(immediate(Y001))`
 - `latch(immediate(Y001))`
 - `reset(immediate(Y001))`
-- `out(immediate(Y001..Y004))` (contiguous mapped range only)
+- `out(immediate(Y001..Y004))`
 
 Rules:
 
@@ -505,10 +763,11 @@ Rules:
   - edge contacts (`rise(...)`, `fall(...)`),
   - non-coil instruction operands (`copy`, `math`, `search`, etc.).
 - Immediate coil targets must resolve to `Y` bank addresses.
-- Immediate-wrapped ranges must resolve to one contiguous address span to emit
-  compact `BANKstart..BANKend` form.
-  - Non-contiguous mappings fail strict validation/export with explicit
-    diagnostics.
+- An immediate range is any ascending `Y` range, including one that crosses a
+  module (`out(immediate(Y001..Y101))`).
+- pyrung's exporter writes an immediate range in `BANKstart..BANKend` form only when
+  its tags map to one contiguous address span; a mapping that does not fails
+  pyrung's export check with a diagnostic.
 
 ## Strict validation and failure mode
 

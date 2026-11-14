@@ -12,12 +12,14 @@ nav:
       - Encoding: guides/encoding.md
       - Decoding: guides/decoding.md
       - CSV Format: guides/csv-format.md
-      - Adding Instructions: guides/adding-instructions.md
-      - Troubleshooting: guides/troubleshooting.md
+  - Contributing:
+      - Adding Instructions: contributing/adding-instructions.md
+      - Troubleshooting: contributing/troubleshooting.md
   - Internals:
       - Binary Format: internals/binary-format.md
       - Wire Rendering: internals/wire-rendering.md
       - Instruction Blobs: internals/instruction-blobs.md
+      - Layout: internals/layout.md
   - API Reference:
       - Overview: reference/index.md
       - Codec API: reference/api/codec.md
@@ -56,6 +58,8 @@ extra:
     sections:
       Guides:
         - guides/*.md
+      Contributing:
+        - contributing/*.md
       Internals:
         - internals/*.md
       API Reference:

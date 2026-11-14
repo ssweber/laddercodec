@@ -39,6 +39,8 @@ print(rung.instructions)
 
 **[Decoder](https://pyrung.com/laddercodec/guides/decoding/)** — `decode()` reads clipboard binary back into structured Python objects (contacts, coils, timers, wires, comments). `decode_program()` reads ladder data from native CLICK program files. `find_v4_only()` lists the instructions an older CLICK would silently change.
 
+**[Line check](https://pyrung.com/laddercodec/guides/decoding/#check-for-rungs-clicks-syntax-check-rejects-or-redraws)** — `check()` reports the rungs CLICK's syntax check would reject or redraw, before you paste.
+
 **[CSV I/O](https://pyrung.com/laddercodec/guides/csv-format/)** — `read_csv()` and `write_csv()` convert between the 33-column canonical CSV format and `Rung` objects. Multi-file program bundles supported.
 
 **[CLICK format reference](https://pyrung.com/laddercodec/internals/binary-format/)** — Technical reference for CLICK's native clipboard and program representations, including binary layouts and instruction records.
@@ -56,7 +58,7 @@ print(rung.instructions)
 | [Encoding guide](https://pyrung.com/laddercodec/guides/encoding/) | Encode, decode, and round-trip your first rung |
 | [Decoding guide](https://pyrung.com/laddercodec/guides/decoding/) | Structured decode, program files, round-trip identity |
 | [CSV format](https://pyrung.com/laddercodec/guides/csv-format/) | 33-column canonical format, bundle layout, topology rules |
-| [Adding instructions](https://pyrung.com/laddercodec/guides/adding-instructions/) | Extend the codec with new instruction types |
+| [Contributing](https://pyrung.com/laddercodec/contributing/adding-instructions/) | Add instruction types, debug a failed paste |
 | [API reference](https://pyrung.com/laddercodec/reference/) | Auto-generated from docstrings |
 
 ## Development

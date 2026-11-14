@@ -14,11 +14,21 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Coil, CompareContact, Contact, Copy, Return, Timer, decode, encode, read_csv
+from laddercodec import (
+    Coil,
+    CompareContact,
+    Contact,
+    Copy,
+    FieldError,
+    Return,
+    Timer,
+    decode,
+    encode,
+    read_csv,
+)
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import _sanitize_to_ascii, encode_rung
-from laddercodec.instructions.comparison import from_tags as compare_from_tags
-from laddercodec.instructions.copy import from_tags as copy_from_tags
+from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
 
@@ -29,8 +39,8 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_encode(csv_path: Path) -> None:
-    r = read_csv(csv_path)[0]
-    result = encode(r)
+    rungs = read_csv(csv_path)  # several rungs when CLICK splits the CSV's one
+    result = encode(rungs if len(rungs) > 1 else rungs[0])
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
     expected = bin_path.read_bytes()
@@ -345,7 +355,7 @@ class TestInstructionRoundTrip:
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"
 
 
-# -- Text constants: "" refused on encode, $00 is the blank --
+# -- Text constants: "" refused when built (encode checks again), $00 is the blank --
 
 
 def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
@@ -359,36 +369,46 @@ def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
 
 
 _EMPTY_TEXT_SITES = [
-    pytest.param("C1", 'copy("",TXT813)', id="copy_source"),
-    pytest.param("C1", 'fill("",TXT1..TXT4)', id="fill_value"),
-    pytest.param("C1", 'search(TXT1..TXT10 == "",result=DS1,found=C2)', id="search_value"),
-    pytest.param('TXT842==""', "out(Y001)", id="compare_right"),
-    pytest.param('""!=TXT842', "out(Y001)", id="compare_left"),
-    pytest.param('T:TXT842==""', "out(Y001)", id="compare_wire_down"),
+    pytest.param("C1", 'copy("",TXT813)', "Copy.source", id="copy_source"),
+    pytest.param("C1", 'fill("",TXT1..TXT4)', "Fill.value", id="fill_value"),
 ]
 
 
-@pytest.mark.parametrize(("condition", "af"), _EMPTY_TEXT_SITES)
-def test_encode_refuses_empty_text_constant(tmp_path: Path, condition: str, af: str) -> None:
-    # Reading the CSV is fine; only encoding refuses.
-    rung = read_csv(_one_row_csv(tmp_path, condition, af))[0]
-    with pytest.raises(ValueError, match=r'Empty text constant "" in .* use \$00') as exc:
-        encode(rung)
+@pytest.mark.parametrize(("condition", "af", "field"), _EMPTY_TEXT_SITES)
+def test_read_csv_refuses_empty_text_constant(
+    tmp_path: Path, condition: str, af: str, field: str
+) -> None:
+    # A Copy or Fill refuses "" when it is built, as Compare and Search do.
+    with pytest.raises(FieldError, match=rf"{field}: '\"\"' is refused; a text constant") as exc:
+        read_csv(_one_row_csv(tmp_path, condition, af))
     assert str(exc.value).isascii()
 
 
 def test_encode_refuses_empty_text_constant_names_rung(tmp_path: Path) -> None:
+    # encode() checks again, for an instance changed after it was built.
     ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
-    bad = read_csv(_one_row_csv(tmp_path, 'TXT842==""', "out(Y001)"))[0]
-    with pytest.raises(ValueError, match=r'^Rung 1: Empty text constant "" in TXT842=="" at row=0'):
+    bad = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))[0]
+    bad.instructions[0].source = '""'  # type: ignore[union-attr]
+    with pytest.raises(
+        ValueError, match=r'^Rung 1: Empty text constant "" in copy\("",TXT813\) at row=0'
+    ):
         encode([ok, bad])
 
 
 def test_encode_refuses_empty_text_constant_in_objects() -> None:
+    copy = Copy(source='"Q"', destination="TXT1")
+    copy.source = '""'
     with pytest.raises(ValueError, match="Empty text constant"):
-        encode_rung(1, [_wire_row(CompareContact("==", "TXT1", '""'))], ["NOP"])  # type: ignore[arg-type]
-    with pytest.raises(ValueError, match="Empty text constant"):
-        encode_rung(2, [_empty(), _empty()], [Copy(source='""', destination="TXT1"), ""])
+        encode_rung(2, [_empty(), _empty()], [copy, ""])
+
+
+@pytest.mark.parametrize("condition", ['TXT842==""', '""!=TXT842', 'T:TXT842==""'])
+def test_compare_refuses_empty_text_constant_on_read(tmp_path: Path, condition: str) -> None:
+    # A compare refuses "" when it is built (bits.md N4: CLICK's dialog refuses it, OBJ-005).
+    with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
+        read_csv(_one_row_csv(tmp_path, condition, "out(Y001)"))
+    with pytest.raises(FieldError):
+        CompareContact("==", "TXT1", '""')
 
 
 @pytest.mark.parametrize(
@@ -410,12 +430,15 @@ def test_encode_accepts_nul_and_nonempty_text_constants(
     assert d.instructions[0].to_csv() == af  # type: ignore[union-attr]
 
 
-def test_decoder_accepts_empty_text_constant() -> None:
-    """The refusal is encode-only: decoded tags holding "" still build models."""
-    c = copy_from_tags("Copy", 0x2721, {0x6074: '""', 0x6076: "TXT1"}, {0x2223: 0, 0x2227: 0})
-    assert isinstance(c, Copy) and c.to_csv() == 'copy("",TXT1)'
-    cmp = compare_from_tags("Compare", 0x2714, {0x6066: "TXT1", 0x6067: '""'}, {0x21F7: 0})
-    assert isinstance(cmp, CompareContact) and cmp.to_csv() == 'TXT1==""'
+def test_decoder_refuses_empty_text_constant() -> None:
+    """A Copy, Fill or compare blob holding "" is refused when built, so it decodes as
+    raw or unknown."""
+    copy_tags = {0x6074: '""', 0x6076: "TXT1"}
+    assert from_tags_af("Copy", 0x2721, copy_tags) is None
+    fill_tags = {0x6074: '""', 0x6076: "TXT1", 0x6077: "TXT4", 0x2223: "2"}
+    assert from_tags_af("Copy", 0x2721, fill_tags) is None
+    tags = {0x6066: "TXT1", 0x6067: '""', 0x21F7: "0"}
+    assert from_tags_condition("Compare", 0x2714, tags) is None
 
 
 # -- ASCII sanitization --

@@ -3,7 +3,7 @@
 import pytest
 
 from laddercodec.instructions import Coil, Contact
-from laddercodec.model import InstructionType
+from laddercodec.model import FieldError, InstructionType
 
 
 class TestContact:
@@ -44,7 +44,7 @@ class TestContact:
         assert c.immediate is True
 
     def test_from_csv_invalid_operand(self):
-        with pytest.raises(ValueError, match="Invalid operand"):
+        with pytest.raises(ValueError, match="Contact.operand: 'XABC' is not a CLICK address"):
             Contact.from_csv_token("XABC")
 
     def test_from_csv_token_rise(self):
@@ -131,15 +131,15 @@ class TestCoil:
     def test_from_csv_token_immediate_inner(self):
         c = Coil.from_csv_token("out(immediate(Y1))")
         assert c.type == InstructionType.COIL_OUT
-        assert c.operand == "Y1"
+        assert c.operand == "Y001"
         assert c.range_end is None
         assert c.immediate is True
 
     def test_from_csv_token_range(self):
         c = Coil.from_csv_token("out(Y1..Y2)")
         assert c.type == InstructionType.COIL_OUT
-        assert c.operand == "Y1"
-        assert c.range_end == "Y2"
+        assert c.operand == "Y001"
+        assert c.range_end == "Y002"
         assert c.immediate is False
 
     def test_from_csv_token_range_immediate_outer_rejected(self):
@@ -149,8 +149,8 @@ class TestCoil:
     def test_from_csv_token_range_immediate_inner(self):
         c = Coil.from_csv_token("out(immediate(Y1..Y2))")
         assert c.type == InstructionType.COIL_OUT
-        assert c.operand == "Y1"
-        assert c.range_end == "Y2"
+        assert c.operand == "Y001"
+        assert c.range_end == "Y002"
         assert c.immediate is True
 
     @pytest.mark.parametrize(
@@ -169,7 +169,7 @@ class TestCoil:
     @pytest.mark.parametrize("token", ["latch(Y1,oneshot=1)", "reset(C1..C2,oneshot=1)"])
     def test_latch_reset_oneshot_rejected(self, token):
         # CLICK's Set/Reset dialog has no One Shot box.
-        with pytest.raises(ValueError, match="only out"):
+        with pytest.raises(FieldError, match="Coil.oneshot: .*only out"):
             Coil.from_csv_token(token)
 
     def test_from_csv_token_invalid(self):
@@ -181,7 +181,7 @@ class TestCoil:
             Coil.from_csv_token("out(Y1:Y2)")
 
     def test_from_csv_token_invalid_operand(self):
-        with pytest.raises(ValueError, match="Invalid operand"):
+        with pytest.raises(ValueError, match="Coil.operand: 'YABC' is not a CLICK address"):
             Coil.from_csv_token("out(YABC)")
 
     def test_to_csv(self):
@@ -190,15 +190,15 @@ class TestCoil:
 
     def test_to_csv_immediate_canonical_inner_wrapper(self):
         c = Coil(InstructionType.COIL_OUT, "Y1", immediate=True)
-        assert c.to_csv() == "out(immediate(Y1))"
+        assert c.to_csv() == "out(immediate(Y001))"
 
     def test_to_csv_range(self):
         c = Coil(InstructionType.COIL_OUT, "Y1", range_end="Y2")
-        assert c.to_csv() == "out(Y1..Y2)"
+        assert c.to_csv() == "out(Y001..Y002)"
 
     def test_to_csv_range_immediate(self):
         c = Coil(InstructionType.COIL_OUT, "Y1", range_end="Y2", immediate=True)
-        assert c.to_csv() == "out(immediate(Y1..Y2))"
+        assert c.to_csv() == "out(immediate(Y001..Y002))"
 
     def test_func_code_out(self):
         c = Coil(InstructionType.COIL_OUT, "Y001")

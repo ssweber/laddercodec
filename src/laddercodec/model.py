@@ -1,8 +1,11 @@
 """Shared domain types for ladder instructions.
 
-Defines ``InstructionType`` enum, operand validation, and the
-``OPERAND_RE`` pattern.  These are the foundation types imported
-by every ``instructions/`` module — no reverse dependency.
+Defines the ``InstructionType`` enum, the instruction base classes and the program
+containers.  It re-exports the field errors (:mod:`laddercodec.operands.errors`), the
+CLICK address check (:func:`check_address`), its display form
+(:func:`normalize_address`) and the ``OPERAND_RE`` shape pattern
+(:mod:`laddercodec.operands.address`).  These are the foundation types imported by
+every ``instructions/`` module — no reverse dependency.
 
 Instruction dataclasses (Contact, Coil, …) and their func-code
 tables live in :mod:`laddercodec.instructions`.
@@ -10,10 +13,23 @@ tables live in :mod:`laddercodec.instructions`.
 
 from __future__ import annotations
 
-import re
+from collections.abc import Collection
 from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, cast
+
+from .operands.address import ADDRESS_BANKS as ADDRESS_BANKS
+from .operands.address import OPERAND_RE as OPERAND_RE
+from .operands.address import XY_SLOTS as XY_SLOTS
+from .operands.address import Address as Address
+from .operands.address import _name_typed_text
+from .operands.address import check_address as check_address
+from .operands.address import display_form_only as display_form_only
+from .operands.address import normalize_address as normalize_address
+from .operands.address import to_display as to_display
+from .operands.address import xy_slot as xy_slot
+from .operands.errors import AddressError as AddressError
+from .operands.errors import FieldError as FieldError
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -25,6 +41,10 @@ if TYPE_CHECKING:
 
 class ConditionInstruction:
     """Base class for condition-side instructions (Contact, CompareContact)."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _name_typed_text(cls)
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -39,6 +59,16 @@ class ConditionInstruction:
 class AfInstruction:
     """Base class for AF-side instructions (Coil, Timer, Counter, Copy, Fill, RawInstruction)."""
 
+    # Keep this a plain class attribute. As a dataclass field in a subclass it would
+    # take part in equality and change how decoded instructions compare.
+    #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
+    #: see :mod:`laddercodec.legacy`.
+    _legacy_findings: Collection[tuple[str, str, str]] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        _name_typed_text(cls)
+
     def to_csv(self) -> str:
         raise NotImplementedError
 
@@ -47,6 +77,14 @@ class AfInstruction:
 
     def cell_params(self) -> dict:
         raise NotImplementedError
+
+
+def check_flag(value: object, name: str) -> bool:
+    """Return ``value`` as a bool; raise :class:`FieldError` naming ``name`` unless it is
+    True, False, 1 or 0."""
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    raise FieldError(f"{name}: {value!r} is not True, False, 1 or 0")
 
 
 class PinnedInstruction(AfInstruction):
@@ -64,6 +102,27 @@ class PinnedInstruction(AfInstruction):
     """
 
     pin_rows: tuple[int, ...]
+
+    def _check_pin_rows(self) -> None:
+        """Raise :class:`FieldError` unless ``pin_rows`` is one ascending row per pin.
+
+        Each pinned class calls this at the end of its ``__post_init__``.
+
+        A box has ``lead_rows`` slots above its main input and one slot per pin name
+        below it; the blob stores each as one byte, so a row is 1 to 255.
+        """
+        name = f"{type(self).__name__}.pin_rows"
+        rows = self.pin_rows
+        want = self.lead_rows + len(self.pin_names())
+        if not isinstance(rows, tuple) or len(rows) != want:
+            raise FieldError(
+                f"{name}: {rows!r} must be a tuple with one row per input "
+                f"({want} for a {type(self).__name__})"
+            )
+        if not all(type(row) is int and 1 <= row <= 255 for row in rows):
+            raise FieldError(f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255")
+        if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
+            raise FieldError(f"{name}: {rows!r} must ascend; each input sits below the last")
 
     @property
     def lead_rows(self) -> int:
@@ -113,9 +172,6 @@ class InstructionType(IntEnum):
     SEND = 0x29  # 0x2729 (modbus send / write)
 
 
-OPERAND_RE = re.compile(r"^[A-Z]{1,3}\d{1,5}$")
-
-
 # Mapping from SCR type-code marker to InstructionType.
 TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
     0x2711: InstructionType.CONTACT_NO,
@@ -129,16 +185,56 @@ TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 }
 
 
-def _validate_operand(operand: str) -> str:
-    operand = operand.strip()
-    if not OPERAND_RE.fullmatch(operand):
-        raise ValueError(f"Invalid operand: {operand!r}")
-    return operand
-
-
 # ---------------------------------------------------------------------------
 # Program / Project containers
 # ---------------------------------------------------------------------------
+
+
+#: Longest subroutine or interrupt name: CLICK.exe's Add Subroutine edit takes 24
+#: characters (EM_LIMITTEXT 0x18; Q-F2).
+PROGRAM_NAME_MAX = 24
+
+#: Characters a program name may not hold (CLICK.exe, GUI-040 "Invalid Program Name").
+_PROGRAM_NAME_FORBIDDEN = '\\/:*?"<>|'
+
+#: Windows device names a program name may not use before its last dot (CLICK.exe
+#: device table, GUI-040), compared case-insensitively.
+_DEVICE_NAMES = frozenset(
+    {"AUX", "CON", "NUL", "PRN", "CLOCK$"}
+    | {f"COM{n}" for n in range(1, 10)}
+    | {f"LPT{n}" for n in range(1, 10)}
+)
+
+
+def check_program_name(name: str, field_name: str) -> None:
+    """Raise :class:`FieldError` naming ``field_name`` if CLICK refuses ``name`` for a subroutine.
+
+    Follows CLICK's Add New Subroutine dialog (Q-F2), which trims the name first and
+    then checks it: not blank (user dialog check 2026-11-11), at most
+    :data:`PROGRAM_NAME_MAX` characters, none of ``\\ / : * ? " < > |``, and the part
+    before the last dot is not a Windows device name (GUI-040).  ``Main``, ``.``,
+    inner spaces, ``-`` and a leading digit are accepted.
+    """
+    text = name.strip()
+    if not text:
+        raise FieldError(f"{field_name}: {name!r} is blank; a subroutine needs a name")
+    if len(text) > PROGRAM_NAME_MAX:
+        raise FieldError(
+            f"{field_name}: {name!r} is {len(text)} characters; a subroutine name is at "
+            f"most {PROGRAM_NAME_MAX}"
+        )
+    bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
+    if bad:
+        raise FieldError(
+            f"{field_name}: {name!r} holds {' '.join(bad)}; a subroutine name may not hold "
+            f"any of {' '.join(_PROGRAM_NAME_FORBIDDEN)} (GUI-040)"
+        )
+    base = text.rsplit(".", 1)[0] if "." in text else text
+    if base.upper() in _DEVICE_NAMES:
+        raise FieldError(
+            f"{field_name}: {name!r} uses the Windows device name {base!r}; CLICK refuses "
+            "it as a subroutine name (GUI-040)"
+        )
 
 
 @dataclass

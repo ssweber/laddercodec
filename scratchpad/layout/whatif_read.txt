@@ -1,0 +1,105 @@
+                    "CSV round-trip validation failed: "
+E               laddercodec.csv.writer.WriterError: CSV round-trip validation failed: logical row count mismatch: expected 2, got 1
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col A: expected '-', got 'X001'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col B: expected '-', got 'DS1>100'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col A: expected 'X001', got ''
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col B: expected '-', got 'X002'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col I: expected '|', got ''
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col A: expected '', got 'C11'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col B: expected '-', got 'T'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col A: expected '', got '-'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col C: expected 'T', got '-'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 1 col C: expected 'T', got '-'
+                    "CSV round-trip validation failed: "
+E               laddercodec.csv.writer.WriterError: CSV round-trip validation failed: logical row count mismatch: expected 7, got 4
+E         Left contains 32 more items, first extra item: 'drum_weird_branch.bin #1: CSV round-trip validation failed: logical row count mismatch: expected 7, got 4'
+                    "CSV round-trip validation failed: "
+E               laddercodec.csv.writer.WriterError: CSV round-trip validation failed: logical row count mismatch: expected 4, got 3
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col B: expected '|', got 'T:C2'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col B: expected '|', got 'T:DS2732==4'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col B: expected '|', got 'T:C2'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col B: expected '|', got 'T:DS2732==4'
+                    "CSV round-trip validation failed: "
+                "CSV round-trip validation failed: "
+                        "CSV round-trip validation failed: "
+E                   laddercodec.csv.writer.WriterError: CSV round-trip validation failed: condition mismatch at row 2 col B: expected '|', got 'T:C2'
+layout plugin: {'laid out': 9922, 'refused (kept literal)': 286, 'split (kept literal)': 68}
+FAILED tests/csv/test_pinned_or_inputs.py::test_count_down_bridge_and_lead_row_forms[2]
+FAILED tests/csv/test_pinned_or_inputs.py::test_count_down_bridge_and_lead_row_forms[3]
+FAILED tests/csv/test_pinned_or_inputs.py::test_count_down_bridge_and_lead_row_forms[8]
+FAILED tests/csv/test_writer.py::TestGoldenRoundTrip::test_round_trip[instr-2row-r0only]
+FAILED tests/csv/test_writer.py::TestGoldenRoundTrip::test_round_trip[instr-3row-or]
+FAILED tests/csv/test_writer.py::TestGoldenRoundTrip::test_round_trip[instr-compare-series]
+FAILED tests/csv/test_writer.py::TestGoldenRoundTrip::test_round_trip[instr-count_down-row0-data]
+FAILED tests/csv/test_writer.py::TestGoldenRoundTrip::test_round_trip[instr-series]
+FAILED tests/csv/test_writer.py::TestDecodedRungToRows::test_count_down_preserves_wire_only_top_row
+FAILED tests/csv/test_writer.py::TestDehydrateHydrateWires::test_T_wire_pipe_dehydrate_hydrate_roundtrip
+FAILED tests/csv/test_writer.py::TestDehydrateHydrateWires::test_multi_column_T_wires_roundtrip
+FAILED tests/ladder/test_decode.py::test_golden_decode[instr-2row-r0only]
+FAILED tests/ladder/test_decode.py::test_golden_decode[instr-3row-or]
+FAILED tests/ladder/test_decode.py::test_golden_decode[instr-compare-series]
+FAILED tests/ladder/test_decode.py::test_golden_decode[instr-count_down-row0-data]
+FAILED tests/ladder/test_decode.py::test_golden_decode[instr-series]
+FAILED tests/ladder/test_decode_multi.py::test_golden_decode_multi[mr-cmt-3rung-multirow]
+FAILED tests/ladder/test_decode_program.py::test_time_drums_synthetic_bin_matches_canonical_csv
+FAILED tests/ladder/test_decode_program.py::test_native_drum_branch_above_original_nop_row_is_preserved
+FAILED tests/ladder/test_decode_program_tumbler.py::test_tumbler_scr_decodes_to_clipboard_csv[AlmHistorian]
+FAILED tests/ladder/test_decode_program_tumbler.py::test_tumbler_scr_decodes_to_clipboard_csv[WarnTimestamp]
+FAILED tests/ladder/test_encode.py::test_golden_encode[instr-2row-r0only]
+FAILED tests/ladder/test_encode.py::test_golden_encode[instr-3row-or]
+FAILED tests/ladder/test_encode.py::test_golden_encode[instr-compare-series]
+FAILED tests/ladder/test_encode.py::test_golden_encode[instr-count_down-row0-data]
+FAILED tests/ladder/test_encode.py::test_golden_encode[instr-series]
+FAILED tests/ladder/test_encode_multi.py::test_golden_multi_rung[mr-cmt-3rung-multirow]
+FAILED tests/ladder/test_raw_height.py::test_native_pin_rows_round_trip_through_csv
+FAILED tests/ladder/test_raw_height.py::test_forced_raw_sweep_round_trips_every_native_rung
+FAILED tests/test_v4_captures.py::test_capture_writes_csv[count_down_or]
+FAILED tests/test_v4_captures.py::test_capture_writes_csv[or_compact_pasted]
+FAILED tests/test_v4_captures.py::test_capture_writes_csv[r30_tallbox_pasted]
+FAILED tests/test_v4_captures.py::test_count_down_or_layouts_survive_click
+FAILED tests/test_v4_captures.py::test_pasted_or_legs_keep_their_pad_rows_through_csv[or_compact_pasted.bin]
+FAILED tests/test_v4_captures.py::test_pasted_or_legs_keep_their_pad_rows_through_csv[r30_tallbox_pasted.bin]
+FAILED tests/test_v4_captures.py::test_pasted_or_legs_drop_the_last_box_padding
+36 failed, 7474 passed, 48 skipped, 2 warnings in 76.57s (0:01:16)

@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
+from ..model import (
+    AfInstruction,
+    ConditionInstruction,
+    FieldError,
+    PinnedInstruction,
+    display_form_only,
+)
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -215,7 +221,10 @@ def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction 
     """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
     if not isinstance(parsed, PinnedInstruction) or len(extra) != len(parsed.pin_rows):
         return parsed
-    return parsed.with_pin_rows(tuple(extra))
+    try:
+        return parsed.with_pin_rows(tuple(extra))
+    except FieldError:
+        return None  # rows CLICK's dialog would not write: keep the blob raw
 
 
 def from_tags_condition(
@@ -228,9 +237,16 @@ def from_tags_condition(
     """Dispatch condition instruction construction through registered specs."""
     for spec in CONDITION_FAMILY_SPECS:
         if spec.from_tags is not None:
-            result = spec.from_tags(
-                class_name, type_code, tags, variant_u16_tags, variant_string_tags
-            )
+            try:
+                with display_form_only():
+                    result = spec.from_tags(
+                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                    )
+            except FieldError:
+                # The blob's own family refused a field value CLICK refuses, or text
+                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
+                # try another family.
+                return None
             if result is not None:
                 return result
     return None
@@ -246,9 +262,16 @@ def from_tags_af(
     """Dispatch AF instruction construction through registered specs."""
     for spec in AF_FAMILY_SPECS:
         if spec.from_tags is not None:
-            result = spec.from_tags(
-                class_name, type_code, tags, variant_u16_tags, variant_string_tags
-            )
+            try:
+                with display_form_only():
+                    result = spec.from_tags(
+                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                    )
+            except FieldError:
+                # The blob's own family refused a field value CLICK refuses, or text
+                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
+                # try another family.
+                return None
             if result is not None:
                 return result
     return None

@@ -9,6 +9,14 @@ Public API
     write_csv(path, rungs)              — list[Rung] → CSV file
     decoded_rung_to_rows(rung)          — Rung → list of CSV row lists
 
+Layout
+------
+
+A rung with a layout is written as CLICK's syntax check draws it
+(``docs/internals/layout.md``), and reads back to exactly that drawing.  A
+rung CLICK would split is written as the rungs it splits into.  A rung
+with no layout (``laddercodec.check()`` reports it) is written as drawn.
+
 Pin row reconstruction
 ----------------------
 
@@ -31,14 +39,12 @@ from __future__ import annotations
 import csv as csv_mod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
 
+from .._layout import LayoutError, canonical, circuit
 from ..decode import Rung
 from ..instructions import (
     AfInstruction,
-    AfToken,
     ConditionInstruction,
-    ConditionToken,
     RawInstruction,
     UnknownCondition,
     UnknownInstruction,
@@ -246,7 +252,11 @@ def _emit_generic_tall_block(
     start: int,
     af: AfInstruction,
 ) -> tuple[int, int]:
-    """Emit a non-pinned tall AF block, preserving only nonblank continuation rows."""
+    """Emit a non-pinned tall AF block, dropping only its trailing padding rows.
+
+    A padding row above a later nonblank row of the span is kept, so that row
+    keeps its position on reparse (a raw Drum's unused pin row above a used one).
+    """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
     if len(condition_rows) < needed or len(af_tokens) < needed:
@@ -254,7 +264,15 @@ def _emit_generic_tall_block(
             f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
         )
 
-    keep = _followed_by_floating_row(af_tokens, start + visual_rows)
+    keep = _followed_by_floating_row(af_tokens, needed)
+    last_content = max(
+        (
+            offset
+            for offset in range(1, visual_rows)
+            if not _is_padding_row(condition_rows[start + offset])
+        ),
+        default=0,
+    )
     data_row_count = _append_data_row(rows, data_row_count, condition_rows[start], af)
     for offset in range(1, visual_rows):
         _require_blank_af(
@@ -262,7 +280,7 @@ def _emit_generic_tall_block(
             message=f"{type(af).__name__} continuation row must be blank AF",
         )
         data_row_count = _emit_blank_continuation(
-            rows, data_row_count, condition_rows[start + offset], keep
+            rows, data_row_count, condition_rows[start + offset], keep or offset < last_content
         )
     return data_row_count, visual_rows
 
@@ -293,26 +311,26 @@ def _af_tokens_match(expected: object, actual: object) -> bool:
 
 
 def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
-    """Round-trip emitted CSV rows back into a decoded-style ``Rung``."""
+    """Read one rung's emitted CSV rows back, as ``read_csv`` reads them."""
     try:
-        rung_ast = _parse_single_rung_rows(rows)
-        logical_rows, conditions, instructions, comment = convert_rung(rung_ast)
+        rebuilt = convert_rung(_parse_single_rung_rows(rows))
     except (TypeError, ValueError) as exc:
         raise WriterError(
             f"CSV round-trip validation failed: emitted rows do not reparse: {exc}"
         ) from exc
-
-    return Rung(
-        logical_rows=logical_rows,
-        conditions=cast(list[list[ConditionToken]], conditions),
-        instructions=cast(list[AfToken], instructions),
-        comment=comment,
-        comment_rtf=None,
-    )
+    if len(rebuilt) != 1:
+        raise WriterError(
+            f"CSV round-trip validation failed: the rows read back as {len(rebuilt)} rungs"
+        )
+    return rebuilt[0]
 
 
-def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
-    """Fail loudly when emitted CSV rows lose information from the decoded rung."""
+def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: bool = False) -> None:
+    """Fail loudly when emitted CSV rows lose information from the rung.
+
+    With ``exact`` (a rung in CLICK's layout), the rows must read back to the rung itself.
+    Without it, trailing blank rows the read-back drops only raise a warning.
+    """
     rebuilt = _rebuild_rung_from_rows(rows)
 
     if rebuilt.logical_rows != rung.logical_rows:
@@ -320,9 +338,13 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
         # a tall instruction's stripped continuation absorbs them on
         # read-back.  This is cosmetic — warn instead of failing.
         extra = rung.logical_rows - rebuilt.logical_rows
-        if extra > 0 and all(
-            _is_padding_row(rung.conditions[r]) and rung.instructions[r] == ""
-            for r in range(rebuilt.logical_rows, rung.logical_rows)
+        if (
+            not exact
+            and extra > 0
+            and all(
+                _is_padding_row(rung.conditions[r]) and rung.instructions[r] == ""
+                for r in range(rebuilt.logical_rows, rung.logical_rows)
+            )
         ):
             import warnings
 
@@ -368,8 +390,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]]) -> None:
                 raise WriterError(
                     "CSV round-trip validation failed: "
                     f"{_display_token(expected)} at row {row_idx} has its pins on rows "
-                    f"{expected.pin_rows}, which CSV cannot express (it reads back as "
-                    f"{actual.pin_rows}); an OR leg likely sits on an unused pin's row"
+                    f"{expected.pin_rows}, which read back as {actual.pin_rows}"
                 )
             raise WriterError(
                 "CSV round-trip validation failed: "
@@ -385,10 +406,40 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     Comment rows have marker ``"#"`` and text in column A.
     Data rows have marker ``"R"`` (first) or ``""`` (continuation).
 
+    A rung with a layout is written as CLICK's syntax check draws it.  When
+    CLICK would split it, the rows hold one rung per part, each starting with
+    an ``R`` row, and the comment goes on the first.  A rung with no layout
+    is written as drawn.
+
     Retained timers produce a ``.reset()`` pin row from the second
     grid row.  Multi-row AF families are streamed in order so multiple
     pinned/tall blocks survive CSV round-trip without truncation.
     """
+    rows: list[list[str]] = []
+    for part, exact in _drawn(rung):
+        part_rows = _rung_rows(part)
+        _validate_roundtrip(part, part_rows, exact=exact)
+        rows.extend(part_rows)
+    return rows
+
+
+def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
+    """The rungs to write for *rung*, and whether each is in CLICK's layout."""
+    parts = canonical(rung)
+    if parts is None:
+        return [(rung, False)]
+    if parts != [rung]:
+        try:
+            same = circuit(parts) == circuit([rung])
+        except LayoutError as exc:
+            raise WriterError(f"CSV layout changed the rung's circuit: {exc}") from exc
+        if not same:
+            raise WriterError("CSV layout changed the rung's circuit")
+    return [(part, True) for part in parts]
+
+
+def _rung_rows(rung: Rung) -> list[list[str]]:
+    """The CSV rows of *rung*'s grid."""
     rows: list[list[str]] = []
 
     # --- Comment rows ---
@@ -424,7 +475,6 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
         data_row_count = _append_data_row(rows, data_row_count, condition_rows[row_idx], af)
         row_idx += consumed
 
-    _validate_roundtrip(rung, rows)
     return rows
 
 
@@ -440,6 +490,10 @@ def write_csv(
     index: bool = False,
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
+
+    Each rung is written as CLICK's syntax check draws it when it has a
+    layout, so the file can hold more rungs than *rungs* when CLICK would
+    split one; a rung ``laddercodec.check()`` reports is written as drawn.
 
     Parameters
     ----------
@@ -464,8 +518,11 @@ def write_csv(
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
-        for rung_number, rung in enumerate(rungs, start=1):  # start=1 → first rung is R1
+        rung_number = 0  # counts the rungs written: a rung CLICK would split writes several
+        for rung in rungs:
             for row in decoded_rung_to_rows(rung):
-                if index and row and row[0] == "R":
-                    row = [f"R{rung_number}", *row[1:]]
+                if row and row[0] == "R":
+                    rung_number += 1
+                    if index:
+                        row = [f"R{rung_number}", *row[1:]]
                 writer.writerow(row)

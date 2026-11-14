@@ -24,17 +24,20 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_decode(csv_path: Path) -> None:
-    expected = read_csv(csv_path)[0]
+    expected = read_csv(csv_path)  # several rungs when CLICK splits the CSV's one
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
     data = bin_path.read_bytes()
 
-    result = decode(data)
+    got = decode(data)
+    results = got if isinstance(got, list) else [got]
 
-    assert result.logical_rows == expected.logical_rows
-    assert result.conditions == expected.conditions
-    assert result.instructions == expected.instructions
-    assert result.comment == expected.comment
+    assert len(results) == len(expected)
+    for result, want in zip(results, expected, strict=True):
+        assert result.logical_rows == want.logical_rows
+        assert result.conditions == want.conditions
+        assert result.instructions == want.instructions
+        assert result.comment == want.comment
 
 
 # -- Encode -> decode round-trip tests --

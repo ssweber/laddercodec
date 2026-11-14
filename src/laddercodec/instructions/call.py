@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction
+from ..model import AfInstruction, FieldError, check_program_name
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 CALL_TYPE_MARKER = 0x2723
 CALL_FUNC_CODE = "9221"
+# 0x3219 is the dialog's drop-down index; the dialog saves its own on OK
+# (tests/fixtures/v4_captures/call_index_dialog_ok.bin), so it is written as 0 and ignored.
 _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 
 
@@ -27,10 +29,16 @@ class Call(AfInstruction):
 
     subroutine: str  # subroutine name (e.g. "coverage_sub")
 
+    def __post_init__(self) -> None:
+        if not self.subroutine:
+            raise FieldError("Call.subroutine cannot be empty: CLICK requires a subroutine name")
+        # A Call names a subroutine, so the name follows the Add New Subroutine rules.
+        check_program_name(self.subroutine, "Call.subroutine")
+
     @classmethod
     def from_csv_token(cls, token: str) -> Call:
         token = token.strip()
-        m = re.fullmatch(r'call\("([^"]+)"\)', token)
+        m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
             raise ValueError(f"Cannot parse call instruction: {token!r}")
         return cls(subroutine=m.group(1))

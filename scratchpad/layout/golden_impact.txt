@@ -1,0 +1,381 @@
+# Golden impact
+
+ladder_captures/golden: 45 files, 62 rungs: 44 fixed, 11 changed (4 split), 7 refused; 14 files change
+coverage/golden: 111 files, 214 rungs: 214 fixed, 0 changed (0 split), 0 refused; 0 files change
+coverage/subroutines: 1 files, 3 rungs: 3 fixed, 0 changed (0 split), 0 refused; 0 files change
+pinned_or: 2 files, 11 rungs: 8 fixed, 1 changed (0 split), 2 refused; 1 files change
+v4_captures stubs: 2 files, 6 rungs: 5 fixed, 1 changed (1 split), 0 refused; 1 files change
+scr_captures csv (decoded native): 8 files, 417 rungs: 404 fixed, 10 changed (1 split), 3 refused; 5 files change
+tumbler clipboard csv (decoded native): 34 files, 497 rungs: 495 fixed, 2 changed (0 split), 0 refused; 2 files change
+tumbler scr csv (decoded native): 34 files, 497 rungs: 495 fixed, 2 changed (0 split), 0 refused; 2 files change
+
+===== ladder_captures/golden
+--- instr-2row-cond__and.csv rung 0: REFUSED (None): row 1 column 0: the contact feeds no box
+      A    B    C D
+   0: X001 X002 - - -.. | NOP
+   1: X003 X004 - - -.. | 
+--- instr-2row-r0only.csv rung 0: CHANGED (1 rung(s))
+      A    B C
+   0: X001 - - -.. | out(Y001)
+   1: -    - - -.. | 
+  ->
+      A    B C
+   0: X001 - - -.. | out(Y001)
+--- instr-2row-spread.csv rung 0: REFUSED (None): row 1 column 10: the contact feeds no box
+      A    B C D E F    G H I J K    L M
+   0: X001 - - - - X002 - - - - -    - - -.. | out(Y001)
+   1: -    - - - - -    - - - - X003 - - -.. | 
+--- instr-3row-branch.csv rung 0: REFUSED (C0202): row 1: the box input reaches no rail
+      A    B C D    E F
+   0: X001 - T -    - - -.. | out(Y001)
+   1: -    . | -    - - -.. | out(Y002)
+   2: -    - - X002 - - -.. | out(Y003)
+--- instr-3row-or.csv rung 0: CHANGED (1 rung(s))
+      A B            C D E
+   0: - T:X001       T - - -.. | latch(Y001)
+   1: . T:rise(X002) | . .     | 
+   2: . fall(X003)   . . .     | 
+  ->
+      A          B C D
+   0: X001       T - - -.. | latch(Y001)
+   1: rise(X002) | . .     | 
+   2: fall(X003) . . .     | 
+--- instr-3row-scatter.csv rung 0: REFUSED (None): row 1 column 5: the contact feeds no box
+      A    B C D E F    G H I J K L M N O P    Q R
+   0: X001 - - - - -    - - - - - - - - - -    - - -.. | out(Y001)
+   1: -    - - - - X002 - - - - - - - - - -    - - -.. | 
+   2: -    - - - - -    - - - - - - - - - X003 - - -.. | 
+--- instr-coil-timer-ret.csv rung 0: REFUSED (None): row 2: a pin input shares contacts with a main input
+      A    B    C    D E F G
+   0: X001 T    X003 T T - - -.. | out(Y001)
+   1: .    X005 |    | - - - -.. | on_delay(T1,TD1,preset=1,unit=Tms) pins=(1,)
+   2: X002 -    X004 - - - - -.. | 
+--- instr-compare-series.csv rung 0: CHANGED (1 rung(s))
+      A    B C       D E
+   0: X001 - DS1>100 - - -.. | latch(Y002)
+  ->
+      A    B       C D
+   0: X001 DS1>100 - - -.. | latch(Y002)
+--- instr-copy-multirow-2af-T.csv rung 0: REFUSED (None): row 1: a pin input shares contacts with a main input
+      A  B C D E
+   0: C1 - T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: .  . T - - -.. | 
+   2: .  . | . .     | 
+   3: .  . | . .     | 
+   4: C2 - - - - -.. | copy(1,DS1)
+   5: .  . . . .     | 
+--- instr-copy-multirow-2af.csv rung 0: CHANGED (2 rung(s))
+      A  B C
+   0: C1 - - -.. | copy(1,DS1)
+   1: .  . .     | 
+   2: C2 - - -.. | copy(1,DS1)
+   3: .  . .     | 
+  ->
+      A  B C
+   0: C1 - - -.. | copy(1,DS1)
+   1: .  . .     | 
+      A  B C
+   0: C2 - - -.. | copy(1,DS1)
+   1: .  . .     | 
+--- instr-count_down-row0-data.csv rung 0: CHANGED (1 rung(s))
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: .    . . . . . . - - -.. | NOP
+   2: X002 - - - - - - - - -.. | 
+  ->
+      A    B C
+   0: .    . .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: X001 - - -.. | NOP
+   2: X002 - - -.. | 
+--- instr-series.csv rung 0: CHANGED (1 rung(s))
+      A    B C    D E
+   0: X001 - X002 - - -.. | out(Y001)
+  ->
+      A    B    C D
+   0: X001 X002 - - -.. | out(Y001)
+--- mr-cmt-3rung-multirow-multiinstructions.csv rung 0: CHANGED (4 rung(s))
+      A B C D
+   0: - T - - -.. | out(Y001)
+   1: . T - - -.. | latch(Y001)
+   2: . - - - -.. | reset(Y001)
+   3: - - - - -.. | out(Y001)
+  ->
+      A B
+   0: - - -.. | out(Y001)
+      A B
+   0: - - -.. | latch(Y001)
+      A B
+   0: - - -.. | reset(Y001)
+      A B
+   0: - - -.. | out(Y001)
+--- mr-cmt-3rung-multirow-multiinstructions.csv rung 1: CHANGED (4 rung(s))
+      A B C D
+   0: - T - - -.. | out(Y001)
+   1: . T - - -.. | latch(Y001)
+   2: . - - - -.. | reset(Y001)
+   3: - - - - -.. | out(Y001)
+  ->
+      A B
+   0: - - -.. | out(Y001)
+      A B
+   0: - - -.. | latch(Y001)
+      A B
+   0: - - -.. | reset(Y001)
+      A B
+   0: - - -.. | out(Y001)
+--- mr-cmt-3rung-multirow-multiinstructions.csv rung 2: CHANGED (4 rung(s))
+      A B C D
+   0: - T - - -.. | out(Y001)
+   1: . T - - -.. | latch(Y001)
+   2: . - - - -.. | reset(Y001)
+   3: - - - - -.. | out(Y001)
+  ->
+      A B
+   0: - - -.. | out(Y001)
+      A B
+   0: - - -.. | latch(Y001)
+      A B
+   0: - - -.. | reset(Y001)
+      A B
+   0: - - -.. | out(Y001)
+--- mr-cmt-3rung-multirow.csv rung 0: CHANGED (1 rung(s))
+      A    B C
+   0: X001 - - -.. | out(Y001)
+   1: .    . .     | 
+  ->
+      A    B C
+   0: X001 - - -.. | out(Y001)
+--- mr-cmt-3rung-multirow.csv rung 1: REFUSED (C0202): row 1: the box input reaches no rail
+      A     B C D
+   0: ~X002 - - - -.. | latch(Y002)
+   1: -     . - .     | NOP
+   2: .     . . .     | 
+--- mr-cmt-3rung-multirow.csv rung 2: CHANGED (1 rung(s))
+      A          B C
+   0: rise(X003) - - -.. | reset(Y003)
+   1: .          . .     | 
+  ->
+      A          B C
+   0: rise(X003) - - -.. | reset(Y003)
+===== coverage/golden
+===== coverage/subroutines
+===== pinned_or
+--- count_down_or.csv rung 2: REFUSED (None): row 0 column 0: the contact feeds no box
+      A   B C
+   0: C21 - - -.. | count_down(CT3,CTD3,preset=5) pins=(1, 2)
+   1: C22 - - -.. | NOP
+   2: C29 - - -.. | 
+--- count_down_or.csv rung 3: REFUSED (None): row 2 column 0: the contact feeds no box
+      A   B C
+   0: .   . .     | count_down(CT4,CTD4,preset=5) pins=(1, 3)
+   1: C31 - - -.. | NOP
+   2: C32 . .     | 
+   3: C39 - - -.. | 
+--- count_down_or.csv rung 4: CHANGED (1 rung(s))
+      A   B C
+   0: .   . .     | count_down(CT5,CTD5,preset=5) pins=(1, 3)
+   1: C41 - - -.. | NOP
+   2: .   . .     | 
+   3: C49 - - -.. | 
+  ->
+      A   B C
+   0: .   . .     | count_down(CT5,CTD5,preset=5) pins=(1, 2)
+   1: C41 - - -.. | NOP
+   2: C49 - - -.. | 
+===== v4_captures stubs
+--- or_compact_stub.csv rung 1: CHANGED (2 rung(s))
+      A    B C
+   0: X001 - - -.. | copy(1,DS1)
+   1: .    . .     | 
+   2: X002 - - -.. | copy(2,DS2)
+   3: .    . .     | 
+  ->
+      A    B C
+   0: X001 - - -.. | copy(1,DS1)
+   1: .    . .     | 
+      A    B C
+   0: X002 - - -.. | copy(2,DS2)
+   1: .    . .     | 
+===== scr_captures csv (decoded native)
+--- counter_scr.csv rung 6: CHANGED (1 rung(s))
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: .    . . . . . . - - -.. | NOP
+   2: X002 - - - - - - - - -.. | 
+  ->
+      A    B C
+   0: .    . .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: X001 - - -.. | NOP
+   2: X002 - - -.. | 
+--- counter_scr.csv rung 7: REFUSED (C0202): row 1: the box input reaches no rail
+      A    B C D E F G H I
+   0: X001 - - - - - - | .     | count_down(CT1,CTD1,preset=1) pins=(1, 2)
+   1: X002 - - - - - - | .     | NOP
+   2: .    . . . . . . - - -.. | 
+--- or_topology.csv rung 1: CHANGED (1 rung(s))
+      A    B C    D E F
+   0: X001 T T:C1 T - - -.. | out(Y001)
+   1: X002 . C2   . . .     | 
+  ->
+      A    B    C D E
+   0: X001 T:C1 T - - -.. | out(Y001)
+   1: X002 C2   . . .     | 
+--- or_topology.csv rung 2: CHANGED (1 rung(s))
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 . C1 - - -.. | out(Y002)
+  ->
+      A    B  C D
+   0: X001 T  - - -.. | out(Y001)
+   1: X002 C1 - - -.. | out(Y002)
+--- or_topology.csv rung 3: CHANGED (1 rung(s))
+      A    B C  D E
+   0: X001 T T  - - -.. | out(Y001)
+   1: X002 | C1 - - -.. | out(Y002)
+   2: X003 . .  . .     | 
+  ->
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: X003 .    . .     | 
+--- or_topology.csv rung 4: CHANGED (1 rung(s))
+      A    B      C D    E F
+   0: X001 T:X002 T T    - - -.. | out(Y001)
+   1: .    T:X003 | T:C1 - - -.. | out(Y002)
+   2: .    X004   . -    - - -.. | out(Y003)
+  ->
+      A    B      C    D E
+   0: X001 T:X002 T    - - -.. | out(Y001)
+   1: .    T:X003 T:C1 - - -.. | out(Y002)
+   2: .    X004   -    - - -.. | out(Y003)
+--- or_topology.csv rung 6: CHANGED (1 rung(s))
+      A    B C    D E
+   0: X001 T T    - - -.. | out(Y001)
+   1: X002 . T:C1 - - -.. | out(Y002)
+   2: .    . C2   - - -.. | out(Y003)
+  ->
+      A    B    C D
+   0: X001 T    - - -.. | out(Y001)
+   1: X002 T:C1 - - -.. | out(Y002)
+   2: .    C2   - - -.. | out(Y003)
+--- or_topology.csv rung 7: CHANGED (1 rung(s))
+      A    B C    D E    F G
+   0: X001 T T:C1 T T    - - -.. | out(Y001)
+   1: X002 . C2   . X003 - - -.. | out(Y002)
+  ->
+      A    B    C    D E
+   0: X001 T:C1 T    - - -.. | out(Y001)
+   1: X002 C2   X003 - - -.. | out(Y002)
+--- time_drum_b_column.csv rung 0: CHANGED (1 rung(s))
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+  ->
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+--- time_drum_insert_rows.csv rung 1: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+--- time_drum_insert_rows.csv rung 2: REFUSED (C0202): row 0: the box input reaches no rail
+      A B
+   0: . .     | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: . .     | 
+   2: - - -.. | 
+   3: . .     | 
+--- time_drums.csv rung 11: CHANGED (2 rung(s))
+      A B    C D
+   0: - T    - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: . |    . .     | 
+   2: . X001 | .     | 
+   3: . .    | .     | 
+   4: . .    - - -.. | out(Y001)
+  ->
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Td,pattern=[[0]],cur
+   1: . .     | 
+   2: . .     | 
+   3: . .     | 
+      A    B C
+   0: X001 - - -.. | out(Y001)
+--- time_drums.csv rung 14: CHANGED (1 rung(s))
+      A B C D
+   0: . T - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - - - -.. | 
+   2: . . . .     | 
+   3: . . . .     | 
+  ->
+      A B
+   0: - - -.. | time_drum(outputs=[C2],presets=[1],unit=Tms,pattern=[[0]],cu
+   1: - - -.. | 
+   2: . .     | 
+   3: . .     | 
+===== tumbler clipboard csv (decoded native)
+--- AlmHistorian.clipboard.csv rung 0: CHANGED (1 rung(s))
+      A         B C D E
+   0: DS181<1   T T - - -.. | copy(0,DS181)
+   1: DS181>100 . | . .     | 
+   2: .         . T - - -.. | reset(C1061)
+   3: .         . T - - -.. | copy(0,DS182)
+   4: .         . | . .     | 
+   5: .         . - - - -.. | return()
+  ->
+      A         B C D
+   0: DS181<1   T - - -.. | copy(0,DS181)
+   1: DS181>100 | . .     | 
+   2: .         T - - -.. | reset(C1061)
+   3: .         T - - -.. | copy(0,DS182)
+   4: .         | . .     | 
+   5: .         - - - -.. | return()
+--- WarnTimestamp.clipboard.csv rung 0: CHANGED (1 rung(s))
+      A        B C D E
+   0: DS191<1  T T - - -.. | copy(0,DS191)
+   1: DS191>50 . | . .     | 
+   2: .        . T - - -.. | reset(C1063)
+   3: .        . - - - -.. | copy(0,DS193)
+   4: .        . . . .     | 
+  ->
+      A        B C D
+   0: DS191<1  T - - -.. | copy(0,DS191)
+   1: DS191>50 | . .     | 
+   2: .        T - - -.. | reset(C1063)
+   3: .        - - - -.. | copy(0,DS193)
+   4: .        . . .     | 
+===== tumbler scr csv (decoded native)
+--- AlmHistorian.csv rung 0: CHANGED (1 rung(s))
+      A         B C D E
+   0: DS181<1   T T - - -.. | copy(0,DS181)
+   1: DS181>100 . | . .     | 
+   2: .         . T - - -.. | reset(C1061)
+   3: .         . T - - -.. | copy(0,DS182)
+   4: .         . | . .     | 
+   5: .         . - - - -.. | return()
+  ->
+      A         B C D
+   0: DS181<1   T - - -.. | copy(0,DS181)
+   1: DS181>100 | . .     | 
+   2: .         T - - -.. | reset(C1061)
+   3: .         T - - -.. | copy(0,DS182)
+   4: .         | . .     | 
+   5: .         - - - -.. | return()
+--- WarnTimestamp.csv rung 0: CHANGED (1 rung(s))
+      A        B C D E
+   0: DS191<1  T T - - -.. | copy(0,DS191)
+   1: DS191>50 . | . .     | 
+   2: .        . T - - -.. | reset(C1063)
+   3: .        . - - - -.. | copy(0,DS193)
+   4: .        . . . .     | 
+  ->
+      A        B C D
+   0: DS191<1  T - - -.. | copy(0,DS191)
+   1: DS191>50 | . .     | 
+   2: .        T - - -.. | reset(C1063)
+   3: .        - - - -.. | copy(0,DS193)
+   4: .        . . .     | 

@@ -69,7 +69,7 @@ def test_port_and_slave_id_fields(
     assert from_tags(class_name, type_code, fields) == instr
 
 
-@pytest.mark.parametrize("device_id", ["DD1", "DH1", "C1", "DS0", "DS4501", "ds1"])
+@pytest.mark.parametrize("device_id", ["DD1", "DH1", "C1", "DS0", "DS4501", "ds0"])
 def test_slave_id_address_must_be_ds(device_id: str) -> None:
     """CLICK's Slave ID box takes a number or a DS address only."""
     with pytest.raises(ValueError, match="device_id"):

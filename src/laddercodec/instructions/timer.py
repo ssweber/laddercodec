@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import PinnedInstruction
+from ..model import FieldError, PinnedInstruction, check_address, check_flag, normalize_address
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -37,6 +37,12 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 # ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
+
+#: A constant set point is digits only (no sign), 0 to 32767, for every unit.
+#: Inst_Timer.dll OnOK: digits-only span check, then ``value > 0x7fff`` -> OBJ-005;
+#: the unit is not read on this path (Q-D1).
+_DIGITS_RE = re.compile(r"[0-9]+")
+TIMER_MAX_SETPOINT = 32767
 
 _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
@@ -63,14 +69,40 @@ class Timer(PinnedInstruction):
     #: Row of the reset input.  OR legs under the enable input of a retentive
     #: timer push it down.  A timer without ``.reset()`` stays 2 rows with its
     #: legs beside and below it (native: tumbler ProductionErrors).
-    pin_rows: tuple[int] = (1,)
+    pin_rows: tuple[int, ...] = (1,)
 
     def __post_init__(self) -> None:
-        if self.timer_type == "off_delay" and self.retained:
-            raise ValueError(
-                "off_delay can't be retentive (no .reset() pin): CLICK's Timer dialog "
-                "offers Retentive only for an On Delay timer"
+        self.retained = check_flag(self.retained, "Timer.retained")
+        if self.timer_type not in ("on_delay", "off_delay"):
+            raise FieldError(f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay")
+        if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
+            raise FieldError(
+                f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}"
             )
+        self.done_bit = normalize_address(self.done_bit)
+        self.current = normalize_address(self.current)
+        self.setpoint = normalize_address(self.setpoint)
+        done = check_address(self.done_bit, "Timer.done_bit", banks={"T"})
+        current = check_address(self.current, "Timer.current", banks={"TD"})
+        if done.number != current.number:
+            raise FieldError(
+                f"Timer.current: {self.current!r} must be TD{done.number} to match "
+                f"Timer.done_bit {self.done_bit!r}"
+            )
+        if not _DIGITS_RE.fullmatch(self.setpoint):
+            # Inst_Timer.dll: an address set point is DS only (validator mask 0x40), OBJ-004.
+            check_address(self.setpoint, "Timer.setpoint", banks={"DS"})
+        elif int(self.setpoint) > TIMER_MAX_SETPOINT:
+            raise FieldError(
+                f"Timer.setpoint: {self.setpoint!r} is above {TIMER_MAX_SETPOINT}; "
+                f"a constant set point is 0 to {TIMER_MAX_SETPOINT} (OBJ-005)"
+            )
+        if self.timer_type == "off_delay" and self.retained:
+            raise FieldError(
+                "Timer.retained: off_delay can't be retentive (no .reset() pin); CLICK's "
+                "Timer dialog offers Retentive only for an On Delay timer"
+            )
+        self._check_pin_rows()
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
@@ -237,5 +269,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("on_delay", "off_delay"),
     parse_csv_call=parse_af_call,
     pin_names=(".reset",),
-    min_csv_rows=2,
 )

@@ -10,7 +10,17 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, AfInstruction, InstructionType, _validate_operand
+from ..model import (
+    TYPE_CODE_TO_ITYPE,
+    Address,
+    AddressError,
+    AfInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+    check_flag,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -54,6 +64,42 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 }
 
 # ---------------------------------------------------------------------------
+# Target rules
+# ---------------------------------------------------------------------------
+
+#: Banks a coil writes.  Out: CLICK v4.00 Help CL167.  Set and Reset take the same three
+#: (Q-B1, user dialog check 2026-11-11: X1, T1, CT1 and DS1 are refused).
+OUT_BANKS = frozenset({"Y", "C", "SC"})
+
+#: The SC bits a coil writes: CLICK's address picker lists these 25 read-write system bits
+#: for Out, and no other SC is accepted (Q-B2, user dialog check 2026-11-11).  Ruling: the
+#: list belongs to the address, so Set, Reset and the Out variants take the same bits.
+WRITABLE_SC = frozenset(
+    {50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168, 171}
+    | {303, 304, 305, 306, 323, 324, 325, 326}
+)
+
+_WRITABLE_SC_TEXT = ", ".join(f"SC{n}" for n in sorted(WRITABLE_SC))
+
+
+def check_out_target(operand: str, name: str, *, immediate: bool = False) -> Address:
+    """Check one address a coil writes (Out, Set, Reset or an Out variant); return it.
+
+    The bank is Y, C or SC, an immediate target is Y, and an SC bit is one of
+    :data:`WRITABLE_SC`.
+    """
+    address = check_address(operand, name, OUT_BANKS)
+    # Immediate first: an immediate SC target is refused whatever its number.
+    if immediate and address.bank != "Y":
+        raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
+    if address.bank == "SC" and address.number not in WRITABLE_SC:
+        raise AddressError(
+            f"{name}: {operand!r} is not a writable SC bit; a coil writes {_WRITABLE_SC_TEXT}"
+        )
+    return address
+
+
+# ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
 
@@ -73,6 +119,40 @@ class Coil(AfInstruction):
     range_end: str | None = None
     immediate: bool = False
     oneshot: bool = False
+
+    def __post_init__(self) -> None:
+        if self.type not in tuple(COIL_TYPE_TO_NAME):
+            raise FieldError(f"Coil.type: {self.type!r} is not a coil (out, latch or reset)")
+        self.immediate = check_flag(self.immediate, "Coil.immediate")
+        self.oneshot = check_flag(self.oneshot, "Coil.oneshot")
+        if self.oneshot and self.type != InstructionType.COIL_OUT:
+            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
+            raise FieldError(
+                f"Coil.oneshot: {COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; "
+                "only out() does"
+            )
+        self.operand = normalize_address(self.operand)
+        if self.range_end is not None:
+            self.range_end = normalize_address(self.range_end)
+        # Out, Set and Reset follow the same target and range rules (Q-B1).
+        start = check_out_target(self.operand, "Coil.operand", immediate=self.immediate)
+        if self.range_end is None:
+            return
+        # An SC range needs both ends writable; the bits between are not checked (ruling).
+        end = check_out_target(self.range_end, "Coil.range_end", immediate=self.immediate)
+        # Out: OBJ-008; Set and Reset: Q-B1, user dialog check 2026-11-11 (C5..Y5 refused).
+        if end.bank != start.bank:
+            raise FieldError(
+                f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
+                f"the range starts in bank {start.bank} and must stay in it"
+            )
+        # Out: OBJ-009 and Q-B3 (C5..C5 refused); Set and Reset: Q-B1 (C9..C1 refused),
+        # and the ruling that they refuse C5..C5 as Out does.
+        if end.number <= start.number:
+            raise FieldError(
+                f"Coil.range_end: {self.range_end!r} is not above {self.operand!r}; "
+                "a range runs from a lower to a higher address"
+            )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:
@@ -108,9 +188,6 @@ class Coil(AfInstruction):
         if oneshot_raw not in {"0", "1"}:
             raise ValueError("coil oneshot must be 0 or 1")
         oneshot = oneshot_raw == "1"
-        if oneshot and coil_type != InstructionType.COIL_OUT:
-            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
-            raise ValueError(f"only out() supports oneshot, not {token!r}")
 
         immediate_inner = False
         inner = re.fullmatch(r"immediate\((.+)\)", arg)
@@ -126,29 +203,26 @@ class Coil(AfInstruction):
             parts = [p.strip() for p in arg.split("..")]
             if len(parts) != 2 or not all(parts):
                 raise ValueError(f"Cannot parse coil range: {token!r}")
-            op1 = _validate_operand(parts[0])
-            op2 = _validate_operand(parts[1])
             return cls(
                 type=coil_type,
-                operand=op1,
-                range_end=op2,
+                operand=parts[0],
+                range_end=parts[1],
                 immediate=immediate,
                 oneshot=oneshot,
             )
 
         return cls(
             type=coil_type,
-            operand=_validate_operand(arg),
+            operand=arg,
             immediate=immediate,
             oneshot=oneshot,
         )
 
     @property
     def func_code(self) -> str:
-        key = (self.type, self.range_end is not None, self.immediate, self.oneshot)
-        if key not in COIL_FUNC_CODES:
-            raise ValueError(f"only out() supports oneshot: {self.to_csv()}")
-        return COIL_FUNC_CODES[key]
+        return COIL_FUNC_CODES[
+            (self.type, self.range_end is not None, self.immediate, self.oneshot)
+        ]
 
     def to_csv(self) -> str:
         name = COIL_TYPE_TO_NAME[self.type]

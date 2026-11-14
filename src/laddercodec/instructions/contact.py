@@ -10,7 +10,15 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import TYPE_CODE_TO_ITYPE, ConditionInstruction, InstructionType, _validate_operand
+from ..model import (
+    TYPE_CODE_TO_ITYPE,
+    ConditionInstruction,
+    FieldError,
+    InstructionType,
+    check_address,
+    check_flag,
+    normalize_address,
+)
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -47,6 +55,15 @@ for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
 # Tag constants
 # ---------------------------------------------------------------------------
 
+#: Banks a NO, NC or edge contact reads (CLICK v4.00 Help CL161, CL163).
+CONTACT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+
+_CONTACT_TYPES = (
+    InstructionType.CONTACT_NO,
+    InstructionType.CONTACT_NC,
+    InstructionType.CONTACT_EDGE,
+)
+
 _CONTACT_NO_TAGS = (0x6065, 0x11F5, 0x3218, 0x0000)
 _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
@@ -64,6 +81,34 @@ class Contact(ConditionInstruction):
     immediate: bool = False
     edge_kind: Literal["rise", "fall"] | None = None
     wire_down: bool = False
+
+    def __post_init__(self) -> None:
+        if self.type not in _CONTACT_TYPES:
+            raise FieldError(
+                f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
+                "CONTACT_EDGE)"
+            )
+        self.immediate = check_flag(self.immediate, "Contact.immediate")
+        self.wire_down = check_flag(self.wire_down, "Contact.wire_down")
+        self.operand = normalize_address(self.operand)
+        address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
+        if self.immediate and self.type == InstructionType.CONTACT_EDGE:
+            raise FieldError("Contact.immediate: an edge contact has no immediate form")
+        if self.immediate and address.bank != "X":
+            raise FieldError(
+                f"Contact.immediate: {self.operand!r} is not allowed; "
+                "an immediate contact takes X only"
+            )
+        if self.type == InstructionType.CONTACT_EDGE:
+            if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
+                raise FieldError(
+                    f"Contact.edge_kind: {self.edge_kind!r} is not rise or fall; "
+                    "an edge contact needs one"
+                )
+        elif self.edge_kind is not None:
+            raise FieldError(
+                f"Contact.edge_kind: {self.edge_kind!r} is not allowed; only an edge contact has one"
+            )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Contact:
@@ -101,7 +146,7 @@ class Contact(ConditionInstruction):
             if immediate:
                 raise ValueError("Immediate edge contacts are unsupported")
             edge_kind = cast(Literal["rise", "fall"], edge_match.group(1))
-            operand = _validate_operand(edge_match.group(2).strip())
+            operand = edge_match.group(2).strip()
             return cls(
                 InstructionType.CONTACT_EDGE,
                 operand,
@@ -113,7 +158,7 @@ class Contact(ConditionInstruction):
         itype = InstructionType.CONTACT_NC if negated else InstructionType.CONTACT_NO
         return cls(
             itype,
-            _validate_operand(token),
+            token.strip(),
             immediate=immediate,
             wire_down=wire_down,
         )
@@ -121,17 +166,11 @@ class Contact(ConditionInstruction):
     @property
     def func_code(self) -> str:
         if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in CONTACT_EDGE_FUNC_CODES:
-                raise ValueError("Edge contacts require edge_kind 'rise' or 'fall'")
-            if self.immediate:
-                raise ValueError("Immediate edge contacts are unsupported")
-            return CONTACT_EDGE_FUNC_CODES[self.edge_kind]
+            return CONTACT_EDGE_FUNC_CODES[cast(Literal["rise", "fall"], self.edge_kind)]
         return CONTACT_FUNC_CODES[(self.type, self.immediate)]
 
     def to_csv(self) -> str:
         if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in CONTACT_EDGE_FUNC_CODES:
-                raise ValueError("Edge contacts require edge_kind 'rise' or 'fall'")
             inner = f"{self.edge_kind}({self.operand})"
         else:
             prefix = "~" if self.type == InstructionType.CONTACT_NC else ""

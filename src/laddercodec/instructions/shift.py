@@ -18,7 +18,13 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
-from ..model import InstructionType, PinnedInstruction, _validate_operand
+from ..model import (
+    FieldError,
+    InstructionType,
+    PinnedInstruction,
+    check_address,
+    normalize_address,
+)
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -27,6 +33,9 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
+
+#: A shift register runs over C bits only.
+SHIFT_BANKS = frozenset({"C"})
 
 _SHIFT_FUNC_CODES = ("8448", "8449", "8450")
 _SHIFT_SUB_MARKERS = (b"\x00\x00\x00\x00", b"\x01\x00\x00\x00", b"\x02\x00\x00\x00")
@@ -44,7 +53,25 @@ class Shift(PinnedInstruction):
     end_bit: str
     #: Rows of the clock and reset inputs below the main row.  OR legs under
     #: the data input push both down; legs under ``.clock()`` push ``.reset()``.
-    pin_rows: tuple[int, int] = (1, 2)
+    pin_rows: tuple[int, ...] = (1, 2)
+
+    def __post_init__(self) -> None:
+        self.start_bit = normalize_address(self.start_bit)
+        self.end_bit = normalize_address(self.end_bit)
+        # Inst_ShiftRegister.dll OnOK: both ends are C (validator mask 4); another bank,
+        # or an end in another bank than the start, is OBJ-004 (Q-D3).
+        start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)
+        end = check_address(self.end_bit, "Shift.end_bit", banks=SHIFT_BANKS)
+        # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
+        # address as it is typed (C001 becomes C1; user dialog check 2026-11-11), so the
+        # parsed addresses are compared.  Start > end stays allowed: it reverses the
+        # shift (Help 172).
+        if end == start:
+            raise FieldError(
+                f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
+                f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)"
+            )
+        self._check_pin_rows()
 
     def pin_names(self) -> tuple[str, ...]:
         return (".clock", ".reset")
@@ -71,8 +98,8 @@ class Shift(PinnedInstruction):
             raise ValueError(f"Cannot parse shift range: {token!r}")
 
         return cls(
-            start_bit=_validate_operand(parts[0]),
-            end_bit=_validate_operand(parts[1]),
+            start_bit=parts[0],
+            end_bit=parts[1],
         )
 
     def to_csv(self) -> str:
@@ -143,5 +170,4 @@ SPEC = AfInstructionFamilySpec(
     csv_names=("shift",),
     parse_csv_call=parse_af_call,
     pin_names=(".clock", ".reset"),
-    min_csv_rows=3,
 )

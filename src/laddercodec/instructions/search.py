@@ -23,15 +23,22 @@ Field layout (10 fields):
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction
-from .family import AfInstructionFamilySpec
+from ..model import AfInstruction, FieldError, normalize_address
+from ..operands.constants import SEARCH_TABLE_BANKS, classify
+from .comparison import check_quoted_text
+from .copy import REGISTER_BANKS, _check_range, check_constant, check_operand
+from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+#: Cell kwargs of a Search box: two rows (cell header +0x09 = +0x0A = 2).
+_CELL_PARAMS: dict = {"visual_rows": 2}
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -63,6 +70,24 @@ _OP_TO_CMP_CODE: dict[str, str] = {
 }
 
 _CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
+
+# ---------------------------------------------------------------------------
+# Operand banks
+# ---------------------------------------------------------------------------
+
+#: Banks a search table spans.
+TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
+#: The result holds the found address's index, a DS (Help CL174).
+RESULT_BANKS = frozenset({"DS"})
+#: The Result Flag is a C bit (Inst_Search.dll validator mask 4; OBJ-004).
+FOUND_BANKS = frozenset({"C"})
+#: A text search value hides the four order operators, leaving these.  The search-value
+#: change handler (Inst_Search.dll) reaches the same text test (0x140)
+#: from a TXT register and from a text constant.
+_TEXT_OPS = frozenset({"==", "!="})
+#: A hex search value above FFFFh is a 32-bit hex constant (baseEx.dll decides by value),
+#: which the value check refuses (Inst_Search.dll, OBJ-005).
+_HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -120,6 +145,47 @@ class Search(AfInstruction):
     continuous: bool = False
     oneshot: bool = False
 
+    def __post_init__(self) -> None:
+        # A constant search value comes back from normalize_address as written.
+        for name in ("table_start", "table_end", "source", "result", "found"):
+            setattr(self, name, normalize_address(getattr(self, name)))
+        if self.comparison not in _OP_TO_FUNC:
+            raise FieldError(
+                f"Search.comparison: {self.comparison!r} is not allowed; it is one of "
+                f"{', '.join(_OP_TO_FUNC)}"
+            )
+        # Inst_Search.dll has no pointer path, so no field takes one (Q-M6).  The table is
+        # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
+        table, _ = _check_range(
+            "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
+        )
+        check_operand(self.result, "Search.result", RESULT_BANKS)
+        check_operand(self.found, "Search.found", FOUND_BANKS)
+        if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
+            check_quoted_text(self.source, "Search.source")
+        # The search value is a constant or a data register, never a bit (Help CL174).
+        source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
+        m = _HEX_CONSTANT_RE.fullmatch(self.source)
+        if m and int(m.group(1), 16) > 0xFFFF:
+            raise FieldError(
+                f"Search.source: {self.source!r} is above FFFFh; a hex search value is 16-bit"
+            )
+        if (source.kind == "text" or source.bank == "TXT") and self.comparison not in _TEXT_OPS:
+            raise FieldError(
+                f"Search.comparison: {self.comparison!r} is not offered for text "
+                f"{self.source!r}; text searches with == or !="
+            )
+        if source.kind in ("number", "text"):
+            # The value field runs CLICK's shared input check (arc.md Q-M10 ruling).
+            check_constant(self.source, "Search.source")
+            # The value's kind ties to the table banks (arc.md Q-M21).
+            const = classify(self.source)
+            if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
+                raise FieldError(
+                    f"Search.source: {self.source!r} is a {const.kind} value, which searches "
+                    f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}"
+                )
+
     @property
     def func_code(self) -> str:
         return str(_OP_TO_FUNC[self.comparison] + (_ONESHOT_FUNC_OFFSET if self.oneshot else 0))
@@ -134,7 +200,7 @@ class Search(AfInstruction):
         return f"search({expr},{','.join(kw)})"
 
     def cell_params(self) -> dict:
-        return {"visual_rows": 2}
+        return dict(_CELL_PARAMS)
 
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
@@ -207,8 +273,6 @@ def parse_af_call(call: AfCall) -> Search:
         raise ValueError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
-    import re
-
     m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr)
     if not m:
         raise ValueError(f"Cannot parse search expression: {expr!r}")
@@ -237,5 +301,5 @@ SPEC = AfInstructionFamilySpec(
     from_tags=from_tags,
     csv_names=("search",),
     parse_csv_call=parse_af_call,
-    min_csv_rows=2,
+    cell_params_from_tags=fixed_cell_params(_CELL_PARAMS, ("Search", _SEARCH_TYPE_CODE)),
 )

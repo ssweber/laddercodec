@@ -14,15 +14,21 @@ from typing import TYPE_CHECKING
 
 from .instructions.drum import Drum
 from .instructions.forloop import Break, Continue
-from .instructions.math import _RESERVED_SLOTS, Math, _range_interiors
+from .instructions.math import (
+    RESERVED_SLOTS,
+    Math,
+    range_interiors,
+    raw_formula_fields,
+)
 from .instructions.out_variant import OutVariant
+from .instructions.raw import RawInstruction
 
 if TYPE_CHECKING:
     from .decode import Rung
 
 #: Math functions added in CLICK v4.  SUM is older, but not over a bit range.
 _V4_MATH_RE = re.compile(r"\b(?:MAX|MIN|MDN|AVG|ABS|RAND)\s*\(")
-_V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)\d+\s*:")
+_V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)[0-9]+\s*:")
 
 
 def is_v4_only(instruction: object) -> bool:
@@ -35,12 +41,30 @@ def is_v4_only(instruction: object) -> bool:
     if isinstance(instruction, Math):
         expression = instruction.expression
         # Past 500 range interiors the blob needs v4's capacity; v3 holds 500.
-        return bool(
-            _V4_MATH_RE.search(expression)
-            or _V4_BIT_SUM_RE.search(expression)
-            or len(_range_interiors(expression)) > _RESERVED_SLOTS
-        )
+        return bool(_v4_formula(expression) or len(range_interiors(expression)) > RESERVED_SLOTS)
+    if isinstance(instruction, RawInstruction) and instruction.class_name == "Math":
+        return _raw_math_is_v4_only(instruction.blob)
     return False
+
+
+def _v4_formula(text: str) -> bool:
+    return bool(_V4_MATH_RE.search(text) or _V4_BIT_SUM_RE.search(text))
+
+
+def _raw_math_is_v4_only(blob: bytes) -> bool:
+    """The Math check on a Math blob laddercodec decodes as raw, read from its stored fields.
+
+    The internal formula (``0x61FD``) is read with spaces for its ``#``; the display
+    formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.  A blob
+    whose fields do not parse (``raw(Math,00)`` from CSV) is not flagged.
+    """
+    stored = raw_formula_fields(blob)
+    if stored is None:
+        return False
+    internal, display, listed = stored
+    return (
+        _v4_formula(internal.replace("#", " ")) or _v4_formula(display) or listed > RESERVED_SLOTS
+    )
 
 
 def find_v4_only(rungs: Rung | Iterable[Rung]) -> list[tuple[int, object]]:

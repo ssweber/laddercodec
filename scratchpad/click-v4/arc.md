@@ -3,7 +3,7 @@
 CLICK v4.00's own instruction DLLs were read on 2026-11-11 (`Inst_*.dll` = MFC dialogs,
 `InstCtl_*.dll` = blob tag order + func code computation). Our tag order matches CLICK for
 every instruction; the gaps are func codes, enum values and a few fields we drop.
-Per-family evidence: `scratchpad/click-v4/sweep/*.md`. Scripts: `scratchpad/click-v4/*.py`.
+Per-family evidence: the v4 DLL sweep notes, kept outside the repo. Scripts: `scratchpad/click-v4/*.py`.
 
 Goal: every instruction we encode produces the blob CLICK itself writes, field for field,
 proven against native captures; the four raw instructions expose their status bits.

@@ -21,23 +21,28 @@ CSV token format::
     math(DH1 + DH2, DH3, mode=hex)
     math(DS68 * DS69, DS70, mode=decimal, oneshot=1)
 
-The CSV expression syntax matches Click's formula pad exactly:
-uppercase function names (``SIN``, ``COS``, …), Click operators
-(``+``, ``-``, ``*``, ``/``, ``^``, ``MOD``, ``AND``, ``OR``,
-``XOR``), spaces around operators.  No conversion needed — the
-expression is stored verbatim in the binary.
+The expression is read by :mod:`.math_formula`, which follows CLICK's Math dialog: it
+refuses what the dialog refuses and prints the four formula strings the blob stores.
 """
 
 from __future__ import annotations
 
-import re
 import struct
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction
+from ..model import (
+    AfInstruction,
+    FieldError,
+    check_address,
+    normalize_address,
+)
+from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
+from .math_formula import address_parts, parse
+from .math_formula import range_interiors as formula_range_interiors
+from .raw import _decompose_blob
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
@@ -52,8 +57,6 @@ MATH_FUNC_CODES: dict[tuple[str, bool], str] = {
     ("hex", False): "8453",
     ("hex", True): "8454",
 }
-
-_FUNC_TO_MODE: dict[str, tuple[str, bool]] = {v: k for k, v in MATH_FUNC_CODES.items()}
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -72,24 +75,12 @@ _TAG_OPERAND = 0x6888
 _TAG_RESERVED = 0x688C
 _TAG_TERMINATOR = 0x0000
 
-_HEADER_TAGS = (
-    _TAG_RESULT,
-    _TAG_HEX_FLAG,
-    _TAG_ONESHOT,
-    _TAG_TEMPLATE_DISPLAY,
-    _TAG_FORMULA_DISPLAY,
-    _TAG_TEMPLATE_INTERNAL,
-    _TAG_FORMULA_INTERNAL,
-    _TAG_FUNC_CODE,
-    _TAG_NICKNAME_FLAG,
-)
-
 _OPERAND_SLOTS = 500
-_RESERVED_SLOTS = 500
+RESERVED_SLOTS = 500
 #: CLICK v4's capacity.  Its editor stops listing interiors here, whatever the formula says.
 _V4_RESERVED_SLOTS = 5000
-# Click's formula editor accepted at most 68 operands (DS1..DS68 tested); a pasted
-# 69 passes CLICK v4's check.  The blob has 500 slots.
+# The formula's length cap (``math_formula.MAX_INTERNAL_LENGTH``) allows at most 68
+# operands, within the 500 slots.
 
 # Pre-computed empty slot bytes: each slot is [2B tag LE][4B index LE][00 00].
 # Avoids 1000 _variant_tagged_field() calls per Math instruction.
@@ -98,199 +89,34 @@ _EMPTY_OPERAND_BYTES = b"".join(
     struct.pack("<HI", _TAG_OPERAND, i) + b"\x00\x00" for i in range(_OPERAND_SLOTS)
 )
 _EMPTY_RESERVED_BYTES = b"".join(
-    struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(_RESERVED_SLOTS)
+    struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
-# ---------------------------------------------------------------------------
-# Expression tokenizer — extracts operands from a formula string
-# ---------------------------------------------------------------------------
-
-#: Click PLC memory address pattern.
-_ADDR_RE = re.compile(r"\b(?:(?:CTD|CT|TD|TXT|SC|SD|DS|DD|DH|DF|X|Y|C|T)\d+|(?:XD|YD)\d+u?)\b")
-
-#: Reserved function/operator names that must NOT be treated as operands.
-RESERVED_NAMES: frozenset[str] = frozenset(
-    {
-        "LOG",
-        "SUM",
-        "SIN",
-        "ASIN",
-        "RAD",
-        "COS",
-        "ACOS",
-        "SQRT",
-        "DEG",
-        "TAN",
-        "ATAN",
-        "LN",
-        "PI",
-        "MOD",
-        "AND",
-        "OR",
-        "XOR",
-        "LSH",
-        "RSH",
-        "LRO",
-        "RRO",
-    }
-)
+#: Result banks per mode (Inst_Math.dll result masks; OBJ-004).
+RESULT_BANKS: dict[str, frozenset[str]] = {
+    "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
+    "hex": frozenset({"DH", "YD"}),
+}
 
 
-_NUMBER = r"(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+|\d+)(?![\w.])"
-_HEX_CONSTANT = r"[0-9A-Fa-f]+h\b"
+def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
+    """The stored formulas of a raw Math blob: ``(internal, display, filled reserved slots)``.
 
-#: One formula token: a ``<nickname>``, a constant, a word, or a single symbol.
-_TOKEN_RE = re.compile(rf"<[^>]*>|{_HEX_CONSTANT}|{_NUMBER}|\w+|\S")
-_CONSTANT_RE = re.compile(rf"{_HEX_CONSTANT}|{_NUMBER}")
-
-#: After these a ``-`` is a sign, not a subtraction.
-_BEFORE_SIGN = frozenset({"(", ",", ":", "+", "-", "*", "/", "^", "MOD", "AND", "OR", "XOR"})
-
-
-def _normalize_spacing(expr: str) -> str:
-    """Space a formula the way Click's formula editor does, one space between tokens.
-
-    ``ABS(x)*2`` → ``ABS ( x ) * 2``, ``RAND(1,100)`` → ``RAND ( 1 , 100 )``,
-    ``SUM(DS1:DS9)`` → ``SUM ( DS1 : DS9 )``.  Click splits the internal form on
-    these spaces, so ``ABS(`` would be a single unknown token.  A sign stays on its
-    constant (``( -5 )``) and an exponent stays whole (``1.0E-10``), but a sign on
-    an address is spaced, as Click redisplays it (``-DS1`` → ``- DS1``).
+    The internal formula is tag ``0x61FD``, the display formula ``0x6228``; each is ``""``
+    when the blob lacks it.  ``None`` when the blob's fields do not parse.
     """
-    out: list[str] = []
-    for token in _TOKEN_RE.findall(expr):
-        is_sign = out[-1:] == ["-"] and (len(out) == 1 or out[-2] in _BEFORE_SIGN)
-        if is_sign and _CONSTANT_RE.fullmatch(token):
-            out[-1] = f"-{token}"
-        else:
-            out.append(token)
-    return " ".join(out)
+    try:
+        *_, fields = _decompose_blob(blob)
+    except (ValueError, IndexError, struct.error):
+        return None
+    tags = {tag: value for tag, _, value in fields}
+    listed = sum(1 for tag, _, value in fields if tag == _TAG_RESERVED and value)
+    return tags.get(_TAG_FORMULA_INTERNAL, ""), tags.get(_TAG_FORMULA_DISPLAY, ""), listed
 
 
-#: ``ADDR : ADDR`` range inside a formula (e.g. ``DS1401 : DS1410``).
-_RANGE_RE = re.compile(r"\b([A-Z]+)(\d+u?) : \1(\d+u?)\b")
-
-#: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
-_XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
-
-
-def _range_interiors(expression: str) -> list[str]:
-    """Addresses strictly inside each ``A : B`` range, ranges in order.
-
-    Click lists them in the reserved slots (tag ``0x688C``): the endpoints
-    are ordinary operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.
-    """
-    interiors: list[str] = []
-    for m in _RANGE_RE.finditer(expression):
-        prefix, start, end = m.group(1), m.group(2), m.group(3)
-        if prefix in ("XD", "YD"):
-            if start in _XY_WORD_ORDER and end in _XY_WORD_ORDER:
-                inside = _XY_WORD_ORDER[_XY_WORD_ORDER.index(start) + 1 : _XY_WORD_ORDER.index(end)]
-                interiors.extend(f"{prefix}{n}" for n in inside)
-            continue
-        if start.endswith("u") or end.endswith("u"):
-            continue
-        width = len(start) if start.startswith("0") else 0
-        interiors.extend(f"{prefix}{n:0{width}d}" for n in range(int(start) + 1, int(end)))
-    return interiors
-
-
-def _extract_operands(expression: str) -> list[str]:
-    """Extract operand addresses from *expression*, in order of appearance.
-
-    Preserves duplicates — each occurrence gets its own operand slot.
-    Skips reserved function names (``SIN``, ``MOD``, etc.) and hex
-    literal suffixes.
-    """
-    result: list[str] = []
-    for m in _ADDR_RE.finditer(expression):
-        addr = m.group(0)
-        if addr.upper() in RESERVED_NAMES:
-            continue
-        result.append(addr)
-    return result
-
-
-def _make_template(expression: str) -> str:
-    """Replace operand addresses with ``@`` placeholders."""
-    return _ADDR_RE.sub("@", expression)
-
-
-def _make_internal(expression: str) -> str:
-    """Convert display-form expression to Click internal form.
-
-    Replaces spaces with ``#`` delimiters and normalizes literals the way
-    Click does: a decimal integer gets an ``H`` prefix (``200`` → ``H200``),
-    ahead of its sign when negative (``( -5 )`` → ``(#H-5#)``, typed in CLICK v4;
-    a bare ``#-5#`` fails its syntax check), a real gets ``F`` the same way
-    (``( -2.5 )`` → ``(#F-2.5#)``, ``-1.5E+10`` → ``F-1.5E+10``, typed in v4;
-    pasted ``F3.14`` passes its syntax check), a hex constant becomes ``UH`` plus its decimal value (``Ah`` → ``UH10``,
-    seen when a pasted Math with ``Ah`` left as typed was reopened and OK'd
-    in CLICK v4, which then passed its syntax check).
-    A comma function ``F ( a , b )`` is stored infix as ``a#F#b``, with a
-    trailing ``#`` when it ends the formula: ``RAND ( 1 , 100 )`` →
-    ``H1#RAND#H100#``, ``RAND ( 1 , 10 ) + DS1`` → ``H1#RAND#H10#+#DS1``,
-    ``LSH ( DH5 , 1h )`` → ``DH5#LSH#UH1#`` (all typed in CLICK v4).  SUM, MAX, MIN,
-    MDN and AVG take a range and keep the call form (``SUM#(#DS1#:#DS3#)``), as do
-    one-argument calls.  CLICK's editor refuses a comma-function argument that isn't
-    one operand or constant (``LSH ( DH401 + 1h , 2h )``); pasted with an infix
-    form those fail Check Program with C0114, so such a call is written as called,
-    nested calls included, which passes.
-    """
-    tokens = expression.split(" ")
-    out: list[str] = []
-    i = 0
-    while i < len(tokens):
-        name, *call = tokens[i : i + 6]
-        if name in _COMMA_FUNCTIONS and call[:1] == ["("]:
-            if len(call) == 5 and call[::2] == ["(", ",", ")"]:
-                out += [call[1], name, call[3]]
-                i += 6
-                if i == len(tokens):
-                    out.append("")
-                continue
-            end = _call_end(tokens, i)
-            out += tokens[i:end]
-            i = end
-            continue
-        out.append(tokens[i])
-        i += 1
-    return "#".join(_internal_literal(t) for t in out)
-
-
-#: Click's two-argument functions, ``F ( a , b )``; every other call takes one value or a range.
-_COMMA_FUNCTIONS = frozenset({"RAND", "LSH", "RSH", "LRO", "RRO"})
-
-
-def _call_end(tokens: list[str], i: int) -> int:
-    """One past the ``)`` closing the call named at *i* (the end, if unclosed)."""
-    depth = 0
-    for j in range(i + 1, len(tokens)):
-        if tokens[j] == "(":
-            depth += 1
-        elif tokens[j] == ")":
-            depth -= 1
-            if depth == 0:
-                return j + 1
-    return len(tokens)
-
-
-_REAL_LITERAL_RE = re.compile(r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)")
-
-
-#: Integer literals CLICK stores as a 16-bit constant (``H``); wider ones get ``W``.
-_INT16_MIN, _INT16_MAX = -32768, 32767
-
-
-def _internal_literal(token: str) -> str:
-    if re.fullmatch(r"-?\d+", token):
-        # v4_captures/sweep_math.bin: 32767 -> H, 40000 and 100000 -> W.
-        prefix = "H" if _INT16_MIN <= int(token) <= _INT16_MAX else "W"
-        return f"{prefix}{token}"
-    if _REAL_LITERAL_RE.fullmatch(token):
-        return f"F{token}"
-    if re.fullmatch(r"[0-9A-Fa-f]+h", token):
-        return f"UH{int(token[:-1], 16)}"
-    return token
+def range_interiors(expression: str) -> list[str]:
+    """The addresses each ``A : B`` range of a display formula lists (``range_interiors``)."""
+    return formula_range_interiors(expression.split())
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
@@ -321,7 +147,7 @@ def _reconstruct_expression(template_display: str, formula_internal: str) -> str
     if placeholder_count == 0:
         return template_display
 
-    operand_occurrences = [m.group(0) for m in _ADDR_RE.finditer(formula_internal)]
+    operand_occurrences = [t for t in formula_internal.split("#") if address_parts(t)]
     if len(operand_occurrences) != placeholder_count:
         return formula_internal.replace("#", " ")
 
@@ -345,8 +171,10 @@ class Math(AfInstruction):
     Attributes
     ----------
     expression:
-        The formula in Click syntax (e.g. ``"DS65 + DS66"``).
-        Spaces around operators, uppercase function names.
+        The formula in Click syntax (e.g. ``"DS65 + DS66"``), kept as CLICK shows it: one
+        space between tokens, uppercase function names, addresses in display form.  A
+        formula CLICK's Math dialog refuses raises :class:`FieldError`, and so does a
+        ``<nickname>``: Math takes addresses.
     result:
         Destination register (e.g. ``"DS67"``).
     mode:
@@ -361,7 +189,16 @@ class Math(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        self.expression = _normalize_spacing(self.expression)
+        if self.mode not in RESULT_BANKS:
+            raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
+        if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
+            raise FieldError(
+                f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
+                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)"
+            )
+        self.result = normalize_address(self.result)
+        check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
+        self.expression = parse(self.expression, self.mode).display
 
     def to_csv(self) -> str:
         parts = [self.expression, self.result]
@@ -376,18 +213,15 @@ class Math(AfInstruction):
     def build_blob(self, *, show_nicknames: bool = False) -> bytes:
         from ..binary_helpers import _tagged_field, _utf16le_null, _variant_tagged_field
 
-        operands = _extract_operands(self.expression)
+        formula = parse(self.expression, self.mode)
+        operands = formula.operands
 
         # Build the 4 formula fields.
-        template_display = _make_template(self.expression)
-        if show_nicknames:
-            # Click expects operands wrapped as <?ADDR> (empty nickname form)
-            # when the nickname display flag is set.
-            formula_display = _ADDR_RE.sub(r"<?\g<0>>", self.expression)
-        else:
-            formula_display = self.expression
-        template_internal = _make_internal(template_display)
-        formula_internal = _make_internal(self.expression)
+        template_display = formula.template
+        # In nickname view CLICK writes an address with no nickname as <?ADDR>.
+        formula_display = formula.nickname_display if show_nicknames else formula.display
+        template_internal = formula.internal(template=True)
+        formula_internal = formula.internal()
 
         func_code = MATH_FUNC_CODES[(self.mode, self.oneshot)]
 
@@ -396,10 +230,8 @@ class Math(AfInstruction):
         out += struct.pack("<I", 0x271A)  # type marker
         out += b"\x01\x00"  # part count
         # The 500-slot form pastes into v3 and v4; only wider ranges need v4's capacity.
-        interiors = _range_interiors(self.expression)
-        reserved_slots = (
-            _RESERVED_SLOTS if len(interiors) <= _RESERVED_SLOTS else _V4_RESERVED_SLOTS
-        )
+        interiors = formula.range_interiors
+        reserved_slots = RESERVED_SLOTS if len(interiors) <= RESERVED_SLOTS else _V4_RESERVED_SLOTS
         interiors = interiors[:reserved_slots]
         out += struct.pack("<I", 9 + _OPERAND_SLOTS + reserved_slots + 1)
 
@@ -424,7 +256,7 @@ class Math(AfInstruction):
         # --- reserved slots: the interior addresses of each range ---
         for i, addr in enumerate(interiors):
             out += _variant_tagged_field(_TAG_RESERVED, struct.pack("<I", i), addr)
-        if reserved_slots == _RESERVED_SLOTS:
+        if reserved_slots == RESERVED_SLOTS:
             out += _EMPTY_RESERVED_BYTES[len(interiors) * _SLOT_EMPTY_SIZE :]
         else:
             for i in range(len(interiors), reserved_slots):
@@ -465,12 +297,41 @@ def from_tags(
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    return Math(
-        expression=expression,
-        result=result,
-        mode=mode,
-        oneshot=oneshot,
-    )
+    try:
+        math = Math(
+            expression=expression,
+            result=result,
+            mode=mode,
+            oneshot=oneshot,
+        )
+    except FieldError:
+        # A formula the reader refuses (nickname display text, say) decodes as raw.
+        return None
+    findings = _legacy_findings(tag_value(tags, 0x61FD))
+    if findings:
+        math._legacy_findings = findings
+    return math
+
+
+def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
+    """List the 16-bit (``H``) constants outside 16 bits in a stored formula.
+
+    Older laddercodec wrote a decimal integer outside -32768..32767 as ``H70000``;
+    CLICK runs it as its low 16 bits, as a signed value.
+    """
+    found = []
+    for token in formula_internal.split("#"):
+        body = token[1:] if token.startswith("H") else ""
+        digits = body[1:] if body.startswith("-") else body
+        # Older laddercodec wrote at most 11 characters (CLICK's %d length rule).
+        if not digits or len(digits) > 11 or not all("0" <= c <= "9" for c in digits):
+            continue
+        if not INT16_MIN <= int(body) <= INT16_MAX:
+            low = int(body) & 0xFFFF
+            if low > INT16_MAX:
+                low -= 0x10000
+            found.append(("Math", token, f"it is stored as 16-bit and CLICK runs it as {low}."))
+    return found
 
 
 # ---------------------------------------------------------------------------

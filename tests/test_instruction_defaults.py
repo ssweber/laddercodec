@@ -33,6 +33,7 @@ from laddercodec.csv import read_csv
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
 from laddercodec.model import AfInstruction, ConditionInstruction
+from tests.fixtures_refused import is_refused
 from tests.scr_defaults import fixture_pairs, mismatches, read_clipboard, survey
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -41,7 +42,7 @@ Instruction = AfInstruction | ConditionInstruction
 
 
 def _native_captures() -> list[Path]:
-    v4 = sorted((FIXTURES / "v4_captures").rglob("*.bin"))
+    v4 = [p for p in sorted((FIXTURES / "v4_captures").rglob("*.bin")) if not is_refused(p)]
     return v4 + [clip for _scr, clip in fixture_pairs()]
 
 

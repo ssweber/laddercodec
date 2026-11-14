@@ -1,4 +1,8 @@
-"""Tests for laddercodec.csv.converter."""
+"""Tests for laddercodec.csv.converter.
+
+Most tests read a rung as drawn (``convert_literal``): pin rows, tall-box padding and
+wire hydration.  ``TestLayout`` reads through ``convert_rung``, which lays the rung out.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+from laddercodec import check
+from laddercodec._layout import circuit
 from laddercodec.csv.ast import (
     AfBlank,
     AfCall,
@@ -15,6 +21,7 @@ from laddercodec.csv.ast import (
     ContactCondition,
     EdgeCondition,
     HorizontalWire,
+    RungAst,
 )
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import (
@@ -22,9 +29,11 @@ from laddercodec.csv.converter import (
     _hydrate_wire_continuations,
     af_node_to_token,
     condition_node_to_token,
+    convert_literal,
     convert_rung,
 )
 from laddercodec.csv.parser import parse_csv_file
+from laddercodec.decode import Rung
 from laddercodec.instructions import (
     Coil,
     CompareContact,
@@ -52,6 +61,21 @@ def _write_csv(path: Path, rows: list[tuple[str, list[str], str]]) -> None:
             writer.writerow([marker, *conditions, af])
 
 
+def _fields(rung: Rung) -> tuple[int, list, list, str | None]:
+    return rung.logical_rows, rung.conditions, rung.instructions, rung.comment
+
+
+def _literal(rung: RungAst, *, strict: bool = True) -> tuple[int, list, list, str | None]:
+    """``(rows, conditions, instructions, comment)`` of the rung as drawn."""
+    return _fields(convert_literal(rung, strict=strict))
+
+
+def _laid_out(rung: RungAst) -> tuple[int, list, list, str | None]:
+    """The same fields of the one rung *rung* lays out to."""
+    (got,) = convert_rung(rung)
+    return _fields(got)
+
+
 def _blank() -> list[str]:
     return [""] * len(CONDITION_COLUMNS)
 
@@ -68,7 +92,7 @@ class TestConvertSimpleRungs:
         _write_csv(csv_path, [("R", _wire_row(), "out(Y001)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, comment = convert_rung(rung)
+        lr, conds, afs, comment = _literal(rung)
         assert lr == 1
         assert isinstance(conds[0][0], Contact)
         assert isinstance(afs[0], Coil)
@@ -79,7 +103,7 @@ class TestConvertSimpleRungs:
         _write_csv(csv_path, [("R", _wire_row(), "NOP")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 1
         assert afs[0] == "NOP"
 
@@ -94,7 +118,7 @@ class TestConvertSimpleRungs:
             ],
         )
         rung = parse_csv_file(csv_path).rungs[0]
-        _, _, _, comment = convert_rung(rung)
+        _, _, _, comment = _literal(rung)
         assert comment == "comment text"
 
 
@@ -104,7 +128,7 @@ class TestTimerAutopad:
         _write_csv(csv_path, [("R", _wire_row(), "on_delay(T1,TD1,preset=1000,unit=Tms)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         assert isinstance(afs[0], Timer)
         assert afs[0].retained is False
@@ -116,7 +140,7 @@ class TestTimerAutopad:
         _write_csv(csv_path, [("R", _wire_row(), "off_delay(T2,TD2,preset=500,unit=Ts)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         assert isinstance(afs[0], Timer)
         assert afs[1] == ""
@@ -133,7 +157,7 @@ class TestTimerAutopad:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         assert all(c == "-" for c in conds[1])  # user wires preserved
 
@@ -150,7 +174,7 @@ class TestGenericTallRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
 
         assert lr == 3
         assert isinstance(afs[0], Search)
@@ -171,13 +195,144 @@ class TestGenericTallRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
 
         assert lr == 3
         assert isinstance(afs[0], Coil)
         assert isinstance(afs[1], Search)
         assert afs[2] == ""
         assert all(c == "" for c in conds[2])
+
+
+def _cells(cells: dict[int, str], wire_from: int | None = None) -> list[str]:
+    """A condition row with *cells* set and ``-`` from column *wire_from* to AE."""
+    row = _blank()
+    for col, token in cells.items():
+        row[col] = token
+    if wire_from is not None:
+        row[wire_from:] = [token or "-" for token in row[wire_from:]]
+    return row
+
+
+_COPY1 = "copy(1,DS1)"
+_COPY2 = "copy(2,DS2)"
+
+#: Rung 1 of v4_captures/or_compact_stub.csv: legs C1..C3 join on one vertical
+#: before two Copies.
+_OR_LEGS = [
+    ("R", _cells({0: "X1", 1: "T:C1", 2: "T"}, 3), _COPY1),
+    ("", _cells({1: "T:C2", 2: "T"}, 3), _COPY2),
+    ("", _cells({1: "C3"}), ""),
+]
+
+
+def _convert(tmp_path: Path, rows: list[tuple[str, list[str], str]]):
+    csv_path = tmp_path / "main.csv"
+    _write_csv(csv_path, rows)
+    rung = parse_csv_file(csv_path).rungs[0]
+    return rung, _laid_out(rung)
+
+
+class TestLayout:
+    """OR legs under a tall box lay out as CLICK checks them (v4_captures/or_compact_*.bin)."""
+
+    def test_legs_keep_their_rows(self, tmp_path: Path) -> None:
+        rung, (lr, conds, afs, _) = _convert(tmp_path, _OR_LEGS)
+        assert lr == 4
+        assert [type(a).__name__ for a in afs] == ["Copy", "str", "Copy", "str"]
+        legs = [conds[r][1] for r in range(4)]
+        assert [(leg.operand, leg.wire_down) for leg in legs[:3]] == [
+            ("C1", True),
+            ("C2", True),
+            ("C3", False),
+        ]
+        assert legs[3] == ""
+        assert [conds[r][2] for r in range(4)] == ["T", "|", "-", ""]
+        assert conds[1][3:] == [""] * 28
+        assert conds[2][3:] == ["-"] * 28
+        assert all(c == "" for c in conds[3])
+
+    def test_one_row_output_below_a_copy(self, tmp_path: Path) -> None:
+        rows = [*_OR_LEGS]
+        rows[1] = ("", rows[1][1], "out(Y001)")
+        rung, (lr, conds, afs, _) = _convert(tmp_path, rows)
+        assert lr == 3
+        assert isinstance(afs[2], Coil)
+        assert [conds[r][2] for r in range(3)] == ["T", "|", "-"]
+
+    def test_written_compact_layout_reads_as_written(self, tmp_path: Path) -> None:
+        rows = [
+            _OR_LEGS[0],
+            ("", _cells({1: "T:C2", 2: "|"}), ""),
+            ("", _cells({1: "C3"}, 2), _COPY2),
+        ]
+        rung, (lr, conds, afs, _) = _convert(tmp_path, rows)
+        assert _literal(rung)[:3] == (lr, conds, afs)
+        _, (lr2, conds2, afs2, _) = _convert(tmp_path, _OR_LEGS)
+        assert (lr, conds, afs) == (lr2, conds2, afs2)
+
+    @pytest.mark.parametrize(
+        "rows",
+        [
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1", 1: "T:C1", 2: "C5", 3: "T"}, 4), _COPY1),
+                    ("", _cells({1: "T:C2", 2: "-", 3: "T"}, 4), _COPY2),
+                    ("", _cells({1: "C3", 2: "-"}), ""),
+                ],
+                id="two-column legs",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T:C2", 2: "T", 3: "X5"}, 4), _COPY2), _OR_LEGS[2]],
+                id="contact right of the vertical",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T", 2: "T"}, 3), _COPY2), _OR_LEGS[2]],
+                id="wire leg",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _cells({1: "T:C2", 2: "-"}, 3), _COPY2), _OR_LEGS[2]],
+                id="right vertical stops above the last leg",
+            ),
+            pytest.param([*_OR_LEGS, ("", _blank(), "")], id="row below the legs"),
+            pytest.param(
+                [_OR_LEGS[0], ("", _OR_LEGS[1][1], "on_delay(T1,TD1,preset=1000,unit=Tms)")],
+                id="timer output",
+            ),
+            pytest.param(
+                [_OR_LEGS[0], ("", _OR_LEGS[1][1], "NOP"), _OR_LEGS[2]],
+                id="NOP row",
+            ),
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1"}, 1), _COPY1),
+                    ("", _cells({0: "X2"}, 1), _COPY2),
+                ],
+                id="branches from the rail",
+            ),
+            pytest.param(
+                [
+                    ("R", _cells({0: "X1", 1: "T"}, 2), _COPY1),
+                    ("", _cells({1: "C2"}, 2), _COPY2),
+                ],
+                id="contact on a branch, not an OR leg",
+            ),
+        ],
+    )
+    def test_other_shapes_keep_their_circuit(self, tmp_path: Path, rows) -> None:
+        """Whatever the layout moves, the circuit it reads is the circuit as drawn.
+
+        A rung CLICK's check refuses (C3 feeding no box, when the right vertical stops
+        above it) has no layout and reads as drawn.
+        """
+        csv_path = tmp_path / "main.csv"
+        _write_csv(csv_path, rows)
+        drawn = convert_literal(parse_csv_file(csv_path).rungs[0])
+        got = convert_rung(parse_csv_file(csv_path).rungs[0])
+        if check(drawn):
+            assert got == [drawn]
+        else:
+            assert circuit(got) == circuit([drawn])
 
 
 class TestPinRows:
@@ -193,7 +348,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         timer = afs[0]
         assert isinstance(timer, Timer)
@@ -214,7 +369,7 @@ class TestPinRows:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ValueError, match="off_delay can't be retentive"):
-            convert_rung(rung)
+            _literal(rung)
 
     def test_retentive_off_delay_blob_decodes_as_raw(self) -> None:
         """A blob CLICK's dialog never writes isn't decoded as a Timer it can't encode."""
@@ -235,7 +390,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         assert isinstance(afs[0], Timer) and afs[0].retained is True
         assert isinstance(conds[1][0], Contact)
@@ -255,7 +410,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 2
         assert isinstance(afs[0], Coil)
         assert afs[1] == ""
@@ -273,7 +428,7 @@ class TestPinRows:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="Unknown pin"):
-            convert_rung(rung)
+            _literal(rung)
 
 
 class TestConditionNodeToToken:
@@ -335,8 +490,8 @@ class TestAfNodeToToken:
         result = af_node_to_token(node)
         assert isinstance(result, Coil)
         assert result.immediate is True
-        assert result.operand == "Y1"
-        assert result.range_end == "Y2"
+        assert result.operand == "Y001"
+        assert result.range_end == "Y002"
 
     def test_timer(self) -> None:
         node = AfCall(
@@ -438,7 +593,7 @@ class TestAfNodeToToken:
         assert result.current == "CTD1"
         assert result.preset == "100"
         assert result.down_enabled is False
-        assert result.reset_enabled is False
+        assert result.reset_enabled is True
 
     def test_shift(self) -> None:
         node = AfCall(name="shift", args=("C99..C106",), known=True)
@@ -472,7 +627,7 @@ class TestCounterRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
         assert afs[0].counter_type == "count_up"
@@ -499,7 +654,7 @@ class TestCounterRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
         assert afs[0].counter_type == "count_up"
@@ -523,7 +678,7 @@ class TestCounterRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
         assert afs[0].counter_type == "count_down"
@@ -550,7 +705,7 @@ class TestCounterRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
         assert afs[0].counter_type == "count_down"
@@ -576,7 +731,7 @@ class TestCounterRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
         assert afs[0].counter_type == "count_down"
@@ -596,7 +751,7 @@ class TestCounterRows:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="requires a .reset\\(\\) pin row"):
-            convert_rung(rung)
+            _literal(rung)
 
 
 class TestShiftRows:
@@ -612,7 +767,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Shift)
         assert afs[0].start_bit == "C99"
@@ -631,7 +786,7 @@ class TestShiftRows:
         _write_csv(csv_path, [("R", _wire_row("C96"), "shift(C99..C106)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Shift)
         assert afs[1] == ""
@@ -651,7 +806,7 @@ class TestShiftRows:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="not supported for shift"):
-            convert_rung(rung)
+            _literal(rung)
 
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
@@ -670,7 +825,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, _, afs, _ = convert_rung(rung)
+        lr, _, afs, _ = _literal(rung)
         assert lr == 4
         assert isinstance(afs[0], Shift)
         assert afs[0].pin_rows == (1, 3)
@@ -688,7 +843,7 @@ class TestShiftRows:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ConvertError, match="out of order"):
-            convert_rung(rung)
+            _literal(rung)
 
 
 def _or_row(contact: str) -> list[str]:
@@ -752,7 +907,7 @@ class TestDrumPinLayout:
         )
         _write_csv(csv_path, [main, *rows])
 
-        lr, _, afs, _ = convert_rung(parse_csv_file(csv_path).rungs[0])
+        lr, _, afs, _ = _literal(parse_csv_file(csv_path).rungs[0])
         assert isinstance(afs[0], Drum)
         assert afs[0].pin_rows == pin_rows
         assert lr == pin_rows[-1] + 1
@@ -772,11 +927,11 @@ class TestForLoopRows:
         program = parse_csv_file(csv_path)
         assert len(program.rungs) == 2
 
-        lr0, _, afs0, _ = convert_rung(program.rungs[0])
+        lr0, _, afs0, _ = _literal(program.rungs[0])
         assert lr0 == 1
         assert isinstance(afs0[0], ForLoop)
 
-        lr1, _, afs1, _ = convert_rung(program.rungs[1])
+        lr1, _, afs1, _ = _literal(program.rungs[1])
         assert lr1 == 1
         assert isinstance(afs1[0], Next)
 
@@ -788,14 +943,14 @@ class TestConvertRungStrict:
 
         rung = parse_csv_file(csv_path).rungs[0]
         with pytest.raises(ValueError, match="Unsupported AF instruction"):
-            convert_rung(rung)
+            _literal(rung)
 
     def test_unsupported_af_blanked_when_not_strict(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
         _write_csv(csv_path, [("R", _wire_row(), "drum(DS1,DS2)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung, strict=False)
+        lr, conds, afs, _ = _literal(rung, strict=False)
         assert lr == 1
         assert afs[0] == ""
         assert isinstance(conds[0][0], Contact)
@@ -813,7 +968,7 @@ class TestConvertRungStrict:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung, strict=False)
+        lr, conds, afs, _ = _literal(rung, strict=False)
         assert lr == 2
         assert afs[0] == ""
         assert afs[1] == ""
@@ -890,7 +1045,7 @@ class TestHydrateWireContinuations:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        lr, conds, afs, _ = convert_rung(rung)
+        lr, conds, afs, _ = _literal(rung)
         # Timer auto-pads to 2 rows, plus the coil row = 3 total
         assert lr == 3
         # T in col B (index 1) on row 0 should hydrate | on row 1
