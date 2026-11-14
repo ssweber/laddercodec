@@ -8,7 +8,7 @@
      Review and condense before release — entries accumulate during development and
      should be edited into shape before moving from Unreleased to a version heading. -->
 
-## Unreleased
+## 0.4.0 (2026-11-14)
 
 This release writes rungs as CLICK writes them and refuses what CLICK refuses. Read "Behaviour changes" before upgrading.
 
