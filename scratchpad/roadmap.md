@@ -17,7 +17,8 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
   and a fresh reviewer has passed that commit. A PR that needs Sam, CLICK or a PLC (a golden paste check, say)
   waits for that. Every PR carries its CHANGELOG line, so `main` can be released at any commit.
 - **Releases are Sam's.** Nothing is tagged, released or published without him. Publishing a GitHub release
-  sends the package to PyPI, then `publish.yml` starts a docs deploy of that tag. A redeploy by hand is
+  sends the package to PyPI, then, unless it is a pre-release, `publish.yml` starts a docs deploy of that tag. A
+  redeploy by hand is
   `gh workflow run docs.yml --ref main` (the latest release, or `-f ref=<tag>`); it is a deploy, so it is Sam's
   call too.
 - **Builds.** Multi-branch jobs run as BOB arcs: a worktree and a builder per branch, a fresh reviewer, CI as the
