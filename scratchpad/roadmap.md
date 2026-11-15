@@ -34,7 +34,7 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 ## Order
 
 1. Cruft sweep.
-2. The undecoded marker.
+2. The undecoded marker (done).
 3. The field-rule restructure.
 4. Canonical constants, once CLICK has answered.
 
@@ -46,27 +46,10 @@ The stable public API and the SCR blob dataclass fit in wherever they are ready.
   `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
   3) are sorted.
 
-## 2. The undecoded marker (nothing; ClickNick and pyrung follow)
+## 2. The undecoded marker (done in #38; ClickNick and pyrung follow)
 
-Ruled in the plan, "Who owns what", last bullet. Sam accepted the form proposed after 0.4.0.
-
-- **The unit is the rung.** A rung that fails becomes one marker rung:
-  - comment `UNDECODED: rung N, row R: <error>`, then the rung's own comment if that decoded;
-  - one row, wired from the rail, ending in a new `Undecoded(error, rung, row, column, stop)` instruction.
-    `stop` is `end` in the main program and `return` in a subroutine, and the row is unconditional.
-- **Behaviour.**
-  - CSV token `undecoded("...")`: `write_csv` writes it and `read_csv` reads it back.
-  - `check()` reports it as a Finding.
-  - `encode()` refuses it, so it is never pasted into CLICK.
-  - `decode` and `decode_program` warn, and `Program` lists the undecoded rungs.
-- **A framing error in the SCR walk** (a truncated record, or a topology or section it can't parse): the rungs
-  before it decode, one marker stands for "rung N to the end", and decoding stops.
-- **Clipboard `decode()`:** the same per-rung marker; the grid's fixed stride lets the later rungs read.
-- **`write_csv` of a rung it cannot write** (an `UnknownCondition`, which has no token) writes the marker.
-  That replaces ClickNick's stand-in rung.
-- **Producers today:** the output-column down wire (the punted fix, below) and framing errors. Also check
-  whether the SCR AF down wire past `logical_rows`, which is ignored silently today, should be a marker.
-- **Docs and CHANGELOG** say what the marker is and why it stops execution.
+ClickNick drops its stand-in rung for `write_csv`'s marker; pyrung reads the `undecoded(...)` token. The
+comment note and `encode()` is under "Later".
 
 ## 3. Field-rule restructure (nothing)
 
@@ -156,11 +139,6 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   status field set to a distinct address: native blobs to model later.
 - **Other non-pinned boxes in a compact OR layout:** `read_csv` lays them out as it does stacked 2-row Copies,
   which CLICK's post-check layout confirmed. Capture one more shape (Math, Search or a timer under an OR).
-
-## Required checks (Sam)
-
-Switch `main`'s ruleset to require only `ci` and the docs `build`. Until then the test matrix's Python versions
-stay as they are: each is a required check by name.
 
 ## Waits on another repo
 
