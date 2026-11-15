@@ -31,7 +31,10 @@ class Call(AfInstruction):
 
     def __post_init__(self) -> None:
         if not self.subroutine:
-            raise FieldError("Call.subroutine cannot be empty: CLICK requires a subroutine name")
+            raise FieldError(
+                "Call.subroutine cannot be empty: CLICK requires a subroutine name",
+                field="Call.subroutine",
+            )
         # A Call names a subroutine, so the name follows the Add New Subroutine rules.
         check_program_name(self.subroutine, "Call.subroutine")
 

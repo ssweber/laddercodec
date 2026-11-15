@@ -111,6 +111,13 @@ REFUSED: list[tuple[str, Constants, str]] = [
     # limits
     ("32768", DIGITS, "outside 0 to 32767"),
     ("0", Constants(frozenset({N}), signs="", low=1, high=32767), "outside 1 to 32767"),
+    # beyond int32: the field's own limits word the refusal (low 0 where no '-' is taken)
+    ("3000000000", DIGITS, "outside 0 to 32767 (OBJ-005)"),
+    ("-3000000000", COUNTER, "outside -2147483648 to 2147483647 (OBJ-005)"),
+    ("3000000000", Constants(frozenset({N}), signs="", low=0, high=2**31 - 1), "outside 0 to"),
+    ("3000000000", Constants(frozenset({H})), "an integer constant is -2147483648"),
+    ("-3000000000", Constants(frozenset({N}), signs=""), "takes no sign"),
+    ("+3000000000", COUNTER, "takes -"),
     ("10000h", COMPARE, "above FFFFh"),
     ("FFFFh", Constants(frozenset({H}), hex_high=0xFFFE), "above FFFEh"),
     ("0000000000005", COUNTER, "13 characters"),

@@ -248,7 +248,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("drum.py", "re.compile('[0-9]+')"): 1,
     ("drum.py", "re.compile('[A-Z]+[0-9]+')"): 1,
     ("end.py", "re.fullmatch('end\\\\(\\\\s*\\\\)', token)"): 1,
-    ("forloop.py", "re.compile('[0-9]+')"): 1,
     ("forloop.py", "re.compile('[0-9]+(\\\\s+[0-9]+)+')"): 1,
     ("forloop.py", "re.fullmatch('break\\\\(\\\\s*\\\\)', token)"): 1,
     ("forloop.py", "re.fullmatch('continue\\\\(\\\\s*\\\\)', token)"): 1,

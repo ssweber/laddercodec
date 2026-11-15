@@ -196,6 +196,14 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
         ):
             const = Constant(Kind.FLOAT, float(value))
         if const is None:
+            if Kind.INTEGER in constants.kinds and _INTEGER_SHAPE.fullmatch(value.upper()):
+                # An integer beyond int32: the field's own sign and limits word the refusal.
+                _check_sign(value, name, constants)
+                low = constants.low if "-" in constants.signs else max(constants.low, 0)
+                raise FieldError(
+                    f"{name}: {value!r} is outside {low} to {constants.high} (OBJ-005)",
+                    field=name,
+                )
             raise FieldError(f"{name}: {value!r} is refused; {_unread(value)}", field=name)
     if const.kind not in constants.kinds:
         raise FieldError(
@@ -207,14 +215,20 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
     return const
 
 
-def _check_limits(value: str, name: str, constants: Constants, const: Constant) -> None:
-    """Refuse a constant outside the field's limits."""
-    kind = const.kind
-    if kind in (Kind.INTEGER, Kind.FLOAT) and value[:1] in "+-" and value[0] not in constants.signs:
+def _check_sign(value: str, name: str, constants: Constants) -> None:
+    """Refuse a leading sign the field does not take."""
+    if value[:1] in "+-" and value[0] not in constants.signs:
         signs = " or ".join(constants.signs) if constants.signs else "no sign"
         raise FieldError(
             f"{name}: {value!r} is refused; a constant here takes {signs} (OBJ-005)", field=name
         )
+
+
+def _check_limits(value: str, name: str, constants: Constants, const: Constant) -> None:
+    """Refuse a constant outside the field's limits."""
+    kind = const.kind
+    if kind in (Kind.INTEGER, Kind.FLOAT):
+        _check_sign(value, name, constants)
     # Without a '-' the lowest value a field can take is 0.
     low = constants.low if "-" in constants.signs else max(constants.low, 0)
     if kind is Kind.INTEGER and not low <= int(const.value) <= constants.high:

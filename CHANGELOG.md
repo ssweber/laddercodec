@@ -19,6 +19,9 @@
 ### Changed
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
+### Fixed
+- **For count of thousands of digits**: a For count of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError`; the messages for an above-limit count and a pointer count are reworded.
+
 ### Behaviour changes
 - **A rung that doesn't decode no longer fails the call**: a down wire in the output column or wire flags no token has gives an undecoded marker for the rung, and a clipboard row the walk can't read or a program file record whose framing breaks gives one marker for that rung and every rung after it, where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`.
   - Do: check `Program.undecoded`, or catch `UndecodedRungWarning`, where you caught those errors; a buffer whose magic, size or program header is wrong still raises.

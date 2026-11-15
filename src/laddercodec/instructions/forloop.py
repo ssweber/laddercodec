@@ -19,14 +19,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import (
-    AddressError,
-    AfInstruction,
-    FieldError,
-    InstructionType,
-    check_address,
-    normalize_address,
-)
+from ..model import AfInstruction, FieldError, InstructionType, normalize_address
+from ..operands.checks import Constants, check_operand
+from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -42,10 +37,10 @@ _FOR_FUNC_CODES: dict[bool, str] = {
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
 #: A constant count is digits only (0 is allowed, a sign is not) up to 2147483647, else
 #: OBJ-005; a register count is DS, DD, TD, CTD or SD, else OBJ-004.
-_FOR_LITERAL_RE = re.compile(r"[0-9]+")
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
 FOR_MAX_LIMIT = 2**31 - 1
 FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
+_FOR_LIMIT_CONSTANTS = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=FOR_MAX_LIMIT)
 
 # Class "Next" func codes (0x3218).  v3 writes Next without one; v4 writes 9220.
 _NEXT_FUNC_CODE = "9220"
@@ -57,24 +52,15 @@ _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 def _validate_for_limit(value: str) -> str:
     text = value.strip()
     if not text:
-        raise FieldError("ForLoop.limit cannot be blank")
-    if _FOR_LITERAL_RE.fullmatch(text):
-        if int(text) > FOR_MAX_LIMIT:
-            raise FieldError(
-                f"ForLoop.limit: {text!r} is above {FOR_MAX_LIMIT}; a constant count is "
-                f"0 to {FOR_MAX_LIMIT} (OBJ-005)"
-            )
-        return text
+        raise FieldError("ForLoop.limit cannot be blank", field="ForLoop.limit")
     if _FOR_SPACED_RE.fullmatch(text):
         # The dialog lets ``1 0`` through; it is not a number, so it is refused.
         raise FieldError(
-            f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only"
+            f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only",
+            field="ForLoop.limit",
         )
-    if "[" in text:
-        # The For count refuses a pointer.
-        raise AddressError(f"ForLoop.limit: {text!r} is a pointer; the For count takes no pointer")
     text = normalize_address(text)
-    check_address(text, "ForLoop.limit", banks=FOR_LIMIT_BANKS)
+    check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS)
     return text
 
 

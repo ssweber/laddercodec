@@ -168,11 +168,18 @@ class TestForCount:
         assert _read_af(tmp_path, f"for({limit})") == ForLoop(limit=limit)
 
     def test_above_2147483647_refused(self, tmp_path: Path) -> None:
-        message = r"^ForLoop.limit: '2147483648' is above 2147483647"
+        message = r"^ForLoop.limit: '2147483648' is outside 0 to 2147483647 \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, "for(2147483648)")
         with pytest.raises(FieldError, match=message):
             ForLoop(limit="2147483648")
+
+    def test_a_count_of_thousands_of_digits(self) -> None:
+        # Beyond Python's 4300-digit int() limit: read as its value, or refused, never a bare
+        # ValueError.
+        assert ForLoop(limit="0" * 5000 + "1").limit == "0" * 5000 + "1"
+        with pytest.raises(FieldError):
+            ForLoop(limit="1" * 5000)
 
     @pytest.mark.parametrize("limit", ["-1", "+1", "1.5"])
     def test_sign_or_fraction_refused(self, limit: str) -> None:
