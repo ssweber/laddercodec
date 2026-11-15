@@ -25,6 +25,7 @@ from ._layout.tree import (
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .instructions.drum import Drum
 from .instructions.timer import Timer
+from .instructions.undecoded import Undecoded
 from .model import PinnedInstruction
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ FindingKind = Literal[
     "pin_shares_pin",
     "unpowered_box",
     "shorted_contact",
+    "undecoded",
 ]
 
 _COLUMN_NAMES = (*CONDITION_COLUMNS, OUTPUT_COLUMN)
@@ -70,7 +72,8 @@ class Finding:
         ``"feeds_no_box"`` finding on a loop of contacts, and a ``"no_coil"`` finding whose
         paths all end in such a loop, are not captured either.  The findings with
         ``captured`` ``False`` are provisional: their kinds may be renamed or dropped once
-        CLICK's response to those shapes is captured.
+        CLICK's response to those shapes is captured.  An ``"undecoded"`` finding is not one
+        of these: it reports an undecoded marker, which CLICK never sees.
     row, column:
         The cell, both counted from 0: ``row`` 0 is the rung's first row, ``column`` 0 is A
         and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no_rail"`` or
@@ -101,9 +104,12 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
 
     Empty means every rung has a series-parallel circuit from the rail into each box, with
     no box above a pinned box on its net and contacts of its own on every pin input.
-    Findings never stop ``encode()`` or ``write_csv()``: the rungs encode as drawn.  A
-    finding with ``captured`` ``False`` may be a shape CLICK accepts, such as a reset wired
-    straight from the rail.
+    Findings never stop ``write_csv()``, and only an ``"undecoded"`` finding stops
+    ``encode()``: the other rungs encode as drawn.  A finding with ``captured`` ``False`` may
+    be a shape CLICK accepts, such as a reset wired straight from the rail.
+
+    A rung that holds an undecoded marker gets one ``"undecoded"`` finding per marker, at its
+    AF cell, and no other finding: its lines are a stand-in, not the rung.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
@@ -198,7 +204,28 @@ def _blank_rows(rung: Rung) -> int:
     return 1
 
 
+def _undecoded(index: int, rung: Rung) -> list[Finding]:
+    """A finding for each undecoded marker in *rung*: no CLICK check, as CLICK never sees one."""
+    return [
+        Finding(
+            index,
+            "undecoded",
+            None,
+            False,
+            row,
+            AF_X,
+            f"row {row} from 0, column {OUTPUT_COLUMN}: {token.headline}; "
+            "the rung is not decoded, and encode() refuses the marker",
+        )
+        for row, token in enumerate(rung.instructions)
+        if isinstance(token, Undecoded)
+    ]
+
+
 def _check_rung(index: int, rung: Rung) -> list[Finding]:
+    undecoded = _undecoded(index, rung)
+    if undecoded:
+        return undecoded
     cells = [[cell_of(t) for t in row] for row in rung.conditions]
     net = network(cells, rung.instructions, raw_pins=True)
     c = circuits(net)

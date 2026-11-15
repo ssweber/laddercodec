@@ -37,6 +37,7 @@ wire-continuation hydration restores them.
 from __future__ import annotations
 
 import csv as csv_mod
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -50,6 +51,7 @@ from ..instructions import (
     UnknownInstruction,
 )
 from ..model import PinnedInstruction
+from ..undecoded import Stop, Undecoded, UndecodedRungWarning, marker_rung, reason
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import _is_blank_row, convert_rung, pinned_gap_height
 from .parser import _parse_single_rung_rows
@@ -488,12 +490,17 @@ def write_csv(
     rungs: list[Rung],
     *,
     index: bool = False,
+    stop: Stop = "end",
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
     Each rung is written as CLICK's syntax check draws it when it has a
     layout, so the file can hold more rungs than *rungs* when CLICK would
     split one; a rung ``laddercodec.check()`` reports is written as drawn.
+
+    A rung that can't be written, such as one holding an unknown condition
+    or instruction (no CSV token holds its bytes), is written as an
+    undecoded marker rung, with an ``UndecodedRungWarning``.
 
     Parameters
     ----------
@@ -508,21 +515,37 @@ def write_csv(
         whole file.  The default (``False``) emits a plain ``R``.  Indexed
         files still round-trip through ``read_csv()`` — the digits are
         decorative and ignored on read.
-
-    Raises
-    ------
-    WriterError
-        If any rung contains unknown instructions that cannot be serialized.
+    stop:
+        How a marker written for a rung that can't be written stops: ``"end"`` in the
+        main program, ``"return"`` in a subroutine.
     """
     path = Path(path)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
         rung_number = 0  # counts the rungs written: a rung CLICK would split writes several
-        for rung in rungs:
-            for row in decoded_rung_to_rows(rung):
+        for rung_index, rung in enumerate(rungs):
+            try:
+                rows = decoded_rung_to_rows(rung)
+            except WriterError as exc:
+                row, column = _unwritable_cell(rung)
+                marker = Undecoded(reason(exc), rung_index, row, column, stop)
+                warnings.warn(UndecodedRungWarning(marker), stacklevel=2)
+                rows = decoded_rung_to_rows(marker_rung(marker, rung.comment))
+            for row in rows:
                 if row and row[0] == "R":
                     rung_number += 1
                     if index:
                         row = [f"R{rung_number}", *row[1:]]
                 writer.writerow(row)
+
+
+def _unwritable_cell(rung: Rung) -> tuple[int | None, int | None]:
+    """``(row, column)`` of the first unknown condition or instruction in *rung*, from 0."""
+    for row, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=False)):
+        for column, token in enumerate(conditions):
+            if isinstance(token, UnknownCondition):
+                return row, column
+        if isinstance(af, UnknownInstruction):
+            return row, len(CONDITION_COLUMNS)
+    return None, None

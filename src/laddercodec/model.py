@@ -33,6 +33,7 @@ from .operands.errors import FieldError as FieldError
 
 if TYPE_CHECKING:
     from .decode import Rung
+    from .instructions.undecoded import Undecoded
 
 # ---------------------------------------------------------------------------
 # Instruction base classes — used for isinstance dispatch
@@ -244,6 +245,13 @@ class Program:
     name: str
     prog_idx: int
     rungs: list[Rung] = field(default_factory=list)
+
+    @property
+    def undecoded(self) -> list[Undecoded]:
+        """The undecoded markers in :attr:`rungs`, in rung order; empty when every rung decoded."""
+        from .undecoded import markers  # undecoded imports instructions, which import model
+
+        return markers(self.rungs)
 
 
 @dataclass
