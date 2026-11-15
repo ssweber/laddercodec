@@ -25,7 +25,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
 from ..model import AfInstruction, FieldError, check_address, normalize_address
-from .coil import check_out_target
+from ..operands.checks import Constants, check_operand, check_out_target
+from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -93,19 +94,8 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 
 def _check_preset(value: str, name: str, floor: int) -> None:
     """A preset is a DS register or a digits-only constant from *floor* to 32767."""
-    if value.isascii() and value.isdigit():
-        # The length guard keeps int() inside Python's digit limit for any input.
-        if len(value.lstrip("0")) > len(str(_PRESET_MAX)) or int(value) > _PRESET_MAX:
-            raise FieldError(f"{name}: {value!r} is above the maximum {_PRESET_MAX}")
-        if int(value) < floor:
-            raise FieldError(f"{name}: {value!r} is below the minimum {floor}")
-        return
-    if re.fullmatch(r"[+-][0-9]+", value):
-        raise FieldError(f"{name}: {value!r} is below the minimum {floor}; a preset is unsigned")
-    if value[:1].isalpha():
-        check_address(value, name, {"DS"})
-        return
-    raise FieldError(f"{name}: {value!r} is not a DS register or a whole number")
+    constants = Constants(frozenset({Kind.INTEGER}), signs="", low=floor, high=_PRESET_MAX)
+    check_operand(value, name, {"DS"}, constants, letter_first=True)
 
 
 # ---------------------------------------------------------------------------
@@ -156,22 +146,33 @@ class OutVariant(AfInstruction):
         check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
         if self.kind not in _KIND_INDEX:
             raise FieldError(
-                f"OutVariant.kind: {self.kind!r} is not one of {', '.join(_KIND_INDEX)}"
+                f"OutVariant.kind: {self.kind!r} is not one of {', '.join(_KIND_INDEX)}",
+                field="OutVariant.kind",
             )
         used = _USED_FIELDS[self.kind]
         for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
             if name not in used and getattr(self, name):
                 raise FieldError(
-                    f"OutVariant.{name}: {getattr(self, name)!r} is not used by {self.kind}"
+                    f"OutVariant.{name}: {getattr(self, name)!r} is not used by {self.kind}",
+                    field=f"OutVariant.{name}",
                 )
         if self.kind != "toggle" and self.immediate:
-            raise FieldError(f"OutVariant.immediate: {self.kind} has no immediate form")
+            raise FieldError(
+                f"OutVariant.immediate: {self.kind} has no immediate form",
+                field="OutVariant.immediate",
+            )
         if self.kind != "timed" and self.maintained:
-            raise FieldError("OutVariant.maintained: only timed has an Output Maintained box")
+            raise FieldError(
+                "OutVariant.maintained: only timed has an Output Maintained box",
+                field="OutVariant.maintained",
+            )
         if self.kind == "toggle":
             return
         if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
-            raise FieldError(f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}")
+            raise FieldError(
+                f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}",
+                field="OutVariant.unit",
+            )
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
         if self.kind == "debounce":
@@ -181,7 +182,8 @@ class OutVariant(AfInstruction):
             if not filled:
                 raise FieldError(
                     "OutVariant.on_preset: debounce needs an on phase or an off phase "
-                    "(on_acc and on_preset, or off_acc and off_preset)"
+                    "(on_acc and on_preset, or off_acc and off_preset)",
+                    field="OutVariant.on_preset",
                 )
             phases = filled
         accs = []
@@ -194,7 +196,8 @@ class OutVariant(AfInstruction):
         if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
             raise FieldError(
                 f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "
-                f"{self.kind} needs two different TD registers"
+                f"{self.kind} needs two different TD registers",
+                field="OutVariant.off_acc",
             )
 
     def _phase_fields(self, phase: str) -> tuple[str, str]:

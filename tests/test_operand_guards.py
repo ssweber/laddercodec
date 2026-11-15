@@ -223,12 +223,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("call.py", 're.fullmatch(\'call\\\\("([^"]*)"\\\\)\', token)'): 1,
     ("coil.py", "re.fullmatch('(out|latch|reset)\\\\((.+)\\\\)', token)"): 1,
     ("coil.py", "re.fullmatch('immediate\\\\((.+)\\\\)', arg)"): 1,
-    (
-        "comparison.py",
-        "re.compile('[+-]?(?:[0-9]+\\\\.?[0-9]*|\\\\.[0-9]+)(?:[eE][+-]?[0-9]+)?')",
-    ): 1,
-    ("comparison.py", "re.compile('[+-]?[0-9]+')"): 1,
-    ("comparison.py", "re.compile('[0-9A-Fa-f]+[hH]')"): 1,
     ("contact.py", "re.fullmatch('(rise|fall)\\\\((.+)\\\\)', token)"): 1,
     ("contact.py", "re.fullmatch('immediate\\\\((.+)\\\\)', token)"): 1,
     ("copy.py", "re.compile('([A-Z]{1,3})\\\\[(.*)\\\\]')"): 1,
@@ -254,7 +248,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("forloop.py", "re.fullmatch('for\\\\((.+)\\\\)', token)"): 1,
     ("forloop.py", "re.fullmatch('next\\\\(\\\\s*\\\\)', token)"): 1,
     ("out_variant.py", "re.fullmatch('(toggle|debounce|flasher|timed)\\\\((.+)\\\\)', token)"): 1,
-    ("out_variant.py", "re.fullmatch('[+-][0-9]+', value)"): 1,
     ("out_variant.py", "re.fullmatch('immediate\\\\((.+)\\\\)', arg)"): 1,
     (
         "raw.py",
@@ -279,13 +272,11 @@ REGEX_ALLOWED: dict[Key, int] = {
 }
 
 BANK_NAMES_ALLOWED: dict[Key, int] = {
-    ("coil.py", "frozenset({'Y', 'C', 'SC'})"): 1,
     ("comparison.py", "('T', '|')"): 1,
     ("comparison.py", "frozenset({'TD', 'CTD', 'DS', 'DD', 'DF', 'SD'})"): 1,
     ("comparison.py", "frozenset({'TXT'})"): 1,
     ("comparison.py", "frozenset({'XD', 'YD', 'DH'})"): 1,
     ("contact.py", "('T', '|')"): 1,
-    ("contact.py", "frozenset({'X', 'Y', 'C', 'T', 'CT', 'SC'})"): 1,
     ("copy.py", "('X', 'Y')"): 1,
     ("copy.py", "('XD', 'YD')"): 2,
     ("copy.py", "frozenset({'C', 'DS', 'DD', 'DH', 'DF', 'XD', 'YD', 'TD', 'CTD', 'TXT'})"): 1,

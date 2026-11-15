@@ -12,15 +12,13 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_value
 from ..model import (
     TYPE_CODE_TO_ITYPE,
-    Address,
-    AddressError,
     AfInstruction,
     FieldError,
     InstructionType,
-    check_address,
     check_flag,
     normalize_address,
 )
+from ..operands.checks import check_out_target
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -64,41 +62,6 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 }
 
 # ---------------------------------------------------------------------------
-# Target rules
-# ---------------------------------------------------------------------------
-
-#: Banks a coil writes.  Set and Reset take the same three (X1, T1, CT1 and DS1 are refused).
-OUT_BANKS = frozenset({"Y", "C", "SC"})
-
-#: The SC bits a coil writes: CLICK's address picker lists these 25 read-write system bits
-#: for Out, and no other SC is accepted.  The list belongs to
-#: the address, so Set, Reset and the Out variants take the same bits.
-WRITABLE_SC = frozenset(
-    {50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168, 171}
-    | {303, 304, 305, 306, 323, 324, 325, 326}
-)
-
-_WRITABLE_SC_TEXT = ", ".join(f"SC{n}" for n in sorted(WRITABLE_SC))
-
-
-def check_out_target(operand: str, name: str, *, immediate: bool = False) -> Address:
-    """Check one address a coil writes (Out, Set, Reset or an Out variant); return it.
-
-    The bank is Y, C or SC, an immediate target is Y, and an SC bit is one of
-    :data:`WRITABLE_SC`.
-    """
-    address = check_address(operand, name, OUT_BANKS)
-    # Immediate first: an immediate SC target is refused whatever its number.
-    if immediate and address.bank != "Y":
-        raise FieldError(f"{name}: {operand!r} is not allowed; an immediate coil takes Y only")
-    if address.bank == "SC" and address.number not in WRITABLE_SC:
-        raise AddressError(
-            f"{name}: {operand!r} is not a writable SC bit; a coil writes {_WRITABLE_SC_TEXT}"
-        )
-    return address
-
-
-# ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
 
@@ -121,14 +84,17 @@ class Coil(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.type not in tuple(COIL_TYPE_TO_NAME):
-            raise FieldError(f"Coil.type: {self.type!r} is not a coil (out, latch or reset)")
+            raise FieldError(
+                f"Coil.type: {self.type!r} is not a coil (out, latch or reset)", field="Coil.type"
+            )
         self.immediate = check_flag(self.immediate, "Coil.immediate")
         self.oneshot = check_flag(self.oneshot, "Coil.oneshot")
         if self.oneshot and self.type != InstructionType.COIL_OUT:
             # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
             raise FieldError(
                 f"Coil.oneshot: {COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; "
-                "only out() does"
+                "only out() does",
+                field="Coil.oneshot",
             )
         self.operand = normalize_address(self.operand)
         if self.range_end is not None:
@@ -143,13 +109,15 @@ class Coil(AfInstruction):
         if end.bank != start.bank:
             raise FieldError(
                 f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
-                f"the range starts in bank {start.bank} and must stay in it"
+                f"the range starts in bank {start.bank} and must stay in it",
+                field="Coil.range_end",
             )
         # Out: OBJ-009 (C5..C5 refused); Set and Reset refuse C9..C1 and C5..C5 as Out does.
         if end.number <= start.number:
             raise FieldError(
                 f"Coil.range_end: {self.range_end!r} is not above {self.operand!r}; "
-                "a range runs from a lower to a higher address"
+                "a range runs from a lower to a higher address",
+                field="Coil.range_end",
             )
 
     @classmethod

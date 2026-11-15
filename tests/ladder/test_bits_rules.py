@@ -14,13 +14,14 @@ from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.coil import COIL_NAME_TO_TYPE as COIL_TYPES
-from laddercodec.instructions.coil import WRITABLE_SC, Coil
+from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.model import InstructionType
+from laddercodec.operands.checks import WRITABLE_SC
 
 NO = InstructionType.CONTACT_NO
 OUT = InstructionType.COIL_OUT
@@ -68,6 +69,19 @@ class TestContact:
 
 
 class TestCompare:
+    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    def test_long_leading_zeros_read_as_their_value(self) -> None:
+        long_one = "0" * 5000 + "1"
+        for side in ("left", "right"):
+            operands = {"left": "DS1", "right": "DS1"} | {side: long_one}
+            assert CompareContact(op="==", **operands) is not None
+            for other in ("DH1", "TXT1"):
+                operands = {"left": other, "right": other} | {side: long_one}
+                with pytest.raises(FieldError, match="^CompareContact"):
+                    CompareContact(op="==", **operands)
+        with pytest.raises(FieldError, match="^CompareContact.right"):
+            CompareContact(op="==", left="DS1", right="1" * 5000)
+
     @pytest.mark.parametrize(
         "token",
         [
@@ -128,7 +142,8 @@ class TestCompare:
     )
     def test_integer_outside_int32_refused(self, token: str, field: str) -> None:
         with pytest.raises(
-            FieldError, match=rf"^CompareContact.{field}: .* is outside -2147483648"
+            FieldError,
+            match=rf"^CompareContact.{field}: .* is outside -2147483648 to 2147483647",
         ):
             CompareContact.from_csv_token(token)
 
@@ -154,7 +169,9 @@ class TestCompare:
         ],
     )
     def test_text_is_one_to_128_printable_characters(self, token: str) -> None:
-        with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
+        with pytest.raises(
+            FieldError, match="a text constant is 1 to 128 characters|printable ASCII only"
+        ):
             CompareContact.from_csv_token(token)
 
     def test_quoted_character_code_is_text(self) -> None:
@@ -211,7 +228,8 @@ class TestCompare:
     )
     def test_quote_character_refused(self, left: str, right: str, field: str) -> None:
         with pytest.raises(
-            FieldError, match=rf"^CompareContact.{field}: .* holds a quote; .* \$22"
+            FieldError,
+            match=rf"^CompareContact.{field}: .* no quote inside \(write the quote character as \$22\)",
         ):
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
@@ -232,11 +250,11 @@ class TestCompare:
         assert from_tags_condition("Compare", 0x2714, tags | {0x6067: "$4"}) is None
 
     def test_quote_inside_text_refused(self) -> None:
-        with pytest.raises(FieldError, match="holds a quote"):
+        with pytest.raises(FieldError, match="no quote inside"):
             CompareContact("==", '"a"=="b"', '"c"')
 
     def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
-        with pytest.raises(FieldError, match="^CompareContact.right: .* holds a quote"):
+        with pytest.raises(FieldError, match="^CompareContact.right: .* no quote inside"):
             _read_condition(tmp_path, 'TXT1=="""')
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, 'TXT1=="a"b"')
@@ -478,13 +496,19 @@ class TestOutVariant:
     # 32768 is refused for all three kinds, OBJ-005.
     @pytest.mark.parametrize("preset", ["32768", "99999", "9" * 5000])
     def test_preset_above_32767_refused(self, preset: str) -> None:
-        with pytest.raises(FieldError, match="^OutVariant.on_preset: .* above the maximum 32767"):
+        with pytest.raises(
+            FieldError,
+            match="^OutVariant.on_preset: .* is outside 0 to 32767",
+        ):
             debounce(on_preset=preset)
-        with pytest.raises(FieldError, match="^OutVariant.off_preset: .* above the maximum 32767"):
+        with pytest.raises(
+            FieldError,
+            match="^OutVariant.off_preset: .* is outside 0 to 32767",
+        ):
             debounce(off_preset=preset)
-        with pytest.raises(FieldError, match="above the maximum 32767"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             timed(on_preset=preset)
-        with pytest.raises(FieldError, match="above the maximum 32767"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             OutVariant(
                 kind="flasher", operand="C1", on_acc="TD1", on_preset="1",
                 off_acc="TD2", off_preset=preset, unit="Tms",
@@ -493,7 +517,7 @@ class TestOutVariant:
     def test_preset_cap_through_read_csv(self, tmp_path: Path) -> None:
         good = "timed(C1,on_acc=TD1,on_preset=32767,unit=Tm)"
         assert isinstance(_read_af(tmp_path, good), OutVariant)
-        with pytest.raises(FieldError, match="above the maximum 32767"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             _read_af(tmp_path, good.replace("32767", "32768"))
 
     # one TD for both phases is refused for debounce and flasher, OBJ-012.
@@ -554,10 +578,24 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="^OutVariant.off_preset"):
             debounce(off_preset=preset)
 
-    @pytest.mark.parametrize("preset", ["-1", "+5"])
-    def test_signed_preset_names_the_minimum(self, preset: str) -> None:
-        with pytest.raises(FieldError, match="below the minimum 0"):
+    @pytest.mark.parametrize("preset", ["-1", "+5", "-2147483649"])
+    def test_signed_preset_refused_as_unsigned(self, preset: str) -> None:
+        with pytest.raises(FieldError, match="takes no sign"):
             debounce(on_preset=preset)
+
+    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    def test_long_leading_zeros_read_as_their_value(self) -> None:
+        long_one = "0" * 5000 + "1"
+        for make in (debounce, timed):
+            assert make(on_preset=long_one).on_preset == long_one
+        debounce(off_preset=long_one)
+        OutVariant(
+            kind="flasher", operand="C1", on_acc="TD1", on_preset=long_one,
+            off_acc="TD2", off_preset=long_one, unit="Tms",
+        )  # fmt: skip
+        for make in (debounce, timed):
+            with pytest.raises(FieldError, match="^OutVariant.on_preset"):
+                make(on_preset="1" * 5000)
 
     def test_preset_floors(self) -> None:
         debounce(on_preset="0")
@@ -565,7 +603,7 @@ class TestOutVariant:
             {"kind": "flasher", "off_acc": "TD2", "off_preset": "1"},
             {"kind": "timed"},
         ):
-            with pytest.raises(FieldError, match="minimum 1"):
+            with pytest.raises(FieldError, match="is outside 1 to 32767"):
                 OutVariant(
                     **{
                         "operand": "C1",
