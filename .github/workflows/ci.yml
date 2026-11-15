@@ -45,3 +45,13 @@ jobs:
 
       - name: Run tests
         run: uv run pytest
+
+  # The one required check, named the same in every repo. `always()` keeps it from
+  # being skipped (a skipped required check counts as passing) when a build fails.
+  # A new test job goes into `needs` and into the test.
+  ci:
+    if: always()
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.build.result }}" = "success"
