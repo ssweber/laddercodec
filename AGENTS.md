@@ -84,7 +84,7 @@ src/laddercodec/
 - **Operand rules.** A refused field raises `FieldError` (`AddressError` for an address) at construction; the same refusal makes a blob decode as raw. `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed. `devtools/classify_dryrun.py` reports where `classify()` disagrees with today's checks.
 - **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it; a rung CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).
 - **csv/.** `read_csv` takes a canonical CSV (33 columns: marker + A..AE + AF; wire tokens `T`, `-`, `|`, blank). `converter.py` handles pin rows (`.reset()` → retentive timers) and tall-instruction padding.
-- **Devtools.** `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs; `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV; `devtools/mergeq/` is the local merge queue (see its README).
+- **Devtools.** `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs; `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV. Agent tooling (BOB, the test-run guard) comes from the `bob` plugin; this repo's settings are in `.claude/bob/`.
 
 ## Tests
 

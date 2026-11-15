@@ -22,7 +22,7 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
   `gh workflow run docs.yml --ref main` (the latest release, or `-f ref=<tag>`); it is a deploy, so it is Sam's
   call too.
 - **Builds.** Multi-branch jobs run as BOB arcs: a worktree and a builder per branch, a fresh reviewer, CI as the
-  gate. The BOB tooling moves to the shared `bob` plugin (item 1).
+  gate. BOB comes from the shared `bob` plugin (`ssweber/bob`); this repo's settings are in `.claude/bob/`.
 - **Arc folders stay out of git** (`../laddercodec-wt/buildbot/jobs/`). When an arc closes, its open items move
   here and the folder can go.
 - **No provenance.** Code, tests and user docs say what a rule is, not where it came from. CLICK's own error ids
@@ -33,19 +33,15 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Order
 
-1. Cruft sweep and the switch to the `bob` plugin.
+1. Cruft sweep.
 2. The undecoded marker.
 3. The field-rule restructure.
 4. Canonical constants, once CLICK has answered.
 
 The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
-## 1. Cruft sweep (Sam)
+## 1. Cruft sweep (nothing)
 
-- **Switch to the `bob` plugin** (`ssweber/bob`). One PR: delete `devtools/mergeq`, `.claude/skills/bob/SKILL.md`
-  and `.claude/agents/bob-*`; add `.claude/bob/config.toml` and `.claude/bob/profile.md`; point
-  `.claude/settings.json` at the plugin. Delete the stale queue folders in `../laddercodec-wt/buildbot` and the
-  unmerged `chore/agentguard` branch and worktree. Every open session then needs `/hooks` or a restart.
 - **Arc folders.** Delete the closed ones under `laddercodec-wt/buildbot/jobs/`, except `dllqa/`,
   `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
   3) are sorted.
