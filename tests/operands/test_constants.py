@@ -135,7 +135,7 @@ REFUSED: list[str] = [
     "-inf",
     "1E999",
     "-1E999",
-    # above float32 (arc.md Q-M17, dialog 2026-11-12); a value rounding to its largest passes
+    # above float32 (dialog); a value rounding to its largest passes
     "3.5E+38",
     "-3.5E+38",
     "3.4028236E+38",
@@ -163,7 +163,7 @@ REFUSED: list[str] = [
     "$4142",
     "$GG",
     "$-1",
-    # Unicode digits are no digits (arc.md ruling 2026-11-11).
+    # Unicode digits are no digits.
     "٣",
     "1٣",
     "٣h",

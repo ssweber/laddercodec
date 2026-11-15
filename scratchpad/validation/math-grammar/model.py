@@ -1,4 +1,4 @@
-"""Executable model of the CLICK v4 Math dialog OK path, as read from Inst_Math.dll.
+"""Executable model of the CLICK v4 Math dialog OK path, as the dialog's code reads.
 
 check(text, hexmode) -> dict(tpl_disp, disp, tpl_int, int) or raises Refused(code).
 Run as a script: re-derive the stored views of every Math blob in fixtures.json from its
@@ -32,7 +32,7 @@ class Refused(Exception):
 
 
 def is_address(t):
-    # stand-in for baseEx IsAddress (not read): bank prefix + digits (+u on XD/YD)
+    # stand-in for CLICK's shared input check IsAddress (not read): bank prefix + digits (+u on XD/YD)
     m = ADDR_RE.match(t.upper())
     return bool(m) and (m.group(3) == "" or m.group(1) in ("XD", "YD"))
 

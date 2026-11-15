@@ -58,9 +58,9 @@ SHIFT = frozenset({"LSH", "RSH", "LRO", "RRO"})
 COMMA_FUNCTIONS = SHIFT | {"RAND"}
 FUNCTIONS = TRIG | RANGE_FUNCTIONS | COMMA_FUNCTIONS | {"ABS"}
 WORD_OPERATORS = frozenset({"MOD", "AND", "OR", "XOR"})
-#: Every name on CLICK's Math keypads (Inst_Math.dll has no other names).
+#: Every name on CLICK's Math keypads.
 NAMES = FUNCTIONS | WORD_OPERATORS | {"PI"}
-#: Keys only the decimal keypad has (CL170), and only the hex keypad (CL203).
+#: Keys only the decimal keypad has, and only the hex keypad.
 DECIMAL_ONLY = TRIG | {"PI", "ABS", "^"}
 HEX_ONLY = SHIFT | {"AND", "OR", "XOR"}
 
@@ -69,21 +69,21 @@ _SIGNS = ("+", "-")
 _DIGITS = frozenset("0123456789")
 _HEX_DIGITS = _DIGITS | frozenset("ABCDEFabcdef")
 
-#: Parentheses nest at most 8 deep (CL170, OBJ-1010).
+#: Parentheses nest at most 8 deep (OBJ-1010).
 MAX_NESTING = 8
 #: Most characters of the internal template, ``@`` per address and ``#`` between tokens
-#: (Inst_Math.dll compares with 0x10e; OBJ-1008 "The Formula is too long"; Q-M7: a sum of
-#: 68 addresses fits, 69 does not).
+#: (OBJ-1008 "The Formula is too long"; a sum
+#: of 68 addresses fits, 69 does not).
 MAX_INTERNAL_LENGTH = 270
 _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 #: The longest integer CLICK prints back: ``-2147483648``.
 _MAX_PRINTED = 11
-#: Registers of 2 and of 4 bytes (Help CL196 data types), for the median's 1024-byte cap
+#: Registers of 2 and of 4 bytes, for the median's 1024-byte cap
 #: (OBJ-1013).
 _TWO_BYTE_BANKS = banks(Bank.DS | Bank.DH | Bank.TD | Bank.SD)
 _FOUR_BYTE_BANKS = banks(Bank.DD | Bank.DF | Bank.CTD)
 _MEDIAN_MAX_BYTES = 1024
-#: SUM over a range refuses only CT on a CPU with the v4 functions (Q-M8).
+#: SUM over a range refuses only CT on a CPU with the v4 functions.
 _SUM_REFUSED_BANKS = banks(Bank.CT)
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
@@ -460,8 +460,7 @@ def _check_order(tokens: Sequence[Token]) -> None:
                 "CLICK reads it as a decimal comma: use a period (.) as the decimal point"
             )
         if token.kind == ":" and i not in call_separators:
-            # A ':' outside SUM..AVG ( a : b ) is refused (BOB ruling: the colon helper was
-            # not read past the comma case).
+            # A ':' outside SUM..AVG ( a : b ) is refused.
             raise FieldError(
                 f"{_NAME}: ':' stands outside SUM, MAX, MIN, MDN or AVG ( a : b ); "
                 "a range is written in one of those"
@@ -521,8 +520,8 @@ def _check_operands(texts: Sequence[str]) -> None:
 
     An X or Y range CLICK would store a wrong member list for is refused too.
     """
-    # SUM ( a : b ) is the one place a bit may stand, and not a CT bit (Inst_Math.dll SUM
-    # handler, OBJ-1002; an older CPU's refusal of every bit is a project rule).
+    # SUM ( a : b ) is the one place a bit may stand, and not a CT bit
+    # (OBJ-1002; an older CPU's refusal of every bit is a project rule).
     bit_ok: set[int] = set()
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
@@ -560,8 +559,8 @@ def _check_operands(texts: Sequence[str]) -> None:
 def _check_xy_members(function: str, bank: str, start: int, end: int) -> None:
     """Refuse an X/Y range whose stored member list is not the points between its ends.
 
-    CLICK v4 stores such a list for a range with an end in the option slot (user ruling
-    2026-11-12: the list is not what the range means, so laddercodec refuses the range).
+    CLICK v4 stores such a list for a range with an end in the option slot; the list is not
+    what the range means, so laddercodec refuses the range.
     """
     listed = _xy_points_between(_xy_bound(start), _xy_bound(end))
     members = _xy_points_between(start, end)
@@ -742,7 +741,7 @@ def parse(text: str, mode: str) -> Formula:
     _check_order(tokens)
     _check_operands([t.text for t in tokens])
     formula = Formula(tuple(tokens))
-    # The cap is on CLICK's internal template, which the blob stores as 0x6229 (Q-M7).  At
+    # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At
     # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.
     length = len(formula.internal(template=True))
     if length > MAX_INTERNAL_LENGTH:

@@ -2,7 +2,7 @@
 
 `coverage`, `counter_scr`, `or_topology`, and `shift_scr` pair native SCR files with clipboard captures. Their decoded geometry and wire mappings are comparison evidence.
 
-`pins.scr` is CLICK's `Scr1.tmp` after pasting the `pins__v4` coverage golden (pins with OR legs, 2026-10-28). Its clipboard pair is that golden, which is synthetic: the SCR is evidence of how CLICK stores grown pin rows (each part's 1-based rung row, e.g. a drum's `01 02 04 05`), not of clipboard output. The native clipboard evidence is `v4_captures/pins.bin`.
+`pins.scr` is CLICK's `Scr1.tmp` after pasting the `pins__v4` coverage golden (pins with OR legs). Its clipboard pair is that golden, which is synthetic: the SCR is evidence of how CLICK stores grown pin rows (each part's 1-based rung row, e.g. a drum's `01 02 04 05`), not of clipboard output. The native clipboard evidence is `v4_captures/pins.bin`.
 
 `time_drums.scr` is a native SCR capture. **`time_drums.bin` is synthetic**: commit `be211ee` (v0.1.9 / PR #15, `test(scr): golden fixture for time drums`) says it was encoded from the verified canonical CSV, with a native clipboard capture left for future replacement. It is not independent evidence of CLICK's clipboard output.
 
@@ -10,7 +10,7 @@ The CSV/BIN keep their original canonical content. SCR rungs 13 and 14 contain a
 
 The same-state native insertion and branch fixtures below distinguish covered NOPs from legitimate wire rows. The synthetic BIN remains useful as canonical input, but is not evidence of native normalization.
 
-## Native drum insertion experiment (2026-09-10)
+## Native drum insertion experiment
 
 `time_drum_insert_rows.{scr,bin,csv,png}` are the user's `time_drum.*` captures. Unlike the older `time_drums.bin`, this BIN is a native CLICK clipboard capture. The screenshot and rung comments identify the construction:
 
@@ -22,7 +22,7 @@ Each rung stores four ordinary rows. The original row retains flag 1 and all 32 
 
 This establishes that the NOP's underlying wired row survives in these cases. The inserted rows are empty, so the removed heuristic's nonempty-row guard would also have kept these examples. The branch fixture below exercises that guard with a populated upper row.
 
-## Native branch above the original wired row (2026-09-10)
+## Native branch above the original wired row
 
 `time_drum_b_column.{scr,bin,csv}` captures the one-inserted-row case after wiring B through AE on the upper row, leaving A blank, and adding a down connection at B to the original wired row. The SCR was snapshotted from the supplied CLICK `Scr1.tmp`; BIN/CSV were supplied through `clicknick-rung save time_drum_b_column`. Preserve the captured comment literally, including the question mark substituted for the dash by the originating application.
 
@@ -32,6 +32,6 @@ This is a native counterexample to the removed deletion rule: the upper row is n
 
 The condition-side geometry, row flags, and down list match the older time_drums rung 13; that older SCR additionally has a segment-0 AF wire entry on the upper row. Exact editing history of the older fixture is unnecessary to establish that the generic deletion rule was invalid.
 
-## Past 256 rungs (2026-11-05)
+## Past 256 rungs
 
 `rungs_266.{scr,bin.gz,csv}` are one CLICK project of 266 rungs, all native: the `Scr1.tmp`, and the clipboard copy of the same rungs with its CSV. The BIN is gzipped because 266 rungs copy out to 1 MB. They settle how a rung index passes 255: 16 bits in the SCR (`RUNG`), and in the clipboard a little-endian value at tail `+0x09` that carries into `+0x0A`.

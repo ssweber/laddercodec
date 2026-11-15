@@ -1,6 +1,6 @@
 """Deterministic empty multi-row payload synthesis for the validated empty lane.
 
-This encoder targets the empty-rung family validated in March 2026:
+This encoder targets the empty-rung family validated so far:
 - header row word at entry0 (+0x00/+0x01) follows (rows + 1) * 0x20;
 - payload length scales by 0x1000 pages;
 - header +0x05 and trailer 0x0A59 are zeroed for this lane;

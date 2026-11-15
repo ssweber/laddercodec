@@ -3,7 +3,7 @@
 CLICK and pyrung's exporter spell a termination code as ``$`` + two hex digits
 (``$0D``, ``$00``), so a decoded Copy must write the same text.  Conversion
 types (tag 0x2227) follow CLICK's dialog: they depend on the source and
-destination types (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
+destination types (v4_captures/sweep_copy.bin).
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def test_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
 
 @pytest.mark.parametrize("bad", ["$", "$D", "$0", "$ZZ", "$100"])
 def test_invalid_termination_code_rejected(bad: str) -> None:
-    # The ASCII Table picker writes two digits (arc.md, 2026-11-12).
+    # The ASCII Table picker writes two digits.
     with pytest.raises(FieldError, match="Copy.termination_code"):
         Copy(source="DS20", destination="TXT7", format="text", termination_code=bad)
 

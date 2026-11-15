@@ -58,14 +58,13 @@ class Shift(PinnedInstruction):
     def __post_init__(self) -> None:
         self.start_bit = normalize_address(self.start_bit)
         self.end_bit = normalize_address(self.end_bit)
-        # Inst_ShiftRegister.dll OnOK: both ends are C (validator mask 4); another bank,
-        # or an end in another bank than the start, is OBJ-004 (Q-D3).
+        # Both ends are C; another bank, or an end in another bank than the start, is
+        # OBJ-004.
         start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)
         end = check_address(self.end_bit, "Shift.end_bit", banks=SHIFT_BANKS)
         # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
-        # address as it is typed (C001 becomes C1; user dialog check 2026-11-11), so the
-        # parsed addresses are compared.  Start > end stays allowed: it reverses the
-        # shift (Help 172).
+        # address as it is typed (C001 becomes C1), so the
+        # parsed addresses are compared.  Start > end stays allowed: it reverses the shift.
         if end == start:
             raise FieldError(
                 f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "

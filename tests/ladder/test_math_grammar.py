@@ -1,10 +1,9 @@
 """The Math formula reader against CLICK's Math grammar, one test per rule.
 
-Sources: the Math dialog's check read from Inst_Math.dll ([code]; the steps of
-``docs/internals/instruction-blobs.md``, "Math formula grammar"), the dialog answers in
-``scratchpad/validation/arc.md`` and the native captures.  ``math_unary_plus_pi.bin`` is
-``fixtures/v4_captures/math_unary_plus_pi.bin``: two formulas typed in CLICK v4, then one
-rung per formula the dialog refused, its comment naming the formula.
+Sources: the Math dialog's check (the steps of ``docs/internals/instruction-blobs.md``,
+"Math formula grammar"), the dialog answers and the native captures.
+``math_unary_plus_pi.bin`` is ``fixtures/v4_captures/math_unary_plus_pi.bin``: two formulas
+typed in CLICK v4, then one rung per formula the dialog refused, its comment naming the formula.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ def _views(expression: str, mode: str) -> tuple[str, str, str, str]:
 
 
 # ---------------------------------------------------------------------------
-# The predictions the dialog confirmed (arc.md, "every prediction held", 2026-11-12)
+# The predictions the dialog confirmed (every prediction held)
 # ---------------------------------------------------------------------------
 
 
@@ -77,14 +76,14 @@ def test_trig_body_holds_a_colon_only_in_a_sum() -> None:
 
 
 def test_hex_bare_digits_stay_refused() -> None:
-    # CLICK rewrites hex DH1 + 7 as 7h; laddercodec keeps the CSV's intent and refuses it
-    # (user ruling 2026-11-12), as it refuses 7H7, which CLICK rewrites as 77h.
+    # CLICK rewrites hex DH1 + 7 as 7h; laddercodec keeps the CSV's intent and refuses it,
+    # as it refuses 7H7, which CLICK rewrites as 77h.
     _refused("DH1 + 7", "hex", "7 is a decimal constant; a hex Math")
     _refused("DH1 + 7H7", "hex", "'7H7' is not an address")
 
 
 # ---------------------------------------------------------------------------
-# Tokenizer (§1.1 step 1) [code]
+# Tokenizer (§1.1 step 1)
 # ---------------------------------------------------------------------------
 
 
@@ -112,7 +111,7 @@ def test_word_the_number_rule_cuts_is_refused(word: str) -> None:
 
 @pytest.mark.parametrize("char", ["=", "#", "@", ";", "!", "&", "<", "\n", "\xa0", "\u2003"])
 def test_character_outside_a_formula_is_refused(char: str) -> None:
-    # Only a space or a tab separates tokens [code]; other white space is refused (BOB ruling).
+    # Only a space or a tab separates tokens; other white space is refused.
     _refused(f"DS1 +{char}DS2", "decimal", "is no part of a Math formula")
 
 
@@ -122,7 +121,7 @@ def test_pointer_is_refused() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Classification and constants (§1.1 steps 2, 6, 7) [code]
+# Classification and constants (§1.1 steps 2, 6, 7)
 # ---------------------------------------------------------------------------
 
 
@@ -130,8 +129,8 @@ def test_pointer_is_refused() -> None:
     "expression", ["DS1 + FOO", "DS1 + NAN", "DS1 + 0x1A", "DS1 + .", "DS1 . DS2"]
 )
 def test_word_is_refused(expression: str) -> None:
-    # FOO: dialog answer (arc.md).  NAN and the strtod hex real 0x1A: CLICK's converter
-    # takes them [inf]; laddercodec refuses them (BOB ruling).  A lone '.':
+    # FOO: dialog answer.  NAN and the strtod hex real 0x1A: CLICK's converter
+    # takes them; laddercodec refuses them.  A lone '.':
     # math_unary_plus_pi.bin refuses DS1 + .
     _refused(expression, "decimal", "is not an address, a function name or a constant")
 
@@ -152,7 +151,7 @@ def test_decimal_integer_is_h_or_w_by_int16(constant: str, internal: str) -> Non
 
 @pytest.mark.parametrize("constant", ["007", "00", "3000000000", "000000000001", "9" * 5000])
 def test_decimal_integer_must_print_back_at_its_length(constant: str) -> None:
-    # _wtoi64, low 32 bits, %d (Q-M9 verifier answer); %d prints at most 11 characters.
+    # _wtoi64, low 32 bits, %d; %d prints at most 11 characters.
     _refused(f"DS1 + {constant}", "decimal", f"{constant[:20]}")
 
 
@@ -162,18 +161,18 @@ def test_real_is_f_and_fits_float32() -> None:
 
 
 def test_hex_constant_is_written_as_click_shows_it() -> None:
-    # %Xh of the value (arc.md dialog answers; v4_captures/math_hex_upper_h.bin).
+    # %Xh of the value (dialog answers; v4_captures/math_hex_upper_h.bin).
     assert _views("DH1 + 0fH", "hex") == ("DH1 + Fh", "@ + Fh", "@#+#UH15", "DH1#+#UH15")
     _refused("DH1 + 0FFFEh", "hex", "0FFFEh is outside 0h..FFFFh")  # four digits as typed
 
 
 def test_each_mode_takes_its_own_constants() -> None:
-    _refused("DS1 + 1Fh", "decimal", "1Fh is a hex constant")  # Q-M13
-    _refused("DH1 + 1.5", "hex", "1.5 is a decimal constant")  # Q-M13b
+    _refused("DS1 + 1Fh", "decimal", "1Fh is a hex constant")
+    _refused("DH1 + 1.5", "hex", "1.5 is a decimal constant")
 
 
 # ---------------------------------------------------------------------------
-# Parentheses (step 3), signs (step 5), mode keys (step 8) [code]
+# Parentheses (step 3), signs (step 5), mode keys (step 8)
 # ---------------------------------------------------------------------------
 
 
@@ -192,7 +191,7 @@ def test_parentheses_balance_and_nest_eight_deep() -> None:
         ("- DS1", "-#DS1"),  # a sign on an address stays a token
         ("+5 + DS1", "H+5#+#DS1"),  # '+' joins as '-' does, keeping the typed text
         ("RAND ( 1 , +5 )", "H1#RAND#H+5#"),
-        ("DF1 * ( +2.5 )", "DF1#*#(#F+2.5#)"),  # a real is F and the typed text [code]
+        ("DF1 * ( +2.5 )", "DF1#*#(#F+2.5#)"),  # a real is F and the typed text
         ("( +0 )", "(#H+0#)"),
         ("+ DS1", "+#DS1"),
     ],
@@ -213,7 +212,7 @@ def test_plus_sign_joins_its_constant() -> None:
 
 
 def test_plus_sign_keeps_the_length_rule() -> None:
-    # The check string is '+' and %d of the value [code], so +007 prints back as +7.
+    # The check string is '+' and %d of the value, so +007 prints back as +7.
     _refused("( +007 )", "decimal", "\\+007 is refused; CLICK reads it back as \\+7")
 
 
@@ -238,7 +237,7 @@ def test_keys_of_the_other_keypad_are_refused() -> None:
 
 
 # ---------------------------------------------------------------------------
-# The follow-set table (step 9, §2) [code]
+# The follow-set table (step 9, §2)
 # ---------------------------------------------------------------------------
 
 
@@ -306,7 +305,7 @@ def test_formula_may_start_with_a_sign_or_end_with_pi() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Call forms (§2) [code], and the shape laddercodec adds
+# Call forms (§2), and the shape laddercodec adds
 # ---------------------------------------------------------------------------
 
 
@@ -320,8 +319,7 @@ def test_formula_may_start_with_a_sign_or_end_with_pi() -> None:
     ],
 )
 def test_rand_takes_one_token_per_argument(expression: str) -> None:
-    # The editor refuses a compound argument; laddercodec used to write it in call form
-    # (BOB ruling: refuse it).
+    # The editor refuses a compound argument; laddercodec refuses it.
     _refused(expression, "decimal", "RAND takes RAND \\( a , b \\)")
 
 
@@ -335,13 +333,13 @@ def test_shift_takes_one_token_per_argument(expression: str) -> None:
 
 @pytest.mark.parametrize("expression", ["SUM DS1", "ABS DS1", "MAX DS1", "RAND .5"])
 def test_every_function_takes_parentheses(expression: str) -> None:
-    # [code] for the trig functions; math_unary_plus_pi.bin refuses SUM DS1, and the other
-    # functions follow it (BOB ruling).
+    # The trig functions follow the check; math_unary_plus_pi.bin refuses SUM DS1, and the other
+    # functions follow it.
     _refused(expression, "decimal", "takes its argument in parentheses")
 
 
 def test_pi_may_take_parentheses() -> None:
-    # The checker lets '(' follow PI [code]; math_unary_plus_pi.bin stores typed PI ( 2 )
+    # The checker lets '(' follow PI; math_unary_plus_pi.bin stores typed PI ( 2 )
     # in call form.
     assert _views("PI ( 2 )", "decimal") == ("PI ( 2 )", "PI ( 2 )", "PI#(#H2#)", "PI#(#H2#)")
     _refused("PI DS1", "decimal", "'DS1' after 'PI'")
@@ -373,13 +371,13 @@ def test_hex_range_function_takes_two_addresses() -> None:
 )
 def test_comma_outside_a_two_argument_call_is_refused(expression: str) -> None:
     # OBJ-037 "Please use a period (.) as a decimal point.", the dialog's answer to
-    # DS1 , DS2 (user's dialog check, math_unary_plus_pi.bin).
+    # DS1 , DS2 (math_unary_plus_pi.bin).
     _refused(expression, "decimal", "use a period \\(.\\) as the decimal point")
 
 
 @pytest.mark.parametrize("expression", ["DS1 : DS5", "ABS ( DS1 : DS3 )", "( DS1 : DS3 )"])
 def test_colon_outside_a_range_function_is_refused(expression: str) -> None:
-    # BOB ruling: a ':' stands only in SUM, MAX, MIN, MDN or AVG ( a : b ).
+    # A ':' stands only in SUM, MAX, MIN, MDN or AVG ( a : b ).
     _refused(expression, "decimal", "':' stands outside SUM, MAX, MIN, MDN or AVG")
 
 

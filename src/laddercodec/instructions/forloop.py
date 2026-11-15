@@ -40,9 +40,8 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-#: Inst_For.dll OnOK (Q-F1): a constant count is digits only (0 is
-#: allowed, a sign is not) up to 2147483647, else OBJ-005; a register count is DS, DD, TD,
-#: CTD or SD (validator mask 0x70c0), else OBJ-004.
+#: A constant count is digits only (0 is allowed, a sign is not) up to 2147483647, else
+#: OBJ-005; a register count is DS, DD, TD, CTD or SD, else OBJ-004.
 _FOR_LITERAL_RE = re.compile(r"[0-9]+")
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
 FOR_MAX_LIMIT = 2**31 - 1
@@ -67,13 +66,12 @@ def _validate_for_limit(value: str) -> str:
             )
         return text
     if _FOR_SPACED_RE.fullmatch(text):
-        # Q-F1: the dialog lets ``1 0`` through, a gap in its check; the user's decision
-        # (2026-11-11) is to refuse it, since it is not a number.
+        # The dialog lets ``1 0`` through; it is not a number, so it is refused.
         raise FieldError(
             f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only"
         )
     if "[" in text:
-        # Q-F1, user dialog check 2026-11-11: the For count refuses a pointer.
+        # The For count refuses a pointer.
         raise AddressError(f"ForLoop.limit: {text!r} is a pointer; the For count takes no pointer")
     text = normalize_address(text)
     check_address(text, "ForLoop.limit", banks=FOR_LIMIT_BANKS)

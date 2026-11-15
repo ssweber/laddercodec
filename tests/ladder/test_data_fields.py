@@ -248,9 +248,7 @@ class TestRefusedBlobsDecodeAsRaw:
 
 
 # ---------------------------------------------------------------------------
-# Rules from CLICK v4.00's dialog code (Q-D1..Q-D5: the
-# Inst_*.dll OnOK checks and their OBJ ids) and the user's dialog checks of
-# 2026-11-11 (address normalization).
+# Rules from CLICK v4.00's instruction dialogs, with their OBJ ids, and address normalization.
 # ---------------------------------------------------------------------------
 
 
@@ -276,7 +274,7 @@ def _raw_after(model: object, **bad: object) -> RawInstruction:
 
 
 class TestTimerSetpointRange:
-    # Q-D1: 0..32767 for every unit; 32768 and any sign refused (OBJ-005).
+    # 0..32767 for every unit; 32768 and any sign refused (OBJ-005).
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits_for_every_unit(self, tmp_path: Path, unit: str) -> None:
         for value in ("0", "32767"):
@@ -297,7 +295,7 @@ class TestTimerSetpointRange:
 
 
 class TestCounterPresetRange:
-    # Q-D2: a 32-bit signed constant (OBJ-005); registers DS and DD only (OBJ-004).
+    # a 32-bit signed constant (OBJ-005); registers DS and DD only (OBJ-004).
     @pytest.mark.parametrize("preset", ["2147483647", "-2147483648", "0", "DS1", "DD1"])
     def test_accepted(self, tmp_path: Path, preset: str) -> None:
         parsed = _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
@@ -316,7 +314,7 @@ class TestCounterPresetRange:
             _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
 
     def test_text_under_13_characters(self) -> None:
-        # Inst_Counter.dll: a constant's text is under 13 characters (OBJ-005).
+        # Counter: a constant's text is under 13 characters (OBJ-005).
         assert counter(preset="000000000001").preset == "000000000001"
         with pytest.raises(FieldError, match="13 characters; a constant set point is at most 12"):
             counter(preset="0000000000001")
@@ -335,7 +333,7 @@ class TestCounterPresetRange:
 
 
 class TestShiftRules:
-    # Q-D3: C only (OBJ-004); start == end refused (OBJ-012); start > end allowed.
+    # C only (OBJ-004); start == end refused (OBJ-012); start > end allowed.
     def test_c_range(self, tmp_path: Path) -> None:
         assert _read_af(tmp_path, "shift(C1..C2000)") == Shift(start_bit="C1", end_bit="C2000")
         assert _read_af(tmp_path, "shift(C106..C99)") == Shift(start_bit="C106", end_bit="C99")
@@ -357,7 +355,7 @@ class TestShiftRules:
 
     @pytest.mark.parametrize("end", ["C1", "C001"])
     def test_same_address_refused(self, tmp_path: Path, end: str) -> None:
-        # CLICK normalizes C001 to C1 as it is typed (user dialog check 2026-11-11).
+        # CLICK normalizes C001 to C1 as it is typed.
         with pytest.raises(FieldError, match=r"^Shift.end_bit: 'C1' is the same address"):
             _read_af(tmp_path, f"shift(C1..{end})")
         with pytest.raises(FieldError, match="OBJ-012"):
@@ -376,7 +374,7 @@ class TestShiftRules:
 
 
 class TestDrumDurations:
-    # Q-D4: 0..32767 for every unit, digits only (OBJ-005); a register is DS (OBJ-004).
+    # 0..32767 for every unit, digits only (OBJ-005); a register is DS (OBJ-004).
     @pytest.mark.parametrize("kind", ["time", "time_event"])
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits(self, kind: str, unit: str) -> None:
@@ -410,7 +408,7 @@ class TestDrumDurations:
 
 
 class TestDrumEventsAndOutputs:
-    # Q-D5: events X, Y, C, T, CT or SC (OBJ-004); outputs differ from each other and
+    # events X, Y, C, T, CT or SC (OBJ-004); outputs differ from each other and
     # from the completion flag (OBJ-014), compared as addresses.
     @pytest.mark.parametrize("event", ["X001", "Y001", "C5", "T1", "CT1", "SC1"])
     def test_event_banks_accepted(self, event: str) -> None:
@@ -427,7 +425,7 @@ class TestDrumEventsAndOutputs:
 
     @pytest.mark.parametrize("second", ["C1", "C001"])
     def test_output_twice_refused(self, tmp_path: Path, second: str) -> None:
-        # CLICK normalizes C001 to C1 as it is typed (user dialog check 2026-11-11).
+        # CLICK normalizes C001 to C1 as it is typed.
         token = (
             f"event_drum(outputs=[C1,{second}],events=[X001,X002],pattern=[[1,0],[0,1]],"
             "current_step=DS1,completion_flag=C9)"
@@ -437,7 +435,7 @@ class TestDrumEventsAndOutputs:
             _read_af(tmp_path, token)
 
     def test_y_output_twice_refused(self) -> None:
-        # CLICK writes Y1 as Y001 (user dialog check 2026-11-11): the same output.
+        # CLICK writes Y1 as Y001: the same output.
         with pytest.raises(FieldError, match="OBJ-014"):
             drum(outputs=["Y001", "Y1"])
 

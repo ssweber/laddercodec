@@ -78,7 +78,7 @@ _VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
 #: Text sub-options are encoded in the conversion_type value itself: an integer
 #: source has suppress zero (1) or not (2); a DF source has real (3) or
 #: exponential (4) numbering, with suppress_zero stored as 1.  7 is a DD <-> DF
-#: Copy Value, a plain copy in CSV (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
+#: Copy Value, a plain copy in CSV (v4_captures/sweep_copy.bin).
 _CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
     "0": ("none", "0", "0"),
     "1": ("text", "1", "0"),  # integer source, suppress zeros
@@ -160,10 +160,10 @@ def _ascii_code(code: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Operands and banks (CLICK v4.00 Help CL173 Single Copy, CL185 Fill, CL238 Pointers)
+# Operands and banks (Single Copy, Fill and pointers)
 # ---------------------------------------------------------------------------
 
-#: Bit banks: the "Bits" rows of the Help copy tables.
+#: Bit banks: bits copy to Y and C only.
 BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 #: Registers a copy reads: the "Registers" rows.
 REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
@@ -173,11 +173,11 @@ NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
 _REGISTER_DEST_BANKS = REGISTER_BANKS - {"XD"}
 _NUMERIC_DEST_BANKS = _REGISTER_DEST_BANKS - {"TXT"}
 _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
-#: Banks a pointer ``BANK[DSn]`` can address (Help CL238).
+#: Banks a pointer ``BANK[DSn]`` can address.
 POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "TXT"})
 
 _POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
-#: A number constant (Help CL196): integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
+#: A number constant: integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
 #: digits then ``h`` (``1Eh``).  The sign, exponent and letter case are not narrowed.
 _NUMBER_CONSTANT_RE = re.compile(
     r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[+-]?[0-9A-Fa-f]+[hH]"
@@ -237,7 +237,7 @@ def check_operand(
     With ``constant``, a number constant (``42``, ``-1.5``, ``1Eh``) or a text constant
     (``"AB"``, ``$0D``) passes too; a ``$`` value that is not ``$hh`` raises
     :class:`FieldError`.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
-    in ``banks`` and in :data:`POINTER_BANKS`, and the pointer a DS address (Help CL238).
+    in ``banks`` and in :data:`POINTER_BANKS`, and the pointer a DS address.
     ``XD0u`` and ``YD0u`` pass only when ``banks`` names XD or YD (``ADDRESS_BANKS`` does).
     """
     if constant:
@@ -297,10 +297,10 @@ def _check_range(
 
     Both ends are addresses in one bank (OBJ-008), never pointers.  With ``ordered``, the end
     comes after the start: an end before it is OBJ-009 and the same address OBJ-012
-    (Inst_Copy.dll range check, which Inst_Search.dll repeats).
+    (Search repeats this range check).
     With ``one_module``, an X or Y range stays inside one 16-point slot of
     :data:`~laddercodec.model.XY_SLOTS` (OBJ-033, OBJ-035, OBJ-019); the dual option slot,
-    21-36, is a slot of its own.  Inst_Copy.dll runs this module check on the
+    21-36, is a slot of its own.  The module check applies to the
     Pack source, the Block Copy source and the Unpack destination.
     """
     ends = []
@@ -383,7 +383,7 @@ def _check_count(
         )
 
 
-#: Help CL173: source kind -> destination banks of a single Copy.
+#: Source kind -> destination banks of a single Copy.
 _COPY_PAIRS: dict[str, frozenset[str]] = {
     "bit": frozenset({"Y", "C"}),
     "word": _REGISTER_DEST_BANKS,
@@ -392,8 +392,7 @@ _COPY_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-#: Help CL185: source kind -> destination banks of a Fill.  Inst_Copy.dll's Fill rows
-#: agree for registers.
+#: Source kind -> destination banks of a Fill, which agree with a single Copy for registers.
 _FILL_PAIRS: dict[str, frozenset[str]] = {
     "word": _NUMERIC_DEST_BANKS,
     "txt": frozenset({"TXT"}),
@@ -404,7 +403,7 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 _INT_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
-#: (Inst_Copy.dll single row, type matrix; OBJ-024).
+#: (OBJ-024).
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
@@ -488,7 +487,7 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
 
 
 # ---------------------------------------------------------------------------
-# Block, Pack and Unpack pairs (Inst_Copy.dll pairing rows, table)
+# Block, Pack and Unpack pairs (pairing table)
 # ---------------------------------------------------------------------------
 
 #: One pairing row: source banks and the destination banks they copy to.  The first row
@@ -842,7 +841,7 @@ class Copy(AfInstruction):
             term_char = "0"
             term_flag = "0"
         # field[11]: CLICK v4's dialog writes -1 on every save and ignores it on
-        # load (InstCtl_Copy.dll); pre-v4 captures set it only for a termination
+        # load; pre-v4 captures set it only for a termination
         # code.  We write -1 for those and for a text constant source, the cases
         # native captures we match byte for byte show.
         text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
@@ -922,7 +921,7 @@ class BlockCopy(AfInstruction):
             cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}", src.bank,
             "dest_start", self.dest_start, dest.bank,
         )  # fmt: skip
-        # Inst_Copy.dll: the destination end is the start plus the source's
+        # The destination end is the start plus the source's
         # element count (GetNextAddress), whatever the two banks.
         end = dest.number + src_last.number - src.number
         if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
@@ -1025,7 +1024,7 @@ class Fill(AfInstruction):
         for name in ("value", "dest_start", "dest_end"):
             setattr(self, name, normalize_address(getattr(self, name)))
         src = check_operand(self.value, "Fill.value", REGISTER_BANKS, constant=True)
-        # Inst_Copy.dll's Fill OnOK runs the range check on the destination.
+        # Fill runs the range check on the destination.
         dest, _ = _check_range(
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )

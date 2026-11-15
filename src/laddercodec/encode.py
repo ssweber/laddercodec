@@ -67,8 +67,8 @@ Verified in Click (encode → paste → copy back → decode round-trip):
     [x] Plain comment, 2-row (empty, NOP, wire incl. col-A, max 1324)
     [x] Plain comment, 3-row (empty, NOP, wire, mixed, max 1400)
     [x] Plain comment, 4..32 rows (wire combos, scaling)
-    [x] Multi-line comment (\\n → \\par; verified 2026-03-12)
-    [x] Styled comments (bold/italic/underline via markdown → RTF groups; verified 2026-03-12)
+    [x] Multi-line comment (\\n → \\par)
+    [x] Styled comments (bold/italic/underline via markdown → RTF groups)
     [x] Contacts (NO, NC, edge, immediate — via Contact objects in condition_rows)
     [x] Coils (out, latch, reset, immediate, range — via Coil objects in af_tokens)
     [x] Comparison contacts (GT, GE, LT, LE, EQ, NE — via CompareContact objects)
@@ -262,7 +262,7 @@ def _compute_seg_boundaries(
     Note: Click's native seg flags depend on editor creation order — if a
     user "inserts row above", the original row stays exempt instead of row 0.
     Our encoder always treats row 0 as exempt, which matches rungs built
-    top-down (the way our encoder creates them).  Verified 2026-03-19.
+    top-down (the way our encoder creates them).
     """
     n = len(condition_rows)
     boundaries = [0] * n

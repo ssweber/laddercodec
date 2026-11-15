@@ -1,7 +1,7 @@
 """Every address an instruction holds is in CLICK's display form.
 
-CLICK normalizes an address as it is typed: C001 becomes C1, and X1 becomes X001 (user
-dialog check 2026-11-11, scratchpad/validation/arc.md Q-D5).  laddercodec follows
+CLICK normalizes an address as it is typed: C001 becomes C1, and X1 becomes X001 (dialog
+check).  laddercodec follows
 pyclickplc's display form: X and Y pad to 3 digits, every other bank is unpadded, the bank
 is uppercase, and XD0u keeps its lowercase ``u``.
 """

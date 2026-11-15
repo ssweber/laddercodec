@@ -82,8 +82,8 @@ comment)` tuple, and `operand_probe.py` takes either.
 `classify_dryrun.py` compares today's per-field constant checks with
 `laddercodec.operands.constants.classify()`, which no field uses yet. For each field that takes
 a constant it tries a fixed value list two ways: building the instruction (today), and
-`classify()` plus that field's documented kinds and limits (each rule cites its arc.md
-question, or the DLL reading it rests on). It prints every disagreement and the totals per
+`classify()` plus that field's documented kinds and limits (each rule names the dialog
+answer, or the DLL reading it rests on). It prints every disagreement and the totals per
 family, and changes nothing:
 
 ```bash

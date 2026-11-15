@@ -1,5 +1,4 @@
-"""Copy-family operand rules: CLICK v4.00 Help CL173 (Single Copy), CL185 (Fill), CL238
-(pointers) and the OBJ-xxx dialog errors in ``SC_ErrorList.ini``.
+"""Copy-family operand rules: single Copy, Fill, pointers and the OBJ-xxx dialog errors.
 
 Each rule is checked through ``read_csv`` (the CSV path) and, for single Copy, through
 ``Copy.from_csv_token`` too.  A refused blob decodes as raw.
@@ -32,7 +31,7 @@ def _read_af(tmp_path: Path, af: str) -> object:
 
 
 _REFUSED = [
-    # Help CL173: a bit copies to Y or C, a register to a register
+    # a bit copies to Y or C, a register to a register
     ("copy(X001,DS1)", "can't take 'X001'; a bit copies to Y, C"),
     ("copy(DS1,C1)", "can't take 'DS1'; a numeric register copies to"),
     # a constant never goes into Y or C; a string constant goes to TXT only
@@ -45,10 +44,10 @@ _REFUSED = [
     ("copy(DS4501,DS1)", "outside DS1-DS4500"),
     ("copy(DS1,Q5)", "no CLICK bank 'Q'"),
     ("copy(DS1,DS)", "not a CLICK address"),
-    # Help CL238: the pointer is a DS
+    # the pointer is a DS
     ("copy(DS[DD1],DS2)", "Copy.source pointer: 'DD1' is not allowed"),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
-    # Help CL238: a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
+    # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
     (
         "copy(X[DS1],C1)",
         r"Copy.source: 'X\[DS1\]' is not allowed; a pointer in Copy.source addresses C, DS,",
@@ -70,7 +69,7 @@ _REFUSED = [
     ("blockcopy(DS1..DS4,DS10..DS4501)", "outside DS1-DS4500"),
     ("blockcopy(TXT1..TXT4,TXT10..TXT1001)", "outside TXT1-TXT1000"),
     ("blockcopy(DS1..DS4,DS10..DS13,convert=to_value)", "to_value needs a TXT source"),
-    # Help CL185: Fill takes no bits; TXT and text fill TXT only; nothing fills Y or C
+    # Fill takes no bits; TXT and text fill TXT only; nothing fills Y or C
     ("fill(X001,DS1..DS5)", "Fill.value: 'X001' is not allowed"),
     ("fill(TXT1,DS1..DS4)", "can't take 'TXT1'; a TXT register copies to TXT"),
     ("fill(DS1,TXT1..TXT4)", "can't take 'DS1'; a numeric register copies to"),
@@ -81,7 +80,7 @@ _REFUSED = [
     # Pack / Unpack: one slot (OBJ-033/035/019), counts (OBJ-027/041/040, 032/039/042)
     ("pack_bits(X016..X101,DD1)", "spans two X slots"),
     ("unpack_to_bits(DS1,Y101..Y201)", "spans two Y slots"),
-    # 21-36 is the dual option slot, a slot of its own (Q-A1)
+    # 21-36 is the dual option slot, a slot of its own
     ("pack_bits(X001..X036,DD1)", r"X001\.\.X036 spans two X slots"),
     ("pack_bits(X015..X022,DS1)", r"X015\.\.X022 spans two X slots"),
     ("pack_bits(X036..X101,DD1)", "spans two X slots"),
@@ -100,21 +99,21 @@ _REFUSED = [
     # bits / words is the bank kind: the blob has no flag for it
     ("pack_bits(DS1..DS2,DD1)", "'DS1' is a register; bits needs a bit bank"),
     ("pack_words(C1..C2,DS1)", "'C1' is a bit; words needs a register bank"),
-    # a TXT source packs only as pack_text, and pack_text needs one (arc.md Q-M12)
+    # a TXT source packs only as pack_text, and pack_text needs one
     ("pack_text(DS1..DS2,DD1)", "'DS1' is not a TXT register; pack_text takes a TXT source"),
     ("pack_text(C1..C2,DS1)", "'C1' is not a TXT register; pack_text takes a TXT source"),
     ("pack_words(TXT1..TXT2,DS1)", "'TXT1' is a TXT register; pack_words has no TXT source"),
     ("pack_bits(TXT1..TXT2,DS1)", "'TXT1' is a TXT register; pack_bits has no TXT source"),
     ("unpack_to_bits(DD1,DS1..DS2)", "'DS1' is a register; bits needs a bit bank"),
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
-    # Single Copy constants (Q-M5): an integer is 32-bit (OBJ-005); hex above FFFFh goes to
+    # Single Copy constants: an integer is 32-bit (OBJ-005); hex above FFFFh goes to
     # the 32-bit integer registers only (OBJ-024)
     ("copy(5000000000,DD1)", "Copy.source: '5000000000' is outside -2147483648..2147483647"),
     ("copy(-2147483649,DD1)", "is outside -2147483648..2147483647"),
     ("copy(10000h,DH1)", "can't take '10000h'; a hex constant above FFFFh copies to DD, CTD"),
     ("copy(1FFFFh,DS1)", "a hex constant above FFFFh copies to DD, CTD"),
     ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
-    # Block Copy banks (Q-M1): source and destination edits (OBJ-004), pairing rows
+    # Block Copy banks: source and destination edits (OBJ-004), pairing rows
     ("blockcopy(DS1..DS3,YD1..YD3)", "BlockCopy.dest_start: 'YD1' is not allowed"),
     ("blockcopy(DS1..DS2,YD0..YD0u)", "BlockCopy.dest_start: 'YD0' is not allowed"),
     ("blockcopy(TD1..TD3,DS1..DS3)", "BlockCopy.source_start: 'TD1' is not allowed"),
@@ -127,7 +126,7 @@ _REFUSED = [
     ("blockcopy(C1..C3,DS1..DS3)", "a block copy from C goes to Y, C"),
     ("blockcopy(DS1..DS3,TXT1..TXT3)", "a block copy from DS goes to DS, DD, DH, DF, TD, CTD, SD"),
     ("blockcopy(DS1..DS3,C1..C3)", "a block copy from DS goes to DS, DD, DH, DF, TD, CTD, SD"),
-    # Block Copy ranges (Q-M3, OBJ-012/009) and the end CLICK computes (Q-M4)
+    # Block Copy ranges (OBJ-012/009) and the end CLICK computes
     ("blockcopy(DS1..DS1,DS5..DS5)", r"DS1\.\.DS1 is one address"),
     ("blockcopy(DS4..DS1,DS5..DS8)", r"DS4\.\.DS1 runs backwards"),
     (
@@ -136,13 +135,13 @@ _REFUSED = [
     ),
     ("blockcopy(DD1..DD4,DS1..DS9)", r"DD1\.\.DD4 fills DS1\.\.DS4"),
     ("blockcopy(C1..C4,Y001..Y016)", r"C1\.\.C4 fills Y001\.\.Y004"),
-    # the Block source stays in one slot (Inst_Copy.dll module check); a Y
+    # the Block source stays in one slot; a Y
     # destination run that crosses a slot is not captured yet
     ("blockcopy(X001..X101,C1..C101)", "spans two X slots; the range stays in one 16-point"),
     ("blockcopy(C1..C16,Y010..Y025)", "into Y010 crosses a Y slot; crossing a slot is not"),
     ("blockcopy(X001..X008,Y010..Y021)", "crosses a Y slot"),
     ("blockcopy(C1..C16,Y010..Y101)", "crosses a Y slot"),
-    # Pack pairs (Q-M2): X/Y/T/CT/SC pack into DH only; DS into DD/DF; DH into DD
+    # Pack pairs: X/Y/T/CT/SC pack into DH only; DS into DD/DF; DH into DD
     ("pack_bits(X001..X016,DS1)", "a pack from X goes to DH"),
     ("pack_bits(Y001..Y016,DD1)", "a pack from Y goes to DH"),
     ("pack_bits(T1..T16,DS1)", "a pack from T goes to DH"),
@@ -155,7 +154,7 @@ _REFUSED = [
     ("pack_words(XD0..XD1,DD1)", "Pack.source_start: 'XD0' is not allowed"),
     ("pack_bits(C1..C1,DS1)", r"C1\.\.C1 is one address"),
     ("pack_bits(C5..C1,DS1)", r"C5\.\.C1 runs backwards"),
-    # Unpack pairs (Q-M2b): only DH unpacks to Y; DS to C only; nothing to DF
+    # Unpack pairs: only DH unpacks to Y; DS to C only; nothing to DF
     ("unpack_to_bits(DS5,Y001..Y016)", "an unpack from DS goes to C"),
     ("unpack_to_bits(DD5,Y001..Y016)", "an unpack from DD goes to C, DS, DH"),
     ("unpack_to_words(DD1,DF1..DF2)", "Unpack.dest_start: 'DF1' is not allowed"),
@@ -163,7 +162,7 @@ _REFUSED = [
     ("unpack_to_bits(TXT1,C1..C16)", "Unpack.source: 'TXT1' is not allowed"),
     ("unpack_to_bits(XD0u,C1..C16)", "Unpack.source: 'XD0u' is not allowed"),
     ("unpack_to_bits(DS1,C1..C1)", r"C1\.\.C1 is one address"),
-    # Fill's OnOK runs the same range check on its destination (Inst_Copy.dll)
+    # Fill runs the same range check on its destination
     ("fill(0,DS1..DS1)", r"DS1\.\.DS1 is one address"),
     ("fill(0,DS5..DS1)", r"DS5\.\.DS1 runs backwards"),
 ]
@@ -210,7 +209,7 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "blockcopy(TXT1..TXT4,DS1..DS4,convert=to_ascii)",
         "blockcopy(TXT1..TXT4,DH1..DH4,convert=to_value)",
         "blockcopy(TXT1..TXT4,TXT11..TXT14)",
-        "blockcopy(DS1..DS4,DD1..DD4)",  # the end counts elements (Q-M4)
+        "blockcopy(DS1..DS4,DD1..DD4)",  # the end counts elements
         "blockcopy(DD1..DD4,DS1..DS4)",
         "blockcopy(DF1..DF3,CTD1..CTD3)",
         "blockcopy(C1..C16,Y001..Y016)",
@@ -230,7 +229,7 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy(X021,Y036)",
         "pack_bits(C1..C32,DD1)",
         "unpack_to_bits(DD1,C1..C32)",
-        # Single Copy constants (Q-M5)
+        # Single Copy constants
         "copy(40000,DS1)",
         "copy(3.5,DS1)",
         "copy(100h,DH1)",
@@ -246,8 +245,8 @@ def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
     assert parse_af_blob(parsed.build_blob()) == parsed  # type: ignore[attr-defined]
 
 
-# CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
-# CheckInputData) on a single Copy source and a Fill value: OBJ-005.
+# CLICK's shared constant check (operands.constants.classify) on a single Copy source and a
+# Fill value: OBJ-005.
 
 _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
@@ -305,7 +304,7 @@ def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: st
         ("$00", "TXT2"),
         ("$FF", "TXT2"),
         ("$0d", "TXT2"),
-        ("5", "TXT2"),  # a number into TXT has no ruling yet: accepted
+        ("5", "TXT2"),  # a number into TXT is not refused: accepted
         ("2147483647", "DD1"),
         ("-2147483648", "DD1"),
     ],
@@ -315,7 +314,7 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# arc.md Q-B7 (user, Help ascii table2.gif, 2026-11-12): a $ code is picked from CLICK's Embed
+# A $ code is picked from CLICK's Embed
 # ASCII Code table, $00 to $FF, so it is $ and two hex digits in every field.
 _DOLLAR_FORMS = ["$", "$1", "$D", "$d", "$100", "$4142", "$G1", "$٣٣"]
 _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
@@ -391,7 +390,7 @@ _FILL_VALUE_REFUSED = [
     ("1E999", "DF1", "DF4", _FINITE),
     ("3.5E+38", "DF1", "DF4", _FINITE),
     ("-3.5E+38", "DF1", "DF4", _FINITE),
-    # OBJ-023: a Fill into TXT takes one character (arc.md, 2026-11-12)
+    # OBJ-023: a Fill into TXT takes one character
     ('"AB"', "TXT2", "TXT5", "takes one character"),
     (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),
@@ -420,7 +419,7 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
         ("2147483647", "DS52", "DS55"),
         ("-2147483648", "DS52", "DS55"),
         ("FFFFh", "DS52", "DS55"),
-        # a 32-bit hex Fill and a number into TXT have no ruling yet: accepted
+        # a 32-bit hex Fill and a number into TXT are not refused: accepted
         ("10000h", "DS52", "DS55"),
         ("FFFFFFFFh", "DS52", "DS55"),
         ("5", "TXT2", "TXT5"),
@@ -534,7 +533,7 @@ def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> 
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# BOB ruling 2026-11-12: text in a single Copy or a Fill is printable ASCII only, as in Compare
+# Text in a single Copy or a Fill is printable ASCII only, as in Compare
 # and Search; $hh writes any other code.
 _NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
 _PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
@@ -656,7 +655,7 @@ def test_refused_blob_is_left_unparsed(tags: dict[int, str]) -> None:
 
 @pytest.mark.parametrize(("first", "last"), [("X001", "X036"), ("X015", "X022"), ("X016", "X021")])
 def test_pack_unpack_constructors_keep_to_one_slot(first: str, last: str) -> None:
-    """The dual option slot, 21-36, is a 16-point slot of its own (Q-A1)."""
+    """The dual option slot, 21-36, is a 16-point slot of its own."""
     message = f"Pack.source_end: {first}..{last} spans two X slots"
     with pytest.raises(FieldError, match=re.escape(message)):
         Pack(first, last, "DD1", pack_type="bits")

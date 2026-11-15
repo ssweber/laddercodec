@@ -2,7 +2,4 @@
 *.asm
 *.txt
 dfm/
-sweep/dfm392/
-
-# DLL sweep notes and scripts stay outside the repo
 sweep/

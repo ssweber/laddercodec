@@ -114,7 +114,7 @@ def test_no_fixture_warns():
 
 
 def test_hex_mode_legacy_h_stays_raw():
-    """A hex Math takes no decimal constant (arc.md Q-M13b), so an older ``H70000`` in one
+    """A hex Math takes no decimal constant, so an older ``H70000`` in one
     leaves the blob raw, with no warning."""
     class_name, type_code, _, _, fields = _decompose_blob(
         Math(expression="1h + DH1", result="DH2", mode="hex").build_blob()

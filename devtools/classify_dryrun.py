@@ -7,9 +7,9 @@ For every field that takes a constant, each value of a fixed list is tried two w
 - today: the instruction is built from a known-good baseline with the field set to the
   value; the verdict is ``accept`` or ``refuse`` with the exception.
 - classifier: :func:`classify` (or :func:`parse_digits`) reads the value, and the field's
-  documented kinds and limits (the arc.md answers and rulings, each cited at its rule)
-  decide.  A valid address is outside this check and is skipped; a rule that waits on an
-  arc.md question gives ``open``.
+  documented kinds and limits (the dialog answers, each named at its rule)
+  decide.  A valid address is outside this check and is skipped; a rule that waits on a
+  CLICK question (see ``scratchpad/roadmap.md``) gives ``open``.
 
 Every disagreement is printed: field, value, today's verdict, the classifier's verdict.
 ``DIFFERS?`` marks one whose classifier verdict rests on a DLL reading with no dialog
@@ -153,9 +153,8 @@ def _digits_rule(low: int, high: int, strip: bool = False) -> Callable[[Any, str
 def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
     """Compare, against an operand of ``group``.
 
-    arc.md Q-B7 (DLL: Inst_Compare.dll, baseEx.dll): numeric pairs with an int32 integer or
-    a float, hex with a 16-bit hex constant (32-bit hex is OBJ-005 on either side), text
-    with quoted text or ``$hh``.  arc.md Q-B7 rulings: text is printable ASCII (the field
+    Numeric pairs take an int32 integer or a float, hex a 16-bit hex constant (32-bit hex
+    is OBJ-005 on either side), text quoted text or ``$hh``.  Text is printable ASCII (the field
     limit :func:`printable`).
     """
     kinds = {"numeric": {"integer", "float"}, "hex": {"hex"}, "text": {"text", "char"}}[group]
@@ -174,11 +173,11 @@ def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Single Copy source into ``dest`` (arc.md Q-M5 and the move field rules).
+    """Single Copy source into ``dest`` (the move field rules).
 
     A number constant is an int32 integer, a float or hex; hex above FFFFh goes to DD or
     CTD only.  A text constant goes to TXT only.  A number into TXT, and text that is not
-    printable ASCII, have no DLL reading or ruling: open.
+    printable ASCII, have no known rule: open.
     """
 
     def rule(ns: Any, value: str) -> tuple[str, str]:
@@ -199,7 +198,7 @@ def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def fill_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Fill value into ``dest``: Copy's constant kinds (Inst_Copy.dll serves both dialogs).
+    """Fill value into ``dest``: Copy's constant kinds (Copy serves both dialogs).
 
     No reading covers a 32-bit hex constant, a number constant into a TXT fill, or text
     that is not printable ASCII: open.
@@ -225,12 +224,12 @@ UNCONFIRMED = "unconfirmed: "
 
 
 def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Search value against a ``table`` range (arc.md Q-M10 answers and ruling).
+    """Search value against a ``table`` range (the Search value rules).
 
-    32-bit hex is OBJ-005.  Text is printable ASCII (Q-M10 ruling, :func:`printable`).
-    DLL: Inst_Search.dll, the search value's class picks the range banks (no dialog check):
+    32-bit hex is OBJ-005.  Text is printable ASCII (:func:`printable`).
+    The search value's class picks the range banks:
     an int32 integer or a float searches DS, DD, DF, TD, CTD; 16-bit hex searches DH; text
-    or ``$hh`` searches TXT (arc.md Q-M21, confirmed in the dialog 2026-11-12).
+    or ``$hh`` searches TXT (confirmed in the dialog).
     """
     table_kinds = {"DS": {"integer", "float"}, "DH": {"hex"}, "TXT": {"text", "char"}}[table]
 
@@ -251,12 +250,12 @@ def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def _math_length(value: str, body: str) -> tuple[str, str]:
-    # Q-M9: the low 32 bits, printed signed, must match the typed token's length.
+    # the low 32 bits, printed signed, must match the typed token's length.
     low = int(value[: len(value) - len(body)] + (body.lstrip("0") or "0")) & 0xFFFFFFFF
     printed = str(low - (1 << 32) if low >> 31 else low)
     if len(printed) != len(value):
-        return REFUSE, f"no constant; Math's length test (Q-M9) reads {printed}"
-    return OPEN, f"no constant; Math's length test (Q-M9) passes it as {printed}"
+        return REFUSE, f"no constant; Math's length test reads {printed}"
+    return OPEN, f"no constant; Math's length test passes it as {printed}"
 
 
 #: A Math value that is not one constant token is formula syntax, outside the codec.
@@ -265,15 +264,15 @@ _HEX_TOKEN = re.compile(r"[0-9A-F]+H")
 
 
 def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
-    """A constant in a Math formula (arc.md Q-M9, Q-M13, Q-M13b).
+    """A constant in a Math formula (decimal and hex mode).
 
     Only a value that is one constant token, with at most one leading ``-``, is judged;
     anything else (``1-2``, ``+1``, ``Q1``, ``1,5``) is formula syntax and open.  Decimal: an
     integer whose int32 value prints back as typed (``007``, ``-0`` refused), or a float;
-    hex in a decimal Math waits on Q-M13.  Hex: unsigned hex of at most four digits and
-    FFFFh; a decimal number in a hex Math waits on Q-M13b, and a sign on hex is open.  No
+    hex in a decimal Math is refused.  Hex: unsigned hex of at most four digits and
+    FFFFh; a decimal number in a hex Math is refused, and a sign on hex is open.  No
     reading covers text or ``$hh`` in a formula: open.  Math reads its constants with its
-    own check, not the shared one (Q-M9): it refuses an integer whose low 32 bits, printed
+    own check, not the shared one: it refuses an integer whose low 32 bits, printed
     signed, differ in length from the typed token.  Digits that :func:`classify` can't
     read and that pass that test (``6000000000``) are open; those it fails (``3000000000``)
     are refused.
@@ -311,7 +310,7 @@ def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def counter_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Counter preset (arc.md Q-D2 answers).
+    """Counter preset.
 
     An int32 integer: digits with an optional leading ``-`` (no ``+``), under 13 characters.
     """
@@ -324,7 +323,7 @@ def counter_rule(ns: Any, value: str) -> tuple[str, str]:
 
 
 def termination_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Copy termination code: ``0`` (none) or a character code ``$hh`` (arc.md move field rules)."""
+    """Copy termination code: ``0`` (none) or a character code ``$hh`` (the move field rules)."""
     if value == "0":
         return ACCEPT, "none"
     return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
@@ -334,14 +333,14 @@ _HEX_SPAN = frozenset("0123456789ABCDEFH")
 
 
 def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): 0h to FFFEh.
+    """Remote hex start: 0h to FFFEh.
 
     The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
     last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes
     the span with no digit before the last ``H`` or another ``H`` among them (``H``,
     ``1HH``) is open: which value the dialog reads from it is not known.  An uppercase
-    ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text
-    (Q-C7).  A MODBUS 984 number is no constant and is skipped.
+    ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text.
+    A MODBUS 984 number is no constant and is skipped.
     """
     if ns.c.parse_digits(value) is not None:
         return ADDRESS, "984 number"
@@ -403,8 +402,7 @@ def _fields() -> list[Field]:
         "timed": dict(on_acc="TD18", on_preset="1000"),
     }
     for kind, base in out_variants.items():
-        # Q-B6: 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only
-        # (DLL: Inst_Out.dll).
+        # 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only.
         floor = 0 if kind == "debounce" else 1
         make = _make("OutVariant", kind=kind, operand="C1", unit="Tms", **base)
         for phase in ("on", "off") if kind != "timed" else ("on",):
@@ -481,7 +479,7 @@ def _fields() -> list[Field]:
             _make("Timer", timer_type="on_delay", done_bit="T1", current="TD1", unit="Tms")(
                 "setpoint"
             ),
-            # Q-D1: digits only, 0 to 32767 for every unit.
+            # digits only, 0 to 32767 for every unit.
             _digits_rule(0, 32767),
         )
     )
@@ -512,14 +510,14 @@ def _fields() -> list[Field]:
             unit="Tms",
         )
 
-    # Q-D4: digits only, 0 to 32767 for every unit; an empty step is OBJ-022.
+    # digits only, 0 to 32767 for every unit; an empty step is OBJ-022.
     out.append(Field("data", "Drum.presets[0] (time)", drum, _digits_rule(0, 32767)))
     out.append(
         Field(
             "flow",
             "ForLoop.limit",
             _make("ForLoop")("limit"),
-            # Q-F1: digits only, 0 to 2147483647; outer spaces stripped, an inner one refused.
+            # digits only, 0 to 2147483647; outer spaces stripped, an inner one refused.
             _digits_rule(0, 2**31 - 1, strip=True),
         )
     )
@@ -549,7 +547,7 @@ def _today(ns: Any, field: Field, value: str) -> tuple[str, str]:
 
 def _skip(field: Field, value: str) -> bool:
     # A space or an empty text changes a Math formula's tokens, not one constant; an empty
-    # Out variant preset is the phase rule (Q-B4), not a constant.
+    # Out variant preset is the phase rule, not a constant.
     if field.label.startswith("Math"):
         return not value.strip() or any(ch.isspace() for ch in value)
     return field.label.startswith("OutVariant") and value == ""

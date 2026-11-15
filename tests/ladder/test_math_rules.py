@@ -1,4 +1,4 @@
-"""Math field rules: CLICK v4.00 Help CL170 (decimal), CL203 (hex) and OBJ-10xx.
+"""Math field rules, decimal and hex, and OBJ-10xx.
 
 Each rule is checked through ``read_csv`` and direct construction; a refused blob decodes
 as raw.
@@ -35,7 +35,7 @@ def _sum_of(n: int) -> str:
 _NINE_DEEP = "( " * 9 + "DS1" + " )" * 9
 
 _REFUSED = [
-    # result banks per mode (Q-M9): decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
+    # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
     ("DS1 + 1", "DH1", "decimal", "Math.result: 'DH1' is not allowed"),
     ("DS1 + 1", "YD1", "decimal", "Math.result: 'YD1' is not allowed"),
     ("DS1", "X001", "decimal", "Math.result: 'X001' is not allowed"),
@@ -46,23 +46,23 @@ _REFUSED = [
     ("DH1 + 1h", "DD9", "hex", "Math.result: 'DD9' is not allowed"),
     ("DH1 + 1h", "XD1", "hex", "Math.result: 'XD1' is not allowed"),
     ("DS1", "DS4501", "decimal", "outside DS1-DS4500"),
-    # constants (Q-M9, OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
+    # constants (OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
     ("DS1 + 3000000000", "DD9", "decimal", "3000000000 is outside -2147483648..2147483647"),
     ("DS1 + ( -3000000000 )", "DD9", "decimal", "-3000000000 is outside"),
-    # a decimal integer must print back at its typed length (Inst_Math.dll)
+    # a decimal integer must print back at its typed length
     ("DS1 + 007", "DS9", "decimal", "007 is refused; CLICK reads it back as 7"),
     ("DS1 + ( -0 )", "DS9", "decimal", "-0 is refused; CLICK reads it back as 0"),
     ("DH1 + 10000h", "DH9", "hex", "10000h is outside 0h..FFFFh"),
     ("DH1 + 1FFFFh", "DH9", "hex", "1FFFFh is outside 0h..FFFFh"),
     ("DH1 + 0FFFFh", "DH9", "hex", "0FFFFh is outside 0h..FFFFh"),
     ("DH1 + 10000H", "DH9", "hex", "10000h is outside 0h..FFFFh"),
-    # a hex constant in a decimal Math (Q-M13, dialog 2026-11-12), H as h
+    # a hex constant in a decimal Math, H as h
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
     ("DS1 + ( -1Fh )", "DD9", "decimal", "1Fh is a hex constant"),
     ("DS1 + 1FH", "DS9", "decimal", "1Fh is a hex constant; a decimal Math"),
     ("DS1 + ( -1FH )", "DD9", "decimal", "1Fh is a hex constant"),
-    # a decimal constant in a hex Math (Q-M13b, dialog 2026-11-12)
+    # a decimal constant in a hex Math
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
     ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
     ("DH1 + 007", "DH9", "hex", "007 is a decimal constant"),
@@ -71,18 +71,18 @@ _REFUSED = [
     ("DH1 + ( -5 )", "DH9", "hex", "-5 is a decimal constant"),
     ("LSH ( DH1 , 1 )", "DH9", "hex", "1 is a decimal constant"),
     ("RAND ( 1 , 10 )", "DH9", "hex", "1 is a decimal constant"),
-    # a text constant in a formula, either mode (Q-M20, dialog 2026-11-12)
+    # a text constant in a formula, either mode
     ('DS1 + "A"', "DS9", "decimal", "holds a text constant"),
     ("DS1 + $41", "DS9", "decimal", "holds a text constant"),
     ('DH1 + "A"', "DH9", "hex", "holds a text constant"),
     ("DH1 + $41", "DH9", "hex", "holds a text constant"),
-    # SUM takes no CT range (Q-M8, OBJ-1002)
+    # SUM takes no CT range (OBJ-1002)
     ("SUM ( CT1 : CT3 )", "DS9", "decimal", "SUM over CT1 is refused; SUM takes no CT range"),
     # parentheses: at most 8 deep (OBJ-1010), balanced (OBJ-1004, OBJ-1005)
     (_NINE_DEEP, "DS9", "decimal", "nests parentheses 9 deep; CLICK allows 8"),
     ("( DS1 + DS2", "DS9", "decimal", "has a '\\(' with no '\\)'"),
     ("DS1 + DS2 )", "DS9", "decimal", "has a '\\)' with no '\\('"),
-    # keys only one keypad has (CL170, CL203)
+    # keys only one keypad has
     ("SIN ( DH1 )", "DH9", "hex", "SIN is decimal only"),
     ("ABS ( DH1 )", "DH9", "hex", "ABS is decimal only"),
     ("DH1 ^ DH2", "DH9", "hex", "\\^ is decimal only"),
@@ -98,15 +98,15 @@ _REFUSED = [
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
-    # an X/Y range whose member list CLICK v4 stores wrong (user ruling 2026-11-12;
-    # v4_captures/math_ranges_*.bin): an end in the option slot, 21-36
+    # an X/Y range whose member list CLICK v4 stores wrong
+    # (v4_captures/math_ranges_*.bin): an end in the option slot, 21-36
     ("SUM ( X001 : X036 )", "DS9", "decimal", "wrong member list .* leave out X032..X035"),
     ("SUM ( Y001 : Y036 )", "DS9", "decimal", "end in Y021-Y036 .* leave out Y032..Y035"),
     ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused.* add X021\\)"),
     ("SUM ( X025 : X036 )", "DS9", "decimal", "leave out X032..X035 and add X022..X025"),
     ("SUM ( X036 : X101 )", "DS9", "decimal", "add X033..X036"),
     ("DS1 + SUM ( X1 : X36 )", "DS9", "decimal", "SUM \\( X001 : X036 \\) is refused"),
-    # 270 characters of the internal template (Q-M7, OBJ-1008): DS1..DS69 is 273
+    # 270 characters of the internal template (OBJ-1008): DS1..DS69 is 273
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
     ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
     # a formula is required: a Math blob with none decodes as raw
@@ -143,7 +143,7 @@ def test_unknown_mode_refused() -> None:
     ("expression", "result", "mode"),
     [
         ("SUM ( C1 : C16 )", "DS9", "decimal"),
-        # SUM over X, Y, T and SC, and MAX over TD and DS (Q-M8)
+        # SUM over X, Y, T and SC, and MAX over TD and DS
         ("SUM ( X001 : X101 )", "DS9", "decimal"),
         ("SUM ( Y001 : Y008 )", "DS9", "decimal"),
         # an X/Y range whose list, by the rule fitted to the captures, holds the points
@@ -157,11 +157,11 @@ def test_unknown_mode_refused() -> None:
         ("SUM ( TD1 : TD3 )", "DS9", "decimal"),
         ("MAX ( TD1 : TD5 )", "DD9", "decimal"),
         ("MAX ( DS1 : DS3 )", "DS9", "decimal"),
-        # result banks (Q-M9)
+        # result banks
         ("DS1 + 1", "SD9", "decimal"),
         ("DH1 + 1h", "YD1", "hex"),
         ("DH1 + 1h", "YD0u", "hex"),
-        # 32-bit integers and 4-digit hex constants (Q-M9)
+        # 32-bit integers and 4-digit hex constants
         ("DS1 + 2147483647", "DD9", "decimal"),
         ("DS1 + ( -2147483648 )", "DD9", "decimal"),
         ("DH1 + FFFFh", "DH9", "hex"),

@@ -1,6 +1,6 @@
 """Search operand rules: the table is DS, DD, DH, DF, TD, CTD or TXT, the result a DS, and
-the search value a constant or a data register, never a bit (Help CL174).  The Result Flag,
-pointer, table range, text operator and hex value rules are Inst_Search.dll's (Q-M6, Q-M10).
+the search value a constant or a data register, never a bit.  The Result Flag,
+pointer, table range, text operator and hex value rules are Search's own.
 """
 
 from __future__ import annotations
@@ -38,26 +38,25 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("DS1..DS10 == DS4501", "result=DS20,found=C20", "outside DS1-DS4500"),
         ("DS1..DS10 == 1", "result=DS20,found=C2001", "Search.found: 'C2001' is outside"),
         ("DS1..DS10 == foo", "result=DS20,found=C20", "Search.source: 'foo' is not a CLICK"),
-        # the Result Flag is a C bit (Q-M10, OBJ-004)
+        # the Result Flag is a C bit (OBJ-004)
         ("DS1..DS10 == 1", "result=DS20,found=Y001", "Search.found: 'Y001' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=XD0u", "Search.found: 'XD0u' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=YD0u", "Search.found: 'YD0u' is not allowed"),
-        # no pointers (Q-M6)
+        # no pointers
         ("DS1..DS10 == DS[DS100]", "result=DS20,found=C1", "Search.source: 'DS\\[DS100\\]' is a"),
         ("DS1..DS10 == 1", "result=DS[DS1],found=C1", "Search.result: 'DS\\[DS1\\]' is a"),
         ("DS[DS1]..DS10 == 1", "result=DS20,found=C1", "Search.table_start: 'DS\\[DS1\\]' is a"),
-        # the table is one bank, start before end (Q-M10: OBJ-009, OBJ-008, OBJ-012)
+        # the table is one bank, start before end (OBJ-009, OBJ-008, OBJ-012)
         ("DS10..DS1 == 1", "result=DS20,found=C1", "DS10\\.\\.DS1 runs backwards"),
         ("DS1..DD5 == 1", "result=DS20,found=C1", "'DD5' is not in the bank of 'DS1'"),
         ("DS1..DS1 == 1", "result=DS20,found=C1", "DS1\\.\\.DS1 is one address"),
         # a text value hides the order operators, a text constant or a TXT register alike
-        # (Q-M10; Inst_Search.dll)
         ('TXT1..TXT10 > "A"', "result=DS20,found=C1", "'>' is not offered for text"),
         ('TXT1..TXT10 <= "A"', "result=DS20,found=C1", "'<=' is not offered for text"),
         ("TXT1..TXT10 >= $41", "result=DS20,found=C1", "'>=' is not offered for text"),
         ("TXT1..TXT10 < TXT20", "result=DS20,found=C1", "'<' is not offered for text"),
         ("DS1..DS10 > TXT20", "result=DS20,found=C1", "'>' is not offered for text"),
-        # a hex value above FFFFh is 32-bit (OBJ-005; baseEx.dll decides by value)
+        # a hex value above FFFFh is 32-bit (OBJ-005; CLICK's shared input check decides by value)
         ("DH1..DH10 == 10000h", "result=DS20,found=C1", "'10000h' is above FFFFh"),
         ("DH1..DH10 == 001FFFFh", "result=DS20,found=C1", "'001FFFFh' is above FFFFh"),
     ],
@@ -81,7 +80,7 @@ def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:
         "search(DH1..DH10 == FFFFh,result=DS1,found=C1)",
         "search(DH1..DH10 == 0FFFFh,result=DS1,found=C1)",
         "search(DH1..DH10 == 00001h,result=DS1,found=C1)",
-        # an int32 constant against a DS table (Q-M10, user dialog check 2026-11-11)
+        # an int32 constant against a DS table
         "search(DS1..DS10 > 40000,result=DS20,found=C1)",
     ],
 )
@@ -103,8 +102,7 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
-# CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
-# CheckInputData) on the search value: OBJ-005 (arc.md Q-M10 ruling).
+# CLICK's shared constant check (operands.constants.classify) on the search value: OBJ-005.
 
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
@@ -153,8 +151,7 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
     assert parse_af_blob(search.build_blob()) == search
 
 
-# BOB ruling 2026-11-12: a Search value takes a $ code only as $ and two hex digits (the arc's
-# Search ruling); `$1`, `$D` and `$100` are refused.
+# A Search value takes a $ code only as $ and two hex digits; `$1`, `$D` and `$100` are refused.
 @pytest.mark.parametrize("table", ["TXT", "DS"])
 @pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
 def test_source_other_dollar_forms_refused(table: str, source: str) -> None:

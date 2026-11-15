@@ -92,7 +92,7 @@ _EMPTY_RESERVED_BYTES = b"".join(
     struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
-#: Result banks per mode (Inst_Math.dll result masks; OBJ-004).
+#: Result banks per mode (another bank is OBJ-004).
 RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),

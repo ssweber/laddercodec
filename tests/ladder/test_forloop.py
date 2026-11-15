@@ -157,7 +157,7 @@ def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
 
 
 class TestForCount:
-    """Q-F1: Inst_For.dll OnOK and the user's dialog checks."""
+    """The For count rules."""
 
     @pytest.mark.parametrize("limit", ["0", "1", "2147483647", "DS1", "DD1", "TD1", "CTD1", "SD1"])
     def test_accepted(self, tmp_path: Path, limit: str) -> None:
@@ -186,7 +186,7 @@ class TestForCount:
             ForLoop(limit=limit)
 
     def test_pointer_refused(self, tmp_path: Path) -> None:
-        # Q-F1, user dialog check 2026-11-11.
+        # The For count takes no pointer.
         message = r"^ForLoop.limit: 'DS\[DS1\]' is a pointer"
         with pytest.raises(AddressError, match=message):
             _read_af(tmp_path, "for(DS[DS1])")
@@ -195,7 +195,7 @@ class TestForCount:
 
     @pytest.mark.parametrize("limit", ["1 0", "1  2 3"])
     def test_inner_space_refused(self, limit: str) -> None:
-        # Q-F1: the dialog lets it through; the user's decision of 2026-11-11 refuses it.
+        # The dialog lets it through; it is not a number, so it is refused.
         with pytest.raises(FieldError, match="has a space inside"):
             ForLoop(limit=limit)
 
@@ -223,7 +223,7 @@ class TestForCount:
 
 
 class TestSubroutineNames:
-    """Q-F2: CLICK.exe's Add New Subroutine dialog and the user's dialog checks."""
+    """CLICK's Add New Subroutine dialog rules."""
 
     @pytest.mark.parametrize(
         "name",
@@ -273,7 +273,7 @@ class TestSubroutineNames:
 
     @pytest.mark.parametrize("name", [" ", "   "])
     def test_blank_refused(self, tmp_path: Path, name: str) -> None:
-        # Q-F2, user dialog check 2026-11-11: an all-space name is refused.
+        # an all-space name is refused.
         with pytest.raises(FieldError, match="^Call.subroutine: .* is blank"):
             _read_af(tmp_path, f'call("{name}")')
 
@@ -292,7 +292,7 @@ class TestSubroutineNames:
         raws = [a for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
         assert [a.class_name for a in raws] == ["Call"]
 
-    # CLICK trims the name before it checks it (Q-F2), so the checks see the trimmed text.
+    # CLICK trims the name before it checks it, so the checks see the trimmed text.
     @pytest.mark.parametrize("name", [" " + "x" * 24, "x" * 24 + " ", " a "])
     def test_checks_run_on_the_trimmed_name(self, name: str) -> None:
         assert Call(subroutine=name).subroutine == name

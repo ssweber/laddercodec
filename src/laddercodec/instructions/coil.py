@@ -67,13 +67,12 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 # Target rules
 # ---------------------------------------------------------------------------
 
-#: Banks a coil writes.  Out: CLICK v4.00 Help CL167.  Set and Reset take the same three
-#: (Q-B1, user dialog check 2026-11-11: X1, T1, CT1 and DS1 are refused).
+#: Banks a coil writes.  Set and Reset take the same three (X1, T1, CT1 and DS1 are refused).
 OUT_BANKS = frozenset({"Y", "C", "SC"})
 
 #: The SC bits a coil writes: CLICK's address picker lists these 25 read-write system bits
-#: for Out, and no other SC is accepted (Q-B2, user dialog check 2026-11-11).  Ruling: the
-#: list belongs to the address, so Set, Reset and the Out variants take the same bits.
+#: for Out, and no other SC is accepted.  The list belongs to
+#: the address, so Set, Reset and the Out variants take the same bits.
 WRITABLE_SC = frozenset(
     {50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168, 171}
     | {303, 304, 305, 306, 323, 324, 325, 326}
@@ -134,20 +133,19 @@ class Coil(AfInstruction):
         self.operand = normalize_address(self.operand)
         if self.range_end is not None:
             self.range_end = normalize_address(self.range_end)
-        # Out, Set and Reset follow the same target and range rules (Q-B1).
+        # Out, Set and Reset follow the same target and range rules.
         start = check_out_target(self.operand, "Coil.operand", immediate=self.immediate)
         if self.range_end is None:
             return
-        # An SC range needs both ends writable; the bits between are not checked (ruling).
+        # An SC range needs both ends writable; the bits between are not checked.
         end = check_out_target(self.range_end, "Coil.range_end", immediate=self.immediate)
-        # Out: OBJ-008; Set and Reset: Q-B1, user dialog check 2026-11-11 (C5..Y5 refused).
+        # Out: OBJ-008; Set and Reset refuse C5..Y5 the same way.
         if end.bank != start.bank:
             raise FieldError(
                 f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
                 f"the range starts in bank {start.bank} and must stay in it"
             )
-        # Out: OBJ-009 and Q-B3 (C5..C5 refused); Set and Reset: Q-B1 (C9..C1 refused),
-        # and the ruling that they refuse C5..C5 as Out does.
+        # Out: OBJ-009 (C5..C5 refused); Set and Reset refuse C9..C1 and C5..C5 as Out does.
         if end.number <= start.number:
             raise FieldError(
                 f"Coil.range_end: {self.range_end!r} is not above {self.operand!r}; "

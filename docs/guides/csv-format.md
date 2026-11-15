@@ -592,8 +592,7 @@ currently emit:
   other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`, `DS[ds01]` is `DS[DS1]`),
   and `xd0U` is `XD0u`. Constants are kept as written. A Math formula's function
   names are uppercase (`sum(x1:x16)` is `SUM ( X001 : X016 )`).
-- An address must name a CLICK bank and lie inside its range (CLICK help topic
-  CL195, Memory Addresses). X and Y number by 16-point slot: `X001`-`X016` on the
+- An address must name a CLICK bank and lie inside its range. X and Y number by 16-point slot: `X001`-`X016` on the
   CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`
   on expansion modules 1-8. `X017`, `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
@@ -644,8 +643,7 @@ currently emit:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
 - Indirect refs render as `BANK[pointer]`, the pointer a DS address and `BANK`
-  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`,
-  CLICK help topic CL238). Only a single `copy` takes one; `blockcopy`,
+  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`). Only a single `copy` takes one; `blockcopy`,
   `fill`, `pack_*`, `unpack_to_*` and `search` raise `AddressError`.
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
   dialogs and raise `AddressError` or `FieldError` naming the field: a bit

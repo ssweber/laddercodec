@@ -2,7 +2,7 @@
 whose layout changes (their .bin would change in phase 2, and a canonical write_csv would
 write a different CSV), and rungs the layout refuses.
 
-Run from the layout worktree: uv run --no-sync python ../buildbot/jobs/layout/golden_impact.py
+Run from the repository root: uv run --no-sync python scratchpad/layout/golden_impact.py
 Writes golden_impact.txt beside this script.
 """
 

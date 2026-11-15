@@ -85,7 +85,7 @@ class TestCompare:
             "TXT1==TXT2",
             'TXT1==" "',
             'TXT1!="~"',
-            # Q-B7 (DLL, jobs/dllqa/bits.md): a constant on the left, two constants, and an
+            # a constant on the left, two constants, and an
             # integer constant inside int32 against a 16-bit register.
             "100<DS1",
             "1==1",
@@ -115,7 +115,7 @@ class TestCompare:
         with pytest.raises(AddressError):
             CompareContact(op="==", left="DS[DS1]", right="1")
 
-    # Q-B7 (DLL): an integer constant outside int32 is refused, OBJ-005.
+    # an integer constant outside int32 is refused, OBJ-005.
     @pytest.mark.parametrize(
         ("token", "field"),
         [
@@ -132,7 +132,7 @@ class TestCompare:
         ):
             CompareContact.from_csv_token(token)
 
-    # Q-B7 and N6 (DLL): a hex constant above FFFFh is refused on either side, OBJ-005.
+    # a hex constant above FFFFh is refused on either side, OBJ-005.
     @pytest.mark.parametrize(
         ("token", "field"),
         [("DH1==10000h", "right"), ("10000H==DH1", "left"), ("XD0==FFFFFFFFh", "right")],
@@ -141,7 +141,7 @@ class TestCompare:
         with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
             CompareContact.from_csv_token(token)
 
-    # bits.md N4: the dialog takes 1 to 128 printable ASCII characters in quotes.
+    # the dialog takes 1 to 128 printable ASCII characters in quotes.
     @pytest.mark.parametrize(
         "token",
         [
@@ -189,7 +189,7 @@ class TestCompare:
         # The tag's length prefix is derived from the text, not stored apart.
         assert len(two) - len(one) == len(text_two) - len(text_one)
 
-    # Q-B7 (DLL): with text as Data A the dialog hides >, <, >= and <=.
+    # with text as Data A the dialog hides >, <, >= and <=.
     @pytest.mark.parametrize(
         "token", ['TXT1>"A"', "TXT1<TXT2", "TXT1>=$41", '"B"<=TXT1', "$41>TXT1"]
     )
@@ -216,7 +216,7 @@ class TestCompare:
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
-    # arc.md Q-B7 (user, Help ascii table2.gif): a $ code is $ and two hex digits, $00-$FF.
+    # A $ code is $ and two hex digits, $00-$FF.
     @pytest.mark.parametrize("code", ["$1", "$D", "$100", "$4142", "$G1"])
     @pytest.mark.parametrize("field", ["left", "right"])
     def test_other_dollar_forms_refused(self, code: str, field: str) -> None:
@@ -331,7 +331,7 @@ class TestCoil:
         coil = _read_af(tmp_path, f"{name}({op})")
         assert isinstance(coil, Coil) and coil.operand == op
 
-    # Out: OBJ-004.  Set and Reset: Q-B1, user dialog check 2026-11-11.
+    # Out: OBJ-004.  Set and Reset refuse the same banks.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["X001", "T1", "CT1", "DS1"])
     def test_other_banks_refused(self, tmp_path: Path, name: str, op: str) -> None:
@@ -340,7 +340,7 @@ class TestCoil:
         with pytest.raises(AddressError, match="^Coil.operand"):
             Coil(COIL_TYPES[name], op)
 
-    # Q-B2, user dialog check 2026-11-11; Set and Reset by ruling.
+    # Set and Reset take the same SC list as Out.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["SC50", "SC51", "SC171", "SC303", "SC326"])
     def test_writable_sc_accepted(self, tmp_path: Path, name: str, op: str) -> None:
@@ -357,7 +357,7 @@ class TestCoil:
             Coil(COIL_TYPES[name], op)
 
     def test_writable_sc_is_the_dialog_list(self) -> None:
-        # Q-B2, user dialog check 2026-11-11: the 25 bits CLICK's address picker lists.
+        # the 25 bits CLICK's address picker lists.
         assert WRITABLE_SC == {
             50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121,
             162, 165, 168, 171, 303, 304, 305, 306, 323, 324, 325, 326,
@@ -373,7 +373,7 @@ class TestCoil:
 
     @pytest.mark.parametrize("name", _COILS)
     def test_sc_range_checks_both_ends(self, tmp_path: Path, name: str) -> None:
-        # Q-B3: an SC range is accepted; the bits between are not checked (ruling).
+        # an SC range is accepted; the bits between are not checked.
         coil = _read_af(tmp_path, f"{name}(SC50..SC53)")
         assert isinstance(coil, Coil) and coil.range_end == "SC53"
         assert isinstance(_read_af(tmp_path, f"{name}(SC50..SC51)"), Coil)
@@ -396,17 +396,17 @@ class TestCoil:
 
     @pytest.mark.parametrize("name", _COILS)
     def test_immediate_range_crosses_a_module(self, tmp_path: Path, name: str) -> None:
-        # Q-B3, user dialog check 2026-11-11: immediate Y001..Y101 is accepted.
+        # immediate Y001..Y101 is accepted.
         coil = _read_af(tmp_path, f"{name}(immediate(Y001..Y101))")
         assert isinstance(coil, Coil) and coil.immediate and coil.range_end == "Y101"
 
     @pytest.mark.parametrize("name", _COILS)
     def test_whole_c_bank_range(self, tmp_path: Path, name: str) -> None:
-        # Q-B3, user dialog check 2026-11-11: C1..C2000 is accepted.
+        # C1..C2000 is accepted.
         coil = _read_af(tmp_path, f"{name}(C1..C2000)")
         assert isinstance(coil, Coil) and coil.range_end == "C2000"
 
-    # Out: OBJ-008.  Set and Reset: Q-B1, user dialog check 2026-11-11 (C5..Y5 refused).
+    # Out: OBJ-008.  Set and Reset refuse C5..Y5 too.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C5..Y5", "C1..SC50", "Y1..C2"])
     def test_range_same_bank(self, tmp_path: Path, name: str, token: str) -> None:
@@ -416,7 +416,7 @@ class TestCoil:
         with pytest.raises(FieldError, match="^Coil.range_end"):
             Coil(COIL_TYPES[name], start, range_end=end)
 
-    # Out: OBJ-009 and Q-B3 (C5..C5).  Set and Reset: Q-B1 (C9..C1), and C5..C5 by ruling.
+    # Out: OBJ-009 (C5..C5).  Set and Reset refuse C9..C1 and C5..C5 too.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C9..C1", "C5..C5", "Y101..Y16", "Y001..Y1"])
     def test_range_ascends(self, tmp_path: Path, name: str, token: str) -> None:
@@ -444,7 +444,7 @@ class TestOutVariant:
         with pytest.raises(AddressError, match="^OutVariant.operand"):
             OutVariant(kind="toggle", operand=op)
 
-    # The writable SC list applies to the variants too (ruling on Q-B2).
+    # The writable SC list applies to the variants too.
     @pytest.mark.parametrize("op", ["SC1", "SC52", "SC327"])
     def test_other_sc_refused(self, tmp_path: Path, op: str) -> None:
         message = rf"^OutVariant.operand: '{op}' is not a writable SC bit"
@@ -475,7 +475,7 @@ class TestOutVariant:
     def test_debounce_presets(self, preset: str) -> None:
         debounce(on_preset=preset, off_preset=preset)
 
-    # Q-B6 (DLL, jobs/dllqa/bits.md): 32768 is refused for all three kinds, OBJ-005.
+    # 32768 is refused for all three kinds, OBJ-005.
     @pytest.mark.parametrize("preset", ["32768", "99999", "9" * 5000])
     def test_preset_above_32767_refused(self, preset: str) -> None:
         with pytest.raises(FieldError, match="^OutVariant.on_preset: .* above the maximum 32767"):
@@ -496,7 +496,7 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="above the maximum 32767"):
             _read_af(tmp_path, good.replace("32767", "32768"))
 
-    # Q-B5 (DLL): one TD for both phases is refused for debounce and flasher, OBJ-012.
+    # one TD for both phases is refused for debounce and flasher, OBJ-012.
     @pytest.mark.parametrize(("on_acc", "off_acc"), [("TD1", "TD1"), ("TD1", "TD001")])
     def test_same_accumulator_refused(self, tmp_path: Path, on_acc: str, off_acc: str) -> None:
         message = "^OutVariant.off_acc: .* needs two different TD registers"
@@ -506,7 +506,7 @@ class TestOutVariant:
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, token)
 
-    # Q-B4 (DLL) and v4_captures/debounce_one_phase.bin: a debounce saves with one phase.
+    # v4_captures/debounce_one_phase.bin: a debounce saves with one phase.
     @pytest.mark.parametrize(
         "token",
         [
@@ -526,7 +526,7 @@ class TestOutVariant:
         debounce(on_acc="", on_preset="", off_acc="TD1")
 
     def test_debounce_needs_a_phase(self, tmp_path: Path) -> None:
-        # Q-B4 (DLL): both phases empty is refused, OBJ-006.
+        # both phases empty is refused, OBJ-006.
         message = "^OutVariant.on_preset: debounce needs an on phase or an off phase"
         with pytest.raises(FieldError, match=message):
             debounce(on_acc="", on_preset="", off_acc="", off_preset="")

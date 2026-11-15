@@ -191,7 +191,7 @@ TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 
 
 #: Longest subroutine or interrupt name: CLICK.exe's Add Subroutine edit takes 24
-#: characters (EM_LIMITTEXT 0x18; Q-F2).
+#: characters.
 PROGRAM_NAME_MAX = 24
 
 #: Characters a program name may not hold (CLICK.exe, GUI-040 "Invalid Program Name").
@@ -209,8 +209,8 @@ _DEVICE_NAMES = frozenset(
 def check_program_name(name: str, field_name: str) -> None:
     """Raise :class:`FieldError` naming ``field_name`` if CLICK refuses ``name`` for a subroutine.
 
-    Follows CLICK's Add New Subroutine dialog (Q-F2), which trims the name first and
-    then checks it: not blank (user dialog check 2026-11-11), at most
+    Follows CLICK's Add New Subroutine dialog, which trims the name first and
+    then checks it: not blank, at most
     :data:`PROGRAM_NAME_MAX` characters, none of ``\\ / : * ? " < > |``, and the part
     before the last dot is not a Windows device name (GUI-040).  ``Main``, ``.``,
     inner spaces, ``-`` and a leading digit are accepted.

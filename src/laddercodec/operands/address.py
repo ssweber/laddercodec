@@ -21,9 +21,8 @@ from .errors import AddressError, FieldError
 OPERAND_RE = re.compile(r"^[A-Za-z]{1,3}[0-9]{1,5}$")
 
 
-#: Number range of every CLICK address bank (CLICK v4.00 Help topic CL195, "Memory
-#: Addresses").  X and Y number by slot (see :data:`XY_SLOTS`).  XD and YD are
-#: ``XD0`` (slot 0), ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion 1-8).
+#: Number range of every CLICK address bank.  X and Y number by slot (see :data:`XY_SLOTS`).
+#: XD and YD are ``XD0`` (slot 0), ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion 1-8).
 ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "X": (1, 816),
     "Y": (1, 816),
