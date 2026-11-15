@@ -29,14 +29,12 @@ from ..model import (
     AddressError,
     AfInstruction,
     FieldError,
-    check_address,
     normalize_address,
     xy_slot,
 )
 from ..operands.checks import (
     ALL_KINDS,
     BIT_BANKS,
-    POINTER_BANKS,
     REGISTER_BANKS,
     Constants,
     Operand,
@@ -202,18 +200,13 @@ def _register_kind(bank: str) -> str:
     return "txt" if bank == "TXT" else "word"
 
 
-def _operand(
-    value: str,
-    name: str,
-    banks: Collection[str] | None,
-    constants: Constants | None = None,
-    *,
-    pointer: bool = False,
+def check_box_operand(
+    value: str, name: str, banks: Collection[str] | None, constants: Constants | None = None
 ) -> Operand:
-    """The shared ``check_operand``, with the two pointer refusals this family words itself.
+    """The shared ``check_operand`` for a field that takes no pointer: every Copy-family field
+    but a single Copy's source and destination.
 
-    A pointer (``BANK[DSn]``) outside a single Copy is refused with "only a single Copy takes
-    one", and a pointer's bad index with the field ``<name> pointer``.
+    A pointer is refused in the Copy family's words, "only a single Copy takes one".
     """
     bank, _, rest = value.partition("[")
     if (
@@ -223,13 +216,10 @@ def _operand(
         and bank.isupper()
         and len(bank) <= 3
     ):
-        if not pointer:
-            raise AddressError(
-                f"{name}: {value!r} is a pointer; only a single Copy takes one", field=name
-            )
-        if bank in POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks):
-            check_address(rest[:-1], f"{name} pointer", {"DS"})
-    return check_operand(value, name, banks, constants, pointer=pointer)
+        raise AddressError(
+            f"{name}: {value!r} is a pointer; only a single Copy takes one", field=name
+        )
+    return check_operand(value, name, banks, constants)
 
 
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
@@ -244,7 +234,11 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
         check_constant(value, name, _CONSTANTS)
     if shape is not None:
         return "text" if shape in (Kind.TEXT, Kind.CHAR) else "number"
-    bank = _operand(value, name, banks, pointer=pointer).bank
+    bank = (
+        check_operand(value, name, banks, pointer=True)
+        if pointer
+        else check_box_operand(value, name, banks)
+    ).bank
     assert bank is not None
     return _register_kind(bank)
 
@@ -266,7 +260,7 @@ def _span(first: Address, last: Address) -> int | None:
     return last.number - first.number + 1
 
 
-def _check_range(
+def check_range(
     cls: str,
     start_field: str,
     start: str,
@@ -289,7 +283,7 @@ def _check_range(
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
-        address = _operand(value, f"{cls}.{field_name}", banks).address
+        address = check_box_operand(value, f"{cls}.{field_name}", banks).address
         assert address is not None
         ends.append(address)
     first, last = ends
@@ -622,7 +616,7 @@ class Copy(AfInstruction):
                     field=f"Copy.{option}",
                 )
         kind = _source_kind(self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, pointer=True)
-        dst = _operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
+        dst = check_operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
         assert dst.bank is not None
         _check_pair(
             "Copy", self.source, kind, "destination", self.destination, dst.bank, _COPY_PAIRS
@@ -858,13 +852,13 @@ class BlockCopy(AfInstruction):
         if self.format not in _BLOCKCOPY_FORMATS:
             raise FieldError(f"Invalid blockcopy format: {self.format!r}", field="BlockCopy.format")
         cls = "BlockCopy"
-        src, src_last = _check_range(
+        src, src_last = check_range(
             cls, "source_start", self.source_start, "source_end", self.source_end,
             _sources(_BLOCK_ROWS), one_module=True,
         )  # fmt: skip
         # CLICK fills in the destination end itself, so a one-address destination stays
         # unordered here and is refused below as an end that doesn't match.
-        dest, dest_last = _check_range(
+        dest, dest_last = check_range(
             cls, "dest_start", self.dest_start, "dest_end", self.dest_end,
             _destinations(_BLOCK_ROWS), ordered=False,
         )  # fmt: skip
@@ -979,7 +973,7 @@ class Fill(AfInstruction):
             setattr(self, name, normalize_address(getattr(self, name)))
         kind = _source_kind(self.value, "Fill.value", REGISTER_BANKS)
         # Fill runs the range check on the destination.
-        dest, _ = _check_range(
+        dest, _ = check_range(
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )
         _check_pair("Fill", self.value, kind, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
@@ -1075,11 +1069,11 @@ class Pack(AfInstruction):
             setattr(self, name, normalize_address(getattr(self, name)))
         if self.pack_type not in _PACK_TYPES:
             raise FieldError(f"Invalid pack type: {self.pack_type!r}", field="Pack.pack_type")
-        first, last = _check_range(
+        first, last = check_range(
             "Pack", "source_start", self.source_start, "source_end", self.source_end,
             _sources(_PACK_ROWS), one_module=True,
         )  # fmt: skip
-        dest = _operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
+        dest = check_box_operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
         assert dest.bank is not None
         _check_row(
             "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}", first.bank,
@@ -1197,9 +1191,9 @@ class Unpack(AfInstruction):
             raise FieldError(
                 f"Invalid unpack type: {self.unpack_type!r}", field="Unpack.unpack_type"
             )
-        src = _operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
+        src = check_box_operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
         assert src.bank is not None
-        first, last = _check_range(
+        first, last = check_range(
             "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end,
             _destinations(_UNPACK_ROWS), one_module=True,
         )  # fmt: skip

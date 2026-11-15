@@ -197,8 +197,8 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("DS[DS1]", {"banks": {"DS"}}, AddressError, "is a pointer; X.f takes none"),
     ("Y[DS1]", {"pointer": True}, AddressError, "a pointer in X.f addresses C, DS"),
     ("DS[DS1]", {"banks": {"DD"}, "pointer": True}, AddressError, "addresses DD"),
-    ("DS[DD1]", {"pointer": True}, AddressError, "index is a DS address"),
-    ("DS[DS0]", {"pointer": True}, AddressError, "index is a DS address"),
+    ("DS[DD1]", {"pointer": True}, AddressError, "X.f pointer: 'DD1' is not allowed"),
+    ("DS[DS0]", {"pointer": True}, AddressError, "X.f pointer: 'DS0' is outside DS1-DS4500"),
 ]  # fmt: skip
 
 
@@ -209,7 +209,8 @@ def test_check_operand_refuses(
     with pytest.raises(FieldError, match=re.escape(message)) as caught:
         check_operand(value, "X.f", **kwargs)
     assert type(caught.value) is error
-    assert caught.value.field == "X.f"
+    # A pointer's index is refused under the field "<field> pointer".
+    assert caught.value.field == ("X.f pointer" if "X.f pointer" in message else "X.f")
 
 
 def test_pointer_banks() -> None:

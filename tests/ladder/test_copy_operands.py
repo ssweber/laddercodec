@@ -30,8 +30,8 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
-#: An integer outside int32 (the wording differs by the shared check's version).
-INT_RULE = "is (refused; an integer constant is|outside) -2147483648 to 2147483647"
+#: An integer outside int32, as a message pattern.
+INT_RULE = r"is outside -2147483648 to 2147483647 \(OBJ-005\)"
 
 _REFUSED = [
     # a bit copies to Y or C, a register to a register
@@ -719,3 +719,16 @@ def test_pointer_index_field_says_pointer(build, field: str) -> None:
     with pytest.raises(AddressError) as info:
         build()
     assert info.value.field == field
+
+
+@pytest.mark.parametrize("source", ["99999999999", "-2147483649"])
+@pytest.mark.parametrize(
+    ("destination", "format", "termination"),
+    [("DS1", "value", "0"), ("TXT2", "text", "$0D"), ("DS1", "none", "$0D")],
+)
+def test_integer_out_of_range_is_reported_before_format_and_termination(
+    source: str, destination: str, format: str, termination: str
+) -> None:
+    with pytest.raises(FieldError) as info:
+        Copy(source, destination, format=format, termination_code=termination)
+    assert info.value.field == "Copy.source"

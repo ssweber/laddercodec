@@ -284,7 +284,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("copy.py", "frozenset({'Y', 'C'})"): 3,
     ("copy.py", "{'DS': 16, 'DH': 16, 'DD': 32, 'DF': 32}"): 1,
     ("copy.py", "{'TXT'}"): 2,
-    ("copy.py", "{'DS'}"): 1,
     ("copy.py", "{'XD'}"): 1,
     ("copy.py", "{'Y', 'C'}"): 1,
     ("counter.py", "frozenset({'DS', 'DD'})"): 1,

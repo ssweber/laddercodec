@@ -347,12 +347,7 @@ def check_operand(
                 f"{name}: {value!r} is not allowed; a pointer in {name} addresses {listed}",
                 field=name,
             )
-        try:
-            index = check_address(m.group(2), name, {"DS"})
-        except AddressError:
-            raise AddressError(
-                f"{name}: {value!r} is refused; a pointer's index is a DS address", field=name
-            ) from None
+        index = check_address(m.group(2), f"{name} pointer", {"DS"})
         return Operand(bank=bank, index=index)
     address = check_address(value, name, banks)
     return Operand(bank=address.bank, address=address)
