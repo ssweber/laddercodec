@@ -10,11 +10,9 @@ All five variants share the same binary class, discriminated by field[6]:
 - ``3`` → pack (``Pack``)
 - ``4`` → unpack (``Unpack``)
 
-Quirk: the ``to_text_term`` variant (termination checkbox enabled) was
-captured with the termination value greyed-out in the Click UI, yet the
-binary stores the flag and character code normally.  Round-trip is
-byte-exact against the native capture, but the UI behaviour is not fully
-understood — the termination encoding may need revisiting.
+Quirk: in the ``to_text_term`` variant (termination checkbox enabled) the Click UI
+greys out the termination value, yet the binary stores the flag and character code
+normally.
 """
 
 from __future__ import annotations
@@ -69,7 +67,7 @@ COPY_FUNC_CODES: dict[str, str] = {
 _FUNC_TO_COPY_TYPE: dict[str, str] = {v: k for k, v in COPY_FUNC_CODES.items()}
 
 # ---------------------------------------------------------------------------
-# Conversion type mapping (field[8], verified from Click captures)
+# Conversion type mapping (field[8])
 # ---------------------------------------------------------------------------
 
 _VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
@@ -78,7 +76,7 @@ _VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
 #: Text sub-options are encoded in the conversion_type value itself: an integer
 #: source has suppress zero (1) or not (2); a DF source has real (3) or
 #: exponential (4) numbering, with suppress_zero stored as 1.  7 is a DD <-> DF
-#: Copy Value, a plain copy in CSV (v4_captures/sweep_copy.bin).
+#: Copy Value, a plain copy in CSV.
 _CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
     "0": ("none", "0", "0"),
     "1": ("text", "1", "0"),  # integer source, suppress zeros
@@ -472,11 +470,10 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """The last TXT a single Copy of quoted text fills; the blob stores it as the
     destination end (tag 0x6077).
 
-    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2,
-    ``v4_captures/text_tt.bin``) and leaves the end empty for one character (``"Q"`` into
-    TXT2, ``text_q.bin``) and for a ``$hh`` code (``text_blank.bin``).  ``None`` for those,
-    and for a pointer destination, where CLICK stores no end whatever the length
-    (``copy("AB",TXT[DS1])``, ``text_pointer.bin``).
+    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2) and
+    leaves the end empty for one character (``"Q"`` into TXT2) and for a ``$hh`` code.
+    ``None`` for those, and for a pointer destination, where CLICK stores no end whatever
+    the length (``copy("AB",TXT[DS1])``).
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
@@ -728,7 +725,7 @@ class Copy(AfInstruction):
         """Refuse a converter the source and destination kinds don't offer."""
         fmt = self.format
         if fmt == "binary" and _is_dd_df_pair(self.source, self.destination):
-            return  # DD <-> DF Copy Binary (v4_captures/sweep_copy.bin)
+            return  # DD <-> DF Copy Binary
         if fmt in ("text", "binary"):
             ok, need = src.kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
         elif fmt in ("value", "ascii"):
@@ -841,9 +838,8 @@ class Copy(AfInstruction):
             term_char = "0"
             term_flag = "0"
         # field[11]: CLICK v4's dialog writes -1 on every save and ignores it on
-        # load; pre-v4 captures set it only for a termination
-        # code.  We write -1 for those and for a text constant source, the cases
-        # native captures we match byte for byte show.
+        # load; earlier versions set it only for a termination code.  We write -1 for
+        # those and for a text constant source.
         text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
 
         return _build_blob(
@@ -872,7 +868,7 @@ class Copy(AfInstruction):
 # BlockCopy
 # ---------------------------------------------------------------------------
 
-#: Formats verified for block copy captures.
+#: Formats a block copy takes.
 _BLOCKCOPY_FORMATS = frozenset({"none", "value", "ascii"})
 
 

@@ -4,13 +4,11 @@ Each case builds a rung whose main input is an OR of N rows (1, 2, 3, 8),
 then checks the pin rows the converter lays out, that encode → decode gives
 the rung back, and that the writer emits the same CSV rows.
 
-Ground truth: the N=1 shapes are the CLICK-verified coverage goldens
-(tests/test_coverage.py, byte for byte).  A timer without ``.reset()`` keeps
-its 2-row box beside a tall OR (native: tumbler ProductionErrors, checked
-below), and count_down's tall OR is captured in v4_captures/count_down_or.bin
-(tests/test_v4_captures.py).  The other tall-OR shapes follow the rule CLICK
-showed for legs under a later pin (v4_captures/pins.bin) and still need a
-CLICK capture.
+The N=1 shapes are the coverage goldens (tests/test_coverage.py, byte for byte).
+A timer without ``.reset()`` keeps its 2-row box beside a tall OR, and
+count_down's tall OR is pinned in tests/test_v4_captures.py.  The other tall-OR
+shapes follow the rule for legs under a later pin and are not checked against
+CLICK.
 """
 
 from __future__ import annotations
@@ -140,7 +138,7 @@ def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
     """count_down's NOP-bridge and lead-row CSV forms take OR legs too.
 
     C1 on the token row is one more leg of Down's input; the layout draws it on
-    the Down row, as CLICK's check does (layoutq Q2c), with the OR below it.
+    the Down row, as CLICK's check does, with the OR below it.
     """
     conds = _or_input(n)
     lead = ["C1"] + ["-"] * 6 + ["T"] + [""] * (COLUMNS - 8)

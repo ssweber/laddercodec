@@ -45,7 +45,6 @@ _CELL_PARAMS: dict = {"visual_rows": 2}
 # ---------------------------------------------------------------------------
 
 #: CSV operator → func code without oneshot; oneshot adds 6 (8970–8975).
-#: Confirmed by v4_captures/sweep_search.bin.
 _OP_TO_FUNC: dict[str, int] = {
     "==": 8964,
     "!=": 8965,

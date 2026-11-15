@@ -141,7 +141,7 @@ class ModbusAddress:
                 )
             # The range check reads the typed value: padding past four digits is still in range.
             # CLICK stores uppercase digits without leading zeros and a lowercase h
-            # (0FFFEh -> FFFEh, 0H -> 0h; v4_captures/comm_hex_address.bin).
+            # (0FFFEh -> FFFEh, 0H -> 0h).
             object.__setattr__(
                 self, "address", to_display(self.address, hex_display(self.address[:-1]))
             )
@@ -165,7 +165,7 @@ _HEX_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 # Protocol mode tables
 # ---------------------------------------------------------------------------
 
-#: Protocol mode (0x220C) per port, from v4_captures/sweep_comm.bin.
+#: Protocol mode (0x220C) per port.
 _RTU_PORT_MODE: dict[str, str] = {
     "cpu2": "0",
     "cpu3": "1",
@@ -656,7 +656,7 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
 
 
 # ---------------------------------------------------------------------------
-# Tag tuples — exact field order verified from binary captures
+# Tag tuples — exact field order
 # ---------------------------------------------------------------------------
 
 _RD_TAGS: tuple[int, ...] = (
@@ -1088,7 +1088,7 @@ def _build_target(
     else:
         # SCR blobs elide fields at their class default: Receive's device_id
         # default is 1, Send's 0 (a Send at device_id 0 stores no 0x320E/0x60B2
-        # tag, while one at 1 stores both — verified against a native scr+clipboard pair).
+        # tag, while one at 1 stores both).
         device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, class_name)
     try:
         if protocol_mode in _TCP_PORT_MODE_INV:

@@ -178,7 +178,7 @@ def network(
             (bypassed if edge.src == edge.dst else edges).append(edge)
 
     # A NOP that neither the rail nor a contact reaches is absent: CLICK's syntax check drops it
-    # with no error (v4_captures/unpowered_nop_checked.bin).
+    # with no error.
     fed = {rail} | {e.dst for e in edges}
     boxes = [
         box

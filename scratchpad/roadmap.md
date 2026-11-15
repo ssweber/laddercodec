@@ -70,7 +70,7 @@ shared functions.
   - Copy termination code `none` is a keyword, not a constant. That is an error in the dry run; fix the dry
     run.
   - The 154 Math cases stay out: Math has its own grammar.
-- **Provenance out of src.**
+- **Provenance out of src (done).**
   - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
     `tests/test_no_dll_addresses.py`.
   - Delete the citation comments: 142 lines in 16 files.
@@ -188,6 +188,8 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 
 ## Later (nothing unless marked)
 
+- **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
+  blob stores it; the encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):
   - One frozen dataclass per instruction class: its ordered tags, defaults, array sizes and func code.
   - SCR decode lays the sparse tags it stores over that dataclass to build the full blob. An unknown class

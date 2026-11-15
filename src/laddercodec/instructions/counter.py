@@ -2,7 +2,7 @@
 
 Binary class name: ``"Cnt"``.
 
-Supported native variants (verified from Click captures):
+Supported variants:
 
 - ``count_up(...)+.reset()``            -> mode 0
 - ``count_up(...)+.down()+.reset()``    -> mode 2

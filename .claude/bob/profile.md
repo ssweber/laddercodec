@@ -28,9 +28,7 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
 - Everything written (code, tests, docs, comments, commit messages, PR text) says what a CLICK
   rule is, never where it came from: no DLL names or addresses, Help page ids, question ids,
   dated dialog checks or private report names. CLICK's own error ids (OBJ-nnn, C0nnn) are fine.
-  What is still in doubt goes in `scratchpad/roadmap.md`. Still on main and not to be copied:
-  `src/laddercodec/operands/sources.py` (`Src`, `SrcKind`), `FieldError.source`, and the AGENTS.md
-  line on `Src`; roadmap item 3 removes them. The DLL verifier's brief lives outside git
+  What is still in doubt goes in `scratchpad/roadmap.md`. The DLL verifier's brief lives outside git
   (`<jobs>/dllqa/VERIFY_BRIEF.md`), its tooling in `../laddercodec-wt/buildbot/tools/click-v4/`.
 - The encoder writes bytes from verified formulas. A change to an encoded byte layout or a
   golden `.bin` needs a paste check in CLICK by the user: the builder names every changed

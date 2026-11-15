@@ -151,8 +151,7 @@ def _tag_wire_type(tag: int) -> str:
 #
 # The default is the wire type's zero: ``""`` for string tags, ``"0"`` for
 # byte/u16 tags, unset for flags.  The tables below list the tags whose default
-# is something else, each seen omitted by SCR at that value in the fixture
-# captures (SCR vs clipboard copies of the same programs).
+# is something else, each omitted by SCR at that value.
 #
 # Exception: the func code (0x3218) is left out of SCR whenever the class and
 # its other fields determine it, so each family derives it itself.

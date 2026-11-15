@@ -506,7 +506,7 @@ class TestOutVariant:
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, token)
 
-    # v4_captures/debounce_one_phase.bin: a debounce saves with one phase.
+    # A debounce saves with one phase.
     @pytest.mark.parametrize(
         "token",
         [

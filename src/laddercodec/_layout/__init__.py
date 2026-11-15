@@ -1,7 +1,7 @@
 """Lay a rung out from its circuit, as CLICK's syntax check draws it.
 
 Pipeline: cell grid -> nets and contact edges (``network``) -> structural series-parallel tree
-per CLICK rung (``tree``) -> packed layout (``render``).  The rules and their evidence are in
+per CLICK rung (``tree``) -> packed layout (``render``).  The rules are in
 ``docs/internals/layout.md``.  ``read_csv`` and ``write_csv`` use :func:`canonical`;
 ``laddercodec.check()`` uses ``network`` and ``tree.circuits``.
 """

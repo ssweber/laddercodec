@@ -217,7 +217,7 @@ def _cells(cells: dict[int, str], wire_from: int | None = None) -> list[str]:
 _COPY1 = "copy(1,DS1)"
 _COPY2 = "copy(2,DS2)"
 
-#: Rung 1 of v4_captures/or_compact_stub.csv: legs C1..C3 join on one vertical
+#: Legs C1..C3 join on one vertical
 #: before two Copies.
 _OR_LEGS = [
     ("R", _cells({0: "X1", 1: "T:C1", 2: "T"}, 3), _COPY1),
@@ -234,7 +234,7 @@ def _convert(tmp_path: Path, rows: list[tuple[str, list[str], str]]):
 
 
 class TestLayout:
-    """OR legs under a tall box lay out as CLICK checks them (v4_captures/or_compact_*.bin)."""
+    """OR legs under a tall box lay out as CLICK checks them."""
 
     def test_legs_keep_their_rows(self, tmp_path: Path) -> None:
         rung, (lr, conds, afs, _) = _convert(tmp_path, _OR_LEGS)

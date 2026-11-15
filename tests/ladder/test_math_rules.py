@@ -98,8 +98,7 @@ _REFUSED = [
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
-    # an X/Y range whose member list CLICK v4 stores wrong
-    # (v4_captures/math_ranges_*.bin): an end in the option slot, 21-36
+    # an X/Y range whose member list CLICK v4 stores wrong: an end in the option slot, 21-36
     ("SUM ( X001 : X036 )", "DS9", "decimal", "wrong member list .* leave out X032..X035"),
     ("SUM ( Y001 : Y036 )", "DS9", "decimal", "end in Y021-Y036 .* leave out Y032..Y035"),
     ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused.* add X021\\)"),

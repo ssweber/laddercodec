@@ -234,8 +234,8 @@ class Circuits:
 
     ``main_arcs`` holds every arc on a path into a main box input, including the arc from
     each main input's net to ``top``; ``pin_arcs`` holds, per used pin input, the contact arcs
-    on a path into it.  Arcs no rail reaches are included: layoutthy rung 23, where CLICK
-    reports C0001 as well as C0202, is series-parallel only without them.
+    on a path into it.  Arcs no rail reaches are included: a rung where CLICK
+    reports C0001 as well as C0202 is series-parallel only without them.
     """
 
     arcs: list[Arc]  # one per contact edge
@@ -259,8 +259,8 @@ def circuits(net: Network) -> Circuits:
     """Split ``net``'s contacts into the circuit feeding each box input."""
     arcs = [Arc(e.src, e.dst, Leaf(e)) for e in net.edges]
     main = [i for i, s in enumerate(net.sinks) if s.slot == net.boxes[s.box].main]
-    # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box
-    # (scr_captures/counter_scr.bin), and the pin's row stays blank.
+    # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box,
+    # and the pin's row stays blank.
     touched = {e.src for e in net.edges} | {e.dst for e in net.edges}
     pins = [
         i
@@ -341,8 +341,7 @@ def trees(net: Network) -> list[RungTree]:
     root = reduce(rail, c.top, c.main_arcs)
     items = _items(root)
     if len(items) > 1 and any(net.boxes[net.sinks[i].box].token == "NOP" for i in main):
-        # The captured splits (layoutq Q5a to Q5c, layoutthy rung 21, or_compact rung 1) are
-        # of coils and Copy boxes.
+        # The splits known are of coils and Copy boxes.
         raise LayoutError("no capture shows CLICK splitting a rung that holds a NOP")
     out: list[RungTree] = []
     for item in items:

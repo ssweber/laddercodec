@@ -143,7 +143,7 @@ def test_layoutq_pasted_gets_clicks_errors() -> None:
 def test_layoutq_stub_csv_matches_the_pasted_capture() -> None:
     """The stub as written gives the findings decode of its copy-back gives.
 
-    read_csv gives the same findings on more rungs: it splits Q5a-c's outputs off the rail
+    read_csv gives the same findings on more rungs: it splits outputs off the rail
     into rungs of their own, as CLICK's check does, and keeps every reported rung as written.
     """
     pasted = check(_layoutq_pasted()[:21])
@@ -157,24 +157,24 @@ def test_layoutq_stub_csv_matches_the_pasted_capture() -> None:
 def test_layoutq_kinds() -> None:
     findings = check(_layoutq_pasted())
     assert _cells(findings) == [
-        (11, "output_above_pinned_box", "C000A", 1, 31),  # Q7a: out, then a retentive timer
-        (13, "output_above_pinned_box", "C000A", 1, 31),  # Q7c: out, then a count_down
-        (14, "pin_without_contact", "C0205", 1, 31),  # Q4a: timer Reset teed off its input
-        (15, "pin_without_contact", "C0212", 1, 31),  # Q4b: drum Reset teed off the Or merge
-        (16, "feeds_no_box", "C0202", 1, 1),  # Q6a: C94, the last contact of row 1
+        (11, "output_above_pinned_box", "C000A", 1, 31),  # out, then a retentive timer
+        (13, "output_above_pinned_box", "C000A", 1, 31),  # out, then a count_down
+        (14, "pin_without_contact", "C0205", 1, 31),  # timer Reset teed off its input
+        (15, "pin_without_contact", "C0212", 1, 31),  # drum Reset teed off the Or merge
+        (16, "feeds_no_box", "C0202", 1, 1),  # C94, the last contact of row 1
         (16, "no_coil", "C0003", None, None),
-        (17, "feeds_no_box", "C0202", 1, 1),  # Q6b
+        (17, "feeds_no_box", "C0202", 1, 1),
         (17, "no_coil", "C0003", None, None),
-        (18, "feeds_no_box", "C0202", 0, 0),  # Q6c: C101 into count_down's unused Up
+        (18, "feeds_no_box", "C0202", 0, 0),  # C101 into count_down's unused Up
         (18, "no_coil", "C0003", None, None),
-        (19, "no_rail", "C0202", 0, 2),  # Q8a: the rail reaches no box, so no C0001
-        (20, "no_rail", "C0202", 2, 4),  # Q8b
+        (19, "no_rail", "C0202", 0, 2),  # the rail reaches no box, so no C0001
+        (20, "no_rail", "C0202", 2, 4),
         (20, "not_series_parallel", "C0001", None, None),
     ]
 
 
 def test_layoutq_raw_drum_with_a_leg_on_its_jump_row_has_no_findings() -> None:
-    """Q3a: CLICK accepted it.  The stub writes the drum as raw(...); its part rows are pins."""
+    """CLICK accepted it.  The stub writes the drum as raw(...); its part rows are pins."""
     rung = read_csv(V4 / "layoutq_stub.csv")[6]
     assert type(rung.instructions[0]).__name__ == "RawInstruction"
     assert check(rung) == []
@@ -237,7 +237,7 @@ def test_tumbler_program_has_no_findings(path: Path) -> None:
 
 #: The ladder goldens CLICK's check would refuse: (rung, kind, code, row, column) per finding.
 _LADDER_FINDINGS = {
-    # Q6a's shape: X003 X004 on row 1 run to an AF cell with no box.
+    # A shape: X003 X004 on row 1 run to an AF cell with no box.
     "instr-2row-cond__and": [
         (0, "feeds_no_box", "C0202", 1, 1),
         (0, "no_coil", "C0003", None, None),
@@ -256,7 +256,7 @@ _LADDER_FINDINGS = {
         (0, "pin_without_contact", "C0205", 2, 31),
         (0, "not_series_parallel", "C0001", None, None),
     ],
-    # Q4b's shape: the drum's Reset tees off its main input.
+    # A shape: the drum's Reset tees off its main input.
     "instr-copy-multirow-2af-T": [(0, "pin_without_contact", "C0212", 1, 31)],
     # The Reset row is a wire from the rail.
     "instr-timer-ret": [(0, "pin_without_contact", "C0205", 1, 31)],
@@ -357,7 +357,7 @@ def test_pin_with_a_contact_of_its_own_after_the_main_input_is_provisional() -> 
 
 
 def test_box_below_a_pinned_box_on_its_net_is_accepted() -> None:
-    """Q7b's order with a used Reset: the timer first, then out(Y001) under its Reset row.
+    """The order with a used Reset: the timer first, then out(Y001) under its Reset row.
 
     The vertical from the timer's net down to out(Y001) crosses the Reset row, so the drawing
     joins the two nets: the reset has no contact of its own.  No C000A: no box is above.
@@ -383,7 +383,7 @@ def test_box_above_a_timer_with_no_reset_is_accepted() -> None:
 
 
 def test_boxes_off_the_rail_are_not_c000a() -> None:
-    """out(Y001) and the timer both hang off the rail: CLICK splits them (layoutq Q5)."""
+    """out(Y001) and the timer both hang off the rail: CLICK splits them."""
     rung = _rung(
         [["-", "T", *["-"] * 29], ["", "-", *["-"] * 29], [_contact("X002"), *["-"] * 30]],
         [_out("Y001"), _timer(), ""],
@@ -398,7 +398,7 @@ def test_shorted_contact_is_not_captured() -> None:
 
 
 def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
-    """Q8a with a second contact: C0202 at the first; the rail reaches no box, so no C0001."""
+    """A second contact: C0202 at the first; the rail reaches no box, so no C0001."""
     rung = _rung([["", "", _contact("X001"), _contact("X002"), *["-"] * 27]], [_out("Y001")])
     assert _cells(check(rung)) == [(0, "no_rail", "C0202", 0, 2)]
 
@@ -424,7 +424,7 @@ def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
 
 
 def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
-    """Q8b's shape: the rail reaches out(Y001), and X002's input has no line connection."""
+    """A shape: the rail reaches out(Y001), and X002's input has no line connection."""
     rung = _rung(
         [[_contact("X001"), *["-"] * 30], ["", _contact("X002"), *["-"] * 29]],
         [_out("Y001"), _out("Y002")],
@@ -463,7 +463,7 @@ def test_no_coil_message_says_what_triggers_it() -> None:
 
 
 def test_message_rows_skip_one_blank_first_row() -> None:
-    """Inferred from layoutthy rung 23 alone, which has one blank first row."""
+    """A rung with one blank first row counts its rows from the second."""
     rung = _rung([[], ["", "", _contact("X001"), *["-"] * 28]], ["", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (1, 2)
@@ -471,7 +471,7 @@ def test_message_rows_skip_one_blank_first_row() -> None:
 
 
 def test_message_rows_skip_no_more_than_one_blank_row() -> None:
-    """No capture shows two blank first rows; only the first is skipped."""
+    """Two blank first rows are not known to count the same way; only the first is skipped."""
     rung = _rung([[], [], ["", "", _contact("X001"), *["-"] * 28]], ["", "", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (2, 2)

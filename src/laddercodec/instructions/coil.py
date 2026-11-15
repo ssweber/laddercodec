@@ -37,7 +37,7 @@ COIL_FUNC_CODES: dict[tuple[InstructionType, bool, bool, bool], str] = {
     (InstructionType.COIL_OUT, True, False, False): "8207",
     (InstructionType.COIL_OUT, True, True, False): "8208",
     (InstructionType.COIL_OUT, False, False, True): "8205",
-    (InstructionType.COIL_OUT, False, True, True): "8206",  # v4_captures/sweep_coil.bin
+    (InstructionType.COIL_OUT, False, True, True): "8206",
     (InstructionType.COIL_OUT, True, False, True): "8209",
     (InstructionType.COIL_OUT, True, True, True): "8210",
     (InstructionType.COIL_LATCH, False, False, False): "8195",
@@ -248,7 +248,7 @@ class Coil(AfInstruction):
             [
                 self.operand,
                 self.range_end or "",
-                "1" if self.oneshot else "0",  # CLICK writes 1, not -1 (scr_captures/coverage.bin)
+                "1" if self.oneshot else "0",  # CLICK writes 1, not -1
                 "1" if self.immediate else "0",
                 self.func_code,
                 "",

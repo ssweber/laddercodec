@@ -87,8 +87,7 @@ class ClickCell:
             b09, b0a, b0c = self.row_span, self.visual_rows, 0
         elif self.blob or self.rung_has_instructions:
             # Instruction cell or wire cell in an instruction-bearing rung.
-            # Native Click writes +0x0B=0x00, +0x0C=0x00 for these cells
-            # (confirmed via native captures: 1rung_2rows, instr-cond__and).
+            # CLICK writes +0x0B=0x00, +0x0C=0x00 for these cells.
             b09, b0a, b0c = 1, 1, 0
         else:
             # Pure wire/data cell in a wire-only rung: +0x0C = 0x01
@@ -127,12 +126,10 @@ class ClickCell:
             # Instruction cell tail — always has marker, dynamic rung_idx.
             # Condition-side (col < 31): tail[13] = local_row + 1.
             # AF-side (col 31): single-rung and multi-rung use different
-            # row/rung counters in native captures.
+            # row/rung counters.
 
             # Multi-rung last-row-of-last-rung: tail[12] = 1 constant
-            # marker, no tail[8]/tail[9].  Confirmed via native captures
-            # (nopaddedrows: 1 AF/rung, multiinstructions: 4 AF/rung —
-            # both show tail[12]=1).
+            # marker, no tail[8]/tail[9].
             if self.col == 31 and not self.single_rung:
                 is_last_row = self.local_row == self.logical_rows - 1
                 if is_last_row and self.is_last_rung:

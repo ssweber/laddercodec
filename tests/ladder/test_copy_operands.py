@@ -467,8 +467,8 @@ def test_refused_constant_blob_is_left_unparsed(tags: dict[int, str]) -> None:
 
 
 # A single Copy of text into TXT stores the last TXT the text fills as the destination end
-# (0x6077): "TT" into TXT1 stores TXT2 (v4_captures/text_tt.bin); one character and a $hh code
-# store none (text_q.bin, text_blank.bin; the blobs are pinned in test_v4_captures.py).
+# (0x6077): "TT" into TXT1 stores TXT2; one character and a $hh code store none (the
+# blobs are pinned in test_v4_captures.py).
 
 
 def _destination_end(copy: Copy) -> str:

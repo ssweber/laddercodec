@@ -163,7 +163,6 @@ class TestCoil:
         ],
     )
     def test_out_oneshot_func_codes(self, token, func_code):
-        # v4_captures/sweep_coil.bin
         assert Coil.from_csv_token(token).func_code == func_code
 
     @pytest.mark.parametrize("token", ["latch(Y1,oneshot=1)", "reset(C1..C2,oneshot=1)"])

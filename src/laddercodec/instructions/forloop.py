@@ -135,7 +135,7 @@ class ForLoop(AfInstruction):
             "For",
             FOR_TYPE_MARKER,
             _FOR_TAGS,
-            # One Shot flag: CLICK writes 1 (scr_captures/coverage.bin, v4_captures/sweep_for.bin).
+            # One Shot flag: CLICK writes 1.
             [self.limit, self.func_code, "1" if self.oneshot else "0", ""],
         )
 

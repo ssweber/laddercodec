@@ -134,7 +134,7 @@ def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
 
 
 def test_drum_pins_below_blank_rows_write_as_checked(tmp_path: Path) -> None:
-    """layoutq2 P14: a drum at pins (1, 5, 6), Jump and Jog unused, writes as CLICK checks it."""
+    """A drum at pins (1, 5, 6), Jump and Jog unused, writes as CLICK checks it."""
     rung = _decode_file(CAPTURE_DIR / "layoutq2_pasted.bin")[13]
     checked = _decode_file(CAPTURE_DIR / "layoutq2_checked.bin")[13]
     assert isinstance(rung.instructions[0], Drum)
@@ -146,7 +146,7 @@ def test_drum_pins_below_blank_rows_write_as_checked(tmp_path: Path) -> None:
 
 
 def test_drum_leg_on_unused_pin_row_writes_as_checked(tmp_path: Path) -> None:
-    """A Reset leg on unused Jump's row: CLICK's check moves Jump and Jog down (layoutq Q3a)."""
+    """A Reset leg on unused Jump's row: CLICK's check moves Jump and Jog down."""
     (rung,) = [r for c, r in _LABELLED if c == "pins:pins__drum_reset_or3"]
     assert rung.instructions[0].pin_rows == (1, 2, 3)
     write_csv(tmp_path / "or3.csv", [rung])
@@ -978,7 +978,7 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DLL-sweep captures: re-encoding gives CLICK's own AF blob
+# Sweep captures: re-encoding gives CLICK's own AF blob
 # ---------------------------------------------------------------------------
 
 #: Tags CLICK writes but doesn't read back, per class name.

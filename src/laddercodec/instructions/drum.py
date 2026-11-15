@@ -42,8 +42,8 @@ _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
 # Time drum: unit → first func code of its block (no-jog group: base, reset, jump).
 # The jog group (base, reset, jump, jog) follows at block+3, except for Th, whose
-# jog group is at block+4: code 8479 is the unused one
-# (v4_captures/sweep_drum.bin), which makes the Th block 8 codes long.
+# jog group is at block+4: code 8479 is the unused one,
+# which makes the Th block 8 codes long.
 _TIME_FC_BASE: dict[str, int] = {
     "Tms": 8455,
     "Ts": 8462,
@@ -58,7 +58,7 @@ _TH_JOG_SKIP = 1
 _REGISTER_PRESET_FC_OFFSET = 10247 - 8455
 
 # Time & event drum (CLICK v4): unit → first func code of its block; same block
-# shape as the time drum (v4_captures/drum.bin, sweep_drum.bin).
+# shape as the time drum.
 _TIME_EVENT_FC_BASE: dict[str, int] = {
     "Tms": 10503,
     "Ts": 10510,

@@ -135,7 +135,7 @@ ConditionToken = str | ConditionInstruction
 #: An AF-column token: ``""`` / ``"NOP"`` string or AfInstruction.
 AfToken = str | AfInstruction
 
-# RTF comment envelope — from native capture.
+# RTF comment envelope.
 # Prefix (105 bytes) + cp1252 body + suffix (11 bytes).
 _PREFIX = (
     b"{\\rtf1\\ansi\\ansicpg1252\\deff0\\deflang1033"

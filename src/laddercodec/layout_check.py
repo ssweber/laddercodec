@@ -59,11 +59,11 @@ class Finding:
         Index of the rung in the checked list, from 0.
     kind:
         The shape, one of ``FindingKind``.  The decoding guide's "Check for line connection
-        errors" table gives each kind's shape, code and evidence.
+        errors" table gives each kind's shape and code.
     code:
         CLICK's syntax check error code for the shape, or ``None`` where no code is known.
     captured:
-        Whether a CLICK capture shows its syntax check reporting this shape with ``code``.
+        Whether CLICK's syntax check is known to report this shape with ``code``.
         ``False`` for every kind with no code, and for two shapes that have one:
         ``"not_series_parallel"`` on a pin input (C0001, as for a main input), and
         ``"pin_without_contact"`` on a reset wired straight from the rail or whose contacts
@@ -78,13 +78,13 @@ class Finding:
         The cell, both counted from 0: ``row`` 0 is the rung's first row, ``column`` 0 is A
         and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no_rail"`` or
         ``"feeds_no_box"`` finding is at a contact; when captured, it is the contact CLICK
-        named for C0202 in the layoutq captures (Q6a-c, Q8a-b).  A finding about
-        a box input is at its AF cell, and one about a whole box at its first row's AF cell.
+        named for C0202.  A finding about a box input is at its AF cell, and one about a
+        whole box at its first row's AF cell.
     message:
         The finding in words.  A captured C0202 finding gives the cell as CLICK prints it,
         rows counted from 1: ``row`` 2, ``column`` 3 reads ``row 3, column D in CLICK's
         numbering``.  When the rung's first row is blank, the count starts on the second
-        row, so the same cell reads ``row 2``; this rests on one capture (layoutthy rung 23)
+        row, so the same cell reads ``row 2``; this is not known to hold for every rung,
         and CLICK may count otherwise.  Every other finding with a cell gives it counted
         from 0, ``row 2 from 0, column D``.  The message ends with ``(CLICK: <code>)`` when
         ``captured``, else with ``not captured``.
@@ -143,8 +143,8 @@ _PIN_SHARES_PIN = _Rule("pin_shares_pin", None, False)
 _UNPOWERED = _Rule("unpowered_box", None, False)
 _SHORTED = _Rule("shorted_contact", None, False)
 
-#: CLICK's code for a pin with no contact of its own, per box class and pin: layoutq Q4a (a
-#: retentive on_delay) and Q4b (a time drum).
+#: CLICK's code for a pin with no contact of its own, per box class and pin: a
+#: retentive on_delay or a time drum.
 _PIN_CODES: dict[tuple[type[PinnedInstruction], str], str] = {
     (Timer, ".reset"): "C0205",
     (Drum, ".reset"): "C0212",
@@ -154,7 +154,7 @@ _PIN_CODES: dict[tuple[type[PinnedInstruction], str], str] = {
 def _pin_rule(token: object, slot: int, lead: int, *, as_captured: bool) -> _Rule:
     """The rule for a pin input with no contact of its own, at ``slot`` of its box.
 
-    ``as_captured``: its contacts are all the main input's, the shape Q4a and Q4b capture.
+    ``as_captured``: its contacts are all the main input's.
     """
     if isinstance(token, PinnedInstruction):
         name = token.pin_names()[slot - lead - 1]
@@ -191,11 +191,10 @@ def _finding(
 def _blank_rows(rung: Rung) -> int:
     """1 when the rung's first row holds nothing, else 0: where CLICK starts counting rows.
 
-    Inferred from one capture: layoutthy rung 23 (``v4_captures/layoutthy_pasted.bin``) has a
-    blank first row, and CLICK prints "Row 3" for it.  Read this way, that is its one dead
-    contact, on zero-based row 3; CLICK may instead have named the blank cell (2, D).
-    CLICK's check also removes a blank first row (layoutthy rung 19).  No capture shows two
-    blank first rows, so only one is skipped.
+    For a rung with a blank first row, CLICK prints "Row 3" for its one dead contact, on
+    zero-based row 3; CLICK may instead have named the blank cell (2, D).  CLICK's check
+    also removes a blank first row.  The rule is not known to hold for two blank first
+    rows, so only one is skipped.
     """
     if not rung.conditions:
         return 0
@@ -281,8 +280,8 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     for row in _below_a_box(net, c):
         add(_ABOVE_PINNED, (row, AF_X), "a box above this one hangs off its main input's net")
 
-    # A contact on two pins' circuits counts as the earlier pin's.  No capture shows CLICK's
-    # check on such a pair; a pin whose contacts are all another's is the shape of Q4a and Q4b.
+    # A contact on two pins' circuits counts as the earlier pin's.  CLICK's check on such a
+    # pair is not known; a pin whose contacts are all another's has none of its own.
     main_used = {id(a) for a in c.main_arcs}
     pin_used: set[int] = set()
     for i in c.pins:
@@ -368,9 +367,9 @@ def _edge(a: Arc) -> Edge:
 def _below_a_box(net: Network, c: Circuits) -> list[int]:
     """The first row of each box with a used pin that another box sits above on one net.
 
-    The net is the one both main inputs hang off, and is not the rail (layoutq Q7a, Q7c:
-    C000A).  CLICK accepts a box below the pinned box on that net (Q7b), and splits boxes
-    hanging off the rail into rungs of their own (Q5a-c).
+    The net is the one both main inputs hang off, and is not the rail (C000A).
+    CLICK accepts a box below the pinned box on that net, and splits boxes
+    hanging off the rail into rungs of their own.
     """
     rows: list[int] = []
     for b, box in enumerate(net.boxes):

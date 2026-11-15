@@ -149,7 +149,7 @@ rung each, in order, with the comment on the first, as CLICK splits them, so
 `write_csv` writes the same layout, so a CSV it wrote reads back unchanged. A
 rung `laddercodec.check()` reports
 ([Decoding](decoding.md#check-for-line-connection-errors)) has no layout and is
-read and written as drawn. The rules and their evidence are in
+read and written as drawn. The rules are in
 [Layout](../internals/layout.md).
 
 ## Vertical topology
