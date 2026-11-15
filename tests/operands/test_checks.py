@@ -116,6 +116,8 @@ REFUSED: list[tuple[str, Constants, str]] = [
     ("-3000000000", COUNTER, "outside -2147483648 to 2147483647 (OBJ-005)"),
     ("3000000000", Constants(frozenset({N}), signs="", low=0, high=2**31 - 1), "outside 0 to"),
     ("3000000000", Constants(frozenset({H})), "an integer constant is -2147483648"),
+    ("-3000000000", Constants(frozenset({N}), signs=""), "takes no sign"),
+    ("+3000000000", COUNTER, "takes -"),
     ("10000h", COMPARE, "above FFFFh"),
     ("FFFFh", Constants(frozenset({H}), hex_high=0xFFFE), "above FFFEh"),
     ("0000000000005", COUNTER, "13 characters"),

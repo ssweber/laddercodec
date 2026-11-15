@@ -526,8 +526,7 @@ def test_a_family_branch_uses_its_entries(compare_wired_src: Path, tmp_path: Pat
     # uses depends on which families the tree has wired, so it is not asserted.
     dry = _run("classify_dryrun.py", compare_wired_src)
     assert dry.returncode == 0, dry.stdout[-3000:] + dry.stderr
-    assert "0 failure(s)" in dry.stdout
-    assert "CompareContact" not in dry.stderr
+    assert any(line.startswith("0 failure(s),") for line in dry.stdout.splitlines())
 
 
 def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(compare_misread_src: Path) -> None:

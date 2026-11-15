@@ -174,6 +174,13 @@ class TestForCount:
         with pytest.raises(FieldError, match=message):
             ForLoop(limit="2147483648")
 
+    def test_a_count_of_thousands_of_digits(self) -> None:
+        # Beyond Python's 4300-digit int() limit: read as its value, or refused, never a bare
+        # ValueError.
+        assert ForLoop(limit="0" * 5000 + "1").limit == "0" * 5000 + "1"
+        with pytest.raises(FieldError):
+            ForLoop(limit="1" * 5000)
+
     @pytest.mark.parametrize("limit", ["-1", "+1", "1.5"])
     def test_sign_or_fraction_refused(self, limit: str) -> None:
         with pytest.raises(FieldError, match="^ForLoop.limit"):
