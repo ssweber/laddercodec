@@ -405,7 +405,7 @@ def test_encode_refuses_empty_text_constant_in_objects() -> None:
 @pytest.mark.parametrize("condition", ['TXT842==""', '""!=TXT842', 'T:TXT842==""'])
 def test_compare_refuses_empty_text_constant_on_read(tmp_path: Path, condition: str) -> None:
     # A compare refuses "" when it is built (CLICK's dialog refuses it, OBJ-005).
-    with pytest.raises(FieldError, match="a text constant is 1 to 128 printable ASCII"):
+    with pytest.raises(FieldError, match="a text constant is 1 to 128 characters"):
         read_csv(_one_row_csv(tmp_path, condition, "out(Y001)"))
     with pytest.raises(FieldError):
         CompareContact("==", "TXT1", '""')
