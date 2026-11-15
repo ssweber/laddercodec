@@ -726,15 +726,59 @@ def _is_terminal(data: bytes, pos: int) -> bool:
     return data[pos + 0x05] == 0xFF and data[pos + 0x01] == 0x01 and data[pos + 0x03] == 0x30
 
 
-def _next_row_start(data: bytes, cursor: int, index: int) -> int | None:
-    """Where grid row ``index + 1`` (a data, preamble or terminal row) starts, or None.
+def _row_number(data: bytes, pos: int) -> int:
+    """The 16-bit row number of the cell at *pos* (+0x05, low byte first)."""
+    return data[pos + 0x05] | data[pos + 0x06] << 8
 
-    Scans forward from the row at *cursor*, which can't be walked, for the next row's
-    cell 0 (its row byte is ``index + 2``) or the terminal row.
+
+def _is_row_cell(data: bytes, pos: int, col: int, number: int) -> bool:
+    """Whether the cell of *col* in the row numbered *number* starts at *pos*."""
+    return (
+        pos + CELL_SIZE <= len(data)
+        and data[pos] == 0x00
+        and data[pos + 0x01] == col
+        and _row_number(data, pos) == number
+        # An AF cell keeps its box's row span and sub-rows at +0x09 and +0x0A.
+        and (col == CONDITION_COLUMNS or data[pos + 0x09] == data[pos + 0x0A] == 0x01)
+    )
+
+
+def _is_whole_row(data: bytes, pos: int, number: int) -> bool:
+    """Whether the data or preamble row numbered *number* starts at *pos*, and nothing else could.
+
+    Every one of its 32 cells must carry its own signature, and no other cell 0 of that
+    row may lie inside the row: a cell 0 found inside an instruction blob would otherwise
+    borrow the real row's cells 1..31 and decode as a wrong instruction.
     """
-    row_byte = (index + 2) & 0xFF
+    if data[pos + 0x30] == 0x01:  # a preamble row: its comment pushes cells 1..31 on
+        comment_len = int.from_bytes(data[pos + 0x34 : pos + 0x38], "little")
+        starts = [pos] + [pos + comment_len + col * CELL_SIZE for col in range(1, COLS_PER_ROW)]
+        end = starts[-1] + CELL_SIZE
+    else:
+        try:
+            cells = _walk_row_cells(data, pos)
+        except BAD_BYTES:
+            return False
+        starts = [start for start, _, _ in cells]
+        end = cells[-1][1]
+    if not all(_is_row_cell(data, start, col, number) for col, start in enumerate(starts)):
+        return False
+    return not any(_is_row_cell(data, q, 0, number) for q in range(pos + 1, end))
+
+
+def _next_row_start(data: bytes, cursor: int, index: int, total_grid_rows: int) -> int | None:
+    """Where grid row ``index + 1`` starts after the row at *cursor*, which can't be walked.
+
+    Scans forward for a whole data or preamble row numbered one past this row
+    (:func:`_is_whole_row`), or for the terminal row when ``index + 1`` is the last row
+    the program header counts.  None when there is neither.  A position that only may be
+    a row start is never taken, so a later rung decodes as itself or not at all.
+    """
+    number = (_row_number(data, cursor) + 1) & 0xFFFF
     for pos in range(cursor + 1, len(data) - CELL_SIZE + 1):
-        if _is_cell_signature(data, pos, 0, row_byte) or _is_terminal(data, pos):
+        if _is_terminal(data, pos) and index + 1 == total_grid_rows - 1:
+            return pos
+        if _is_row_cell(data, pos, 0, number) and _is_whole_row(data, pos, number):
             return pos
     return None
 
@@ -791,7 +835,7 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
         try:
             row_end = _walk_row_cells(data, cursor)[-1][1]
         except BAD_BYTES as exc:
-            next_row = _next_row_start(data, cursor, index)
+            next_row = _next_row_start(data, cursor, index, total_grid_rows)
             if next_row is None:
                 row_infos.append((_LOST, cursor, reason(exc)))
                 break

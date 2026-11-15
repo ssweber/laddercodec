@@ -30,13 +30,15 @@ from laddercodec import (
     write_csv,
 )
 from laddercodec.decode import DecodeError, inspect_cells
-from laddercodec.instructions import UnknownCondition, UnknownInstruction
+from laddercodec.csv.writer import WriterError
+from laddercodec.instructions import Shift, UnknownCondition, UnknownInstruction
 from laddercodec.model import ConditionInstruction
 from laddercodec.undecoded import marker_rung
 from tests.fixtures_refused import is_refused
 from tests.ladder.test_decode_program import _synthetic_scr
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
+writer_module = importlib.import_module("laddercodec.csv.writer")
 FIXTURES = Path(__file__).parent / "fixtures"
 GOLDEN = FIXTURES / "ladder_captures" / "golden"
 COLUMNS = [*(chr(ord("A") + i) for i in range(26)), "AA", "AB", "AC", "AD", "AE", "AF"]
@@ -145,6 +147,61 @@ def test_a_row_the_walk_cannot_read_is_skipped_to_the_next_row(index: int) -> No
     assert (marker.row, marker.column) == (row, None)
     assert marker.error.startswith(f"Cannot find cell boundary for col={column + 1}")
     assert not marker.error.endswith("to the end")
+
+
+def _fake_cell0(number: int) -> bytes:
+    """The bytes of a cell 0 of the row numbered *number*, holding an instruction (+0x25)."""
+    fake = bytearray(0x26)
+    fake[0x05:0x07] = number.to_bytes(2, "little")
+    fake[0x09] = fake[0x0A] = 0x01
+    fake[0x25] = 0x01
+    return bytes(fake)
+
+
+def _right_or_marker(rungs: list[Rung]) -> None:
+    """Each rung is the one encoded at its index, or a marker for that index: never another."""
+    for i, rung in enumerate(rungs):
+        if isinstance(rung.instructions[0], Undecoded):
+            assert rung.instructions[0].rung == i
+        else:
+            assert rung == DECODED[i]
+
+
+@pytest.mark.parametrize(
+    "plant",
+    ["before the next row", "in a later blob", "in a later blob, next row lost"],
+)
+def test_the_walk_never_resumes_at_a_row_start_inside_a_blob(plant: str) -> None:
+    """After a row fails, a cell 0 signature in instruction bytes never starts a row.
+
+    Rung 1's one row fails, and the next row is rung 2's preamble.  A fake cell 0 for that
+    preamble's row number is planted just before it (inside rung 1's failed row, where a
+    walk from it would borrow the preamble's cells 1..31), or in the tail of rung 2's
+    instruction cell.  Each rung decodes as itself or as a marker, never as another rung.
+    """
+    assert RUNGS[1].logical_rows == 1
+    row, column = _instruction_cell(RUNGS[1])
+    failed = _cell(1, row, 0)
+    (af,) = inspect_cells(DATA, [(1, row, "AF")])
+    preamble = af.offset + af.size  # rung 1's one row ends where rung 2's preamble starts
+    number = int.from_bytes(DATA[failed + 0x05 : failed + 0x07], "little") + 1
+    assert DATA[preamble + 0x30] == 0x01
+    assert int.from_bytes(DATA[preamble + 0x05 : preamble + 0x07], "little") == number
+    changes = [(_cell(1, row, column + 1) + 0x01, b"\x7f")]
+    if plant == "before the next row":
+        changes.append((preamble - 0x30, _fake_cell0(number)))
+    else:
+        r2, c2 = _instruction_cell(RUNGS[2])
+        (dump,) = inspect_cells(DATA, [(2, r2, COLUMNS[c2])])
+        changes.append((dump.offset + dump.size - 0x10, _fake_cell0(number)[:0x0B]))
+        if plant.endswith("lost"):
+            changes.append((preamble + 0x09, b"\x00"))
+    rungs, markers = _decode(_patched(*changes))
+    _right_or_marker(rungs)
+    assert markers[0].rung == 1
+    if not plant.endswith("lost"):
+        assert len(rungs) == 3
+        assert rungs[2] == DECODED[2]
 
 
 @pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
@@ -404,8 +461,36 @@ def test_write_csv_writes_a_marker_for_an_unwritable_rung(
     (warning,) = [w.message for w in caught if isinstance(w.message, UndecodedRungWarning)]
     marker = warning.marker
     assert (marker.rung, marker.row, marker.column, marker.stop) == (1, row, column, "return")
+    kind = "condition" if column < 31 else "instruction"
+    assert marker.error == f"no CSV token holds this unknown {kind} (1 bytes)"
     back = read_csv(tmp_path / "m.csv")
     assert back == [RUNGS[0], marker_rung(marker, "second")]
+
+
+def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> None:
+    """Only a cell with no token makes a marker; a rung of known tokens CSV can't hold raises."""
+    blank = [""] * 31
+    rung = Rung(
+        logical_rows=2,
+        conditions=[blank, blank],
+        instructions=[Shift("C99", "C106"), ""],
+        comment=None,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UndecodedRungWarning)
+        with pytest.raises(WriterError, match="shift requires 3 decoded rows"):
+            write_csv(tmp_path / "m.csv", [RUNGS[0], rung])
+
+
+def test_write_csv_still_raises_when_the_round_trip_check_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail(rung, rows, *, exact=False):
+        raise WriterError("round-trip validation failed")
+
+    monkeypatch.setattr(writer_module, "_validate_roundtrip", fail)
+    with pytest.raises(WriterError, match="round-trip validation failed"):
+        write_csv(tmp_path / "m.csv", [RUNGS[1]])
 
 
 def test_encode_refuses_a_marker() -> None:
