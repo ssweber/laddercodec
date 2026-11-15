@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Collection, Mapping, Sequence
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, NamedTuple
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import (
@@ -29,21 +29,19 @@ from ..model import (
     AddressError,
     AfInstruction,
     FieldError,
-    check_address,
     normalize_address,
     xy_slot,
 )
-from ..operands.checks import BIT_BANKS as BIT_BANKS
-from ..operands.checks import REGISTER_BANKS as REGISTER_BANKS
-from ..operands.constants import (
-    INT32_MAX,
-    INT32_MIN,
-    TEXT_MAX,
-    Kind,
-    check_char_code,
-    classify,
-    printable,
+from ..operands.checks import (
+    ALL_KINDS,
+    BIT_BANKS,
+    REGISTER_BANKS,
+    Constants,
+    check_constant,
+    check_operand,
+    constant_shape,
 )
+from ..operands.constants import TEXT_MAX, Kind
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -147,7 +145,7 @@ _COPY_TAGS = (
 def _is_text_constant(operand: str) -> bool:
     """True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``).
 
-    ``operand`` is a checked source: a ``$`` value in one is ``$hh`` (check_char_code).
+    ``operand`` is a checked source: a ``$`` value in one is ``$hh``.
     """
     return operand.strip().startswith(('"', "$"))
 
@@ -155,7 +153,7 @@ def _is_text_constant(operand: str) -> bool:
 def _ascii_code(code: int) -> str:
     """Spell a character code the way CLICK and pyrung do: ``$`` + two hex digits (``$0D``)."""
     if not 0 <= code <= 0xFF:
-        raise FieldError(f"ASCII code out of range 0..0xFF: {code}")
+        raise FieldError(f"ASCII code out of range 0..0xFF: {code}", field="Copy.termination_code")
     return f"${code:02X}"
 
 
@@ -169,31 +167,13 @@ NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
 _REGISTER_DEST_BANKS = REGISTER_BANKS - {"XD"}
 _NUMERIC_DEST_BANKS = _REGISTER_DEST_BANKS - {"TXT"}
 _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
-#: Banks a pointer ``BANK[DSn]`` can address.
-POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "TXT"})
+#: A Copy source or Fill value takes a constant of any kind; a signed hex text reads as a hex
+#: constant, which the field then refuses.
+_CONSTANTS = Constants(ALL_KINDS, hex_sign=True)
+#: A termination code is a ``$hh`` character code.
+_TERMINATION = Constants(frozenset({Kind.CHAR}))
 
-_POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
-#: A number constant: integer or real (``42``, ``-1.5``, ``1.0E+04``), or hex
-#: digits then ``h`` (``1Eh``).  The sign, exponent and letter case are not narrowed.
-_NUMBER_CONSTANT_RE = re.compile(
-    r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?|[+-]?[0-9A-Fa-f]+[hH]"
-)
-
-
-class Operand(NamedTuple):
-    """A checked operand.
-
-    ``kind`` is ``"bit"``, ``"word"`` (a numeric register), ``"txt"`` (a TXT register),
-    ``"number"`` or ``"text"`` (constants).  ``bank`` is ``None`` for a constant; for a
-    pointer ``DD[DS1]`` it is the pointed-to bank (``DD``).
-    """
-
-    kind: str
-    bank: str | None = None
-    pointer: bool = False
-
-
-#: How each operand kind reads in a message.
+#: How each source kind reads in a message.
 _KIND_TEXT = {
     "bit": "a bit",
     "word": "a numeric register",
@@ -219,46 +199,21 @@ def _register_kind(bank: str) -> str:
     return "txt" if bank == "TXT" else "word"
 
 
-def check_operand(
-    value: str,
-    name: str,
-    banks: Collection[str] | None = None,
-    *,
-    constant: bool = False,
-    pointer: bool = False,
-) -> Operand:
-    """Check one operand; raise :class:`AddressError` naming field ``name`` if CLICK refuses it.
+def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
+    """The kind of a Copy source or Fill value: ``bit``, ``word``, ``txt``, ``number`` or
+    ``text``.
 
-    An address goes through :func:`check_address`, narrowed to ``banks`` (``None``: any bank).
-    With ``constant``, a number constant (``42``, ``-1.5``, ``1Eh``) or a text constant
-    (``"AB"``, ``$0D``) passes too; a ``$`` value that is not ``$hh`` raises
-    :class:`FieldError`.  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` must be
-    in ``banks`` and in :data:`POINTER_BANKS`, and the pointer a DS address.
-    ``XD0u`` and ``YD0u`` pass only when ``banks`` names XD or YD (``ADDRESS_BANKS`` does).
+    An address or pointer is checked here.  A constant's limits wait for the caller, whose
+    pairing with the destination comes first (a ``$hh`` code is read at once).
     """
-    if constant:
-        if value.startswith("$"):
-            check_char_code(value, name)
-            return Operand("text")
-        if len(value) >= 2 and value[0] == value[-1] == '"':
-            return Operand("text")
-        if _NUMBER_CONSTANT_RE.fullmatch(value):
-            return Operand("number")
-    m = _POINTER_RE.fullmatch(value)
-    if m is not None:
-        if not pointer:
-            raise AddressError(f"{name}: {value!r} is a pointer; only a single Copy takes one")
-        bank = m.group(1)
-        allowed = POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks)
-        if bank not in allowed:
-            raise AddressError(
-                f"{name}: {value!r} is not allowed; a pointer in {name} addresses "
-                f"{_bank_list(allowed)}"
-            )
-        check_address(m.group(2), f"{name} pointer", {"DS"})
-        return Operand(_register_kind(bank), bank, pointer=True)
-    address = check_address(value, name, banks)
-    return Operand(_register_kind(address.bank), address.bank)
+    shape = constant_shape(value, _CONSTANTS)
+    if shape is Kind.CHAR:
+        check_constant(value, name, _CONSTANTS)
+    if shape is not None:
+        return "text" if shape in (Kind.TEXT, Kind.CHAR) else "number"
+    bank = check_operand(value, name, banks, pointer=pointer).bank
+    assert bank is not None
+    return _register_kind(bank)
 
 
 def _position(address: Address) -> int:
@@ -301,25 +256,27 @@ def _check_range(
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
-        name = f"{cls}.{field_name}"
-        if _POINTER_RE.fullmatch(value):
-            raise AddressError(f"{name}: {value!r} is a pointer; only a single Copy takes one")
-        ends.append(check_address(value, name, banks))
+        address = check_operand(value, f"{cls}.{field_name}", banks).address
+        assert address is not None
+        ends.append(address)
     first, last = ends
     if first.bank != last.bank:
         raise AddressError(
             f"{cls}.{end_field}: {end!r} is not in the bank of {start!r}; "
-            "both ends of a range are in one bank"
+            "both ends of a range are in one bank",
+            field=f"{cls}.{end_field}",
         )
     if ordered and _position(last) <= _position(first):
         what = "is one address" if _position(last) == _position(first) else "runs backwards"
         raise AddressError(
-            f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start"
+            f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start",
+            field=f"{cls}.{end_field}",
         )
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise AddressError(
             f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "
-            f"the range stays in one 16-point {first.bank} slot"
+            f"the range stays in one 16-point {first.bank} slot",
+            field=f"{cls}.{end_field}",
         )
     return first, last
 
@@ -327,18 +284,19 @@ def _check_range(
 def _check_pair(
     cls: str,
     source: str,
-    src: Operand,
+    kind: str,
     dest_field: str,
     destination: str,
     dest_bank: str,
     pairs: dict[str, frozenset[str]],
 ) -> None:
     """Refuse a destination bank the source kind can't copy into (OBJ-024)."""
-    allowed = pairs[src.kind]
+    allowed = pairs[kind]
     if dest_bank not in allowed:
         raise AddressError(
             f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
-            f"{_KIND_TEXT[src.kind]} copies to {_bank_list(allowed)}"
+            f"{_KIND_TEXT[kind]} copies to {_bank_list(allowed)}",
+            field=f"{cls}.{dest_field}",
         )
 
 
@@ -350,7 +308,10 @@ def _check_kind(cls: str, field_name: str, value: str, bank: str, kind: str) -> 
     if (kind == "bits") != (bank in BIT_BANKS):
         what = "a register" if kind == "bits" else "a bit"
         need = f"a bit bank ({_bank_list(BIT_BANKS)})" if kind == "bits" else "a register bank"
-        raise AddressError(f"{cls}.{field_name}: {value!r} is {what}; {kind} needs {need}")
+        raise AddressError(
+            f"{cls}.{field_name}: {value!r} is {what}; {kind} needs {need}",
+            field=f"{cls}.{field_name}",
+        )
 
 
 #: Most bits one register packs into or unpacks from (OBJ-027/041, OBJ-032/039).
@@ -375,7 +336,8 @@ def _check_count(
         verb = "a pack into" if cls == "Pack" else "an unpack from"
         raise FieldError(
             f"{cls}.{end_field}: {span_text} is {count} {unit}; "
-            f"{verb} {single!r} takes at most {limit}"
+            f"{verb} {single!r} takes at most {limit}",
+            field=f"{cls}.{end_field}",
         )
 
 
@@ -396,67 +358,22 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-_INT_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
-_HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
 #: (OBJ-024).
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
-def check_constant(value: str, name: str) -> None:
-    """Raise :class:`FieldError` naming field ``name`` if CLICK's shared input check
-    refuses the constant ``value`` (OBJ-005).
-
-    The rule is :func:`~laddercodec.operands.constants.classify`:
-
-    - an integer is 32-bit;
-    - a hex constant takes no sign and has at most eight digits above ``FFFFh``;
-    - a real is finite and within float32;
-    - quoted text is 1 to 128 characters with no quote inside;
-    - a character code is ``$`` and two hex digits, ``$00`` to ``$FF``
-      (:func:`~laddercodec.operands.constants.check_char_code`).
-
-    Quoted text also holds printable ASCII only, a field limit the Copy, Fill, Compare and
-    Search text fields share (:func:`~laddercodec.operands.constants.printable`).  A single
-    Copy source, a Fill value and a Search value run it on the constants their own checks
-    pass.
-    """
-    if value.startswith("$"):
-        check_char_code(value, name)
-        return
-    const = classify(value)
-    if const is not None:
-        if const.kind is Kind.TEXT and not printable(str(const.value)):
-            raise FieldError(
-                f"{name}: {value!r} is refused; text holds printable ASCII only (space to ~); "
-                "write another character as its $hh code"
-            )
-        return
-    if value.startswith('"'):
-        why = (
-            f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
-            "(write the quote character as $22)"
-        )
-    elif _INT_CONSTANT_RE.fullmatch(value):
-        raise FieldError(
-            f"{name}: {value!r} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
-        )
-    elif _HEX_CONSTANT_RE.fullmatch(value):
-        why = "a hex constant has no sign and at most 8 digits"
-    else:
-        why = "a real constant is a finite number within float32 (up to about 3.4028235E+38)"
-    raise FieldError(f"{name}: {value!r} is refused; {why}")
-
-
 def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse a number constant outside 32 bits, or one ``dest_bank`` can't take."""
-    if _INT_CONSTANT_RE.fullmatch(source):
-        check_constant(source, "Copy.source")
-    m = _HEX_CONSTANT_RE.fullmatch(source)
-    if m and int(m.group(1), 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
+    """Refuse a hex constant above FFFFh that ``dest_bank`` can't take."""
+    if (
+        constant_shape(source, _CONSTANTS) is Kind.HEX
+        and int(source[:-1], 16) > 0xFFFF
+        and dest_bank not in _HEX32_DEST_BANKS
+    ):
         raise AddressError(
             f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
-            f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}"
+            f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}",
+            field=f"Copy.{dest_field}",
         )
 
 
@@ -475,10 +392,10 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
-    if _POINTER_RE.fullmatch(destination):
+    first = check_operand(destination, "Copy.destination", pointer=True)  # a TXT: text copies only there
+    if first.address is None:
         return None
-    first = check_address(destination, "Copy.destination")  # a TXT: text copies only there
-    return Address("TXT", first.number + len(source) - 3)
+    return Address("TXT", first.address.number + len(source) - 3)
 
 
 # ---------------------------------------------------------------------------
@@ -537,7 +454,8 @@ def _check_row(
         what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
         raise AddressError(
             f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
-            f"{what} from {source_bank} goes to {_bank_list(allowed)}"
+            f"{what} from {source_bank} goes to {_bank_list(allowed)}",
+            field=f"{cls}.{dest_field}",
         )
 
 
@@ -592,7 +510,8 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
             k = k.strip()
             if fmt == "binary" and k != "termination_code":
                 raise FieldError(
-                    f"to_binary: {k!r} is not an option; it takes only termination_code"
+                    f"to_binary: {k!r} is not an option; it takes only termination_code",
+                    field="Copy.format",
                 )
             text_opts[k] = v.strip()
 
@@ -654,39 +573,39 @@ class Copy(AfInstruction):
         self.source = normalize_address(self.source)
         self.destination = normalize_address(self.destination)
         if self.format not in _VALID_FORMATS:
-            raise FieldError(f"Invalid copy format: {self.format!r}")
+            raise FieldError(f"Invalid copy format: {self.format!r}", field="Copy.format")
         # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
         # "none" is the CSV spelling of no code, which to_csv writes.
         if self.termination_code == "none":
             self.termination_code = "0"
         elif self.termination_code.startswith("$"):
-            code = check_char_code(self.termination_code, "Copy.termination_code")
-            self.termination_code = _ascii_code(code)
+            code = check_constant(self.termination_code, "Copy.termination_code", _TERMINATION)
+            self.termination_code = _ascii_code(int(code.value))
         for option in ("suppress_zero", "exponential"):
             if getattr(self, option) not in ("0", "1"):
                 raise FieldError(
-                    f"Copy.{option}: {getattr(self, option)!r} is not allowed; it is '0' or '1'"
+                    f"Copy.{option}: {getattr(self, option)!r} is not allowed; it is '0' or '1'",
+                    field=f"Copy.{option}",
                 )
-        src = check_operand(
-            self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, constant=True, pointer=True
-        )
+        kind = _source_kind(self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, pointer=True)
         dst = check_operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
         assert dst.bank is not None
         _check_pair(
-            "Copy", self.source, src, "destination", self.destination, dst.bank, _COPY_PAIRS
+            "Copy", self.source, kind, "destination", self.destination, dst.bank, _COPY_PAIRS
         )
-        if src.kind == "number":
+        if kind == "number":
             _check_copy_constant(self.source, "destination", self.destination, dst.bank)
-        self._check_format(src, dst.bank)
+        self._check_format(kind, dst.bank)
         if self.termination_code != "0" and not (
-            self.format in ("text", "binary") and src.kind == "word" and dst.bank == "TXT"
+            self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT"
         ):
             # CLICK v4's dialog: termination is for a single copy from a number register to
             # text; the box is greyed for TXT -> TXT and constant -> TXT.
             raise FieldError(
                 f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
                 f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
-                f"{self.destination!r} with format {self.format!r}"
+                f"{self.destination!r} with format {self.format!r}",
+                field="Copy.termination_code",
             )
         if self.format == "text":
             # CLICK's dialog offers suppress zero for an integer source and
@@ -696,22 +615,25 @@ class Copy(AfInstruction):
             elif self.exponential == "1":
                 raise FieldError(
                     f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
-                    "an integer source only has suppress_zero"
+                    "an integer source only has suppress_zero",
+                    field="Copy.exponential",
                 )
         if not self.termination_code.startswith("$") and self.termination_code != "0":
             # The blob stores a termination code only as a character code (OBJ-036).
             raise FieldError(
                 f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
-                "character code ($0D), or '0' or 'none' for no code"
+                "character code ($0D), or '0' or 'none' for no code",
+                field="Copy.termination_code",
             )
-        if src.kind in ("number", "text"):
-            check_constant(self.source, "Copy.source")
+        if kind in ("number", "text"):
+            check_constant(self.source, "Copy.source", _CONSTANTS)
         end = _text_fill_end(self.source, self.destination)
         if end is not None and end.number > _TXT_LAST:
             raise AddressError(
                 f"Copy.destination: {self.destination!r} can't take {self.source!r}; its "
                 f"{len(self.source) - 2} characters fill {self.destination}..{end.display}, "
-                f"past TXT{_TXT_LAST}"
+                f"past TXT{_TXT_LAST}",
+                field="Copy.destination",
             )
 
     def _destination_end(self) -> str:
@@ -719,20 +641,21 @@ class Copy(AfInstruction):
         end = _text_fill_end(self.source, self.destination)
         return "" if end is None else end.display
 
-    def _check_format(self, src: Operand, dest_bank: str) -> None:
+    def _check_format(self, kind: str, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
         fmt = self.format
         if fmt == "binary" and _is_dd_df_pair(self.source, self.destination):
             return  # DD <-> DF Copy Binary
         if fmt in ("text", "binary"):
-            ok, need = src.kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
+            ok, need = kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
         elif fmt in ("value", "ascii"):
-            ok, need = src.kind == "txt" and dest_bank in _NUMERIC_DEST_BANKS, "TXT to a number"
+            ok, need = kind == "txt" and dest_bank in _NUMERIC_DEST_BANKS, "TXT to a number"
         else:
             return
         if not ok:
             raise FieldError(
-                f"Copy.format: to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}"
+                f"Copy.format: to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}",
+                field="Copy.format",
             )
 
     @classmethod
@@ -899,7 +822,7 @@ class BlockCopy(AfInstruction):
         for name in ("source_start", "source_end", "dest_start", "dest_end"):
             setattr(self, name, normalize_address(getattr(self, name)))
         if self.format not in _BLOCKCOPY_FORMATS:
-            raise FieldError(f"Invalid blockcopy format: {self.format!r}")
+            raise FieldError(f"Invalid blockcopy format: {self.format!r}", field="BlockCopy.format")
         cls = "BlockCopy"
         src, src_last = _check_range(
             cls, "source_start", self.source_start, "source_end", self.source_end,
@@ -924,18 +847,21 @@ class BlockCopy(AfInstruction):
             raise AddressError(
                 f"{cls}.dest_start: {self.source_start}..{self.source_end} into "
                 f"{self.dest_start} crosses a Y slot; crossing a slot is not supported yet: "
-                "it needs a capture"
+                "it needs a capture",
+                field=f"{cls}.dest_start",
             )
         if dest_last.number != end:
             spelled = Address(dest.bank, end).display
             raise AddressError(
                 f"{cls}.dest_end: {self.dest_end!r} is not where the copy ends; "
-                f"{self.source_start}..{self.source_end} fills {self.dest_start}..{spelled}"
+                f"{self.source_start}..{self.source_end} fills {self.dest_start}..{spelled}",
+                field=f"{cls}.dest_end",
             )
         if self.format != "none" and src.bank != "TXT":
             raise FieldError(
                 f"{cls}.format: to_{self.format} needs a TXT source, not "
-                f"{self.source_start}..{self.source_end}"
+                f"{self.source_start}..{self.source_end}",
+                field=f"{cls}.format",
             )
 
     @property
@@ -1017,22 +943,16 @@ class Fill(AfInstruction):
     def __post_init__(self) -> None:
         for name in ("value", "dest_start", "dest_end"):
             setattr(self, name, normalize_address(getattr(self, name)))
-        src = check_operand(self.value, "Fill.value", REGISTER_BANKS, constant=True)
+        kind = _source_kind(self.value, "Fill.value", REGISTER_BANKS)
         # Fill runs the range check on the destination.
         dest, _ = _check_range(
             "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
         )
-        _check_pair("Fill", self.value, src, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
-        if src.kind in ("number", "text"):
-            check_constant(self.value, "Fill.value")
-        if dest.bank == "TXT" and src.kind == "text":
-            # A ``$hh`` code, the only ``$`` form check_constant passes, is one character.
-            chars = self.value[1:-1] if self.value.startswith('"') else "$"
-            if len(chars) != 1:
-                raise FieldError(
-                    f"Fill.value: {self.value!r} is {len(chars)} characters; a Fill into TXT "
-                    "takes one character (OBJ-023)"
-                )
+        _check_pair("Fill", self.value, kind, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
+        if kind in ("number", "text"):
+            # A Fill into TXT takes one character of text.
+            text_max = 1 if dest.bank == "TXT" else TEXT_MAX
+            check_constant(self.value, "Fill.value", replace(_CONSTANTS, text_max=text_max))
 
     @property
     def func_code(self) -> str:
@@ -1120,7 +1040,7 @@ class Pack(AfInstruction):
         for name in ("source_start", "source_end", "destination"):
             setattr(self, name, normalize_address(getattr(self, name)))
         if self.pack_type not in _PACK_TYPES:
-            raise FieldError(f"Invalid pack type: {self.pack_type!r}")
+            raise FieldError(f"Invalid pack type: {self.pack_type!r}", field="Pack.pack_type")
         first, last = _check_range(
             "Pack", "source_start", self.source_start, "source_end", self.source_end,
             _sources(_PACK_ROWS), one_module=True,
@@ -1137,7 +1057,8 @@ class Pack(AfInstruction):
                 f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
                 f"pack_{self.pack_type} "
                 f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
-                f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does"
+                f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
+                field="Pack.source_start",
             )
         if self.pack_type == "text":
             return
@@ -1239,7 +1160,9 @@ class Unpack(AfInstruction):
         for name in ("source", "dest_start", "dest_end"):
             setattr(self, name, normalize_address(getattr(self, name)))
         if self.unpack_type not in _UNPACK_TYPES:
-            raise FieldError(f"Invalid unpack type: {self.unpack_type!r}")
+            raise FieldError(
+                f"Invalid unpack type: {self.unpack_type!r}", field="Unpack.unpack_type"
+            )
         src = check_operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
         assert src.bank is not None
         first, last = _check_range(

@@ -29,9 +29,15 @@ from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
-from ..operands.checks import REGISTER_BANKS, check_quoted_text
-from ..operands.constants import SEARCH_TABLE_BANKS, classify
-from .copy import _check_range, check_constant, check_operand
+from ..operands.checks import (
+    ALL_KINDS,
+    REGISTER_BANKS,
+    Constants,
+    check_operand,
+    check_quoted_text,
+)
+from ..operands.constants import SEARCH_TABLE_BANKS, Kind
+from .copy import _check_range
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -83,9 +89,10 @@ FOUND_BANKS = frozenset({"C"})
 #: A text search value hides the four order operators, leaving these.  A TXT register
 #: counts as text as much as a text constant does.
 _TEXT_OPS = frozenset({"==", "!="})
-#: A hex search value above FFFFh is a 32-bit hex constant (the value decides, not the
-#: digits), which is OBJ-005.
-_HEX_CONSTANT_RE = re.compile(r"[+-]?([0-9A-Fa-f]+)[hH]")
+#: The search value: a constant of any kind, hex 16-bit (above FFFFh is a 32-bit hex
+#: constant, which is OBJ-005).  A signed hex text reads as a hex constant, which the
+#: field then refuses.
+_VALUE = Constants(ALL_KINDS, hex_high=0xFFFF, hex_sign=True)
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -150,7 +157,8 @@ class Search(AfInstruction):
         if self.comparison not in _OP_TO_FUNC:
             raise FieldError(
                 f"Search.comparison: {self.comparison!r} is not allowed; it is one of "
-                f"{', '.join(_OP_TO_FUNC)}"
+                f"{', '.join(_OP_TO_FUNC)}",
+                field="Search.comparison",
             )
         # Search has no pointer path, so no field takes one.  The table is
         # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
@@ -162,27 +170,22 @@ class Search(AfInstruction):
         if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
             check_quoted_text(self.source, "Search.source")
         # The search value is a constant or a data register, never a bit.
-        source = check_operand(self.source, "Search.source", REGISTER_BANKS, constant=True)
-        m = _HEX_CONSTANT_RE.fullmatch(self.source)
-        if m and int(m.group(1), 16) > 0xFFFF:
-            raise FieldError(
-                f"Search.source: {self.source!r} is above FFFFh; a hex search value is 16-bit"
-            )
-        if (source.kind == "text" or source.bank == "TXT") and self.comparison not in _TEXT_OPS:
-            raise FieldError(
-                f"Search.comparison: {self.comparison!r} is not offered for text "
-                f"{self.source!r}; text searches with == or !="
-            )
-        if source.kind in ("number", "text"):
-            # The value field runs CLICK's shared input check.
-            check_constant(self.source, "Search.source")
-            # The value's kind ties to the table banks.
-            const = classify(self.source)
-            if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
+        source = check_operand(self.source, "Search.source", REGISTER_BANKS, _VALUE)
+        const = source.constant
+        if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or source.bank == "TXT":
+            if self.comparison not in _TEXT_OPS:
                 raise FieldError(
-                    f"Search.source: {self.source!r} is a {const.kind} value, which searches "
-                    f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}"
+                    f"Search.comparison: {self.comparison!r} is not offered for text "
+                    f"{self.source!r}; text searches with == or !=",
+                    field="Search.comparison",
                 )
+        # The value's kind ties to the table banks.
+        if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
+            raise FieldError(
+                f"Search.source: {self.source!r} is a {const.kind} value, which searches "
+                f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
+                field="Search.source",
+            )
 
     @property
     def func_code(self) -> str:

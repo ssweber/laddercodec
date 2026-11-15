@@ -30,6 +30,9 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
+#: An integer outside int32 (the wording differs by the shared check's version).
+INT_RULE = "is (refused; an integer constant is|outside) -2147483648 to 2147483647"
+
 _REFUSED = [
     # a bit copies to Y or C, a register to a register
     ("copy(X001,DS1)", "can't take 'X001'; a bit copies to Y, C"),
@@ -45,7 +48,7 @@ _REFUSED = [
     ("copy(DS1,Q5)", "no CLICK bank 'Q'"),
     ("copy(DS1,DS)", "not a CLICK address"),
     # the pointer is a DS
-    ("copy(DS[DD1],DS2)", "Copy.source pointer: 'DD1' is not allowed"),
+    ("copy(DS[DD1],DS2)", r"Copy.source: 'DS\[DD1\]' is refused; a pointer's index is a DS address"),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
     # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
     (
@@ -57,14 +60,17 @@ _REFUSED = [
     ("copy(T[DS1],C1)", r"Copy.source: 'T\[DS1\]' is not allowed"),
     ("copy(C1,Y[DS1])", r"Copy.destination: 'Y\[DS1\]' is not allowed"),
     ("copy(DS1,XD[DS2])", r"Copy.destination: 'XD\[DS2\]' is not allowed"),
-    ("copy(DD[DS1+2],DS1)", r"Copy.source pointer: 'DS1\+2' is not a CLICK address"),
+    (
+        "copy(DD[DS1+2],DS1)",
+        r"Copy.source: 'DD\[DS1\+2\]' is refused; a pointer's index is a DS address",
+    ),
     # converters
     ("copy(DS1,TXT1,convert=to_value)", "to_value copies TXT to a number"),
     ("copy(TXT1,TXT2,convert=to_ascii)", "to_ascii copies TXT to a number"),
     ("copy(TXT1,DS1,convert=to_text(suppress_zero=1))", "to_text copies a number to TXT"),
     ("copy(DS1,DD1,convert=to_binary)", "to_binary copies a number to TXT"),
     # Block Copy: no pointers, one bank per range, converts only from TXT
-    ("blockcopy(DS[DS1]..DS5,DS10..DS14)", "is a pointer; only a single Copy"),
+    ("blockcopy(DS[DS1]..DS5,DS10..DS14)", "is a pointer; .* takes none"),
     ("blockcopy(DS1..DD4,DS10..DS13)", "BlockCopy.source_end: 'DD4' is not in the bank"),
     ("blockcopy(DS1..DS4,DS10..DS4501)", "outside DS1-DS4500"),
     ("blockcopy(TXT1..TXT4,TXT10..TXT1001)", "outside TXT1-TXT1000"),
@@ -76,7 +82,7 @@ _REFUSED = [
     ('fill("A",DS1..DS4)', "can't take '\"A\"'; a text constant copies to TXT"),
     ("fill(5,C1..C4)", "Fill.dest_start: 'C1' is not allowed"),
     ("fill(0,DS1..DD5)", "Fill.dest_end: 'DD5' is not in the bank"),
-    ("fill(DS[DS1],DS2..DS5)", "is a pointer; only a single Copy"),
+    ("fill(DS[DS1],DS2..DS5)", "is a pointer; .* takes none"),
     # Pack / Unpack: one slot (OBJ-033/035/019), counts (OBJ-027/041/040, 032/039/042)
     ("pack_bits(X016..X101,DD1)", "spans two X slots"),
     ("unpack_to_bits(DS1,Y101..Y201)", "spans two Y slots"),
@@ -94,7 +100,7 @@ _REFUSED = [
     ("unpack_to_bits(DS1,C1..C17)", "is 17 bits; an unpack from 'DS1' takes at most 16"),
     ("unpack_to_bits(DD1,C1..C33)", "at most 32"),
     ("unpack_to_words(DD1,DS1..DS3)", "is 3 words; an unpack from 'DD1' takes at most 2"),
-    ("pack_bits(C1..C2,DS[DS1])", "is a pointer; only a single Copy"),
+    ("pack_bits(C1..C2,DS[DS1])", "is a pointer; .* takes none"),
     ("pack_bits(C1..DS2,DS1)", "Pack.source_end: 'DS2' is not in the bank"),
     # bits / words is the bank kind: the blob has no flag for it
     ("pack_bits(DS1..DS2,DD1)", "'DS1' is a register; bits needs a bit bank"),
@@ -108,8 +114,8 @@ _REFUSED = [
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
     # Single Copy constants: an integer is 32-bit (OBJ-005); hex above FFFFh goes to
     # the 32-bit integer registers only (OBJ-024)
-    ("copy(5000000000,DD1)", "Copy.source: '5000000000' is outside -2147483648..2147483647"),
-    ("copy(-2147483649,DD1)", "is outside -2147483648..2147483647"),
+    ("copy(5000000000,DD1)", "Copy.source: '5000000000' " + INT_RULE),
+    ("copy(-2147483649,DD1)", INT_RULE),
     ("copy(10000h,DH1)", "can't take '10000h'; a hex constant above FFFFh copies to DD, CTD"),
     ("copy(1FFFFh,DS1)", "a hex constant above FFFFh copies to DD, CTD"),
     ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
@@ -252,7 +258,7 @@ _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
-_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_INT32 = INT_RULE
 _FINITE = "a real constant is a finite number"
 
 _COPY_SOURCE_REFUSED = [

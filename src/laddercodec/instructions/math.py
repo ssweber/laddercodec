@@ -190,11 +190,14 @@ class Math(AfInstruction):
 
     def __post_init__(self) -> None:
         if self.mode not in RESULT_BANKS:
-            raise FieldError(f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'")
+            raise FieldError(
+                f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'", field="Math.mode"
+            )
         if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
             raise FieldError(
                 f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
-                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)"
+                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)",
+                field="Math.expression",
             )
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
