@@ -61,9 +61,7 @@ def _literal_banks(module: str, field: str) -> frozenset[str]:
     raise AssertionError(f"no check_address for {field} in {module}")
 
 
-_MASKS.append(
-    (0x40, _literal_banks("timer.py", "Timer.setpoint"), "Timer set point")
-)
+_MASKS.append((0x40, _literal_banks("timer.py", "Timer.setpoint"), "Timer set point"))
 
 
 @pytest.mark.parametrize(("value", "expected", "field"), _MASKS, ids=[m[2] for m in _MASKS])

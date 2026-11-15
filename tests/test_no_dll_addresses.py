@@ -56,6 +56,7 @@ def dll_address(text: str) -> str | None:
         return match.group(0)
     return None
 
+
 # path -> reason.  Only files a tool generates, which can't hold a DLL address.
 ALLOWED: dict[str, str] = {
     "uv.lock": "written by uv: package URLs and hashes, whose hex runs can look like an address",
