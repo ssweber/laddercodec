@@ -222,6 +222,15 @@ def test_hex_or_984_address_refused(address) -> None:
         ModbusAddress(address=address)
 
 
+def test_hex_address_above_fffe_names_the_limit() -> None:
+    with pytest.raises(FieldError) as caught:
+        ModbusAddress(address="FFFFh")
+    assert str(caught.value) == (
+        "ModbusAddress.address: 'FFFFh' is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)"
+    )
+    assert caught.value.field == "ModbusAddress.address"
+
+
 @pytest.mark.parametrize("address", ["1", "65535", "400001", "465535"])
 def test_send_984_ok(address) -> None:
     bit = int(address) < 100000
