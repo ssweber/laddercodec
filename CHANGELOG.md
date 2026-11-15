@@ -20,10 +20,11 @@
 - **Long digit runs in Compare and Out variants**: a constant of more than 4300 digits, such as a long run of leading zeros, no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` where its pairing or limit refuses it.
 - **For count of thousands of digits**: a For count of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError`; the messages for an above-limit count and a pointer count are reworded.
 - **Long digit runs in Timer and Drum**: a Timer set point or Drum preset of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` above its limit, and a Counter preset that long is refused with `FieldError`.
+- **Long DS Slave ID**: a Modbus target whose `device_id` is `DS` followed by more than 4300 digits raises `FieldError`, where it raised a bare `ValueError`.
 
 ### Changed
-- **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset and Drum preset fields are reworded; the refusals themselves are the same.
-- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, and for Drum step counts, output counts and steps with neither a duration nor an event.
+- **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset, Drum preset and Modbus hex address fields are reworded; the refusals themselves are the same.
+- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, and for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ### Behaviour changes

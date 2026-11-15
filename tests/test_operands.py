@@ -32,7 +32,7 @@ def test_bank_order_is_address_bank_order() -> None:
 
 # (mask the dialog checks, the set the code holds, the field).
 _MASKS = [
-    (0x3F, send_receive._SEND_LOCAL_BITS, "Send local bits FC01-FC05"),
+    (0x3F, send_receive.BIT_BANKS, "Send local bits FC01-FC05"),
     (0xDD40, send_receive._SEND_LOCAL_REGS_FC06, "Send local registers FC06"),
     (0xF3C0, send_receive._SEND_LOCAL_REGS_FC16, "Send local registers FC16"),
     (0x6, send_receive._RECEIVE_LOCAL_BITS, "Receive local bits FC01/02"),

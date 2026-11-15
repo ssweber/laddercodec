@@ -261,7 +261,6 @@ REGEX_ALLOWED: dict[Key, int] = {
         "re.compile('([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})')",
     ): 1,
     ("send_receive.py", "re.compile('DS([1-9][0-9]*)')"): 1,
-    ("send_receive.py", "re.compile('[0-9A-Fa-f]+[hH]')"): 1,
     ("send_receive.py", "re.compile('^([A-Z]+)([0-9]+)$')"): 1,
     ("send_receive.py", "re.compile('^([A-Za-z_][A-Za-z0-9_]*)\\\\((.+)\\\\)$', re.DOTALL)"): 1,
     ("shift.py", "re.fullmatch('shift\\\\((.+)\\\\)', token)"): 1,
@@ -331,7 +330,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("send_receive.py", "frozenset({'DS', 'DH', 'XD', 'YD', 'TD', 'SD', 'TXT'})"): 1,
     ("send_receive.py", "frozenset({'DS', 'TD', 'SD'})"): 1,
     ("send_receive.py", "frozenset({'TXT'})"): 1,
-    ("send_receive.py", "frozenset({'X', 'Y', 'C', 'T', 'CT', 'SC'})"): 2,
     ("send_receive.py", "frozenset({'X', 'Y'})"): 1,
     ("send_receive.py", "frozenset({'Y', 'C'})"): 2,
     (

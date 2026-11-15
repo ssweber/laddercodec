@@ -27,7 +27,8 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.constants import hex_display
+from ..operands.checks import BIT_BANKS, Constants, check_constant
+from ..operands.constants import Kind, hex_display
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -54,10 +55,11 @@ class ModbusRtuTarget:
         if self.com_port not in _RTU_PORT_MODE:
             raise FieldError(
                 f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
-                f"got {self.com_port!r}"
+                f"got {self.com_port!r}",
+                field="ModbusRtuTarget.com_port",
             )
         _normalize_device_id(self)
-        _check_device_id(self.device_id, 247)
+        _check_device_id(self.device_id, "ModbusRtuTarget", 247)
 
 
 @dataclass(frozen=True)
@@ -75,15 +77,22 @@ class ModbusTcpTarget:
         if self.com_port not in _TCP_PORT_MODE:
             raise FieldError(
                 f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
-                f"got {self.com_port!r}"
+                f"got {self.com_port!r}",
+                field="ModbusTcpTarget.com_port",
             )
         _normalize_device_id(self)
-        _check_device_id(self.device_id)
+        _check_device_id(self.device_id, "ModbusTcpTarget")
         _check_ip(self.ip)
         if isinstance(self.port, bool) or not isinstance(self.port, int):
-            raise FieldError(f"ModbusTcpTarget port must be an integer, got {self.port!r}")
+            raise FieldError(
+                f"ModbusTcpTarget port must be an integer, got {self.port!r}",
+                field="ModbusTcpTarget.port",
+            )
         if not 1 <= self.port <= 65535:
-            raise FieldError(f"ModbusTcpTarget port must be 1-65535, got {self.port}")
+            raise FieldError(
+                f"ModbusTcpTarget port must be 1-65535, got {self.port}",
+                field="ModbusTcpTarget.port",
+            )
 
 
 _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
@@ -95,18 +104,25 @@ def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
         object.__setattr__(target, "device_id", normalize_address(target.device_id))
 
 
-def _check_device_id(device_id: int | str, high: int = 255) -> None:
+def _check_device_id(device_id: int | str, cls: str, high: int = 255) -> None:
     """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
+    field = f"{cls}.device_id"
     if isinstance(device_id, str):
         m = _DS_ADDRESS_RE.fullmatch(device_id)
-        if not m or int(m.group(1)) > 4500:
+        # Four digits at most: DS4500 is the last, and int() refuses a longer digit string.
+        if not m or len(m.group(1)) > 4 or int(m.group(1)) > 4500:
             raise FieldError(
-                f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}"
+                f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}",
+                field=field,
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
-        raise FieldError(f"device_id must be a number or a DS address, got {device_id!r}")
+        raise FieldError(
+            f"device_id must be a number or a DS address, got {device_id!r}", field=field
+        )
     elif not 0 <= device_id <= high:
-        raise FieldError(f"device_id must be 0-{high} or a DS address, got {device_id!r}")
+        raise FieldError(
+            f"device_id must be 0-{high} or a DS address, got {device_id!r}", field=field
+        )
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
@@ -117,7 +133,8 @@ def _check_ip(ip: str) -> None:
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
     if m is None or any(int(octet) > 255 for octet in m.groups()):
         raise FieldError(
-            f"ModbusTcpTarget ip must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
+            f"ModbusTcpTarget ip must be four octets, each 0-255 (a.b.c.d), got {ip!r}",
+            field="ModbusTcpTarget.ip",
         )
 
 
@@ -132,13 +149,11 @@ class ModbusAddress:
         if self.register_type is not None and self.register_type not in REGISTER_TYPES:
             raise FieldError(
                 f"ModbusAddress register_type must be one of {', '.join(REGISTER_TYPES)}, "
-                f"got {self.register_type!r}"
+                f"got {self.register_type!r}",
+                field="ModbusAddress.register_type",
             )
         if self.address.endswith(("h", "H")):
-            if not _HEX_RE.fullmatch(self.address) or int(self.address[:-1], 16) > 0xFFFE:
-                raise FieldError(
-                    f"ModbusAddress address must be 0h-FFFEh in hex, got {self.address!r}"
-                )
+            check_constant(self.address, "ModbusAddress.address", _REMOTE_HEX)
             # The range check reads the typed value: padding past four digits is still in range.
             # CLICK stores uppercase digits without leading zeros and a lowercase h
             # (0FFFEh -> FFFEh, 0H -> 0h).
@@ -148,7 +163,8 @@ class ModbusAddress:
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
-                f"got {self.address!r}"
+                f"got {self.address!r}",
+                field="ModbusAddress.address",
             )
 
     @property
@@ -158,7 +174,8 @@ class ModbusAddress:
 
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
-_HEX_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
+#: A hex remote address: 0h to FFFEh.
+_REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +220,10 @@ def _check_function_code(who: str, function_code: object, allowed: tuple[int, ..
         return
     if type(function_code) is not int or function_code not in allowed:
         listed = ", ".join(str(fc) for fc in allowed)
-        raise FieldError(f"{who} function_code: {function_code!r} is not one of {listed}")
+        raise FieldError(
+            f"{who} function_code: {function_code!r} is not one of {listed}",
+            field=f"{who}.function_code",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -277,7 +297,8 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
             raise FieldError(
                 f"{who} quantity: {quantity} from remote {remote_addr.display} is outside "
                 f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
-                f"{bank}036, then {bank}101-{bank}116 ...)"
+                f"{bank}036, then {bank}101-{bank}116 ...)",
+                field=f"{who}.quantity",
             )
         return
     last_number = ADDRESS_BANKS[bank][1]
@@ -285,11 +306,12 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
     if quantity > left:
         raise FieldError(
             f"{who} quantity: {quantity} from remote {remote_addr.display} runs past "
-            f"{bank}{last_number} ({left} left)"
+            f"{bank}{last_number} ({left} left)",
+            field=f"{who}.quantity",
         )
 
 
-def _xy_nth(number: int, steps: int) -> int:
+def _xy_nth(number: int, steps: int, cls: str) -> int:
     """The X/Y point ``steps`` points after ``number``, counted along the slots."""
     for lo, hi in XY_SLOTS:
         if hi < number:
@@ -298,17 +320,19 @@ def _xy_nth(number: int, steps: int) -> int:
         if first + steps <= hi:
             return first + steps
         steps -= hi - first + 1
-    raise FieldError(f"X/Y count runs past the last slot from point {number}")
+    raise FieldError(
+        f"X/Y count runs past the last slot from point {number}", field=f"{cls}.quantity"
+    )
 
 
-def _addr_end(start: str, quantity: int) -> str:
+def _addr_end(start: str, quantity: int, cls: str) -> str:
     """End address of ``quantity`` elements from ``start`` (DS1 + 5 is DS5, X001 + 17 is X021)."""
     m = _ADDR_NUM_RE.fullmatch(start)
     if not m:
         return start
     prefix, number = m.group(1), int(m.group(2))
     if prefix in _XY_BANKS:
-        return Address(prefix, _xy_nth(number, quantity - 1)).display
+        return Address(prefix, _xy_nth(number, quantity - 1, cls)).display
     return Address(prefix, number + quantity - 1).display
 
 
@@ -338,7 +362,6 @@ _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
 _SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
 #: Send local banks per function code (masks 0x3f, 0xdd40, 0xf3c0).
-_SEND_LOCAL_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 _SEND_LOCAL_REGS_FC06 = frozenset({"DS", "DH", "XD", "YD", "TD", "SD", "TXT"})
 _SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "TXT"})
 #: Banks that only FC16 carries; one of them makes a single-element Send FC16.
@@ -346,7 +369,6 @@ _FC16_ONLY = frozenset({"CTD", "DD", "DF"})
 #: Local data types whose hex remote start stops at FFFDh (int32, float, text).
 _SEND_HEX_FFFD = frozenset({"DD", "CTD", "DF", "TXT"})
 
-_RECEIVE_REMOTE_BITS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 #: CLICK-addressed Receive remote banks per local bank:
 #: int16, int32, float, hex and text pair only with their own kind.
 _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
@@ -393,7 +415,10 @@ def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low
     if isinstance(device_id, str):
         return
     if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
-        raise FieldError(f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU")
+        raise FieldError(
+            f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU",
+            field=f"{who}.target",
+        )
 
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
@@ -422,7 +447,9 @@ def _check_status_bits(who: str, inst: Send | Receive, names: tuple[str, str, st
             continue
         key = (found.bank, found.number)
         if key in seen:
-            raise FieldError(f"{who} {name}: {value} is already the {seen[key]} bit")
+            raise FieldError(
+                f"{who} {name}: {value} is already the {seen[key]} bit", field=f"{who}.{name}"
+            )
         seen[key] = name
 
 
@@ -433,12 +460,15 @@ def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str
         if low <= n <= high:
             return kind
     ranges = ", ".join(f"{low}-{high}" for low, high in kinds.values())
-    raise FieldError(f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}")
+    raise FieldError(
+        f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}",
+        field=f"{who}.remote_start",
+    )
 
 
 def _check_int_quantity(who: str, quantity: object) -> None:
     if isinstance(quantity, bool) or not isinstance(quantity, int):
-        raise FieldError(f"{who} quantity: {quantity!r} is not an integer")
+        raise FieldError(f"{who} quantity: {quantity!r} is not an integer", field=f"{who}.quantity")
 
 
 def _check_quantity(
@@ -462,14 +492,17 @@ def _check_quantity(
     else:
         high, kind = regs, "registers"
     if not 1 <= quantity <= high:
-        raise FieldError(f"{who} quantity: {quantity} is outside 1-{high} {kind}")
+        raise FieldError(
+            f"{who} quantity: {quantity} is outside 1-{high} {kind}", field=f"{who}.quantity"
+        )
     if local.bank in _XY_BANKS:
         room = _xy_points_left(local.number) if xy_room is None else xy_room
         if quantity > room:
             raise FieldError(
                 f"{who} quantity: {quantity} from {local.display} is outside "
                 f"1-{room} (X/Y points count by slot: {local.bank}001-{local.bank}016 with "
-                f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)"
+                f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)",
+                field=f"{who}.quantity",
             )
         return
     if local.bank in ("XD", "YD"):
@@ -479,7 +512,8 @@ def _check_quantity(
     if quantity > left:
         raise FieldError(
             f"{who} quantity: {quantity} from {local.display} runs past "
-            f"{local.bank}{last_number} ({left} left)"
+            f"{local.bank}{last_number} ({left} left)",
+            field=f"{who}.quantity",
         )
 
 
@@ -514,14 +548,15 @@ def _validate_send(send: Send) -> tuple[int, int]:
         if register_type not in ("coil", "holding"):
             raise FieldError(
                 f"{who} remote_start: register_type {register_type!r} cannot be written; "
-                "a Send takes coil or holding"
+                "a Send takes coil or holding",
+                field="Send.remote_start",
             )
         bit = register_type == "coil"
     else:
         bit = _check_984(who, remote.address, _SEND_984_KINDS) == "coil"
 
     if bit:
-        banks = _SEND_LOCAL_BITS
+        banks = BIT_BANKS
     else:
         banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
     local = check_address(send.source, f"{who} source", banks)
@@ -532,9 +567,14 @@ def _validate_send(send: Send) -> tuple[int, int]:
     # The function code must suit the remote kind, and FC05/FC06 carry one element.
     if fc not in ((5, 15) if bit else (6, 16)):
         kind = "a coil" if bit else "a register"
-        raise FieldError(f"{who} function_code: FC{fc:02d} cannot write {kind}")
+        raise FieldError(
+            f"{who} function_code: FC{fc:02d} cannot write {kind}", field=f"{who}.function_code"
+        )
     if fc in (5, 6) and quantity != 1:
-        raise FieldError(f"{who} function_code: FC{fc:02d} writes one element, not {quantity}")
+        raise FieldError(
+            f"{who} function_code: FC{fc:02d} writes one element, not {quantity}",
+            field=f"{who}.function_code",
+        )
     if not bit:
         fc06 = fc == 6
         local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
@@ -561,12 +601,14 @@ def _validate_send(send: Send) -> tuple[int, int]:
         if start > 0xFFFD:  # OBJ-010
             raise FieldError(
                 f"{who} remote_start: {remote.address!r} is outside 0h-FFFDh for a "
-                f"{local.bank} source"
+                f"{local.bank} source",
+                field=f"{who}.remote_start",
             )
         room = min(_SEND_CAPS[2], 0xFFFE - start)
         if local.bank == "DD" and quantity > room:
             raise FieldError(
-                f"{who} quantity: {quantity} from hex {remote.address!r} is outside 1-{room}"
+                f"{who} quantity: {quantity} from hex {remote.address!r} is outside 1-{room}",
+                field=f"{who}.quantity",
             )
 
     # Send: one C bit can't serve two status fields (OBJ-014).
@@ -593,10 +635,8 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
     _check_int_quantity(who, quantity)
     remote_addr: Address | None = None
     if isinstance(remote, str):
-        remote_addr = check_address(
-            remote, f"{who} remote_start", _RECEIVE_REMOTE_BITS | _RECEIVE_REMOTE_REGS
-        )
-        bit = remote_addr.bank in _RECEIVE_REMOTE_BITS
+        remote_addr = check_address(remote, f"{who} remote_start", BIT_BANKS | _RECEIVE_REMOTE_REGS)
+        bit = remote_addr.bank in BIT_BANKS
     elif remote.is_hex:
         bit = (remote.register_type or "holding") in ("coil", "discrete_input")
     else:
@@ -607,11 +647,15 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         # Receive: a CLICK address is read with whichever code is picked.
         if fc not in ((1, 2) if bit else (3, 4)):
             kind = "a bit" if bit else "a register"
-            raise FieldError(f"{who} function_code: FC{fc:02d} cannot read {kind}")
+            raise FieldError(
+                f"{who} function_code: FC{fc:02d} cannot read {kind}",
+                field=f"{who}.function_code",
+            )
     elif fc != default_fc:
         raise FieldError(
             f"{who} function_code: FC{fc:02d} does not match remote_start "
-            f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}"
+            f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}",
+            field=f"{who}.function_code",
         )
 
     local = check_address(
@@ -628,10 +672,16 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         _check_c_remote_room(who, quantity, remote_addr)
     if (local.bank == "YD" or hex_pair) and quantity != 1:
         # Receive: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
-        raise FieldError(f"{who} quantity: {quantity} is outside 1-1 for this dest and remote")
+        raise FieldError(
+            f"{who} quantity: {quantity} is outside 1-1 for this dest and remote",
+            field=f"{who}.quantity",
+        )
     if local.bank == "TXT" and (quantity < 2 or quantity % 2):
         # Receive: text arrives two characters per register.
-        raise FieldError(f"{who} quantity: {quantity} TXT characters must be an even count of 2+")
+        raise FieldError(
+            f"{who} quantity: {quantity} TXT characters must be an even count of 2+",
+            field=f"{who}.quantity",
+        )
 
     if receive.word_swap:
         # Receive: CLICK forces Word Swap off here.
@@ -647,7 +697,10 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         else:
             reason = ""
         if reason:
-            raise FieldError(f"{who} word_swap: CLICK turns Word Swap off for {reason}")
+            raise FieldError(
+                f"{who} word_swap: CLICK turns Word Swap off for {reason}",
+                field=f"{who}.word_swap",
+            )
 
     # Receive: one C bit can't serve two status fields.
     _check_status_bits(who, receive, ("receiving", "success", "error"))
@@ -851,7 +904,7 @@ class Receive(AfInstruction):
         if self.function_code is not None:
             parts.append(f"function_code={self.function_code}")
         if self.quantity > 1:
-            parts.append(f"dest={self.dest}..{_addr_end(self.dest, self.quantity)}")
+            parts.append(f"dest={self.dest}..{_addr_end(self.dest, self.quantity, 'Receive')}")
         else:
             parts.append(f"dest={self.dest}")
         if self.receiving:
@@ -949,7 +1002,7 @@ class Send(AfInstruction):
         if self.function_code is not None:
             parts.append(f"function_code={self.function_code}")
         if self.quantity > 1:
-            parts.append(f"source={self.source}..{_addr_end(self.source, self.quantity)}")
+            parts.append(f"source={self.source}..{_addr_end(self.source, self.quantity, 'Send')}")
         else:
             parts.append(f"source={self.source}")
         if self.sending:
@@ -1234,7 +1287,10 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         ip = _strip_quotes(kw.get("ip", ""))
         raw_port = kw.get("port", "502")
         if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
-            raise FieldError(f"ModbusTcpTarget port must be an integer, got {raw_port!r}")
+            raise FieldError(
+                f"ModbusTcpTarget port must be an integer, got {raw_port!r}",
+                field="ModbusTcpTarget.port",
+            )
         port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
@@ -1256,7 +1312,7 @@ def _parse_remote_start(raw: str) -> str | ModbusAddress:
     return raw
 
 
-def _parse_range_quantity(raw: str) -> tuple[str, int]:
+def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
     """Parse 'DS1..DS5' → ('DS1', 5) or 'DS1' → ('DS1', 1).
 
     CLICK stores a start and a count.  An X/Y range counts the points of the slots it
@@ -1269,25 +1325,31 @@ def _parse_range_quantity(raw: str) -> tuple[str, int]:
         m_start = _ADDR_NUM_RE.fullmatch(start)
         m_end = _ADDR_NUM_RE.fullmatch(end)
         if not (m_start and m_end):
-            raise FieldError(f"range {raw!r} must run between two addresses of one bank")
+            raise FieldError(
+                f"range {raw!r} must run between two addresses of one bank", field=field
+            )
         prefix = m_start.group(1)
         if m_end.group(1) != prefix:
-            raise FieldError(f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}")
+            raise FieldError(
+                f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}", field=field
+            )
         check_address(end, f"range end of {raw!r}", banks={prefix})
         first, last = int(m_start.group(2)), int(m_end.group(2))
         if last < first:
-            raise FieldError(f"range {raw!r} runs backwards")
+            raise FieldError(f"range {raw!r} runs backwards", field=field)
         qty = _xy_points(first, last) if prefix in _XY_BANKS else last - first + 1
         return start, qty
     return raw.strip(), 1
 
 
-def _parse_function_code(kw: dict[str, str]) -> int | None:
+def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
     raw = kw.get("function_code")
     if raw is None:
         return None
     if not raw.isascii() or not raw.isdigit():
-        raise FieldError(f"function_code must be a number, got {raw!r}")
+        raise FieldError(
+            f"function_code must be a number, got {raw!r}", field=f"{cls}.function_code"
+        )
     return int(raw)
 
 
@@ -1298,7 +1360,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
     target = _parse_target(kw["target"])
     remote_start = _parse_remote_start(kw["remote_start"])
     word_swap = kw.get("word_swap") == "1"
-    function_code = _parse_function_code(kw)
+    function_code = _parse_function_code(kw, "Receive" if call.name == "receive" else "Send")
 
     receiving = kw.get("receiving", "")
     sending = kw.get("sending", "")
@@ -1308,7 +1370,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
 
     if call.name == "receive":
         dest_raw = kw.get("dest", "")
-        dest, quantity = _parse_range_quantity(dest_raw)
+        dest, quantity = _parse_range_quantity(dest_raw, "Receive.dest")
         return Receive(
             target=target,
             remote_start=remote_start,
@@ -1324,7 +1386,7 @@ def parse_af_call(call: AfCall) -> Receive | Send:
 
     if call.name == "send":
         source_raw = kw.get("source", "")
-        source, quantity = _parse_range_quantity(source_raw)
+        source, quantity = _parse_range_quantity(source_raw, "Send.source")
         return Send(
             target=target,
             remote_start=remote_start,
