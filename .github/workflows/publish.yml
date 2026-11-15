@@ -38,3 +38,19 @@ jobs:
 
       - name: Publish to PyPI (using uv)
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  docs:
+    name: Deploy the release's docs
+    # A pre-release goes to PyPI but leaves the public docs on the last full release.
+    if: github.event_name == 'release' && !github.event.release.prerelease
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Deploy docs from the release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh workflow run docs.yml --ref main -f ref="$TAG"

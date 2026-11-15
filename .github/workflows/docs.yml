@@ -1,28 +1,44 @@
 name: Docs
 
+# The public site describes the latest release, not main. Pull requests build it
+# (no deploy). A deploy is a workflow_dispatch on main: publish.yml starts one with
+# the release's tag after the PyPI upload; by hand, `ref` defaults to the latest release.
 on:
-  # Only a published release deploys; PRs and manual runs build the site and stop.
-  release:
-    types: [published]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag or commit to build (default: the latest release)"
+        required: false
+        default: ""
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Choose the release to build
+        id: source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+        run: |
+          if [ -z "$REF" ]; then
+            REF=$(gh release view --repo "${{ github.repository }}" --json tagName --jq .tagName)
+          fi
+          echo "Building $REF"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.source.outputs.ref }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -39,7 +55,8 @@ jobs:
 
       - name: Cache-bust extra assets
         run: |
-          sed -i -E "s#^(\s*- (stylesheets|javascripts)/[^?[:space:]]+)\$#\1?v=${GITHUB_SHA::8}#" mkdocs.yml
+          sha=$(git rev-parse --short=8 HEAD)
+          sed -i -E "s#^(\s*- (stylesheets|javascripts)/[^?[:space:]]+)\$#\1?v=${sha}#" mkdocs.yml
           grep -E '\?v=' mkdocs.yml
 
       - name: Build docs
@@ -49,15 +66,20 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        if: github.event_name == 'release'
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
   deploy:
-    if: github.event_name == 'release'
+    if: github.event_name == 'workflow_dispatch'
     needs: build
     runs-on: ubuntu-latest
+    # On the deploy only: at workflow level, a pull request build queued behind a
+    # waiting deploy would replace it.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
