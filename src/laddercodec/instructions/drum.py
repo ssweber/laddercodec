@@ -26,6 +26,8 @@ from ..model import (
     check_flag,
     normalize_address,
 )
+from ..operands.checks import BIT_BANKS, Constants, check_operand
+from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -174,12 +176,12 @@ def _constant_preset_mask(presets: list[str]) -> str:
 
 
 #: Banks an event step reads; another bank is OBJ-004.
-DRUM_EVENT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+DRUM_EVENT_BANKS = BIT_BANKS
 
 #: A constant step duration is 0 to 32767 for every unit, digits only: an int16
 #: with no ``-`` or ``+``, else OBJ-005.
 DRUM_MAX_DURATION = 32767
-_DIGITS_RE = re.compile(r"[0-9]+")
+_DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=DRUM_MAX_DURATION)
 
 
 def _check_duration(preset: str, name: str) -> None:
@@ -188,18 +190,7 @@ def _check_duration(preset: str, name: str) -> None:
     A register duration is DS (OBJ-004 for another bank).  Whether the CPU takes a
     register at all is a project rule and is not checked.
     """
-    if not _DIGITS_RE.fullmatch(preset):
-        if not preset[:1].isalpha():
-            raise FieldError(
-                f"{name}: {preset!r} is not allowed; a duration is 0 to {DRUM_MAX_DURATION} "
-                "or a DS register (OBJ-005)"
-            )
-        check_address(preset, name, banks={"DS"})
-    elif int(preset) > DRUM_MAX_DURATION:
-        raise FieldError(
-            f"{name}: {preset!r} is above {DRUM_MAX_DURATION}; a duration is 0 to "
-            f"{DRUM_MAX_DURATION} (OBJ-005)"
-        )
+    check_operand(preset, name, {"DS"}, _DURATION, letter_first=True)
 
 
 def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Address) -> None:
@@ -213,13 +204,15 @@ def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Addr
         if output in seen:
             raise FieldError(
                 f"Drum.outputs[{i}]: {text!r} is already output {seen[output]}; "
-                "each output is a different bit (OBJ-014)"
+                "each output is a different bit (OBJ-014)",
+                field=f"Drum.outputs[{i}]",
             )
         seen[output] = i
         if output == flag:
             raise FieldError(
                 f"Drum.outputs[{i}]: {text!r} is the completion flag; an output is "
-                "a different bit (OBJ-014)"
+                "a different bit (OBJ-014)",
+                field=f"Drum.outputs[{i}]",
             )
 
 
@@ -275,21 +268,33 @@ class Drum(PinnedInstruction):
             setattr(self, name, normalize_address(getattr(self, name)))
         kind = self.drum_kind
         if kind not in ("event", "time", "time_event"):
-            raise FieldError(f"Drum.drum_kind: {kind!r} is not event, time or time_event")
+            raise FieldError(
+                f"Drum.drum_kind: {kind!r} is not event, time or time_event",
+                field="Drum.drum_kind",
+            )
         steps, outputs = self.num_steps, self.num_outputs
         if not 1 <= steps <= _MAX_DRUM_SIZE:
-            raise FieldError(f"Drum steps: {steps} is outside 1-{_MAX_DRUM_SIZE}")
+            raise FieldError(
+                f"Drum steps: {steps} is outside 1-{_MAX_DRUM_SIZE}",
+                field="Drum.events_or_presets",
+            )
         if not 1 <= outputs <= _MAX_DRUM_SIZE:
-            raise FieldError(f"Drum outputs: {outputs} is outside 1-{_MAX_DRUM_SIZE}")
+            raise FieldError(
+                f"Drum outputs: {outputs} is outside 1-{_MAX_DRUM_SIZE}", field="Drum.outputs"
+            )
         if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
             raise FieldError(
                 f"Drum.pattern: needs {steps} steps of {outputs} cells each, got "
-                f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells"
+                f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells",
+                field="Drum.pattern",
             )
         for row in self.pattern:
             for cell in row:
                 if type(cell) is not int or cell not in (0, 1):
-                    raise FieldError(f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1")
+                    raise FieldError(
+                        f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1",
+                        field="Drum.pattern",
+                    )
         outputs = [
             check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
             for i, output in enumerate(self.outputs)
@@ -309,24 +314,32 @@ class Drum(PinnedInstruction):
             check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
         if kind == "event":
             if any(not event for event in self.events_or_presets):
-                raise FieldError("Drum.events: every step needs an event (OBJ-021)")
+                raise FieldError(
+                    "Drum.events: every step needs an event (OBJ-021)", field="Drum.events"
+                )
             return
         if self.unit not in _DRUM_UNIT_TO_INDEX:
             raise FieldError(
-                f"Drum.unit: {self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}"
+                f"Drum.unit: {self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}",
+                field="Drum.unit",
             )
         check_address(self.accumulator, "Drum.accumulator", banks={"TD"})
         if kind == "time":
             if any(not preset for preset in self.events_or_presets):
-                raise FieldError("Drum.presets: every step needs a duration (OBJ-022)")
+                raise FieldError(
+                    "Drum.presets: every step needs a duration (OBJ-022)", field="Drum.presets"
+                )
             return
         if len(self.events) != steps:
             raise FieldError(
-                f"Drum.events: needs one event per step ({steps}), got {len(self.events)}"
+                f"Drum.events: needs one event per step ({steps}), got {len(self.events)}",
+                field="Drum.events",
             )
         for i, (preset, event) in enumerate(zip(self.events_or_presets, self.events, strict=True)):
             if not preset and not event:
-                raise FieldError(f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)")
+                raise FieldError(
+                    f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)", field="Drum"
+                )
 
     @property
     def num_outputs(self) -> int:

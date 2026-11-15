@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
 from ..model import FieldError, PinnedInstruction, check_address, check_flag, normalize_address
+from ..operands.checks import Constants, check_operand
+from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -40,8 +42,8 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 
 #: A constant set point is digits only (no sign), 0 to 32767, for every unit.
 #: A digits-only value above 0x7fff is OBJ-005; the unit does not matter.
-_DIGITS_RE = re.compile(r"[0-9]+")
 TIMER_MAX_SETPOINT = 32767
+_SETPOINT = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=TIMER_MAX_SETPOINT)
 
 _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
@@ -73,10 +75,14 @@ class Timer(PinnedInstruction):
     def __post_init__(self) -> None:
         self.retained = check_flag(self.retained, "Timer.retained")
         if self.timer_type not in ("on_delay", "off_delay"):
-            raise FieldError(f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay")
+            raise FieldError(
+                f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay",
+                field="Timer.timer_type",
+            )
         if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
             raise FieldError(
-                f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}"
+                f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}",
+                field="Timer.unit",
             )
         self.done_bit = normalize_address(self.done_bit)
         self.current = normalize_address(self.current)
@@ -86,20 +92,16 @@ class Timer(PinnedInstruction):
         if done.number != current.number:
             raise FieldError(
                 f"Timer.current: {self.current!r} must be TD{done.number} to match "
-                f"Timer.done_bit {self.done_bit!r}"
+                f"Timer.done_bit {self.done_bit!r}",
+                field="Timer.current",
             )
-        if not _DIGITS_RE.fullmatch(self.setpoint):
-            # An address set point is DS only, OBJ-004.
-            check_address(self.setpoint, "Timer.setpoint", banks={"DS"})
-        elif int(self.setpoint) > TIMER_MAX_SETPOINT:
-            raise FieldError(
-                f"Timer.setpoint: {self.setpoint!r} is above {TIMER_MAX_SETPOINT}; "
-                f"a constant set point is 0 to {TIMER_MAX_SETPOINT} (OBJ-005)"
-            )
+        # An address set point is DS only, OBJ-004.
+        check_operand(self.setpoint, "Timer.setpoint", {"DS"}, _SETPOINT)
         if self.timer_type == "off_delay" and self.retained:
             raise FieldError(
                 "Timer.retained: off_delay can't be retentive (no .reset() pin); CLICK's "
-                "Timer dialog offers Retentive only for an On Delay timer"
+                "Timer dialog offers Retentive only for an On Delay timer",
+                field="Timer.retained",
             )
         self._check_pin_rows()
 

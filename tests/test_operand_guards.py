@@ -237,9 +237,7 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("copy.py", "re.compile('^to_(text|value|binary|ascii)(?:\\\\((.*)\\\\))?$', re.DOTALL)"): 1,
     ("copy.py", "re.fullmatch('copy\\\\((.+)\\\\)', token)"): 1,
     ("copy.py", "re.match('[A-Z]*', operand)"): 1,
-    ("counter.py", "re.compile('-?[0-9]+')"): 1,
     ("counter.py", "re.fullmatch('(count_up|count_down)\\\\((.+)\\\\)', token)"): 1,
-    ("drum.py", "re.compile('[0-9]+')"): 1,
     ("drum.py", "re.compile('[A-Z]+[0-9]+')"): 1,
     ("end.py", "re.fullmatch('end\\\\(\\\\s*\\\\)', token)"): 1,
     ("forloop.py", "re.compile('[0-9]+(\\\\s+[0-9]+)+')"): 1,
@@ -267,7 +265,6 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("send_receive.py", "re.compile('^([A-Z]+)([0-9]+)$')"): 1,
     ("send_receive.py", "re.compile('^([A-Za-z_][A-Za-z0-9_]*)\\\\((.+)\\\\)$', re.DOTALL)"): 1,
     ("shift.py", "re.fullmatch('shift\\\\((.+)\\\\)', token)"): 1,
-    ("timer.py", "re.compile('[0-9]+')"): 1,
     ("timer.py", "re.fullmatch('(on_delay|off_delay)\\\\((.+)\\\\)', token)"): 1,
 }
 
@@ -303,7 +300,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("counter.py", "frozenset({'DS', 'DD'})"): 1,
     ("counter.py", "{'CT'}"): 1,
     ("counter.py", "{'CTD'}"): 1,
-    ("drum.py", "frozenset({'X', 'Y', 'C', 'T', 'CT', 'SC'})"): 1,
     ("drum.py", "{'C'}"): 1,
     ("drum.py", "{'DS'}"): 3,
     ("drum.py", "{'TD'}"): 1,

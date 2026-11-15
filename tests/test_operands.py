@@ -45,18 +45,22 @@ _MASKS = [
 
 
 def _literal_banks(module: str, field: str) -> frozenset[str]:
-    """The literal ``banks=`` of the ``check_address(..., field, banks=...)`` call in ``module``."""
+    """The literal banks of the ``check_address(..., field, banks=...)`` or
+    ``check_operand(value, field, banks, ...)`` call in ``module``."""
     tree = ast.parse((INSTRUCTIONS / module).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "check_address"
+            and node.func.id in ("check_address", "check_operand")
             and len(node.args) >= 2
             and isinstance(node.args[1], ast.Constant)
             and node.args[1].value == field
         ):
-            (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
+            if node.func.id == "check_operand":
+                banks_arg = node.args[2]
+            else:
+                (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
             return frozenset(ast.literal_eval(banks_arg))
     raise AssertionError(f"no check_address for {field} in {module}")
 
