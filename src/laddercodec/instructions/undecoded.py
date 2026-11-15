@@ -58,9 +58,7 @@ class Undecoded(AfInstruction):
             raise FieldError(f"Undecoded.rung: {self.rung!r} must be a whole number from 0")
         if self.row is not None and not _is_index(self.row):
             raise FieldError(f"Undecoded.row: {self.row!r} must be None or a whole number from 0")
-        if self.column is not None and not (
-            _is_index(self.column) and self.column <= _LAST_COLUMN
-        ):
+        if self.column is not None and not (_is_index(self.column) and self.column <= _LAST_COLUMN):
             raise FieldError(f"Undecoded.column: {self.column!r} must be None or 0 to 31")
         if self.stop not in _STOPS:
             raise FieldError(f"Undecoded.stop: {self.stop!r} must be 'end' or 'return'")

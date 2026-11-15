@@ -54,7 +54,6 @@ from .instructions import (
 from .instructions.raw import find_blob_boundary
 from .legacy import warn_legacy
 from .model import PinnedInstruction
-from .undecoded import BAD_BYTES, Undecoded, marker_rung, reason, to_the_end, warn_undecoded
 from .topology import (
     CELL_SIZE,
     CELL_TAIL_SIZE,
@@ -67,6 +66,7 @@ from .topology import (
     PROGRAM_HEADER_BASE,
     RUNG0_PREAMBLE_BASE,
 )
+from .undecoded import BAD_BYTES, Undecoded, marker_rung, reason, to_the_end, warn_undecoded
 
 # ---------------------------------------------------------------------------
 # Public types

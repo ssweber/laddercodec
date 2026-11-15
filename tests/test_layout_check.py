@@ -27,10 +27,10 @@ import pytest
 from laddercodec import Finding, Rung, check, decode, encode, read_csv
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.undecoded import UndecodedRungWarning
 from laddercodec.instructions import Coil, Contact, Timer
 from laddercodec.layout_check import _blank_rows
 from laddercodec.model import InstructionType
+from laddercodec.undecoded import UndecodedRungWarning
 
 FIX = Path(__file__).parent / "fixtures"
 LC = FIX / "layout_check"

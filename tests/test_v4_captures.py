@@ -58,9 +58,7 @@ from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
 from laddercodec.decode import Rung, decode, inspect_cells
-from laddercodec.instructions import Undecoded
-from laddercodec.undecoded import UndecodedRungWarning
-from laddercodec.instructions import from_tags_af
+from laddercodec.instructions import Undecoded, from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
 from laddercodec.instructions.counter import Counter
@@ -72,6 +70,7 @@ from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
+from laddercodec.undecoded import UndecodedRungWarning
 from tests.fixtures_refused import is_refused
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
@@ -1158,7 +1157,9 @@ def test_down_wire_in_the_output_column_is_refused() -> None:
     """
     with pytest.warns(UndecodedRungWarning) as caught:
         rung = decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
-    error = "the output column has a down wire, which isn't supported. CLICK's syntax check removes it."
+    error = (
+        "the output column has a down wire, which isn't supported. CLICK's syntax check removes it."
+    )
     assert [str(w.message) for w in caught] == [
         f"rung 0, row 0 is not decoded, and an undecoded marker stands in for it: {error}"
     ]

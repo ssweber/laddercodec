@@ -275,7 +275,7 @@ def test_csv_round_trip(marker: Undecoded, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("token", "message"),
     [
-        ('undecoded(rung=1,stop=end)', "must be undecoded"),
+        ("undecoded(rung=1,stop=end)", "must be undecoded"),
         ('undecoded("x",rung=1,bogus=2,stop=end)', "must be undecoded"),
         ('undecoded("x",stop=end)', "has no rung="),
         ('undecoded("x",rung=1)', "has no stop="),
@@ -297,7 +297,13 @@ def test_csv_token_errors(token: str, message: str, tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("rung", "row", "column"),
     [
-        (replace(RUNGS[1], conditions=[[UnknownCondition(raw=b"\x01"), *RUNGS[1].conditions[0][1:]]]), 0, 0),
+        (
+            replace(
+                RUNGS[1], conditions=[[UnknownCondition(raw=b"\x01"), *RUNGS[1].conditions[0][1:]]]
+            ),
+            0,
+            0,
+        ),
         (replace(RUNGS[1], instructions=[UnknownInstruction(raw=b"\x01")]), 0, 31),
     ],
     ids=["condition", "instruction"],
