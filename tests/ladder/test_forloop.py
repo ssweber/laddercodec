@@ -168,7 +168,7 @@ class TestForCount:
         assert _read_af(tmp_path, f"for({limit})") == ForLoop(limit=limit)
 
     def test_above_2147483647_refused(self, tmp_path: Path) -> None:
-        message = r"^ForLoop.limit: '2147483648' is above 2147483647"
+        message = r"^ForLoop.limit: '2147483648' is refused; an integer constant is"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, "for(2147483648)")
         with pytest.raises(FieldError, match=message):
