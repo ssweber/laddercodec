@@ -181,10 +181,6 @@ def _constant_preset_mask(presets: list[str]) -> str:
 _DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=32767)
 
 
-def _check_duration(preset: str, name: str) -> None:
-    check_operand(preset, name, {"DS"}, _DURATION, letter_first=True)
-
-
 def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Address) -> None:
     """Refuse an output used twice, or used as the completion flag (OBJ-014).
 
@@ -301,7 +297,9 @@ class Drum(PinnedInstruction):
         if kind != "event":
             for i, preset in enumerate(self.events_or_presets):
                 if preset:
-                    _check_duration(preset, f"Drum.presets[{i}]")
+                    check_operand(
+                        preset, f"Drum.presets[{i}]", {"DS"}, _DURATION, letter_first=True
+                    )
         if self.jump_enabled:
             check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
         if kind == "event":

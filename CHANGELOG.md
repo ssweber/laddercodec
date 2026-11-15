@@ -19,12 +19,12 @@
 ### Fixed
 - **Long digit runs in Compare and Out variants**: a constant of more than 4300 digits, such as a long run of leading zeros, no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` where its pairing or limit refuses it.
 - **For count of thousands of digits**: a For count of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError`; the messages for an above-limit count and a pointer count are reworded.
+- **Long digit runs in Timer and Drum**: a Timer set point or Drum preset of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` above its limit, and a Counter preset that long is refused with `FieldError`.
 
 ### Changed
-- **Reworded refusals**: the messages for Compare and Out variant fields are reworded; the refusals themselves are the same.
-- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal.
+- **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset and Drum preset fields are reworded; the refusals themselves are the same.
+- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, and for Drum step counts, output counts and steps with neither a duration nor an event.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
-- **`FieldError.field` for data instructions**: `FieldError.field` now names the field for Drum step counts, output counts and steps with neither a duration nor an event.
 
 ### Behaviour changes
 - **A rung that doesn't decode no longer fails the call**: a down wire in the output column or wire flags no token has gives an undecoded marker for the rung, and a clipboard row the walk can't read or a program file record whose framing breaks gives one marker for that rung and every rung after it, where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`.

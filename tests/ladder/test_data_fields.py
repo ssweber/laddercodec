@@ -485,6 +485,26 @@ class TestFieldNames:
         with pytest.raises(FieldError) as step:
             drum("time_event", events_or_presets=["", "5"], events=["", ""])
         assert step.value.field == "Drum"
+        with pytest.raises(FieldError) as outs:
+            drum(outs=33, steps=1)
+        assert outs.value.field == "Drum.outputs"
+
+    def test_kind_and_unit_refusals_name_the_field(self) -> None:
+        with pytest.raises(FieldError) as kind:
+            drum("bogus")
+        assert kind.value.field == "Drum.drum_kind"
+        with pytest.raises(FieldError) as unit:
+            drum("time", unit="Tx")
+        assert unit.value.field == "Drum.unit"
+        with pytest.raises(FieldError) as timer_unit:
+            timer(unit="Tx")
+        assert timer_unit.value.field == "Timer.unit"
+        with pytest.raises(FieldError) as timer_type:
+            timer(timer_type="bogus")
+        assert timer_type.value.field == "Timer.timer_type"
+        with pytest.raises(FieldError) as counter_type:
+            counter(counter_type="bogus")
+        assert counter_type.value.field == "Counter.counter_type"
 
     def test_a_refusal_across_fields_names_the_class_or_the_field_it_names(self) -> None:
         with pytest.raises(FieldError) as mismatch:
@@ -493,3 +513,33 @@ class TestFieldNames:
         with pytest.raises(FieldError) as ends:
             Shift(start_bit="C1", end_bit="C001")
         assert ends.value.field == "Shift.end_bit"
+
+
+class TestLongDigitRuns:
+    """5001 digits: leading zeros read as their value, above the limit is refused."""
+
+    ZEROS = "0" * 5000 + "1"
+    ONES = "1" * 5000
+
+    @pytest.mark.parametrize("kind", ["time", "time_event"])
+    @pytest.mark.parametrize("index", [0, 1])
+    def test_drum_presets(self, kind: str, index: int) -> None:
+        for value, ok in ((self.ZEROS, True), (self.ONES, False)):
+            presets = ["5", "5"]
+            presets[index] = value
+            if ok:
+                assert drum(kind, events_or_presets=presets).events_or_presets[index] == value
+            else:
+                with pytest.raises(FieldError, match=rf"^Drum.presets\[{index}\]"):
+                    drum(kind, events_or_presets=presets)
+
+    @pytest.mark.parametrize("timer_type", ["on_delay", "off_delay"])
+    def test_timer_setpoint(self, timer_type: str) -> None:
+        assert timer(timer_type=timer_type, setpoint=self.ZEROS).setpoint == self.ZEROS
+        with pytest.raises(FieldError, match="^Timer.setpoint"):
+            timer(timer_type=timer_type, setpoint=self.ONES)
+
+    @pytest.mark.parametrize("value", [ZEROS, ONES])
+    def test_counter_preset_refused(self, value: str) -> None:
+        with pytest.raises(FieldError, match="^Counter.preset"):
+            counter(preset=value)
