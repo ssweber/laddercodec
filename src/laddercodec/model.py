@@ -1,12 +1,16 @@
 """Shared domain types for ladder instructions.
 
 Defines the ``InstructionType`` enum, the instruction base classes and the program
-containers.  It re-exports the field errors (:mod:`laddercodec.operands.errors`), the
-CLICK address check (:func:`check_address`), its display form
-(:func:`normalize_address`) and the ``OPERAND_RE`` shape pattern
-(:mod:`laddercodec.operands.address`) and the flag check :func:`check_flag`
-(:mod:`laddercodec.operands.checks`).  These are the foundation types imported by
-every ``instructions/`` module — no reverse dependency.
+containers.  It re-exports:
+
+- the field errors, from :mod:`laddercodec.operands.errors`;
+- the CLICK address check (:func:`check_address`), its display form
+  (:func:`normalize_address`) and the ``OPERAND_RE`` shape pattern, from
+  :mod:`laddercodec.operands.address`;
+- the flag check :func:`check_flag`, from :mod:`laddercodec.operands.checks`.
+
+These are the foundation types imported by every ``instructions/`` module — no reverse
+dependency.
 
 Instruction dataclasses (Contact, Coil, …) and their func-code
 tables live in :mod:`laddercodec.instructions`.

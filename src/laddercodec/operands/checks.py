@@ -4,8 +4,11 @@
 - :func:`check_constant`: a constant of the kinds and limits a :class:`Constants` names.
 - :func:`check_operand`: an address, a pointer or a constant, in one field;
   :func:`constant_shape` names the kind of constant a text is spelled as, limits aside.
+- :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it.
 - :func:`check_out_target`: an address a coil writes.
 - :func:`check_flag`: a True/False field.
+
+:data:`BIT_BANKS` and :data:`REGISTER_BANKS` are the bank sets more than one family uses.
 
 Every refusal is a :class:`~laddercodec.operands.errors.FieldError` (an
 :class:`~laddercodec.operands.errors.AddressError` for an address or a pointer) whose
@@ -37,8 +40,10 @@ from .errors import AddressError, FieldError
 
 __all__ = [
     "ALL_KINDS",
+    "BIT_BANKS",
     "OUT_BANKS",
     "POINTER_BANKS",
+    "REGISTER_BANKS",
     "WRITABLE_SC",
     "Constants",
     "Operand",
@@ -47,11 +52,17 @@ __all__ = [
     "check_flag",
     "check_operand",
     "check_out_target",
+    "check_quoted_text",
     "constant_shape",
 ]
 
 #: Every constant kind.
 ALL_KINDS: frozenset[Kind] = frozenset(Kind)
+
+#: The bit banks.
+BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
+#: The register banks.
+REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
 
 #: The highest 32-bit hex constant.
 _HEX32_HIGH = 0xFFFFFFFF
@@ -242,6 +253,30 @@ def _check_limits(value: str, name: str, constants: Constants, const: Constant) 
             f"{name}: {value!r} is {len(value)} characters; a constant here is at most "
             f"{constants.max_length} (OBJ-005)",
             field=name,
+        )
+
+
+#: The characters a quoted text constant may hold: printable ASCII, space to ``~``.
+_TEXT_CHARS = range(0x20, 0x7F)
+
+
+def check_quoted_text(value: str, name: str) -> None:
+    """Refuse a quoted text constant Compare and Search refuse.
+
+    The text between the quotes is 1 to :data:`TEXT_MAX` printable ASCII characters,
+    with no quote inside: a quote would end the text in the CSV token, so it is written
+    ``$22``.
+    """
+    inner = value[1:-1]
+    if not 1 <= len(inner) <= TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
+        raise FieldError(
+            f"{name}: {value!r} is refused; a text constant is 1 to {TEXT_MAX} "
+            "printable ASCII characters in quotes (use $hh for a character by code)",
+            field=name,
+        )
+    if '"' in inner:
+        raise FieldError(
+            f"{name}: {value!r} holds a quote; write the quote character as $22", field=name
         )
 
 

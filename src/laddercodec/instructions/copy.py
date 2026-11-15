@@ -33,6 +33,8 @@ from ..model import (
     normalize_address,
     xy_slot,
 )
+from ..operands.checks import BIT_BANKS as BIT_BANKS
+from ..operands.checks import REGISTER_BANKS as REGISTER_BANKS
 from ..operands.constants import (
     INT32_MAX,
     INT32_MIN,
@@ -161,10 +163,9 @@ def _ascii_code(code: int) -> str:
 # Operands and banks (Single Copy, Fill and pointers)
 # ---------------------------------------------------------------------------
 
-#: Bit banks: bits copy to Y and C only.
-BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-#: Registers a copy reads: the "Registers" rows.
-REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
+# BIT_BANKS (bits copy to Y and C only) and REGISTER_BANKS (the registers a copy reads)
+# come from operands.checks.
+
 #: Registers that hold a number.
 NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
 #: Registers a copy writes: every register but XD.

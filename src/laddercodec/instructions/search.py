@@ -30,8 +30,8 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import AfInstruction, FieldError, normalize_address
 from ..operands.constants import SEARCH_TABLE_BANKS, classify
-from .comparison import check_quoted_text
-from .copy import REGISTER_BANKS, _check_range, check_constant, check_operand
+from ..operands.checks import REGISTER_BANKS, check_quoted_text
+from .copy import _check_range, check_constant, check_operand
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
