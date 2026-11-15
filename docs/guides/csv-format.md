@@ -805,7 +805,7 @@ where it is not known:
 | Attribute   | Holds                                                                                        |
 |-------------|----------------------------------------------------------------------------------------------|
 | `file`      | the CSV file                                                                                 |
-| `line`      | the line the bad row starts on, from 1, blank lines counted; `None` for the whole file      |
+| `line`      | the line the bad row starts on, from 1, blank lines counted; `None` for the whole file       |
 | `rung_line` | the line of the `R` row that starts the row's rung; `None` for a row in no rung              |
 | `row`       | the row within that rung, from 0: the `R` row is 0, comment rows are not counted             |
 | `column`    | from 0: 0 is `A`, 30 is `AE`, 31 is `AF`; `None` for a whole row or its marker               |
@@ -825,8 +825,8 @@ Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, 
 Two classes differ:
 
 - A `FieldError` refused while a box takes its pin rows arrives as a `ConvertError`
-  (`laddercodec.csv.converter`, a `ValueError`), as before. Its `field` names the field, as `FieldError.field` does
-  (`Drum.jump_target`).
+  (`laddercodec.csv.converter`, a `ValueError`), as before. Its `field` names the
+  field, as `FieldError.field` does (`Drum.jump_target`).
 - A `UnicodeDecodeError` (a file that isn't UTF-8) keeps its message, and its
   location holds `file` only.
 

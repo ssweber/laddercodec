@@ -63,11 +63,17 @@ def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
 
 def _row_ast(canonical: CanonicalRow, line: int | None = None) -> RowAst:
     condition_nodes = []
-    for column, token in enumerate(canonical.conditions):
-        with located(column=column):
+    try:
+        for token in canonical.conditions:
             condition_nodes.append(parse_condition_token(token))
-    with located(column=AF_COLUMN):
+    except Exception as exc:
+        add_location(exc, column=len(condition_nodes))  # the cell that failed
+        raise
+    try:
         af_node = parse_af_token(canonical.af)
+    except Exception as exc:
+        add_location(exc, column=AF_COLUMN)
+        raise
     return RowAst(
         canonical=canonical, condition_nodes=tuple(condition_nodes), af_node=af_node, line=line
     )
@@ -91,14 +97,21 @@ def _rows_ast(records: Iterable[tuple[int | None, Sequence[str]]]) -> tuple[RowA
             rung_line = row = None
         elif row is not None:  # a continuation row, or an invalid marker refused below
             row += 1
-        places.append({"line": line, "rung_line": rung_line, "row": row})
-        with located(**places[-1]):
+        place = {"line": line, "rung_line": rung_line, "row": row}
+        places.append(place)
+        try:
             canonical_rows.append(_canonical_row_from_fields(list(fields)))
+        except Exception as exc:
+            add_location(exc, **place)
+            raise
     # Every row's shape is checked before any row's tokens.
     rows: list[RowAst] = []
     for canonical, place in zip(canonical_rows, places, strict=True):
-        with located(**place):
+        try:
             rows.append(_row_ast(canonical, place["line"]))
+        except Exception as exc:
+            add_location(exc, **place)
+            raise
     return tuple(rows)
 
 

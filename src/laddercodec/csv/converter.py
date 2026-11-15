@@ -202,9 +202,12 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     """Convert one parsed CSV row into tokens plus AF-row classification."""
     conds: list[ConditionToken] = []
-    for column, node in enumerate(row.condition_nodes):
-        with located(column=column):
+    try:
+        for node in row.condition_nodes:
             conds.append(condition_node_to_token(node))
+    except Exception as exc:
+        add_location(exc, column=len(conds))  # the cell that failed
+        raise
     af_node = row.af_node
 
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
@@ -218,8 +221,11 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
             pin_args=af_node.args,
         )
 
-    with located(column=AF_COLUMN):
+    try:
         token = af_node_to_token(af_node, strict=strict)
+    except Exception as exc:
+        add_location(exc, column=AF_COLUMN)
+        raise
     if token == "":
         return _ParsedRow(conditions=conds, kind="blank")
     if token == "NOP":
@@ -560,13 +566,16 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
 
     for index, row in enumerate(rung.rows):
         place: dict[str, int | None] = {"line": row.line, "row": index}
-        with located(**place):
+        try:
             parsed = _parse_rung_row(row, strict=strict)
             parsed.place = place
 
             if active_block is not None:
-                with located(column=AF_COLUMN):
+                try:
                     consumed = _consume_active_row(active_block, parsed)
+                except Exception as exc:
+                    add_location(exc, column=AF_COLUMN)
+                    raise
                 if consumed:
                     continue
                 block_conditions, block_afs, tail = _finalize_active_block(active_block)
@@ -594,6 +603,9 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
                 continue
 
             plain_rows.append(parsed)
+        except Exception as exc:
+            add_location(exc, **place)
+            raise
 
     if active_block is not None:
         block_conditions, block_afs, tail = _finalize_active_block(active_block)
