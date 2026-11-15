@@ -24,6 +24,7 @@
 - **Reworded refusals**: the messages for Compare and Out variant fields are reworded; the refusals themselves are the same.
 - **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
+- **`FieldError.field` for data instructions**: `FieldError.field` now names the field for Drum step counts, output counts and steps with neither a duration nor an event.
 
 ### Behaviour changes
 - **A rung that doesn't decode no longer fails the call**: a down wire in the output column or wire flags no token has gives an undecoded marker for the rung, and a clipboard row the walk can't read or a program file record whose framing breaks gives one marker for that rung and every rung after it, where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`.
