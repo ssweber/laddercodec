@@ -28,21 +28,27 @@ the format below.
 
 A bundle directory contains:
 
-1. `main.csv`
-2. One file per subroutine: `sub_<slug>.csv`
+```text
+<bundle>/
+  main.csv
+  subroutines/
+    <name>.csv      one file per subroutine
+```
 
 Rules:
 
-- Consumers discover subroutines in lexical filename order.
-- `parse_bundle(directory)` requires `main.csv`.
-- When `pyrung` writes a bundle, the output directory is auto-created
-  (`parents=True, exist_ok=True`) and existing files are overwritten.
-- `pyrung` slug generation:
-  - Lowercase
-  - Non-alphanumeric sequences become `_`
-  - Leading/trailing `_` trimmed
-  - Empty slug becomes `subroutine`
-  - Collisions are suffixed (`_2`, `_3`, ...)
+- `parse_bundle(directory)` requires `main.csv`. It reads every `.csv` file
+  (any case of the extension) directly in `subroutines/`, in lexical filename
+  order, and takes each file's stem as the subroutine's slug. A bundle with no
+  `subroutines/` folder has no subroutines. Other files are ignored.
+- laddercodec does not write bundles: `write_csv` writes one CSV file.
+- `pyrung`'s `LadderBundle.write(directory)`:
+  - creates the directory (`parents=True, exist_ok=True`) and overwrites
+    existing files;
+  - writes `subroutines/` only when the program has subroutines;
+  - names each file after the subroutine's name as written, with no slug
+    applied; a name that comes twice gets `_2`, `_3`, ... on its stem;
+  - also writes `rung_sources.json`, which `parse_bundle` ignores.
 
 ## CSV shape
 
