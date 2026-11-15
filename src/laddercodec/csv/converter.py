@@ -71,7 +71,13 @@ from ..instructions import (
 )
 from ..instructions import AfToken as RungAfToken
 from ..instructions import ConditionToken as RungConditionToken
-from ..model import AfInstruction, InstructionType, PinnedInstruction, check_address
+from ..model import (
+    AfInstruction,
+    FieldError,
+    InstructionType,
+    PinnedInstruction,
+    check_address,
+)
 from .ast import (
     AfBlank,
     AfCall,
@@ -87,6 +93,7 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
+from .location import AF_COLUMN, add_location, at, located
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -104,6 +111,8 @@ class _ParsedRow:
     token: AfToken = ""
     pin_name: str | None = None
     pin_args: tuple[str, ...] = ()
+    #: The CSV line and rung row of the row, for an error's location.
+    place: dict[str, int | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -115,6 +124,8 @@ class _ActiveBlock:
     #: Rows of a pinned box's lead slots (above its main input), top first.
     lead_conditions: list[list[ConditionToken]] = field(default_factory=list)
     continuations: list[_ParsedRow] = field(default_factory=list)
+    #: The CSV line and rung row of the instruction token's row, for an error's location.
+    place: dict[str, int | None] = field(default_factory=dict)
 
 
 def _blank_condition_row() -> list[ConditionToken]:
@@ -190,13 +201,19 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
 
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     """Convert one parsed CSV row into tokens plus AF-row classification."""
-    conds = [condition_node_to_token(n) for n in row.condition_nodes]
+    conds: list[ConditionToken] = []
+    try:
+        for node in row.condition_nodes:
+            conds.append(condition_node_to_token(node))
+    except Exception as exc:
+        add_location(exc, column=len(conds))  # the cell that failed
+        raise
     af_node = row.af_node
 
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
         pin_name = af_node.name
         if pin_name not in KNOWN_PIN_NAMES:
-            raise ConvertError(f"Unknown pin token: {pin_name!r}")
+            raise at(ConvertError(f"Unknown pin token: {pin_name!r}"), column=AF_COLUMN)
         return _ParsedRow(
             conditions=conds,
             kind="pin",
@@ -204,7 +221,11 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
             pin_args=af_node.args,
         )
 
-    token = af_node_to_token(af_node, strict=strict)
+    try:
+        token = af_node_to_token(af_node, strict=strict)
+    except Exception as exc:
+        add_location(exc, column=AF_COLUMN)
+        raise
     if token == "":
         return _ParsedRow(conditions=conds, kind="blank")
     if token == "NOP":
@@ -239,6 +260,7 @@ def _start_active_block(
         token=row.token,
         main_conditions=row.conditions,
         lead_conditions=lead_conditions or [],
+        place=row.place,
     )
 
 
@@ -326,6 +348,7 @@ def _finalize_pinned_block(
     # Every slot after the first: the main input when there are lead slots.
     slot_rows: list[int] = list(range(1, lead + 1))
     pins: dict[str, tuple[str, ...]] = {}
+    pin_places: dict[str, dict[str, int | None]] = {}
     pending = list(block.continuations)
     prev = lead
     unused = 0
@@ -344,6 +367,7 @@ def _finalize_pinned_block(
         rows.append(pending[j].conditions)
         slot_rows.append(prev)
         pins[slot] = pending[j].pin_args
+        pin_places[slot] = pending[j].place
         pending = pending[j + 1 :]
         unused = 0
     slot_rows.extend(range(prev + 1, prev + 1 + unused))
@@ -362,11 +386,35 @@ def _finalize_pinned_block(
     try:
         token = token.with_pins(pins, tuple(slot_rows))
     except ValueError as exc:
-        raise ConvertError(str(exc)) from exc
+        field_name = exc.field if isinstance(exc, FieldError) else None
+        error = ConvertError(str(exc), field=field_name)
+        if isinstance(exc, FieldError):
+            # A value a pin row sets is refused: locate it at that pin's row.
+            culprit = _refused_pin(token, pins, tuple(slot_rows))
+            if culprit is not None:
+                add_location(error, **pin_places[culprit], column=AF_COLUMN)
+        raise error from exc
     af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _refused_pin(
+    token: PinnedInstruction, pins: dict[str, tuple[str, ...]], slot_rows: tuple[int, ...]
+) -> str | None:
+    """The first used pin without which ``with_pins`` accepts the box, or None.
+
+    That pin's row holds the refused value (a Drum's ``.jump(target)``) or is itself the
+    fault (a ``.reset()`` on a timer that can't be retentive).
+    """
+    for name in pins:
+        try:
+            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+        except ValueError:
+            continue
+        return name
+    return None
 
 
 def _finalize_generic_tall_block(
@@ -392,12 +440,14 @@ def _finalize_active_block(
 ) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
     """Expand the current active block into decode-ready rows/tokens.
 
-    Also returns the absorbed rows that fall below the block (pinned blocks only).
+    Also returns the absorbed rows that fall below the block (pinned blocks only).  An
+    error is located at the instruction token's cell.
     """
-    if isinstance(block.token, PinnedInstruction):
-        return _finalize_pinned_block(block)
-    rows, afs = _finalize_generic_tall_block(block)
-    return rows, afs, []
+    with located(**block.place, column=AF_COLUMN):
+        if isinstance(block.token, PinnedInstruction):
+            return _finalize_pinned_block(block)
+        rows, afs = _finalize_generic_tall_block(block)
+        return rows, afs, []
 
 
 def condition_node_to_token(node: object) -> ConditionToken:
@@ -463,7 +513,15 @@ def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
 
 
 class ConvertError(ValueError):
-    """Raised when a RungAst cannot be converted to encode arguments."""
+    """Raised when a RungAst cannot be converted to encode arguments.
+
+    ``field`` names the instruction field whose value was refused, as ``FieldError.field``
+    does, or is ``None``.
+    """
+
+    def __init__(self, *args: object, field: str | None = None) -> None:
+        super().__init__(*args)
+        self.field = field
 
 
 def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
@@ -479,8 +537,9 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
     ConvertError
         If the rung contains unsupported constructs.
     """
-    literal = convert_literal(rung, strict=strict)
-    return canonical(literal) or [literal]
+    with located(rung_line=rung.rows[0].line if rung.rows else None):
+        literal = convert_literal(rung, strict=strict)
+        return canonical(literal) or [literal]
 
 
 def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
@@ -505,37 +564,48 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
     plain_rows: list[_ParsedRow] = []
     active_block: _ActiveBlock | None = None
 
-    for row in rung.rows:
-        parsed = _parse_rung_row(row, strict=strict)
+    for index, row in enumerate(rung.rows):
+        place: dict[str, int | None] = {"line": row.line, "row": index}
+        try:
+            parsed = _parse_rung_row(row, strict=strict)
+            parsed.place = place
 
-        if active_block is not None:
-            if _consume_active_row(active_block, parsed):
+            if active_block is not None:
+                try:
+                    consumed = _consume_active_row(active_block, parsed)
+                except Exception as exc:
+                    add_location(exc, column=AF_COLUMN)
+                    raise
+                if consumed:
+                    continue
+                block_conditions, block_afs, tail = _finalize_active_block(active_block)
+                condition_rows.extend(block_conditions)
+                af_tokens.extend(block_afs)
+                plain_rows.extend(tail)
+                active_block = None
+
+            if parsed.kind == "block_main":
+                # Blank-AF rows just above a box with lead slots are those slots' rows.
+                lead_conditions: list[list[ConditionToken]] = []
+                if isinstance(parsed.token, PinnedInstruction):
+                    while (
+                        len(lead_conditions) < parsed.token.lead_rows
+                        and plain_rows
+                        and plain_rows[-1].kind == "blank"
+                    ):
+                        lead_conditions.insert(0, plain_rows.pop().conditions)
+                _flush_plain_rows(plain_rows, condition_rows, af_tokens)
+                active_block = _start_active_block(parsed, lead_conditions=lead_conditions)
                 continue
-            block_conditions, block_afs, tail = _finalize_active_block(active_block)
-            condition_rows.extend(block_conditions)
-            af_tokens.extend(block_afs)
-            plain_rows.extend(tail)
-            active_block = None
 
-        if parsed.kind == "block_main":
-            # Blank-AF rows just above a box with lead slots are those slots' rows.
-            lead_conditions: list[list[ConditionToken]] = []
-            if isinstance(parsed.token, PinnedInstruction):
-                while (
-                    len(lead_conditions) < parsed.token.lead_rows
-                    and plain_rows
-                    and plain_rows[-1].kind == "blank"
-                ):
-                    lead_conditions.insert(0, plain_rows.pop().conditions)
-            _flush_plain_rows(plain_rows, condition_rows, af_tokens)
-            active_block = _start_active_block(parsed, lead_conditions=lead_conditions)
-            continue
+            if parsed.kind == "pin":
+                plain_rows.append(_ParsedRow(conditions=parsed.conditions, kind="blank"))
+                continue
 
-        if parsed.kind == "pin":
-            plain_rows.append(_ParsedRow(conditions=parsed.conditions, kind="blank"))
-            continue
-
-        plain_rows.append(parsed)
+            plain_rows.append(parsed)
+        except Exception as exc:
+            add_location(exc, **place)
+            raise
 
     if active_block is not None:
         block_conditions, block_afs, tail = _finalize_active_block(active_block)

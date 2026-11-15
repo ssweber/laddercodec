@@ -28,21 +28,27 @@ the format below.
 
 A bundle directory contains:
 
-1. `main.csv`
-2. One file per subroutine: `sub_<slug>.csv`
+```text
+<bundle>/
+  main.csv
+  subroutines/
+    <name>.csv      one file per subroutine
+```
 
 Rules:
 
-- Consumers discover subroutines in lexical filename order.
-- `parse_bundle(directory)` requires `main.csv`.
-- When `pyrung` writes a bundle, the output directory is auto-created
-  (`parents=True, exist_ok=True`) and existing files are overwritten.
-- `pyrung` slug generation:
-  - Lowercase
-  - Non-alphanumeric sequences become `_`
-  - Leading/trailing `_` trimmed
-  - Empty slug becomes `subroutine`
-  - Collisions are suffixed (`_2`, `_3`, ...)
+- `parse_bundle(directory)` requires `main.csv`. It reads every `.csv` file
+  (any case of the extension) directly in `subroutines/`, in lexical filename
+  order, and takes each file's stem as the subroutine's slug. A bundle with no
+  `subroutines/` folder has no subroutines. Other files are ignored.
+- laddercodec does not write bundles: `write_csv` writes one CSV file.
+- `pyrung`'s `LadderBundle.write(directory)`:
+  - creates the directory (`parents=True, exist_ok=True`) and overwrites
+    existing files;
+  - writes `subroutines/` only when the program has subroutines;
+  - names each file after the subroutine's name as written, with no slug
+    applied; a name that comes twice gets `_2`, `_3`, ... on its stem;
+  - also writes `rung_sources.json`, which `parse_bundle` ignores.
 
 ## CSV shape
 
@@ -775,6 +781,57 @@ Rules:
 - pyrung's exporter writes an immediate range in `BANKstart..BANKend` form only when
   its tags map to one contiguous address span; a mapping that does not fails
   pyrung's export check with a diagnostic.
+
+## Where a read error is
+
+```python
+import csv
+
+from laddercodec import CsvLocation, read_csv
+
+try:
+    rungs = read_csv("main.csv")
+except (ValueError, csv.Error) as exc:
+    where = CsvLocation.of(exc)
+    print(where.line, where.column_name)  # 5 D
+```
+
+An error `read_csv` raises for a bad CSV keeps its class (`ValueError`,
+`FieldError`, `AddressError`, `csv.Error`, ...) and carries a `CsvLocation` as its
+`location` attribute; `CsvLocation.of(exc)` returns it, or `None` for an exception
+that has none. A `FieldError` still names its field in `.field`. Each part is `None`
+where it is not known:
+
+| Attribute   | Holds                                                                                        |
+|-------------|----------------------------------------------------------------------------------------------|
+| `file`      | the CSV file                                                                                 |
+| `line`      | the line the bad row starts on, from 1, blank lines counted; `None` for the whole file       |
+| `rung_line` | the line of the `R` row that starts the row's rung; `None` for a row in no rung              |
+| `row`       | the row within that rung, from 0: the `R` row is 0, comment rows are not counted             |
+| `column`    | from 0: 0 is `A`, 30 is `AE`, 31 is `AF`; `None` for a whole row or its marker               |
+
+The header is line 1 only when no blank line comes before it. A row is in no rung
+when it is the header, a comment row, or a row with no `R` row between it and the
+comment row or header above it. `column_name` gives the column's letters. Rows and
+columns are counted as the CSV holds them, before layout, and `column` counts as
+`Finding.column` does. A refusal of what a pin row holds (a `.jump()` target, a
+`.reset()` on a timer that can't be retentive) is at that pin row; a missing pin row
+is at the box's row. The message ends with the location:
+
+```text
+Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, row 1 from 0, column AF)
+```
+
+Two classes differ:
+
+- A `FieldError` refused while a box takes its pin rows arrives as a `ConvertError`
+  (`laddercodec.csv.converter`, a `ValueError`), as before. Its `field` names the
+  field, as `FieldError.field` does (`Drum.jump_target`).
+- A `UnicodeDecodeError` (a file that isn't UTF-8) keeps its message, and its
+  location holds `file` only.
+
+The bundle reader gives the location the same way; `file` names the file at fault,
+`main.csv` when it is missing.
 
 ## Strict validation and failure mode
 

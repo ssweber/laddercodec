@@ -128,6 +128,8 @@ class RowAst:
     canonical: CanonicalRow
     condition_nodes: tuple[ConditionCellNode, ...]
     af_node: AfNode
+    #: The CSV line the row starts on, from 1; ``None`` for rows not read from a file.
+    line: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         if len(self.condition_nodes) != len(self.canonical.conditions):

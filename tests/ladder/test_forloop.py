@@ -147,6 +147,10 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
+#: The location ``read_csv`` ends a message about ``_read_af``'s AF cell with.
+_AT_AF = r" \(at .*rung\.csv, line 2, rung at line 2, row 0 from 0, column AF\)$"
+
+
 def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
     """Encode ``model``, swap one equal-length string, and decode the AF back."""
     assert len(old) == len(new)
@@ -178,11 +182,11 @@ class TestForCount:
     @pytest.mark.parametrize("limit", ["DF1", "DH1", "X001", "C1", "T1", "CT1", "TXT1", "XD0"])
     def test_other_banks_refused(self, tmp_path: Path, limit: str) -> None:
         message = (
-            rf"^ForLoop.limit: '{limit}' is not allowed; ForLoop.limit takes DS, DD, TD, CTD, SD$"
+            rf"^ForLoop.limit: '{limit}' is not allowed; ForLoop.limit takes DS, DD, TD, CTD, SD"
         )
-        with pytest.raises(AddressError, match=message):
+        with pytest.raises(AddressError, match=message + _AT_AF):
             _read_af(tmp_path, f"for({limit})")
-        with pytest.raises(AddressError, match=message):
+        with pytest.raises(AddressError, match=message + "$"):
             ForLoop(limit=limit)
 
     def test_pointer_refused(self, tmp_path: Path) -> None:
