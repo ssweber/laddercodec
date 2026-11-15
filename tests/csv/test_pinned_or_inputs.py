@@ -140,7 +140,7 @@ def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
     """count_down's NOP-bridge and lead-row CSV forms take OR legs too.
 
     C1 on the token row is one more leg of Down's input; the layout draws it on
-    the Down row, as CLICK's check does (layoutq Q2c), with the OR below it.
+    the Down row, as CLICK's check does, with the OR below it.
     """
     conds = _or_input(n)
     lead = ["C1"] + ["-"] * 6 + ["T"] + [""] * (COLUMNS - 8)

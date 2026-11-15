@@ -59,8 +59,7 @@ src/laddercodec/
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet);
 │   │                     #   fits_float32() (Math), hex_display() (Math, Send/Receive)
-│   ├── errors.py         # FieldError (ValueError), AddressError (.field, .obj, .source)
-│   └── sources.py        # Src: the kind and public reference of a rule's evidence
+│   └── errors.py         # FieldError (ValueError), AddressError (.field, .obj)
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── family.py         # Family SPEC (csv names, parse_csv_call) used by the registry and CSV dispatch

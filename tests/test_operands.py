@@ -29,18 +29,18 @@ def test_bank_order_is_address_bank_order() -> None:
     assert [bank.value for bank in Bank] == [1 << n for n in range(16)]
 
 
-# (mask the dialog checks, the set the code holds, where the mask is read).
+# (mask the dialog checks, the set the code holds, the field).
 _MASKS = [
-    (0x3F, send_receive._SEND_LOCAL_BITS, "DLL: Inst_SD.dll, Send local bits FC01-FC05"),
-    (0xDD40, send_receive._SEND_LOCAL_REGS_FC06, "DLL: Inst_SD.dll, Send local registers FC06"),
-    (0xF3C0, send_receive._SEND_LOCAL_REGS_FC16, "DLL: Inst_SD.dll, Send local registers FC16"),
-    (0x6, send_receive._RECEIVE_LOCAL_BITS, "DLL: Inst_RD.dll, Receive local bits FC01/02"),
-    (0x8BC0, send_receive._RECEIVE_LOCAL_REGS, "DLL: Inst_RD.dll, Receive local registers"),
-    (0xC0, counter.COUNTER_PRESET_BANKS, "DLL: Inst_Counter.dll, set point"),
-    (0x3F, drum.DRUM_EVENT_BANKS, "DLL: Inst_Drum.dll, event"),
-    (0x70C0, forloop.FOR_LIMIT_BANKS, "DLL: Inst_For.dll, count"),
-    (0x4, search.FOUND_BANKS, "DLL: Inst_Search.dll, Result Flag"),
-    (0x4, shift.SHIFT_BANKS, "DLL: Inst_ShiftRegister.dll, start and end bits"),
+    (0x3F, send_receive._SEND_LOCAL_BITS, "Send local bits FC01-FC05"),
+    (0xDD40, send_receive._SEND_LOCAL_REGS_FC06, "Send local registers FC06"),
+    (0xF3C0, send_receive._SEND_LOCAL_REGS_FC16, "Send local registers FC16"),
+    (0x6, send_receive._RECEIVE_LOCAL_BITS, "Receive local bits FC01/02"),
+    (0x8BC0, send_receive._RECEIVE_LOCAL_REGS, "Receive local registers"),
+    (0xC0, counter.COUNTER_PRESET_BANKS, "Counter set point"),
+    (0x3F, drum.DRUM_EVENT_BANKS, "Drum event"),
+    (0x70C0, forloop.FOR_LIMIT_BANKS, "For count"),
+    (0x4, search.FOUND_BANKS, "Search Result Flag"),
+    (0x4, shift.SHIFT_BANKS, "Shift start and end bits"),
 ]
 
 
@@ -62,13 +62,13 @@ def _literal_banks(module: str, field: str) -> frozenset[str]:
 
 
 _MASKS.append(
-    (0x40, _literal_banks("timer.py", "Timer.setpoint"), "DLL: Inst_Timer.dll, set point")
+    (0x40, _literal_banks("timer.py", "Timer.setpoint"), "Timer set point")
 )
 
 
-@pytest.mark.parametrize(("value", "expected", "source"), _MASKS, ids=[m[2] for m in _MASKS])
+@pytest.mark.parametrize(("value", "expected", "field"), _MASKS, ids=[m[2] for m in _MASKS])
 def test_dialog_masks_decode_to_the_code_sets(
-    value: int, expected: frozenset[str], source: str
+    value: int, expected: frozenset[str], field: str
 ) -> None:
     assert banks(value) == expected
     assert mask(*expected) == value

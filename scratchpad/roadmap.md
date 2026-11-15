@@ -70,7 +70,7 @@ shared functions.
   - Copy termination code `none` is a keyword, not a constant. That is an error in the dry run; fix the dry
     run.
   - The 154 Math cases stay out: Math has its own grammar.
-- **Provenance out of src.**
+- **Provenance out of src (done).**
   - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
     `tests/test_no_dll_addresses.py`.
   - Delete the citation comments: 142 lines in 16 files.
