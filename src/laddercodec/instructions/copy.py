@@ -392,7 +392,9 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
-    first = check_operand(destination, "Copy.destination", pointer=True)  # a TXT: text copies only there
+    first = check_operand(
+        destination, "Copy.destination", pointer=True
+    )  # a TXT: text copies only there
     if first.address is None:
         return None
     return Address("TXT", first.address.number + len(source) - 3)

@@ -48,7 +48,10 @@ _REFUSED = [
     ("copy(DS1,Q5)", "no CLICK bank 'Q'"),
     ("copy(DS1,DS)", "not a CLICK address"),
     # the pointer is a DS
-    ("copy(DS[DD1],DS2)", r"Copy.source: 'DS\[DD1\]' is refused; a pointer's index is a DS address"),
+    (
+        "copy(DS[DD1],DS2)",
+        r"Copy.source: 'DS\[DD1\]' is refused; a pointer's index is a DS address",
+    ),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
     # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
     (
