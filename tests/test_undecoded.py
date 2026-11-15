@@ -209,17 +209,43 @@ def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
 
 
 def test_a_rung_with_no_data_rows_stops_decoding() -> None:
-    """A data row with its preamble flag (+0x30) set reads as a preamble row.
+    """A data row with the preamble flag (+0x30) set where cells 0 and 1 of a preamble row
+    with no comment would hold it reads as a preamble row.
 
     The rung before it then has no data rows: one marker stands for it and every rung
     after it, and no later rung comes back under its index.
     """
     row0 = _cell(1, 0, 0)
-    rungs, markers = _rungs_and_markers(_patched((row0 + 0x30, b"\x01"), (row0 + 0x34, bytes(4))))
+    rungs, markers = _rungs_and_markers(
+        _patched((row0 + 0x30, b"\x01"), (row0 + 0x34, bytes(4)), (row0 + 0x70, b"\x01"))
+    )
     assert rungs[0] == DECODED[0]
     marker = _stopped_at(rungs, markers, 1)
     assert (marker.row, marker.column) == (None, None)
     assert marker.error.startswith("the rung has no data rows")
+
+
+@pytest.mark.parametrize("row", [0, 1, 2], ids=["first", "middle", "last"])
+def test_a_preamble_flag_on_cell_0_only_stops_decoding(row: int) -> None:
+    """A data row of rung 1 with the preamble flag on its cell 0 only is not a preamble row.
+
+    Its cell 1 has the flag clear, as every data row's does, so where the rung's rows end
+    is unknown: rung 0 decodes, and one marker stands for rung 1 and every rung after it.
+    """
+    three = _decoded("nc-3row-t-junction.bin")
+    data = encode([replace(three, comment=f"c{i}") for i in range(3)])
+    want = decode(data)
+    assert isinstance(want, list) and len(want) == 3
+    (cell0,) = inspect_cells(data, [(1, row, "A")])
+    (cell1,) = inspect_cells(data, [(1, row, "B")])
+    assert data[cell0.offset + 0x30] == data[cell1.offset + 0x30] == 0
+    damaged = bytearray(data)
+    damaged[cell0.offset + 0x30] = 1
+    rungs, markers = _rungs_and_markers(bytes(damaged))
+    assert rungs[0] == want[0]
+    marker = _stopped_at(rungs, markers, 1)
+    assert (marker.row, marker.column) == (row, None)
+    assert marker.error.startswith(f"grid row {3 + 1 + row} has the preamble flag on cell 0 only")
 
 
 @pytest.mark.parametrize(("offset", "value"), [(0x01, 0x05), (0x05, 0x09)], ids=["column", "row"])

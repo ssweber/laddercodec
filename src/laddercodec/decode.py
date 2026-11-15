@@ -744,8 +744,9 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
 
     A row before the last one the program header counts that is cut off, holds no cell 0,
     or whose cells can't be walked is LOST, and the walk stops: where the next row starts
-    is known only from this row's end.  A preamble row's cell 0 must carry the cell
-    signature, numbered one past the row before it.
+    is known only from this row's end.  So is a row taken for a preamble that may not be
+    one: a preamble row's cell 0 must carry the cell signature, numbered one past the row
+    before it, and its cell 1 must have the preamble flag (+0x30) too.
     """
     cursor = grid_start
     row_infos: list[_RowInfo] = []
@@ -772,9 +773,16 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
                     error = f"grid row {index} is a preamble row with no cell 0 at {cursor:#x}"
                     row_infos.append((_LOST, cursor, error))
                 break
+            cmt_len = int.from_bytes(data[cursor + 0x34 : cursor + 0x38], "little")
+            # Every cell of a preamble row has +0x30 set; a data row's cell 1 has it clear.
+            cell1 = cursor + CELL_SIZE + cmt_len
+            if cell1 + CELL_SIZE > len(data) or data[cell1 + 0x30] != 0x01:
+                if not last:
+                    error = f"grid row {index} has the preamble flag on cell 0 only, at {cursor:#x}"
+                    row_infos.append((_LOST, cursor, error))
+                break
             is_multi = True
             row_byte = expected
-            cmt_len = int.from_bytes(data[cursor + 0x34 : cursor + 0x38], "little")
             if cmt_len > 0:
                 cmt_rtf = bytes(data[cursor + 0x38 : cursor + 0x38 + cmt_len])
             else:
