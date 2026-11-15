@@ -140,7 +140,7 @@ To walk a variable-length grid, detect cell boundaries by signature:
 
 Do **not** use `+0x0D` for detection — it varies between 0x00, 0x01, and 0xFF across cell types.
 
-Where a row starts is known only from where the row before it ends. So when a row before the last one `row_word` counts can't be walked (no cell with the expected signature follows an instruction cell), has no cell 0, or is cut off, the walk stops: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The decoder never scans ahead for a later row to resume at, since a cell 0 signature can also turn up inside an instruction blob. A preamble row's cell 0 must carry the signature, its `+0x05` one past the row before it; a rung with no data rows also stops the walk.
+Where a row starts is known only from where the row before it ends. So when a row before the last one `row_word` counts can't be walked (no cell with the expected signature follows an instruction cell), has no cell 0, or is cut off, the walk stops: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The decoder never scans ahead for a later row to resume at, since a cell 0 signature can also turn up inside an instruction blob. A preamble row's cell 0 must carry the signature, its `+0x05` one past the row before it, and its cell 1 must have `+0x30` set too: every cell of a preamble row has it, and a data row's cell 1 has it clear. A rung with no data rows also stops the walk.
 
 ## Multi-rung format
 

@@ -223,6 +223,9 @@ stay as they are: each is a required check by name.
 - **Clipboard row count too low:** when the program header counts fewer rows than the grid holds, the clipboard
   walk stops at the header's count and the last rung loses its later rows, with no marker (`_walk_grid`'s bound
   and `_decode_single`'s slice).
+- **Comment note and encode():** a rung whose comment did not decode has the comment `UNDECODED comment: ...`
+  and keeps the original bytes in `comment_rtf`, but encode() writes the note into CLICK. Decide whether
+  encode() writes `comment_rtf` back while the comment is still the note, or refuses the rung.
 - **Captures (CLICK):**
   - an unpowered real box (coil, timer);
   - a reset wired from the rail;
