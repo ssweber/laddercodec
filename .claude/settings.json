@@ -1,6 +1,13 @@
 {
-  "extraKnownMarketplaces": {
-    "bob": { "source": { "source": "github", "repo": "ssweber/bob" } }
+  "enabledPlugins": {
+    "bob@bob": true
   },
-  "enabledPlugins": { "bob@bob": true }
+  "extraKnownMarketplaces": {
+    "bob": {
+      "source": {
+        "source": "github",
+        "repo": "ssweber/bob"
+      }
+    }
+  }
 }

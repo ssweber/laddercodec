@@ -42,19 +42,9 @@ The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
 ## 1. Cruft sweep (nothing)
 
-- **After the `bob` plugin PR merges:** run `claude plugin install bob@bob --scope project` in this clone, then
-  run `/reload-plugins`, or start a new session, in every open laddercodec session. Delete the old queue
-  folders `cand`, `done`, `logs`, `queue` and `running` in `../laddercodec-wt/buildbot` (`procs` stays), the
-  old locks `.heavy.lock*` and `.targeted.*.lock` in `../laddercodec-wt/`, and the unmerged `chore/agentguard`
-  branch and worktree.
 - **Arc folders.** Delete the closed ones under `laddercodec-wt/buildbot/jobs/`, except `dllqa/`,
   `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
   3) are sorted.
-
-## Required checks (Sam)
-
-Switch `main`'s ruleset to require only `ci` and the docs `build`. Until then the test matrix's Python versions
-stay as they are: each is a required check by name.
 
 ## 2. The undecoded marker (nothing; ClickNick and pyrung follow)
 
@@ -166,6 +156,11 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   status field set to a distinct address: native blobs to model later.
 - **Other non-pinned boxes in a compact OR layout:** `read_csv` lays them out as it does stacked 2-row Copies,
   which CLICK's post-check layout confirmed. Capture one more shape (Math, Search or a timer under an OR).
+
+## Required checks (Sam)
+
+Switch `main`'s ruleset to require only `ci` and the docs `build`. Until then the test matrix's Python versions
+stay as they are: each is a required check by name.
 
 ## Waits on another repo
 
