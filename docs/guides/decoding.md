@@ -125,7 +125,7 @@ The returned `Program` dataclass has:
 | Field | Type | Description |
 |---|---|---|
 | `name` | `str` | Program name from the file header |
-| `prog_idx` | `int` | Program index (0 = main, 1+ = subroutines) |
+| `prog_idx` | `int` | Program index (1 = main, 2+ = subroutines) |
 | `rungs` | `list[Rung]` | Decoded rungs — same `Rung` objects as `decode()` returns |
 | `undecoded` | `list[Undecoded]` | The undecoded markers in `rungs`, in order; empty when every rung decoded |
 
@@ -230,7 +230,9 @@ shape with that code:
 | `undecoded` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 
 A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
-A rung that holds an undecoded marker gets only its `undecoded` findings.
+A rung that holds an undecoded marker gets an `undecoded` finding for each marker,
+then its other findings; a marker rung as the decoders make it (one row of wires
+into the marker) gets only its `undecoded` finding.
 `pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
 and on a reset wired straight from the rail, or whose contacts are all another
 pin's (a contact two pins share counts as the earlier pin's), it has the box's code

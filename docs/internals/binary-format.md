@@ -204,7 +204,7 @@ The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next 
 
 ## SCR header
 
-After the `SC-SCR  ` magic and opaque header bytes, offset `0x40` holds the u16 program index. Offset `0x42` is the byte length of the following UTF-16LE name. Immediately after the name:
+After the `SC-SCR  ` magic and opaque header bytes, offset `0x40` holds the u16 program index: 1 for the main program, 2 and up for subroutines. Offset `0x42` is the byte length of the following UTF-16LE name. Immediately after the name:
 
 ```
 [u16 column_count]
@@ -243,7 +243,7 @@ ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaqu
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
-Files with `prog_idx == 1` have a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. The parser never searches for a later rung to resume decoding.
+The main program's file (`prog_idx == 1`) has a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. The parser never searches for a later rung to resume decoding.
 
 CLICK keeps trailing content-less editor rungs, sometimes fully wired. The decoder parses them and then omits trailing records with neither instructions nor a raw comment. This existing semantic-output policy is separate from structural parsing.
 

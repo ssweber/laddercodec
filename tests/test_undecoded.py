@@ -556,6 +556,26 @@ def test_check_reports_the_marker_and_nothing_else() -> None:
     )
 
 
+def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> None:
+    """A hand-built rung that holds a marker and other content gets every finding."""
+    marker = Undecoded("why", 3, 1)
+    contacts = ["", *RUNGS[1].conditions[0][1:]]  # the contacts with no line from the rail
+    rung = Rung(
+        logical_rows=2,
+        conditions=[["-"] * 31, contacts],
+        instructions=[marker, RUNGS[1].instructions[0]],
+        comment=None,
+    )
+    kinds = [(f.kind, f.row, f.column) for f in check(rung)]
+    assert kinds[0] == ("undecoded", 0, 31)
+    assert ("no_rail", 1, 1) in kinds
+    unwired = Rung(logical_rows=1, conditions=[["", *["-"] * 30]], instructions=[marker], comment=None)
+    assert [(f.kind, f.row, f.column) for f in check(unwired)] == [
+        ("undecoded", 0, 31),
+        ("unpowered_box", 0, 31),
+    ]
+
+
 def test_no_fixture_decodes_to_a_marker() -> None:
     """Every clipboard and SCR fixture decodes with no marker, but the one decode refuses."""
     clipboard = [

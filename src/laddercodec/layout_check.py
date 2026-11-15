@@ -109,7 +109,9 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     be a shape CLICK accepts, such as a reset wired straight from the rail.
 
     A rung that holds an undecoded marker gets one ``"undecoded"`` finding per marker, at its
-    AF cell, and no other finding: its lines are a stand-in, not the rung.
+    AF cell, before its other findings.  A marker rung as the decoders make it (one row of
+    wires from the rail into the marker) gets no other finding: its lines are a stand-in,
+    not the rung.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 
@@ -222,10 +224,24 @@ def _undecoded(index: int, rung: Rung) -> list[Finding]:
     ]
 
 
+def _is_marker_rung(rung: Rung) -> bool:
+    """Whether *rung* is exactly a marker rung: one row of wires from the rail into a marker."""
+    return (
+        len(rung.conditions) == 1
+        and list(rung.conditions[0]) == ["-"] * len(CONDITION_COLUMNS)
+        and len(rung.instructions) == 1
+        and isinstance(rung.instructions[0], Undecoded)
+    )
+
+
 def _check_rung(index: int, rung: Rung) -> list[Finding]:
     undecoded = _undecoded(index, rung)
-    if undecoded:
+    if _is_marker_rung(rung):
         return undecoded
+    return undecoded + _layout_findings(index, rung)
+
+
+def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     cells = [[cell_of(t) for t in row] for row in rung.conditions]
     net = network(cells, rung.instructions, raw_pins=True)
     c = circuits(net)

@@ -240,7 +240,11 @@ def check_program_name(name: str, field_name: str) -> None:
 
 @dataclass
 class Program:
-    """A single PLC program (main or subroutine) with its rungs."""
+    """A single PLC program (main or subroutine) with its rungs.
+
+    ``prog_idx`` is CLICK's program index: 1 for the main program, 2 and up for
+    subroutines.
+    """
 
     name: str
     prog_idx: int
