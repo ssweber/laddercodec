@@ -42,7 +42,7 @@ def _views(expression: str, mode: str) -> tuple[str, str, str, str]:
 
 
 # ---------------------------------------------------------------------------
-# The predictions the dialog confirmed (every prediction held)
+# Formula predictions
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +145,7 @@ def test_word_is_refused(expression: str) -> None:
     ],
 )
 def test_decimal_integer_is_h_or_w_by_int16(constant: str, internal: str) -> None:
-    # v4_captures/sweep_math.bin: 32767 is H, 40000 and 100000 are W.
+    # 32767 is H, 40000 and 100000 are W.
     assert parse(f"( {constant} )", "decimal").internal() == f"(#{internal}#)"
 
 
@@ -161,7 +161,7 @@ def test_real_is_f_and_fits_float32() -> None:
 
 
 def test_hex_constant_is_written_as_click_shows_it() -> None:
-    # %Xh of the value (dialog answers; v4_captures/math_hex_upper_h.bin).
+    # %Xh of the value.
     assert _views("DH1 + 0fH", "hex") == ("DH1 + Fh", "@ + Fh", "@#+#UH15", "DH1#+#UH15")
     _refused("DH1 + 0FFFEh", "hex", "0FFFEh is outside 0h..FFFFh")  # four digits as typed
 
@@ -217,7 +217,7 @@ def test_plus_sign_keeps_the_length_rule() -> None:
 
 
 def test_hex_sign_stays_a_token() -> None:
-    # v4_captures/math_hex_signed.bin: typed ( -Ah ), stored (#-#UH10#).
+    # Typed ( -Ah ), stored (#-#UH10#).
     assert parse("DH1 + ( -Ah )", "hex").internal() == "DH1#+#(#-#UH10#)"
 
 
@@ -402,7 +402,7 @@ def test_trig_body_counts_commas_against_sums(expression: str) -> None:
 @pytest.mark.parametrize(
     ("expression", "mode", "internal"),
     [
-        ("RAND ( 1 , 100 )", "decimal", "H1#RAND#H100#"),  # tumbler: the trailing '#'
+        ("RAND ( 1 , 100 )", "decimal", "H1#RAND#H100#"),  # the trailing '#'
         ("RAND ( 1 , 10 ) + DS1", "decimal", "H1#RAND#H10#+#DS1"),
         ("LSH ( DH1 , 1h ) AND RSH ( DH2 , 2h )", "hex", "DH1#LSH#UH1#AND#DH2#RSH#UH2#"),
         ("ABS ( RAND ( 1 , 10 ) )", "decimal", "ABS#(#H1#RAND#H10#)"),

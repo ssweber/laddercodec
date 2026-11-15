@@ -615,8 +615,7 @@ def test_decode_program_pin_rows_match_pasted_golden():
 def test_send_receive_elided_device_id_defaults():
     """SCR blobs elide fields at their class default, and the defaults differ
     per class: a Send with no 0x320E/0x60B2 tag is device_id 0, a Receive is
-    device_id 1.  Verified against a native scr+clipboard pair where a Send at
-    device_id 0 stored no tag while one at 1 stored both."""
+    device_id 1.  A Send at device_id 0 stores no tag, while one at 1 stores both."""
     # No 0x2211 tag: the elided function code is FC05 (Send) / FC01 (Receive), so
     # the addresses are bits.
     base = {

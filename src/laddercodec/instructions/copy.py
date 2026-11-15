@@ -470,10 +470,10 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """The last TXT a single Copy of quoted text fills; the blob stores it as the
     destination end (tag 0x6077).
 
-    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2)
-    and leaves the end empty for one character (``"Q"`` into TXT2) and for a ``$hh`` code.  ``None`` for those,
-    and for a pointer destination, where CLICK stores no end whatever the length
-    (``copy("AB",TXT[DS1])``, ``text_pointer.bin``).
+    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2) and
+    leaves the end empty for one character (``"Q"`` into TXT2) and for a ``$hh`` code.
+    ``None`` for those, and for a pointer destination, where CLICK stores no end whatever
+    the length (``copy("AB",TXT[DS1])``).
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None

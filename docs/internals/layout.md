@@ -51,18 +51,18 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
 7. The output items of a net stack down in output order. A box goes on the later of its
    net's next row and the first AF row below the box above; boxes never overlap. A box spans its height
    (`cell_params()["visual_rows"]`: Copy 2, Send and Receive 3; a raw box its stored height),
-   and the condition side packs up beside it.
-   An out under a non-retentive on_delay moves up to row 2, and one under a Send to row 3. A
-   branch after the output split starts on the row of its first box.
+   and the condition side packs up beside it. An out under a non-retentive on_delay moves up
+   to row 2, and one under a Send to row 3. A branch after the output split starts on the row
+   of its first box.
 8. A rung is as tall as its lowest contact, box input or box span. Blank rows below, a blank
    first row and wire stubs that join nothing are dropped.
    So is a `NOP` that no rail or contact reaches, in a rung with a circuit; `check()` reports
    nothing for it: CLICK's check gives no error and leaves a rung of `~X002` to
-   `latch(Y002)` with stubs at A and C, an unwired `NOP` and a blank row as one row. Any other box no rail or contact reaches is reported as
-   `unpowered_box` and its rung stays as drawn: CLICK's check on one is not known.
+   `latch(Y002)` with stubs at A and C, an unwired `NOP` and a blank row as one row. Any
+   other box no rail or contact reaches is reported as `unpowered_box` and its rung stays as
+   drawn: CLICK's check on one is not known.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
-   on the first. So
-   `read_csv` can return more rungs than the CSV holds.
+   on the first. So `read_csv` can return more rungs than the CSV holds.
 
 ## Pinned boxes
 
@@ -99,7 +99,7 @@ Three more shapes are kept as drawn, with no capture of CLICK's check on them:
 - A contact on the circuits of two pins, or of a main input and a pin that has contacts of
   its own as well. Each pin's circuit is drawn on rows of its own, so a layout would draw the
   contact once per input. `check()` reports the later pin: `pin_without_contact` when all its
-  contacts are the other pin's (the shape of a reset with only the main input's contacts), else `pin_shares_pin` or
+  contacts are the other pin's (a pin with no contact of its own), else `pin_shares_pin` or
   `pin_shares_main`.
 - A rung that would split (rule 9) and holds a `NOP` that a rail or contact reaches. The
   splits known are of coils and Copy boxes.

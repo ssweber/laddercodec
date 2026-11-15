@@ -1,7 +1,7 @@
 """Tests for laddercodec.instructions.send_receive: ports and slave IDs.
 
 The protocol mode (0x220C), slave-ID fields (0x320E/0x60B2/0x223A) and func code
-(0x3218) follow v4_captures/sweep_comm.bin.
+(0x3218) are CLICK's.
 """
 
 from __future__ import annotations

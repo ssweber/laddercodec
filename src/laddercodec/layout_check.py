@@ -59,7 +59,7 @@ class Finding:
         Index of the rung in the checked list, from 0.
     kind:
         The shape, one of ``FindingKind``.  The decoding guide's "Check for line connection
-        errors" table gives each kind's shape, code and evidence.
+        errors" table gives each kind's shape and code.
     code:
         CLICK's syntax check error code for the shape, or ``None`` where no code is known.
     captured:
@@ -78,13 +78,13 @@ class Finding:
         The cell, both counted from 0: ``row`` 0 is the rung's first row, ``column`` 0 is A
         and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no_rail"`` or
         ``"feeds_no_box"`` finding is at a contact; when captured, it is the contact CLICK
-        named for C0202.  A finding about
-        a box input is at its AF cell, and one about a whole box at its first row's AF cell.
+        named for C0202.  A finding about a box input is at its AF cell, and one about a
+        whole box at its first row's AF cell.
     message:
         The finding in words.  A captured C0202 finding gives the cell as CLICK prints it,
         rows counted from 1: ``row`` 2, ``column`` 3 reads ``row 3, column D in CLICK's
         numbering``.  When the rung's first row is blank, the count starts on the second
-        row, so the same cell reads ``row 2``; this rests on one observation
+        row, so the same cell reads ``row 2``; this is not known to hold for every rung,
         and CLICK may count otherwise.  Every other finding with a cell gives it counted
         from 0, ``row 2 from 0, column D``.  The message ends with ``(CLICK: <code>)`` when
         ``captured``, else with ``not captured``.
@@ -191,10 +191,10 @@ def _finding(
 def _blank_rows(rung: Rung) -> int:
     """1 when the rung's first row holds nothing, else 0: where CLICK starts counting rows.
 
-    Inferred from one observation: a rung with a blank first row, for which CLICK prints "Row 3".  Read this way, that is its one dead
-    contact, on zero-based row 3; CLICK may instead have named the blank cell (2, D).
-    CLICK's check also removes a blank first row.  Two blank first rows are not known
-    to count the same way, so only one is skipped.
+    For a rung with a blank first row, CLICK prints "Row 3" for its one dead contact, on
+    zero-based row 3; CLICK may instead have named the blank cell (2, D).  CLICK's check
+    also removes a blank first row.  The rule is not known to hold for two blank first
+    rows, so only one is skipped.
     """
     if not rung.conditions:
         return 0
@@ -280,8 +280,8 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     for row in _below_a_box(net, c):
         add(_ABOVE_PINNED, (row, AF_X), "a box above this one hangs off its main input's net")
 
-    # A contact on two pins' circuits counts as the earlier pin's.  No capture shows CLICK's
-    # check on such a pair; a pin whose contacts are all another's reads as one with all the main input's.
+    # A contact on two pins' circuits counts as the earlier pin's.  CLICK's check on such a
+    # pair is not known; a pin whose contacts are all another's has none of its own.
     main_used = {id(a) for a in c.main_arcs}
     pin_used: set[int] = set()
     for i in c.pins:

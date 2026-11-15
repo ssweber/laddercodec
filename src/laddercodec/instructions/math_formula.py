@@ -606,7 +606,7 @@ def _xy_bound(number: int) -> int:
     An end's own number, but an end in the option slot counts as numbered right after the
     CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
     numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
-    itself.  Fitted to X and Y ranges typed in CLICK v4 (C2-03CPU, no I/O modules).
+    itself.  The rule is fitted for a C2-03CPU with no I/O modules.
     """
     if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
         return number - _OPTION_GAP
@@ -684,7 +684,7 @@ class Formula:
         ``UH10``) and the tokens are joined with ``#``.  ``F ( a , b )`` is written
         ``a#F#b`` and leaves an empty slot for its ``( , )``; a ``#`` follows each token
         but the last slot, so a formula that ends with one keeps a trailing ``#``
-        (``RAND ( 1 , 100 )`` is ``H1#RAND#H100#``, typed in CLICK v4).
+        (``RAND ( 1 , 100 )`` is ``H1#RAND#H100#``).
         """
 
         def form(token: Token) -> str:

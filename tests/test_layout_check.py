@@ -463,7 +463,7 @@ def test_no_coil_message_says_what_triggers_it() -> None:
 
 
 def test_message_rows_skip_one_blank_first_row() -> None:
-    """Inferred from one observation, a rung with one blank first row."""
+    """A rung with one blank first row counts its rows from the second."""
     rung = _rung([[], ["", "", _contact("X001"), *["-"] * 28]], ["", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (1, 2)
@@ -471,7 +471,7 @@ def test_message_rows_skip_one_blank_first_row() -> None:
 
 
 def test_message_rows_skip_no_more_than_one_blank_row() -> None:
-    """No capture shows two blank first rows; only the first is skipped."""
+    """Two blank first rows are not known to count the same way; only the first is skipped."""
     rung = _rung([[], [], ["", "", _contact("X001"), *["-"] * 28]], ["", "", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (2, 2)
