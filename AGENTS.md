@@ -72,7 +72,8 @@ src/laddercodec/
 │   ├── raw.py            # RawInstruction: opaque blob passthrough with row span, sub-rows and pin rows
 │   └── undecoded.py      # Undecoded: the marker for a rung that did not decode; no blob, encode() refuses it
 ├── csv/                  # ast.py, contract.py, parser.py, token_parser.py, converter.py (RungAst to Rung, uses _layout),
-│                         #   writer.py (Rung to CSV), bundle.py (main.csv + sub_*.csv)
+│                         #   writer.py (Rung to CSV), bundle.py (main.csv + sub_*.csv),
+│                         #   location.py (CsvLocation: the file, line, rung, row and column a read error names)
 └── resources/
     └── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis
 ```

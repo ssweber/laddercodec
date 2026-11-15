@@ -1,7 +1,7 @@
 """Binary codec for AutomationDirect CLICK PLC ladder clipboard format."""
 
 from .compat import find_v4_only, is_v4_only
-from .csv import read_csv
+from .csv import CsvLocation, read_csv
 from .csv.writer import write_csv
 from .decode import Rung, decode
 from .decode_program import decode_program
@@ -48,6 +48,7 @@ __all__ = [
     "decode_program",
     "read_csv",
     "write_csv",
+    "CsvLocation",
     "find_v4_only",
     "is_v4_only",
     "check",

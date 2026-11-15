@@ -264,6 +264,10 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
+#: The location ``read_csv`` ends a message about ``_read_af``'s AF cell with.
+_AT_AF = r" \(at .*rung\.csv, line 2, rung at line 2, row 0 from 0, column AF\)$"
+
+
 def _raw_after(model: object, **bad: object) -> RawInstruction:
     """Encode ``model`` with ``bad`` fields set past the checks; decode it back."""
     for name, value in bad.items():
@@ -321,10 +325,10 @@ class TestCounterPresetRange:
 
     @pytest.mark.parametrize("preset", ["DH1", "DF1", "TD1", "CTD1", "SD1", "XD1"])
     def test_other_registers_refused(self, tmp_path: Path, preset: str) -> None:
-        message = rf"^Counter.preset: '{preset}' is not allowed; Counter.preset takes DS, DD$"
-        with pytest.raises(AddressError, match=message):
+        message = rf"^Counter.preset: '{preset}' is not allowed; Counter.preset takes DS, DD"
+        with pytest.raises(AddressError, match=message + _AT_AF):
             _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
-        with pytest.raises(AddressError, match=message):
+        with pytest.raises(AddressError, match=message + "$"):
             counter(preset=preset)
 
     @pytest.mark.parametrize("preset", ["DH1", "2147483648", "0000000000001"])
@@ -350,7 +354,7 @@ class TestShiftRules:
         ],
     )
     def test_other_banks_refused(self, tmp_path: Path, token: str, field: str) -> None:
-        with pytest.raises(AddressError, match=rf"^Shift.{field}: .* takes C$"):
+        with pytest.raises(AddressError, match=rf"^Shift.{field}: .* takes C{_AT_AF}"):
             _read_af(tmp_path, token)
 
     @pytest.mark.parametrize("end", ["C1", "C001"])

@@ -5,14 +5,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from .ast import ProgramBundleAst
+from .location import located_in_file
 from .parser import parse_csv_file
 
 
 def parse_bundle(directory: Path | str) -> ProgramBundleAst:
+    """Parse ``main.csv`` and ``subroutines/*.csv`` of a bundle directory.
+
+    An exception raised for a bad file carries a ``CsvLocation`` (``laddercodec.CsvLocation``)
+    whose ``file`` is the file at fault: ``main.csv`` when it is missing.
+    """
     dir_path = Path(directory)
     main_path = dir_path / "main.csv"
     if not main_path.exists():
-        raise ValueError(f"Bundle directory {dir_path} is missing required main.csv")
+        with located_in_file(main_path):
+            raise ValueError(f"Bundle directory {dir_path} is missing required main.csv")
 
     main = parse_csv_file(main_path, syntax="canonical")
 

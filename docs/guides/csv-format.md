@@ -776,6 +776,43 @@ Rules:
   its tags map to one contiguous address span; a mapping that does not fails
   pyrung's export check with a diagnostic.
 
+## Where a read error is
+
+```python
+from laddercodec import CsvLocation, read_csv
+
+try:
+    rungs = read_csv("main.csv")
+except ValueError as exc:
+    where = CsvLocation.of(exc)
+    print(where.line, where.column_name)  # 5 D
+```
+
+An error `read_csv` raises for a bad CSV keeps its class (`ValueError`,
+`FieldError`, `AddressError`, ...) and carries a `CsvLocation` as its `location`
+attribute; `CsvLocation.of(exc)` returns it, or `None` for an exception that has
+none. A `FieldError` still names its field in `.field`. Each part is `None` where
+it is not known:
+
+| Attribute   | Holds                                                                            |
+|-------------|----------------------------------------------------------------------------------|
+| `file`      | the CSV file                                                                     |
+| `line`      | the line the bad row starts on, from 1; the header is line 1                     |
+| `rung_line` | the line of the `R` row that starts the row's rung                               |
+| `row`       | the row within that rung, from 0: the `R` row is 0, comment rows are not counted |
+| `column`    | from 0: 0 is `A`, 30 is `AE`, 31 is `AF`; `None` for a whole row or its marker   |
+
+`column_name` gives the column's letters. Rows and columns are counted as the CSV
+holds them, before layout, and `column` counts as `Finding.column` does. The message
+ends with the location:
+
+```text
+Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, row 1 from 0, column AF)
+```
+
+The bundle reader gives the location the same way; `file` names the file at fault,
+`main.csv` when it is missing.
+
 ## Strict validation and failure mode
 
 Before rendering, `pyrung` runs strict Click validation and extra export checks.

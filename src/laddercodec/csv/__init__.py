@@ -15,6 +15,7 @@ from pathlib import Path
 from ..decode import Rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import convert_rung
+from .location import CsvLocation, located_in_file
 from .parser import parse_csv_file
 
 
@@ -43,16 +44,24 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
 
     When *strict* is ``False``, unsupported AF instructions are silently
     replaced with blank tokens instead of raising.
+
+    An exception raised for a bad CSV keeps its class (``ValueError``,
+    ``FieldError``, ``AddressError``, ...) and carries a :class:`CsvLocation`
+    as its ``location``: the file, line, rung, row and column where they are
+    known.  ``CsvLocation.of(exc)`` reads it, and the message ends with it.
     """
-    ast = parse_csv_file(Path(path), syntax="canonical")
+    path = Path(path)
+    ast = parse_csv_file(path, syntax="canonical")
     rungs: list[Rung] = []
-    for rung in ast.rungs:
-        rungs.extend(convert_rung(rung, strict=strict))
+    with located_in_file(path):
+        for rung in ast.rungs:
+            rungs.extend(convert_rung(rung, strict=strict))
     return rungs
 
 
 __all__ = [
     "CONDITION_COLUMNS",
     "CSV_HEADER",
+    "CsvLocation",
     "read_csv",
 ]
