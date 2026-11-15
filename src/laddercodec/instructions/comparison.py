@@ -105,8 +105,8 @@ _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]
 _HEX_MAX = 0xFFFF
 _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 
-#: A quoted text constant (:func:`check_quoted_text`) is compared on hardware against
-#: consecutive TXT registers from the named one.
+# A quoted text constant (:func:`check_quoted_text`) is compared on hardware against
+# consecutive TXT registers from the named one.
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
 #: (typing TXT1 into Data A leaves only = and != to choose).
