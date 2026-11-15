@@ -51,9 +51,12 @@ An entry is judged only on a case whose key it matches and whose first tier diff
   neither ``FieldError`` nor ``AddressError``), and every differing key the base holds is a
   crash too (a key the base lacks is one the crash left out).  When both sides have the
   case but this does not hold, the entry is misused: the run reports it and exits 2;
-- with ``new``, the branch's ``new`` is the pin, and its ``read`` and ``dec``, when it has
-  them, agree: ``=`` for ``ok``; for ``!X``, ``read`` is ``!X`` and ``dec`` is ``None``
-  (the blob decoder refuses the value);
+- with ``new``, the whole branch record is the pinned verdict.  For ``ok``: it has no
+  ``errors``, ``read`` and ``dec`` are ``=``, and ``tag``, when it has one, does not end in
+  `` None`` or ``!<Class>``.  For ``!X``: ``new`` and ``read`` are ``!X``, every class in
+  ``errors`` is X, ``dec`` is ``None`` and ``tag``, when it has one, ends in `` None`` (the
+  blob decoder refuses the value).  The dry run's records hold only ``new``, so there the
+  pin binds that alone;
 - with ``keys``, both sides have the case and the differing keys are among them.
 
 An entry that allows no case is listed as matching no difference, which is never an error.
@@ -256,9 +259,11 @@ class Expected(NamedTuple):
     def matches(self, case_key: str) -> bool:
         return _pattern(self.key).fullmatch(case_key) is not None
 
-    def judge(self, base: Any, branch: Any) -> Judgement:
+    def judge(self, base: Any, branch: Any, verdict_only: bool = False) -> Judgement:
         """Whether the entry allows a case whose key it matches and whose first tier differs;
-        ``base`` and ``branch`` are the case's records, ``None`` on a side that lacks it."""
+        ``base`` and ``branch`` are the case's records, ``None`` on a side that lacks it.
+        ``verdict_only`` says the records hold only ``new`` (the dry run's), so a pin binds
+        that alone."""
         differing = _differing(base, branch)
         if self.kind == "b":
             if not (isinstance(base, dict) and isinstance(branch, dict)):
@@ -266,7 +271,7 @@ class Expected(NamedTuple):
             crash = _not_a_crash(base, differing)
             if crash:
                 return Judgement(False, f"line {self.line}: {self.key}: {crash}")
-        if self.new is not None and not _pinned(branch, self.new):
+        if self.new is not None and not _pinned(branch, self.new, verdict_only):
             return Judgement(False)
         if self.fields and (differing is None or not differing <= set(self.fields)):
             return Judgement(False)
@@ -348,13 +353,25 @@ def _not_a_crash(base: dict[str, Any], differing: set[str] | None) -> str:
     return ""
 
 
-def _pinned(branch: Any, pin: str) -> bool:
-    """Whether a branch record gives ``pin`` as its ``new``, with ``read`` and ``dec``
-    (when it has them) agreeing."""
+def _pinned(branch: Any, pin: str, verdict_only: bool = False) -> bool:
+    """Whether a branch record is the verdict ``pin`` names, the whole record and not only
+    its ``new``; with ``verdict_only``, its ``new`` alone."""
     if not isinstance(branch, dict) or branch.get("new") != pin:
         return False
-    read, dec = ("=", "=") if pin == "ok" else (pin, "None")
-    return branch.get("read", read) == read and branch.get("dec", dec) == dec
+    if verdict_only:
+        return True
+    errors = branch.get("errors") or []
+    classes = {error[0] if isinstance(error, list) and error else None for error in errors}
+    tag = branch.get("tag")
+    if pin == "ok":
+        refused = isinstance(tag, str) and re.search(r"(?: None|!\w+)\Z", tag) is not None
+        return not classes and not refused and branch.get("read") == branch.get("dec") == "="
+    return (
+        classes <= {pin[1:]}
+        and (tag is None or (isinstance(tag, str) and tag.endswith(" None")))
+        and branch.get("read") == pin
+        and branch.get("dec") == "None"
+    )
 
 
 def read_expected(path: str | Path) -> list[Expected]:

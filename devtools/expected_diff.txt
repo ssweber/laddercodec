@@ -7,8 +7,9 @@
 # matched whole: * stands for any run of characters other than /, \* for a star, \\ for a
 # backslash.  family names the family branch the entry belongs to: bits, data, flow, move
 # or comm.  With keys=, the entry allows a first-tier difference in those record keys only.
-# With new=, it allows only that new value on the branch, ok or !<ExceptionClass>, with the
-# branch's read and dec agreeing.  The reason states the rule the new verdict follows.
+# With new=, it allows only that verdict on the branch, ok or !<ExceptionClass>, and the
+# whole branch record must give it: no errors for ok, only that class for !X, and read,
+# dec and tag agreeing.  The reason states the rule the new verdict follows.
 #
 # A case belongs here only when
 #   (a) CLICK shows that the verdict before the change was wrong, or

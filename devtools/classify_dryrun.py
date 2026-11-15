@@ -20,10 +20,11 @@ family that wires the shared check in follows it.  A disagreement that an entry 
 expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
 allows is listed as ``expected``.  Each entry is judged as ``identity_diff.py --tiers``
 judges it (``Expected.judge``), on a disagreeing case only, with today's verdict as the
-base's ``new`` and the shared verdict as the branch's (``ok`` or ``!<ExceptionClass>``).
-The script exits 1 on any other disagreement, verdict or class, 2 when an entry is misused
-on a disagreeing case (a kind (b) entry where today does not crash), and changes nothing.  ``<src_dir>`` (default ``src``) is the laddercodec source tree
-under test.
+base's ``new`` and the shared verdict as the branch's (``ok`` or ``!<ExceptionClass>``);
+a ``new=`` pin binds that verdict alone, since these records hold nothing else.  The script
+exits 1 on any other disagreement, verdict or class, 2 when an entry is misused on a
+disagreeing case (a kind (b) entry where today does not crash), and changes nothing.
+``<src_dir>`` (default ``src``) is the laddercodec source tree under test.
 
 Left out: Math, whose formula has its own grammar (``math_formula.parse``).
 """
@@ -578,7 +579,7 @@ def _run(
         for candidate in entries:
             if not candidate.matches(key):
                 continue
-            judgement = candidate.judge(base, branch)
+            judgement = candidate.judge(base, branch, verdict_only=True)
             if judgement.problem:
                 problems.append(f"{key}: {judgement.problem}")
             elif judgement.allowed and entry is None:

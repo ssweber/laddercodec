@@ -117,9 +117,12 @@ parts separated by a bar with a space on each side:
 - `kind=` is `a` or `b`, below.
 - `keys=` names the record keys (`new`, `csv`, `blob`, ...) whose first-tier difference the
   entry allows; without it the entry allows any, and a case added or removed.
-- `new=` pins the branch's `new` value the entry allows: `ok` or `!<ExceptionClass>`. The
-  branch's `read` and `dec`, when it has them, must agree: `=` for `ok`; for `!X`, `read` is
-  `!X` and `dec` is `None`, since the blob decoder refuses the value.
+- `new=` pins the verdict the entry allows, `ok` or `!<ExceptionClass>`, and binds the whole
+  branch record, not only its `new`. For `ok`, the record has no `errors`, `read` and `dec`
+  are `=`, and `tag`, when the record has one, does not end in ` None` or `!<Class>`. For
+  `!X`, `new` and `read` are `!X`, every class in `errors` is X, `dec` is `None` and `tag`,
+  when the record has one, ends in ` None`, since the blob decoder refuses the value. The dry
+  run's records hold only the verdict, so there the pin binds that alone.
 - The reason states the rule the new verdict follows. Neither the key nor the reason holds
   that separator, and the reason does not start with an option name.
 

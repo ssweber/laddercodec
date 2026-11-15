@@ -260,7 +260,7 @@ def test_an_entry_with_keys_does_not_allow_an_added_case(tmp_path: Path) -> None
 @pytest.mark.parametrize(("pin", "status"), [("!FieldError", 0), ("!AddressError", 1), ("ok", 1)])
 def test_an_entry_with_new_allows_that_verdict_only(tmp_path: Path, pin: str, status: int) -> None:
     a = _doc({"k": {"new": "ok"}})
-    b = _doc({"k": _refused("FieldError", "m")})
+    b = _doc({"k": _refused("FieldError", "m", read="!FieldError", dec="None")})
     entry = f"k | {_ENTRY} | new={pin} | the value is refused\n"
     assert _tiers(tmp_path, a, b, entry)[0] == status
 
@@ -274,15 +274,82 @@ def test_an_entry_with_new_allows_that_verdict_only(tmp_path: Path, pin: str, st
         ("!FieldError", "!FieldError", "None", 0),
         ("!FieldError", "!ValueError", "None", 1),
         ("!FieldError", "!FieldError", "!ValueError", 1),
+        ("ok", None, "=", 1),
+        ("ok", "=", None, 1),
+        ("!FieldError", None, "None", 1),
+        ("!FieldError", "!FieldError", None, 1),
     ],
 )
 def test_a_pin_needs_read_and_dec_to_agree(
-    tmp_path: Path, pin: str, read: str, dec: str, status: int
+    tmp_path: Path, pin: str, read: str | None, dec: str | None, status: int
 ) -> None:
     a = _doc({"k": _refused("ValueError", "m", read="!ValueError", dec="!ValueError")})
-    b = _doc({"k": {"new": pin, "read": read, "dec": dec}})
+    record = {"new": pin, "read": read, "dec": dec}
+    b = _doc({"k": {name: value for name, value in record.items() if value is not None}})
     entry = f"k | family=data | kind=b | new={pin} | r\n"
     assert _tiers(tmp_path, a, b, entry)[0] == status
+
+
+#: The base of a crash entry, a value every path crashed on.
+_CRASHED = {
+    "new": "!ValueError",
+    "read": "!ValueError",
+    "dec": "!ValueError",
+    "tag": "6066 !ValueError",
+    "text": "X:1",
+    "errors": [["ValueError", "m"]] * 4,
+}
+#: The branch records a pin allows: an accept, and a refusal on every path.
+_ACCEPTED = {"new": "ok", "read": "=", "dec": "=", "tag": "6066 X:1", "text": "X:1"}
+_REFUSED = {
+    "new": "!FieldError",
+    "read": "!FieldError",
+    "dec": "None",
+    "tag": "6066 None",
+    "text": "X:1",
+    "errors": [["FieldError", "m"], ["FieldError", "m"]],
+}
+
+
+@pytest.mark.parametrize(
+    ("pin", "branch", "status"),
+    [
+        ("ok", _ACCEPTED, 0),
+        ("ok", {**_ACCEPTED, "csv": "X:1", "write": "ok", "enc": "h ="}, 0),
+        ("!FieldError", _REFUSED, 0),
+        ("!FieldError", {k: v for k, v in _REFUSED.items() if k != "tag"}, 0),
+        # The constructor accepts, but the blob, the encoder and the writer refuse.
+        (
+            "ok",
+            {
+                **_ACCEPTED,
+                "blob": "!FieldError",
+                "enc": "!FieldError",
+                "write": "!WriterError",
+                "errors": [["FieldError", "m"], ["FieldError", "m"], ["WriterError", "m"]],
+            },
+            1,
+        ),
+        ("ok", {**_ACCEPTED, "errors": [["FieldError", "m"]]}, 1),
+        # The constructor accepts, but the blob parser refuses the value.
+        ("ok", {**_ACCEPTED, "tag": "6066 None"}, 1),
+        ("ok", {**_ACCEPTED, "tag": "6066 !AddressError"}, 1),
+        ("ok", {**_ACCEPTED, "tag": "6066 compose!ValueError"}, 1),
+        # The constructor refuses, but the blob parser accepts the value.
+        ("!FieldError", {**_REFUSED, "tag": "6066 X:1"}, 1),
+        ("!FieldError", {**_REFUSED, "errors": [["FieldError", "m"], ["ValueError", "m"]]}, 1),
+        # A branch without read or dec does not state the verdict whole.
+        ("!FieldError", {"new": "!FieldError", "text": "X:1", "errors": [["FieldError", "m"]]}, 1),
+        ("ok", {"new": "ok", "text": "X:1", "csv": "X:999", "write": "ok"}, 1),
+    ],
+)
+def test_a_pin_binds_the_whole_branch_record(
+    tmp_path: Path, pin: str, branch: dict[str, Any], status: int
+) -> None:
+    a = _doc({"k": _CRASHED})
+    b = _doc({"k": branch})
+    status_, out = _tiers(tmp_path, a, b, f"k | family=move | kind=b | new={pin} | r\n")
+    assert status_ == status, out
 
 
 def test_an_entry_with_new_does_not_allow_a_removed_case(tmp_path: Path) -> None:
@@ -297,7 +364,8 @@ _CRASH = _refused("ValueError", "too many digits", read="!ValueError", tag="606a
 
 def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
     a = _doc({"Timer/on/setpoint='9'": _CRASH})
-    b = _doc({"Timer/on/setpoint='9'": {"new": "ok", "read": "=", "csv": "x", "tag": "606a x"}})
+    branch = {"new": "ok", "read": "=", "dec": "=", "csv": "x", "tag": "606a x"}
+    b = _doc({"Timer/on/setpoint='9'": branch})
     entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | the set point is 9\n"
     status, out = _tiers(tmp_path, a, b, entry)
     assert status == 0, out
@@ -316,7 +384,7 @@ def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
 )
 def test_tiers_refuse_a_crash_entry_used_on_a_verdict(tmp_path: Path, base: dict[str, Any]) -> None:
     # The entry allows the crash on "on" and is used on the verdict on "off": a misuse.
-    branch = {"new": "ok", "read": "=", "csv": "x"}
+    branch = {"new": "ok", "read": "=", "dec": "=", "csv": "x"}
     a = _doc({"Timer/on/setpoint='9'": _CRASH, "Timer/off/setpoint='9'": base})
     b = _doc({"Timer/on/setpoint='9'": branch, "Timer/off/setpoint='9'": branch})
     entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | r\n"
