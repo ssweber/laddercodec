@@ -208,6 +208,10 @@ All standard Click instruction families are supported from the root package:
 Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
 binary payload intact for lossless round-trip.
 
+`encode()` raises `ValueError` for a rung that holds an `Undecoded` marker: the
+marker stands in for a rung laddercodec could not decode, and CLICK has no
+instruction for it ([Decoding](decoding.md#rungs-that-dont-decode)).
+
 ## If a paste fails
 
 If CLICK crashes on a paste or draws the rung wrong, open an issue at

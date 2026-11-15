@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import decode, encode, read_csv
-from laddercodec.decode import _DATA, _walk_grid, _walk_row_cells
+from laddercodec.decode import _DATA, _LOST, _walk_grid, _walk_row_cells
 from laddercodec.encode_multi import encode_rungs
 from laddercodec.topology import (
     CELL_SIZE,
@@ -222,10 +222,16 @@ _NATIVE_266 = GOLDEN_DIR.parents[1] / "scr_captures" / "rungs_266"
 
 
 def _row_fields(data: bytes) -> list[list[tuple[bytes, bytes]]]:
-    """Each row's cells as (row number field, 16-byte tail)."""
+    """Each row's cells as (row number field, 16-byte tail).
+
+    600 is more rows than either buffer has: the walk ends at the native buffer's padding,
+    which it reports as a lost row, and at the terminal row of ours.
+    """
     rows, _ = _walk_grid(data, GRID_FIRST_ROW_START, 600)
     fields = []
     for kind, cursor, _ in rows:
+        if kind == _LOST:
+            break
         if kind == _DATA:
             bounds = [(start, end) for start, end, _ in _walk_row_cells(data, cursor)]
         else:

@@ -763,6 +763,19 @@ PROBES: dict[str, Probe] = {
     "Continue": Probe(fields={}, baselines=lambda ns: {"basic": {}}),
     "End": Probe(fields={}, baselines=lambda ns: {"basic": {}}),
     "Return": Probe(fields={}, baselines=lambda ns: {"basic": {}}),
+    "Undecoded": Probe(
+        fields={
+            "error": _lit("unknown wire flags", "", 'a "quoted", (bracketed) error', "a\nb"),
+            "rung": "int",
+            "row": "int?",
+            "column": "int?",
+            "stop": _lit("end", "return", "", "END"),
+        },
+        baselines=lambda ns: {
+            "rung": dict(error="unknown wire flags", rung=0),
+            "cell": dict(error="unknown wire flags", rung=2, row=1, column=31, stop="return"),
+        },
+    ),
     "Math": Probe(
         fields={
             "expression": "expr",

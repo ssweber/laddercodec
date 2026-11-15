@@ -66,6 +66,16 @@ from .topology import (
     PROGRAM_HEADER_BASE,
     RUNG0_PREAMBLE_BASE,
 )
+from .undecoded import (
+    BAD_BYTES,
+    Undecoded,
+    marker_rung,
+    read_comment,
+    reason,
+    to_the_end,
+    warn_comments,
+    warn_undecoded,
+)
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -74,6 +84,14 @@ from .topology import (
 
 class DecodeError(ValueError):
     """Raised when a clipboard binary cannot be decoded."""
+
+
+class _CellError(DecodeError):
+    """A cell of a data row that cannot be decoded; ``column`` counts from 0 (31 is AF)."""
+
+    def __init__(self, column: int, message: str) -> None:
+        super().__init__(message)
+        self.column = column
 
 
 @dataclass
@@ -611,73 +629,89 @@ def _walk_row_cells(data: bytes, cursor: int) -> list[_CellBound]:
     return cells
 
 
+#: Why a rung with a down wire in its output column decodes as an undecoded marker.
+AF_DOWN_WIRE = (
+    "the output column has a down wire, which isn't supported. CLICK's syntax check removes it."
+)
+
+
 def _decode_data_row(
-    data: bytes, cursor: int, where: tuple[int, int] | None = None
-) -> tuple[list[ConditionToken], AfToken, int]:
+    data: bytes, cursor: int, *, refuse_af_down: bool = False
+) -> tuple[list[ConditionToken], AfToken]:
     """Decode one grid data row by walking cells sequentially.
 
-    ``where`` is the ``(rung, row)`` index of the row, zero-based; pass it when the row's
-    content is being kept, so a down wire in the AF column raises instead of being dropped.
+    Pass ``refuse_af_down`` when the row's content is being kept, so a down wire in the AF
+    column raises instead of being dropped.
 
-    Returns ``(conditions, af_token, actual_row_size)``.
+    Returns ``(conditions, af_token)``.
+
+    Raises
+    ------
+    _CellError
+        For a cell whose bytes can't be read, naming its column.
     """
     cell_bounds = _walk_row_cells(data, cursor)
     conditions: list[ConditionToken] = []
     af_token: AfToken = ""
 
     for col, (pos, next_pos, has_instr) in enumerate(cell_bounds):
-        if col < CONDITION_COLUMNS:
-            if has_instr:
-                instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
-                parsed = parse_condition_blob(instr_raw)
-                if parsed is not None:
-                    # Read wire_down flag from cell header (+0x21).
-                    if data[pos + 0x21] == 1:
-                        parsed.wire_down = True
-                    conditions.append(parsed)
-                else:
-                    conditions.append(UnknownCondition(raw=instr_raw))
-            else:
-                seg = data[pos + 0x19]  # segment flag (+0x19)
-                wr = data[pos + 0x1D]
-                wd = data[pos + 0x21]
-                key = (seg, wr, wd)
-                token = _FLAGS_TO_TOKEN.get(key)
-                if token is None:
-                    raise DecodeError(
-                        f"Unknown wire flags {key} at row cursor={cursor:#x}, col={col}"
-                    )
-                conditions.append(token)
-        else:  # AF column (col 31)
-            if where is not None and data[pos + 0x21] != 0:
-                raise DecodeError(
-                    f"Rung {where[0]}, row {where[1]} (zero-based): the output column has a down wire, "
-                    "which isn't supported. CLICK's syntax check removes it."
-                )
-            if has_instr:
-                instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
-                parsed_af = parse_af_blob(instr_raw)
-                if parsed_af is not None and _fits_stored_span(parsed_af, data[pos + 0x09]):
-                    af_token = parsed_af
-                else:
-                    # Try to extract a raw instruction blob.
-                    try:
-                        class_name, blob_end, part_count = find_blob_boundary(instr_raw)
-                        # Keep the cell's row span (+0x09) and sub-rows (+0x0A).
-                        af_token = RawInstruction(
-                            class_name=class_name,
-                            blob=instr_raw[:blob_end],
-                            part_count=part_count,
-                            visual_rows=data[pos + 0x09] or None,
-                            sub_rows=data[pos + 0x0A] or None,
-                        )
-                    except (ValueError, IndexError):
-                        af_token = UnknownInstruction(raw=instr_raw)
-            else:
-                af_token = "NOP" if data[pos + 0x1D] == 1 else ""
+        try:
+            if col < CONDITION_COLUMNS:
+                conditions.append(_decode_condition_cell(data, pos, next_pos, has_instr))
+                continue
+            # AF column (col 31)
+            if refuse_af_down and data[pos + 0x21] != 0:
+                raise _CellError(col, AF_DOWN_WIRE)
+            af_token = _decode_af_cell(data, pos, next_pos, has_instr)
+        except _CellError:
+            raise
+        except BAD_BYTES as exc:
+            raise _CellError(col, reason(exc)) from exc
+    return conditions, af_token
 
-    last_end = cell_bounds[-1][1]
-    return conditions, af_token, last_end - cursor
+
+def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> ConditionToken:
+    """The token of one condition cell (columns A..AE)."""
+    if has_instr:
+        instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
+        parsed = parse_condition_blob(instr_raw)
+        if parsed is None:
+            return UnknownCondition(raw=instr_raw)
+        # Read wire_down flag from cell header (+0x21).
+        if data[pos + 0x21] == 1:
+            parsed.wire_down = True
+        return parsed
+    seg = data[pos + 0x19]  # segment flag (+0x19)
+    wr = data[pos + 0x1D]
+    wd = data[pos + 0x21]
+    key = (seg, wr, wd)
+    token = _FLAGS_TO_TOKEN.get(key)
+    if token is None:
+        raise DecodeError(f"unknown wire flags (segment, right, down) = {key}")
+    return token
+
+
+def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> AfToken:
+    """The token of the AF cell (column 31)."""
+    if not has_instr:
+        return "NOP" if data[pos + 0x1D] == 1 else ""
+    instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
+    parsed_af = parse_af_blob(instr_raw)
+    if parsed_af is not None and _fits_stored_span(parsed_af, data[pos + 0x09]):
+        return parsed_af
+    # Try to extract a raw instruction blob.
+    try:
+        class_name, blob_end, part_count = find_blob_boundary(instr_raw)
+        # Keep the cell's row span (+0x09) and sub-rows (+0x0A).
+        return RawInstruction(
+            class_name=class_name,
+            blob=instr_raw[:blob_end],
+            part_count=part_count,
+            visual_rows=data[pos + 0x09] or None,
+            sub_rows=data[pos + 0x0A] or None,
+        )
+    except (ValueError, IndexError):
+        return UnknownInstruction(raw=instr_raw)
 
 
 # ---------------------------------------------------------------------------
@@ -687,9 +721,16 @@ def _decode_data_row(
 # Row classification tags.
 _DATA = "DATA"
 _PREAMBLE = "PREAMBLE"
+#: A row the walk can't read: it and every row after it are lost.
+_LOST = "LOST"
 
-# (tag, cursor, comment_rtf | None)
-_RowInfo = tuple[str, int, bytes | None]
+# (tag, cursor, comment_rtf for PREAMBLE | error text for LOST | None)
+_RowInfo = tuple[str, int, bytes | str | None]
+
+
+def _is_terminal(data: bytes, pos: int) -> bool:
+    """The terminal row's signature.  The full check avoids a data row with row_byte 0xFF."""
+    return data[pos + 0x05] == 0xFF and data[pos + 0x01] == 0x01 and data[pos + 0x03] == 0x30
 
 
 def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list[_RowInfo], bool]:
@@ -700,50 +741,72 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
 
     For data rows, walks all 32 cells to determine the actual row size
     (which may exceed ``GRID_ROW_STRIDE`` if instruction cells are present).
+
+    A row before the last one the program header counts that is cut off, holds no cell 0,
+    or whose cells can't be walked is LOST, and the walk stops: where the next row starts
+    is known only from this row's end.  So is a row taken for a preamble that may not be
+    one: a preamble row's cell 0 must carry the cell signature, numbered one past the row
+    before it, and its cell 1 must have the preamble flag (+0x30) too.
     """
     cursor = grid_start
     row_infos: list[_RowInfo] = []
     is_multi = False
+    row_byte: int | None = None  # the row byte (+0x05) of the row before
 
-    for _ in range(total_grid_rows):
+    for index in range(total_grid_rows):
+        last = index == total_grid_rows - 1
         if cursor + CELL_SIZE > len(data):
+            if not last:
+                row_infos.append((_LOST, cursor, f"the buffer ends before grid row {index}"))
             break
 
-        marker_05 = data[cursor + 0x05]
-        marker_30 = data[cursor + 0x30]
-
-        if marker_05 == 0xFF and data[cursor + 0x01] == 0x01 and data[cursor + 0x03] == 0x30:
-            # Terminal sentinel — end of grid.  Full signature check
-            # avoids false positives when a data row has row_byte 0xFF.
+        if _is_terminal(data, cursor):
+            # Terminal sentinel — end of grid.
             is_multi = True
             break
 
-        if marker_30 == 0x01:
+        if data[cursor + 0x30] == 0x01:
             # Preamble row — multi-rung boundary.
-            is_multi = True
+            expected = data[cursor + 0x05] if row_byte is None else (row_byte + 1) & 0xFF
+            if not _is_cell_signature(data, cursor, 0, expected):
+                if not last:
+                    error = f"grid row {index} is a preamble row with no cell 0 at {cursor:#x}"
+                    row_infos.append((_LOST, cursor, error))
+                break
             cmt_len = int.from_bytes(data[cursor + 0x34 : cursor + 0x38], "little")
+            # Every cell of a preamble row has +0x30 set; a data row's cell 1 has it clear.
+            cell1 = cursor + CELL_SIZE + cmt_len
+            if cell1 + CELL_SIZE > len(data) or data[cell1 + 0x30] != 0x01:
+                if not last:
+                    error = f"grid row {index} has the preamble flag on cell 0 only, at {cursor:#x}"
+                    row_infos.append((_LOST, cursor, error))
+                break
+            is_multi = True
+            row_byte = expected
             if cmt_len > 0:
                 cmt_rtf = bytes(data[cursor + 0x38 : cursor + 0x38 + cmt_len])
             else:
                 cmt_rtf = None
             row_infos.append((_PREAMBLE, cursor, cmt_rtf))
             cursor += GRID_ROW_STRIDE + cmt_len
-        else:
-            # Data row — but only decode if cell 0 has valid structural
-            # bytes.  The trailing "extra" row in single-rung buffers
-            # (and native captures with non-zero padding) may lack them.
-            cell0_valid = (
-                cursor + CELL_SIZE <= len(data)
-                and data[cursor + 0x09] == 0x01
-                and data[cursor + 0x0A] == 0x01
-            )
-            if cell0_valid:
-                row_infos.append((_DATA, cursor, None))
-                _, _, row_size = _decode_data_row(data, cursor)
-                cursor += row_size
-            else:
-                # Not a valid data row — stop walking.
-                break
+            continue
+
+        # Data row — but only decode if cell 0 has valid structural bytes.  The trailing
+        # "extra" row in single-rung buffers (and native captures with non-zero padding)
+        # may lack them.
+        if not (data[cursor + 0x09] == 0x01 and data[cursor + 0x0A] == 0x01):
+            if not last:
+                error = f"grid row {index} has no cell 0 at {cursor:#x}"
+                row_infos.append((_LOST, cursor, error))
+            break
+        try:
+            row_end = _walk_row_cells(data, cursor)[-1][1]
+        except BAD_BYTES as exc:
+            row_infos.append((_LOST, cursor, reason(exc)))
+            break
+        row_infos.append((_DATA, cursor, None))
+        row_byte = data[cursor + 0x05]
+        cursor = row_end
 
     return row_infos, is_multi
 
@@ -765,12 +828,17 @@ def decode(data: bytes) -> Rung | list[Rung]:
     -------
     Rung | list[Rung]
         A single ``Rung`` for single-rung buffers, or a list of ``Rung``
-        objects for multi-rung buffers.
+        objects for multi-rung buffers.  A rung that can't be decoded comes back as an
+        undecoded marker rung (:func:`laddercodec.undecoded.marker_rung`), with an
+        ``UndecodedRungWarning``.  When the cells can't be walked, the marker stands for
+        that rung and every rung after it; when that happens in rung 0, before any
+        preamble row, the decoder can't tell one rung from several and returns the
+        marker rung alone.
 
     Raises
     ------
     DecodeError
-        If the buffer is invalid, or a rung has a down wire in the output column.
+        If the buffer is invalid: its magic or size.
     """
     _validate_buffer(data)
     row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
@@ -778,12 +846,17 @@ def decode(data: bytes) -> Rung | list[Rung]:
     rung0_rtf, payload_len = _read_rung0_comment(data)
     grid_start = GRID_FIRST_ROW_START + payload_len
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
+    failed: list[tuple[int, str]] = []
     if is_multi:
-        rungs = _decode_multi(data, row_infos, rung0_rtf)
+        rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
         warn_legacy(rungs)
+        warn_comments(failed)
+        warn_undecoded(rungs)
         return rungs
-    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_comments(failed)
+    warn_undecoded([rung])
     return rung
 
 
@@ -803,8 +876,8 @@ def decode_rung(data: bytes) -> Rung:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains multiple rungs, or the rung has a down wire
-        in the output column.
+        If the buffer is invalid or contains multiple rungs.  A rung that can't be decoded
+        comes back as an undecoded marker rung, as from :func:`decode`.
     """
     _validate_buffer(data)
 
@@ -819,8 +892,11 @@ def decode_rung(data: bytes) -> Rung:
     if is_multi:
         raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    failed: list[tuple[int, str]] = []
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_comments(failed)
+    warn_undecoded([rung])
     return rung
 
 
@@ -840,8 +916,10 @@ def decode_rungs(data: bytes) -> list[Rung]:
     Raises
     ------
     DecodeError
-        If the buffer is invalid or contains only a single rung, or a rung has a down wire
-        in the output column.
+        If the buffer is invalid or contains only a single rung.  A rung that can't be
+        decoded comes back as an undecoded marker rung, as from :func:`decode`; when the
+        walk stops in rung 0, which can't tell one rung from several, the list holds that
+        rung's marker only.
     """
     _validate_buffer(data)
 
@@ -853,11 +931,15 @@ def decode_rungs(data: bytes) -> list[Rung]:
 
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
 
-    if not is_multi:
+    # A walk that stops before any preamble row can't tell one rung from several.
+    if not is_multi and not (row_infos and row_infos[-1][0] == _LOST):
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
-    rungs = _decode_multi(data, row_infos, rung0_rtf)
+    failed: list[tuple[int, str]] = []
+    rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
     warn_legacy(rungs)
+    warn_comments(failed)
+    warn_undecoded(rungs)
     return rungs
 
 
@@ -866,62 +948,47 @@ def _decode_single(
     row_infos: list[_RowInfo],
     total_grid_rows: int,
     rung0_rtf: bytes | None,
+    failed: list[tuple[int, str]],
 ) -> Rung:
     """Decode a single-rung buffer from pre-walked grid info."""
     # Single-rung: total_grid_rows = logical_rows + 1 (format quirk).
     logical_rows = total_grid_rows - 1
-    data_rows = [ri for ri in row_infos if ri[0] == _DATA][:logical_rows]
+    data_rows = [ri for ri in row_infos if ri[0] != _PREAMBLE][:logical_rows]
 
-    if len(data_rows) < logical_rows:
-        raise DecodeError(f"Expected {logical_rows} data rows, found {len(data_rows)}")
-
-    conditions: list[list[ConditionToken]] = []
-    instructions: list[AfToken] = []
-    for row, (_, cursor, _) in enumerate(data_rows):
-        conds, af, _ = _decode_data_row(data, cursor, (0, row))
-        conditions.append(conds)
-        instructions.append(af)
-    _drop_tall_span_nops(instructions)
-
-    comment: str | None = None
-    if rung0_rtf is not None:
-        comment = _decode_rtf(rung0_rtf)
-
-    return Rung(
-        logical_rows=logical_rows,
-        conditions=conditions,
-        instructions=instructions,
-        comment=comment,
-        comment_rtf=rung0_rtf,
-    )
+    if len(data_rows) < logical_rows and all(ri[0] == _DATA for ri in data_rows):
+        error = f"expected {logical_rows} data rows, found {len(data_rows)}"
+        data_rows.append((_LOST, -1, error))
+    return _build_rung(data, data_rows, rung0_rtf, 0, failed)
 
 
 def _decode_multi(
     data: bytes,
     row_infos: list[_RowInfo],
     rung0_rtf: bytes | None,
+    failed: list[tuple[int, str]],
 ) -> list[Rung]:
     """Decode a multi-rung buffer from pre-walked grid info."""
     # Group DATA rows into rungs, split by PREAMBLE boundaries.
     # Rung 0: DATA rows before first PREAMBLE (comment from fixed preamble).
     # Rung N>0: DATA rows after PREAMBLE[N] (comment from that preamble).
     rungs: list[Rung] = []
-    current_data: list[int] = []  # cursors for current rung's data rows
+    current_data: list[_RowInfo] = []  # the current rung's data rows
     current_rtf: bytes | None = rung0_rtf  # rung 0 uses fixed preamble
 
-    for tag, cursor, cmt_rtf in row_infos:
-        if tag == _DATA:
-            current_data.append(cursor)
-        elif tag == _PREAMBLE:
-            # Flush the current rung.
-            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
+    for info in row_infos:
+        tag, _, extra = info
+        if tag == _PREAMBLE:
+            # Flush the current rung.  One with no data rows is a marker to the end.
+            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
+            if not current_data:
+                return rungs
             current_data = []
-            current_rtf = cmt_rtf
+            current_rtf = extra if isinstance(extra, bytes) else None
+        else:
+            current_data.append(info)
 
     # Flush the last rung (data rows after the final preamble).
-    if current_data:
-        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
-
+    rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
     return rungs
 
 
@@ -954,22 +1021,43 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
                 instructions[j] = ""
 
 
-def _build_rung(data: bytes, data_cursors: list[int], rtf: bytes | None, rung: int) -> Rung:
-    """Build rung number *rung* from a list of data-row cursors."""
+def _build_rung(
+    data: bytes,
+    rows: list[_RowInfo],
+    rtf: bytes | None,
+    rung: int,
+    failed: list[tuple[int, str]],
+) -> Rung:
+    """Build rung number *rung* from its walked data rows.
+
+    A rung that can't be decoded (a row the walk could not read, a cell that does not
+    decode, or no data rows at all) is an undecoded marker rung.  A LOST row ends the walk,
+    so its marker stands for this rung and every rung after it, as does a rung with no data
+    rows: the walk took a row for a preamble that was not one, or lost count of the rows.
+    A comment that does not decode is noted in the comment and added to *failed*
+    (:func:`laddercodec.undecoded.read_comment`).
+    """
+    comment = read_comment(rtf, rung, failed)
+    if not rows:
+        return marker_rung(Undecoded(to_the_end("the rung has no data rows", rung), rung), comment)
+
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
-    for row, cursor in enumerate(data_cursors):
-        conds, af, _ = _decode_data_row(data, cursor, (rung, row))
+    for row, (tag, cursor, error) in enumerate(rows):
+        if tag != _DATA:
+            return marker_rung(Undecoded(to_the_end(str(error), rung), rung, row), comment)
+        try:
+            conds, af = _decode_data_row(data, cursor, refuse_af_down=True)
+        except _CellError as exc:
+            return marker_rung(Undecoded(reason(exc), rung, row, exc.column), comment)
+        except BAD_BYTES as exc:
+            return marker_rung(Undecoded(reason(exc), rung, row), comment)
         conditions.append(conds)
         instructions.append(af)
     _drop_tall_span_nops(instructions)
 
-    comment: str | None = None
-    if rtf is not None:
-        comment = _decode_rtf(rtf)
-
     return Rung(
-        logical_rows=len(data_cursors),
+        logical_rows=len(rows),
         conditions=conditions,
         instructions=instructions,
         comment=comment,
@@ -1050,7 +1138,7 @@ def inspect_cells(
 
         row_cursor = row_cursors[vis_row]
         cell_bounds = _walk_row_cells(data, row_cursor)
-        conditions, af_token, _ = _decode_data_row(data, row_cursor)
+        conditions, af_token = _decode_data_row(data, row_cursor)
 
         pos, next_pos, _has_instr = cell_bounds[col_idx]
         cell_raw = bytes(data[pos:next_pos])

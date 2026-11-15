@@ -33,6 +33,7 @@ from .operands.errors import FieldError as FieldError
 
 if TYPE_CHECKING:
     from .decode import Rung
+    from .instructions.undecoded import Undecoded
 
 # ---------------------------------------------------------------------------
 # Instruction base classes — used for isinstance dispatch
@@ -239,11 +240,22 @@ def check_program_name(name: str, field_name: str) -> None:
 
 @dataclass
 class Program:
-    """A single PLC program (main or subroutine) with its rungs."""
+    """A single PLC program (main or subroutine) with its rungs.
+
+    ``prog_idx`` is CLICK's program index: 1 for the main program, 2 and up for
+    subroutines.
+    """
 
     name: str
     prog_idx: int
     rungs: list[Rung] = field(default_factory=list)
+
+    @property
+    def undecoded(self) -> list[Undecoded]:
+        """The undecoded markers in :attr:`rungs`, in rung order; empty when every rung decoded."""
+        from .undecoded import markers  # undecoded imports instructions, which import model
+
+        return markers(self.rungs)
 
 
 @dataclass

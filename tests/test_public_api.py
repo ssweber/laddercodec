@@ -55,6 +55,8 @@ EXPECTED_ROOT_EXPORTS = (
     "FieldError",
     "AddressError",
     "LegacyEncodingWarning",
+    "UndecodedRungWarning",
+    "UndecodedCommentWarning",
     "BlockCopy",
     "Call",
     "Contact",
@@ -78,6 +80,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Receive",
     "Send",
     "Timer",
+    "Undecoded",
     "Unpack",
     "RawInstruction",
     "Return",
@@ -121,7 +124,7 @@ def test_root_public_api_supports_basic_roundtrip(tmp_path: Path) -> None:
 
 
 def test_program_and_project_models_are_root_exports() -> None:
-    main = Program(name="Main", prog_idx=0, rungs=[])
+    main = Program(name="Main", prog_idx=1, rungs=[])
     project = Project(main=main)
 
     assert project.main is main

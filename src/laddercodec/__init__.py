@@ -34,11 +34,13 @@ from .instructions import (
     Send,
     Shift,
     Timer,
+    Undecoded,
     Unpack,
 )
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
 from .model import AddressError, FieldError, Program, Project
+from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
 __all__ = [
     "encode",
@@ -56,6 +58,8 @@ __all__ = [
     "FieldError",
     "AddressError",
     "LegacyEncodingWarning",
+    "UndecodedRungWarning",
+    "UndecodedCommentWarning",
     "BlockCopy",
     "Call",
     "Contact",
@@ -79,6 +83,7 @@ __all__ = [
     "Receive",
     "Send",
     "Timer",
+    "Undecoded",
     "Unpack",
     "RawInstruction",
     "Return",

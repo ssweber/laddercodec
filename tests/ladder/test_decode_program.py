@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import decode
+from laddercodec import Undecoded, UndecodedRungWarning, decode
 from laddercodec._layout import canonical
 from laddercodec.csv import read_csv
-from laddercodec.decode import inspect_cells
+from laddercodec.decode import AF_DOWN_WIRE, inspect_cells
 from laddercodec.decode_program import (
     _parse_header,
     _parse_row_block,
@@ -737,15 +737,30 @@ def test_decode_program_keeps_comments_for_consecutive_empty_rungs():
     assert all(r.logical_rows == 1 for r in program.rungs)
 
 
-def test_decode_program_rejects_corrupt_rung_index():
-    data = bytearray(_synthetic_scr(["first", None, None]))
-    # Corrupt the second rung's index word (locate it: first rung record ends
-    # after its 00 00 count; the next two bytes are the u16 index == 1).
-    idx_pos = data.index(struct.pack("<H", 1) + b"\x00\x00\x00\x00\x02\x00\x03\x00\x00")
-    struct.pack_into("<H", data, idx_pos, 9)
+def _framing_marker(data: bytes | bytearray, rung: int, error: str) -> list:
+    """Decode *data*, check its last rung is the marker for *rung* to the end, return the rest."""
+    with pytest.warns(UndecodedRungWarning, match=error):
+        program = decode_program(bytes(data))
+    *decoded, last = program.rungs
+    assert len(decoded) == rung
+    marker = last.instructions[0]
+    assert isinstance(marker, Undecoded)
+    assert (marker.rung, marker.row, marker.column) == (rung, None, None)
+    assert marker.stop == "return"  # _synthetic_scr is a subroutine
+    assert marker.error.endswith(f"so this marker stands for rung {rung} to the end")
+    assert program.undecoded == [marker]
+    return decoded
 
-    with pytest.raises(ValueError, match="rung index mismatch"):
-        decode_program(bytes(data))
+
+def test_corrupt_rung_index_stops_decoding_at_a_marker():
+    """Rung 2's index is wrong, so rung 1's end is not confirmed: the marker starts at 1."""
+    data = bytearray(_synthetic_scr(["first", "second", "third"]))
+    records = _walk_rung_records(bytes(data), _parse_header(data))
+    prefix = records[1].topology.end + 2  # after rung 1's section count
+    struct.pack_into("<H", data, prefix, 9)
+
+    decoded = _framing_marker(data, 1, "rung index mismatch at 0x[0-9A-F]+: expected 2, got 9")
+    assert [r.comment for r in decoded] == ["first"]
 
 
 def test_topology_row_blocks_match_coverage_clipboard_columns():
@@ -909,36 +924,110 @@ def test_corrupt_topology_is_not_skipped_before_a_valid_rung():
     header = _parse_header(data)
     # Invalid row count in rung zero; later rung framing is still valid.
     struct.pack_into("<H", data, header.rungs_start + 6, 0)
+    assert _framing_marker(data, 0, "unparseable rung topology") == []
     with pytest.raises(ValueError, match=r"unparseable rung topology.*rung 0"):
-        decode_program(bytes(data))
+        _walk_rung_records(bytes(data), header)
 
 
-@pytest.mark.parametrize("index", [0, 1])
+@pytest.mark.parametrize("index", [0, 1, 2])
 def test_declared_rung_indices_include_zero(index):
-    data = bytearray(_synthetic_scr([None, None]))
+    """A wrong index at rung *index* leaves the rung before unconfirmed (none for rung 0)."""
+    data = bytearray(_synthetic_scr(["a", "b", "c"]))
     header = _parse_header(data)
     records = _walk_rung_records(data, header)
-    prefix = header.rungs_start if index == 0 else records[0].topology.end + 2
+    prefix = header.rungs_start if index == 0 else records[index - 1].topology.end + 2
     struct.pack_into("<H", data, prefix, 42)
-    with pytest.raises(ValueError, match="rung index mismatch"):
-        decode_program(bytes(data))
+    rung = max(index - 1, 0)
+    decoded = _framing_marker(
+        data, rung, f"rung index mismatch at 0x{prefix:X}: expected {index}, got 42"
+    )
+    assert [r.comment for r in decoded] == ["a", "b", "c"][:rung]
 
 
-@pytest.mark.parametrize("count", [0, 1, 3, 256])
-def test_declared_rung_count_is_enforced(count):
-    data = bytearray(_synthetic_scr([None, None]))
+@pytest.mark.parametrize(
+    ("count", "rung", "error"),
+    [
+        (0, 0, "rung walk ended"),
+        (1, 0, "rung walk ended"),
+        (2, 1, "rung walk ended"),
+        (4, 2, "truncated rung prefix"),
+        (256, 2, "truncated rung prefix"),
+    ],
+)
+def test_declared_rung_count_is_enforced(count, rung, error):
+    """A count off from the records leaves the last record read unconfirmed."""
+    data = bytearray(_synthetic_scr(["a", "b", "c"]))
     header = _parse_header(data)
     struct.pack_into("<H", data, header.rungs_start - 2, count)
-    with pytest.raises(ValueError, match="rung walk ended|truncated rung prefix"):
-        decode_program(bytes(data))
+    decoded = _framing_marker(data, rung, error)
+    assert [r.comment for r in decoded] == ["a", "b", "c"][:rung]
 
 
-def test_truncated_headers_and_rung_prefixes_raise_value_error():
+@pytest.mark.parametrize("comments", [["a", "b", None], ["a", None, None, None]])
+def test_a_framing_error_drops_trailing_placeholders(comments):
+    """After the unconfirmed record is dropped, so are the empty rungs before it.
+
+    The marker then stands for the first of them, and never for a rung past the file's.
+    """
+    data = _synthetic_scr(comments) + b"\x00\x00"
+    decoded = _framing_marker(data, 2 if comments[1] else 1, "rung walk ended")
+    assert [r.comment for r in decoded] == ["a", "b"][: len(decoded)]
+
+
+def test_a_section_count_too_low_puts_the_marker_on_its_record(monkeypatch):
+    """Each record's section count lowered by one: that record ends early.
+
+    The next record's prefix then fails, and the marker starts at the record whose count
+    is wrong.  No rung decodes as a wrong one.
+    """
+    data = (_SCR_FIXTURE_DIR / "coverage.scr").read_bytes()
+    want = decode_program(data)
+    sections: list[tuple[int, int]] = []
+    real = decode_program_module._parse_section_entries
+
+    def spy(data, pos, count, limit):
+        sections.append((pos, count))
+        return real(data, pos, count, limit)
+
+    monkeypatch.setattr(decode_program_module, "_parse_section_entries", spy)
+    records = _walk_rung_records(data, _parse_header(data))
+    monkeypatch.setattr(decode_program_module, "_parse_section_entries", real)
+    with_section = [i for i, r in enumerate(records) if r.instructions]
+    assert len(with_section) == len(sections) > 50
+    checked = 0
+    for (pos, count), index in zip(sections, with_section, strict=True):
+        if (
+            count < 2
+            or index >= len(want.rungs) - 1
+            or (index and not records[index - 1].instructions)
+        ):
+            continue
+        damaged = bytearray(data)
+        struct.pack_into("<H", damaged, pos - 6, count - 1)
+        with pytest.warns(UndecodedRungWarning):
+            got = decode_program(bytes(damaged))
+        (marker,) = got.undecoded
+        assert marker.rung == index
+        assert marker.error.startswith("rung index mismatch")
+        assert got.rungs[:index] == want.rungs[:index]
+        assert len(got.rungs) == index + 1
+        checked += 1
+    assert checked > 20
+
+
+def test_truncated_headers_raise_value_error():
     data = _synthetic_scr([None])
     header = _parse_header(data)
-    for end in range(header.rungs_start + 6):
+    for end in range(header.rungs_start):
         with pytest.raises(ValueError):
             decode_program(data[:end])
+
+
+def test_truncated_rung_prefixes_stop_decoding_at_a_marker():
+    data = _synthetic_scr([None])
+    header = _parse_header(data)
+    for end in range(header.rungs_start, header.rungs_start + 6):
+        assert _framing_marker(data[:end], 0, "truncated rung prefix") == []
 
 
 def test_down_lists_use_u16_counts_and_validate_row_indices():
@@ -1099,7 +1188,7 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
 
 
 def test_down_wire_in_the_output_column_is_refused(monkeypatch):
-    """A down list on column 31 raises, as the clipboard decoder does for the AF down flag.
+    """A down list on column 31 makes a marker, as the AF down flag does on the clipboard.
 
     Blobs hold absolute offsets, so the list is added to the parsed block, not the bytes.
     """
@@ -1114,6 +1203,15 @@ def test_down_wire_in_the_output_column_is_refused(monkeypatch):
             return block
         return dataclasses.replace(block, wiredown={**block.wiredown, 31: (0,)})
 
+    want = decode_program(scr_data).rungs
     monkeypatch.setattr(decode_program_module, "_parse_row_topology_block", with_af_down)
-    with pytest.raises(ValueError, match=r"Rung 1, row 0 \(zero-based\): the output column"):
-        decode_program(scr_data)
+    with pytest.warns(UndecodedRungWarning, match="rung 1, row 0 is not decoded"):
+        program = decode_program(scr_data)
+    assert program.prog_idx == 1  # the main program: the marker acts as end()
+    assert program.undecoded == [Undecoded(AF_DOWN_WIRE, 1, 0, 31, "end")]
+    marker = program.rungs[1]
+    assert marker.comment is not None
+    assert marker.comment.splitlines()[0] == f"UNDECODED: rung 1, row 0: {AF_DOWN_WIRE}"
+    assert marker.conditions == [["-"] * 31]
+    # The rungs around it decode as before.
+    assert program.rungs[:1] + program.rungs[2:] == want[:1] + want[2:]

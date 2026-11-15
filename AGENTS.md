@@ -45,6 +45,7 @@ src/laddercodec/
 ├── decode.py             # decode() + internal decode_rung(), decode_rungs(); DecodeError
 ├── decode_program.py     # decode_program(): Scr*.tmp to Program
 ├── legacy.py             # LegacyEncodingWarning: saved forms an older laddercodec wrote that CLICK runs differently
+├── undecoded.py          # UndecodedRungWarning, marker_rung(): the rung decoders and write_csv put in place of one they can't read
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── layout_check.py       # check(): Finding per shape CLICK's syntax check cannot lay out (C0001, C0202, ...)
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
@@ -69,7 +70,8 @@ src/laddercodec/
 │   ├── search.py, math.py, math_formula.py   # math_formula.parse(): the formula as CLICK's Math dialog reads it
 │   ├── call.py, return_.py, end.py
 │   ├── send_receive.py, email.py, home.py, position.py, velocity.py
-│   └── raw.py            # RawInstruction: opaque blob passthrough with row span, sub-rows and pin rows
+│   ├── raw.py            # RawInstruction: opaque blob passthrough with row span, sub-rows and pin rows
+│   └── undecoded.py      # Undecoded: the marker for a rung that did not decode; no blob, encode() refuses it
 ├── csv/                  # ast.py, contract.py, parser.py, token_parser.py, converter.py (RungAst to Rung, uses _layout),
 │                         #   writer.py (Rung to CSV), bundle.py (main.csv + sub_*.csv)
 └── resources/
@@ -79,7 +81,7 @@ src/laddercodec/
 ## Key Modules
 
 - **Encoding.** `encode()` accepts a `Rung` or `list[Rung]`. `encode_rung()` runs: validate → compute metadata → build grid → insert comment → pad to page. `encode()` writes the grid it is given; it does not lay out.
-- **Decoding.** `decode()` auto-detects single vs multi-rung, walks the variable-length cell grid, parses instruction blobs into domain objects, and decodes RTF comments to markdown. A blob that no parser accepts (unknown type, or a value the operand rules refuse) becomes `RawInstruction` (AF) or an unknown condition, with its bytes kept. A down wire in the AF column raises `DecodeError`. `decode_program()` reads Click's `Scr*.tmp` program files (~17x smaller than the clipboard form) with the same instruction parsing and different framing.
+- **Decoding.** `decode()` auto-detects single vs multi-rung, walks the variable-length cell grid, parses instruction blobs into domain objects, and decodes RTF comments to markdown. A blob that no parser accepts (unknown type, or a value the operand rules refuse) becomes `RawInstruction` (AF) or an unknown condition, with its bytes kept. A rung that can't be decoded (a down wire in the AF column, a cell that doesn't decode, a row the walk can't read, broken framing) becomes one undecoded marker rung with an `UndecodedRungWarning`; a comment that doesn't decode keeps the rung's logic, with an `UndecodedCommentWarning`; only a bad envelope (magic, size, SCR header) raises. `decode_program()` reads Click's `Scr*.tmp` program files (~17x smaller than the clipboard form) with the same instruction parsing and different framing.
 - **Instructions.** Each dataclass knows how to serialize itself: the grid loop calls `token.build_blob()` and `token.cell_params()`. `ConditionInstruction` and `AfInstruction` subclasses are recognized by isinstance dispatch.
 - **Operand rules.** A refused field raises `FieldError` (`AddressError` for an address) at construction; the same refusal makes a blob decode as raw. `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed. `devtools/classify_dryrun.py` reports where `classify()` disagrees with today's checks.
 - **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it; a rung CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).

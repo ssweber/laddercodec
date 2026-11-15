@@ -24,7 +24,7 @@ from .encode import (
     _compute_seg_boundaries,
     _normalize_af,
 )
-from .instructions import AfInstruction, ConditionInstruction, Copy, Fill
+from .instructions import AfInstruction, ConditionInstruction, Copy, Fill, Undecoded
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -109,6 +109,8 @@ def _validate_rung(
                 )
 
     for row_idx, af in enumerate(af_tokens):
+        if isinstance(af, Undecoded):
+            raise ValueError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
         if isinstance(af, AfInstruction):
             _check_text_constants(af, prefix, f"row={row_idx}, AF")
 

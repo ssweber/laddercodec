@@ -40,6 +40,8 @@ PAGES: tuple[ReferencePage, ...] = (
             "FieldError",
             "AddressError",
             "LegacyEncodingWarning",
+            "UndecodedRungWarning",
+            "UndecodedCommentWarning",
         ),
     ),
     ReferencePage(
@@ -83,6 +85,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "ModbusRtuTarget",
             "ModbusTcpTarget",
             "RawInstruction",
+            "Undecoded",
         ),
     ),
 )

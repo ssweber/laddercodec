@@ -23,7 +23,7 @@ from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact
 from laddercodec.model import InstructionType
-from tests.fixtures_refused import is_refused
+from tests.undecoded_captures import without_marker
 
 V4 = Path(__file__).parent / "fixtures" / "v4_captures"
 LADDER = Path(__file__).parent / "fixtures" / "ladder_captures" / "golden"
@@ -80,9 +80,7 @@ def test_pasted_capture_reads_back_as_checked(pasted: str, checked: str, tmp_pat
     assert [_drawing(r) for r in got] == [_drawing(r) for r in _rungs(checked)]
 
 
-_ALL_CAPTURES = [p for p in sorted(V4.glob("*.bin")) if not is_refused(p)] + sorted(
-    TUMBLER.rglob("*.clipboard.bin")
-)
+_ALL_CAPTURES = without_marker(sorted(V4.glob("*.bin"))) + sorted(TUMBLER.rglob("*.clipboard.bin"))
 
 
 @pytest.mark.parametrize("path", _ALL_CAPTURES, ids=lambda p: p.stem)

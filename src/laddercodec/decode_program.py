@@ -19,7 +19,7 @@ import struct
 from dataclasses import dataclass
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
-from .decode import Rung, _decode_rtf, _drop_tall_span_nops, _fits_stored_span
+from .decode import AF_DOWN_WIRE, Rung, _drop_tall_span_nops, _fits_stored_span
 from .instructions import (
     RawInstruction,
     _with_pin_rows,
@@ -28,9 +28,20 @@ from .instructions import (
 )
 from .instructions.comparison import CompareContact
 from .instructions.contact import Contact
+from .instructions.undecoded import Stop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
+from .undecoded import (
+    BAD_BYTES,
+    Undecoded,
+    marker_rung,
+    read_comment,
+    reason,
+    to_the_end,
+    warn_comments,
+    warn_undecoded,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -38,6 +49,8 @@ from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 
 _SCR_MAGIC = b"SC-SCR  "
 _MAX_SECTION_INSTRUCTIONS = 512
+#: The main program's index; its file has a two-byte tail, and its markers stop with End.
+_MAIN_PROG_IDX = 1
 
 
 _ScrVariantU16Tags = dict[int, dict[int, int]]
@@ -521,7 +534,6 @@ def _parse_row_topology_block(
 class _ScrRungRecord:
     """One complete rung record from the linear walk."""
 
-    comment: str | None
     comment_rtf: bytes | None
     topology: _ScrRowTopologyBlock
     instructions: list[_ScrSectionInstruction]
@@ -562,58 +574,91 @@ def _parse_section_entries(
 
 
 def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
-    """Walk the declared records; reject malformed framing without resync."""
-    pos = header.rungs_start
-    limit = len(data) - (2 if header.prog_idx == 1 else 0)
+    """Walk the declared records; raise ``ValueError`` at malformed framing."""
+    records, error = _walk_until_framing_error(data, header)
+    if error is not None:
+        raise ValueError(f"{error} (rung {len(records)})")
+    return records
+
+
+class _UnconfirmedEnd(ValueError):
+    """A framing error that leaves the last record read unconfirmed.
+
+    A record's end is confirmed only by the next record's prefix (its index), or for the
+    last record by the file's end.  When that check fails, the record before may have
+    ended in the wrong place: a section count one too low ends it early, and it would
+    decode as a wrong rung.
+    """
+
+
+def _walk_until_framing_error(
+    data: bytes, header: _ScrHeader
+) -> tuple[list[_ScrRungRecord], str | None]:
+    """The records before the first malformed one, and the framing error, or None.
+
+    The walk never searches for a later rung to resume at: the records after a framing
+    error are lost.  So is the record before one whose prefix is cut off or holds the
+    wrong index, or the last record when the file does not end after it: its end is not
+    confirmed (:class:`_UnconfirmedEnd`).
+    """
     records: list[_ScrRungRecord] = []
+    try:
+        _read_rung_records(data, header, records)
+    except _UnconfirmedEnd as exc:
+        if records:
+            records.pop()
+        return records, reason(exc)
+    except BAD_BYTES as exc:
+        return records, reason(exc)
+    return records, None
+
+
+def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRecord]) -> None:
+    """Append each declared record to *records*; raise ``ValueError`` at malformed framing."""
+    pos = header.rungs_start
+    limit = len(data) - (2 if header.prog_idx == _MAIN_PROG_IDX else 0)
     for index in range(header.rung_count):
         if pos + 6 > limit:
-            raise ValueError(f"truncated rung prefix at 0x{pos:X} (rung {index})")
+            raise _UnconfirmedEnd(f"truncated rung prefix at 0x{pos:X}")
         got = struct.unpack_from("<H", data, pos)[0]
         if got != index:
-            raise ValueError(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
+            raise _UnconfirmedEnd(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
         pos += 2
 
         rtf_len = struct.unpack_from("<I", data, pos)[0]
         pos += 4
-        comment: str | None = None
         rtf_bytes: bytes | None = None
         if rtf_len:
             if pos + rtf_len > limit or data[pos : pos + 6] != b"{\\rtf1":
-                raise ValueError(f"invalid rung comment at 0x{pos:X} (rung {index})")
+                raise ValueError(f"invalid rung comment at 0x{pos:X}")
             rtf_bytes = bytes(data[pos : pos + rtf_len])
-            try:
-                comment = _decode_rtf(rtf_bytes)
-            except Exception:
-                comment = None
             pos += rtf_len
 
         block = _parse_row_topology_block(data, pos, limit)
         if block is None:
-            raise ValueError(f"unparseable rung topology at 0x{pos:X} (rung {index})")
+            raise ValueError(f"unparseable rung topology at 0x{pos:X}")
         if block.column_count != len(header.column_widths):
-            raise ValueError(f"column count mismatch at 0x{pos:X} (rung {index})")
+            raise ValueError(f"column count mismatch at 0x{pos:X}")
         pos = block.end
 
         if pos + 2 > limit:
-            raise ValueError(f"truncated section count at 0x{pos:X} (rung {index})")
+            raise ValueError(f"truncated section count at 0x{pos:X}")
         count = struct.unpack_from("<H", data, pos)[0]
         pos += 2
         instructions: list[_ScrSectionInstruction] = []
         if count:
             if count > _MAX_SECTION_INSTRUCTIONS or pos + 4 > limit:
-                raise ValueError(f"invalid section header at 0x{pos - 2:X} (rung {index})")
+                raise ValueError(f"invalid section header at 0x{pos - 2:X}")
             pos += 4  # section_marker: opaque per-file constant
             parsed = _parse_section_entries(data, pos, count, limit)
             if parsed is None:
-                raise ValueError(f"unparseable section entries at 0x{pos:X} (rung {index})")
+                raise ValueError(f"unparseable section entries at 0x{pos:X}")
             instructions, pos = parsed
 
-        records.append(_ScrRungRecord(comment, rtf_bytes, block, instructions))
+        records.append(_ScrRungRecord(rtf_bytes, block, instructions))
 
     if pos != limit:
-        raise ValueError(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
-    return records
+        raise _UnconfirmedEnd(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
 
 
 def _is_trailing_placeholder(record: _ScrRungRecord) -> bool:
@@ -792,24 +837,67 @@ def decode_program(data: bytes) -> Program:
     Returns
     -------
     Program
-        Program with name, prog_idx, and rungs parsed from the file.
+        Program with name, prog_idx, and rungs parsed from the file.  A rung that can't
+        be decoded comes back as an undecoded marker rung, with an
+        ``UndecodedRungWarning``.  After a framing error (a truncated record, or a
+        topology or section the walk can't read) the rungs before it decode, and one
+        marker stands for that rung and every rung after it.  When the error is in a
+        record's prefix, or the file does not end after the last record, the record
+        before is not known to have ended in the right place, so the marker starts at
+        that record.  Markers act as ``end()`` in the main program and as ``return()``
+        in a subroutine.
 
     Raises
     ------
     ValueError
-        If the file cannot be parsed, or a rung has a down wire in the output column.
+        If the file header cannot be parsed.
     """
     header = _parse_header(data)
-    records = _walk_rung_records(data, header)
+    records, framing_error = _walk_until_framing_error(data, header)
+    stop: Stop = "end" if header.prog_idx == _MAIN_PROG_IDX else "return"
 
     # Drop trailing content-less rungs — the ordinary empty rungs Click keeps
     # below the last programmed rung (a rung-scoped clipboard copy excludes
-    # them too).
+    # them too).  After a framing error they are dropped before the marker, which
+    # then stands for the first of them: an empty rung does nothing when run.
     while records and _is_trailing_placeholder(records[-1]):
         records.pop()
 
-    rungs: list[Rung] = []
-    for record in records:
+    failed: list[tuple[int, str]] = []
+    rungs = [_record_rung(record, index, stop, failed) for index, record in enumerate(records)]
+    if framing_error is not None:
+        index = len(rungs)
+        rungs.append(marker_rung(Undecoded(to_the_end(framing_error, index), index, stop=stop)))
+
+    warn_legacy(rungs, program=header.name)
+    warn_comments(failed, program=header.name)
+    warn_undecoded(rungs, program=header.name)
+    return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)
+
+
+def _record_rung(
+    record: _ScrRungRecord, index: int, stop: Stop, failed: list[tuple[int, str]]
+) -> Rung:
+    """Rung *index* of the program from its record, or an undecoded marker rung.
+
+    A comment that does not decode is noted in the comment and added to *failed*.
+    """
+    comment = read_comment(record.comment_rtf, index, failed)
+
+    def marker(error: str, row: int | None = None, column: int | None = None) -> Rung:
+        return marker_rung(Undecoded(error, index, row, column, stop), comment)
+
+    seen: set[tuple[int, int]] = set()
+    for row, col, *_ in record.instructions:
+        if row < 0:
+            return marker("an instruction is stored on the comment row", column=_column(col))
+        if col > _CONDITION_COLUMNS:
+            return marker(f"an instruction is stored in column {col}, past AF", row)
+        if (row, col) in seen:
+            return marker("two instructions are stored in one cell", row, col)
+        seen.add((row, col))
+
+    try:
         inferred_rows = 1
         for (
             row,
@@ -840,19 +928,18 @@ def decode_program(data: bytes) -> Program:
             r for r in record.topology.wiredown.get(_CONDITION_COLUMNS, ()) if 0 <= r < logical_rows
         ]
         if af_down:
-            raise ValueError(
-                f"Rung {len(rungs)}, row {af_down[0]} (zero-based): the output column has a "
-                "down wire, which isn't supported. CLICK's syntax check removes it."
-            )
-        rungs.append(
-            _build_topology_backed_rung(
-                topology_block=record.topology,
-                logical_rows=logical_rows,
-                section_instructions=record.instructions,
-                comment=record.comment,
-                comment_rtf=record.comment_rtf,
-            )
+            return marker(AF_DOWN_WIRE, af_down[0], _CONDITION_COLUMNS)
+        return _build_topology_backed_rung(
+            topology_block=record.topology,
+            logical_rows=logical_rows,
+            section_instructions=record.instructions,
+            comment=comment,
+            comment_rtf=record.comment_rtf,
         )
+    except BAD_BYTES as exc:
+        return marker(reason(exc))
 
-    warn_legacy(rungs, program=header.name)
-    return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)
+
+def _column(col: int) -> int | None:
+    """*col* as an :class:`Undecoded` column, or None past AF."""
+    return col if col <= _CONDITION_COLUMNS else None
