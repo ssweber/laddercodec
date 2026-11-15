@@ -476,63 +476,110 @@ def test_the_dry_run_finds_no_difference() -> None:
     assert "0 failure(s)" in result.stdout
 
 
-def _patched(factory: pytest.TempPathFactory, name: str, old: str, new: str) -> Path:
-    """A copy of ``src`` with ``old`` replaced by ``new`` in Compare's operand check."""
+#: Compare's entries for a long run of leading zeros, as the committed file once held them.
+#: The two tests below carry their own copy, so they hold after those entries are removed.
+_COMPARE_ENTRIES = "".join(
+    f"CompareContact/{group}/{side}='0'\\*5000+'1' | family=bits | kind=b | new={new} | r\n"
+    for group, new in (
+        ("ds", "ok"),
+        ("dd", "ok"),
+        ("df", "ok"),
+        ("dh", "!FieldError"),
+        ("txt", "!FieldError"),
+    )
+    for side in ("left", "right")
+)
+
+_CRASHING_COMPARE = """
+import re as _re
+from laddercodec.instructions.comparison import CompareContact as _Compare
+
+_built = _Compare.__post_init__
+
+
+def _int_of_the_text(self):
+    # int() on a long run of digits, as Compare read an integer before the shared check.
+    for value in (self.left, self.right):
+        if _re.fullmatch(r"[+-]?[0-9]+", value) and len(value.lstrip("+-").lstrip("0")) <= 10:
+            int(value)
+    _built(self)
+
+
+_Compare.__post_init__ = _int_of_the_text
+"""
+
+_MISREADING_COMPARE = """
+from laddercodec.model import FieldError as _FieldError
+from laddercodec.instructions.comparison import CompareContact as _Compare
+
+_built = _Compare.__post_init__
+
+
+def _refuse_the_zeros(self):
+    # A FieldError for a long run of leading zeros: not the shared check's verdict.
+    for value in (self.left, self.right):
+        if len(value) > 4300 and value.lstrip("+-").startswith("0"):
+            raise _FieldError("CompareContact: too many digits")
+    _built(self)
+
+
+_Compare.__post_init__ = _refuse_the_zeros
+"""
+
+
+def _with_compare_patch(factory: pytest.TempPathFactory, name: str, patch: str) -> Path:
+    """A copy of ``src`` whose CompareContact runs ``patch``, appended to comparison.py."""
     src = factory.mktemp(name) / "src"
     shutil.copytree(
         SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
     )
     path = src / "laddercodec" / "instructions" / "comparison.py"
-    text = path.read_text(encoding="utf-8")
-    assert text.count(old) == 1
-    path.write_text(text.replace(old, new), encoding="utf-8")
+    path.write_text(path.read_text(encoding="utf-8") + patch, encoding="utf-8")
     return src
 
 
 @pytest.fixture(scope="module")
-def compare_wired_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Compare reads a long run of leading zeros as the shared check does: the bits branch."""
-    return _patched(
-        tmp_path_factory,
-        "compare_wired",
-        "_INTEGER_MIN <= int(value) <= _INTEGER_MAX",
-        '_INTEGER_MIN <= int(re.sub(r"^([+-]?)0+(?=[0-9])", r"\\1", value)) <= _INTEGER_MAX',
-    )
+def compare_crashing_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """The tree with Compare reading a long integer through ``int()``: the base before the bits
+    family was wired."""
+    return _with_compare_patch(tmp_path_factory, "compare_crashing", _CRASHING_COMPARE)
 
 
 @pytest.fixture(scope="module")
 def compare_misread_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Compare refuses a long run of leading zeros with a FieldError: not the shared verdict."""
-    return _patched(
-        tmp_path_factory,
-        "compare_misread",
-        'len(value.lstrip("+-").lstrip("0"))',
-        'len(value.lstrip("+-"))',
-    )
+    """The tree with Compare refusing a long run of leading zeros with a FieldError."""
+    return _with_compare_patch(tmp_path_factory, "compare_misread", _MISREADING_COMPARE)
 
 
-def test_a_family_branch_uses_its_entries(compare_wired_src: Path, tmp_path: Path) -> None:
-    # Against the unwired base, --tiers allows the ten Compare crash cases by their entries.
+def test_a_family_branch_uses_its_entries(compare_crashing_src: Path, tmp_path: Path) -> None:
+    # Against a base that crashes on a long integer, --tiers allows the ten Compare crash
+    # cases by their entries.  It fails if the crash is not seen (the base is not a crash),
+    # if the wired tree gives another verdict, or if --tiers stops matching entries.
     base, branch = tmp_path / "base.json", tmp_path / "branch.json"
-    for src, out in ((SRC, base), (compare_wired_src, branch)):
+    for src, out in ((compare_crashing_src, base), (SRC, branch)):
         result = _run("operand_probe.py", src, out, "--classes", "CompareContact")
         assert result.returncode == 0, result.stdout + result.stderr
-    tiers = _run("identity_diff.py", "--tiers", base, branch)
+    expected = tmp_path / "expected.txt"
+    expected.write_text(_COMPARE_ENTRIES, encoding="utf-8")
+    tiers = _run("identity_diff.py", "--tiers", "--expected", expected, base, branch)
     assert tiers.returncode == 0, tiers.stdout[-3000:] + tiers.stderr
     assert "0 failure(s), 10 expected, 0 message-only" in tiers.stdout
     assert "CompareContact/ds/left='0'\\*5000+'1' | family=bits | kind=b | new=ok" in tiers.stdout
 
-    # The dry run of the branch finds Compare agreeing.  The count of expected entries it
-    # uses depends on which families the tree has wired, so it is not asserted.
-    dry = _run("classify_dryrun.py", compare_wired_src)
-    assert dry.returncode == 0, dry.stdout[-3000:] + dry.stderr
-    assert any(line.startswith("0 failure(s),") for line in dry.stdout.splitlines())
+    # Without the entries the same two outputs differ.
+    bare = _run("identity_diff.py", "--tiers", base, branch)
+    assert bare.returncode == 1, bare.stdout[-500:]
 
 
-def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(compare_misread_src: Path) -> None:
+def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(
+    compare_misread_src: Path, tmp_path: Path
+) -> None:
     # Today refuses '0'*5000+'1' with a FieldError where the shared check accepts it: a real
-    # difference, and the crash entry that matches it does not cover a verdict.
-    dry = _run("classify_dryrun.py", compare_misread_src)
+    # difference, and the crash entry that matches it does not cover a verdict.  It fails if
+    # the dry run stops seeing the difference or lets the crash entry cover it.
+    expected = tmp_path / "expected.txt"
+    expected.write_text(_COMPARE_ENTRIES, encoding="utf-8")
+    dry = _run("classify_dryrun.py", compare_misread_src, "--expected", expected)
     assert dry.returncode == 2, dry.stdout[-3000:] + dry.stderr
     assert (
         "CompareContact/ds/right='0'*5000+'1': line " in dry.stderr

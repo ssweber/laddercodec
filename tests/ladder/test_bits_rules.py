@@ -143,7 +143,7 @@ class TestCompare:
     def test_integer_outside_int32_refused(self, token: str, field: str) -> None:
         with pytest.raises(
             FieldError,
-            match=rf"^CompareContact.{field}: .* (an integer constant is|is outside) -2147483648 to",
+            match=rf"^CompareContact.{field}: .* is outside -2147483648 to 2147483647",
         ):
             CompareContact.from_csv_token(token)
 
@@ -498,17 +498,17 @@ class TestOutVariant:
     def test_preset_above_32767_refused(self, preset: str) -> None:
         with pytest.raises(
             FieldError,
-            match="^OutVariant.on_preset: .* (is outside 0 to 32767|an integer constant is)",
+            match="^OutVariant.on_preset: .* is outside 0 to 32767",
         ):
             debounce(on_preset=preset)
         with pytest.raises(
             FieldError,
-            match="^OutVariant.off_preset: .* (is outside 0 to 32767|an integer constant is)",
+            match="^OutVariant.off_preset: .* is outside 0 to 32767",
         ):
             debounce(off_preset=preset)
-        with pytest.raises(FieldError, match="is outside [01] to 32767|an integer constant is"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             timed(on_preset=preset)
-        with pytest.raises(FieldError, match="is outside [01] to 32767|an integer constant is"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             OutVariant(
                 kind="flasher", operand="C1", on_acc="TD1", on_preset="1",
                 off_acc="TD2", off_preset=preset, unit="Tms",
@@ -517,7 +517,7 @@ class TestOutVariant:
     def test_preset_cap_through_read_csv(self, tmp_path: Path) -> None:
         good = "timed(C1,on_acc=TD1,on_preset=32767,unit=Tm)"
         assert isinstance(_read_af(tmp_path, good), OutVariant)
-        with pytest.raises(FieldError, match="is outside [01] to 32767|an integer constant is"):
+        with pytest.raises(FieldError, match="is outside [01] to 32767"):
             _read_af(tmp_path, good.replace("32767", "32768"))
 
     # one TD for both phases is refused for debounce and flasher, OBJ-012.
@@ -578,7 +578,7 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="^OutVariant.off_preset"):
             debounce(off_preset=preset)
 
-    @pytest.mark.parametrize("preset", ["-1", "+5"])
+    @pytest.mark.parametrize("preset", ["-1", "+5", "-2147483649"])
     def test_signed_preset_refused_as_unsigned(self, preset: str) -> None:
         with pytest.raises(FieldError, match="takes no sign"):
             debounce(on_preset=preset)
