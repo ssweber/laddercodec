@@ -1,20 +1,60 @@
 """Committed files carry no CLICK DLL addresses.
 
-A citation names its evidence (an OBJ-xxx id, a Help topic, a capture or
-``DLL: <name>.dll, <dialog/field>``), never a location inside a CLICK DLL.  The rule is
-:func:`laddercodec.operands.sources.dll_address`, the same one ``Src`` uses.
+Text says what a CLICK rule is, never a location inside a CLICK DLL.  The rule is
+:func:`dll_address`, which the scan of every tracked file applies line by line.
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from laddercodec.operands.sources import ALLOWED_LONG_HEX, Src, SrcKind, dll_address
-
 ROOT = Path(__file__).resolve().parents[1]
+
+#: Spellings of a location in a CLICK DLL or executable, in any letter case (the DLL
+#: images load at base ``0x1000 << 16``):
+#:
+#: - eight hex digits starting ``100``, alone or after ``0x``, ``_`` (``sub_``, ``FUN_``,
+#:   ``LAB_``) or a space, with ``_`` between digits allowed and a trailing ``h``;
+#: - ``@`` and eight hex digits;
+#: - an offset from a DLL name: ``.dll+`` and ``0x`` digits or four or more hex digits
+#:   holding a digit (``h`` may follow), or ``.dll!0x...`` and ``.dll:0x...``;
+#: - ``0x`` and six or more hex digits, unless the value is one of
+#:   :data:`ALLOWED_LONG_HEX`.
+#:
+#: A short offset written apart from its DLL (``offset 0x`` and four digits ``in X.dll``)
+#: is out of scope: it reads like any other small hex value.
+_DLL_ADDRESS_RE = re.compile(
+    r"(?<![0-9a-z])(?:0x)?1_?0_?0(?:_?[0-9a-f]){5}h?(?![0-9a-z])"
+    r"|@[0-9a-f]{8}(?![0-9a-z])"
+    r"|\.dll\s*\+\s*(?:0x[0-9a-f]+|(?=[0-9a-f]*[0-9])[0-9a-f]{4,}h?)(?![0-9a-z])"
+    r"|\.dll\s*[!:]\s*0x[0-9a-f]+"
+    r"|\b0x(?P<long>[0-9a-f]{6,})\b",
+    re.IGNORECASE,
+)
+
+#: ``0x`` values of six or more hex digits that are data, not locations: exact values,
+#: upper-cased, each with its reason.
+ALLOWED_LONG_HEX: dict[str, str] = {
+    "FFFFFFFF": "all-ones 32-bit mask or sentinel",
+    "80000000": "int32 sign bit (counter span check)",
+    "10FFFF": "highest Unicode code point (decoder)",
+    "00000001": "structural flag value in the binary format",
+    "200000": "2 MiB image window in a disassembly helper script",
+}
+
+
+def dll_address(text: str) -> str | None:
+    """Return the first DLL or executable location ``text`` holds, or None."""
+    for match in _DLL_ADDRESS_RE.finditer(text):
+        long = match.group("long")
+        if long is not None and long.upper() in ALLOWED_LONG_HEX:
+            continue
+        return match.group(0)
+    return None
 
 # path -> reason.  Only files a tool generates, which can't hold a DLL address.
 ALLOWED: dict[str, str] = {
@@ -108,13 +148,8 @@ FORMS = [
 
 
 @pytest.mark.parametrize(("text", "refused"), FORMS, ids=[f[0] for f in FORMS])
-def test_src_and_file_scan_agree(text: str, refused: bool) -> None:
+def test_file_scan_matches_the_forms(text: str, refused: bool) -> None:
     assert bool(_scan(text)) is refused
-    if refused:
-        with pytest.raises(ValueError, match="DLL address"):
-            Src(SrcKind.DLL, text)
-    else:
-        assert Src(SrcKind.DLL, text).ref == text
 
 
 def test_no_dll_addresses_in_tracked_files() -> None:

@@ -1,4 +1,4 @@
-"""Tests for laddercodec.operands: bank flags, field errors and rule sources."""
+"""Tests for laddercodec.operands: bank flags, field errors."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from laddercodec.instructions import copy, counter, drum, forloop, search, send_
 from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
-from laddercodec.operands.sources import Src, SrcKind
 from tests.test_operand_guards import (
     BANK_NAMES_ALLOWED,
     INSTRUCTIONS,
@@ -143,7 +142,7 @@ def test_errors_are_value_errors() -> None:
 
 def test_attributes_default_to_none() -> None:
     exc = errors.FieldError("'x' is not CLICK's display form 'X'")
-    assert (exc.field, exc.obj, exc.source) == (None, None, None)
+    assert (exc.field, exc.obj) == (None, None)
 
 
 @pytest.mark.parametrize(
@@ -185,49 +184,13 @@ def test_display_form_refusal_names_instance() -> None:
 
 
 def test_pickle_keeps_message_and_attributes() -> None:
-    source = Src(SrcKind.HELP, "CL195")
-    exc = errors.AddressError("Coil.operand: 'C0' is outside C1-C2000", source=source)
+    exc = errors.AddressError("Coil.operand: 'C0' is outside C1-C2000")
     copy_ = pickle.loads(pickle.dumps(exc))
     assert type(copy_) is errors.AddressError
     assert str(copy_) == str(exc)
-    assert (copy_.field, copy_.obj, copy_.source) == ("Coil.operand", None, source)
+    assert (copy_.field, copy_.obj) == ("Coil.operand", None)
 
 
 def test_pickle_keeps_explicit_field() -> None:
     exc = errors.FieldError("refused", field="Send source")
     assert pickle.loads(pickle.dumps(exc)).field == "Send source"
-
-
-# ---------------------------------------------------------------------------
-# Src
-# ---------------------------------------------------------------------------
-
-
-def test_src_text() -> None:
-    assert str(Src(SrcKind.DLL, "Inst_SD.dll, Send local banks")) == (
-        "DLL: Inst_SD.dll, Send local banks"
-    )
-    assert [kind.name for kind in SrcKind] == [
-        "DLL",
-        "HELP",
-        "DIALOG",
-        "CAPTURE",
-        "RULING",
-        "CODEC",
-    ]
-
-
-# The forms Src refuses as a DLL address are in tests/test_no_dll_addresses.py (FORMS),
-# checked through Src and the file scan together.
-
-
-def test_src_refuses_blank_reference() -> None:
-    with pytest.raises(ValueError, match="names its reference"):
-        Src(SrcKind.HELP, " ")
-
-
-def test_src_refuses_a_reference_that_is_not_text() -> None:
-    with pytest.raises(TypeError, match="not text"):
-        Src(SrcKind.HELP, None)  # type: ignore[arg-type]
-    with pytest.raises(TypeError, match="not a SrcKind"):
-        Src("Help", "CL195")  # type: ignore[arg-type]
