@@ -1,6 +1,6 @@
 """Record how a laddercodec source tree accepts or refuses every instruction field value.
 
-    uv run python -I devtools/operand_probe.py <src_dir> <out.json> [--limit N]
+    uv run python -I devtools/operand_probe.py <src_dir> <out.json> [--limit N] [--classes A,B]
     uv run python -I devtools/operand_probe.py --diff a.json b.json
 
 ``<src_dir>`` is the ``src`` directory of the checkout under test; it goes first on
@@ -41,7 +41,9 @@ arguments; one the tree refuses to build records only ``new: !value: <Class>!<er
 baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run;
 the probe then exits 3 after writing its output, and ``--diff`` refuses the file.  A
 registered instruction class with no baseline, or a field with no value kind, stops the
-run, and so does a case key that appears twice.
+run, and so does a case key that appears twice.  ``--limit`` keeps the first N cases of each
+class, and ``--classes`` probes only the classes named; both are part of ``meta.scope``, so
+outputs of different scope do not compare.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -115,6 +117,9 @@ def _text(n: int) -> str:
     return '"' + "A" * n + '"'
 
 
+#: Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+LONG_DIGITS: list[str] = ["0" * 5000 + "1", "1" * 5000]
+
 OPERANDS: list[str] = _dedupe(
     _bank_edges()
     + [f"{b}{n:03d}" for b in XY for n in (16, 17, 20, 21, 36, 37, 100, 101, 116, 117, 816)]
@@ -133,8 +138,7 @@ OPERANDS: list[str] = _dedupe(
     + ["1.5", "1E5", ".5", "-1.5e-3", "1.", "3.4028235E+38", "3.5E+38", "nan", "inf"]
     + [" DS1", "DS1 ", "DS 1", " 5", "5 ", "1 0", " ", "DS1, DS2"]
     + ["Q1", "DSX1", "DS1..DS5", "DS-1", "DS1.5", "Tms", "none", "abc"]
-    # Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
-    + ["0" * 5000 + "1", "1" * 5000]
+    + LONG_DIGITS
 )
 
 #: Values for the opaque tag fields of the motion and email boxes (no checks to probe).
@@ -1114,7 +1118,9 @@ def _raw_values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
     if kind == "oplist":
         current = list(base.get(field, []))
         lists = [[op, *current[1:]] for op in OPERANDS]
-        return [*lists, [], [*current, *current[-1:]], ["C1"] * 16, ["C1"] * 17]
+        # The long digits at index 1 too: each item of a list is converted on its own.
+        second = [[*current[:1], op, *current[2:]] for op in LONG_DIGITS if len(current) > 1]
+        return [*lists, *second, [], [*current, *current[-1:]], ["C1"] * 16, ["C1"] * 17]
     raise SystemExit(f"no value kind {kind!r} for field {field!r}")
 
 
@@ -1382,13 +1388,18 @@ def _resolve(ns: Any, base: dict[str, Any], overrides: dict[str, Any]) -> dict[s
     return kwargs
 
 
-def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
+def probe(src_dir: str, limit: int | None = None, only: list[str] | None = None) -> dict[str, Any]:
     ns = Namespace(src_dir)
     runner = Runner(ns)
     classes = ns.registered_classes()
     missing = [cls.__name__ for cls in classes if cls.__name__ not in PROBES]
     if missing:
         raise SystemExit(f"no probe baseline for registered class(es): {', '.join(missing)}")
+    if only is not None:
+        unknown = sorted(set(only) - {cls.__name__ for cls in classes})
+        if unknown:
+            raise SystemExit(f"--classes names no registered class: {', '.join(unknown)}")
+        classes = [cls for cls in classes if cls.__name__ in only]
     cases: dict[str, Any] = {}
     per_class: dict[str, dict[str, Any]] = {}
     refused: list[str] = []
@@ -1437,7 +1448,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
         "cases": len(cases),
         "per_class": per_class,
         "refused_baselines": refused,
-        "scope": {"limit": limit},
+        "scope": {"limit": limit, "classes": sorted(only) if only is not None else None},
     }
     return {"tool": "operand_probe", "meta": meta, "cases": cases}
 
@@ -1459,13 +1470,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("out", nargs="?", help="JSON output path")
     parser.add_argument("--diff", nargs=2, metavar=("A", "B"), help="compare two outputs")
     parser.add_argument("--limit", type=int, help="at most N cases per class")
+    parser.add_argument(
+        "--classes", help="probe only these registered classes (comma-separated names)"
+    )
     args = parser.parse_args(argv)
     if args.diff:
         return load_diff_module().diff_files(*args.diff)
     if not args.src_dir or not args.out:
         parser.error("src_dir and out are required unless --diff is given")
     start = time.perf_counter()
-    doc = probe(args.src_dir, args.limit)
+    only = [name.strip() for name in args.classes.split(",")] if args.classes else None
+    doc = probe(args.src_dir, args.limit, only)
     with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(doc, handle, ensure_ascii=False, sort_keys=True, indent=1)
         handle.write("\n")

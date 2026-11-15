@@ -21,8 +21,10 @@ Both tools write a step that raises as `!Class` where its result would be, and l
 case's exceptions in order under `errors`, as `[class, message]`. No other value of a case
 holds an exception message. Warnings are listed as `<WarningClass>: <message>`: the probe's
 writer warnings under `write_warn`, its other warnings under `warn`, and the snapshot's under
-`warnings`. A probe case is keyed `<Class>/<baseline>/<field>=<value>`, with
-the value's repr; text over 1000 characters is written as its runs (`'0'*5000+'1'`).
+`warnings`. A probe case is keyed `<Class>/<baseline>/<field>=<value>`, with the value's
+repr; text over 1000 characters is written as its runs (`'0'*5000+'1'`). `--classes A,B` probes
+only the classes named; like `--limit`, it is part of the output's scope, so both sides of a
+diff need the same.
 
 Check out the base `src` in a detached worktree outside the repository, run both tools on the
 base and on the branch, writing outside the repository, then diff:
@@ -115,17 +117,25 @@ parts separated by a bar with a space on each side:
 - `kind=` is `a` or `b`, below.
 - `keys=` names the record keys (`new`, `csv`, `blob`, ...) whose first-tier difference the
   entry allows; without it the entry allows any, and a case added or removed.
-- `new=` pins the branch's `new` value the entry allows: `ok` or `!<ExceptionClass>`.
+- `new=` pins the branch's `new` value the entry allows: `ok` or `!<ExceptionClass>`. The
+  branch's `read` and `dec`, when it has them, must agree: `=` for `ok`; for `!X`, `read` is
+  `!X` and `dec` is `None`, since the blob decoder refuses the value.
 - The reason states the rule the new verdict follows. Neither the key nor the reason holds
-  that separator.
+  that separator, and the reason does not start with an option name.
 
 A case goes in only when (a) CLICK shows the old verdict was wrong, or (b) the old code raised
 something other than a `FieldError` or `AddressError` for the field value: a crash, not a
-verdict. Every base case a kind (b) entry matches must record such a crash in `new`; when one
-does not (a refusal, an accept, or a record without `new`), `--tiers` and the dry run exit 2
-and list those cases. Give a kind (b) entry its `new=`: the crash has no verdict to keep, so the
-entry states the one that replaces it. `--expected FILE` reads another file. The dry run below
-reads the same file.
+verdict. A kind (b) entry needs `new=`: the crash has no verdict to keep, so the entry states
+the one that replaces it. `--expected FILE` reads another file. The dry run below reads the
+same file.
+
+An entry is judged only where it would be used: on a case whose key it matches and whose first
+tier differs. There a kind (b) entry allows the case only when both sides have it, and the
+base's `new` and every differing key the base holds record a crash; a key the base lacks is one
+the crash left out. When both sides have the case and the base is not such a crash, the entry
+is misused: `--tiers` and the dry run list the case and exit 2. An entry that allows no case
+is listed as matching no difference, which is never an error: on a branch whose family's change
+has not landed, or after it has merged, its entries match nothing.
 
 A family branch that wires in the shared checks:
 
@@ -157,7 +167,8 @@ uv run python -I devtools/classify_dryrun.py src
 ```
 
 `DIFFERS` is a verdict that differs; `class` is a refusal with a different exception class;
-`expected` is either one that an entry of `expected_diff.txt` allows, with today as the base
-and the shared verdict as the branch's `new`. The run exits 1 on any `DIFFERS` or `class`, and
-2 when a kind (b) entry matches a case today does not crash on. Math is left out: its formula
+`expected` is either one that an entry of `expected_diff.txt` allows. The dry run judges an
+entry as `--tiers` does, on a disagreeing case only, with today's verdict as the base's `new`
+and the shared verdict as the branch's. The run exits 1 on any `DIFFERS` or `class`, and 2 when
+an entry is misused on a disagreeing case. Math is left out: its formula
 has its own grammar.

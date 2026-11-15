@@ -265,15 +265,39 @@ def test_an_entry_with_new_allows_that_verdict_only(tmp_path: Path, pin: str, st
     assert _tiers(tmp_path, a, b, entry)[0] == status
 
 
+@pytest.mark.parametrize(
+    ("pin", "read", "dec", "status"),
+    [
+        ("ok", "=", "=", 0),
+        ("ok", "!FieldError", "=", 1),
+        ("ok", "=", "None", 1),
+        ("!FieldError", "!FieldError", "None", 0),
+        ("!FieldError", "!ValueError", "None", 1),
+        ("!FieldError", "!FieldError", "!ValueError", 1),
+    ],
+)
+def test_a_pin_needs_read_and_dec_to_agree(
+    tmp_path: Path, pin: str, read: str, dec: str, status: int
+) -> None:
+    a = _doc({"k": _refused("ValueError", "m", read="!ValueError", dec="!ValueError")})
+    b = _doc({"k": {"new": pin, "read": read, "dec": dec}})
+    entry = f"k | family=data | kind=b | new={pin} | r\n"
+    assert _tiers(tmp_path, a, b, entry)[0] == status
+
+
 def test_an_entry_with_new_does_not_allow_a_removed_case(tmp_path: Path) -> None:
     a = _doc({"k": {"new": "ok"}, "other": {"new": "ok"}})
     b = _doc({"other": {"new": "ok"}})
     assert _tiers(tmp_path, a, b, f"k | {_ENTRY} | new=ok | r\n")[0] == 1
 
 
+#: A probe record of a value the base crashed on.
+_CRASH = _refused("ValueError", "too many digits", read="!ValueError", tag="606a !ValueError")
+
+
 def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
-    a = _doc({"Timer/on/setpoint='9'": _refused("ValueError", "too many digits")})
-    b = _doc({"Timer/on/setpoint='9'": {"new": "ok"}})
+    a = _doc({"Timer/on/setpoint='9'": _CRASH})
+    b = _doc({"Timer/on/setpoint='9'": {"new": "ok", "read": "=", "csv": "x", "tag": "606a x"}})
     entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | the set point is 9\n"
     status, out = _tiers(tmp_path, a, b, entry)
     assert status == 0, out
@@ -285,21 +309,39 @@ def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
     [
         _refused("FieldError", "a verdict"),
         _refused("AddressError", "a verdict"),
-        {"new": "ok"},
+        {"new": "ok", "csv": "y"},
         {"csv": "no constructor verdict"},
+        {**_CRASH, "read": "!FieldError"},  # the crash, but read gave a verdict
     ],
 )
-def test_tiers_refuse_a_crash_entry_that_covers_a_verdict(
-    tmp_path: Path, base: dict[str, Any]
-) -> None:
-    # The entry matches the crash on "on" and the verdict on "off": the tool refuses it.
-    a = _doc({"Timer/on/setpoint='9'": _refused("ValueError", "m"), "Timer/off/setpoint='9'": base})
-    entry = "Timer/*/setpoint='9' | family=data | kind=b | r\n"
-    status, out = _tiers(tmp_path, a, a, entry)
+def test_tiers_refuse_a_crash_entry_used_on_a_verdict(tmp_path: Path, base: dict[str, Any]) -> None:
+    # The entry allows the crash on "on" and is used on the verdict on "off": a misuse.
+    branch = {"new": "ok", "read": "=", "csv": "x"}
+    a = _doc({"Timer/on/setpoint='9'": _CRASH, "Timer/off/setpoint='9'": base})
+    b = _doc({"Timer/on/setpoint='9'": branch, "Timer/off/setpoint='9'": branch})
+    entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | r\n"
+    status, out = _tiers(tmp_path, a, b, entry)
     assert status == 2, out
-    assert "a kind (b) entry covers only crashes" in out
-    assert "line 1: Timer/*/setpoint='9' matches Timer/off/setpoint='9'" in out
-    assert "Timer/on/setpoint" not in out.split("crashes", 1)[1]
+    problems = out.split("cannot cover", 1)[1]
+    assert "Timer/off/setpoint='9': line 1: Timer/*/setpoint='9': the base" in problems
+    assert "Timer/on/setpoint" not in problems
+
+
+def test_a_crash_entry_over_an_unchanged_verdict_is_unused(tmp_path: Path) -> None:
+    # The family's change has not landed, or has landed in the base: the entry is unused.
+    doc = _doc({"Timer/off/setpoint='9'": _refused("FieldError", "a verdict")})
+    entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | r\n"
+    status, out = _tiers(tmp_path, doc, doc, entry)
+    assert status == 0, out
+    assert "match no difference: 1" in out
+
+
+def test_a_crash_entry_does_not_allow_an_added_case(tmp_path: Path) -> None:
+    a = _doc({"other": {"new": "ok"}})
+    b = _doc({"other": {"new": "ok"}, "A/b/x='9'": {"new": "ok"}})
+    status, out = _tiers(tmp_path, a, b, "A/b/x=* | family=bits | kind=b | new=ok | r\n")
+    assert status == 1, out
+    assert "1 failure(s), 0 expected" in out
 
 
 def test_a_kind_a_entry_may_cover_a_verdict(tmp_path: Path) -> None:
@@ -342,6 +384,9 @@ def test_an_entry_key_matches_whole(pattern: str, key: str, matches: bool) -> No
         f"key | {_ENTRY} | keys= | reason",
         f"key | {_ENTRY} | keys=a,,b | r",
         f"key | {_ENTRY} | new= | r",
+        "key | family=bits | kind=b | reason",  # a crash entry without new=
+        "key | family=bits | kind=b | new=ok",  # no reason: new=ok is not one
+        f"key | {_ENTRY} | keys=new",
     ],
 )
 def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> None:
@@ -351,10 +396,9 @@ def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> No
 
 
 def test_the_committed_expected_file_reads() -> None:
+    # It may be empty: the last family to merge removes the last entries.
     entries = _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")
-    assert entries
     assert all(entry.reason for entry in entries)
-    # A crash entry states the verdict that replaces the crash.
     assert all(entry.new for entry in entries if entry.kind == "b")
 
 
@@ -364,10 +408,64 @@ def test_the_dry_run_finds_no_difference() -> None:
     assert "0 failure(s)" in result.stdout
 
 
-def test_the_dry_run_refuses_a_crash_entry_that_covers_a_verdict(tmp_path: Path) -> None:
-    # '1' is a set point today: a verdict, not a crash.
-    entries = tmp_path / "expected.txt"
-    entries.write_text("Timer/on/setpoint='1' | family=data | kind=b | r\n", encoding="utf-8")
-    result = _run("classify_dryrun.py", SRC, "--expected", entries)
-    assert result.returncode == 2, result.stdout[-3000:] + result.stderr
-    assert "matches Timer/on/setpoint='1', where the base gives new='ok'" in result.stdout
+def _patched(factory: pytest.TempPathFactory, name: str, old: str, new: str) -> Path:
+    """A copy of ``src`` with ``old`` replaced by ``new`` in Compare's operand check."""
+    src = factory.mktemp(name) / "src"
+    shutil.copytree(
+        SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
+    )
+    path = src / "laddercodec" / "instructions" / "comparison.py"
+    text = path.read_text(encoding="utf-8")
+    assert text.count(old) == 1
+    path.write_text(text.replace(old, new), encoding="utf-8")
+    return src
+
+
+@pytest.fixture(scope="module")
+def compare_wired_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Compare reads a long run of leading zeros as the shared check does: the bits branch."""
+    return _patched(
+        tmp_path_factory,
+        "compare_wired",
+        "_INTEGER_MIN <= int(value) <= _INTEGER_MAX",
+        '_INTEGER_MIN <= int(re.sub(r"^([+-]?)0+(?=[0-9])", r"\\1", value)) <= _INTEGER_MAX',
+    )
+
+
+@pytest.fixture(scope="module")
+def compare_misread_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Compare refuses a long run of leading zeros with a FieldError: not the shared verdict."""
+    return _patched(
+        tmp_path_factory,
+        "compare_misread",
+        'len(value.lstrip("+-").lstrip("0"))',
+        'len(value.lstrip("+-"))',
+    )
+
+
+def test_a_family_branch_uses_its_entries(compare_wired_src: Path, tmp_path: Path) -> None:
+    # Against the unwired base, --tiers allows the ten Compare crash cases by their entries.
+    base, branch = tmp_path / "base.json", tmp_path / "branch.json"
+    for src, out in ((SRC, base), (compare_wired_src, branch)):
+        result = _run("operand_probe.py", src, out, "--classes", "CompareContact")
+        assert result.returncode == 0, result.stdout + result.stderr
+    tiers = _run("identity_diff.py", "--tiers", base, branch)
+    assert tiers.returncode == 0, tiers.stdout[-3000:] + tiers.stderr
+    assert "0 failure(s), 10 expected, 0 message-only" in tiers.stdout
+    assert "CompareContact/ds/left='0'\\*5000+'1' | family=bits | kind=b | new=ok" in tiers.stdout
+
+    # The dry run of the branch finds Compare agreeing; the bits entries are unused there.
+    dry = _run("classify_dryrun.py", compare_wired_src)
+    assert dry.returncode == 0, dry.stdout[-3000:] + dry.stderr
+    assert "0 failure(s), 13 expected" in dry.stdout
+
+
+def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(compare_misread_src: Path) -> None:
+    # Today refuses '0'*5000+'1' with a FieldError where the shared check accepts it: a real
+    # difference, and the crash entry that matches it does not cover a verdict.
+    dry = _run("classify_dryrun.py", compare_misread_src)
+    assert dry.returncode == 2, dry.stdout[-3000:] + dry.stderr
+    assert (
+        "CompareContact/ds/right='0'*5000+'1': line " in dry.stderr
+        and "the base gives new='!FieldError', not a crash" in dry.stderr
+    )

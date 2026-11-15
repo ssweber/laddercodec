@@ -163,9 +163,6 @@ def _ascii_code(code: int) -> str:
 # Operands and banks (Single Copy, Fill and pointers)
 # ---------------------------------------------------------------------------
 
-# BIT_BANKS (bits copy to Y and C only) and REGISTER_BANKS (the registers a copy reads)
-# come from operands.checks.
-
 #: Registers that hold a number.
 NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
 #: Registers a copy writes: every register but XD.

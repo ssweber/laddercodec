@@ -18,10 +18,11 @@ probe's baseline of that name.  When both refuse with different exception classe
 is listed as ``class``: the rule shows the order of calls that keeps today's class, and the
 family that wires the shared check in follows it.  A disagreement that an entry of the
 expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
-allows is listed as ``expected``: today plays the base, and the shared verdict the branch
-(``ok`` or ``!<ExceptionClass>`` for an entry's ``new=``).  The script exits 1 on any other
-disagreement, verdict or class, 2 when a kind (b) entry matches a case today does not crash
-on, and changes nothing.  ``<src_dir>`` (default ``src``) is the laddercodec source tree
+allows is listed as ``expected``.  Each entry is judged as ``identity_diff.py --tiers``
+judges it (``Expected.judge``), on a disagreeing case only, with today's verdict as the
+base's ``new`` and the shared verdict as the branch's (``ok`` or ``!<ExceptionClass>``).
+The script exits 1 on any other disagreement, verdict or class, 2 when an entry is misused
+on a disagreeing case (a kind (b) entry where today does not crash), and changes nothing.  ``<src_dir>`` (default ``src``) is the laddercodec source tree
 under test.
 
 Left out: Math, whose formula has its own grammar (``math_formula.parse``).
@@ -557,10 +558,10 @@ def _new(verdict: str, cls: str) -> str:
 
 
 def _run(
-    ns: Any, field: Field, entries: list[Any], today_cases: dict[str, Any]
+    ns: Any, field: Field, entries: list[Any], problems: list[str]
 ) -> tuple[list[int], list[str]]:
-    """``([compared, differ, class, expected], lines)`` for one field; each case's key and
-    today's verdict go to ``today_cases``, as the probe would record them."""
+    """``([compared, differ, class, expected], lines)`` for one field; an entry misused on
+    one of its cases goes to ``problems``."""
     counts = [0, 0, 0, 0]
     lines: list[str] = []
     for value in VALUES:
@@ -569,12 +570,19 @@ def _run(
         counts[0] += 1
         today, today_cls, error = _verdict(lambda v=value: field.build(ns, v))
         shared, shared_cls, why = _verdict(lambda v=value: field.rule(ns, v))
-        key = f"{field.key}={PROBE._key(field.keyed(value))}"
-        today_cases[key] = {"new": _new(today, today_cls)}
         if today == shared and today_cls == shared_cls:
             continue
-        branch = {"new": _new(shared, shared_cls)}
-        entry = next((e for e in entries if e.matches(key) and e.allows({"new"}, branch)), None)
+        key = f"{field.key}={PROBE._key(field.keyed(value))}"
+        base, branch = {"new": _new(today, today_cls)}, {"new": _new(shared, shared_cls)}
+        entry = None
+        for candidate in entries:
+            if not candidate.matches(key):
+                continue
+            judgement = candidate.judge(base, branch)
+            if judgement.problem:
+                problems.append(f"{key}: {judgement.problem}")
+            elif judgement.allowed and entry is None:
+                entry = candidate
         if entry is not None:
             counts[3] += 1
             mark = "expected"
@@ -606,12 +614,12 @@ def main(argv: list[str] | None = None) -> int:
     ns = Namespace(args.src_dir)
     fields = _fields()
     totals: dict[str, list[int]] = {}
-    today_cases: dict[str, Any] = {}
+    problems: list[str] = []
     print(f"shared field check dry run: {len(fields)} fields x {len(VALUES)} values")
     print("format: case key | today | shared")
     print("left out: Math (its formula has its own grammar)")
     for field in fields:
-        counts, lines = _run(ns, field, entries, today_cases)
+        counts, lines = _run(ns, field, entries, problems)
         compared, differ, classes, expected = counts
         print()
         print(
@@ -629,11 +637,8 @@ def main(argv: list[str] | None = None) -> int:
     failures = sum(t[1] + t[2] for t in totals.values())
     expected = sum(t[3] for t in totals.values())
     print(f"{failures} failure(s), {expected} expected")
-    problems = IDENTITY.crash_entry_problems(entries, today_cases)
     if problems:
-        print(f"{args.expected}: a kind (b) entry covers only crashes, and these cases are not:")
-        for problem in problems:
-            print(f"  {problem}")
+        IDENTITY.print_problems(problems, args.expected)
         return 2
     return 1 if failures else 0
 

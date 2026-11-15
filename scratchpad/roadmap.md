@@ -62,12 +62,13 @@ shared functions.
 - **Expected-diff file** (done). `devtools/expected_diff.txt` takes a case where CLICK shows today's verdict
   is wrong (none so far) or where today's code crashes on the value. It lists the crashes on text of more than
   4300 digits, which Python's `int()` refuses, in six fields: one entry per case, naming its baseline, its
-  family and the verdict that replaces the crash. The tools refuse a crash entry that covers a verdict. An
-  entry stays until its family's branch has merged. The dry run compares today's checks with the shared
-  functions in `operands/checks.py`, each called with the field's parameters, and shows 0 disagreements in
-  verdict or exception class apart from those entries. Fill into TXT taking one character,
-  Compare's float32 edge, Fill's hex above FFFFh and the remote-address hex edge are parameters; Copy's
-  termination keyword is fixed in the dry run; Math stays out.
+  family and the verdict that replaces the crash. An entry is judged only on a differing case it matches,
+  and the tools refuse a crash entry used where the base did not crash. An entry stays until its family's
+  branch has merged. The dry run compares today's checks with the shared functions in `operands/checks.py`,
+  each called with the field's parameters, and shows 0 disagreements in verdict or exception class apart
+  from those entries. Fill into TXT taking one character, Compare's float32 edge, Fill's hex above FFFFh and
+  the remote-address hex edge are parameters; Copy's termination keyword is fixed in the dry run; Math stays
+  out.
 - **Provenance out of src (done).**
   - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
     `tests/test_no_dll_addresses.py`.
@@ -82,6 +83,9 @@ shared functions.
     check the shared functions don't express: the Modbus `device_id` (a FieldError for a bad DS address), the
     For count's blank and spaced-digit refusals, the Drum register-preset test and the remote address's digits
     branch. `devtools/classify_dryrun.py` names each one beside its rule.
+  - comm: `ModbusRtuTarget(device_id="DS" + "1" * 5000)` raises a bare ValueError (Python's 4300-digit `int()`
+    limit), not a FieldError. No tool records it: the probe's device ids are short. The check stays in the
+    family, so comm fixes it there.
   - Each family must delete more lines than it adds.
 - **`FieldError.field` explicit everywhere.**
   - Pass `field=` at every raise site (198 today; only 5 pass it, and about 45 come out None). Then drop the
@@ -215,6 +219,8 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Clipboard row count too low:** when the program header counts fewer rows than the grid holds, the clipboard
   walk stops at the header's count and the last rung loses its later rows, with no marker (`_walk_grid`'s bound
   and `_decode_single`'s slice).
+- **Arguments on a pin that takes none:** `.reset(DS9)` reads as `.reset()`, and the argument is silently
+  ignored. Under CSV-as-intent the reader should refuse it.
 - **Comment note and encode():** a rung whose comment did not decode has the comment `UNDECODED comment: ...`
   and keeps the original bytes in `comment_rtf`, but encode() writes the note into CLICK. Decide whether
   encode() writes `comment_rtf` back while the comment is still the note, or refuses the rung.
