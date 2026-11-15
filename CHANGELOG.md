@@ -17,6 +17,7 @@
 - **Read errors say where**: an error `read_csv` raises for a bad CSV keeps its class and carries a `CsvLocation` (file, line, rung, row and column) as its `location`; a `ValueError` or `csv.Error` message ends with that location, a `UnicodeDecodeError` keeps its message and names the file only, and a `FieldError` refused while a box takes its pin rows still arrives as `ConvertError`, now with the refused field in `.field`.
 
 ### Changed
+- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ### Fixed
