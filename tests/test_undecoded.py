@@ -36,6 +36,7 @@ from laddercodec.instructions import Shift, UnknownCondition, UnknownInstruction
 from laddercodec.model import ConditionInstruction
 from laddercodec.undecoded import marker_rung
 from tests.ladder.test_decode_program import _synthetic_scr
+from tests.undecoded_captures import WINDY_ROAD
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
 writer_module = importlib.import_module("laddercodec.csv.writer")
@@ -650,10 +651,6 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
         ("undecoded", 0, 31),
         ("unpowered_box", 0, 31),
     ]
-
-
-#: The one fixture with a rung decode refuses: a down wire in the output column.
-WINDY_ROAD = FIXTURES / "v4_captures" / "windy_road_pasted.bin"
 
 
 def test_no_fixture_decodes_to_a_marker() -> None:

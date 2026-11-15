@@ -32,9 +32,9 @@ from laddercodec.binary_helpers import _STANDARD_SENTINEL, _tag_wire_type, tag_d
 from laddercodec.csv import read_csv
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
-from laddercodec.instructions.undecoded import Undecoded
 from laddercodec.model import AfInstruction, ConditionInstruction
 from tests.scr_defaults import fixture_pairs, mismatches, read_clipboard, survey
+from tests.undecoded_captures import without_marker
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -42,7 +42,7 @@ Instruction = AfInstruction | ConditionInstruction
 
 
 def _native_captures() -> list[Path]:
-    v4 = sorted((FIXTURES / "v4_captures").rglob("*.bin"))
+    v4 = without_marker(sorted((FIXTURES / "v4_captures").rglob("*.bin")))
     return v4 + [clip for _scr, clip in fixture_pairs()]
 
 
@@ -59,8 +59,7 @@ def _corpus() -> dict[str, Instruction]:
     found: dict[str, Instruction] = {}
     for rung in rungs:
         for token in [t for row in rung.conditions for t in row] + list(rung.instructions):
-            # An undecoded marker has no blob, so it has no tags to default.
-            if not isinstance(token, Instruction) or isinstance(token, (RawInstruction, Undecoded)):
+            if not isinstance(token, Instruction) or isinstance(token, RawInstruction):
                 continue
             # The wire-down flag is grid topology, not blob content.
             if getattr(token, "wire_down", False):

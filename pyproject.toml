@@ -127,4 +127,7 @@ testpaths = [
     "tests",
 ]
 norecursedirs = []
-filterwarnings = []
+filterwarnings = [
+    "error::laddercodec.undecoded.UndecodedRungWarning",
+    "error::laddercodec.undecoded.UndecodedCommentWarning",
+]

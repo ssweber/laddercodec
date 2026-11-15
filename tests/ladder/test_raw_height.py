@@ -37,6 +37,7 @@ from laddercodec.instructions import (
 from laddercodec.instructions.raw import find_blob_boundary
 from laddercodec.model import FieldError, InstructionType
 from laddercodec.topology import GRID_FIRST_ROW_START, PROGRAM_HEADER_BASE
+from tests.undecoded_captures import is_windy_road
 
 _decode = importlib.import_module("laddercodec.decode")
 _decode_program = importlib.import_module("laddercodec.decode_program")
@@ -457,6 +458,7 @@ def _native_files() -> list[Path]:
         if path.name.endswith((".bin", ".bin.gz", ".scr"))
         and "golden" not in path.parts
         and path.name != "time_drums.bin"
+        and not is_windy_road(path)
     )
 
 

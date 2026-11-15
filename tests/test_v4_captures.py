@@ -71,9 +71,10 @@ from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
 from laddercodec.undecoded import UndecodedRungWarning
+from tests.undecoded_captures import without_marker
 
 CAPTURE_DIR = Path(__file__).parent / "fixtures" / "v4_captures"
-_DECODABLE = sorted(CAPTURE_DIR.glob("*.bin"))
+_DECODABLE = without_marker(sorted(CAPTURE_DIR.glob("*.bin")))
 COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 

@@ -12,6 +12,7 @@ import pytest
 from laddercodec import LegacyEncodingWarning, Math, Rung, decode, decode_program, encode
 from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.raw import _decompose_blob
+from tests.undecoded_captures import decode_capture
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -100,9 +101,8 @@ def test_no_fixture_warns():
     with warnings.catch_warnings():
         warnings.simplefilter("error", LegacyEncodingWarning)
         for path in sorted(_FIXTURES.rglob("*.bin")):
-            data = path.read_bytes()
-            if data[:8] == b"CLICK   ":
-                decode(data)
+            if path.read_bytes()[:8] == b"CLICK   ":
+                decode_capture(path)
                 decoded += 1
         for path in sorted(_FIXTURES.rglob("*.scr")):
             decode_program(path.read_bytes())
