@@ -62,8 +62,8 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
   3.14, summed up by the `ci` check) and `docs.yml`'s `build`. `main` requires them, on a
   branch that is up to date. CI does not run on Windows, so the local gate is the only check
   of the Windows paths.
-- Don't change the Python versions in the test matrix until the ruleset requires only `ci`:
-  each version is a required check by name.
+- Don't change the Python versions in the test matrix until the ruleset requires only `ci` and
+  the docs `build`: each version is a required check by name (roadmap, "Required checks").
 
 ## Pre-PR checks
 
