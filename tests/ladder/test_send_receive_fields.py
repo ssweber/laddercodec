@@ -1,7 +1,6 @@
 """Field rules of Send and Receive: slave ID, TCP target, remote and local addresses, counts.
 
-Limits follow CLICK v4.00 Help topics 180/181 (RTU) and 213/214 (TCP), and the dialog code
-in Inst_SD.dll / Inst_RD.dll (addresses in the tests' docstrings).
+Limits follow CLICK's Send and Receive dialogs, RTU and TCP.
 """
 
 from __future__ import annotations
@@ -30,14 +29,14 @@ from laddercodec.instructions.send_receive import (
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
 def test_tcp_device_id_range_refused_at_construction(device_id) -> None:
-    """Inst_SD/RD.dll: a literal TCP Slave ID is 0-255."""
+    """Send and Receive: a literal TCP Slave ID is 0-255."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=device_id)
 
 
 @pytest.mark.parametrize("device_id", [-1, 248, 255, 256])
 def test_rtu_device_id_range_refused_at_construction(device_id) -> None:
-    """Inst_SD/RD.dll: a literal serial Slave ID is 0-247 (comm.md Q-C1)."""
+    """Send and Receive: a literal serial Slave ID is 0-247."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
 
@@ -293,7 +292,7 @@ def test_receive_lists() -> None:
 
 @pytest.mark.parametrize("dest", ["XD0", "TD1", "CTD1", "SD1"])
 def test_receive_dest_mask_refuses(dest) -> None:
-    """Inst_RD.dll: FC03/04 dest mask 0x8bc0 is DS, DD, DH, DF, YD and TXT (OBJ-004)."""
+    """Receive: FC03/04 dest mask 0x8bc0 is DS, DD, DH, DF, YD and TXT (OBJ-004)."""
     with pytest.raises(AddressError, match="dest"):
         receive(remote_start=ModbusAddress("400001"), dest=dest)
 
@@ -309,7 +308,7 @@ def test_receive_dest_mask_refuses(dest) -> None:
     ],
 )
 def test_receive_click_remote_pairs_with_dest_type(dest, ok, bad) -> None:
-    """Inst_RD.dll: a CLICK remote register matches the dest's data type."""
+    """Receive: a CLICK remote register matches the dest's data type."""
     for remote in ok:
         receive(remote_start=remote, dest=dest)
     for remote in bad:
@@ -387,7 +386,7 @@ COIL_HEX = ModbusAddress("0h", "coil")
     ],
 )
 def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
-    """Inst_SD.dll quantity limit: local X/Y case and C room (Q-C6)."""
+    """Send quantity limit: local X/Y case and C room."""
     send(remote_start=remote, source=source, quantity=room)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         send(remote_start=remote, source=source, quantity=room + 1)
@@ -422,7 +421,7 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
     ],
 )
 def test_receive_y_room_counts_by_slot(remote, dest, room) -> None:
-    """Inst_RD.dll quantity limit: local Y case, 984 and hex starts."""
+    """Receive quantity limit: local Y case, 984 and hex starts."""
     receive(remote_start=remote, dest=dest, quantity=room)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         receive(remote_start=remote, dest=dest, quantity=room + 1)
@@ -452,7 +451,7 @@ def test_receive_y_room_through_csv(tmp_path: Path) -> None:
     ],
 )
 def test_c_room_from_a_remote_x_y_counts_by_slot(build, kw, room) -> None:
-    """Inst_SD.dll and Inst_RD.dll quantity limit: local C case."""
+    """Send and Receive quantity limit: local C case."""
     build(quantity=room, **kw)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         build(quantity=room + 1, **kw)
@@ -475,7 +474,7 @@ def test_c_room_from_a_remote_x_y_keeps_the_c_room() -> None:
     ],
 )
 def test_c_room_from_a_remote_bank(build, kw, room, last) -> None:
-    """Inst_RD.dll and Inst_SD.dll quantity limit: local C cases."""
+    """Receive and Send quantity limit: local C cases."""
     build(quantity=room, **kw)
     with pytest.raises(FieldError, match=f"runs past {last} \\({room} left\\)"):
         build(quantity=room + 1, **kw)
@@ -675,7 +674,7 @@ def test_x_y_range_round_trips_through_csv(start, quantity) -> None:
     )
 
 
-# --- function codes (Inst_SD.dll, Inst_RD.dll) --------
+# --- function codes (Send, Receive) --------
 
 
 def _fc_subtype(instr: Send | Receive) -> str:
@@ -762,7 +761,7 @@ def test_send_banks_follow_function_code(kw, field) -> None:
      ("DS1", "DS1", 3, "2")],
 )  # fmt: skip
 def test_receive_click_address_keeps_its_function_code(remote, dest, fc, fc_subtype) -> None:
-    """Q-C4: CLICK writes FC02 and FC04 as picked; a native FC02/FC04 rung round-trips (S9)."""
+    """CLICK writes FC02 and FC04 as picked; a native FC02/FC04 rung round-trips (S9)."""
     got = receive(remote_start=remote, dest=dest, function_code=fc)
     assert _fc_subtype(got) == fc_subtype
     assert from_tags("RD", 0x2728, _fields(got)) == got
@@ -820,18 +819,18 @@ def test_function_code_that_does_not_fit_decodes_as_raw(
     assert from_tags_af(class_name, type_code, fields) is None
 
 
-# --- Receive counts and Word Swap (Inst_RD.dll, Q-C3) -------------------------
+# --- Receive counts and Word Swap -------------------------
 
 
 def test_receive_yd_dest_is_one_element() -> None:
-    """Inst_RD.dll: a YD dest is capped at 1."""
+    """Receive: a YD dest is capped at 1."""
     receive(remote_start=ModbusAddress("400001"), dest="YD1")
     with pytest.raises(FieldError, match="outside 1-1"):
         receive(remote_start=ModbusAddress("400001"), dest="YD1", quantity=2)
 
 
 def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
-    """Inst_RD.dll: "(1 to 1)" for a DH dest read from a CLICK XD/YD."""
+    """Receive: "(1 to 1)" for a DH dest read from a CLICK XD/YD."""
     receive(remote_start="DH1", dest="DH1", quantity=5)
     for remote in ("XD1", "YD1"):
         receive(remote_start=remote, dest="DH1")
@@ -841,7 +840,7 @@ def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
 
 @pytest.mark.parametrize("quantity", [1, 3, 125])
 def test_receive_text_count_is_even(quantity) -> None:
-    """Inst_RD.dll: at least 2 TXT characters, and an even count."""
+    """Receive: at least 2 TXT characters, and an even count."""
     with pytest.raises(FieldError, match="even count"):
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
 
@@ -912,7 +911,7 @@ def test_receive_word_swap_on_one_element_decodes_as_raw() -> None:
     ],
 )
 def test_receive_status_bit_used_twice(kw) -> None:
-    """Inst_RD.dll: one C bit can't serve two status fields (0x271e)."""
+    """Receive: one C bit can't serve two status fields (0x271e)."""
     with pytest.raises(FieldError, match="already the"):
         receive(**kw)
 
@@ -942,7 +941,7 @@ def test_refused_receive_decodes_as_raw() -> None:
     assert from_tags_af("RD", 0x2728, fields) is None
 
 
-# --- Send status bits and hex start (Inst_SD.dll, Q-C5) -----------------------
+# --- Send status bits and hex start -----------------------
 
 
 @pytest.mark.parametrize(
@@ -954,7 +953,7 @@ def test_refused_receive_decodes_as_raw() -> None:
     ],
 )
 def test_send_status_bit_used_twice(kw) -> None:
-    """Inst_SD.dll: one C bit can't serve two status fields (OBJ-014)."""
+    """Send: one C bit can't serve two status fields (OBJ-014)."""
     with pytest.raises(FieldError, match="already the"):
         send(**kw)
 
@@ -967,7 +966,7 @@ def test_send_status_bit_used_twice_decodes_as_raw() -> None:
 
 @pytest.mark.parametrize("source", ["DD1", "DF1", "CTD1", "TXT1"])
 def test_send_32_bit_or_text_hex_start_stops_at_fffd(source) -> None:
-    """Inst_SD.dll: a 32-bit, float or text source starts at 0h-FFFDh (OBJ-010)."""
+    """Send: a 32-bit, float or text source starts at 0h-FFFDh (OBJ-010)."""
     holding = ModbusAddress("FFFDh", "holding")
     send(remote_start=holding, source=source)
     with pytest.raises(FieldError, match="outside 0h-FFFDh"):
@@ -979,7 +978,7 @@ def test_send_16_bit_hex_start_reaches_fffe() -> None:
 
 
 def test_send_dd_hex_count_room() -> None:
-    """Inst_SD.dll: a DD source from hex start a has room for min(61, FFFEh - a)."""
+    """Send: a DD source from hex start a has room for min(61, FFFEh - a)."""
     send(remote_start=ModbusAddress("FFFCh", "holding"), source="DD1", quantity=2)
     with pytest.raises(FieldError, match="outside 1-1"):
         send(remote_start=ModbusAddress("FFFDh", "holding"), source="DD1", quantity=2)

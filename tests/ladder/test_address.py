@@ -1,6 +1,6 @@
 """Tests for laddercodec.model.check_address and the construction checks that use it.
 
-Bank ranges are CLICK v4.00 Help topic CL195 ("Memory Addresses").
+Bank ranges are CLICK's.
 """
 
 from __future__ import annotations
@@ -75,7 +75,7 @@ class TestCheckAddress:
         "text", ["001", "1", "016", "16", "021", "21", "036", "36", "101", "116", "801", "816"]
     )
     def test_module_points_accepted(self, bank: str, text: str) -> None:
-        """21-36 is the CPU's dual option slot; CLICK v4's dialog accepts it (Q-A1)."""
+        """21-36 is the CPU's dual option slot; CLICK v4's dialog accepts it."""
         assert check_address(f"{bank}{text}", "f") == Address(bank, int(text))
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
@@ -236,7 +236,7 @@ class TestConstructionRaises:
             OutVariant.from_csv_token("toggle(immediate(Y900))")
 
     def test_dual_option_slot_through_parse_paths(self, tmp_path: Path) -> None:
-        """X021-X036 and Y021-Y036 are the CPU's dual option slot (Q-A1)."""
+        """X021-X036 and Y021-Y036 are the CPU's dual option slot."""
         assert Contact.from_csv_token("X021").operand == "X021"
         assert Contact.from_csv_token("~X036").operand == "X036"
         path = tmp_path / "rung.csv"
@@ -259,12 +259,12 @@ class TestConstructionRaises:
             ("Contact.operand", lambda: Contact(InstructionType.CONTACT_NO, "YD0u")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(XD0u)")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
-            # Set takes Y, C and SC only (Q-B1), so the range starts at Y1, not YD0.
+            # Set takes Y, C and SC only, so the range starts at Y1, not YD0.
             ("Coil.range_end", lambda: Coil(InstructionType.COIL_LATCH, "Y1", range_end="YD0u")),
             ("Counter.done_bit", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
             ("Counter.current", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
-            # A shift runs over C only (Q-D3), so the range starts at C1, not XD0.
+            # A shift runs over C only, so the range starts at C1, not XD0.
             ("Shift.end_bit", lambda: Shift(start_bit="C1", end_bit="XD0u")),
             ("ForLoop.limit", lambda: ForLoop.from_csv_token("for(XD0u)")),
             ("OutVariant.operand", lambda: OutVariant.from_csv_token("toggle(YD0u)")),

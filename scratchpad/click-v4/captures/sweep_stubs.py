@@ -8,7 +8,7 @@ A rung is either
   build   a NOP placeholder is pasted; build the instruction from the comment
 A reopen rung that the current encoder can't encode is downgraded to build.
 
-Addresses are private to this arc (C only goes to C2000): contacts C1-C527 (C(1+100g+10k+j): group g, rung k, pin j),
+Addresses are private to these stubs (C only goes to C2000): contacts C1-C527 (C(1+100g+10k+j): group g, rung k, pin j),
 outputs/flags C601-C723, DS2000+, DD300+, DF300+, TXT100+, TD130+.
 
 Run from the laddercodec root:  uv run python scratchpad/click-v4/captures/sweep_stubs.py

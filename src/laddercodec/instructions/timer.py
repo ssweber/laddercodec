@@ -39,8 +39,7 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 # ---------------------------------------------------------------------------
 
 #: A constant set point is digits only (no sign), 0 to 32767, for every unit.
-#: Inst_Timer.dll OnOK: digits-only span check, then ``value > 0x7fff`` -> OBJ-005;
-#: the unit is not read on this path (Q-D1).
+#: A digits-only value above 0x7fff is OBJ-005; the unit does not matter.
 _DIGITS_RE = re.compile(r"[0-9]+")
 TIMER_MAX_SETPOINT = 32767
 
@@ -90,7 +89,7 @@ class Timer(PinnedInstruction):
                 f"Timer.done_bit {self.done_bit!r}"
             )
         if not _DIGITS_RE.fullmatch(self.setpoint):
-            # Inst_Timer.dll: an address set point is DS only (validator mask 0x40), OBJ-004.
+            # An address set point is DS only, OBJ-004.
             check_address(self.setpoint, "Timer.setpoint", banks={"DS"})
         elif int(self.setpoint) > TIMER_MAX_SETPOINT:
             raise FieldError(

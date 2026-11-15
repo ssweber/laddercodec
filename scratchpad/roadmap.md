@@ -50,8 +50,7 @@ The stable public API (Sam's call) and the SCR blob dataclass fit in wherever th
 
 ## 2. The undecoded marker (nothing; ClickNick and pyrung follow)
 
-Ruled in the plan, "Who owns what", last bullet. Sam accepted the form proposed in
-`jobs/postrelease/REPLY.md` section 3.
+Ruled in the plan, "Who owns what", last bullet. Sam accepted the form proposed after 0.4.0.
 
 - **The unit is the rung.** A rung that fails becomes one marker rung:
   - comment `UNDECODED: rung N, row R: <error>`, then the rung's own comment if that decoded;
@@ -81,8 +80,8 @@ shared functions.
   - These stay identical: accept or refuse, exception class, CSV written, bytes, decode result.
   - Message wording may change; the changes are listed for review.
   - Give `devtools/identity_diff.py` a mode that compares class and verdict, and lists message changes apart.
-- **Expected-diff file.** Built from the dry run on main (`jobs/postrelease/DRYRUN-3d8df34.txt`): 7
-  disagreements and 251 open. Sort the entries with the reports in `jobs/dllqa/`, then free the held folders.
+- **Expected-diff file.** Rerun `devtools/classify_dryrun.py` on main (it last gave 7
+  disagreements and 251 open) and sort the entries, then free the held folders.
   - Fill into TXT takes one character of text, while `classify()` takes 1-128. This is a real dialog
     difference, so it becomes a parameter of the shared check.
   - Compare `3.5E+38` is accepted beyond float32. Where CLICK's exact edge lies has not been checked, so keep
@@ -113,8 +112,8 @@ shared functions.
   - A guard test fails on an unmarked `bool`.
   - Keep it only if it stays plain data plus one function.
 - **Recheck on main**, each against the operand probe, and fix or delete:
-  - rs0's surprises (`jobs/validation-arc/LEDGER.md`, the rs0 handoff);
-  - hmove N6, a double `check_constant` call.
+  - every operand field the probe finds surprising;
+  - the move family's double `check_constant` call.
 
 ## 4. Canonical constants (CLICK; after item 3)
 
@@ -143,6 +142,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   count, so this needs a PLC.
 - **Block Copy into SD:** CLICK checks the destination against its list of writable SD addresses. The code
   doesn't, because the list isn't extracted. Ask which SD addresses the dialog refuses.
+- **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?
 - **Coil range over SC:** does Compile refuse an SC range with read-only bits between its ends?
 - **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored.
 - **Math X/Y range members:** a span of more than two expansion slots, and a Y range that starts in the option
@@ -178,12 +178,13 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   presets have no range.
 - `search()` accepts a DINT result; CLICK needs DS.
 - The shift register has no C-bank role.
-- Math: SUM over X, Y, T and SC is allowed; the destination table has no hex/decimal split; text constants and
-  hex constants in a decimal Math are not refused.
+- Math: the destination table has no hex/decimal split; text constants and hex constants in a decimal Math are
+  not refused.
 - Block Copy's bank table disagrees with CLICK's rules.
 - `fill("AB", txt[1:5])` builds, and only the simulator objects; it also takes codes 128-255, which CLICK's
   dialog does not.
 - An End inside a subroutine is not flagged.
+- A slave ID out of range at run time: pyrung assumes an error bit and no send. Only a PLC shows what happens.
 
 ## Sam's call
 
@@ -209,7 +210,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
     fails loudly.
   - Proof: the native SCR and clipboard pairs (793 AF blobs, 755 conditions). Today 120 of the 793 differ.
 - **Output-column down wire:**
-  - Decode would keep the flag and lift the refusal (arc `layout-afdown`). Sam punted it: no one draws one.
+  - Decode would keep the flag and lift the refusal (the layout work left it out). Sam punted it: no one draws one.
   - Until it lands, such a rung becomes an undecoded marker (item 2).
 - `layout_check._blank_rows` counts a first row holding only an unpowered NOP as content, so C0202 row numbers
   can be off by one.
@@ -227,7 +228,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Home, Velocity, Position and Email status bits:** read-only `outputs` with busy, complete, success,
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0003, C000A, C0202, C0205 and C0212. Not
-  reported: For/Next nesting, pairing, One Shot and Return/End inside a loop; Break/Continue without a contact or
+  reported: For/Next nesting, pairing, One Shot and Return/End inside a loop; Next alone on its rung (C0009); a timer inside For/Next (C1004); Break/Continue without a contact or
   outside a loop; a subroutine without an unconditional Return and Main without an unconditional End; the other
   timer, counter, shift and drum input-contact rules; duplicate Timer or Counter addresses and Out or Drum on a
   used timer address; an unused timer or counter bit; a Math function not followed by an operator; a motion

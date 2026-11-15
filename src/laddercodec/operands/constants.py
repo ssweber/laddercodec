@@ -1,7 +1,7 @@
 """Constants as CLICK's shared input check reads them.
 
 A dialog field that takes a constant first runs its text through one check shared by every
-instruction dialog (DLL: baseEx.dll, CheckInputData), then applies its own limits.
+instruction dialog, then applies its own limits.
 :func:`classify` reads text the same way: it says which kind of constant the text is and
 returns its value.  It applies no field's limits: a set point's 0 to 32767, the hex
 constants a Copy puts in DD only, the printable-ASCII text of a Compare (:func:`printable`),
@@ -76,8 +76,8 @@ _INTEGER_RE = re.compile(r"([+-]?)([0-9]+)")
 # CSV arguments.
 _FLOAT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:E[+-]?[0-9]+)?")
 # The shared check also takes ``$1`` as a character code, and a ``$`` value above FF as a
-# second kind.  A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``
-# (Help ``ascii table2.gif``), so only ``$`` and two hex digits is one.
+# second kind.  A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``,
+# so only ``$`` and two hex digits is one.
 _CHAR_RE = re.compile(r"\$([0-9A-F]{2})")
 _DIGITS_RE = re.compile(r"[0-9]+")
 #: More significant digits than any CLICK limit needs (int() refuses very long text).
@@ -159,7 +159,7 @@ def printable(text: str) -> bool:
     """Whether ``text`` is printable ASCII only.
 
     Not part of the shared check, which takes any character: a field limit.  A Compare text
-    constant, a Search text value and the text of a single Copy or a Fill (BOB ruling 2026-11-12) hold printable
+    constant, a Search text value and the text of a single Copy or a Fill hold printable
     ASCII only; ``$hh`` spells any other code.
     """
     return PRINTABLE_ASCII.issuperset(text)
@@ -173,9 +173,9 @@ def check_char_code(text: str, name: str) -> int:
     """Return the code ``text`` spells as ``$hh``; raise :class:`FieldError` naming field
     ``name`` for any other text.
 
-    A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF`` (Help
-    ``ascii table2.gif``), so ``$``, ``$1``, ``$100`` and ``$G1`` are refused.  Compare, Search,
-    Fill, a single Copy source and a Copy termination code call it on every ``$`` value.
+    A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``, so ``$``, ``$1``,
+    ``$100`` and ``$G1`` are refused.  Compare, Search, Fill, a single Copy source and a Copy
+    termination code call it on every ``$`` value.
     """
     m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
     if m is None:

@@ -284,11 +284,11 @@ The public `Rung` model retains instructions and wire geometry, but does not ret
 
 ### Native evidence
 
-These corrections were checked against the native x86 `CLICK.exe` of CLICK v3.92 on 2026-09-10 (SHA-256 `E31A8130BC6D6261BAC841AF3062DAB70DD68B4307A1B3B58DA37F994C6FE13A`):
+These corrections hold for CLICK v3.92:
 
 - Program writer: numeric widths with their scaling, display bits, the u16 rung count backpatched after the rungs, and u16 rung indices.
-- Display toggle handlers toggle the four serialized fields. MFC command IDs `0x8036/0x802D/0x8095/0x8090` and executable string resources supply the setting names above.
+- Display toggle handlers toggle the four serialized fields.
 - Rung serializer: stored row count, row flags, u16 entry counts, pair bytes and the down-column count.
 - Clipboard writer: row-bit and column-A tests, entry bit, right presence and down-list matching. Native record origins are eight bytes before this document's clipboard cell origins.
 
-The investigation walked 39 SCR files / 704 records without resynchronization. Comparing four flag mappings at 46,208 cell positions found no mismatches outside the synthetic time_drums pair. These are static-binary and fixture results, not a new live paste/reopen validation. `InstCtl_Drum.dll` confirms a four-row instruction footprint; it does not establish the disputed row-removal behavior.
+The investigation walked 39 SCR files / 704 records without resynchronization. Comparing four flag mappings at 46,208 cell positions found no mismatches outside the synthetic time_drums pair. These are static-binary and fixture results, not a new live paste/reopen validation. CLICK's drum code confirms a four-row instruction footprint; it does not establish the disputed row-removal behavior.

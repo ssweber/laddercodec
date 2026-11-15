@@ -57,7 +57,7 @@ def test_v4_captures_are_flagged() -> None:
         ("SUM ( CTD1 : CTD5 )", False),
         ("SUM ( C1 : C16 )", True),
         ("SUM ( X001 : X008 ) + 1", True),
-        ("SUM ( SC1 : SC4 )", True),  # SUM over CT is refused (Q-M8)
+        ("SUM ( SC1 : SC4 )", True),  # SUM over CT is refused
         ("MAX ( DS1 : DS3 )", True),
         ("ABS ( DS1 )", True),
         ("RAND ( 1 , 100 )", True),

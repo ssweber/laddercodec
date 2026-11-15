@@ -85,7 +85,7 @@ def split_comparison(token: str) -> tuple[str, str, str] | None:
 
 
 # ---------------------------------------------------------------------------
-# Operand rules (CLICK v4.00 Help CL164, CL202; Inst_Compare.dll and baseEx.dll)
+# Operand rules
 # ---------------------------------------------------------------------------
 
 #: Compare data banks by group.  A compare pairs two operands of one group.
@@ -100,20 +100,18 @@ _HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
 _INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
 _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 
-#: Limits of a compare constant (baseEx.dll CheckInputData and its numeric
-#: classifier; Inst_Compare.dll OnOK refuses anything else with OBJ-005).
+#: Limits of a compare constant; anything outside them is OBJ-005.
 _HEX_MAX = 0xFFFF
 _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 
-#: A quoted text constant is 1 to 128 printable ASCII characters (Compare dialog, bits.md N4:
-#: at most 130 characters with the quotes).  On hardware the literal is compared against
+#: A quoted text constant is 1 to 128 printable ASCII characters (at most 130 characters
+#: with the quotes).  On hardware the literal is compared against
 #: consecutive TXT registers from the named one.
 _TEXT_MAX = 128
 _TEXT_CHARS = range(0x20, 0x7F)
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
-#: (Q-B7: Inst_Compare.dll Data A handler; user dialog check 2026-11-11: typing
-#: TXT1 into Data A with > selected leaves only = and != to choose).
+#: (typing TXT1 into Data A leaves only = and != to choose).
 _TEXT_OPS = ("==", "!=")
 
 
@@ -133,7 +131,7 @@ def check_quoted_text(value: str, name: str) -> None:
 
 
 def _operand_group(value: str, name: str) -> str:
-    """Return the Help 202 group of a compare operand; raise if it is neither a data
+    """Return the group (hex, numeric or text) of a compare operand; raise if it is neither a data
     register nor a constant CLICK's compare dialog accepts."""
     if _HEX_CONSTANT_RE.fullmatch(value):
         if int(value[:-1], 16) > _HEX_MAX:

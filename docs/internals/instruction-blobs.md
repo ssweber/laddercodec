@@ -119,7 +119,7 @@ until the drum is reopened and OK'd (`v4_captures/drum_jog.bin`).
 
 `0x428A` marks which presets are constants: bit *n* is cleared when step *n*'s
 preset is a register, so all-constant is `-1` and `presets=[DS1,DS2]` is `-4`.
-CLICK v4 computes it on OK (`InstCtl_Drum.dll`). A time drum with any register
+CLICK v4 computes it on OK. A time drum with any register
 preset then takes the func code series 1792 codes up (Tms 10247/10248, Th jog
 10272…); time & event drums keep the 10503 series either way. A paste keeps the
 field as written and treats a missing one as `-1`, so a 64-field time drum with
@@ -188,9 +188,8 @@ The formula appears four times in the header:
 
 ### Math formula grammar
 
-CLICK v4's Math dialog checks a formula on OK in these steps (read from
-`Inst_Math.dll`; `math_formula.py` follows them, and
-`tests/ladder/test_math_grammar.py` has a test per rule):
+CLICK v4's Math dialog checks a formula on OK in these steps (`math_formula.py`
+follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 
 1. **Tokenizer.** Tokens are split by spaces and tabs (no other white space)
    and by `+ - * / ^ ( ) , : [ ]`. A run of digits followed by `.`, `E` or `e` is

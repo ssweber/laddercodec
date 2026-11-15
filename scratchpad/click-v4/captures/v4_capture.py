@@ -445,7 +445,7 @@ _DONE_KW_RE = re.compile(r",(?:on|off)_done=T\d+")
 def _click_out_variant(token: str) -> str:
     """CLICK's Out coil stores only the TD (``0x60B4``/``0x60B6``); drop the ``_done`` keys.
 
-    Decided 2026-10-23: the token says only what the blob holds; T<n> follows from TD<n>.
+    The token says only what the blob holds; T<n> follows from TD<n>.
     """
     return _DONE_KW_RE.sub("", token)
 

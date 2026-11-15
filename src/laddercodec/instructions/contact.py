@@ -55,7 +55,7 @@ for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
 # Tag constants
 # ---------------------------------------------------------------------------
 
-#: Banks a NO, NC or edge contact reads (CLICK v4.00 Help CL161, CL163).
+#: Banks a NO, NC or edge contact reads.
 CONTACT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 
 _CONTACT_TYPES = (

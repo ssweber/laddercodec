@@ -1,7 +1,7 @@
 # CLICK v4 Math formula: grammar and editor model
 
-Source: CLICK v4.00 `Inst_Math.dll` (Unicode MFC, read from disassembly), `baseEx.dll` string
-checks, `SC_ErrorList.ini`, Help CL170/CL187/CL203, the 191 Math blobs in the repo's fixtures,
+Source: CLICK v4.00's Math dialog code, its shared input check, `SC_ErrorList.ini`, the
+CLICK help pages for Math, the 191 Math blobs in the repo's fixtures,
 and the dialog answers. Nothing in the repo was changed.
 Scripts are in `%TEMP%\mathgram\`. The executable model is `model.py`, the fixture check is
 `model.py fixtures.json`, and the probes are `predict.py`.
@@ -41,7 +41,7 @@ and a running position, which is used to point at the error.
    `*`21 `-`22 `+`23 `^`24 MOD25 AND26 OR27 XOR28 LSH29 RSH30 LRO31 RRO32 `,`33 `:`34
    `.`35 MAX39 MIN40 MDN41 AVG42 RAND43 ABS44. A token of only spaces or tabs gets type 2.
    Two other paths follow:
-   - With nickname view off, any token that passes baseEx `IsAddress` becomes an address
+   - With nickname view off, any token that passes CLICK's address check becomes an address
      (type 37). This happens in **both** modes, so in a hex Math `C1` is the address C1,
      not the constant C1h.
    - With nickname view on, only `<name>` tokens are looked up, through the project's tag
@@ -113,7 +113,7 @@ and a running position, which is used to point at the error.
   returns map to OBJ-1001/1002/1013/1014/1015/1016. The CPU gate (OBJ-1016) for
   MAX/MIN/MDN/AVG/RAND/ABS is read [code]. The model assumes `F ( addr : addr )` (ABS: one
   argument) [obs: all fixtures use that shape].
-- **H4. `IsAddress` (baseEx) was not read.** Address normalization (`ds01` → `DS1`, `x1` →
+- **H4. CLICK's address check was not read.** Address normalization (`ds01` → `DS1`, `x1` →
   `X001`) comes from laddercodec's own rules. Only `XD0u` keeping a lowercase `u` is
   [obs retyped/math_xd].
 
@@ -223,7 +223,7 @@ coded, where X → not Y means "X may not be followed by Y":
   fires. A formula ending in RAND/LSH keeps a trailing `#` (`H1#RAND#H100#`
   [obs tumbler]).
 - Internal length > 270 → OBJ-1008.
-- Help CL187 separately says input is capped at 128 characters (edit box) [obs Help].
+- The help page separately says input is capped at 128 characters (edit box) [obs Help].
 
 ---
 
@@ -260,7 +260,7 @@ Each is typed and then OK'd; give the message or the redisplay.
    splits the digits before `E`. laddercodec accepts these today.
 2. Decimal `DS1 * -5` → **refused, OBJ-1001**: an operator may not be followed by a sign.
    `DS1 * ( -5 )` is accepted. laddercodec accepts the first.
-3. Hex `DH1 + -Ah` → **refused, OBJ-1001**. This settles the open move9 question.
+3. Hex `DH1 + -Ah` → **refused, OBJ-1001**.
 4. Hex `DH1 + 7`: **which message?** (H1). "The Formula has an error." would point to the
    live check; another text would point to a different filter. Also try `DH1 + FACE` and
    `DH1 + A`.
@@ -275,7 +275,7 @@ Each is typed and then OK'd; give the message or the redisplay.
 10. Decimal `DS1 + 1e5` → redisplayed `DS1 + 1E5`; `DS1 + 1.` → accepted as `1.`.
 11. Decimal `-0` (whole formula) → OBJ-1009; `DS1 + 007` → OBJ-1009 (dev agrees).
 12. Decimal `DS1 + TXT1` → the driver does not refuse it. Watch for any message at all;
-    OBJ-1003 is never raised inside Inst_Math.
+    OBJ-1003 is never raised inside the Math dialog.
 13. Decimal `PI ( 2 )` → passes the checker [code]; what does it store? Also
     `RAND ( PI , 10 )` → refused (PI may not be followed by `,`).
 14. Decimal `MAX ( DS1 , DS2 )` and `DS1 + 1,5`: OBJ-037, OBJ-1001 or accepted (H2).
@@ -285,9 +285,7 @@ Each is typed and then OK'd; give the message or the redisplay.
 
 ## 6. Where laddercodec dev disagrees
 
-Dev at `eb7b6f1` already contains move9: the merge of `6157e35`, which also brings in
-`ae09c79`, `d16eab3` and `3267568`. The move9 worktree no longer exists. File:
-`C:\Users\Sam\documents\github\laddercodec\src\laddercodec\instructions\math.py`.
+File: `src/laddercodec/instructions/math.py`.
 
 - **Signs after operators.**
   - `_BEFORE_SIGN` includes `+ - * / ^ MOD AND OR XOR :`. CLICK merges a sign only at the
@@ -315,7 +313,7 @@ Dev at `eb7b6f1` already contains move9: the merge of `6157e35`, which also brin
   - Dev also accepts a constant first argument to LSH, which CLICK's editor refuses.
 - **Trig bodies.** CLICK refuses `,`/`:` inside a trig call unless matched by a SUM; dev
   has no such rule.
-- **`7H7`.** Dev refuses it (BOB ruling). The code shows the rule is fixed, not a guess:
+- **`7H7`.** Dev refuses it. The code shows the rule is fixed, not a guess:
   delete the **first** `H` anywhere, then 1 to 4 hex digits. So `7H7` → `77h`, `H7` →
   `7h`, `7HH` refused. Dev is stricter than CLICK. The ruling's cost note ("rule guessed
   from one case") no longer holds.

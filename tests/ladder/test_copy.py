@@ -3,7 +3,7 @@
 CLICK and pyrung's exporter spell a termination code as ``$`` + two hex digits
 (``$0D``, ``$00``), so a decoded Copy must write the same text.  Conversion
 types (tag 0x2227) follow CLICK's dialog: they depend on the source and
-destination types (InstCtl_Copy.dll, v4_captures/sweep_copy.bin).
+destination types (v4_captures/sweep_copy.bin).
 """
 
 from __future__ import annotations

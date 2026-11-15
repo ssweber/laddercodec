@@ -72,14 +72,14 @@ _KIND_CELL_PARAMS: dict[str, dict] = {
     "timed": {"visual_rows": 2, "sub_rows": 3},
 }
 
-#: Accumulators are timer data registers (CLICK v4.00 Help CL348-350).
+#: Accumulators are timer data registers.
 _ACC_BANKS = frozenset({"TD"})
 
 #: Lowest constant preset: debounce takes 0, flasher and timed 1.
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
-#: Highest constant preset, for every kind (Q-B6: Inst_Out.dll caps a digits-only preset
-#: at 0x7FFF; OnOK refuses a larger one with OBJ-005).
+#: Highest constant preset, for every kind (a digits-only preset
+#: above 0x7FFF is OBJ-005).
 _PRESET_MAX = 32767
 
 #: Fields each kind uses; any other of them must stay empty.
@@ -152,7 +152,7 @@ class OutVariant(AfInstruction):
     def __post_init__(self) -> None:
         for name in ("operand", "on_acc", "on_preset", "off_acc", "off_preset"):
             setattr(self, name, normalize_address(getattr(self, name)))
-        # The target follows Out's rule, writable SC list included (ruling on Q-B2).
+        # The target follows Out's rule, writable SC list included.
         check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
         if self.kind not in _KIND_INDEX:
             raise FieldError(
@@ -175,9 +175,8 @@ class OutVariant(AfInstruction):
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
         if self.kind == "debounce":
-            # A debounce phase with both fields empty is skipped (Q-B4:
-            # Inst_Out.dll); with both phases empty OnOK refuses the on preset,
-            # OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
+            # A debounce phase with both fields empty is skipped; with both phases empty the on
+            # preset is refused, OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
             filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
             if not filled:
                 raise FieldError(
@@ -191,8 +190,7 @@ class OutVariant(AfInstruction):
                 check_address(getattr(self, f"{ph}_acc"), f"OutVariant.{ph}_acc", _ACC_BANKS)
             )
             _check_preset(getattr(self, f"{ph}_preset"), f"OutVariant.{ph}_preset", floor)
-        # Q-B5: Inst_Out.dll compares the two TD fields and OnOK refuses one
-        # register for both with OBJ-012.
+        # One register for both phases is OBJ-012.
         if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
             raise FieldError(
                 f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "

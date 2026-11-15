@@ -437,7 +437,7 @@ _NATIVE_XY_LISTS = [
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
 #: The ranges among them whose stored list is not the points between the ends, refused
-#: (user ruling 2026-11-12), and what the refusal says CLICK's list gets wrong.
+#:, and what the refusal says CLICK's list gets wrong.
 #: test_math_grammar.py reads it for the stored formulas it expects refused.
 REFUSED_XY_RANGES = {
     "SUM ( X001 : X036 )": "leave out X032..X035",
@@ -985,7 +985,7 @@ _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
     # Drop-down position; the dialog reselects the subroutine by name and saves its own index
     # (call_index_pasted.bin keeps the pasted 0, call_index_dialog_ok.bin has 3).
     "Call": frozenset({0x3219}),
-    # v4's dialog writes -1 on every save and ignores it on load (InstCtl_Copy.dll);
+    # v4's dialog writes -1 on every save and ignores it on load;
     # the encoder keeps the pre-v4 rule that native v3 captures match.
     "Copy": frozenset({0x1201}),
 }

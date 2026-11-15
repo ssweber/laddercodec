@@ -42,8 +42,8 @@ _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
 # Time drum: unit → first func code of its block (no-jog group: base, reset, jump).
 # The jog group (base, reset, jump, jog) follows at block+3, except for Th, whose
-# jog group is at block+4: code 8479 is the unused one (InstCtl_Drum.dll,
-# v4_captures/sweep_drum.bin), which makes the Th block 8 codes long.
+# jog group is at block+4: code 8479 is the unused one
+# (v4_captures/sweep_drum.bin), which makes the Th block 8 codes long.
 _TIME_FC_BASE: dict[str, int] = {
     "Tms": 8455,
     "Ts": 8462,
@@ -173,12 +173,11 @@ def _constant_preset_mask(presets: list[str]) -> str:
     return str(mask)
 
 
-#: Banks an event step reads: Inst_Drum.dll event validator mask 0x3f, else OBJ-004
-#: (Q-D5).
+#: Banks an event step reads; another bank is OBJ-004.
 DRUM_EVENT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
 
-#: A constant step duration is 0 to 32767 for every unit, digits only: Inst_Drum.dll's
-#: step validator wants an int16 with no ``-`` or ``+``, else OBJ-005 (Q-D4).
+#: A constant step duration is 0 to 32767 for every unit, digits only: an int16
+#: with no ``-`` or ``+``, else OBJ-005.
 DRUM_MAX_DURATION = 32767
 _DIGITS_RE = re.compile(r"[0-9]+")
 
@@ -207,8 +206,7 @@ def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Addr
     """Refuse an output used twice, or used as the completion flag (OBJ-014).
 
     CLICK normalizes an address as it is typed (``C001`` becomes ``C1``) before it
-    compares, so ``C1`` and ``C001`` are the same output (Q-D5, user dialog check
-    2026-11-11).
+    compares, so ``C1`` and ``C001`` are the same output.
     """
     seen: dict[Address, int] = {}
     for i, (output, text) in enumerate(zip(outputs, texts, strict=True)):
