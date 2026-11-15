@@ -220,6 +220,9 @@ stay as they are: each is a required check by name.
   - Until it lands, such a rung becomes an undecoded marker (item 2).
 - `layout_check._blank_rows` counts a first row holding only an unpowered NOP as content, so C0202 row numbers
   can be off by one.
+- **Clipboard row count too low:** when the program header counts fewer rows than the grid holds, the clipboard
+  walk stops at the header's count and the last rung loses its later rows, with no marker (`_walk_grid`'s bound
+  and `_decode_single`'s slice).
 - **Captures (CLICK):**
   - an unpowered real box (coil, timer);
   - a reset wired from the rail;

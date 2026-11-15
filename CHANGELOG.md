@@ -19,9 +19,9 @@
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ### Behaviour changes
-- **A rung that doesn't decode no longer fails the call**: a down wire in the output column, wire flags no token has, a row the clipboard walk can't read, a comment that doesn't decode, or a program file record whose framing breaks gives an undecoded marker where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`; after a framing error, one marker stands for that rung and every rung after it.
+- **A rung that doesn't decode no longer fails the call**: a down wire in the output column or wire flags no token has gives an undecoded marker for the rung, and a clipboard row the walk can't read or a program file record whose framing breaks gives one marker for that rung and every rung after it, where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`.
   - Do: check `Program.undecoded`, or catch `UndecodedRungWarning`, where you caught those errors; a buffer whose magic, size or program header is wrong still raises.
-- **SCR comments that don't decode**: `decode_program()` gives a marker for the rung, where it kept the rung with no comment.
+- **Comments that don't decode**: the rung keeps its logic, its comment becomes `UNDECODED comment: <error>`, and `decode()` and `decode_program()` emit an `UndecodedCommentWarning`, where `decode()` raised `DecodeError` and `decode_program()` kept the rung with no comment.
 - **`write_csv` writes a marker for a rung it can't write**: a rung holding an unknown condition or instruction is written as an undecoded marker, with an `UndecodedRungWarning`, where `write_csv` raised `WriterError`; its new `stop` argument gives the marker's `stop`.
   - Do: pass `stop="return"` when writing a subroutine.
 

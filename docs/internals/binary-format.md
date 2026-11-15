@@ -140,7 +140,7 @@ To walk a variable-length grid, detect cell boundaries by signature:
 
 Do **not** use `+0x0D` for detection — it varies between 0x00, 0x01, and 0xFF across cell types.
 
-When a data row's cells can't be walked (no cell with the expected signature follows an instruction cell), the decoder scans forward for the next row's cell 0, whose `+0x05` is one past this row's, or the terminal row, and goes on from there; the rung that holds the row decodes as an [undecoded marker](../guides/decoding.md#rungs-that-dont-decode). When there is no such cell, or a row before the last one `row_word` counts has no cell 0, the walk stops, and one marker stands for that rung and every rung after it.
+Where a row starts is known only from where the row before it ends. So when a row before the last one `row_word` counts can't be walked (no cell with the expected signature follows an instruction cell), has no cell 0, or is cut off, the walk stops: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The decoder never scans ahead for a later row to resume at, since a cell 0 signature can also turn up inside an instruction blob. A preamble row's cell 0 must carry the signature, its `+0x05` one past the row before it; a rung with no data rows also stops the walk.
 
 ## Multi-rung format
 
@@ -243,7 +243,7 @@ ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaqu
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
-The main program's file (`prog_idx == 1`) has a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. The parser never searches for a later rung to resume decoding.
+The main program's file (`prog_idx == 1`) has a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. A record's end is confirmed only by the next record's prefix, or for the last record by the file's end: a section count one too low ends a record early and leaves its later bytes to be read as the next prefix. So when a prefix is cut off or holds the wrong index, or the file does not end after the last record, the marker starts at the record before, and trailing content-less records before it are dropped as in a clean file. The parser never searches for a later rung to resume decoding.
 
 CLICK keeps trailing content-less editor rungs, sometimes fully wired. The decoder parses them and then omits trailing records with neither instructions nor a raw comment. This existing semantic-output policy is separate from structural parsing.
 

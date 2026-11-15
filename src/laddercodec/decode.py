@@ -721,75 +721,16 @@ def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> Af
 # Row classification tags.
 _DATA = "DATA"
 _PREAMBLE = "PREAMBLE"
-#: A data row whose cells can't be walked; the walk found the next row after it.
-_BAD = "BAD"
-#: A row the walk can't read or step past: it and every row after it are lost.
+#: A row the walk can't read: it and every row after it are lost.
 _LOST = "LOST"
 
-# (tag, cursor, comment_rtf for PREAMBLE | error text for BAD and LOST | None)
+# (tag, cursor, comment_rtf for PREAMBLE | error text for LOST | None)
 _RowInfo = tuple[str, int, bytes | str | None]
 
 
 def _is_terminal(data: bytes, pos: int) -> bool:
     """The terminal row's signature.  The full check avoids a data row with row_byte 0xFF."""
     return data[pos + 0x05] == 0xFF and data[pos + 0x01] == 0x01 and data[pos + 0x03] == 0x30
-
-
-def _row_number(data: bytes, pos: int) -> int:
-    """The 16-bit row number of the cell at *pos* (+0x05, low byte first)."""
-    return data[pos + 0x05] | data[pos + 0x06] << 8
-
-
-def _is_row_cell(data: bytes, pos: int, col: int, number: int) -> bool:
-    """Whether the cell of *col* in the row numbered *number* starts at *pos*."""
-    return (
-        pos + CELL_SIZE <= len(data)
-        and data[pos] == 0x00
-        and data[pos + 0x01] == col
-        and _row_number(data, pos) == number
-        # An AF cell keeps its box's row span and sub-rows at +0x09 and +0x0A.
-        and (col == CONDITION_COLUMNS or data[pos + 0x09] == data[pos + 0x0A] == 0x01)
-    )
-
-
-def _is_whole_row(data: bytes, pos: int, number: int) -> bool:
-    """Whether the data or preamble row numbered *number* starts at *pos*, and nothing else could.
-
-    Every one of its 32 cells must carry its own signature, and no other cell 0 of that
-    row may lie inside the row: a cell 0 found inside an instruction blob would otherwise
-    borrow the real row's cells 1..31 and decode as a wrong instruction.
-    """
-    if data[pos + 0x30] == 0x01:  # a preamble row: its comment pushes cells 1..31 on
-        comment_len = int.from_bytes(data[pos + 0x34 : pos + 0x38], "little")
-        starts = [pos] + [pos + comment_len + col * CELL_SIZE for col in range(1, COLS_PER_ROW)]
-        end = starts[-1] + CELL_SIZE
-    else:
-        try:
-            cells = _walk_row_cells(data, pos)
-        except BAD_BYTES:
-            return False
-        starts = [start for start, _, _ in cells]
-        end = cells[-1][1]
-    if not all(_is_row_cell(data, start, col, number) for col, start in enumerate(starts)):
-        return False
-    return not any(_is_row_cell(data, q, 0, number) for q in range(pos + 1, end))
-
-
-def _next_row_start(data: bytes, cursor: int, index: int, total_grid_rows: int) -> int | None:
-    """Where grid row ``index + 1`` starts after the row at *cursor*, which can't be walked.
-
-    Scans forward for a whole data or preamble row numbered one past this row
-    (:func:`_is_whole_row`), or for the terminal row when ``index + 1`` is the last row
-    the program header counts.  None when there is neither.  A position that only may be
-    a row start is never taken, so a later rung decodes as itself or not at all.
-    """
-    number = (_row_number(data, cursor) + 1) & 0xFFFF
-    for pos in range(cursor + 1, len(data) - CELL_SIZE + 1):
-        if _is_terminal(data, pos) and index + 1 == total_grid_rows - 1:
-            return pos
-        if _is_row_cell(data, pos, 0, number) and _is_whole_row(data, pos, number):
-            return pos
-    return None
 
 
 def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list[_RowInfo], bool]:
@@ -801,13 +742,15 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
     For data rows, walks all 32 cells to determine the actual row size
     (which may exceed ``GRID_ROW_STRIDE`` if instruction cells are present).
 
-    A data row whose cells can't be walked is BAD, and the walk goes on from the next row's
-    cell 0.  When there is none, or a row before the last one the program header counts is
-    cut off or holds no cell 0, the row is LOST and the walk stops.
+    A row before the last one the program header counts that is cut off, holds no cell 0,
+    or whose cells can't be walked is LOST, and the walk stops: where the next row starts
+    is known only from this row's end.  A preamble row's cell 0 must carry the cell
+    signature, numbered one past the row before it.
     """
     cursor = grid_start
     row_infos: list[_RowInfo] = []
     is_multi = False
+    row_byte: int | None = None  # the row byte (+0x05) of the row before
 
     for index in range(total_grid_rows):
         last = index == total_grid_rows - 1
@@ -823,7 +766,14 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
 
         if data[cursor + 0x30] == 0x01:
             # Preamble row — multi-rung boundary.
+            expected = data[cursor + 0x05] if row_byte is None else (row_byte + 1) & 0xFF
+            if not _is_cell_signature(data, cursor, 0, expected):
+                if not last:
+                    error = f"grid row {index} is a preamble row with no cell 0 at {cursor:#x}"
+                    row_infos.append((_LOST, cursor, error))
+                break
             is_multi = True
+            row_byte = expected
             cmt_len = int.from_bytes(data[cursor + 0x34 : cursor + 0x38], "little")
             if cmt_len > 0:
                 cmt_rtf = bytes(data[cursor + 0x38 : cursor + 0x38 + cmt_len])
@@ -844,14 +794,10 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
         try:
             row_end = _walk_row_cells(data, cursor)[-1][1]
         except BAD_BYTES as exc:
-            next_row = _next_row_start(data, cursor, index, total_grid_rows)
-            if next_row is None:
-                row_infos.append((_LOST, cursor, reason(exc)))
-                break
-            row_infos.append((_BAD, cursor, reason(exc)))
-            cursor = next_row
-            continue
+            row_infos.append((_LOST, cursor, reason(exc)))
+            break
         row_infos.append((_DATA, cursor, None))
+        row_byte = data[cursor + 0x05]
         cursor = row_end
 
     return row_infos, is_multi
@@ -876,7 +822,10 @@ def decode(data: bytes) -> Rung | list[Rung]:
         A single ``Rung`` for single-rung buffers, or a list of ``Rung``
         objects for multi-rung buffers.  A rung that can't be decoded comes back as an
         undecoded marker rung (:func:`laddercodec.undecoded.marker_rung`), with an
-        ``UndecodedRungWarning``; the rungs after it still decode.
+        ``UndecodedRungWarning``.  When the cells can't be walked, the marker stands for
+        that rung and every rung after it; when that happens in rung 0, before any
+        preamble row, the decoder can't tell one rung from several and returns the
+        marker rung alone.
 
     Raises
     ------
@@ -960,7 +909,9 @@ def decode_rungs(data: bytes) -> list[Rung]:
     ------
     DecodeError
         If the buffer is invalid or contains only a single rung.  A rung that can't be
-        decoded comes back as an undecoded marker rung, as from :func:`decode`.
+        decoded comes back as an undecoded marker rung, as from :func:`decode`; when the
+        walk stops in rung 0, which can't tell one rung from several, the list holds that
+        rung's marker only.
     """
     _validate_buffer(data)
 
@@ -972,7 +923,8 @@ def decode_rungs(data: bytes) -> list[Rung]:
 
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
 
-    if not is_multi:
+    # A walk that stops before any preamble row can't tell one rung from several.
+    if not is_multi and not (row_infos and row_infos[-1][0] == _LOST):
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
     failed: list[tuple[int, str]] = []
@@ -1018,17 +970,17 @@ def _decode_multi(
     for info in row_infos:
         tag, _, extra = info
         if tag == _PREAMBLE:
-            # Flush the current rung.
+            # Flush the current rung.  One with no data rows is a marker to the end.
             rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
+            if not current_data:
+                return rungs
             current_data = []
             current_rtf = extra if isinstance(extra, bytes) else None
         else:
             current_data.append(info)
 
     # Flush the last rung (data rows after the final preamble).
-    if current_data:
-        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
-
+    rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
     return rungs
 
 
@@ -1070,21 +1022,22 @@ def _build_rung(
 ) -> Rung:
     """Build rung number *rung* from its walked data rows.
 
-    A rung that can't be decoded (a row the walk could not read, or a cell that does not
-    decode) is an undecoded marker rung.  A LOST row ends the walk, so its marker stands
-    for this rung and every rung after it.  A comment that does not decode is noted in the
-    comment and added to *failed* (:func:`laddercodec.undecoded.read_comment`).
+    A rung that can't be decoded (a row the walk could not read, a cell that does not
+    decode, or no data rows at all) is an undecoded marker rung.  A LOST row ends the walk,
+    so its marker stands for this rung and every rung after it, as does a rung with no data
+    rows: the walk took a row for a preamble that was not one, or lost count of the rows.
+    A comment that does not decode is noted in the comment and added to *failed*
+    (:func:`laddercodec.undecoded.read_comment`).
     """
     comment = read_comment(rtf, rung, failed)
+    if not rows:
+        return marker_rung(Undecoded(to_the_end("the rung has no data rows", rung), rung), comment)
 
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
     for row, (tag, cursor, error) in enumerate(rows):
         if tag != _DATA:
-            text = str(error)
-            if tag == _LOST:
-                text = to_the_end(text, rung)
-            return marker_rung(Undecoded(text, rung, row), comment)
+            return marker_rung(Undecoded(to_the_end(str(error), rung), rung, row), comment)
         try:
             conds, af = _decode_data_row(data, cursor, refuse_af_down=True)
         except _CellError as exc:
@@ -1152,7 +1105,7 @@ def inspect_cells(
     rung_rows: list[list[int]] = []  # rung_rows[rung_idx] = [cursor, ...]
     current: list[int] = []
     for tag, cursor, _ in row_infos:
-        if tag in (_DATA, _BAD):
+        if tag == _DATA:
             current.append(cursor)
         elif tag == _PREAMBLE:
             if current:

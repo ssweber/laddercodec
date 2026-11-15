@@ -30,8 +30,8 @@ from laddercodec import (
     read_csv,
     write_csv,
 )
-from laddercodec.decode import DecodeError, inspect_cells
 from laddercodec.csv.writer import WriterError
+from laddercodec.decode import DecodeError, decode_rung, decode_rungs, inspect_cells
 from laddercodec.instructions import Shift, UnknownCondition, UnknownInstruction
 from laddercodec.model import ConditionInstruction
 from laddercodec.undecoded import marker_rung
@@ -137,71 +137,113 @@ def _instruction_cell(rung: Rung) -> tuple[int, int]:
     )
 
 
-@pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
-def test_a_row_the_walk_cannot_read_is_skipped_to_the_next_row(index: int) -> None:
-    """With the cell after an instruction unfindable, the walk resumes at the next row."""
-    row, column = _instruction_cell(RUNGS[index])
-    rungs, markers = _decode(_patched((_cell(index, row, column + 1) + 0x01, b"\x7f")))
-    marker = _only_marker(rungs, index)
+def _rungs_and_markers(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
+    """Decode *data* (one rung or several); return its rungs and its warnings' markers."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        got = decode(data)
+    rungs = got if isinstance(got, list) else [got]
+    return rungs, [w.message.marker for w in caught if isinstance(w.message, UndecodedRungWarning)]
+
+
+def _stopped_at(rungs: list[Rung], markers: list[Undecoded], index: int) -> Undecoded:
+    """The one marker, at rung *index*: decoding stopped there, so no rung comes after it."""
+    assert len(rungs) == index + 1
+    (marker,) = rungs[index].instructions
+    assert isinstance(marker, Undecoded)
     assert markers == [marker]
+    assert marker.rung == index
+    assert marker.error.endswith(f"so this marker stands for rung {index} to the end")
+    return marker
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
+def test_a_row_the_walk_cannot_read_stops_decoding(index: int) -> None:
+    """With the cell after an instruction unfindable, where the next row starts is unknown.
+
+    The rungs before decode, and one marker stands for that rung and every rung after it.
+    """
+    row, column = _instruction_cell(RUNGS[index])
+    rungs, markers = _rungs_and_markers(_patched((_cell(index, row, column + 1) + 0x01, b"\x7f")))
+    assert rungs[:index] == DECODED[:index]
+    marker = _stopped_at(rungs, markers, index)
     assert (marker.row, marker.column) == (row, None)
     assert marker.error.startswith(f"Cannot find cell boundary for col={column + 1}")
-    assert not marker.error.endswith("to the end")
 
 
-def _fake_cell0(number: int) -> bytes:
-    """The bytes of a cell 0 of the row numbered *number*, holding an instruction (+0x25)."""
-    fake = bytearray(0x26)
-    fake[0x05:0x07] = number.to_bytes(2, "little")
-    fake[0x09] = fake[0x0A] = 0x01
-    fake[0x25] = 0x01
-    return bytes(fake)
+def test_a_lost_first_rung_is_one_marker_from_every_decoder() -> None:
+    """The walk stops before any preamble row, so it can't tell one rung from several."""
+    row, column = _instruction_cell(RUNGS[0])
+    data = _patched((_cell(0, row, column + 1) + 0x01, b"\x7f"))
+    with pytest.warns(UndecodedRungWarning):
+        rung = decode(data)
+    with pytest.warns(UndecodedRungWarning):
+        assert decode_rung(data) == rung
+    with pytest.warns(UndecodedRungWarning):
+        assert decode_rungs(data) == [rung]
+    assert isinstance(rung, Rung)
+    (marker,) = rung.instructions
+    assert isinstance(marker, Undecoded)
+    assert (marker.rung, marker.row) == (0, row)
 
 
-def _right_or_marker(rungs: list[Rung]) -> None:
-    """Each rung is the one encoded at its index, or a marker for that index: never another."""
-    for i, rung in enumerate(rungs):
-        if isinstance(rung.instructions[0], Undecoded):
-            assert rung.instructions[0].rung == i
-        else:
-            assert rung == DECODED[i]
+#: A native copy of four one-row rungs from the middle of a program: its rows are numbered
+#: from 0x24, not from the encoder's 0x01.
+LOOP_EXITS = FIXTURES / "v4_captures" / "loop_exits.bin"
 
 
-@pytest.mark.parametrize(
-    "plant",
-    ["before the next row", "in a later blob", "in a later blob, next row lost"],
-)
-def test_the_walk_never_resumes_at_a_row_start_inside_a_blob(plant: str) -> None:
-    """After a row fails, a cell 0 signature in instruction bytes never starts a row.
+def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
+    """Rung 1 of 4 fails: rung 0 decodes, and one marker stands for rungs 1 to 3."""
+    data = LOOP_EXITS.read_bytes()
+    want = decode(data)
+    assert isinstance(want, list) and len(want) == 4
+    (cell,) = inspect_cells(data, [(1, 0, "B")])
+    assert data[cell.offset + 0x05] == 0x26
+    assert isinstance(want[1].conditions[0][0], ConditionInstruction)
+    damaged = bytearray(data)
+    damaged[cell.offset + 0x01] = 0x7F
+    rungs, markers = _rungs_and_markers(bytes(damaged))
+    assert rungs[0] == want[0]
+    marker = _stopped_at(rungs, markers, 1)
+    assert (marker.row, marker.column) == (0, None)
 
-    Rung 1's one row fails, and the next row is rung 2's preamble.  A fake cell 0 for that
-    preamble's row number is planted just before it (inside rung 1's failed row, where a
-    walk from it would borrow the preamble's cells 1..31), or in the tail of rung 2's
-    instruction cell.  Each rung decodes as itself or as a marker, never as another rung.
+
+def test_a_rung_with_no_data_rows_stops_decoding() -> None:
+    """A data row with its preamble flag (+0x30) set reads as a preamble row.
+
+    The rung before it then has no data rows: one marker stands for it and every rung
+    after it, and no later rung comes back under its index.
     """
-    assert RUNGS[1].logical_rows == 1
-    row, column = _instruction_cell(RUNGS[1])
-    failed = _cell(1, row, 0)
-    (af,) = inspect_cells(DATA, [(1, row, "AF")])
-    preamble = af.offset + af.size  # rung 1's one row ends where rung 2's preamble starts
-    number = int.from_bytes(DATA[failed + 0x05 : failed + 0x07], "little") + 1
-    assert DATA[preamble + 0x30] == 0x01
-    assert int.from_bytes(DATA[preamble + 0x05 : preamble + 0x07], "little") == number
-    changes = [(_cell(1, row, column + 1) + 0x01, b"\x7f")]
-    if plant == "before the next row":
-        changes.append((preamble - 0x30, _fake_cell0(number)))
-    else:
-        r2, c2 = _instruction_cell(RUNGS[2])
-        (dump,) = inspect_cells(DATA, [(2, r2, COLUMNS[c2])])
-        changes.append((dump.offset + dump.size - 0x10, _fake_cell0(number)[:0x0B]))
-        if plant.endswith("lost"):
-            changes.append((preamble + 0x09, b"\x00"))
-    rungs, markers = _decode(_patched(*changes))
-    _right_or_marker(rungs)
-    assert markers[0].rung == 1
-    if not plant.endswith("lost"):
-        assert len(rungs) == 3
-        assert rungs[2] == DECODED[2]
+    row0 = _cell(1, 0, 0)
+    rungs, markers = _rungs_and_markers(_patched((row0 + 0x30, b"\x01"), (row0 + 0x34, bytes(4))))
+    assert rungs[0] == DECODED[0]
+    marker = _stopped_at(rungs, markers, 1)
+    assert (marker.row, marker.column) == (None, None)
+    assert marker.error.startswith("the rung has no data rows")
+
+
+@pytest.mark.parametrize(("offset", "value"), [(0x01, 0x05), (0x05, 0x09)], ids=["column", "row"])
+def test_a_preamble_row_with_no_cell_0_stops_decoding(offset: int, value: int) -> None:
+    """Rung 1's preamble row loses its cell 0 signature: rung 0 may have had more rows.
+
+    Rung 0's last row has no output, so the walk steps to the preamble row without
+    checking it, as it does after a row whose last cell holds an instruction.
+    """
+    first = _decoded("instr-3row-or.bin")
+    assert first.instructions[-1] == ""
+    data = encode([first, RUNGS[1]])
+    (af,) = inspect_cells(data, [(0, first.logical_rows - 1, "AF")])
+    preamble = af.offset + af.size
+    assert data[preamble + 0x30] == 0x01
+    assert data[preamble + offset] != value
+    damaged = bytearray(data)
+    damaged[preamble + offset] = value
+    rungs, markers = _rungs_and_markers(bytes(damaged))
+    marker = _stopped_at(rungs, markers, 0)
+    assert (marker.row, marker.column) == (first.logical_rows, None)
+    assert marker.error.startswith(
+        f"grid row {first.logical_rows} is a preamble row with no cell 0"
+    )
 
 
 def _with_code_page(data: bytes, index: int, page: bytes = b"ansicpg1251") -> bytes:
@@ -509,6 +551,13 @@ def test_write_csv_writes_a_marker_for_an_unwritable_rung(
     assert back == [RUNGS[0], marker_rung(marker, "second")]
 
 
+def test_write_csv_refuses_an_unknown_stop_before_writing(tmp_path: Path) -> None:
+    """``stop`` is checked even when no rung needs a marker, and no file is made."""
+    with pytest.raises(ValueError, match=r"write_csv: stop='halt' must be 'end' or 'return'"):
+        write_csv(tmp_path / "m.csv", RUNGS, stop="halt")  # type: ignore[arg-type]
+    assert not (tmp_path / "m.csv").exists()
+
+
 def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> None:
     """Only a cell with no token makes a marker; a rung of known tokens CSV can't hold raises."""
     blank = [""] * 31
@@ -568,7 +617,9 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
     kinds = [(f.kind, f.row, f.column) for f in check(rung)]
     assert kinds[0] == ("undecoded", 0, 31)
     assert ("no_rail", 1, 1) in kinds
-    unwired = Rung(logical_rows=1, conditions=[["", *["-"] * 30]], instructions=[marker], comment=None)
+    unwired = Rung(
+        logical_rows=1, conditions=[["", *["-"] * 30]], instructions=[marker], comment=None
+    )
     assert [(f.kind, f.row, f.column) for f in check(unwired)] == [
         ("undecoded", 0, 31),
         ("unpowered_box", 0, 31),

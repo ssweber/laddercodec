@@ -129,7 +129,7 @@ The returned `Program` dataclass has:
 | `rungs` | `list[Rung]` | Decoded rungs — same `Rung` objects as `decode()` returns |
 | `undecoded` | `list[Undecoded]` | The undecoded markers in `rungs`, in order; empty when every rung decoded |
 
-Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs, so you can pass them to `encode()`, `write_csv()`, or any other API that accepts `Rung` objects.
+Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs, so you can pass them to `encode()` (all but a marker rung), `write_csv()`, or any other API that accepts `Rung` objects.
 
 ## Rungs that don't decode
 
@@ -163,13 +163,21 @@ read would run wrong: the missing rung may set a bit a later rung reads, or hold
 markers have `stop="end"`.
 
 A rung decodes as a marker when a cell's bytes don't decode (wire flags no token
-has), its output column has a down wire, its comment doesn't decode, or a row's
-cells can't be walked. Each such rung has its own marker. When the decoder can't
-find where the rest of the rungs start (a clipboard row cut off, or a program
-file record whose framing is broken), the rungs before it decode, and one marker
-stands for that rung and every rung after it. A buffer the decoder can't read at
-all still raises: `DecodeError` for a clipboard whose magic or size is wrong,
-`ValueError` for a program file whose header doesn't parse.
+has) or its output column has a down wire. Each such rung has its own marker.
+When the decoder can't find where the rest of the rungs start (a clipboard row
+whose cells can't be walked or that is cut off, or a program file record whose
+framing is broken), the rungs before it decode, and one marker stands for that
+rung and every rung after it. When that happens in a clipboard's first rung,
+`decode()` returns the marker rung alone, since it can't tell one rung from
+several. A buffer the decoder can't read at all still
+raises: `DecodeError` for a clipboard whose magic or size is wrong, `ValueError`
+for a program file whose header doesn't parse.
+
+A comment that doesn't decode does not make a marker: the rung keeps its logic,
+its comment becomes `UNDECODED comment: <error>`, its `comment_rtf` keeps the
+comment's bytes, and the decoder emits an `UndecodedCommentWarning` with the
+`rung`, the `error` and the `program` name. `Program.undecoded` does not list
+the rung.
 
 A marker never reaches CLICK: `encode()` refuses it, and `check()` reports it as an
 `undecoded` finding. `write_csv()` writes it as an `undecoded(...)` token that

@@ -40,6 +40,7 @@ import csv as csv_mod
 import warnings
 from collections.abc import Sequence
 from pathlib import Path
+from typing import get_args
 
 from .._layout import LayoutError, canonical, circuit
 from ..decode import Rung
@@ -521,10 +522,14 @@ def write_csv(
 
     Raises
     ------
+    ValueError
+        If *stop* is neither ``"end"`` nor ``"return"``; nothing is written.
     WriterError
         If any other rung can't be written, such as one whose shape the CSV
         can't hold.
     """
+    if stop not in get_args(Stop):
+        raise ValueError(f"write_csv: stop={stop!r} must be 'end' or 'return'")
     path = Path(path)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
@@ -557,5 +562,9 @@ def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:
         for column, token in cells:
             if isinstance(token, (UnknownCondition, UnknownInstruction)):
                 kind = "condition" if isinstance(token, UnknownCondition) else "instruction"
-                return row, column, f"no CSV token holds this unknown {kind} ({len(token.raw)} bytes)"
+                return (
+                    row,
+                    column,
+                    f"no CSV token holds this unknown {kind} ({len(token.raw)} bytes)",
+                )
     return None
