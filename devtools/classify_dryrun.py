@@ -35,7 +35,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
 DEVTOOLS = Path(__file__).resolve().parent
 
 
@@ -112,10 +111,10 @@ class Namespace:
         sys.path.insert(0, str(src))
         import laddercodec
         from laddercodec import instructions
-        from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
-        from laddercodec.operands import checks
         from laddercodec.instructions.comparison import _GROUP_BANKS
         from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
+        from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
+        from laddercodec.operands import checks
         from laddercodec.operands.constants import SEARCH_TABLE_BANKS, Kind
 
         loaded = Path(laddercodec.__file__).resolve().parent.parent
@@ -256,9 +255,7 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
     def rule(ns: Any, value: str) -> None:
         constants = ns.constants(hex_high=0xFFFF, hex_sign=True)
         text = ns.normalize(value)
-        op = ns.checks.check_operand(
-            text, "Search.source", ns.checks.REGISTER_BANKS, constants
-        )
+        op = ns.checks.check_operand(text, "Search.source", ns.checks.REGISTER_BANKS, constants)
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
             ns.refuse("the value's kind does not search this table")
 
@@ -500,7 +497,9 @@ def _data_flow_comm() -> list[Field]:
         )
     )
     out.append(
-        Field("flow", "ForLoop.limit", "ForLoop/int/limit", _make("ForLoop")("limit"), for_limit_rule)
+        Field(
+            "flow", "ForLoop.limit", "ForLoop/int/limit", _make("ForLoop")("limit"), for_limit_rule
+        )
     )
     # Not here: the Modbus target's device_id, a number or a DS address.  The family keeps
     # its check, which refuses a bad DS address with a FieldError rather than the shared
@@ -584,7 +583,9 @@ def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[missing-union-attribute]
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("src_dir", nargs="?", default="src", help="src directory under test")
-    parser.add_argument("--expected", type=Path, default=IDENTITY.EXPECTED, help="expected-diff file")
+    parser.add_argument(
+        "--expected", type=Path, default=IDENTITY.EXPECTED, help="expected-diff file"
+    )
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     entries = IDENTITY.read_expected(args.expected)
     ns = Namespace(args.src_dir)

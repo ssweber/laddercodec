@@ -1063,7 +1063,9 @@ def _key(value: Any) -> str:
     if isinstance(value, list):
         return "[" + ", ".join(_key(item) for item in value) + "]"
     if isinstance(value, tuple):
-        return "(" + ", ".join(_key(item) for item in value) + ("," if len(value) == 1 else "") + ")"
+        return (
+            "(" + ", ".join(_key(item) for item in value) + ("," if len(value) == 1 else "") + ")"
+        )
     return repr(value)
 
 

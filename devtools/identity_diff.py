@@ -171,9 +171,7 @@ def first_tier(record: Any) -> Any:
     for key in _WARNING_KEYS:
         items = out.get(key)
         if isinstance(items, list):
-            out[key] = [
-                item.split(": ", 1)[0] if isinstance(item, str) else item for item in items
-            ]
+            out[key] = [item.split(": ", 1)[0] if isinstance(item, str) else item for item in items]
     return out
 
 
@@ -262,9 +260,7 @@ def _print_cases(cases: dict[str, list[str]], indent: str) -> None:
             print(f"{indent}{line}")
 
 
-def diff_tiers(
-    path_a: str | Path, path_b: str | Path, expected_path: str | Path = EXPECTED
-) -> int:
+def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path = EXPECTED) -> int:
     """Print the differences between two tool outputs in two tiers; return the exit status.
 
     0: no case differs beyond its messages, apart from expected-diff entries; 1: one does,
