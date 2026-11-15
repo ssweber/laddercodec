@@ -567,7 +567,9 @@ def test_a_family_branch_uses_its_entries(compare_crashing_src: Path, tmp_path: 
     assert "CompareContact/ds/left='0'\\*5000+'1' | family=bits | kind=b | new=ok" in tiers.stdout
 
     # Without the entries the same two outputs differ.
-    bare = _run("identity_diff.py", "--tiers", base, branch)
+    empty = tmp_path / "empty.txt"
+    empty.write_text("", encoding="utf-8")
+    bare = _run("identity_diff.py", "--tiers", "--expected", empty, base, branch)
     assert bare.returncode == 1, bare.stdout[-500:]
 
 
