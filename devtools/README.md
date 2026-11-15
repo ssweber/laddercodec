@@ -77,18 +77,52 @@ that tree. `convert_rung` returns a list of `Rung`, one per CLICK rung the CSV r
 to; on a tree before the CSV layout it returns a `(logical_rows, conditions, instructions,
 comment)` tuple, and `operand_probe.py` takes either.
 
-## Constant classifier dry run
+### Two tiers and the expected-diff file
 
-`classify_dryrun.py` compares today's per-field constant checks with
-`laddercodec.operands.constants.classify()`, which no field uses yet. For each field that takes
-a constant it tries a fixed value list two ways: building the instruction (today), and
-`classify()` plus that field's documented kinds and limits (each rule names the dialog
-answer, or the DLL reading it rests on). It prints every disagreement and the totals per
-family, and changes nothing:
+A change that moves a rule into a shared check may reword a message but must keep every
+verdict. `identity_diff.py --tiers` compares two outputs of the same tool with that split:
+
+```bash
+uv run python -I devtools/identity_diff.py --tiers "$TEMP/probe_base.json" "$TEMP/probe_branch.json"
+```
+
+- **Must stay identical:** accept or refuse, the exception class, the CSV written, the bytes,
+  the decode result, and the set of cases. The tools record an exception as
+  `!Class: message`; the comparison cuts each one to `!Class`.
+- **Listed apart, not a failure:** a case that differs only in a message's wording.
+
+A case that differs in the first tier fails the run (exit 1) unless
+[`expected_diff.txt`](expected_diff.txt) lists it. Each line of that file is
+`<case key> | <reason>`: the key is a probe or snapshot case key, matched whole, with `*` for
+any run of characters; the reason states the rule the new verdict follows. A case goes in only
+when CLICK shows the old verdict was wrong. `--expected FILE` reads another file.
+
+A family branch that wires in the shared checks:
+
+1. runs the probe and the snapshot on its base and on the branch, as above;
+2. runs `identity_diff.py --tiers` on each pair;
+3. reads the message-only list, which needs no action;
+4. fixes every first-tier difference, or, where CLICK shows the old verdict was wrong, adds the
+   case to `expected_diff.txt` in the same commit as the change, with its reason.
+
+The run also lists the entries that matched no difference. An entry describes a change against
+the base it was made on; once its branch has landed, the next branch that touches the file
+removes it.
+
+## Shared field check dry run
+
+`classify_dryrun.py` compares today's per-field checks with the shared field checks in
+`laddercodec.operands.checks`, which no field calls yet. For each field that takes a constant,
+and for the coil target, it tries a fixed value list two ways: building the instruction from a
+known-good baseline (today), and the field's calls to `check_operand`, `check_constant` or
+`check_out_target` with that field's parameters, plus the pairing the family keeps for itself (a
+Compare group, a Copy destination, a Search table). Each rule's docstring states the field's
+kinds and limits, and the order of calls that keeps today's exception class. It prints every
+disagreement and the totals per family, exits 1 on any, and changes nothing:
 
 ```bash
 uv run python -I devtools/classify_dryrun.py src
 ```
 
-`DIFFERS` is a disagreement; `DIFFERS?` is one whose rule rests on a DLL reading with no dialog
-check; `open` is a value whose rule waits on a question. Addresses are skipped.
+`DIFFERS` is a verdict that differs; `class` is a refusal with a different exception class.
+Math is left out: its formula has its own grammar.

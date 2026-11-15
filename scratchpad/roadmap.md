@@ -57,19 +57,13 @@ Ruled in the plan, "Who owns what". Steps 0-2 landed before 0.4.0: the identity 
 guard ratchet, and the unwired `classify()` with its dry run. There is no engine pilot; the end state is plain
 shared functions.
 
-- **Identity has two tiers.**
-  - These stay identical: accept or refuse, exception class, CSV written, bytes, decode result.
-  - Message wording may change; the changes are listed for review.
-  - Give `devtools/identity_diff.py` a mode that compares class and verdict, and lists message changes apart.
-- **Expected-diff file.** Rerun `devtools/classify_dryrun.py` on main (it last gave 7
-  disagreements and 251 open) and sort the entries, then free the held folders.
-  - Fill into TXT takes one character of text, while `classify()` takes 1-128. This is a real dialog
-    difference, so it becomes a parameter of the shared check.
-  - Compare `3.5E+38` is accepted beyond float32. Where CLICK's exact edge lies has not been checked, so keep
-    today's behaviour as a parameter until it is.
-  - Copy termination code `none` is a keyword, not a constant. That is an error in the dry run; fix the dry
-    run.
-  - The 154 Math cases stay out: Math has its own grammar.
+- **Identity has two tiers** (done). `devtools/identity_diff.py --tiers` fails on a change of verdict,
+  exception class, CSV, bytes or decode result, and lists message changes apart.
+- **Expected-diff file** (done). `devtools/expected_diff.txt` holds no entry: no case had ground truth
+  against today's verdict. The dry run now compares today's checks with the shared functions in
+  `operands/checks.py`, each called with the field's parameters, and shows 0 disagreements in verdict or
+  exception class. Fill into TXT taking one character, Compare's float32 edge, Fill's hex above FFFFh and the
+  remote-address hex edge are parameters; Copy's termination keyword is fixed in the dry run; Math stays out.
 - **Provenance out of src (done).**
   - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
     `tests/test_no_dll_addresses.py`.
@@ -130,6 +124,10 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   slot. The fitted rule covers every capture so far.
 - **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
   it; Compare accepts `3.5E+38` (item 3).
+- **Fill with hex above FFFFh:** does the Fill dialog take such a constant, and into which banks? A single
+  Copy puts it into DD or CTD only; the code's Fill takes it into any numeric or TXT range.
+- **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
+  store? The code refuses both.
 - **Quoted text with an `E`:** the Copy dialog reads such text as a number. Does lowercase `e` do the same, does
   Fill, and what does CLICK keep when such a Copy is pasted? The code accepts and encodes the text as typed.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
