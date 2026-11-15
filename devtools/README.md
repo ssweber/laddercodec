@@ -19,7 +19,9 @@ the base and the branch:
 
 Both tools write a step that raises as `!Class` where its result would be, and list the
 case's exceptions in order under `errors`, as `[class, message]`. No other value of a case
-holds an exception message. A probe case is keyed `<Class>/<baseline>/<field>=<value>`, with
+holds an exception message. Warnings are listed as `<WarningClass>: <message>`: the probe's
+writer warnings under `write_warn`, its other warnings under `warn`, and the snapshot's under
+`warnings`. A probe case is keyed `<Class>/<baseline>/<field>=<value>`, with
 the value's repr; text over 1000 characters is written as its runs (`'0'*5000+'1'`).
 
 Check out the base `src` in a detached worktree outside the repository, run both tools on the
@@ -93,24 +95,37 @@ uv run python -I devtools/identity_diff.py --tiers "$TEMP/probe_base.json" "$TEM
 
 - **Must stay identical (the first tier):** every value of a case (accept or refuse, the
   exception class, the CSV written, the bytes, the decode result), the class of each exception
-  in `errors` and of each warning, the class names an exception's message holds, and the set
-  of cases.
+  in `errors` and of each warning, each name ending in `Error`, `Exception` or `Warning` that
+  an exception's message holds, and the set of cases.
 - **Listed apart, not a failure:** a case that differs only in the text of a message or a
   warning.
 
 A case whose first tier differs fails the run (exit 1) unless an entry of
-[`expected_diff.txt`](expected_diff.txt) allows it. Each line of that file is
-`<case key> | <reason>`, or `<case key> | keys=<k>,<k> | <reason>`:
+[`expected_diff.txt`](expected_diff.txt) allows it. Each line of that file is one entry, its
+parts separated by a bar with a space on each side:
 
-- the key is a probe, snapshot or dry-run case key, matched whole, with `*` for any run of
-  characters, `\*` for a star and `\\` for a backslash;
+```text
+<case key> | family=<family> | kind=<a or b> [| keys=<k>,<k>] [| new=<verdict>] | <reason>
+```
+
+- The key is a probe, snapshot or dry-run case key, matched whole, with `*` for any run of
+  characters other than `/`, `\*` for a star and `\\` for a backslash.
+- `family=` names the family branch the entry belongs to: `bits`, `data`, `flow`, `move` or
+  `comm`.
+- `kind=` is `a` or `b`, below.
 - `keys=` names the record keys (`new`, `csv`, `blob`, ...) whose first-tier difference the
-  entry allows; without it the entry allows any, and a case added or removed;
-- the reason states the rule the new verdict follows.
+  entry allows; without it the entry allows any, and a case added or removed.
+- `new=` pins the branch's `new` value the entry allows: `ok` or `!<ExceptionClass>`.
+- The reason states the rule the new verdict follows. Neither the key nor the reason holds
+  that separator.
 
 A case goes in only when (a) CLICK shows the old verdict was wrong, or (b) the old code raised
 something other than a `FieldError` or `AddressError` for the field value: a crash, not a
-verdict. `--expected FILE` reads another file. The dry run below reads the same file.
+verdict. Every base case a kind (b) entry matches must record such a crash in `new`; when one
+does not (a refusal, an accept, or a record without `new`), `--tiers` and the dry run exit 2
+and list those cases. Give a kind (b) entry its `new=`: the crash has no verdict to keep, so the
+entry states the one that replaces it. `--expected FILE` reads another file. The dry run below
+reads the same file.
 
 A family branch that wires in the shared checks:
 
@@ -118,11 +133,12 @@ A family branch that wires in the shared checks:
 2. runs `identity_diff.py --tiers` on each pair;
 3. reads the message-only list, which needs no action;
 4. fixes every first-tier difference, or, for a case of kind (a) or (b), adds the case to
-   `expected_diff.txt` in the same commit as the change, with its reason.
+   `expected_diff.txt` with its family, in the same commit as the change, with its reason.
 
-The run also lists the entries that matched no difference. An entry lives on the branch that
-adds it; the next branch that touches the file removes the entries the tools report as
-matching no difference.
+The run also lists the entries that matched no difference. An entry stays until its family's
+branch has merged; after that, the next branch that touches the file removes it. Never remove
+another family's entry because it matches no difference yet: that family's change has not
+landed.
 
 ## Shared field check dry run
 
@@ -133,13 +149,15 @@ known-good baseline (today), and the field's calls to `check_operand`, `check_co
 `check_out_target` with that field's parameters, plus what the family keeps for itself (a
 Compare group, a Copy destination, a Search table, a few refusals of its own). Each rule's
 docstring states the field's kinds and limits, what the family keeps, and the order of calls
-that keeps today's exception class. Cases are keyed as the probe keys them. It prints every
-disagreement and the totals per family, and changes nothing:
+that keeps today's exception class. Cases are keyed as the probe keys them, from the probe's
+baselines. It prints every disagreement and the totals per family, and changes nothing:
 
 ```bash
 uv run python -I devtools/classify_dryrun.py src
 ```
 
 `DIFFERS` is a verdict that differs; `class` is a refusal with a different exception class;
-`expected` is either one that an entry of `expected_diff.txt` allows. The run exits 1 on any
-`DIFFERS` or `class`. Math is left out: its formula has its own grammar.
+`expected` is either one that an entry of `expected_diff.txt` allows, with today as the base
+and the shared verdict as the branch's `new`. The run exits 1 on any `DIFFERS` or `class`, and
+2 when a kind (b) entry matches a case today does not crash on. Math is left out: its formula
+has its own grammar.

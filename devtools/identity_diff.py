@@ -15,28 +15,39 @@ different tools, 0 if the cases are identical.
 ``!Class`` where it happened and its message under the case's ``errors``, as
 ``[class, message]``; a warning is ``Class: message``.  The first tier must stay
 identical: every value of a case (accept or refuse, the exception class, the CSV written,
-the bytes, the decode result), the class of every exception and warning, the class names
-an exception's message holds, and no case added or removed.  A case that differs only in
-message or warning text is listed apart and is not a failure.  A case whose first tier
-differs is a failure unless an entry of the expected-diff file (``--expected``, default
-``expected_diff.txt`` beside this script) allows it.  The mode exits 1 on a failure or when
-the tools differ, 0 otherwise.
+the bytes, the decode result), the class of every exception and warning, each name ending
+in ``Error``, ``Exception`` or ``Warning`` that an exception's message holds, and no case
+added or removed.  A case that differs only in message or warning text is listed apart and
+is not a failure.  A case whose first tier differs is a failure unless an entry of the
+expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
+allows it.  The mode exits 1 on a failure or when the tools differ, 0 otherwise.
 
 Both modes exit 2 without comparing when an input cannot be read or has no ``cases``
 object, when either lists a ``meta.refused_baselines`` entry, when the scopes differ, or
-when both have no cases; ``--tiers`` also when the expected-diff file cannot be read.
+when both have no cases.  ``--tiers`` also exits 2 when the expected-diff file cannot be
+read, and when a kind (b) entry matches a case of the base output that is not a crash.
 
 The expected-diff file is plain text: a line starting with ``#`` is a comment, and every
-other non-blank line is ``<case key> | <reason>`` or ``<case key> | keys=<k>,<k> | <reason>``.
-The key matches a case key whole: ``*`` stands for any run of characters, ``\*`` for a
-star and ``\\`` for a backslash.  With ``keys=``, the entry allows a first-tier
-difference in those record keys only (``new``, ``csv``, ...); without, in any, and a case
-added or removed.  The reason states the rule the new verdict follows.
+other non-blank line is an entry, its parts separated by `` | ``::
+
+    <case key> | family=<family> | kind=<a or b> [| keys=<k>,<k>] [| new=<verdict>] | <reason>
+
+- The key matches a case key whole: ``*`` stands for any run of characters other than
+  ``/``, ``\*`` for a star and ``\\`` for a backslash.
+- ``family`` names the family branch the entry belongs to (bits, data, flow, move, comm).
+- ``kind`` is ``a`` when CLICK shows the base verdict is wrong, ``b`` when the base raised
+  something other than a ``FieldError`` or ``AddressError``: a crash, not a verdict.  Every
+  base case a kind (b) entry matches must record such a crash in ``new``.
+- ``keys`` names the record keys (``new``, ``csv``, ...) whose first-tier difference the
+  entry allows; without it the entry allows any, and a case added or removed.
+- ``new`` pins the branch's ``new`` value the entry allows (``ok``, ``!FieldError``, ...).
+- The reason states the rule the new verdict follows.  Neither key nor reason holds `` | ``.
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import sys
@@ -145,10 +156,19 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
 _INNER_CLASS = re.compile(r"\b[A-Z][A-Za-z0-9_]*(?:Error|Exception|Warning)\b")
 
 #: Case keys whose list holds ``<WarningClass>: <message>`` strings.
-_WARNING_KEYS = ("warn", "warnings")
+_WARNING_KEYS = ("warn", "warnings", "write_warn")
 
 #: The expected-diff file read by default.
 EXPECTED = Path(__file__).resolve().parent / "expected_diff.txt"
+
+#: The family branches an expected-diff entry can belong to.
+FAMILIES = ("bits", "data", "flow", "move", "comm")
+
+#: The exception classes that are a field's verdict; any other is a crash.
+VERDICT_CLASSES = frozenset({"FieldError", "AddressError"})
+
+#: The parts an entry may hold between its key and its reason.
+_OPTIONS = ("family", "kind", "keys", "new")
 
 
 def first_tier(record: Any) -> Any:
@@ -175,9 +195,11 @@ def first_tier(record: Any) -> Any:
     return out
 
 
+@functools.cache
 def _pattern(key: str) -> re.Pattern[str]:
-    """A case-key pattern: ``*`` is any run of characters, ``\\*`` a star, ``\\\\`` a
-    backslash; any other character, a lone backslash included, stands for itself."""
+    """A case-key pattern: ``*`` is any run of characters other than ``/``, ``\\*`` a star,
+    ``\\\\`` a backslash; any other character, a lone backslash included, stands for
+    itself."""
     out: list[str] = []
     index = 0
     while index < len(key):
@@ -187,7 +209,7 @@ def _pattern(key: str) -> re.Pattern[str]:
             out.append(re.escape(follow))
             index += 2
             continue
-        out.append(".*" if char == "*" else re.escape(char))
+        out.append("[^/]*" if char == "*" else re.escape(char))
         index += 1
     return re.compile("".join(out), re.DOTALL)
 
@@ -198,22 +220,96 @@ class Expected(NamedTuple):
     line: int
     key: str
     reason: str
+    #: The family branch the entry belongs to, one of :data:`FAMILIES`.
+    family: str
+    #: ``a`` (CLICK shows the base verdict is wrong) or ``b`` (the base crashed).
+    kind: str
     #: The record keys whose first-tier difference the entry allows; empty for all.
     fields: tuple[str, ...] = ()
+    #: The branch's ``new`` value the entry allows; ``None`` for any.
+    new: str | None = None
 
     def matches(self, case_key: str) -> bool:
         return _pattern(self.key).fullmatch(case_key) is not None
 
-    def allows(self, differing: set[str] | None) -> bool:
+    def allows(self, differing: set[str] | None, branch: Any) -> bool:
         """Whether the entry allows a case whose first tier differs in ``differing`` keys
-        (``None``: the case was added or removed, or is not a record)."""
+        (``None``: the case was added or removed, or is not a record) and whose branch
+        record is ``branch`` (``None`` when the branch lacks the case)."""
+        if self.new is not None and not (
+            isinstance(branch, dict) and branch.get("new") == self.new
+        ):
+            return False
         if not self.fields:
             return True
         return differing is not None and differing <= set(self.fields)
 
     def label(self) -> str:
-        keys = f" | keys={','.join(self.fields)}" if self.fields else ""
-        return f"{self.key}{keys} | {self.reason}"
+        parts = [self.key, f"family={self.family}", f"kind={self.kind}"]
+        if self.fields:
+            parts.append(f"keys={','.join(self.fields)}")
+        if self.new is not None:
+            parts.append(f"new={self.new}")
+        return " | ".join([*parts, self.reason])
+
+
+def _entry(path: str | Path, number: int, text: str) -> Expected:
+    """One entry line; :class:`ValueError` says what is wrong with it."""
+    where = f"{path}:{number}"
+    parts = [part.strip() for part in text.split(" | ")]
+    if len(parts) < 2 or not parts[0] or not parts[-1]:
+        raise ValueError(f"{where}: not '<case key> | <option>=<value> ... | <reason>': {text!r}")
+    options: dict[str, str] = {}
+    for part in parts[1:-1]:
+        name, eq, value = part.partition("=")
+        if not eq or name not in _OPTIONS:
+            raise ValueError(f"{where}: {part!r} is not <option>=<value> for one of {_OPTIONS}")
+        if name in options:
+            raise ValueError(f"{where}: {name}= appears twice")
+        if not value:
+            raise ValueError(f"{where}: {name}= has no value")
+        options[name] = value
+    family = options.get("family")
+    if family not in FAMILIES:
+        raise ValueError(f"{where}: family= is one of {', '.join(FAMILIES)}, not {family!r}")
+    kind = options.get("kind")
+    if kind not in ("a", "b"):
+        raise ValueError(f"{where}: kind= is a or b, not {kind!r}")
+    fields: tuple[str, ...] = ()
+    if "keys" in options:
+        fields = tuple(f.strip() for f in options["keys"].split(","))
+        if not all(fields):
+            raise ValueError(f"{where}: an empty name in keys={options['keys']}")
+    return Expected(number, parts[0], parts[-1], family, kind, fields, options.get("new"))
+
+
+def _is_crash(verdict: Any) -> bool:
+    """Whether a ``new`` value records an exception that is not a field's verdict."""
+    match = re.fullmatch(r"!(\w+)", verdict) if isinstance(verdict, str) else None
+    return match is not None and match.group(1) not in VERDICT_CLASSES
+
+
+def crash_entry_problems(entries: list[Expected], base: dict[str, Any]) -> list[str]:
+    """One line per case of ``base`` that a kind (b) entry matches but that is not a crash.
+
+    A kind (b) entry covers only cases where the base raised something other than a
+    ``FieldError`` or ``AddressError`` (its ``new`` is ``!<OtherClass>``): a refusal, an
+    accept or a record without ``new`` is a verdict the entry must not cover.
+    """
+    problems: list[str] = []
+    for entry in entries:
+        if entry.kind != "b":
+            continue
+        for key, record in base.items():
+            if not entry.matches(key):
+                continue
+            verdict = record.get("new") if isinstance(record, dict) else None
+            if not _is_crash(verdict):
+                problems.append(
+                    f"line {entry.line}: {entry.key} matches {key}, where the base gives "
+                    f"new={verdict!r}, not a crash"
+                )
+    return problems
 
 
 def read_expected(path: str | Path) -> list[Expected]:
@@ -222,21 +318,8 @@ def read_expected(path: str | Path) -> list[Expected]:
     with open(path, encoding="utf-8") as handle:
         for number, raw in enumerate(handle, 1):
             text = raw.strip()
-            if not text or text.startswith("#"):
-                continue
-            head, sep, reason = text.rpartition(" | ")
-            fields: tuple[str, ...] = ()
-            rest, mid, last = head.rpartition(" | ")
-            if mid and last.startswith("keys="):
-                head = rest
-                fields = tuple(f.strip() for f in last[len("keys=") :].split(","))
-                if not all(fields):
-                    raise ValueError(f"{path}:{number}: an empty name in {last!r}")
-            if not sep or not head.strip() or not reason.strip():
-                raise ValueError(
-                    f"{path}:{number}: not '<case key> [| keys=<k>,...] | <reason>': {text!r}"
-                )
-            entries.append(Expected(number, head.strip(), reason.strip(), fields))
+            if text and not text.startswith("#"):
+                entries.append(_entry(path, number, text))
     return entries
 
 
@@ -264,7 +347,8 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
     """Print the differences between two tool outputs in two tiers; return the exit status.
 
     0: no case differs beyond its messages, apart from expected-diff entries; 1: one does,
-    or the tools differ; 2: not comparable, or the expected-diff file cannot be read.
+    or the tools differ; 2: not comparable, the expected-diff file cannot be read, or a
+    kind (b) entry matches a base case that is not a crash.
     """
     try:
         entries = read_expected(expected_path)
@@ -275,6 +359,15 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
     if isinstance(loaded, int):
         return loaded
     a, b = loaded[0]["cases"], loaded[1]["cases"]
+    problems = crash_entry_problems(entries, a)
+    if problems:
+        print(
+            f"{expected_path}: a kind (b) entry covers only crashes, and these base cases are not:",
+            file=sys.stderr,
+        )
+        for problem in problems:
+            print(f"  {problem}", file=sys.stderr)
+        return 2
     failures: dict[str, list[str]] = {}
     expected: dict[Expected, dict[str, list[str]]] = {}
     messages: dict[str, list[str]] = {}
@@ -287,7 +380,9 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
             messages[key] = raw
             continue
         differing = _differing(a.get(key), b.get(key)) if key in a and key in b else None
-        entry = next((e for e in entries if e.matches(key) and e.allows(differing)), None)
+        entry = next(
+            (e for e in entries if e.matches(key) and e.allows(differing, b.get(key))), None
+        )
         if entry is None:
             failures[key] = lines
         else:

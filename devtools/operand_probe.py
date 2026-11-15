@@ -15,6 +15,8 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 ``csv``    ``to_csv()`` of the constructed instance (``ok`` only)
 ``blob``   sha256 of ``build_blob()`` and the ``cell_params()`` (``ok`` only)
 ``write``  the CSV writer's result for a rung holding the instance (``ok`` only)
+``write_warn``
+           warnings the writer raised, each ``<WarningClass>: <message>``
 ``enc``    sha256 (24 hex digits) of ``encode()`` of that rung, then the case's token in
            ``decode()`` of those bytes, ``=`` when it matches ``csv`` (``ok`` only)
 ``text``   ``to_csv()`` of an instance built without its checks, holding the raw value
@@ -23,8 +25,8 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
 ``tag``    the baseline's blob with the varied field's tag set to the case's value, parsed
            back by the blob decoder (only when one tag holds the baseline value)
-``warn``   warnings raised by any path except the writer's (``write`` lists those),
-           each ``<WarningClass>: <message>``
+``warn``   warnings raised by any path except the writer's, each
+           ``<WarningClass>: <message>``
 ``errors`` the message of every exception above, in order, as ``[class, message]``
 
 A path that raises records ``!<ExceptionClass>`` where its result would be; the message
@@ -1177,13 +1179,12 @@ class Runner:
             afs[nop_row] = "NOP"
         return ns.Rung(rows, conditions, afs, None)
 
-    def template(self, rung: Any) -> tuple[list[list[str]], str]:
+    def template(self, rung: Any) -> tuple[list[list[str]], list[str]]:
         """The writer's CSV rows for ``rung``, and any warnings it gave."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             rows = [list(row) for row in self.ns.rung_to_rows(rung)]
-        notes = "; ".join(f"{w.category.__name__}: {w.message}" for w in caught)
-        return rows, notes
+        return rows, [f"{w.category.__name__}: {w.message}" for w in caught]
 
     def main_token(self, conditions: Any, instructions: Any, condition: bool) -> str:
         if condition:
@@ -1260,7 +1261,9 @@ class Runner:
             try:
                 rung = self.rung_for(inst)
                 rows, notes = self.template(rung)
-                record["write"] = f"ok ({notes})" if notes else "ok"
+                record["write"] = "ok"
+                if notes:
+                    record["write_warn"] = notes
                 anchor = inst
                 record["enc"] = self.round_trip(rung, condition, record["csv"])
             except ProbeSkip as exc:

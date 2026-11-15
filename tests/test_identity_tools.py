@@ -173,8 +173,8 @@ def _refused(cls: str, message: str, **more: Any) -> dict[str, Any]:
 
 
 def test_tiers_list_a_message_change_apart(tmp_path: Path) -> None:
-    a = _doc({"k": _refused("FieldError", "old words", warn=["LegacyEncodingWarning: old"])})
-    b = _doc({"k": _refused("FieldError", "new words", warn=["LegacyEncodingWarning: new"])})
+    a = _doc({"k": _refused("FieldError", "old", warn=["W: old"], write_warn=["V: old"])})
+    b = _doc({"k": _refused("FieldError", "new", warn=["W: new"], write_warn=["V: new"])})
     status, out = _tiers(tmp_path, a, b)
     assert status == 0, out
     assert "message wording only: 1 case(s)" in out
@@ -197,9 +197,10 @@ def test_tiers_fail_on_a_verdict_or_class_change(tmp_path: Path, b: dict[str, An
     assert "1 failure(s)" in out
 
 
-def test_tiers_fail_on_a_warning_class_change(tmp_path: Path) -> None:
-    a = _doc({"k": {"new": "ok", "warn": ["LegacyEncodingWarning: m"]}})
-    b = _doc({"k": {"new": "ok", "warn": ["UserWarning: m"]}})
+@pytest.mark.parametrize("key", ["warn", "write_warn"])
+def test_tiers_fail_on_a_warning_class_change(tmp_path: Path, key: str) -> None:
+    a = _doc({"k": {"new": "ok", key: ["LegacyEncodingWarning: m"]}})
+    b = _doc({"k": {"new": "ok", key: ["UserWarning: m"]}})
     assert _tiers(tmp_path, a, b)[0] == 1
 
 
@@ -220,22 +221,27 @@ def test_tiers_fail_on_an_added_case_and_other_fields(tmp_path: Path) -> None:
     assert "2 failure(s)" in out
 
 
+#: Options every entry in these tests carries.
+_ENTRY = "family=bits | kind=a"
+
+
 def test_tiers_take_an_expected_entry(tmp_path: Path) -> None:
     a = _doc({"Copy/s/source='DS[1]'": {"new": "ok"}, "other": {"new": "ok"}})
     b = _doc({"Copy/s/source='DS[1]'": _refused("FieldError", "m"), "other": {"new": "ok"}})
     expected = (
-        "# comment\n\nCopy/*/source='DS[1]' | a pointer index is a DS address\nnone | unused\n"
+        f"# comment\n\nCopy/*/source='DS[1]' | {_ENTRY} | a pointer index is a DS address\n"
+        f"none | {_ENTRY} | unused\n"
     )
     status, out = _tiers(tmp_path, a, b, expected)
     assert status == 0, out
-    assert "Copy/*/source='DS[1]' | a pointer index is a DS address" in out
+    assert f"Copy/*/source='DS[1]' | {_ENTRY} | a pointer index is a DS address" in out
     assert "match no difference: 1" in out
     assert "0 failure(s), 1 expected" in out
 
 
 def test_an_entry_with_keys_allows_those_keys_only(tmp_path: Path) -> None:
     a = _doc({"k": {"new": "ok", "blob": "aaaa"}})
-    entry = "k | keys=new,errors | the verdict changes\n"
+    entry = f"k | {_ENTRY} | keys=new,errors | the verdict changes\n"
     same_bytes = _doc({"k": _refused("FieldError", "m", blob="aaaa")})
     assert _tiers(tmp_path, a, same_bytes, entry)[0] == 0
     new_bytes = _doc({"k": _refused("FieldError", "m", blob="bbbb")})
@@ -247,14 +253,67 @@ def test_an_entry_with_keys_allows_those_keys_only(tmp_path: Path) -> None:
 def test_an_entry_with_keys_does_not_allow_an_added_case(tmp_path: Path) -> None:
     a = _doc({"other": {"new": "ok"}})
     b = _doc({"other": {"new": "ok"}, "k": {"new": "ok"}})
-    assert _tiers(tmp_path, a, b, "k | keys=new | r\n")[0] == 1
-    assert _tiers(tmp_path, a, b, "k | r\n")[0] == 0
+    assert _tiers(tmp_path, a, b, f"k | {_ENTRY} | keys=new | r\n")[0] == 1
+    assert _tiers(tmp_path, a, b, f"k | {_ENTRY} | r\n")[0] == 0
+
+
+@pytest.mark.parametrize(("pin", "status"), [("!FieldError", 0), ("!AddressError", 1), ("ok", 1)])
+def test_an_entry_with_new_allows_that_verdict_only(tmp_path: Path, pin: str, status: int) -> None:
+    a = _doc({"k": {"new": "ok"}})
+    b = _doc({"k": _refused("FieldError", "m")})
+    entry = f"k | {_ENTRY} | new={pin} | the value is refused\n"
+    assert _tiers(tmp_path, a, b, entry)[0] == status
+
+
+def test_an_entry_with_new_does_not_allow_a_removed_case(tmp_path: Path) -> None:
+    a = _doc({"k": {"new": "ok"}, "other": {"new": "ok"}})
+    b = _doc({"other": {"new": "ok"}})
+    assert _tiers(tmp_path, a, b, f"k | {_ENTRY} | new=ok | r\n")[0] == 1
+
+
+def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
+    a = _doc({"Timer/on/setpoint='9'": _refused("ValueError", "too many digits")})
+    b = _doc({"Timer/on/setpoint='9'": {"new": "ok"}})
+    entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | the set point is 9\n"
+    status, out = _tiers(tmp_path, a, b, entry)
+    assert status == 0, out
+    assert "0 failure(s), 1 expected" in out
+
+
+@pytest.mark.parametrize(
+    "base",
+    [
+        _refused("FieldError", "a verdict"),
+        _refused("AddressError", "a verdict"),
+        {"new": "ok"},
+        {"csv": "no constructor verdict"},
+    ],
+)
+def test_tiers_refuse_a_crash_entry_that_covers_a_verdict(
+    tmp_path: Path, base: dict[str, Any]
+) -> None:
+    # The entry matches the crash on "on" and the verdict on "off": the tool refuses it.
+    a = _doc({"Timer/on/setpoint='9'": _refused("ValueError", "m"), "Timer/off/setpoint='9'": base})
+    entry = "Timer/*/setpoint='9' | family=data | kind=b | r\n"
+    status, out = _tiers(tmp_path, a, a, entry)
+    assert status == 2, out
+    assert "a kind (b) entry covers only crashes" in out
+    assert "line 1: Timer/*/setpoint='9' matches Timer/off/setpoint='9'" in out
+    assert "Timer/on/setpoint" not in out.split("crashes", 1)[1]
+
+
+def test_a_kind_a_entry_may_cover_a_verdict(tmp_path: Path) -> None:
+    a = _doc({"k": _refused("FieldError", "m")})
+    b = _doc({"k": {"new": "ok"}})
+    assert _tiers(tmp_path, a, b, "k | family=move | kind=a | CLICK takes it\n")[0] == 0
 
 
 @pytest.mark.parametrize(
     ("pattern", "key", "matches"),
     [
         ("Timer/*/setpoint='1'", "Timer/on/setpoint='1'", True),
+        ("Timer/*='1'", "Timer/on/setpoint='1'", False),  # * stops at /
+        ("Copy/*/source='DS*'", "Copy/c/source='DS1/2'", False),
         (r"Math/*/formula='DS1\*2'", "Math/m/formula='DS1*2'", True),
         (r"Math/*/formula='DS1\*2'", "Math/m/formula='DS1+2'", False),
         (r"Timer/*/setpoint='0'\*5000+'1'", "Timer/on/setpoint='0'*5000+'1'", True),
@@ -264,11 +323,26 @@ def test_an_entry_with_keys_does_not_allow_an_added_case(tmp_path: Path) -> None
     ],
 )
 def test_an_entry_key_matches_whole(pattern: str, key: str, matches: bool) -> None:
-    assert _identity_diff().Expected(1, pattern, "r").matches(key) is matches
+    assert _identity_diff().Expected(1, pattern, "r", "bits", "a").matches(key) is matches
 
 
 @pytest.mark.parametrize(
-    "line", ["no reason here", "key | ", " | reason", "key | keys= | reason", "key | keys=a,,b | r"]
+    "line",
+    [
+        "no reason here",
+        f"key | {_ENTRY} | ",
+        f" | {_ENTRY} | reason",
+        "key | reason",  # no family, no kind
+        "key | kind=a | reason",  # no family
+        "key | family=bits | reason",  # no kind
+        "key | family=math | kind=a | reason",
+        "key | family=bits | kind=c | reason",
+        "key | family=bits | family=data | kind=a | reason",
+        f"key | {_ENTRY} | colour=red | reason",
+        f"key | {_ENTRY} | keys= | reason",
+        f"key | {_ENTRY} | keys=a,,b | r",
+        f"key | {_ENTRY} | new= | r",
+    ],
 )
 def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> None:
     status, out = _tiers(tmp_path, _doc({"k": 1}), _doc({"k": 1}), line + "\n")
@@ -278,10 +352,22 @@ def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> No
 
 def test_the_committed_expected_file_reads() -> None:
     entries = _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")
+    assert entries
     assert all(entry.reason for entry in entries)
+    # A crash entry states the verdict that replaces the crash.
+    assert all(entry.new for entry in entries if entry.kind == "b")
 
 
 def test_the_dry_run_finds_no_difference() -> None:
     result = _run("classify_dryrun.py", SRC)
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr
     assert "0 failure(s)" in result.stdout
+
+
+def test_the_dry_run_refuses_a_crash_entry_that_covers_a_verdict(tmp_path: Path) -> None:
+    # '1' is a set point today: a verdict, not a crash.
+    entries = tmp_path / "expected.txt"
+    entries.write_text("Timer/on/setpoint='1' | family=data | kind=b | r\n", encoding="utf-8")
+    result = _run("classify_dryrun.py", SRC, "--expected", entries)
+    assert result.returncode == 2, result.stdout[-3000:] + result.stderr
+    assert "matches Timer/on/setpoint='1', where the base gives new='ok'" in result.stdout

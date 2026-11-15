@@ -13,13 +13,16 @@ tried two ways:
   refusals of its own).
 
 Every disagreement is printed: case key, today's verdict, the shared verdict.  A case is
-keyed ``<Class>/<baseline>/<field>=<value>`` as ``operand_probe.py`` keys it.  When both
-refuse with different exception classes the case is listed as ``class``: the rule shows
-the order of calls that keeps today's class, and the family that wires the shared check in
-follows it.  A disagreement that an entry of the expected-diff file (``--expected``,
-default ``expected_diff.txt`` beside this script) allows is listed as ``expected``.  The
-script exits 1 on any other disagreement, verdict or class, and changes nothing.
-``<src_dir>`` (default ``src``) is the laddercodec source tree under test.
+keyed ``<Class>/<baseline>/<field>=<value>`` as ``operand_probe.py`` keys it, from the
+probe's baseline of that name.  When both refuse with different exception classes the case
+is listed as ``class``: the rule shows the order of calls that keeps today's class, and the
+family that wires the shared check in follows it.  A disagreement that an entry of the
+expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
+allows is listed as ``expected``: today plays the base, and the shared verdict the branch
+(``ok`` or ``!<ExceptionClass>`` for an entry's ``new=``).  The script exits 1 on any other
+disagreement, verdict or class, 2 when a kind (b) entry matches a case today does not crash
+on, and changes nothing.  ``<src_dir>`` (default ``src``) is the laddercodec source tree
+under test.
 
 Left out: Math, whose formula has its own grammar (``math_formula.parse``).
 """
@@ -339,19 +342,21 @@ def _make(cls: str, **base: Any) -> Callable[[str], Callable[[Any, str], Any]]:
     return field
 
 
-_COMPARE_OTHER = {"numeric": "DS1", "hex": "DH1", "text": "TXT1"}
+#: The probe's Compare baselines, one per compare group; both sides of each are in it.
+_COMPARE_BASELINES = {"ds": "numeric", "dh": "hex", "txt": "text"}
 
 
 def _bits() -> list[Field]:
     out: list[Field] = []
-    for group, other in _COMPARE_OTHER.items():
+    baselines = PROBE.PROBES["CompareContact"].baselines(None)
+    for name, group in _COMPARE_BASELINES.items():
+        base = baselines[name]
         for side, fixed in (("right", "left"), ("left", "right")):
-            base = {"op": "==", fixed: other, side: "DS1"}
             out.append(
                 Field(
                     "bits",
-                    f"CompareContact.{side} ({fixed}={other})",
-                    f"CompareContact/vs-{other}/{side}",
+                    f"CompareContact.{side} ({fixed}={base[fixed]})",
+                    f"CompareContact/{name}/{side}",
                     _make("CompareContact", **base)(side),
                     compare_rule(group),
                 )
@@ -546,8 +551,16 @@ def _skip(field: Field, value: str) -> bool:
     return field.label.startswith("OutVariant") and value == ""
 
 
-def _run(ns: Any, field: Field, entries: list[Any]) -> tuple[list[int], list[str]]:
-    """``([compared, differ, class, expected], lines)`` for one field."""
+def _new(verdict: str, cls: str) -> str:
+    """A verdict as the probe records ``new``: ``ok`` or ``!<ExceptionClass>``."""
+    return "ok" if verdict == ACCEPT else f"!{cls}"
+
+
+def _run(
+    ns: Any, field: Field, entries: list[Any], today_cases: dict[str, Any]
+) -> tuple[list[int], list[str]]:
+    """``([compared, differ, class, expected], lines)`` for one field; each case's key and
+    today's verdict go to ``today_cases``, as the probe would record them."""
     counts = [0, 0, 0, 0]
     lines: list[str] = []
     for value in VALUES:
@@ -556,10 +569,12 @@ def _run(ns: Any, field: Field, entries: list[Any]) -> tuple[list[int], list[str
         counts[0] += 1
         today, today_cls, error = _verdict(lambda v=value: field.build(ns, v))
         shared, shared_cls, why = _verdict(lambda v=value: field.rule(ns, v))
+        key = f"{field.key}={PROBE._key(field.keyed(value))}"
+        today_cases[key] = {"new": _new(today, today_cls)}
         if today == shared and today_cls == shared_cls:
             continue
-        key = f"{field.key}={PROBE._key(field.keyed(value))}"
-        entry = next((e for e in entries if e.matches(key)), None)
+        branch = {"new": _new(shared, shared_cls)}
+        entry = next((e for e in entries if e.matches(key) and e.allows({"new"}, branch)), None)
         if entry is not None:
             counts[3] += 1
             mark = "expected"
@@ -591,11 +606,12 @@ def main(argv: list[str] | None = None) -> int:
     ns = Namespace(args.src_dir)
     fields = _fields()
     totals: dict[str, list[int]] = {}
+    today_cases: dict[str, Any] = {}
     print(f"shared field check dry run: {len(fields)} fields x {len(VALUES)} values")
     print("format: case key | today | shared")
     print("left out: Math (its formula has its own grammar)")
     for field in fields:
-        counts, lines = _run(ns, field, entries)
+        counts, lines = _run(ns, field, entries, today_cases)
         compared, differ, classes, expected = counts
         print()
         print(
@@ -613,6 +629,12 @@ def main(argv: list[str] | None = None) -> int:
     failures = sum(t[1] + t[2] for t in totals.values())
     expected = sum(t[3] for t in totals.values())
     print(f"{failures} failure(s), {expected} expected")
+    problems = IDENTITY.crash_entry_problems(entries, today_cases)
+    if problems:
+        print(f"{args.expected}: a kind (b) entry covers only crashes, and these cases are not:")
+        for problem in problems:
+            print(f"  {problem}")
+        return 2
     return 1 if failures else 0
 
 

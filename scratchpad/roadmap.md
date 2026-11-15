@@ -61,9 +61,11 @@ shared functions.
   exception class, CSV, bytes or decode result, and lists message changes apart.
 - **Expected-diff file** (done). `devtools/expected_diff.txt` takes a case where CLICK shows today's verdict
   is wrong (none so far) or where today's code crashes on the value. It lists the crashes on text of more than
-  4300 digits, which Python's `int()` refuses, in six fields. The dry run compares today's checks with the
-  shared functions in `operands/checks.py`, each called with the field's parameters, and shows 0
-  disagreements in verdict or exception class apart from those entries. Fill into TXT taking one character,
+  4300 digits, which Python's `int()` refuses, in six fields: one entry per case, naming its baseline, its
+  family and the verdict that replaces the crash. The tools refuse a crash entry that covers a verdict. An
+  entry stays until its family's branch has merged. The dry run compares today's checks with the shared
+  functions in `operands/checks.py`, each called with the field's parameters, and shows 0 disagreements in
+  verdict or exception class apart from those entries. Fill into TXT taking one character,
   Compare's float32 edge, Fill's hex above FFFFh and the remote-address hex edge are parameters; Copy's
   termination keyword is fixed in the dry run; Math stays out.
 - **Provenance out of src (done).**
