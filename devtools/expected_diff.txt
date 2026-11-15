@@ -1,0 +1,67 @@
+# Expected differences for identity_diff.py --tiers and classify_dryrun.py.
+#
+# One case per line, its parts separated by " | ":
+#   <case key> | family=<family> | kind=<a or b> [| keys=<k>,...] [| new=<verdict>] | <reason>
+#
+# The key is a case key of operand_probe.py, fixture_snapshot.py or classify_dryrun.py,
+# matched whole: * stands for any run of characters other than /, \* for a star, \\ for a
+# backslash.  family names the family branch the entry belongs to: bits, data, flow, move
+# or comm.  With keys=, the entry allows a first-tier difference in those record keys only.
+# With new=, it allows only that verdict on the branch, ok or !<ExceptionClass>, and the
+# whole branch record must give it: no errors for ok, only that class for !X, and read,
+# dec and tag agreeing.  The reason states the rule the new verdict follows.
+#
+# A case belongs here only when
+#   (a) CLICK shows that the verdict before the change was wrong, or
+#   (b) before the change, the field value made the code raise something other than a
+#       FieldError or AddressError: a crash, not a verdict.  A kind (b) entry needs new=.
+# An entry is judged only on a case it matches whose first tier differs.  There, a kind (b)
+# entry whose base is not a crash is misused, and the tools exit 2.  An entry that allows
+# no case is unused, never an error.
+# A message-only change needs no entry: --tiers lists it apart.
+#
+# An entry stays until its family's branch has merged; after that, the next branch that
+# touches this file removes it.  Never remove another family's entry because it matches no
+# difference yet: that family's change has not landed.
+
+# (b) More than 4300 digits: Python's int() refuses the text with a ValueError.  Leading
+# zeros do not count, so '0'*5000+'1' is the integer 1, and '1'*5000 is out of range.
+CompareContact/ds/left='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/ds/right='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/dd/left='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/dd/right='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/df/left='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/df/right='0'\*5000+'1' | family=bits | kind=b | new=ok | the integer 1, a numeric constant
+CompareContact/dh/left='0'\*5000+'1' | family=bits | kind=b | new=!FieldError | the integer 1 is numeric, not hex
+CompareContact/dh/right='0'\*5000+'1' | family=bits | kind=b | new=!FieldError | the integer 1 is numeric, not hex
+CompareContact/txt/left='0'\*5000+'1' | family=bits | kind=b | new=!FieldError | the integer 1 is numeric, not text
+CompareContact/txt/right='0'\*5000+'1' | family=bits | kind=b | new=!FieldError | the integer 1 is numeric, not text
+OutVariant/debounce/on_preset='0'\*5000+'1' | family=bits | kind=b | new=ok | the preset is 1
+OutVariant/debounce/off_preset='0'\*5000+'1' | family=bits | kind=b | new=ok | the preset is 1
+OutVariant/flasher/on_preset='0'\*5000+'1' | family=bits | kind=b | new=ok | the preset is 1
+OutVariant/flasher/off_preset='0'\*5000+'1' | family=bits | kind=b | new=ok | the preset is 1
+OutVariant/timed/on_preset='0'\*5000+'1' | family=bits | kind=b | new=ok | the preset is 1
+Timer/on/setpoint='0'\*5000+'1' | family=data | kind=b | new=ok | the set point is 1
+Timer/off/setpoint='0'\*5000+'1' | family=data | kind=b | new=ok | the set point is 1
+Timer/on_ret/setpoint='0'\*5000+'1' | family=data | kind=b | new=ok | the set point is 1
+Timer/on/setpoint='1'\*5000 | family=data | kind=b | new=!FieldError | a set point is at most 32767
+Timer/off/setpoint='1'\*5000 | family=data | kind=b | new=!FieldError | a set point is at most 32767
+Timer/on_ret/setpoint='1'\*5000 | family=data | kind=b | new=!FieldError | a set point is at most 32767
+Counter/up/preset='0'\*5000+'1' | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Counter/down/preset='0'\*5000+'1' | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Counter/up_down/preset='0'\*5000+'1' | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Counter/up/preset='1'\*5000 | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Counter/down/preset='1'\*5000 | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Counter/up_down/preset='1'\*5000 | family=data | kind=b | new=!FieldError | a preset is at most 12 characters
+Drum/time/events_or_presets=['0'\*5000+'1', 'DS1303'] | family=data | kind=b | new=ok | the preset is 1
+Drum/time_event/events_or_presets=['0'\*5000+'1', ''] | family=data | kind=b | new=ok | the preset is 1
+Drum/time/events_or_presets=['1'\*5000, 'DS1303'] | family=data | kind=b | new=!FieldError | a preset is at most 32767
+Drum/time_event/events_or_presets=['1'\*5000, ''] | family=data | kind=b | new=!FieldError | a preset is at most 32767
+Drum/time/events_or_presets=['DS1302', '0'\*5000+'1'] | family=data | kind=b | new=ok | the preset is 1
+Drum/time_event/events_or_presets=['DS1301', '0'\*5000+'1'] | family=data | kind=b | new=ok | the preset is 1
+Drum/time/events_or_presets=['DS1302', '1'\*5000] | family=data | kind=b | new=!FieldError | a preset is at most 32767
+Drum/time_event/events_or_presets=['DS1301', '1'\*5000] | family=data | kind=b | new=!FieldError | a preset is at most 32767
+ForLoop/int/limit='0'\*5000+'1' | family=flow | kind=b | new=ok | the count is 1
+ForLoop/tag/limit='0'\*5000+'1' | family=flow | kind=b | new=ok | the count is 1
+ForLoop/int/limit='1'\*5000 | family=flow | kind=b | new=!FieldError | a count is at most 2147483647
+ForLoop/tag/limit='1'\*5000 | family=flow | kind=b | new=!FieldError | a count is at most 2147483647

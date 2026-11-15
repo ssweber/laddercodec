@@ -1,6 +1,6 @@
 """Record how a laddercodec source tree accepts or refuses every instruction field value.
 
-    uv run python -I devtools/operand_probe.py <src_dir> <out.json> [--limit N]
+    uv run python -I devtools/operand_probe.py <src_dir> <out.json> [--limit N] [--classes A,B]
     uv run python -I devtools/operand_probe.py --diff a.json b.json
 
 ``<src_dir>`` is the ``src`` directory of the checkout under test; it goes first on
@@ -11,10 +11,12 @@ of constructor arguments) is varied one field at a time over a fixed value list,
 range field pair is varied together.  Every case records, under ``<Class>/<baseline>/<field>=
 <value>``:
 
-``new``    ``ok`` or ``!<ExceptionClass>: <message>`` from the constructor
+``new``    ``ok`` or ``!<ExceptionClass>`` from the constructor
 ``csv``    ``to_csv()`` of the constructed instance (``ok`` only)
 ``blob``   sha256 of ``build_blob()`` and the ``cell_params()`` (``ok`` only)
 ``write``  the CSV writer's result for a rung holding the instance (``ok`` only)
+``write_warn``
+           warnings the writer raised, each ``<WarningClass>: <message>``
 ``enc``    sha256 (24 hex digits) of ``encode()`` of that rung, then the case's token in
            ``decode()`` of those bytes, ``=`` when it matches ``csv`` (``ok`` only)
 ``text``   ``to_csv()`` of an instance built without its checks, holding the raw value
@@ -23,16 +25,25 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
 ``tag``    the baseline's blob with the varied field's tag set to the case's value, parsed
            back by the blob decoder (only when one tag holds the baseline value)
-``warn``   warnings raised by any path except the writer's (``write`` lists those)
+``warn``   warnings raised by any path except the writer's, each
+           ``<WarningClass>: <message>``
+``errors`` the message of every exception above, in order, as ``[class, message]``
 
-``read`` and ``dec`` are ``=`` when they match ``text``.  The value lists are fixed here,
-so two source trees get the same cases.  Values that are objects of the tree under test
+A path that raises records ``!<ExceptionClass>`` where its result would be; the message
+goes to ``errors`` only, so no value of the case holds an exception message.
+
+``read`` and ``dec`` are ``=`` when they match ``text``.  ``<value>`` in a key is the
+value's repr, with text over 1000 characters written as an expression of its runs
+(``'0'*5000+'1'``).  The value lists are fixed here, so two source trees get the same
+cases.  Values that are objects of the tree under test
 (``InstructionType`` members, Modbus targets and addresses) are built from literal
-arguments; one the tree refuses to build records only ``new: !value: <error>``.  A
+arguments; one the tree refuses to build records only ``new: !value: <Class>!<error>``.  A
 baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run;
 the probe then exits 3 after writing its output, and ``--diff`` refuses the file.  A
 registered instruction class with no baseline, or a field with no value kind, stops the
-run, and so does a case key that appears twice.
+run, and so does a case key that appears twice.  ``--limit`` keeps the first N cases of each
+class, and ``--classes`` probes only the classes named; both are part of ``meta.scope``, so
+outputs of different scope do not compare.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -106,6 +117,9 @@ def _text(n: int) -> str:
     return '"' + "A" * n + '"'
 
 
+#: Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+LONG_DIGITS: list[str] = ["0" * 5000 + "1", "1" * 5000]
+
 OPERANDS: list[str] = _dedupe(
     _bank_edges()
     + [f"{b}{n:03d}" for b in XY for n in (16, 17, 20, 21, 36, 37, 100, 101, 116, 117, 816)]
@@ -124,6 +138,7 @@ OPERANDS: list[str] = _dedupe(
     + ["1.5", "1E5", ".5", "-1.5e-3", "1.", "3.4028235E+38", "3.5E+38", "nan", "inf"]
     + [" DS1", "DS1 ", "DS 1", " 5", "5 ", "1 0", " ", "DS1, DS2"]
     + ["Q1", "DSX1", "DS1..DS5", "DS-1", "DS1.5", "Tms", "none", "abc"]
+    + LONG_DIGITS
 )
 
 #: Values for the opaque tag fields of the motion and email boxes (no checks to probe).
@@ -1012,16 +1027,52 @@ class ProbeSkip(Exception):
     """A case the probe does not run through one of its paths."""
 
 
+#: ``[class, message]`` of every exception the current case recorded, in order.
+ERRORS: list[list[str]] = []
+
+
 def error_text(exc: BaseException) -> str:
-    return f"!{type(exc).__name__}: {exc}"
+    """``!<ExceptionClass>``; the message goes to :data:`ERRORS`."""
+    ERRORS.append([type(exc).__name__, str(exc)])
+    return f"!{type(exc).__name__}"
 
 
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:24]
 
 
+#: Text longer than this is keyed by :func:`_runs`.
+_KEY_MAX = 1000
+
+
+def _runs(text: str) -> str:
+    """``text`` as a Python expression of repeated runs: ``'0'*5000+'1'``."""
+    parts: list[str] = []
+    start = 0
+    while start < len(text):
+        end = start
+        while end < len(text) and text[end] == text[start]:
+            end += 1
+        count = end - start
+        parts.append(repr(text[start]) + (f"*{count}" if count > 1 else ""))
+        start = end
+    return "+".join(parts)
+
+
 def _key(value: Any) -> str:
-    return value.key if isinstance(value, Frozen) else repr(value)
+    """The case key of a value: its repr, with text over 1000 characters (alone or in a
+    list or tuple) written as its runs."""
+    if isinstance(value, Frozen):
+        return value.key
+    if isinstance(value, str) and len(value) > _KEY_MAX:
+        return _runs(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_key(item) for item in value) + "]"
+    if isinstance(value, tuple):
+        return (
+            "(" + ", ".join(_key(item) for item in value) + ("," if len(value) == 1 else "") + ")"
+        )
+    return repr(value)
 
 
 def _values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
@@ -1067,7 +1118,9 @@ def _raw_values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
     if kind == "oplist":
         current = list(base.get(field, []))
         lists = [[op, *current[1:]] for op in OPERANDS]
-        return [*lists, [], [*current, *current[-1:]], ["C1"] * 16, ["C1"] * 17]
+        # The long digits at index 1 too: each item of a list is converted on its own.
+        second = [[*current[:1], op, *current[2:]] for op in LONG_DIGITS if len(current) > 1]
+        return [*lists, *second, [], [*current, *current[-1:]], ["C1"] * 16, ["C1"] * 17]
     raise SystemExit(f"no value kind {kind!r} for field {field!r}")
 
 
@@ -1132,13 +1185,12 @@ class Runner:
             afs[nop_row] = "NOP"
         return ns.Rung(rows, conditions, afs, None)
 
-    def template(self, rung: Any) -> tuple[list[list[str]], str]:
+    def template(self, rung: Any) -> tuple[list[list[str]], list[str]]:
         """The writer's CSV rows for ``rung``, and any warnings it gave."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             rows = [list(row) for row in self.ns.rung_to_rows(rung)]
-        notes = "; ".join(f"{w.category.__name__}: {w.message}" for w in caught)
-        return rows, notes
+        return rows, [f"{w.category.__name__}: {w.message}" for w in caught]
 
     def main_token(self, conditions: Any, instructions: Any, condition: bool) -> str:
         if condition:
@@ -1215,7 +1267,9 @@ class Runner:
             try:
                 rung = self.rung_for(inst)
                 rows, notes = self.template(rung)
-                record["write"] = f"ok ({notes})" if notes else "ok"
+                record["write"] = "ok"
+                if notes:
+                    record["write_warn"] = notes
                 anchor = inst
                 record["enc"] = self.round_trip(rung, condition, record["csv"])
             except ProbeSkip as exc:
@@ -1334,13 +1388,18 @@ def _resolve(ns: Any, base: dict[str, Any], overrides: dict[str, Any]) -> dict[s
     return kwargs
 
 
-def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
+def probe(src_dir: str, limit: int | None = None, only: list[str] | None = None) -> dict[str, Any]:
     ns = Namespace(src_dir)
     runner = Runner(ns)
     classes = ns.registered_classes()
     missing = [cls.__name__ for cls in classes if cls.__name__ not in PROBES]
     if missing:
         raise SystemExit(f"no probe baseline for registered class(es): {', '.join(missing)}")
+    if only is not None:
+        unknown = sorted(set(only) - {cls.__name__ for cls in classes})
+        if unknown:
+            raise SystemExit(f"--classes names no registered class: {', '.join(unknown)}")
+        classes = [cls for cls in classes if cls.__name__ in only]
     cases: dict[str, Any] = {}
     per_class: dict[str, dict[str, Any]] = {}
     refused: list[str] = []
@@ -1364,6 +1423,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
                 if key in cases:
                     raise SystemExit(f"probe case key {key!r} appears twice")
                 record: dict[str, Any]
+                ERRORS.clear()
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always")
                     try:
@@ -1374,6 +1434,8 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
                         record = runner.run(cls, key_base, base, kwargs)
                 if caught:
                     record["warn"] = [f"{w.category.__name__}: {w.message}" for w in caught]
+                if ERRORS:
+                    record["errors"] = [list(error) for error in ERRORS]
                 if case == "-" and record["new"] != "ok":
                     refused.append(key_base)
                     print(f"{key_base}: baseline refused: {record['new']}", file=sys.stderr)
@@ -1386,7 +1448,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
         "cases": len(cases),
         "per_class": per_class,
         "refused_baselines": refused,
-        "scope": {"limit": limit},
+        "scope": {"limit": limit, "classes": sorted(only) if only is not None else None},
     }
     return {"tool": "operand_probe", "meta": meta, "cases": cases}
 
@@ -1408,13 +1470,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("out", nargs="?", help="JSON output path")
     parser.add_argument("--diff", nargs=2, metavar=("A", "B"), help="compare two outputs")
     parser.add_argument("--limit", type=int, help="at most N cases per class")
+    parser.add_argument(
+        "--classes", help="probe only these registered classes (comma-separated names)"
+    )
     args = parser.parse_args(argv)
     if args.diff:
         return load_diff_module().diff_files(*args.diff)
     if not args.src_dir or not args.out:
         parser.error("src_dir and out are required unless --diff is given")
     start = time.perf_counter()
-    doc = probe(args.src_dir, args.limit)
+    only = [name.strip() for name in args.classes.split(",")] if args.classes else None
+    doc = probe(args.src_dir, args.limit, only)
     with open(args.out, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(doc, handle, ensure_ascii=False, sort_keys=True, indent=1)
         handle.write("\n")

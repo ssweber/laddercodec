@@ -19,6 +19,7 @@ from ..model import (
     check_flag,
     normalize_address,
 )
+from ..operands.checks import check_quoted_text
 from ..operands.constants import check_char_code
 from .family import ConditionInstructionFamilySpec
 
@@ -104,30 +105,9 @@ _NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]
 _HEX_MAX = 0xFFFF
 _INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
 
-#: A quoted text constant is 1 to 128 printable ASCII characters (at most 130 characters
-#: with the quotes).  On hardware the literal is compared against
-#: consecutive TXT registers from the named one.
-_TEXT_MAX = 128
-_TEXT_CHARS = range(0x20, 0x7F)
-
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
 #: (typing TXT1 into Data A leaves only = and != to choose).
 _TEXT_OPS = ("==", "!=")
-
-
-def check_quoted_text(value: str, name: str) -> None:
-    """Refuse a quoted text constant CLICK's dialog refuses; Compare and Search share it."""
-    # The text is stored as written, quotes included (text_compare.bin).
-    inner = value[1:-1]
-    if not 1 <= len(inner) <= _TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
-        raise FieldError(
-            f"{name}: {value!r} is refused; a text constant is 1 to {_TEXT_MAX} "
-            "printable ASCII characters in quotes (use $hh for a character by code)"
-        )
-    # A quote inside the text would end it in the CSV token (split_comparison), so the
-    # token could read back as a different compare; $22 spells the quote.
-    if '"' in inner:
-        raise FieldError(f"{name}: {value!r} holds a quote; write the quote character as $22")
 
 
 def _operand_group(value: str, name: str) -> str:

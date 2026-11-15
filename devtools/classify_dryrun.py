@@ -1,25 +1,38 @@
-"""Compare today's constant checks with operands.constants.classify(), field by field.
+"""Compare today's per-field checks with the shared field checks, field by field.
 
-    uv run python -I devtools/classify_dryrun.py [<src_dir>]
+    uv run python -I devtools/classify_dryrun.py [<src_dir>] [--expected FILE]
 
-For every field that takes a constant, each value of a fixed list is tried two ways:
+For every field that takes a constant (and the coil target), each value of a fixed list is
+tried two ways:
 
 - today: the instruction is built from a known-good baseline with the field set to the
   value; the verdict is ``accept`` or ``refuse`` with the exception.
-- classifier: :func:`classify` (or :func:`parse_digits`) reads the value, and the field's
-  documented kinds and limits (the dialog answers, each named at its rule)
-  decide.  A valid address is outside this check and is skipped; a rule that waits on a
-  CLICK question (see ``scratchpad/roadmap.md``) gives ``open``.
+- shared: the field's call to :mod:`laddercodec.operands.checks` (``check_operand``,
+  ``check_constant``, ``check_out_target``) with that field's parameters, plus what the
+  family keeps for itself (a Compare group, a Copy destination, a Search table, a few
+  refusals of its own).
 
-Every disagreement is printed: field, value, today's verdict, the classifier's verdict.
-``DIFFERS?`` marks one whose classifier verdict rests on a DLL reading with no dialog
-check; it is counted apart from the others.  The script changes nothing; a disagreement
-is a finding for the step that wires the classifier into that field.  ``<src_dir>``
-(default ``src``) is the laddercodec source tree under test.
+Every disagreement is printed: case key, today's verdict, the shared verdict.  A case is
+keyed ``<Class>/<baseline>/<field>=<value>`` as ``operand_probe.py`` keys it, from the
+probe's baseline of that name.  When both refuse with different exception classes the case
+is listed as ``class``: the rule shows the order of calls that keeps today's class, and the
+family that wires the shared check in follows it.  A disagreement that an entry of the
+expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
+allows is listed as ``expected``.  Each entry is judged as ``identity_diff.py --tiers``
+judges it (``Expected.judge``), on a disagreeing case only, with today's verdict as the
+base's ``new`` and the shared verdict as the branch's (``ok`` or ``!<ExceptionClass>``);
+a ``new=`` pin binds that verdict alone, since these records hold nothing else.  The script
+exits 1 on any other disagreement, verdict or class, 2 when an entry is misused on a
+disagreeing case (a kind (b) entry where today does not crash), and changes nothing.
+``<src_dir>`` (default ``src``) is the laddercodec source tree under test.
+
+Left out: Math, whose formula has its own grammar (``math_formula.parse``).
 """
 
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import re
 import sys
 from collections.abc import Callable
@@ -27,13 +40,29 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+DEVTOOLS = Path(__file__).resolve().parent
+
+
+def _load(name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(name, DEVTOOLS / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module  # dataclasses look their module up there
+    spec.loader.exec_module(module)
+    return module
+
+
+#: Case keys and the expected-diff file, as operand_probe.py and identity_diff.py read them.
+PROBE: Any = _load("operand_probe")
+IDENTITY: Any = _load("identity_diff")
+
 
 def _text(n: int) -> str:
     return '"' + "A" * n + '"'
 
 
-#: The values tried: the constant values of operand_probe.OPERANDS, then edges of each kind.
-#: A few addresses stay in to show they are skipped.
+#: The values tried: the constant values of operand_probe.OPERANDS, then edges of each kind,
+#: then addresses.
 VALUES: list[str] = [
     *["", "0", "-0", "007", "+1", "1", "-1", "10", "100", "9999"],
     *["32767", "32768", "-32768", "-32769", "65535", "65536"],
@@ -48,24 +77,33 @@ VALUES: list[str] = [
     *["Q1", "DSX1", "DS1..DS5", "DS-1", "DS1.5", "Tms", "none", "abc"],
     # Edges beyond the probe's list.
     *["+2147483647", "1-2", "--5", "000000000005", "0000000000005", "-0.0", "1e5"],
-    *["0x10", "1_000", "1,5", "１", "-1h", "1Gh", "FFFEh", "FFFDh", "0FFFEh", "0000Fh"],
+    *["0x10", "1_000", "1,5", "１", "-1h", "1Gh", "1HH", "FFFEh", "FFFDh", "0FFFEh", "0000Fh"],
     *["FFFFFh", "0FFFFFFFFh", "$00", "$FF", "$ff", "$0d", "$0D", "$D", "$22", "$4142"],
-    *['"a"b"', '"é"', '" "', '"~"'],
-    *["DS1", "ds1", "DH1", "TXT1", "DS[DS1]"],
+    *['"a"b"', '"é"', '" "', '"~"', "1E999", "-1E999", "000000001h", "+1.5", "DH"],
+    # Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+    *["0" * 5000 + "1", "1" * 5000],
+    # Addresses.
+    *["DS1", "ds1", "DH1", "TXT1", "DS[DS1]", "DD[DS1]", "TXT[DS1]", "DS[DD1]", "DS0"],
+    *["DD1", "DF1", "TD1", "CTD1", "SD1", "XD0", "XD0u", "YD1", "X001", "x1", "Y001"],
+    *["C1", "T1", "CT1", "SC1", "SC50", "SC326"],
 ]
 
 #: Verdicts.
-ACCEPT, REFUSE, ADDRESS, OPEN = "accept", "refuse", "address", "open"
+ACCEPT, REFUSE = "accept", "refuse"
 
 
 @dataclass
 class Field:
-    """One constant-taking field, probed from one baseline."""
+    """One field, probed from one baseline."""
 
     family: str
     label: str
+    #: ``<Class>/<baseline>/<field>``, the case key without its value.
+    key: str
     build: Callable[[Any, str], Any]  # (namespace, value) -> instance
-    rule: Callable[[Any, str], tuple[str, str]]  # (namespace, value) -> (verdict, why)
+    rule: Callable[[Any, str], Any]  # (namespace, value) -> raises if refused
+    #: The field's value in the case key, as the probe varies it.
+    keyed: Callable[[str], Any] = lambda value: value
 
 
 class Namespace:
@@ -73,290 +111,222 @@ class Namespace:
 
     def __init__(self, src_dir: str) -> None:
         src = Path(src_dir).resolve()
-        if not (src / "laddercodec" / "operands" / "constants.py").is_file():
-            raise SystemExit(f"{src} has no laddercodec/operands/constants.py")
+        if not (src / "laddercodec" / "operands" / "checks.py").is_file():
+            raise SystemExit(f"{src} has no laddercodec/operands/checks.py")
         sys.path.insert(0, str(src))
         import laddercodec
         from laddercodec import instructions
-        from laddercodec.model import check_address, normalize_address
-        from laddercodec.operands import constants
+        from laddercodec.instructions.comparison import _GROUP_BANKS
+        from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
+        from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
+        from laddercodec.operands import checks
+        from laddercodec.operands.constants import SEARCH_TABLE_BANKS, Kind
 
         loaded = Path(laddercodec.__file__).resolve().parent.parent
         if loaded != src:
             raise SystemExit(f"laddercodec loaded from {loaded}, not {src}")
         self.inst: Any = instructions
-        self.c: Any = constants
-        self.check_address: Any = check_address
-        self.normalize_address: Any = normalize_address
+        self.checks: Any = checks
+        self.Kind: Any = Kind
+        self.FieldError: Any = FieldError
+        self.AddressError: Any = AddressError
+        self.InstructionType: Any = InstructionType
+        self.normalize: Any = normalize_address
+        self.search_tables: Any = SEARCH_TABLE_BANKS
+        # Shared banks come from checks; the family-only ones from their family.
+        self.compare_groups: Any = _GROUP_BANKS
+        self.compare_banks: Any = frozenset().union(*_GROUP_BANKS.values())
+        self.for_limit_banks: Any = FOR_LIMIT_BANKS
 
-    def is_address(self, value: str) -> bool:
-        """True for an address or pointer in any CLICK bank: not this check's business."""
-        text = self.normalize_address(value)
-        if "[" in text and text.endswith("]"):
-            bank, _, inner = text[:-1].partition("[")
-            text = f"{bank}1" if self._valid(inner) else ""
-        return self._valid(text)
+    def constants(self, kinds: Any = None, **limits: Any) -> Any:
+        """``Constants`` of ``kinds`` (default: every kind) with ``limits``."""
+        k = self.checks.ALL_KINDS if kinds is None else frozenset(kinds)
+        return self.checks.Constants(k, **limits)
 
-    def _valid(self, text: str) -> bool:
-        try:
-            self.check_address(text, "dryrun")
-        except ValueError:
-            return False
-        return True
+    def refuse(self, message: str, *, address: bool = False) -> None:
+        """A refusal the family keeps for itself (a pairing), in the family's class."""
+        raise (self.AddressError if address else self.FieldError)(message)
 
 
 # ---------------------------------------------------------------------------
-# Field rules: the documented kinds and limits, applied to classify()'s result
+# Field rules: the shared calls with each field's parameters
 # ---------------------------------------------------------------------------
 
 
-def _show(value: Any) -> str:
-    """A value as ASCII, long text shortened."""
-    if isinstance(value, str) and len(value) > 24:
-        return f"{ascii(value[:8])}...({len(value)} chars)"
-    return ascii(value)
+def compare_rule(other_group: str) -> Callable[[Any, str], None]:
+    """Compare operand opposite one of ``other_group``.
 
+    Every kind; hex is 16-bit; a real is any spelling (a value beyond float32, such as
+    ``3.5E+38``, is accepted until CLICK's edge is checked).  The family keeps the group
+    pairing: a numeric operand takes an integer or a real, a hex one a hex constant, a text
+    one quoted text or ``$hh``.
+    """
 
-def _describe(const: Any) -> str:
-    if const is None:
-        return "no constant"
-    wide = " wide" if const.wide else ""
-    return f"{const.kind}{wide} {_show(const.value)}"
-
-
-def _by_kind(ns: Any, value: str, take: Callable[[Any], str | None]) -> tuple[str, str]:
-    """Verdict from classify(): ``take(constant)`` returns a verdict, or None to refuse."""
-    const = ns.c.classify(value)
-    if const is None:
-        if ns.is_address(value):
-            return ADDRESS, "address"
-        return REFUSE, "no constant"
-    verdict = take(const)
-    return (verdict or REFUSE), _describe(const)
-
-
-def _digits_rule(low: int, high: int, strip: bool = False) -> Callable[[Any, str], tuple[str, str]]:
-    """A digits-only field: parse_digits() from ``low`` to ``high``."""
-
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        text = value.strip() if strip else value
-        n = ns.c.parse_digits(text)
-        if n is None:
-            if ns.is_address(text):
-                return ADDRESS, "address"
-            return REFUSE, "not digits"
-        return (ACCEPT if low <= n <= high else REFUSE), f"digits {n}"
+    def rule(ns: Any, value: str) -> None:
+        constants = ns.constants(hex_high=0xFFFF, float32=False)
+        text = ns.normalize(value)
+        op = ns.checks.check_operand(text, "CompareContact.x", ns.compare_banks, constants)
+        if op.constant is not None:
+            kind = op.constant.kind
+            group = {"integer": "numeric", "float": "numeric", "hex": "hex"}.get(kind, "text")
+        else:
+            group = next(g for g, banks in ns.compare_groups.items() if op.bank in banks)
+        if group != other_group:
+            ns.refuse("not in one compare group")
 
     return rule
 
 
-def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Compare, against an operand of ``group``.
+def _wide_hex(text: str) -> bool:
+    """Whether hex-shaped ``text`` is above FFFFh."""
+    return int(text.upper().rstrip("H").lstrip("+-") or "0", 16) > 0xFFFF
 
-    Numeric pairs take an int32 integer or a float, hex a 16-bit hex constant (32-bit hex
-    is OBJ-005 on either side), text quoted text or ``$hh``.  Text is printable ASCII (the field
-    limit :func:`printable`).
+
+def copy_rule(dest: str) -> Callable[[Any, str], None]:
+    """Single Copy source into ``dest``.
+
+    Every kind at the shared check's limits; a signed hex text reads as a (refused) hex
+    constant.  The family keeps the pairing, in its own class (AddressError): text and
+    ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
+    number constant goes to every register, TXT included.  The pairing comes before a
+    constant's limits (``constant_shape``), except that a ``$hh`` code is read first.
     """
-    kinds = {"numeric": {"integer", "float"}, "hex": {"hex"}, "text": {"text", "char"}}[group]
 
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        def take(c: Any) -> str | None:
-            if c.kind == "hex" and c.wide:
-                return None
-            if c.kind == "text" and not ns.c.printable(c.value):
-                return None
-            return ACCEPT if c.kind in kinds else None
-
-        return _by_kind(ns, value, take)
+    def rule(ns: Any, value: str) -> None:
+        text = ns.normalize(value)
+        constants = ns.constants(hex_sign=True)
+        shape = ns.checks.constant_shape(text, constants)
+        if shape == ns.Kind.CHAR:
+            ns.checks.check_constant(text, "Copy.source", constants)
+        if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
+            ns.refuse("text copies to TXT", address=True)
+        if shape == ns.Kind.HEX and _wide_hex(text) and dest not in ("DD", "CTD"):
+            ns.refuse("hex above FFFFh copies to DD, CTD", address=True)
+        op = ns.checks.check_operand(
+            text,
+            "Copy.source",
+            ns.checks.BIT_BANKS | ns.checks.REGISTER_BANKS,
+            constants,
+            pointer=True,
+        )
+        if op.constant is None and op.bank in ns.checks.BIT_BANKS:
+            ns.refuse("a bit copies to Y, C", address=True)
 
     return rule
 
 
-def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Single Copy source into ``dest`` (the move field rules).
+def termination_rule(ns: Any, value: str) -> None:
+    """Copy termination code: the keyword ``0`` or ``none`` (no code), or ``$hh``."""
+    if value in ("0", "none"):
+        return
+    ns.checks.check_constant(value, "Copy.termination_code", ns.constants({ns.Kind.CHAR}))
 
-    A number constant is an int32 integer, a float or hex; hex above FFFFh goes to DD or
-    CTD only.  A text constant goes to TXT only.  A number into TXT, and text that is not
-    printable ASCII, have no known rule: open.
+
+def fill_rule(dest: str) -> Callable[[Any, str], None]:
+    """Fill value into a ``dest`` range.
+
+    Every kind at the shared check's limits, hex above FFFFh included; a Fill into TXT
+    takes one character of text.  The family keeps the pairing, in its own class
+    (AddressError): text goes to TXT only, a numeric register to the numeric banks, a TXT
+    to TXT.  A number constant goes to every register, TXT included.  The pairing comes
+    before a constant's limits (``constant_shape``), except that a ``$hh`` code is read
+    first.
     """
 
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        def take(c: Any) -> str | None:
-            if c.kind in ("text", "char"):
-                if dest != "TXT":
-                    return None
-                return ACCEPT if c.kind == "char" or ns.c.printable(c.value) else OPEN
-            if dest == "TXT":
-                return OPEN
-            if c.kind == "hex" and c.wide:
-                return ACCEPT if dest in ("DD", "CTD") else None
-            return ACCEPT
-
-        return _by_kind(ns, value, take)
+    def rule(ns: Any, value: str) -> None:
+        text = ns.normalize(value)
+        text_max = 1 if dest == "TXT" else 128
+        constants = ns.constants(hex_sign=True, text_max=text_max)
+        shape = ns.checks.constant_shape(text, constants)
+        if shape == ns.Kind.CHAR:
+            ns.checks.check_constant(text, "Fill.value", constants)
+        if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
+            ns.refuse("text fills TXT", address=True)
+        op = ns.checks.check_operand(text, "Fill.value", ns.checks.REGISTER_BANKS, constants)
+        if op.constant is None and (op.bank == "TXT") != (dest == "TXT"):
+            ns.refuse("a TXT fills TXT, a numeric register the numeric banks", address=True)
 
     return rule
 
 
-def fill_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Fill value into ``dest``: Copy's constant kinds (Copy serves both dialogs).
+def search_rule(table: str) -> Callable[[Any, str], None]:
+    """Search value against a ``table`` range (``==``).
 
-    No reading covers a 32-bit hex constant, a number constant into a TXT fill, or text
-    that is not printable ASCII: open.
+    Every kind; hex is 16-bit.  The family keeps the pairing of a constant's kind with the
+    table banks: an integer or a real searches DS, DD, DF, TD and CTD, hex DH, text or
+    ``$hh`` TXT.
     """
 
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        def take(c: Any) -> str | None:
-            if c.kind in ("text", "char"):
-                if dest != "TXT":
-                    return None
-                return ACCEPT if c.kind == "char" or ns.c.printable(c.value) else OPEN
-            if dest == "TXT" or (c.kind == "hex" and c.wide):
-                return OPEN
-            return ACCEPT
-
-        return _by_kind(ns, value, take)
+    def rule(ns: Any, value: str) -> None:
+        constants = ns.constants(hex_high=0xFFFF, hex_sign=True)
+        text = ns.normalize(value)
+        op = ns.checks.check_operand(text, "Search.source", ns.checks.REGISTER_BANKS, constants)
+        if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
+            ns.refuse("the value's kind does not search this table")
 
     return rule
 
 
-#: The tag on a verdict that rests on a DLL reading with no dialog check.
-UNCONFIRMED = "unconfirmed: "
+def digits_rule(
+    name: str,
+    banks: frozenset[str],
+    low: int,
+    high: int,
+    *,
+    letter_first: bool,
+) -> Callable[[Any, str], None]:
+    """A digits-only constant from ``low`` to ``high``, or a register of ``banks``."""
 
-
-def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Search value against a ``table`` range (the Search value rules).
-
-    32-bit hex is OBJ-005.  Text is printable ASCII (:func:`printable`).
-    The search value's class picks the range banks:
-    an int32 integer or a float searches DS, DD, DF, TD, CTD; 16-bit hex searches DH; text
-    or ``$hh`` searches TXT (confirmed in the dialog).
-    """
-    table_kinds = {"DS": {"integer", "float"}, "DH": {"hex"}, "TXT": {"text", "char"}}[table]
-
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        const = ns.c.classify(value)
-        verdict, why = _by_kind(ns, value, lambda c: ACCEPT)
-        if verdict != ACCEPT:
-            return verdict, why
-        if const.kind == "hex" and const.wide:
-            return REFUSE, why
-        if const.kind == "text" and not ns.c.printable(const.value):
-            return REFUSE, why
-        if const.kind not in table_kinds:
-            return REFUSE, why
-        return ACCEPT, why
+    def rule(ns: Any, value: str) -> None:
+        text = ns.normalize(value)
+        constants = ns.constants({ns.Kind.INTEGER}, signs="", low=low, high=high)
+        ns.checks.check_operand(text, name, banks, constants, letter_first=letter_first)
 
     return rule
 
 
-def _math_length(value: str, body: str) -> tuple[str, str]:
-    # the low 32 bits, printed signed, must match the typed token's length.
-    low = int(value[: len(value) - len(body)] + (body.lstrip("0") or "0")) & 0xFFFFFFFF
-    printed = str(low - (1 << 32) if low >> 31 else low)
-    if len(printed) != len(value):
-        return REFUSE, f"no constant; Math's length test reads {printed}"
-    return OPEN, f"no constant; Math's length test passes it as {printed}"
+def for_limit_rule(ns: Any, value: str) -> None:
+    """For count: outer spaces stripped; digits only, 0 to 2147483647; or a register of
+    DS, DD, TD, CTD or SD.  The family keeps two refusals of its own: a blank count, and
+    digits with a space inside."""
+    text = value.strip()
+    if not text:
+        ns.refuse("a For count is not blank")
+    if re.fullmatch(r"[0-9]+(\s+[0-9]+)+", text):
+        ns.refuse("a constant count is digits only")
+    constants = ns.constants({ns.Kind.INTEGER}, signs="", low=0, high=2**31 - 1)
+    ns.checks.check_operand(ns.normalize(text), "ForLoop.limit", ns.for_limit_banks, constants)
 
 
-#: A Math value that is not one constant token is formula syntax, outside the codec.
-SYNTAX = "formula syntax"
-_HEX_TOKEN = re.compile(r"[0-9A-F]+H")
+def counter_rule(ns: Any, value: str) -> None:
+    """Counter preset: an int32 integer, a leading ``-`` only, at most 12 characters; or a
+    DS or DD register.  Text that starts with a letter is an address."""
+    constants = ns.constants({ns.Kind.INTEGER}, signs="-", max_length=12)
+    ns.checks.check_operand(
+        ns.normalize(value), "Counter.preset", {"DS", "DD"}, constants, letter_first=True
+    )
 
 
-def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
-    """A constant in a Math formula (decimal and hex mode).
+def modbus_hex_rule(ns: Any, value: str) -> None:
+    """Remote address: a MODBUS 984 number (digits), or hex from 0h to FFFEh.
 
-    Only a value that is one constant token, with at most one leading ``-``, is judged;
-    anything else (``1-2``, ``+1``, ``Q1``, ``1,5``) is formula syntax and open.  Decimal: an
-    integer whose int32 value prints back as typed (``007``, ``-0`` refused), or a float;
-    hex in a decimal Math is refused.  Hex: unsigned hex of at most four digits and
-    FFFFh; a decimal number in a hex Math is refused, and a sign on hex is open.  No
-    reading covers text or ``$hh`` in a formula: open.  Math reads its constants with its
-    own check, not the shared one: it refuses an integer whose low 32 bits, printed
-    signed, differ in length from the typed token.  Digits that :func:`classify` can't
-    read and that pass that test (``6000000000``) are open; those it fails (``3000000000``)
-    are refused.
+    The family keeps the digits branch: it takes any string of ASCII digits, beyond int32
+    too, and calls no shared check.
     """
+    if value.endswith(("h", "H")):
+        constants = ns.constants({ns.Kind.HEX}, hex_high=0xFFFE)
+        ns.checks.check_constant(value, "ModbusAddress.address", constants)
+    elif not (value.isascii() and value.isdigit()):
+        ns.refuse("not a MODBUS 984 number or hex")
 
-    def rule(ns: Any, value: str) -> tuple[str, str]:
-        if ns.is_address(value):
-            return ADDRESS, "address"
-        body = value[1:] if value.startswith("-") else value
-        if body[:1] in ("+", "-"):
-            return OPEN, SYNTAX
-        if _HEX_TOKEN.fullmatch(body.upper()):
-            const = ns.c.classify(body)
-            if mode == "decimal" or body != value:
-                return OPEN, f"{'signed ' if body != value else ''}{_describe(const)}"
-            if const is None:
-                return REFUSE, "hex of more than eight digits"
-            return (ACCEPT if len(body) - 1 <= 4 and not const.wide else REFUSE), _describe(const)
-        if ns.c.parse_digits(body) is not None:
-            const = ns.c.classify(value)
-            if mode == "hex":
-                return OPEN, f"decimal {_describe(const)}"
-            if const is None:
-                return _math_length(value, body)
-            return (ACCEPT if str(const.value) == value else REFUSE), _describe(const)
-        const = ns.c.classify(value)
-        if const is None:
-            return OPEN, SYNTAX
-        why = _describe(const)
-        if const.kind in ("text", "char") or mode == "hex":
-            return OPEN, why
-        return ACCEPT, why
+
+def out_target_rule(immediate: bool) -> Callable[[Any, str], None]:
+    """Coil target: Y, C or a writable SC bit; immediate takes Y only."""
+
+    def rule(ns: Any, value: str) -> None:
+        ns.checks.check_out_target(ns.normalize(value), "Coil.operand", immediate=immediate)
 
     return rule
-
-
-def counter_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Counter preset.
-
-    An int32 integer: digits with an optional leading ``-`` (no ``+``), under 13 characters.
-    """
-
-    def take(c: Any) -> str | None:
-        ok = c.kind == "integer" and not value.startswith("+") and len(value) <= 12
-        return ACCEPT if ok else None
-
-    return _by_kind(ns, value, take)
-
-
-def termination_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Copy termination code: ``0`` (none) or a character code ``$hh`` (the move field rules)."""
-    if value == "0":
-        return ACCEPT, "none"
-    return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
-
-
-_HEX_SPAN = frozenset("0123456789ABCDEFH")
-
-
-def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Remote hex start: 0h to FFFEh.
-
-    The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
-    last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes
-    the span with no digit before the last ``H`` or another ``H`` among them (``H``,
-    ``1HH``) is open: which value the dialog reads from it is not known.  An uppercase
-    ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text.
-    A MODBUS 984 number is no constant and is skipped.
-    """
-    if ns.c.parse_digits(value) is not None:
-        return ADDRESS, "984 number"
-    upper = value.upper()
-    digits = upper[:-1]
-    if not upper.endswith("H") or not _HEX_SPAN.issuperset(upper):
-        if ns.is_address(value):
-            return ADDRESS, "address"
-        return REFUSE, "not hex"
-    if not digits or "H" in digits:
-        return OPEN, "passes the span; the value read is not known"
-    number = int(digits.lstrip("0") or "0", 16)
-    why = f"hex {number:#x}"
-    if number > 0xFFFE:
-        return REFUSE, why
-    return (OPEN if value.endswith("H") else ACCEPT), why
 
 
 # ---------------------------------------------------------------------------
@@ -374,28 +344,25 @@ def _make(cls: str, **base: Any) -> Callable[[str], Callable[[Any, str], Any]]:
     return field
 
 
-_COMPARE_OTHER = {"numeric": "DS1", "hex": "DH1", "text": "TXT1"}
+#: The probe's Compare baselines, one per compare group; both sides of each are in it.
+_COMPARE_BASELINES = {"ds": "numeric", "dh": "hex", "txt": "text"}
 
 
-def _fields() -> list[Field]:
+def _bits() -> list[Field]:
     out: list[Field] = []
-    for group, other in _COMPARE_OTHER.items():
-        out.append(
-            Field(
-                "bits",
-                f"CompareContact.right (left={other})",
-                _make("CompareContact", op="==", left=other, right="DS1")("right"),
-                compare_rule(group),
+    baselines = PROBE.PROBES["CompareContact"].baselines(None)
+    for name, group in _COMPARE_BASELINES.items():
+        base = baselines[name]
+        for side, fixed in (("right", "left"), ("left", "right")):
+            out.append(
+                Field(
+                    "bits",
+                    f"CompareContact.{side} ({fixed}={base[fixed]})",
+                    f"CompareContact/{name}/{side}",
+                    _make("CompareContact", **base)(side),
+                    compare_rule(group),
+                )
             )
-        )
-        out.append(
-            Field(
-                "bits",
-                f"CompareContact.left (right={other})",
-                _make("CompareContact", op="==", left="DS1", right=other)("left"),
-                compare_rule(group),
-            )
-        )
     out_variants = {
         "debounce": dict(on_acc="TD3", on_preset="100", off_acc="TD4", off_preset="200"),
         "flasher": dict(on_acc="TD12", on_preset="500", off_acc="TD13", off_preset="250"),
@@ -406,21 +373,39 @@ def _fields() -> list[Field]:
         floor = 0 if kind == "debounce" else 1
         make = _make("OutVariant", kind=kind, operand="C1", unit="Tms", **base)
         for phase in ("on", "off") if kind != "timed" else ("on",):
+            name = f"OutVariant.{phase}_preset"
             out.append(
                 Field(
                     "bits",
-                    f"OutVariant.{phase}_preset ({kind})",
+                    f"{name} ({kind})",
+                    f"OutVariant/{kind}/{phase}_preset",
                     make(f"{phase}_preset"),
-                    _digits_rule(floor, 32767),
+                    digits_rule(name, frozenset({"DS"}), floor, 32767, letter_first=True),
                 )
             )
+    for immediate in (False, True):
+
+        def coil(ns: Any, value: str, immediate: bool = immediate) -> Any:
+            return ns.inst.Coil(
+                type=ns.InstructionType.COIL_OUT, operand=value, immediate=immediate
+            )
+
+        label = "Coil.operand (immediate)" if immediate else "Coil.operand"
+        key = "Coil/out-immediate/operand" if immediate else "Coil/out/operand"
+        out.append(Field("bits", label, key, coil, out_target_rule(immediate)))
+    return out
+
+
+def _move() -> list[Field]:
+    out: list[Field] = []
     copy_dests = {"DS": "DS9", "DD": "DD1", "DF": "DF1", "DH": "DH1", "TXT": "TXT2"}
     for bank, dest in copy_dests.items():
         out.append(
             Field(
                 "move",
                 f"Copy.source (destination={dest})",
-                _make("Copy", source="1", destination=dest)("source"),
+                f"Copy/to-{dest}/source",
+                _make("Copy", destination=dest)("source"),
                 copy_rule(bank),
             )
         )
@@ -428,13 +413,13 @@ def _fields() -> list[Field]:
         Field(
             "move",
             "Copy.termination_code (DS20 -> TXT7, to_text)",
+            "Copy/to-text/termination_code",
             _make(
                 "Copy",
                 source="DS20",
                 destination="TXT7",
                 format="text",
                 suppress_zero="1",
-                termination_code="$13",
             )("termination_code"),
             termination_rule,
         )
@@ -444,49 +429,44 @@ def _fields() -> list[Field]:
             Field(
                 "move",
                 f"Fill.value ({start}..{end})",
-                _make("Fill", value="0", dest_start=start, dest_end=end)("value"),
+                f"Fill/{start}..{end}/value",
+                _make("Fill", dest_start=start, dest_end=end)("value"),
                 fill_rule(bank),
             )
         )
     tables = {"DS": ("DS72", "DS81"), "DH": ("DH72", "DH81"), "TXT": ("TXT1", "TXT10")}
     for bank, (start, end) in tables.items():
+        search = _make(
+            "Search", table_start=start, table_end=end, result="DS82", found="C81", comparison="=="
+        )
         out.append(
             Field(
                 "move",
                 f"Search.source ({start}..{end} ==)",
-                _make(
-                    "Search",
-                    table_start=start,
-                    table_end=end,
-                    source="DS71",
-                    result="DS82",
-                    found="C81",
-                    comparison="==",
-                )("source"),
+                f"Search/{start}..{end}/source",
+                search("source"),
                 search_rule(bank),
             )
         )
-    for mode, (left, result) in {"decimal": ("DS1", "DS2"), "hex": ("DH1", "DH3")}.items():
+    return out
 
-        def build(ns: Any, value: str, left: str = left, result: str = result, mode: str = mode):
-            return ns.inst.Math(expression=f"{left} + ( {value} )", result=result, mode=mode)
 
-        out.append(Field("move", f"Math ({mode}): '{left} + ( <value> )'", build, math_rule(mode)))
-    out.append(
+def _data_flow_comm() -> list[Field]:
+    out = [
         Field(
             "data",
             "Timer.setpoint (on_delay)",
+            "Timer/on/setpoint",
             _make("Timer", timer_type="on_delay", done_bit="T1", current="TD1", unit="Tms")(
                 "setpoint"
             ),
-            # digits only, 0 to 32767 for every unit.
-            _digits_rule(0, 32767),
-        )
-    )
-    out.append(
+            # Digits only, 0 to 32767 for every unit; any other text is an address.
+            digits_rule("Timer.setpoint", frozenset({"DS"}), 0, 32767, letter_first=False),
+        ),
         Field(
             "data",
             "Counter.preset (count_up)",
+            "Counter/up/preset",
             _make(
                 "Counter",
                 counter_type="count_up",
@@ -495,8 +475,8 @@ def _fields() -> list[Field]:
                 reset_enabled=True,
             )("preset"),
             counter_rule,
-        )
-    )
+        ),
+    ]
 
     def drum(ns: Any, value: str) -> Any:
         return ns.inst.Drum(
@@ -510,21 +490,32 @@ def _fields() -> list[Field]:
             unit="Tms",
         )
 
-    # digits only, 0 to 32767 for every unit; an empty step is OBJ-022.
-    out.append(Field("data", "Drum.presets[0] (time)", drum, _digits_rule(0, 32767)))
+    # Digits only, 0 to 32767 for every unit; text that starts with a letter is an address.
+    # The family keeps its own test of a register preset (letters, then digits) for the
+    # blob's constant mask.
     out.append(
         Field(
-            "flow",
-            "ForLoop.limit",
-            _make("ForLoop")("limit"),
-            # digits only, 0 to 2147483647; outer spaces stripped, an inner one refused.
-            _digits_rule(0, 2**31 - 1, strip=True),
+            "data",
+            "Drum.presets[0] (time)",
+            "Drum/time/events_or_presets",
+            drum,
+            digits_rule("Drum.presets[0]", frozenset({"DS"}), 0, 32767, letter_first=True),
+            lambda value: [value, "DS1303"],
         )
     )
     out.append(
         Field(
+            "flow", "ForLoop.limit", "ForLoop/int/limit", _make("ForLoop")("limit"), for_limit_rule
+        )
+    )
+    # Not here: the Modbus target's device_id, a number or a DS address.  The family keeps
+    # its check, which refuses a bad DS address with a FieldError rather than the shared
+    # AddressError, and today crashes on DS and more than 4300 digits (int()).
+    out.append(
+        Field(
             "comm",
             "ModbusAddress.address (holding)",
+            "ModbusAddress/holding/address",
             _make("ModbusAddress", register_type="holding")("address"),
             modbus_hex_rule,
         )
@@ -532,83 +523,125 @@ def _fields() -> list[Field]:
     return out
 
 
+def _fields() -> list[Field]:
+    return [*_bits(), *_move(), *_data_flow_comm()]
+
+
 # ---------------------------------------------------------------------------
 # Running
 # ---------------------------------------------------------------------------
 
 
-def _today(ns: Any, field: Field, value: str) -> tuple[str, str]:
+def _show(value: Any) -> str:
+    """A value as ASCII, long text shortened."""
+    if isinstance(value, str) and len(value) > 24:
+        return f"{ascii(value[:8])}...({len(value)} chars)"
+    return ascii(value)
+
+
+def _verdict(call: Callable[[], Any]) -> tuple[str, str, str]:
+    """``(verdict, exception class, message)`` of ``call``."""
     try:
-        field.build(ns, value)
+        call()
     except Exception as exc:  # any refusal counts
-        return REFUSE, f"{type(exc).__name__}: {exc}"
-    return ACCEPT, ""
+        return REFUSE, type(exc).__name__, str(exc)
+    return ACCEPT, "", ""
 
 
 def _skip(field: Field, value: str) -> bool:
-    # A space or an empty text changes a Math formula's tokens, not one constant; an empty
-    # Out variant preset is the phase rule, not a constant.
-    if field.label.startswith("Math"):
-        return not value.strip() or any(ch.isspace() for ch in value)
+    # An empty Out variant preset is the phase rule, not a constant.
     return field.label.startswith("OutVariant") and value == ""
+
+
+def _new(verdict: str, cls: str) -> str:
+    """A verdict as the probe records ``new``: ``ok`` or ``!<ExceptionClass>``."""
+    return "ok" if verdict == ACCEPT else f"!{cls}"
+
+
+def _run(
+    ns: Any, field: Field, entries: list[Any], problems: list[str]
+) -> tuple[list[int], list[str]]:
+    """``([compared, differ, class, expected], lines)`` for one field; an entry misused on
+    one of its cases goes to ``problems``."""
+    counts = [0, 0, 0, 0]
+    lines: list[str] = []
+    for value in VALUES:
+        if _skip(field, value):
+            continue
+        counts[0] += 1
+        today, today_cls, error = _verdict(lambda v=value: field.build(ns, v))
+        shared, shared_cls, why = _verdict(lambda v=value: field.rule(ns, v))
+        if today == shared and today_cls == shared_cls:
+            continue
+        key = f"{field.key}={PROBE._key(field.keyed(value))}"
+        base, branch = {"new": _new(today, today_cls)}, {"new": _new(shared, shared_cls)}
+        entry = None
+        for candidate in entries:
+            if not candidate.matches(key):
+                continue
+            judgement = candidate.judge(base, branch, verdict_only=True)
+            if judgement.problem:
+                problems.append(f"{key}: {judgement.problem}")
+            elif judgement.allowed and entry is None:
+                entry = candidate
+        if entry is not None:
+            counts[3] += 1
+            mark = "expected"
+        elif today != shared:
+            counts[1] += 1
+            mark = "DIFFERS "
+        else:
+            counts[2] += 1
+            mark = "class   "
+        shown = f"{today} ({today_cls}: {_short(error)})" if error else today
+        rule = f"{shared} ({shared_cls}: {_short(why)})" if why else shared
+        lines.append(f"  {mark} {key} | today {shown} | shared {rule}")
+    return counts, lines
+
+
+def _short(text: str) -> str:
+    return text if len(text) <= 120 else text[:117] + "..."
 
 
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[missing-union-attribute]
-    args = sys.argv[1:] if argv is None else argv
-    ns = Namespace(args[0] if args else "src")
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("src_dir", nargs="?", default="src", help="src directory under test")
+    parser.add_argument(
+        "--expected", type=Path, default=IDENTITY.EXPECTED, help="expected-diff file"
+    )
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    entries = IDENTITY.read_expected(args.expected)
+    ns = Namespace(args.src_dir)
     fields = _fields()
     totals: dict[str, list[int]] = {}
-    lines: list[str] = []
-    print(f"classify() dry run: {len(fields)} fields x {len(VALUES)} values")
-    print("format: field | value | today | classifier (what classify() read)")
-    print("DIFFERS? marks a classifier verdict that rests on a DLL reading with no dialog check")
+    problems: list[str] = []
+    print(f"shared field check dry run: {len(fields)} fields x {len(VALUES)} values")
+    print("format: case key | today | shared")
+    print("left out: Math (its formula has its own grammar)")
     for field in fields:
-        disagree = unconfirmed = opened = addresses = skipped = 0
-        lines.clear()
-        for value in VALUES:
-            if _skip(field, value):
-                skipped += 1
-                continue
-            verdict, why = field.rule(ns, value)
-            if verdict == ADDRESS:
-                addresses += 1
-                continue
-            today, error = _today(ns, field, value)
-            if verdict == OPEN:
-                opened += 1
-                lines.append(f"  open     {_show(value)} | today {today} | classifier: {why}")
-                continue
-            if verdict != today:
-                tag = "DIFFERS "
-                if why.startswith(UNCONFIRMED):
-                    unconfirmed += 1
-                    tag = "DIFFERS?"
-                    why = why.removeprefix(UNCONFIRMED)
-                else:
-                    disagree += 1
-                shown = f"{today} ({error})" if error else today
-                lines.append(
-                    f"  {tag} {_show(value)} | today {shown} | classifier {verdict} ({why})"
-                )
-        compared = len(VALUES) - skipped - addresses - opened
+        counts, lines = _run(ns, field, entries, problems)
+        compared, differ, classes, expected = counts
         print()
         print(
-            f"[{field.family}] {field.label}: {compared} compared, {disagree} differ, "
-            f"{unconfirmed} differ unconfirmed, {opened} open, {addresses} addresses skipped, "
-            f"{skipped} skipped"
+            f"[{field.family}] {field.label}: {compared} compared, {differ} differ, "
+            f"{classes} class, {expected} expected"
         )
         print("\n".join(lines) if lines else "  (no differences)")
         family = totals.setdefault(field.family, [0, 0, 0, 0])
-        family[0] += compared
-        family[1] += disagree
-        family[2] += unconfirmed
-        family[3] += opened
+        for index, count in enumerate(counts):
+            family[index] += count
     print()
-    print("Totals by family (compared / differ / differ unconfirmed / open):")
-    for family, (compared, disagree, unconfirmed, opened) in totals.items():
-        print(f"  {family}: {compared} / {disagree} / {unconfirmed} / {opened}")
-    return 0
+    print("Totals by family (compared / differ / class / expected):")
+    for family, (compared, differ, classes, expected) in totals.items():
+        print(f"  {family}: {compared} / {differ} / {classes} / {expected}")
+    failures = sum(t[1] + t[2] for t in totals.values())
+    expected = sum(t[3] for t in totals.values())
+    print(f"{failures} failure(s), {expected} expected")
+    if problems:
+        IDENTITY.print_problems(problems, args.expected)
+        return 2
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
