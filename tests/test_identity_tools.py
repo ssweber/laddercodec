@@ -522,10 +522,12 @@ def test_a_family_branch_uses_its_entries(compare_wired_src: Path, tmp_path: Pat
     assert "0 failure(s), 10 expected, 0 message-only" in tiers.stdout
     assert "CompareContact/ds/left='0'\\*5000+'1' | family=bits | kind=b | new=ok" in tiers.stdout
 
-    # The dry run of the branch finds Compare agreeing; the bits entries are unused there.
+    # The dry run of the branch finds Compare agreeing.  The count of expected entries it
+    # uses depends on which families the tree has wired, so it is not asserted.
     dry = _run("classify_dryrun.py", compare_wired_src)
     assert dry.returncode == 0, dry.stdout[-3000:] + dry.stderr
-    assert "0 failure(s), 13 expected" in dry.stdout
+    assert "0 failure(s)" in dry.stdout
+    assert "CompareContact" not in dry.stderr
 
 
 def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(compare_misread_src: Path) -> None:

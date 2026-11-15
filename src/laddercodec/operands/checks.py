@@ -196,6 +196,13 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
         ):
             const = Constant(Kind.FLOAT, float(value))
         if const is None:
+            if Kind.INTEGER in constants.kinds and _INTEGER_SHAPE.fullmatch(value.upper()):
+                # An integer beyond int32: the field's own limits word the refusal.
+                low = constants.low if "-" in constants.signs else max(constants.low, 0)
+                raise FieldError(
+                    f"{name}: {value!r} is outside {low} to {constants.high} (OBJ-005)",
+                    field=name,
+                )
             raise FieldError(f"{name}: {value!r} is refused; {_unread(value)}", field=name)
     if const.kind not in constants.kinds:
         raise FieldError(
