@@ -19,7 +19,7 @@ import struct
 from dataclasses import dataclass
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
-from .decode import AF_DOWN_WIRE, Rung, _decode_rtf, _drop_tall_span_nops, _fits_stored_span
+from .decode import AF_DOWN_WIRE, Rung, _drop_tall_span_nops, _fits_stored_span
 from .instructions import (
     RawInstruction,
     _with_pin_rows,
@@ -32,7 +32,16 @@ from .instructions.undecoded import Stop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
-from .undecoded import BAD_BYTES, Undecoded, marker_rung, reason, to_the_end, warn_undecoded
+from .undecoded import (
+    BAD_BYTES,
+    Undecoded,
+    marker_rung,
+    read_comment,
+    reason,
+    to_the_end,
+    warn_comments,
+    warn_undecoded,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -835,25 +844,26 @@ def decode_program(data: bytes) -> Program:
     while framing_error is None and records and _is_trailing_placeholder(records[-1]):
         records.pop()
 
-    rungs = [_record_rung(record, index, stop) for index, record in enumerate(records)]
+    failed: list[tuple[int, str]] = []
+    rungs = [_record_rung(record, index, stop, failed) for index, record in enumerate(records)]
     if framing_error is not None:
         index = len(rungs)
         rungs.append(marker_rung(Undecoded(to_the_end(framing_error, index), index, stop=stop)))
 
     warn_legacy(rungs, program=header.name)
+    warn_comments(failed, program=header.name)
     warn_undecoded(rungs, program=header.name)
     return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)
 
 
-def _record_rung(record: _ScrRungRecord, index: int, stop: Stop) -> Rung:
-    """Rung *index* of the program from its record, or an undecoded marker rung."""
-    comment: str | None = None
-    if record.comment_rtf is not None:
-        try:
-            comment = _decode_rtf(record.comment_rtf)
-        except BAD_BYTES as exc:
-            error = f"the rung comment: {reason(exc)}"
-            return marker_rung(Undecoded(error, index, stop=stop))
+def _record_rung(
+    record: _ScrRungRecord, index: int, stop: Stop, failed: list[tuple[int, str]]
+) -> Rung:
+    """Rung *index* of the program from its record, or an undecoded marker rung.
+
+    A comment that does not decode is noted in the comment and added to *failed*.
+    """
+    comment = read_comment(record.comment_rtf, index, failed)
 
     def marker(error: str, row: int | None = None, column: int | None = None) -> Rung:
         return marker_rung(Undecoded(error, index, row, column, stop), comment)

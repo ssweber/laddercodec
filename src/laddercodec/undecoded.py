@@ -1,7 +1,10 @@
 """Marker rungs: what the decoders and ``write_csv`` put in place of a rung they can't read.
 
 The unit is the rung, because its rows share wires.  A rung that fails becomes one marker
-rung (:func:`marker_rung`), and the decoder warns with :class:`UndecodedRungWarning`.
+rung (:func:`marker_rung`), and the decoder warns with :class:`UndecodedRungWarning`.  A
+comment that fails, on a rung whose logic decodes, is not a marker: the rung keeps its
+logic, its comment becomes :func:`comment_note`, and the decoder warns with
+:class:`UndecodedCommentWarning`.
 """
 
 from __future__ import annotations
@@ -42,6 +45,36 @@ class UndecodedRungWarning(UserWarning):
         )
 
 
+class UndecodedCommentWarning(UserWarning):
+    """A rung's comment could not be decoded; the rung keeps its logic.
+
+    The rung's comment is ``UNDECODED comment: <error>``, and its ``comment_rtf`` keeps the
+    comment's bytes.  The rung is not a marker, so ``Program.undecoded`` does not list it.
+
+    Attributes
+    ----------
+    rung:
+        Index of the rung, from 0.
+    error:
+        Why the comment could not be decoded, on one line.
+    program:
+        Program name for :func:`laddercodec.decode_program`, else ``None``.
+    """
+
+    def __reduce__(self):
+        return (type(self), (self.rung, self.error, self.program))
+
+    def __init__(self, rung: int, error: str, program: str | None = None) -> None:
+        self.rung = rung
+        self.error = error
+        self.program = program
+        prefix = f"program {program!r}, " if program is not None else ""
+        super().__init__(
+            f"{prefix}the comment of rung {rung} is not decoded, and the rung keeps its "
+            f"logic: {error}"
+        )
+
+
 #: What a decoder catches as bytes it can't read: a malformed value, or a read past the end.
 BAD_BYTES: tuple[type[Exception], ...] = (ValueError, IndexError, KeyError, struct.error)
 
@@ -59,6 +92,34 @@ def reason(exc: BaseException) -> str:
 def to_the_end(error: str, rung: int) -> str:
     """*error* for a marker that stands for rung *rung* and every rung after it."""
     return f"{error}; decoding stopped, so this marker stands for rung {rung} to the end"
+
+
+def comment_note(error: str) -> str:
+    """The comment a rung gets in place of one that could not be decoded."""
+    return f"UNDECODED comment: {error}"
+
+
+def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
+    """Rung *rung*'s comment from *rtf*, or :func:`comment_note` when it can't be decoded.
+
+    A failure is added to *failed* as ``(rung, error)`` for :func:`warn_comments`.
+    """
+    if rtf is None:
+        return None
+    from .decode import _decode_rtf  # decode imports this module
+
+    try:
+        return _decode_rtf(rtf)
+    except BAD_BYTES as exc:
+        error = reason(exc)
+        failed.append((rung, error))
+        return comment_note(error)
+
+
+def warn_comments(failed: Iterable[tuple[int, str]], *, program: str | None = None) -> None:
+    """Emit one :class:`UndecodedCommentWarning` per ``(rung, error)`` in *failed*."""
+    for rung, error in failed:
+        warnings.warn(UndecodedCommentWarning(rung, error, program), stacklevel=3)
 
 
 def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:
@@ -93,11 +154,15 @@ __all__ = [
     "BAD_BYTES",
     "Stop",
     "Undecoded",
+    "UndecodedCommentWarning",
     "UndecodedRungWarning",
+    "comment_note",
     "marker_rung",
     "markers",
     "one_line",
+    "read_comment",
     "reason",
     "to_the_end",
+    "warn_comments",
     "warn_undecoded",
 ]

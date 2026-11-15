@@ -56,6 +56,7 @@ EXPECTED_ROOT_EXPORTS = (
     "AddressError",
     "LegacyEncodingWarning",
     "UndecodedRungWarning",
+    "UndecodedCommentWarning",
     "BlockCopy",
     "Call",
     "Contact",

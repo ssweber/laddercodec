@@ -21,6 +21,7 @@ from laddercodec import (
     Program,
     Rung,
     Undecoded,
+    UndecodedCommentWarning,
     UndecodedRungWarning,
     check,
     decode,
@@ -204,18 +205,46 @@ def test_the_walk_never_resumes_at_a_row_start_inside_a_blob(plant: str) -> None
         assert rungs[2] == DECODED[2]
 
 
-@pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
-def test_a_comment_that_does_not_decode(index: int) -> None:
-    """A comment in a code page other than 1252 makes a marker; the rung's own is lost."""
+def _with_code_page(data: bytes, index: int, page: bytes = b"ansicpg1251") -> bytes:
+    """*data* with the code page of its comment number *index* (from 0) changed to *page*."""
     at = -1
     for _ in range(index + 1):
-        at = DATA.index(b"ansicpg1252", at + 1)
-    rungs, markers = _decode(_patched((at, b"ansicpg1251")))
-    marker = _only_marker(rungs, index)
-    assert markers == [marker]
-    assert (marker.row, marker.column) == (None, None)
-    assert marker.error.startswith("the rung comment: ")
-    assert rungs[index].comment == marker.headline
+        at = data.index(b"ansicpg1252", at + 1)
+    return data[:at] + page + data[at + len(page) :]
+
+
+@pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
+def test_a_comment_that_does_not_decode_keeps_the_rung(index: int) -> None:
+    """A comment in a code page other than 1252 is noted, and the rung keeps its logic."""
+    with pytest.warns(UndecodedCommentWarning) as caught:
+        rungs = decode(_with_code_page(DATA, index))
+    assert isinstance(rungs, list)
+    (warning,) = [w.message for w in caught]
+    assert isinstance(warning, UndecodedCommentWarning)
+    assert (warning.rung, warning.program) == (index, None)
+    assert str(warning).startswith(f"the comment of rung {index} is not decoded")
+    note = f"UNDECODED comment: {warning.error}"
+    for i, rung in enumerate(rungs):
+        want = DECODED[i]
+        if i == index:
+            want = replace(want, comment=note, comment_rtf=rung.comment_rtf)
+            assert rung.comment_rtf is not None and b"ansicpg1251" in rung.comment_rtf
+        assert rung == want
+
+
+def test_a_comment_that_does_not_decode_on_a_marker_rung() -> None:
+    """A rung whose cells and comment both fail is a marker whose comment holds the note."""
+    data = _with_code_page(_patched((_cell(1, 0, 31) + 0x21, b"\x01")), 1)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        rungs = decode(data)
+    assert isinstance(rungs, list)
+    kinds = [type(w.message) for w in caught]
+    assert kinds == [UndecodedCommentWarning, UndecodedRungWarning]
+    (marker,) = rungs[1].instructions
+    assert isinstance(marker, Undecoded)
+    error = caught[0].message.error  # type: ignore[union-attr]
+    assert rungs[1].comment == f"{marker.headline}\nUNDECODED comment: {error}"
 
 
 @pytest.mark.parametrize("cut", [False, True], ids=["zeroed", "cut"])
@@ -258,16 +287,26 @@ def test_envelope_errors_still_raise() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_scr_comment_that_does_not_decode_makes_a_return_marker() -> None:
+def test_scr_comment_that_does_not_decode_keeps_the_rung() -> None:
+    """The rung keeps its logic and is not listed in Program.undecoded."""
     data = _synthetic_scr(["first", "second", "third"])
-    at = data.index(b"ansicpg1252", data.index(b"ansicpg1252") + 1)
-    data = data[:at] + b"ansicpg1251" + data[at + len(b"ansicpg1251") :]
-    with pytest.warns(UndecodedRungWarning, match="^program 'Synth', rung 1 is not decoded"):
-        program = decode_program(data)
-    assert [r.comment for r in program.rungs[::2]] == ["first", "third"]
-    (marker,) = program.undecoded
-    assert (marker.rung, marker.row, marker.column, marker.stop) == (1, None, None, "return")
-    assert marker.error.startswith("the rung comment: ")
+    want = decode_program(data)
+    with pytest.warns(
+        UndecodedCommentWarning, match="^program 'Synth', the comment of rung 1 is not decoded"
+    ) as caught:
+        program = decode_program(_with_code_page(data, 1))
+    (warning,) = [w.message for w in caught]
+    assert isinstance(warning, UndecodedCommentWarning)
+    assert (warning.rung, warning.program) == (1, "Synth")
+    assert program.undecoded == []
+    assert [r.comment for r in program.rungs] == [
+        "first",
+        f"UNDECODED comment: {warning.error}",
+        "third",
+    ]
+    assert [(r.conditions, r.instructions) for r in program.rungs] == [
+        (r.conditions, r.instructions) for r in want.rungs
+    ]
 
 
 SCR_MAIN = FIXTURES / "scr_captures" / "coverage.scr"
@@ -397,10 +436,14 @@ def test_marker_text() -> None:
     assert Undecoded("why", 4).headline == "UNDECODED: rung 4: why"
 
 
-def test_warning_pickles() -> None:
+def test_warnings_pickle() -> None:
     warning = UndecodedRungWarning(Undecoded("why", 1, 0), "Sub")
     back = pickle.loads(pickle.dumps(warning))
     assert (back.marker, back.program, str(back)) == (warning.marker, "Sub", str(warning))
+    comment = UndecodedCommentWarning(2, "why", "Sub")
+    back_comment = pickle.loads(pickle.dumps(comment))
+    assert (back_comment.rung, back_comment.error, back_comment.program) == (2, "why", "Sub")
+    assert str(back_comment) == str(comment)
 
 
 @pytest.mark.parametrize(

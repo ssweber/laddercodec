@@ -41,6 +41,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "AddressError",
             "LegacyEncodingWarning",
             "UndecodedRungWarning",
+            "UndecodedCommentWarning",
         ),
     ),
     ReferencePage(

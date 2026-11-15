@@ -40,7 +40,7 @@ from .instructions import (
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
 from .model import AddressError, FieldError, Program, Project
-from .undecoded import UndecodedRungWarning
+from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
 __all__ = [
     "encode",
@@ -59,6 +59,7 @@ __all__ = [
     "AddressError",
     "LegacyEncodingWarning",
     "UndecodedRungWarning",
+    "UndecodedCommentWarning",
     "BlockCopy",
     "Call",
     "Contact",

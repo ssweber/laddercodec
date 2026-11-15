@@ -66,7 +66,16 @@ from .topology import (
     PROGRAM_HEADER_BASE,
     RUNG0_PREAMBLE_BASE,
 )
-from .undecoded import BAD_BYTES, Undecoded, marker_rung, reason, to_the_end, warn_undecoded
+from .undecoded import (
+    BAD_BYTES,
+    Undecoded,
+    marker_rung,
+    read_comment,
+    reason,
+    to_the_end,
+    warn_comments,
+    warn_undecoded,
+)
 
 # ---------------------------------------------------------------------------
 # Public types
@@ -880,13 +889,16 @@ def decode(data: bytes) -> Rung | list[Rung]:
     rung0_rtf, payload_len = _read_rung0_comment(data)
     grid_start = GRID_FIRST_ROW_START + payload_len
     row_infos, is_multi = _walk_grid(data, grid_start, total_grid_rows)
+    failed: list[tuple[int, str]] = []
     if is_multi:
-        rungs = _decode_multi(data, row_infos, rung0_rtf)
+        rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
         warn_legacy(rungs)
+        warn_comments(failed)
         warn_undecoded(rungs)
         return rungs
-    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_comments(failed)
     warn_undecoded([rung])
     return rung
 
@@ -923,8 +935,10 @@ def decode_rung(data: bytes) -> Rung:
     if is_multi:
         raise DecodeError("Buffer contains multiple rungs; use decode_rungs()")
 
-    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf)
+    failed: list[tuple[int, str]] = []
+    rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_comments(failed)
     warn_undecoded([rung])
     return rung
 
@@ -961,8 +975,10 @@ def decode_rungs(data: bytes) -> list[Rung]:
     if not is_multi:
         raise DecodeError("Buffer contains a single rung; use decode_rung()")
 
-    rungs = _decode_multi(data, row_infos, rung0_rtf)
+    failed: list[tuple[int, str]] = []
+    rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
     warn_legacy(rungs)
+    warn_comments(failed)
     warn_undecoded(rungs)
     return rungs
 
@@ -972,6 +988,7 @@ def _decode_single(
     row_infos: list[_RowInfo],
     total_grid_rows: int,
     rung0_rtf: bytes | None,
+    failed: list[tuple[int, str]],
 ) -> Rung:
     """Decode a single-rung buffer from pre-walked grid info."""
     # Single-rung: total_grid_rows = logical_rows + 1 (format quirk).
@@ -981,13 +998,14 @@ def _decode_single(
     if len(data_rows) < logical_rows and all(ri[0] == _DATA for ri in data_rows):
         error = f"expected {logical_rows} data rows, found {len(data_rows)}"
         data_rows.append((_LOST, -1, error))
-    return _build_rung(data, data_rows, rung0_rtf, 0)
+    return _build_rung(data, data_rows, rung0_rtf, 0, failed)
 
 
 def _decode_multi(
     data: bytes,
     row_infos: list[_RowInfo],
     rung0_rtf: bytes | None,
+    failed: list[tuple[int, str]],
 ) -> list[Rung]:
     """Decode a multi-rung buffer from pre-walked grid info."""
     # Group DATA rows into rungs, split by PREAMBLE boundaries.
@@ -1001,7 +1019,7 @@ def _decode_multi(
         tag, _, extra = info
         if tag == _PREAMBLE:
             # Flush the current rung.
-            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
+            rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
             current_data = []
             current_rtf = extra if isinstance(extra, bytes) else None
         else:
@@ -1009,7 +1027,7 @@ def _decode_multi(
 
     # Flush the last rung (data rows after the final preamble).
     if current_data:
-        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs)))
+        rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
 
     return rungs
 
@@ -1043,19 +1061,21 @@ def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
                 instructions[j] = ""
 
 
-def _build_rung(data: bytes, rows: list[_RowInfo], rtf: bytes | None, rung: int) -> Rung:
+def _build_rung(
+    data: bytes,
+    rows: list[_RowInfo],
+    rtf: bytes | None,
+    rung: int,
+    failed: list[tuple[int, str]],
+) -> Rung:
     """Build rung number *rung* from its walked data rows.
 
-    A rung that can't be decoded (a row the walk could not read, a cell that does not
-    decode, or a comment that does not) is an undecoded marker rung.  A LOST row ends the
-    walk, so its marker stands for this rung and every rung after it.
+    A rung that can't be decoded (a row the walk could not read, or a cell that does not
+    decode) is an undecoded marker rung.  A LOST row ends the walk, so its marker stands
+    for this rung and every rung after it.  A comment that does not decode is noted in the
+    comment and added to *failed* (:func:`laddercodec.undecoded.read_comment`).
     """
-    comment: str | None = None
-    if rtf is not None:
-        try:
-            comment = _decode_rtf(rtf)
-        except BAD_BYTES as exc:
-            return marker_rung(Undecoded(f"the rung comment: {reason(exc)}", rung))
+    comment = read_comment(rtf, rung, failed)
 
     conditions: list[list[ConditionToken]] = []
     instructions: list[AfToken] = []
