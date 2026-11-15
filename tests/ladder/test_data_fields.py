@@ -312,9 +312,10 @@ class TestCounterPresetRange:
 
     @pytest.mark.parametrize("preset", ["2147483648", "-2147483649", "99999999999"])
     def test_out_of_range(self, tmp_path: Path, preset: str) -> None:
-        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is (outside|refused)"):
+        message = rf"^Counter.preset: '{preset}' is outside -2147483648 to 2147483647 \(OBJ-005\)"
+        with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, f"count_down(CT1,CTD1,preset={preset})")
-        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is (outside|refused)"):
+        with pytest.raises(FieldError, match=message):
             counter(preset=preset)
 
     @pytest.mark.parametrize("preset", ["1.5", "abc", "1-2", "--5"])
@@ -396,10 +397,16 @@ class TestDrumDurations:
         ):
             drum(kind, events_or_presets=["1", "32768"], unit=unit)
 
-    @pytest.mark.parametrize("preset", ["-1", "+5", "1.5"])
-    def test_sign_or_fraction_refused(self, preset: str) -> None:
-        with pytest.raises(FieldError, match=rf"^Drum.presets\[0\]: '{re.escape(preset)}'"):
+    @pytest.mark.parametrize("preset", ["-1", "+5"])
+    def test_sign_refused(self, preset: str) -> None:
+        message = rf"^Drum.presets\[0\]: '{re.escape(preset)}' is refused; a constant here takes no sign \(OBJ-005\)"
+        with pytest.raises(FieldError, match=message):
             drum("time", events_or_presets=[preset, "1"])
+
+    def test_fraction_refused(self) -> None:
+        message = r"^Drum.presets\[0\]: '1.5' is a real; Drum.presets\[0\] takes a decimal integer"
+        with pytest.raises(FieldError, match=message):
+            drum("time", events_or_presets=["1.5", "1"])
 
     @pytest.mark.parametrize("preset", ["DD1", "TD1", "DH1"])
     def test_other_registers_refused(self, preset: str) -> None:
