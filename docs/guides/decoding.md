@@ -169,9 +169,9 @@ whose cells can't be walked or that is cut off, or a program file record whose
 framing is broken), the rungs before it decode, and one marker stands for that
 rung and every rung after it. When that happens in a clipboard's first rung,
 `decode()` returns the marker rung alone, since it can't tell one rung from
-several. A buffer the decoder can't read at all still
-raises: `DecodeError` for a clipboard whose magic or size is wrong, `ValueError`
-for a program file whose header doesn't parse.
+several. A buffer the decoder can't read at all still raises: `DecodeError` for
+a clipboard whose magic or size is wrong, `ValueError` for a program file whose
+header doesn't parse.
 
 A comment that doesn't decode does not make a marker: the rung keeps its logic,
 its comment becomes `UNDECODED comment: <error>`, its `comment_rtf` keeps the
