@@ -12,7 +12,8 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
 - `<jobs>` is `../laddercodec-wt/buildbot/jobs`: one folder per job (`BRIEF.md`, `HANDOFF.md`,
   `REVIEW.md`, `PR.md`) and the arc's `LEDGER.md`.
 - Open work: `scratchpad/roadmap.md`, the one roadmap. Fold rulings and leftovers into it, not
-  side notes. An item labelled **Sam**, **CLICK** or **PLC** there waits on the user.
+  side notes. An item labelled **Sam** or **PLC** there waits on the user; **CLICK** waits on
+  the sandbox runner or the user.
 
 ## Correctness contract (put in every builder and reviewer brief)
 
@@ -28,15 +29,20 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
   rule is, never where it came from: no DLL names or addresses, Help page ids, question ids,
   dated dialog checks or private report names. CLICK's own error ids (OBJ-nnn, C0nnn) are fine.
   What is still in doubt goes in `scratchpad/roadmap.md`. Still on main and not to be copied:
-  `laddercodec/operands/sources.py` (`Src`, `SrcKind`), `FieldError.source`, and the AGENTS.md
+  `src/laddercodec/operands/sources.py` (`Src`, `SrcKind`), `FieldError.source`, and the AGENTS.md
   line on `Src`; roadmap item 3 removes them. The DLL verifier's brief lives outside git
   (`<jobs>/dllqa/VERIFY_BRIEF.md`), its tooling in `../laddercodec-wt/buildbot/tools/click-v4/`.
 - The encoder writes bytes from verified formulas. A change to an encoded byte layout or a
   golden `.bin` needs a paste check in CLICK by the user: the builder names every changed
   golden, BOB batches them into one ground-truth request, and the PR stays open until the user
   has pasted them (`make test` fails on a golden with no `: worked` entry).
-- Round trip holds: decode(encode(x)) == x, clipboard decode and SCR decode (`decode_program`)
-  agree, and a blob we can't model decodes as `raw(...)`, never as a different instruction.
+- Round trip holds: decode(encode(x)) == x, and a blob we can't model decodes as `raw(...)`,
+  never as a different instruction.
+- Paired implementations must agree; a reviewer checks each pair a diff touches: clipboard
+  decode and SCR decode (`decode_program`); each family's `from_tags` (blob parser) and its CSV
+  parser (`parse_csv_call`); the encoder and the CSV writer. When a rule changes, grep every
+  family's parser, CSV writer and validator for anything that still models the old behaviour.
+- A fine edge of the format (a byte, a boundary value, a refused form) gets a test.
 - Field rules (what a CLICK dialog refuses, the OBJ-xxx errors) raise on construction or
   encode. Syntax Check rules (C-codes; CLICK still saves the project) do not raise: they
   belong to `check()` or to pyrung, per the roadmap.
@@ -45,7 +51,8 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
 - Zero runtime dependencies. `make` commands only; shell hygiene per the root AGENTS.md (no
   multi-line content inlined in shell commands).
 - Every PR carries its CHANGELOG line (Unreleased) when users see a change. Docs move only
-  where a user's CSV or API use changes, in the tone docs/AGENTS.md sets.
+  where a user's CSV or API use changes, in the tone docs/AGENTS.md sets: guides say how to use
+  it, `docs/internals/` holds the binary format.
 
 ## Gate
 
@@ -77,7 +84,8 @@ None yet.
 
 ## Machine budget
 
-- Up to ~5 builders in parallel (`targeted_slots = 5`).
+- Up to ~5 builders in parallel. `targeted_slots = 3` bounds the test runs all agents (builders,
+  reviewers) start at once, each capped at 8 GB.
 - Read a command's exit code directly, never through a pipe without `pipefail`.
 
 ## Ground truth

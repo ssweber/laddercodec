@@ -42,6 +42,13 @@ The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
 ## 1. Cruft sweep (nothing)
 
+- **After the `bob` plugin PR merges:** `claude plugin install bob@bob --scope project` in this clone, then
+  `/reload-plugins` or a new session in every open laddercodec session. Delete the old queue folders in
+  `../laddercodec-wt/buildbot` (`cand`, `done`, `logs`, `queue`, `running`, `.heavy.lock*`, `.targeted.*.lock`;
+  `procs` stays) and the unmerged `chore/agentguard` branch and worktree.
+- **Required checks (Sam):** switch `main`'s ruleset to require only `ci` and the docs `build`. Until then the
+  test matrix's Python versions stay as they are: each is a required check by name.
+
 - **Arc folders.** Delete the closed ones under `laddercodec-wt/buildbot/jobs/`, except `dllqa/`,
   `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
   3) are sorted.
