@@ -25,6 +25,8 @@ from ..model import (
     check_flag,
     normalize_address,
 )
+from ..operands.checks import Constants, check_operand
+from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -53,10 +55,7 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 #: A constant set point is a 32-bit signed integer written in under 13 characters.
 #: Each check else OBJ-005: the value fits 32 bits, and the text is under 13 characters.
 #: A '-' only leads: ``1-2`` is refused.
-_INTEGER_RE = re.compile(r"-?[0-9]+")
-COUNTER_MIN_PRESET = -(2**31)
-COUNTER_MAX_PRESET = 2**31 - 1
-_COUNTER_MAX_PRESET_TEXT = 12
+_PRESET = Constants(frozenset({Kind.INTEGER}), signs="-", max_length=12)
 
 #: Register set points: DS or DD only (OBJ-004).
 COUNTER_PRESET_BANKS = frozenset({"DS", "DD"})
@@ -86,16 +85,21 @@ class Counter(PinnedInstruction):
     def __post_init__(self) -> None:
         if self.counter_type not in ("count_up", "count_down"):
             raise FieldError(
-                f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down"
+                f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down",
+                field="Counter.counter_type",
             )
         self.down_enabled = check_flag(self.down_enabled, "Counter.down_enabled")
         self.reset_enabled = check_flag(self.reset_enabled, "Counter.reset_enabled")
         if not self.reset_enabled:
-            raise FieldError("Counter.reset_enabled: a counter always has a Reset input")
+            raise FieldError(
+                "Counter.reset_enabled: a counter always has a Reset input",
+                field="Counter.reset_enabled",
+            )
         if self.down_enabled and self.counter_type == "count_down":
             # count_down's own input is Down; its box has no separate .down() input.
             raise FieldError(
-                "Counter.down_enabled: count_down has no .down() input; only count_up does"
+                "Counter.down_enabled: count_down has no .down() input; only count_up does",
+                field="Counter.down_enabled",
             )
         self._check_fields()
         self._check_pin_rows()
@@ -109,25 +113,12 @@ class Counter(PinnedInstruction):
         if done.number != current.number:
             raise FieldError(
                 f"Counter.current: {self.current!r} must be CTD{done.number} to match "
-                f"Counter.done_bit {self.done_bit!r}"
+                f"Counter.done_bit {self.done_bit!r}",
+                field="Counter.current",
             )
-        if not _INTEGER_RE.fullmatch(self.preset):
-            if not self.preset[:1].isalpha():
-                raise FieldError(
-                    f"Counter.preset: {self.preset!r} is neither an integer nor a register address"
-                )
-            check_address(self.preset, "Counter.preset", banks=COUNTER_PRESET_BANKS)
-            return
-        if not COUNTER_MIN_PRESET <= int(self.preset) <= COUNTER_MAX_PRESET:
-            raise FieldError(
-                f"Counter.preset: {self.preset!r} is outside {COUNTER_MIN_PRESET} to "
-                f"{COUNTER_MAX_PRESET} (OBJ-005)"
-            )
-        if len(self.preset) > _COUNTER_MAX_PRESET_TEXT:
-            raise FieldError(
-                f"Counter.preset: {self.preset!r} is {len(self.preset)} characters; a constant "
-                f"set point is at most {_COUNTER_MAX_PRESET_TEXT} (OBJ-005)"
-            )
+        check_operand(
+            self.preset, "Counter.preset", COUNTER_PRESET_BANKS, _PRESET, letter_first=True
+        )
 
     @property
     def lead_rows(self) -> int:

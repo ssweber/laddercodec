@@ -68,7 +68,8 @@ class Shift(PinnedInstruction):
         if end == start:
             raise FieldError(
                 f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
-                f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)"
+                f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)",
+                field="Shift.end_bit",
             )
         self._check_pin_rows()
 

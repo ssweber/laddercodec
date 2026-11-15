@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 
 import pytest
@@ -284,9 +285,13 @@ class TestTimerSetpointRange:
         for value in ("0", "32767"):
             token = f"on_delay(T1,TD1,preset={value},unit={unit})"
             assert _read_af(tmp_path, token) == timer(setpoint=value, unit=unit)
-        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is above 32767"):
+        with pytest.raises(
+            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             _read_af(tmp_path, f"on_delay(T1,TD1,preset=32768,unit={unit})")
-        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is above 32767"):
+        with pytest.raises(
+            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             timer(setpoint="32768", unit=unit)
 
     @pytest.mark.parametrize("setpoint", ["-1", "+5", "1 0"])
@@ -307,9 +312,10 @@ class TestCounterPresetRange:
 
     @pytest.mark.parametrize("preset", ["2147483648", "-2147483649", "99999999999"])
     def test_out_of_range(self, tmp_path: Path, preset: str) -> None:
-        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is outside"):
+        message = rf"^Counter.preset: '{preset}' is outside -2147483648 to 2147483647 \(OBJ-005\)"
+        with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, f"count_down(CT1,CTD1,preset={preset})")
-        with pytest.raises(FieldError, match=rf"^Counter.preset: '{preset}' is outside"):
+        with pytest.raises(FieldError, match=message):
             counter(preset=preset)
 
     @pytest.mark.parametrize("preset", ["1.5", "abc", "1-2", "--5"])
@@ -320,7 +326,9 @@ class TestCounterPresetRange:
     def test_text_under_13_characters(self) -> None:
         # Counter: a constant's text is under 13 characters (OBJ-005).
         assert counter(preset="000000000001").preset == "000000000001"
-        with pytest.raises(FieldError, match="13 characters; a constant set point is at most 12"):
+        with pytest.raises(
+            FieldError, match="13 characters; a constant here is at most 12 .OBJ-005."
+        ):
             counter(preset="0000000000001")
 
     @pytest.mark.parametrize("preset", ["DH1", "DF1", "TD1", "CTD1", "SD1", "XD1"])
@@ -384,13 +392,21 @@ class TestDrumDurations:
     def test_limits(self, kind: str, unit: str) -> None:
         assert drum(kind, events_or_presets=["0", "32767"], unit=unit)
         assert drum(kind, events_or_presets=["DS1", "5"], unit=unit)
-        with pytest.raises(FieldError, match=r"^Drum.presets\[1\]: '32768' is above 32767"):
+        with pytest.raises(
+            FieldError, match=r"^Drum.presets\[1\]: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             drum(kind, events_or_presets=["1", "32768"], unit=unit)
 
-    @pytest.mark.parametrize("preset", ["-1", "+5", "1.5"])
-    def test_sign_or_fraction_refused(self, preset: str) -> None:
-        with pytest.raises(FieldError, match=r"^Drum.presets\[0\].*OBJ-005"):
+    @pytest.mark.parametrize("preset", ["-1", "+5"])
+    def test_sign_refused(self, preset: str) -> None:
+        message = rf"^Drum.presets\[0\]: '{re.escape(preset)}' is refused; a constant here takes no sign \(OBJ-005\)"
+        with pytest.raises(FieldError, match=message):
             drum("time", events_or_presets=[preset, "1"])
+
+    def test_fraction_refused(self) -> None:
+        message = r"^Drum.presets\[0\]: '1.5' is a real; Drum.presets\[0\] takes a decimal integer"
+        with pytest.raises(FieldError, match=message):
+            drum("time", events_or_presets=["1.5", "1"])
 
     @pytest.mark.parametrize("preset", ["DD1", "TD1", "DH1"])
     def test_other_registers_refused(self, preset: str) -> None:
@@ -464,3 +480,73 @@ class TestDrumEventsAndOutputs:
     def test_scr_refused_blobs_decode_as_raw(self, old: str, new: str) -> None:
         # coverage: event_drum(outputs=[C183,C184],events=[C185,C186],...,completion_flag=C187).
         assert _scr_raw_names(old, new) == ["Drum"]
+
+
+class TestFieldNames:
+    """A refusal names the dataclass field it came from, where the message does not."""
+
+    def test_drum_names_the_field_of_a_message_without_one(self) -> None:
+        with pytest.raises(FieldError) as steps:
+            drum("event", events_or_presets=["C1"] * 33, pattern=[[1, 0]] * 33)
+        assert steps.value.field == "Drum.events_or_presets"
+        with pytest.raises(FieldError) as step:
+            drum("time_event", events_or_presets=["", "5"], events=["", ""])
+        assert step.value.field == "Drum"
+        with pytest.raises(FieldError) as outs:
+            drum(outs=33, steps=1)
+        assert outs.value.field == "Drum.outputs"
+
+    def test_kind_and_unit_refusals_name_the_field(self) -> None:
+        with pytest.raises(FieldError) as kind:
+            drum("bogus")
+        assert kind.value.field == "Drum.drum_kind"
+        with pytest.raises(FieldError) as unit:
+            drum("time", unit="Tx")
+        assert unit.value.field == "Drum.unit"
+        with pytest.raises(FieldError) as timer_unit:
+            timer(unit="Tx")
+        assert timer_unit.value.field == "Timer.unit"
+        with pytest.raises(FieldError) as timer_type:
+            timer(timer_type="bogus")
+        assert timer_type.value.field == "Timer.timer_type"
+        with pytest.raises(FieldError) as counter_type:
+            counter(counter_type="bogus")
+        assert counter_type.value.field == "Counter.counter_type"
+
+    def test_a_refusal_across_fields_names_the_class_or_the_field_it_names(self) -> None:
+        with pytest.raises(FieldError) as mismatch:
+            timer(current="TD2")
+        assert mismatch.value.field == "Timer.current"
+        with pytest.raises(FieldError) as ends:
+            Shift(start_bit="C1", end_bit="C001")
+        assert ends.value.field == "Shift.end_bit"
+
+
+class TestLongDigitRuns:
+    """5001 digits: leading zeros read as their value, above the limit is refused."""
+
+    ZEROS = "0" * 5000 + "1"
+    ONES = "1" * 5000
+
+    @pytest.mark.parametrize("kind", ["time", "time_event"])
+    @pytest.mark.parametrize("index", [0, 1])
+    def test_drum_presets(self, kind: str, index: int) -> None:
+        for value, ok in ((self.ZEROS, True), (self.ONES, False)):
+            presets = ["5", "5"]
+            presets[index] = value
+            if ok:
+                assert drum(kind, events_or_presets=presets).events_or_presets[index] == value
+            else:
+                with pytest.raises(FieldError, match=rf"^Drum.presets\[{index}\]"):
+                    drum(kind, events_or_presets=presets)
+
+    @pytest.mark.parametrize("timer_type", ["on_delay", "off_delay"])
+    def test_timer_setpoint(self, timer_type: str) -> None:
+        assert timer(timer_type=timer_type, setpoint=self.ZEROS).setpoint == self.ZEROS
+        with pytest.raises(FieldError, match="^Timer.setpoint"):
+            timer(timer_type=timer_type, setpoint=self.ONES)
+
+    @pytest.mark.parametrize("value", [ZEROS, ONES])
+    def test_counter_preset_refused(self, value: str) -> None:
+        with pytest.raises(FieldError, match="^Counter.preset"):
+            counter(preset=value)

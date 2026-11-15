@@ -21,7 +21,7 @@ from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.counter import Counter
-from laddercodec.instructions.drum import Drum, _check_duration
+from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.drum import parse_af_call as parse_drum_call
 from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
@@ -41,6 +41,13 @@ def _termination(code: str) -> Copy:
     return Copy("DS1", "TXT1", format="binary", termination_code=code)
 
 
+def _time_drum(preset: str) -> Drum:
+    return Drum(
+        "time", ["C1"], [preset], [[1]], current_step="DS1", completion_flag="C50",
+        accumulator="TD1", unit="Tms",
+    )  # fmt: skip
+
+
 # (id, constructor taking the digit text).
 CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("address", lambda d: check_address(f"DS{d}", "x")),
@@ -56,8 +63,8 @@ CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("for", lambda d: ForLoop(d)),
     ("out-variant", lambda d: OutVariant("timed", "C1", "TD1", d, unit="Tms")),
     ("modbus-address", lambda d: ModbusAddress(d)),
-    ("drum-duration", lambda d: _check_duration(d, "Drum.duration")),
-    ("drum-duration-register", lambda d: _check_duration(f"DS{d}", "Drum.duration")),
+    ("drum-duration", lambda d: _time_drum(d)),
+    ("drum-duration-register", lambda d: _time_drum(f"DS{d}")),
     ("math", lambda d: Math(f"DS1 + {d}", "DS2", "decimal")),
     ("math-range", lambda d: Math(f"SUM ( DS1 : DS{d} )", "DS2", "decimal")),
     ("blockcopy", lambda d: BlockCopy("DS1", f"DS{d}", "DS10", "DS12")),

@@ -8,10 +8,11 @@ import pickle
 import pytest
 
 from laddercodec import Coil, Contact, model
-from laddercodec.instructions import copy, counter, drum, forloop, search, send_receive, shift
+from laddercodec.instructions import copy, counter, forloop, search, send_receive, shift
 from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
+from laddercodec.operands.checks import BIT_BANKS
 from tests.test_operand_guards import (
     BANK_NAMES_ALLOWED,
     INSTRUCTIONS,
@@ -37,7 +38,7 @@ _MASKS = [
     (0x6, send_receive._RECEIVE_LOCAL_BITS, "Receive local bits FC01/02"),
     (0x8BC0, send_receive._RECEIVE_LOCAL_REGS, "Receive local registers"),
     (0xC0, counter.COUNTER_PRESET_BANKS, "Counter set point"),
-    (0x3F, drum.DRUM_EVENT_BANKS, "Drum event"),
+    (0x3F, BIT_BANKS, "Drum event"),
     (0x70C0, forloop.FOR_LIMIT_BANKS, "For count"),
     (0x4, search.FOUND_BANKS, "Search Result Flag"),
     (0x4, shift.SHIFT_BANKS, "Shift start and end bits"),
@@ -45,18 +46,22 @@ _MASKS = [
 
 
 def _literal_banks(module: str, field: str) -> frozenset[str]:
-    """The literal ``banks=`` of the ``check_address(..., field, banks=...)`` call in ``module``."""
+    """The literal banks of the ``check_address(..., field, banks=...)`` or
+    ``check_operand(value, field, banks, ...)`` call in ``module``."""
     tree = ast.parse((INSTRUCTIONS / module).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
-            and node.func.id == "check_address"
+            and node.func.id in ("check_address", "check_operand")
             and len(node.args) >= 2
             and isinstance(node.args[1], ast.Constant)
             and node.args[1].value == field
         ):
-            (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
+            if node.func.id == "check_operand":
+                banks_arg = node.args[2]
+            else:
+                (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
             return frozenset(ast.literal_eval(banks_arg))
     raise AssertionError(f"no check_address for {field} in {module}")
 
