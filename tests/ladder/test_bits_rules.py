@@ -129,7 +129,8 @@ class TestCompare:
     )
     def test_integer_outside_int32_refused(self, token: str, field: str) -> None:
         with pytest.raises(
-            FieldError, match=rf"^CompareContact.{field}: .* an integer constant is -2147483648 to"
+            FieldError,
+            match=rf"^CompareContact.{field}: .* (an integer constant is|is outside) -2147483648 to",
         ):
             CompareContact.from_csv_token(token)
 
