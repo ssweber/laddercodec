@@ -47,7 +47,7 @@ Key cell field differences from single-rung
     +0x05   global 1-based row (not local), uint32 LE
     +0x30   1 on preamble rows (load-bearing for comment detection)
     +0x38   0 only on last rung's col31; 1 everywhere else
-    +0x39   load-bearing rung index, carrying into +0x3A past 255 (native 266-rung capture):
+    +0x39   load-bearing rung index, carrying into +0x3A past 255
               data rows       col 0..30: rung_idx
                               col31:     0 if last rung, else rung_idx+1
               preamble rows   all cols:  rung_idx+1
