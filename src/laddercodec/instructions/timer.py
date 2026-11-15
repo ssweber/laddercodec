@@ -67,7 +67,7 @@ class Timer(PinnedInstruction):
     retained: bool = False  # True = retentive (RTON)
     #: Row of the reset input.  OR legs under the enable input of a retentive
     #: timer push it down.  A timer without ``.reset()`` stays 2 rows with its
-    #: legs beside and below it (native: tumbler ProductionErrors).
+    #: legs beside and below it.
     pin_rows: tuple[int, ...] = (1,)
 
     def __post_init__(self) -> None:

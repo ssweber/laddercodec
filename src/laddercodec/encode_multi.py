@@ -53,12 +53,12 @@ Key cell field differences from single-rung
               preamble rows   all cols:  rung_idx+1
     +0x3D   0 on data row col31; 1 on preamble col31  (untested, kept)
 
-Fields present in native captures but confirmed cosmetic (not written):
+Fields CLICK writes that are cosmetic (not written):
     +0x0B = 0x30   multi-rung marker on every cell
     +0x15 = 1      rung-start flag on col0 of rung rows
     PH+0x17 = 0x30 multi-rung type flag in program header
 
-Terminal row bytes +0x01..+0x04 match native captures but are untested;
+Terminal row bytes +0x01..+0x04 match CLICK's but are untested;
 kept for fidelity. +0x05=0xFF is the sentinel Click uses to detect the row.
 """
 

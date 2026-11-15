@@ -320,7 +320,7 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> None:
 def _merge_signs(tokens: list[Token]) -> list[Token]:
     """Join a ``-`` or ``+`` and the decimal constant after it where a sign stands (step 5).
 
-    Typed ``DS1 + ( +5 )`` is stored ``DS1#+#(#H+5#)`` (v4_captures/math_unary_plus_pi.bin).
+    Typed ``DS1 + ( +5 )`` is stored ``DS1#+#(#H+5#)``.
     """
     out: list[Token] = []
     i = 0
@@ -349,8 +349,8 @@ def _decimal_internal(text: str) -> str:
     and refuses the token when the printed length differs from the typed one, so
     ``3000000000``, ``007`` and ``-0`` are refused and ``6000000000``, whose low 32 bits
     print as ``1705032704``, passes; a typed ``+`` is put before the printed value
-    (``+5``).  It stores an int16 value as ``H`` and a wider one as ``W``
-    (v4_captures/sweep_math.bin), keeping the typed text (``H+5``).  A real is stored as
+    (``+5``).  It stores an int16 value as ``H`` and a wider one as ``W``,
+    keeping the typed text (``H+5``).  A real is stored as
     ``F`` and must fit float32.
     """
     body = text[1:] if text[:1] in _SIGNS else text
@@ -412,8 +412,7 @@ def _follow_refusal(a: Token, b: Token) -> str | None:
         if b.kind in (")", ",", ":", "op"):
             return "an operator needs a value after it"
     elif a.kind in ("const", "addr", "pi"):
-        # PI may be followed by '(': typed PI ( 2 ) is stored PI#(#H2#)
-        # (v4_captures/math_unary_plus_pi.bin).
+        # PI may be followed by '(': typed PI ( 2 ) is stored PI#(#H2#).
         if (b.kind == "(" and a.kind != "pi") or b.kind in _VALUES:
             return "two values need an operator between them"
         if a.kind == "pi" and b.kind in (",", ":"):
@@ -453,7 +452,7 @@ def _check_order(tokens: Sequence[Token]) -> None:
                 raise FieldError(f"{_NAME}: {nxt.text!r} after {token.text!r}: {reason}")
         if token.kind == "," and i not in call_separators:
             # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
-            # (OBJ-037; v4_captures/math_unary_plus_pi.bin: DS1 , DS2 and MAX ( DS1 , DS2 )
+            # (OBJ-037: DS1 , DS2 and MAX ( DS1 , DS2 )
             # are refused).
             raise FieldError(
                 f"{_NAME}: ',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); "
@@ -484,8 +483,8 @@ def _check_order(tokens: Sequence[Token]) -> None:
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
-            # F ( a : b ), two addresses (v4_captures/math_unary_plus_pi.bin:
-            # SUM ( DS1 + DS2 ) is refused).
+            # F ( a : b ), two addresses (SUM ( DS1 + DS2 )
+            # is refused).
             shape = [t.kind for t in tokens[i + 1 : i + 6]]
             if shape != ["(", "addr", ":", "addr", ")"]:
                 raise FieldError(
@@ -607,10 +606,7 @@ def _xy_bound(number: int) -> int:
     An end's own number, but an end in the option slot counts as numbered right after the
     CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
     numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
-    itself.  Fitted to the X and Y ranges of ``v4_captures/math_ranges_x_t.bin``,
-    ``math_ranges_xy_slots.bin``, ``math_ranges_xy_slots2.bin`` and
-    ``math_ranges_x25_x101.bin`` (typed in CLICK v4, C2-03CPU, no I/O modules), not read
-    from CLICK's code.
+    itself.  Fitted to X and Y ranges typed in CLICK v4 (C2-03CPU, no I/O modules).
     """
     if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
         return number - _OPTION_GAP

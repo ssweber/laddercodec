@@ -100,7 +100,7 @@ class Rung:
 
     This is a semantic model: native row/segment flags and editing history
     are not retained. Re-encoding constructs canonical flags rather than
-    promising byte-identical preservation of a native capture.
+    promising byte-identical preservation of CLICK's bytes.
 
     Attributes
     ----------
@@ -792,7 +792,7 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
             continue
 
         # Data row — but only decode if cell 0 has valid structural bytes.  The trailing
-        # "extra" row in single-rung buffers (and native captures with non-zero padding)
+        # "extra" row in single-rung buffers (and CLICK's own buffers with non-zero padding)
         # may lack them.
         if not (data[cursor + 0x09] == 0x01 and data[cursor + 0x0A] == 0x01):
             if not last:
@@ -997,7 +997,7 @@ def _fits_stored_span(af: AfInstruction, span: int) -> bool:
 
     A box stored at another span stays raw with its stored bytes: CLICK keeps a 1-row
     Email, Home, Position or Velocity pasted from an earlier laddercodec at 1 row until
-    its dialog is saved (``v4_captures/box_height_pasted.bin``).
+    its dialog is saved.
     """
     return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 
