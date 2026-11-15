@@ -59,8 +59,6 @@ ALLOWED_LONG_HEX: dict[str, str] = {
     "80000000": "int32 sign bit (counter span check)",
     "10FFFF": "highest Unicode code point (decoder)",
     "00000001": "structural flag value in the binary format",
-    "00000004": "CREATE_SUSPENDED process flag in devtools/mergeq",
-    "00000200": "Win32 process flag in devtools/mergeq",
     "200000": "2 MiB image window in a disassembly helper script",
 }
 
