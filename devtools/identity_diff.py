@@ -1,4 +1,4 @@
-"""Compare two JSON outputs of ``fixture_snapshot.py`` or ``operand_probe.py``.
+r"""Compare two JSON outputs of ``fixture_snapshot.py`` or ``operand_probe.py``.
 
 Both tools write ``{"tool": ..., "meta": {...}, "cases": {key: value}}``.  ``cases`` is
 compared value by value, with the JSON type counted (``1``, ``1.0`` and ``true`` differ).
@@ -12,20 +12,26 @@ Plain, it prints one line per difference and exits 1 if there is any or the two 
 different tools, 0 if the cases are identical.
 
 ``--tiers`` sorts the differences by case.  The tools record an exception as
-``!Class: message``.  With the message cut off, every case must stay identical: accept or
-refuse, the exception class, the CSV written, the bytes, the decode result, and no case
-added or removed.  A case that differs only in a message is listed apart and is not a
-failure.  A case that differs in more is a failure unless the expected-diff file
-(``--expected``, default ``expected_diff.txt`` beside this script) lists it.  The mode exits
-1 on a failure or when the tools differ, 0 otherwise.
+``!Class`` where it happened and its message under the case's ``errors``, as
+``[class, message]``; a warning is ``Class: message``.  The first tier must stay
+identical: every value of a case (accept or refuse, the exception class, the CSV written,
+the bytes, the decode result), the class of every exception and warning, the class names
+an exception's message holds, and no case added or removed.  A case that differs only in
+message or warning text is listed apart and is not a failure.  A case whose first tier
+differs is a failure unless an entry of the expected-diff file (``--expected``, default
+``expected_diff.txt`` beside this script) allows it.  The mode exits 1 on a failure or when
+the tools differ, 0 otherwise.
 
 Both modes exit 2 without comparing when an input cannot be read or has no ``cases``
 object, when either lists a ``meta.refused_baselines`` entry, when the scopes differ, or
 when both have no cases; ``--tiers`` also when the expected-diff file cannot be read.
 
 The expected-diff file is plain text: a line starting with ``#`` is a comment, and every
-other non-blank line is ``<case key> | <reason>``.  The key matches a case key whole; ``*``
-in it stands for any run of characters.  The reason states the rule the new verdict follows.
+other non-blank line is ``<case key> | <reason>`` or ``<case key> | keys=<k>,<k> | <reason>``.
+The key matches a case key whole: ``*`` stands for any run of characters, ``\*`` for a
+star and ``\\`` for a backslash.  With ``keys=``, the entry allows a first-tier
+difference in those record keys only (``new``, ``csv``, ...); without, in any, and a case
+added or removed.  The reason states the rule the new verdict follows.
 """
 
 from __future__ import annotations
@@ -135,24 +141,57 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
 # Two tiers
 # ---------------------------------------------------------------------------
 
-#: An exception as the tools record it, ``!Class: message``; the message runs to the end of
-#: the string.  A lowercase word after ``!`` (``!value:``, ``!probe:``) is the probe's own
-#: note, kept whole up to the exception it holds.
-_ERROR = re.compile(r"!([A-Z][A-Za-z0-9_]*): .*", re.DOTALL)
+#: A class name inside an exception message (an exception a message names or wraps).
+_INNER_CLASS = re.compile(r"\b[A-Z][A-Za-z0-9_]*(?:Error|Exception|Warning)\b")
+
+#: Case keys whose list holds ``<WarningClass>: <message>`` strings.
+_WARNING_KEYS = ("warn", "warnings")
 
 #: The expected-diff file read by default.
 EXPECTED = Path(__file__).resolve().parent / "expected_diff.txt"
 
 
-def without_messages(value: Any) -> Any:
-    """``value`` with every recorded exception cut to ``!Class``."""
-    if isinstance(value, str):
-        return _ERROR.sub(lambda m: f"!{m.group(1)}", value, count=1)
-    if isinstance(value, dict):
-        return {key: without_messages(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [without_messages(item) for item in value]
-    return value
+def first_tier(record: Any) -> Any:
+    """What of one case must stay identical: ``record`` without message text.
+
+    An exception in ``errors`` keeps its class and the class names its message holds; a
+    warning keeps its class.  Every other value stays whole.
+    """
+    if not isinstance(record, dict):
+        return record
+    out = dict(record)
+    errors = out.get("errors")
+    if isinstance(errors, list):
+        out["errors"] = [
+            [error[0], _INNER_CLASS.findall(error[1])]
+            if isinstance(error, list) and len(error) == 2 and isinstance(error[1], str)
+            else error
+            for error in errors
+        ]
+    for key in _WARNING_KEYS:
+        items = out.get(key)
+        if isinstance(items, list):
+            out[key] = [
+                item.split(": ", 1)[0] if isinstance(item, str) else item for item in items
+            ]
+    return out
+
+
+def _pattern(key: str) -> re.Pattern[str]:
+    """A case-key pattern: ``*`` is any run of characters, ``\\*`` a star, ``\\\\`` a
+    backslash; any other character, a lone backslash included, stands for itself."""
+    out: list[str] = []
+    index = 0
+    while index < len(key):
+        char = key[index]
+        follow = key[index + 1 : index + 2]
+        if char == "\\" and follow in ("*", "\\"):
+            out.append(re.escape(follow))
+            index += 2
+            continue
+        out.append(".*" if char == "*" else re.escape(char))
+        index += 1
+    return re.compile("".join(out), re.DOTALL)
 
 
 class Expected(NamedTuple):
@@ -161,10 +200,22 @@ class Expected(NamedTuple):
     line: int
     key: str
     reason: str
+    #: The record keys whose first-tier difference the entry allows; empty for all.
+    fields: tuple[str, ...] = ()
 
     def matches(self, case_key: str) -> bool:
-        pattern = ".*".join(re.escape(part) for part in self.key.split("*"))
-        return re.fullmatch(pattern, case_key, re.DOTALL) is not None
+        return _pattern(self.key).fullmatch(case_key) is not None
+
+    def allows(self, differing: set[str] | None) -> bool:
+        """Whether the entry allows a case whose first tier differs in ``differing`` keys
+        (``None``: the case was added or removed, or is not a record)."""
+        if not self.fields:
+            return True
+        return differing is not None and differing <= set(self.fields)
+
+    def label(self) -> str:
+        keys = f" | keys={','.join(self.fields)}" if self.fields else ""
+        return f"{self.key}{keys} | {self.reason}"
 
 
 def read_expected(path: str | Path) -> list[Expected]:
@@ -175,20 +226,45 @@ def read_expected(path: str | Path) -> list[Expected]:
             text = raw.strip()
             if not text or text.startswith("#"):
                 continue
-            key, sep, reason = text.rpartition(" | ")
-            if not sep or not key.strip() or not reason.strip():
-                raise ValueError(f"{path}:{number}: not '<case key> | <reason>': {text!r}")
-            entries.append(Expected(number, key.strip(), reason.strip()))
+            head, sep, reason = text.rpartition(" | ")
+            fields: tuple[str, ...] = ()
+            rest, mid, last = head.rpartition(" | ")
+            if mid and last.startswith("keys="):
+                head = rest
+                fields = tuple(f.strip() for f in last[len("keys=") :].split(","))
+                if not all(fields):
+                    raise ValueError(f"{path}:{number}: an empty name in {last!r}")
+            if not sep or not head.strip() or not reason.strip():
+                raise ValueError(
+                    f"{path}:{number}: not '<case key> [| keys=<k>,...] | <reason>': {text!r}"
+                )
+            entries.append(Expected(number, head.strip(), reason.strip(), fields))
     return entries
 
 
-def _one(cases: dict[str, Any], key: str, normalize: bool) -> dict[str, Any]:
+def _one(cases: dict[str, Any], key: str, tier: bool) -> dict[str, Any]:
     if key not in cases:
         return {}
-    return {key: without_messages(cases[key]) if normalize else cases[key]}
+    return {key: first_tier(cases[key]) if tier else cases[key]}
 
 
-def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path = EXPECTED) -> int:
+def _differing(a: Any, b: Any) -> set[str] | None:
+    """The record keys whose first tier differs; ``None`` unless both are records."""
+    if not (isinstance(a, dict) and isinstance(b, dict)):
+        return None
+    ta, tb = first_tier(a), first_tier(b)
+    return {k for k in set(ta) | set(tb) if diff_cases({"k": ta.get(k)}, {"k": tb.get(k)})}
+
+
+def _print_cases(cases: dict[str, list[str]], indent: str) -> None:
+    for lines in cases.values():
+        for line in lines:
+            print(f"{indent}{line}")
+
+
+def diff_tiers(
+    path_a: str | Path, path_b: str | Path, expected_path: str | Path = EXPECTED
+) -> int:
     """Print the differences between two tool outputs in two tiers; return the exit status.
 
     0: no case differs beyond its messages, apart from expected-diff entries; 1: one does,
@@ -203,34 +279,32 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
     if isinstance(loaded, int):
         return loaded
     a, b = loaded[0]["cases"], loaded[1]["cases"]
-    failures: list[str] = []
-    expected: dict[Expected, list[str]] = {}
-    messages: list[str] = []
+    failures: dict[str, list[str]] = {}
+    expected: dict[Expected, dict[str, list[str]]] = {}
+    messages: dict[str, list[str]] = {}
     for key in sorted(set(a) | set(b)):
         raw = diff_cases(_one(a, key, False), _one(b, key, False))
         if not raw:
             continue
         lines = diff_cases(_one(a, key, True), _one(b, key, True))
         if not lines:
-            messages += raw
+            messages[key] = raw
             continue
-        entry = next((e for e in entries if e.matches(key)), None)
+        differing = _differing(a.get(key), b.get(key)) if key in a and key in b else None
+        entry = next((e for e in entries if e.matches(key) and e.allows(differing)), None)
         if entry is None:
-            failures += lines
+            failures[key] = lines
         else:
-            expected.setdefault(entry, []).extend(lines)
-    print(f"must stay identical: {len(failures)} difference(s)")
-    for line in failures:
-        print(f"  {line}")
-    count = sum(len(lines) for lines in expected.values())
-    print(f"expected-diff entries ({expected_path}): {count} difference(s)")
-    for entry, lines in expected.items():
-        print(f"  {entry.key} | {entry.reason}")
-        for line in lines:
-            print(f"    {line}")
-    print(f"message wording only: {len(messages)} difference(s)")
-    for line in messages:
-        print(f"  {line}")
+            expected.setdefault(entry, {})[key] = lines
+    print(f"must stay identical: {len(failures)} case(s) differ")
+    _print_cases(failures, "  ")
+    count = sum(len(cases) for cases in expected.values())
+    print(f"allowed by expected-diff entries ({expected_path}): {count} case(s)")
+    for entry, cases in expected.items():
+        print(f"  {entry.label()}")
+        _print_cases(cases, "    ")
+    print(f"message wording only: {len(messages)} case(s)")
+    _print_cases(messages, "  ")
     unused = [e for e in entries if e not in expected]
     if unused:
         print(f"expected-diff entries that match no difference: {len(unused)}")
@@ -238,7 +312,7 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
             print(f"  line {e.line}: {e.key}")
     print(
         f"{len(failures)} failure(s), {count} expected, {len(messages)} message-only "
-        f"difference(s) in {len(a)} vs {len(b)} cases"
+        f"case(s) in {len(a)} vs {len(b)} cases"
     )
     return 1 if failures else 0
 

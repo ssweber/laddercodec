@@ -112,7 +112,8 @@ def test_operand_probe_fails_on_a_refused_baseline(drum_refused_src: Path, tmp_p
     assert "Drum/event" in result.stderr
     doc = json.loads(refused.read_text(encoding="utf-8"))
     assert doc["meta"]["refused_baselines"] == ["Drum/event"]
-    assert doc["cases"]["Drum/event/-"]["new"].startswith("!AddressError")
+    assert doc["cases"]["Drum/event/-"]["new"] == "!AddressError"
+    assert doc["cases"]["Drum/event/-"]["errors"][0][0] == "AddressError"
 
     good = tmp_path / "good.json"
     _output("operand_probe.py", SRC, good, 1)
@@ -166,34 +167,54 @@ def _tiers(tmp_path: Path, a: Any, b: Any, expected: str = "") -> tuple[int, str
     return result.returncode, result.stdout + result.stderr
 
 
+def _refused(cls: str, message: str, **more: Any) -> dict[str, Any]:
+    """A probe record whose constructor refused, as the tools write it."""
+    return {"new": f"!{cls}", "errors": [[cls, message]], **more}
+
+
 def test_tiers_list_a_message_change_apart(tmp_path: Path) -> None:
-    a = _doc({"k": {"new": "!FieldError: old words", "csv": "Copy!AddressError: x"}})
-    b = _doc({"k": {"new": "!FieldError: new words", "csv": "Copy!AddressError: y"}})
+    a = _doc({"k": _refused("FieldError", "old words", warn=["LegacyEncodingWarning: old"])})
+    b = _doc({"k": _refused("FieldError", "new words", warn=["LegacyEncodingWarning: new"])})
     status, out = _tiers(tmp_path, a, b)
     assert status == 0, out
-    assert "message wording only: 2 difference(s)" in out
+    assert "message wording only: 1 case(s)" in out
     assert "0 failure(s)" in out
 
 
 @pytest.mark.parametrize(
-    "new",
+    "b",
     [
-        "ok",  # a refusal became an accept
-        "!AddressError: same words",  # the exception class changed
-        "!probe: same words",  # a probe note is not an exception
+        {"new": "ok"},  # a refusal became an accept
+        _refused("AddressError", "same words"),  # the exception class changed
+        _refused("FieldError", "row 1: AddressError: m"),  # a class the message names
+        _refused("FieldError", "same words", warn=["UserWarning: x"]),  # a warning appears
     ],
 )
-def test_tiers_fail_on_a_verdict_or_class_change(tmp_path: Path, new: str) -> None:
-    status, out = _tiers(
-        tmp_path, _doc({"k": {"new": "!FieldError: same words"}}), _doc({"k": {"new": new}})
-    )
+def test_tiers_fail_on_a_verdict_or_class_change(tmp_path: Path, b: dict[str, Any]) -> None:
+    a = _doc({"k": _refused("FieldError", "same words")})
+    status, out = _tiers(tmp_path, a, _doc({"k": b}))
     assert status == 1, out
     assert "1 failure(s)" in out
 
 
+def test_tiers_fail_on_a_warning_class_change(tmp_path: Path) -> None:
+    a = _doc({"k": {"new": "ok", "warn": ["LegacyEncodingWarning: m"]}})
+    b = _doc({"k": {"new": "ok", "warn": ["UserWarning: m"]}})
+    assert _tiers(tmp_path, a, b)[0] == 1
+
+
+def test_tiers_see_text_shaped_like_an_exception(tmp_path: Path) -> None:
+    # Accepted text that holds "!A: " is data: a change after it is a CSV change.
+    a = _doc({"Copy/s/source='\"!A: x\"'": {"new": "ok", "write": 'copy("!A: x",TXT1)'}})
+    b = _doc({"Copy/s/source='\"!A: x\"'": {"new": "ok", "write": 'copy("!A: x",TXT2)'}})
+    status, out = _tiers(tmp_path, a, b)
+    assert status == 1, out
+    assert "1 failure(s), 0 expected, 0 message-only" in out
+
+
 def test_tiers_fail_on_an_added_case_and_other_fields(tmp_path: Path) -> None:
-    a = _doc({"k": {"csv": "x", "new": "!FieldError: m"}})
-    b = _doc({"k": {"csv": "y", "new": "!FieldError: m"}, "j": {"new": "ok"}})
+    a = _doc({"k": _refused("FieldError", "m", csv="x")})
+    b = _doc({"k": _refused("FieldError", "m", csv="y"), "j": {"new": "ok"}})
     status, out = _tiers(tmp_path, a, b)
     assert status == 1, out
     assert "2 failure(s)" in out
@@ -201,7 +222,7 @@ def test_tiers_fail_on_an_added_case_and_other_fields(tmp_path: Path) -> None:
 
 def test_tiers_take_an_expected_entry(tmp_path: Path) -> None:
     a = _doc({"Copy/s/source='DS[1]'": {"new": "ok"}, "other": {"new": "ok"}})
-    b = _doc({"Copy/s/source='DS[1]'": {"new": "!FieldError: m"}, "other": {"new": "ok"}})
+    b = _doc({"Copy/s/source='DS[1]'": _refused("FieldError", "m"), "other": {"new": "ok"}})
     expected = (
         "# comment\n\nCopy/*/source='DS[1]' | a pointer index is a DS address\nnone | unused\n"
     )
@@ -212,7 +233,43 @@ def test_tiers_take_an_expected_entry(tmp_path: Path) -> None:
     assert "0 failure(s), 1 expected" in out
 
 
-@pytest.mark.parametrize("line", ["no reason here", "key | ", " | reason"])
+def test_an_entry_with_keys_allows_those_keys_only(tmp_path: Path) -> None:
+    a = _doc({"k": {"new": "ok", "blob": "aaaa"}})
+    entry = "k | keys=new,errors | the verdict changes\n"
+    same_bytes = _doc({"k": _refused("FieldError", "m", blob="aaaa")})
+    assert _tiers(tmp_path, a, same_bytes, entry)[0] == 0
+    new_bytes = _doc({"k": _refused("FieldError", "m", blob="bbbb")})
+    status, out = _tiers(tmp_path, a, new_bytes, entry)
+    assert status == 1, out
+    assert "~ k.blob" in out
+
+
+def test_an_entry_with_keys_does_not_allow_an_added_case(tmp_path: Path) -> None:
+    a = _doc({"other": {"new": "ok"}})
+    b = _doc({"other": {"new": "ok"}, "k": {"new": "ok"}})
+    assert _tiers(tmp_path, a, b, "k | keys=new | r\n")[0] == 1
+    assert _tiers(tmp_path, a, b, "k | r\n")[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("pattern", "key", "matches"),
+    [
+        ("Timer/*/setpoint='1'", "Timer/on/setpoint='1'", True),
+        (r"Math/*/formula='DS1\*2'", "Math/m/formula='DS1*2'", True),
+        (r"Math/*/formula='DS1\*2'", "Math/m/formula='DS1+2'", False),
+        (r"Timer/*/setpoint='0'\*5000+'1'", "Timer/on/setpoint='0'*5000+'1'", True),
+        (r"a\\b", "a\\b", True),
+        (r"Copy/c/source='\xe9'", "Copy/c/source='\\xe9'", True),
+        ("Copy/c/source='DS[DS1]'", "Copy/c/source='DS[DS1]'", True),
+    ],
+)
+def test_an_entry_key_matches_whole(pattern: str, key: str, matches: bool) -> None:
+    assert _identity_diff().Expected(1, pattern, "r").matches(key) is matches
+
+
+@pytest.mark.parametrize(
+    "line", ["no reason here", "key | ", " | reason", "key | keys= | reason", "key | keys=a,,b | r"]
+)
 def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> None:
     status, out = _tiers(tmp_path, _doc({"k": 1}), _doc({"k": 1}), line + "\n")
     assert status == 2, out
@@ -220,4 +277,11 @@ def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> No
 
 
 def test_the_committed_expected_file_reads() -> None:
-    _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")
+    entries = _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")
+    assert all(entry.reason for entry in entries)
+
+
+def test_the_dry_run_finds_no_difference() -> None:
+    result = _run("classify_dryrun.py", SRC)
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr
+    assert "0 failure(s)" in result.stdout

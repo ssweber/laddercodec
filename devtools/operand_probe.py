@@ -11,7 +11,7 @@ of constructor arguments) is varied one field at a time over a fixed value list,
 range field pair is varied together.  Every case records, under ``<Class>/<baseline>/<field>=
 <value>``:
 
-``new``    ``ok`` or ``!<ExceptionClass>: <message>`` from the constructor
+``new``    ``ok`` or ``!<ExceptionClass>`` from the constructor
 ``csv``    ``to_csv()`` of the constructed instance (``ok`` only)
 ``blob``   sha256 of ``build_blob()`` and the ``cell_params()`` (``ok`` only)
 ``write``  the CSV writer's result for a rung holding the instance (``ok`` only)
@@ -23,12 +23,19 @@ range field pair is varied together.  Every case records, under ``<Class>/<basel
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
 ``tag``    the baseline's blob with the varied field's tag set to the case's value, parsed
            back by the blob decoder (only when one tag holds the baseline value)
-``warn``   warnings raised by any path except the writer's (``write`` lists those)
+``warn``   warnings raised by any path except the writer's (``write`` lists those),
+           each ``<WarningClass>: <message>``
+``errors`` the message of every exception above, in order, as ``[class, message]``
 
-``read`` and ``dec`` are ``=`` when they match ``text``.  The value lists are fixed here,
-so two source trees get the same cases.  Values that are objects of the tree under test
+A path that raises records ``!<ExceptionClass>`` where its result would be; the message
+goes to ``errors`` only, so no value of the case holds an exception message.
+
+``read`` and ``dec`` are ``=`` when they match ``text``.  ``<value>`` in a key is the
+value's repr, with text over 1000 characters written as an expression of its runs
+(``'0'*5000+'1'``).  The value lists are fixed here, so two source trees get the same
+cases.  Values that are objects of the tree under test
 (``InstructionType`` members, Modbus targets and addresses) are built from literal
-arguments; one the tree refuses to build records only ``new: !value: <error>``.  A
+arguments; one the tree refuses to build records only ``new: !value: <Class>!<error>``.  A
 baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run;
 the probe then exits 3 after writing its output, and ``--diff`` refuses the file.  A
 registered instruction class with no baseline, or a field with no value kind, stops the
@@ -124,6 +131,8 @@ OPERANDS: list[str] = _dedupe(
     + ["1.5", "1E5", ".5", "-1.5e-3", "1.", "3.4028235E+38", "3.5E+38", "nan", "inf"]
     + [" DS1", "DS1 ", "DS 1", " 5", "5 ", "1 0", " ", "DS1, DS2"]
     + ["Q1", "DSX1", "DS1..DS5", "DS-1", "DS1.5", "Tms", "none", "abc"]
+    # Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+    + ["0" * 5000 + "1", "1" * 5000]
 )
 
 #: Values for the opaque tag fields of the motion and email boxes (no checks to probe).
@@ -1012,16 +1021,50 @@ class ProbeSkip(Exception):
     """A case the probe does not run through one of its paths."""
 
 
+#: ``[class, message]`` of every exception the current case recorded, in order.
+ERRORS: list[list[str]] = []
+
+
 def error_text(exc: BaseException) -> str:
-    return f"!{type(exc).__name__}: {exc}"
+    """``!<ExceptionClass>``; the message goes to :data:`ERRORS`."""
+    ERRORS.append([type(exc).__name__, str(exc)])
+    return f"!{type(exc).__name__}"
 
 
 def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()[:24]
 
 
+#: Text longer than this is keyed by :func:`_runs`.
+_KEY_MAX = 1000
+
+
+def _runs(text: str) -> str:
+    """``text`` as a Python expression of repeated runs: ``'0'*5000+'1'``."""
+    parts: list[str] = []
+    start = 0
+    while start < len(text):
+        end = start
+        while end < len(text) and text[end] == text[start]:
+            end += 1
+        count = end - start
+        parts.append(repr(text[start]) + (f"*{count}" if count > 1 else ""))
+        start = end
+    return "+".join(parts)
+
+
 def _key(value: Any) -> str:
-    return value.key if isinstance(value, Frozen) else repr(value)
+    """The case key of a value: its repr, with text over 1000 characters (alone or in a
+    list or tuple) written as its runs."""
+    if isinstance(value, Frozen):
+        return value.key
+    if isinstance(value, str) and len(value) > _KEY_MAX:
+        return _runs(value)
+    if isinstance(value, list):
+        return "[" + ", ".join(_key(item) for item in value) + "]"
+    if isinstance(value, tuple):
+        return "(" + ", ".join(_key(item) for item in value) + ("," if len(value) == 1 else "") + ")"
+    return repr(value)
 
 
 def _values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
@@ -1364,6 +1407,7 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
                 if key in cases:
                     raise SystemExit(f"probe case key {key!r} appears twice")
                 record: dict[str, Any]
+                ERRORS.clear()
                 with warnings.catch_warnings(record=True) as caught:
                     warnings.simplefilter("always")
                     try:
@@ -1374,6 +1418,8 @@ def probe(src_dir: str, limit: int | None = None) -> dict[str, Any]:
                         record = runner.run(cls, key_base, base, kwargs)
                 if caught:
                     record["warn"] = [f"{w.category.__name__}: {w.message}" for w in caught]
+                if ERRORS:
+                    record["errors"] = [list(error) for error in ERRORS]
                 if case == "-" and record["new"] != "ok":
                     refused.append(key_base)
                     print(f"{key_base}: baseline refused: {record['new']}", file=sys.stderr)

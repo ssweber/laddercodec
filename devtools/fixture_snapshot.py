@@ -17,9 +17,10 @@ rungs are then recorded as:
   ``encode(..., show_nicknames=True)``;
 - ``v4_only``: ``find_v4_only()`` as ``[rung index, token text]`` pairs.
 
-A step that raises records ``!<ExceptionClass>: <message>``, with the fixture root and the
-src directory written ``<fixtures>`` and ``<src>``; warnings raised while a file is
-processed are listed under its ``warnings``.
+A step that raises records ``!<ExceptionClass>`` where its result would be; the file's
+``errors`` lists every such exception in order as ``[class, message]``, with the fixture
+root and the src directory written ``<fixtures>`` and ``<src>``.  Warnings raised while a
+file is processed are listed under its ``warnings``, each ``<WarningClass>: <message>``.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -76,8 +77,14 @@ def scrub(text: str) -> str:
     return text
 
 
+#: ``[class, message]`` of every exception the current file recorded, in order.
+ERRORS: list[list[str]] = []
+
+
 def error_text(exc: BaseException) -> str:
-    return scrub(f"!{type(exc).__name__}: {exc}")
+    """``!<ExceptionClass>``; the message goes to :data:`ERRORS`."""
+    ERRORS.append([type(exc).__name__, scrub(str(exc))])
+    return f"!{type(exc).__name__}"
 
 
 def sha256(data: bytes) -> str:
@@ -218,6 +225,7 @@ def snapshot(src_dir: str, fixtures: Path, limit: int | None = None) -> dict[str
     cases: dict[str, Any] = {}
     for path in files:
         key = path.relative_to(fixtures).as_posix()
+        ERRORS.clear()
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             if path.suffix == ".csv":
@@ -226,6 +234,8 @@ def snapshot(src_dir: str, fixtures: Path, limit: int | None = None) -> dict[str
                 record = decode_file(laddercodec, path)
         if caught:
             record["warnings"] = [scrub(f"{w.category.__name__}: {w.message}") for w in caught]
+        if ERRORS:
+            record["errors"] = [list(error) for error in ERRORS]
         cases[key] = record
     failed = sorted(
         key

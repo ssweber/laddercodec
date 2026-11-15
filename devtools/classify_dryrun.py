@@ -1,6 +1,6 @@
 """Compare today's per-field checks with the shared field checks, field by field.
 
-    uv run python -I devtools/classify_dryrun.py [<src_dir>]
+    uv run python -I devtools/classify_dryrun.py [<src_dir>] [--expected FILE]
 
 For every field that takes a constant (and the coil target), each value of a fixed list is
 tried two ways:
@@ -8,27 +8,49 @@ tried two ways:
 - today: the instruction is built from a known-good baseline with the field set to the
   value; the verdict is ``accept`` or ``refuse`` with the exception.
 - shared: the field's call to :mod:`laddercodec.operands.checks` (``check_operand``,
-  ``check_constant``, ``check_out_target``) with that field's parameters, plus the pairing
-  the family keeps for itself (a Compare group, a Copy destination, a Search table).
+  ``check_constant``, ``check_out_target``) with that field's parameters, plus what the
+  family keeps for itself (a Compare group, a Copy destination, a Search table, a few
+  refusals of its own).
 
-Every disagreement is printed: field, value, today's verdict, the shared verdict.  When
-both refuse with different exception classes the case is listed as ``class``: the rule
-shows the order of calls that keeps today's class, and the family that wires the shared
-check in follows it.  The script exits 1 on any disagreement, verdict or class, and
-changes nothing.  ``<src_dir>`` (default ``src``) is the laddercodec source tree under
-test.
+Every disagreement is printed: case key, today's verdict, the shared verdict.  A case is
+keyed ``<Class>/<baseline>/<field>=<value>`` as ``operand_probe.py`` keys it.  When both
+refuse with different exception classes the case is listed as ``class``: the rule shows
+the order of calls that keeps today's class, and the family that wires the shared check in
+follows it.  A disagreement that an entry of the expected-diff file (``--expected``,
+default ``expected_diff.txt`` beside this script) allows is listed as ``expected``.  The
+script exits 1 on any other disagreement, verdict or class, and changes nothing.
+``<src_dir>`` (default ``src``) is the laddercodec source tree under test.
 
 Left out: Math, whose formula has its own grammar (``math_formula.parse``).
 """
 
 from __future__ import annotations
 
+import argparse
+import importlib.util
 import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+DEVTOOLS = Path(__file__).resolve().parent
+
+
+def _load(name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(name, DEVTOOLS / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module  # dataclasses look their module up there
+    spec.loader.exec_module(module)
+    return module
+
+
+#: Case keys and the expected-diff file, as operand_probe.py and identity_diff.py read them.
+PROBE: Any = _load("operand_probe")
+IDENTITY: Any = _load("identity_diff")
 
 
 def _text(n: int) -> str:
@@ -54,6 +76,8 @@ VALUES: list[str] = [
     *["0x10", "1_000", "1,5", "１", "-1h", "1Gh", "1HH", "FFFEh", "FFFDh", "0FFFEh", "0000Fh"],
     *["FFFFFh", "0FFFFFFFFh", "$00", "$FF", "$ff", "$0d", "$0D", "$D", "$22", "$4142"],
     *['"a"b"', '"é"', '" "', '"~"', "1E999", "-1E999", "000000001h", "+1.5", "DH"],
+    # Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+    *["0" * 5000 + "1", "1" * 5000],
     # Addresses.
     *["DS1", "ds1", "DH1", "TXT1", "DS[DS1]", "DD[DS1]", "TXT[DS1]", "DS[DD1]", "DS0"],
     *["DD1", "DF1", "TD1", "CTD1", "SD1", "XD0", "XD0u", "YD1", "X001", "x1", "Y001"],
@@ -70,8 +94,12 @@ class Field:
 
     family: str
     label: str
+    #: ``<Class>/<baseline>/<field>``, the case key without its value.
+    key: str
     build: Callable[[Any, str], Any]  # (namespace, value) -> instance
     rule: Callable[[Any, str], Any]  # (namespace, value) -> raises if refused
+    #: The field's value in the case key, as the probe varies it.
+    keyed: Callable[[str], Any] = lambda value: value
 
 
 class Namespace:
@@ -86,6 +114,8 @@ class Namespace:
         from laddercodec import instructions
         from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
         from laddercodec.operands import checks
+        from laddercodec.instructions.comparison import _GROUP_BANKS
+        from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
         from laddercodec.operands.constants import SEARCH_TABLE_BANKS, Kind
 
         loaded = Path(laddercodec.__file__).resolve().parent.parent
@@ -99,6 +129,10 @@ class Namespace:
         self.InstructionType: Any = InstructionType
         self.normalize: Any = normalize_address
         self.search_tables: Any = SEARCH_TABLE_BANKS
+        # Shared banks come from checks; the family-only ones from their family.
+        self.compare_groups: Any = _GROUP_BANKS
+        self.compare_banks: Any = frozenset().union(*_GROUP_BANKS.values())
+        self.for_limit_banks: Any = FOR_LIMIT_BANKS
 
     def constants(self, kinds: Any = None, **limits: Any) -> Any:
         """``Constants`` of ``kinds`` (default: every kind) with ``limits``."""
@@ -108,21 +142,6 @@ class Namespace:
     def refuse(self, message: str, *, address: bool = False) -> None:
         """A refusal the family keeps for itself (a pairing), in the family's class."""
         raise (self.AddressError if address else self.FieldError)(message)
-
-
-# ---------------------------------------------------------------------------
-# Banks the families keep (their own rows; the shared checks take them as parameters)
-# ---------------------------------------------------------------------------
-
-BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
-COMPARE_GROUPS = {
-    "hex": frozenset({"XD", "YD", "DH"}),
-    "numeric": frozenset({"TD", "CTD", "DS", "DD", "DF", "SD"}),
-    "text": frozenset({"TXT"}),
-}
-COMPARE_BANKS = frozenset().union(*COMPARE_GROUPS.values())
-FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
 
 
 # ---------------------------------------------------------------------------
@@ -142,12 +161,12 @@ def compare_rule(other_group: str) -> Callable[[Any, str], None]:
     def rule(ns: Any, value: str) -> None:
         constants = ns.constants(hex_high=0xFFFF, float32=False)
         text = ns.normalize(value)
-        op = ns.checks.check_operand(text, "CompareContact.x", COMPARE_BANKS, constants)
+        op = ns.checks.check_operand(text, "CompareContact.x", ns.compare_banks, constants)
         if op.constant is not None:
             kind = op.constant.kind
             group = {"integer": "numeric", "float": "numeric", "hex": "hex"}.get(kind, "text")
         else:
-            group = next(g for g, banks in COMPARE_GROUPS.items() if op.bank in banks)
+            group = next(g for g, banks in ns.compare_groups.items() if op.bank in banks)
         if group != other_group:
             ns.refuse("not in one compare group")
 
@@ -180,9 +199,13 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
         if shape == ns.Kind.HEX and _wide_hex(text) and dest not in ("DD", "CTD"):
             ns.refuse("hex above FFFFh copies to DD, CTD", address=True)
         op = ns.checks.check_operand(
-            text, "Copy.source", BIT_BANKS | REGISTER_BANKS, constants, pointer=True
+            text,
+            "Copy.source",
+            ns.checks.BIT_BANKS | ns.checks.REGISTER_BANKS,
+            constants,
+            pointer=True,
         )
-        if op.constant is None and op.bank in BIT_BANKS:
+        if op.constant is None and op.bank in ns.checks.BIT_BANKS:
             ns.refuse("a bit copies to Y, C", address=True)
 
     return rule
@@ -215,7 +238,7 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
             ns.checks.check_constant(text, "Fill.value", constants)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
             ns.refuse("text fills TXT", address=True)
-        op = ns.checks.check_operand(text, "Fill.value", REGISTER_BANKS, constants)
+        op = ns.checks.check_operand(text, "Fill.value", ns.checks.REGISTER_BANKS, constants)
         if op.constant is None and (op.bank == "TXT") != (dest == "TXT"):
             ns.refuse("a TXT fills TXT, a numeric register the numeric banks", address=True)
 
@@ -233,7 +256,9 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
     def rule(ns: Any, value: str) -> None:
         constants = ns.constants(hex_high=0xFFFF, hex_sign=True)
         text = ns.normalize(value)
-        op = ns.checks.check_operand(text, "Search.source", REGISTER_BANKS, constants)
+        op = ns.checks.check_operand(
+            text, "Search.source", ns.checks.REGISTER_BANKS, constants
+        )
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
             ns.refuse("the value's kind does not search this table")
 
@@ -268,7 +293,7 @@ def for_limit_rule(ns: Any, value: str) -> None:
     if re.fullmatch(r"[0-9]+(\s+[0-9]+)+", text):
         ns.refuse("a constant count is digits only")
     constants = ns.constants({ns.Kind.INTEGER}, signs="", low=0, high=2**31 - 1)
-    ns.checks.check_operand(ns.normalize(text), "ForLoop.limit", FOR_LIMIT_BANKS, constants)
+    ns.checks.check_operand(ns.normalize(text), "ForLoop.limit", ns.for_limit_banks, constants)
 
 
 def counter_rule(ns: Any, value: str) -> None:
@@ -281,7 +306,11 @@ def counter_rule(ns: Any, value: str) -> None:
 
 
 def modbus_hex_rule(ns: Any, value: str) -> None:
-    """Remote address: a MODBUS 984 number (digits), or hex from 0h to FFFEh."""
+    """Remote address: a MODBUS 984 number (digits), or hex from 0h to FFFEh.
+
+    The family keeps the digits branch: it takes any string of ASCII digits, beyond int32
+    too, and calls no shared check.
+    """
     if value.endswith(("h", "H")):
         constants = ns.constants({ns.Kind.HEX}, hex_high=0xFFFE)
         ns.checks.check_constant(value, "ModbusAddress.address", constants)
@@ -325,6 +354,7 @@ def _bits() -> list[Field]:
                 Field(
                     "bits",
                     f"CompareContact.{side} ({fixed}={other})",
+                    f"CompareContact/vs-{other}/{side}",
                     _make("CompareContact", **base)(side),
                     compare_rule(group),
                 )
@@ -344,6 +374,7 @@ def _bits() -> list[Field]:
                 Field(
                     "bits",
                     f"{name} ({kind})",
+                    f"OutVariant/{kind}/{phase}_preset",
                     make(f"{phase}_preset"),
                     digits_rule(name, frozenset({"DS"}), floor, 32767, letter_first=True),
                 )
@@ -356,7 +387,8 @@ def _bits() -> list[Field]:
             )
 
         label = "Coil.operand (immediate)" if immediate else "Coil.operand"
-        out.append(Field("bits", label, coil, out_target_rule(immediate)))
+        key = "Coil/out-immediate/operand" if immediate else "Coil/out/operand"
+        out.append(Field("bits", label, key, coil, out_target_rule(immediate)))
     return out
 
 
@@ -368,6 +400,7 @@ def _move() -> list[Field]:
             Field(
                 "move",
                 f"Copy.source (destination={dest})",
+                f"Copy/to-{dest}/source",
                 _make("Copy", destination=dest)("source"),
                 copy_rule(bank),
             )
@@ -376,6 +409,7 @@ def _move() -> list[Field]:
         Field(
             "move",
             "Copy.termination_code (DS20 -> TXT7, to_text)",
+            "Copy/to-text/termination_code",
             _make(
                 "Copy",
                 source="DS20",
@@ -391,6 +425,7 @@ def _move() -> list[Field]:
             Field(
                 "move",
                 f"Fill.value ({start}..{end})",
+                f"Fill/{start}..{end}/value",
                 _make("Fill", dest_start=start, dest_end=end)("value"),
                 fill_rule(bank),
             )
@@ -401,7 +436,13 @@ def _move() -> list[Field]:
             "Search", table_start=start, table_end=end, result="DS82", found="C81", comparison="=="
         )
         out.append(
-            Field("move", f"Search.source ({start}..{end} ==)", search("source"), search_rule(bank))
+            Field(
+                "move",
+                f"Search.source ({start}..{end} ==)",
+                f"Search/{start}..{end}/source",
+                search("source"),
+                search_rule(bank),
+            )
         )
     return out
 
@@ -411,6 +452,7 @@ def _data_flow_comm() -> list[Field]:
         Field(
             "data",
             "Timer.setpoint (on_delay)",
+            "Timer/on/setpoint",
             _make("Timer", timer_type="on_delay", done_bit="T1", current="TD1", unit="Tms")(
                 "setpoint"
             ),
@@ -420,6 +462,7 @@ def _data_flow_comm() -> list[Field]:
         Field(
             "data",
             "Counter.preset (count_up)",
+            "Counter/up/preset",
             _make(
                 "Counter",
                 counter_type="count_up",
@@ -444,19 +487,29 @@ def _data_flow_comm() -> list[Field]:
         )
 
     # Digits only, 0 to 32767 for every unit; text that starts with a letter is an address.
+    # The family keeps its own test of a register preset (letters, then digits) for the
+    # blob's constant mask.
     out.append(
         Field(
             "data",
             "Drum.presets[0] (time)",
+            "Drum/time/events_or_presets",
             drum,
             digits_rule("Drum.presets[0]", frozenset({"DS"}), 0, 32767, letter_first=True),
+            lambda value: [value, "DS1303"],
         )
     )
-    out.append(Field("flow", "ForLoop.limit", _make("ForLoop")("limit"), for_limit_rule))
+    out.append(
+        Field("flow", "ForLoop.limit", "ForLoop/int/limit", _make("ForLoop")("limit"), for_limit_rule)
+    )
+    # Not here: the Modbus target's device_id, a number or a DS address.  The family keeps
+    # its check, which refuses a bad DS address with a FieldError rather than the shared
+    # AddressError, and today crashes on DS and more than 4300 digits (int()).
     out.append(
         Field(
             "comm",
             "ModbusAddress.address (holding)",
+            "ModbusAddress/holding/address",
             _make("ModbusAddress", register_type="holding")("address"),
             modbus_hex_rule,
         )
@@ -494,52 +547,72 @@ def _skip(field: Field, value: str) -> bool:
     return field.label.startswith("OutVariant") and value == ""
 
 
-def _run(ns: Any, field: Field) -> tuple[int, int, int, list[str]]:
-    """``(compared, differ, class, lines)`` for one field."""
-    compared = differ = classes = 0
+def _run(ns: Any, field: Field, entries: list[Any]) -> tuple[list[int], list[str]]:
+    """``([compared, differ, class, expected], lines)`` for one field."""
+    counts = [0, 0, 0, 0]
     lines: list[str] = []
     for value in VALUES:
         if _skip(field, value):
             continue
-        compared += 1
+        counts[0] += 1
         today, today_cls, error = _verdict(lambda v=value: field.build(ns, v))
         shared, shared_cls, why = _verdict(lambda v=value: field.rule(ns, v))
-        if today != shared:
-            differ += 1
-            shown = f"{today} ({today_cls}: {error})" if error else today
-            rule = f"{shared} ({shared_cls}: {why})" if why else shared
-            lines.append(f"  DIFFERS {_show(value)} | today {shown} | shared {rule}")
-        elif today_cls != shared_cls:
-            classes += 1
-            lines.append(f"  class   {_show(value)} | today {today_cls} | shared {shared_cls}")
-    return compared, differ, classes, lines
+        if today == shared and today_cls == shared_cls:
+            continue
+        key = f"{field.key}={PROBE._key(field.keyed(value))}"
+        entry = next((e for e in entries if e.matches(key)), None)
+        if entry is not None:
+            counts[3] += 1
+            mark = "expected"
+        elif today != shared:
+            counts[1] += 1
+            mark = "DIFFERS "
+        else:
+            counts[2] += 1
+            mark = "class   "
+        shown = f"{today} ({today_cls}: {_short(error)})" if error else today
+        rule = f"{shared} ({shared_cls}: {_short(why)})" if why else shared
+        lines.append(f"  {mark} {key} | today {shown} | shared {rule}")
+    return counts, lines
+
+
+def _short(text: str) -> str:
+    return text if len(text) <= 120 else text[:117] + "..."
 
 
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")  # ty: ignore[missing-union-attribute]
-    args = sys.argv[1:] if argv is None else argv
-    ns = Namespace(args[0] if args else "src")
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("src_dir", nargs="?", default="src", help="src directory under test")
+    parser.add_argument("--expected", type=Path, default=IDENTITY.EXPECTED, help="expected-diff file")
+    args = parser.parse_args(sys.argv[1:] if argv is None else argv)
+    entries = IDENTITY.read_expected(args.expected)
+    ns = Namespace(args.src_dir)
     fields = _fields()
     totals: dict[str, list[int]] = {}
     print(f"shared field check dry run: {len(fields)} fields x {len(VALUES)} values")
-    print("format: field | value | today | shared")
+    print("format: case key | today | shared")
     print("left out: Math (its formula has its own grammar)")
     for field in fields:
-        compared, differ, classes, lines = _run(ns, field)
+        counts, lines = _run(ns, field, entries)
+        compared, differ, classes, expected = counts
         print()
         print(
-            f"[{field.family}] {field.label}: {compared} compared, {differ} differ, {classes} class"
+            f"[{field.family}] {field.label}: {compared} compared, {differ} differ, "
+            f"{classes} class, {expected} expected"
         )
         print("\n".join(lines) if lines else "  (no differences)")
-        family = totals.setdefault(field.family, [0, 0, 0])
-        family[0] += compared
-        family[1] += differ
-        family[2] += classes
+        family = totals.setdefault(field.family, [0, 0, 0, 0])
+        for index, count in enumerate(counts):
+            family[index] += count
     print()
-    print("Totals by family (compared / differ / class):")
-    for family, (compared, differ, classes) in totals.items():
-        print(f"  {family}: {compared} / {differ} / {classes}")
-    return 1 if any(t[1] or t[2] for t in totals.values()) else 0
+    print("Totals by family (compared / differ / class / expected):")
+    for family, (compared, differ, classes, expected) in totals.items():
+        print(f"  {family}: {compared} / {differ} / {classes} / {expected}")
+    failures = sum(t[1] + t[2] for t in totals.values())
+    expected = sum(t[3] for t in totals.values())
+    print(f"{failures} failure(s), {expected} expected")
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":

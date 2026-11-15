@@ -1,9 +1,32 @@
-# Expected differences for identity_diff.py --tiers.
+# Expected differences for identity_diff.py --tiers and classify_dryrun.py.
 #
 # One case per line: <case key> | <reason>
+#               or:  <case key> | keys=<record key>,... | <reason>
 #
-# The key is an operand_probe.py or fixture_snapshot.py case key, matched whole; * stands
-# for any run of characters.  The reason states the rule the new verdict follows.
+# The key is a case key of operand_probe.py, fixture_snapshot.py or classify_dryrun.py,
+# matched whole: * stands for any run of characters, \* for a star, \\ for a backslash.
+# With keys=, the entry allows a first-tier difference in those record keys only.  The
+# reason states the rule the new verdict follows.
 #
-# A case belongs here only when CLICK itself shows that the verdict before the change was
-# wrong.  A message-only change needs no entry: --tiers lists it apart.
+# A case belongs here only when
+#   (a) CLICK shows that the verdict before the change was wrong, or
+#   (b) before the change, the field value made the code raise something other than a
+#       FieldError or AddressError: a crash, not a verdict.
+# A message-only change needs no entry: --tiers lists it apart.  An entry lives on the
+# branch that adds it; the next branch that touches this file removes the entries the
+# tools report as matching no difference.
+
+# (b) More than 4300 digits: Python's int() refuses the text with a ValueError.  Leading
+# zeros do not count, so '0'*5000+'1' is the integer 1, and '1'*5000 is out of range.
+CompareContact/*/left='0'\*5000+'1' | leading zeros do not count: the integer 1, a numeric constant
+CompareContact/*/right='0'\*5000+'1' | leading zeros do not count: the integer 1, a numeric constant
+OutVariant/*/on_preset='0'\*5000+'1' | leading zeros do not count: the preset is 1
+OutVariant/*/off_preset='0'\*5000+'1' | leading zeros do not count: the preset is 1
+Timer/*/setpoint='0'\*5000+'1' | leading zeros do not count: the set point is 1
+Timer/*/setpoint='1'\*5000 | a set point above 32767 is refused (FieldError)
+Counter/*/preset='0'\*5000+'1' | a preset is at most 12 characters (FieldError)
+Counter/*/preset='1'\*5000 | a preset is at most 12 characters (FieldError)
+Drum/*/events_or_presets=['0'\*5000+'1', *] | leading zeros do not count: the preset is 1
+Drum/*/events_or_presets=['1'\*5000, *] | a preset above 32767 is refused (FieldError)
+ForLoop/*/limit='0'\*5000+'1' | leading zeros do not count: the count is 1
+ForLoop/*/limit='1'\*5000 | a count above 2147483647 is refused (FieldError)
