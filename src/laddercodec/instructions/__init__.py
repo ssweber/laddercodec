@@ -32,6 +32,7 @@ from . import search as search_mod
 from . import send_receive as send_receive_mod
 from . import shift as shift_mod
 from . import timer as timer_mod
+from . import undecoded as undecoded_mod
 from . import velocity as velocity_mod
 from .call import Call
 from .coil import Coil
@@ -54,6 +55,7 @@ from .search import Search
 from .send_receive import ModbusAddress, ModbusRtuTarget, ModbusTcpTarget, Receive, Send
 from .shift import Shift
 from .timer import Timer
+from .undecoded import Undecoded
 from .velocity import Velocity
 
 if TYPE_CHECKING:
@@ -111,6 +113,7 @@ AfToken = (
     | Shift
     | End
     | Return
+    | Undecoded
     | RawInstruction
     | AfInstruction
     | UnknownInstruction
@@ -141,6 +144,7 @@ AF_FAMILY_SPECS: tuple[AfInstructionFamilySpec, ...] = (
     home_mod.SPEC,
     velocity_mod.SPEC,
     position_mod.SPEC,
+    undecoded_mod.SPEC,
     raw_mod.SPEC,
 )
 
@@ -321,6 +325,7 @@ __all__ = [
     "Timer",
     "UnknownCondition",
     "UnknownInstruction",
+    "Undecoded",
     "Unpack",
     "Velocity",
     "from_tags_af",
