@@ -1,10 +1,11 @@
 name: CI
 
+# No run on a push to main: a PR must be up to date to merge, so the merged tree
+# is the tree its PR already tested.
 on:
-  push:
-    branches: ["main", "master"]
   pull_request:
-    branches: ["main", "master"]
+    branches: ["main"]
+  workflow_dispatch:
 
 permissions:
   contents: read
