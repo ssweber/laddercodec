@@ -8,6 +8,7 @@ raises.
 from __future__ import annotations
 
 import gzip
+import importlib
 import pickle
 import warnings
 from dataclasses import replace
@@ -35,6 +36,7 @@ from laddercodec.undecoded import marker_rung
 from tests.fixtures_refused import is_refused
 from tests.ladder.test_decode_program import _synthetic_scr
 
+decode_program_module = importlib.import_module("laddercodec.decode_program")
 FIXTURES = Path(__file__).parent / "fixtures"
 GOLDEN = FIXTURES / "ladder_captures" / "golden"
 COLUMNS = [*(chr(ord("A") + i) for i in range(26)), "AA", "AB", "AC", "AD", "AE", "AF"]
@@ -159,11 +161,15 @@ def test_a_comment_that_does_not_decode(index: int) -> None:
     assert rungs[index].comment == marker.headline
 
 
+@pytest.mark.parametrize("cut", [False, True], ids=["zeroed", "cut"])
 @pytest.mark.parametrize(("index", "row"), [(1, 0), (2, 1)])
-def test_rows_lost_to_the_end_make_one_marker(index: int, row: int) -> None:
-    """A row with no cell 0 ends the walk: one marker stands for that rung and every later one."""
+def test_rows_lost_to_the_end_make_one_marker(index: int, row: int, cut: bool) -> None:
+    """A row with no cell 0, or past the buffer's end, ends the walk.
+
+    One marker stands for that rung and every later one.
+    """
     start = _cell(index, row, 0)
-    data = DATA[:start] + bytes(len(DATA) - start)
+    data = DATA[:start] if cut else DATA[:start] + bytes(len(DATA) - start)
     rungs, markers = _decode(data)
     *decoded, last = rungs
     assert decoded == DECODED[:index]
@@ -172,6 +178,7 @@ def test_rows_lost_to_the_end_make_one_marker(index: int, row: int) -> None:
     assert markers == [marker]
     assert (marker.rung, marker.row, marker.column) == (index, row, None)
     assert marker.error.endswith(f"so this marker stands for rung {index} to the end")
+    assert marker.error.startswith("the buffer ends before" if cut else "grid row")
 
 
 def test_two_bad_rungs_make_two_markers() -> None:
@@ -204,6 +211,87 @@ def test_scr_comment_that_does_not_decode_makes_a_return_marker() -> None:
     (marker,) = program.undecoded
     assert (marker.rung, marker.row, marker.column, marker.stop) == (1, None, None, "return")
     assert marker.error.startswith("the rung comment: ")
+
+
+SCR_MAIN = FIXTURES / "scr_captures" / "coverage.scr"
+
+
+def _scr_with(monkeypatch: pytest.MonkeyPatch, change) -> tuple[Program, Program]:
+    """coverage.scr decoded as is, then with *change* applied to its first record that has
+    an instruction (the instruction list is passed in, and the list returned replaces it)."""
+    data = SCR_MAIN.read_bytes()
+    want = decode_program(data)
+    real = decode_program_module._walk_until_framing_error
+
+    def walk(data, header):
+        records, error = real(data, header)
+        index = next(i for i, r in enumerate(records) if r.instructions)
+        records[index] = replace(records[index], instructions=change(records[index].instructions))
+        return records, error
+
+    monkeypatch.setattr(decode_program_module, "_walk_until_framing_error", walk)
+    with pytest.warns(UndecodedRungWarning, match="^program 'Main Program', rung "):
+        got = decode_program(data)
+    return want, got
+
+
+def _first_marker(want: Program, got: Program) -> Undecoded:
+    """The one marker in *got*; every other rung is as in *want*."""
+    (marker,) = got.undecoded
+    assert marker.stop == "end"  # coverage.scr is the main program
+    assert len(got.rungs) == len(want.rungs)
+    index = marker.rung
+    assert (
+        got.rungs[:index] + got.rungs[index + 1 :] == want.rungs[:index] + want.rungs[index + 1 :]
+    )
+    return marker
+
+
+def test_scr_instruction_on_the_comment_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    def change(instructions):
+        row, col, *rest = instructions[0]
+        return [(-1, col, *rest), *instructions[1:]]
+
+    marker = _first_marker(*_scr_with(monkeypatch, change))
+    assert marker.row is None
+    assert marker.error == "an instruction is stored on the comment row"
+
+
+def test_scr_instruction_past_the_output_column(monkeypatch: pytest.MonkeyPatch) -> None:
+    def change(instructions):
+        row, col, *rest = instructions[0]
+        return [(row, 40, *rest), *instructions[1:]]
+
+    marker = _first_marker(*_scr_with(monkeypatch, change))
+    assert marker.column is None
+    assert marker.error == "an instruction is stored in column 40, past AF"
+
+
+def test_scr_two_instructions_in_one_cell(monkeypatch: pytest.MonkeyPatch) -> None:
+    marker = _first_marker(
+        *_scr_with(monkeypatch, lambda instructions: [*instructions, instructions[0]])
+    )
+    assert marker.error == "two instructions are stored in one cell"
+    assert marker.row is not None and marker.column is not None
+
+
+def test_scr_bytes_a_rung_cannot_be_built_from(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A rung whose record frames but whose cells don't build is a marker, with its comment."""
+
+    def build(**kwargs):
+        raise ValueError("no such row")
+
+    monkeypatch.setattr(decode_program_module, "_build_topology_backed_rung", build)
+    with pytest.warns(UndecodedRungWarning, match="no such row"):
+        program = decode_program(_synthetic_scr(["first"]))
+    (marker,) = program.undecoded
+    assert (marker.rung, marker.row, marker.error, marker.stop) == (
+        0,
+        None,
+        "no such row",
+        "return",
+    )
+    assert program.rungs[0].comment == marker.headline + "\nfirst"
 
 
 def test_scr_header_errors_still_raise() -> None:
