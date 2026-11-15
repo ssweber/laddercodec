@@ -12,11 +12,14 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## How work runs here
 
-- **Branches.** Feature and refactor branches go into an always-releasable `main`. There is no `dev` trunk.
-  Sam squash-merges; a session stops at "CI green, ready to merge". A session pushes branches and opens PRs only
-  after Sam has told it directly that it may. Releases cut from `main`.
+- **Branches.** Feature and refactor branches go into an always-releasable `main`, only through PRs. There is no
+  `dev` trunk. A session pushes its branch, opens the PR and squash-merges it once CI is green on the head commit
+  and a fresh reviewer has passed that commit. A PR that needs Sam, CLICK or a PLC (a golden paste check, say)
+  waits for that. Every PR carries its CHANGELOG line, so `main` can be released at any commit.
+- **Releases are Sam's.** Nothing is tagged, released or published without him. Publishing a GitHub release
+  sends the package to PyPI and deploys the docs site.
 - **Builds.** Multi-branch jobs run as BOB arcs: a worktree and a builder per branch, a fresh reviewer, CI as the
-  gate. The merge queue and trains go (item 1). The PreToolUse hook stays, cut down.
+  gate. The BOB tooling moves to the shared `bob` plugin (item 1).
 - **Arc folders stay out of git** (`../laddercodec-wt/buildbot/jobs/`). When an arc closes, its open items move
   here and the folder can go.
 - **No provenance.** Code, tests and user docs say what a rule is, not where it came from. CLICK's own error ids
@@ -27,26 +30,22 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Order
 
-1. Cruft sweep and the merge queue's removal.
+1. Cruft sweep and the switch to the `bob` plugin.
 2. The undecoded marker.
 3. The field-rule restructure.
 4. Canonical constants, once CLICK has answered.
 
-The stable public API (Sam's call) and the SCR blob dataclass fit in wherever they are ready.
+The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
-## 1. Cruft sweep (nothing)
+## 1. Cruft sweep (Sam says when to switch)
 
-- **Merge queue out, hook kept.** Delete `devtools/mergeq/mergeq.py`, `test_mergeq.py` and `mergeq.toml` (about
-  1,500 lines). Cut `hook.py` down to the pytest timeout and memory cap, and the read-only rules for
-  `bob-reviewer` and `bob-investigator`, reading a small config of its own. Rewrite the `bob` skill, its
-  `profile.md` and the three agent files for `main`, PRs and CI: no `M` commands, plain `git worktree`, ledgers
-  as plain files. `mergeq.toml` still names `dev` as its base; that goes with it.
-- **Branches.** Delete the local `click-v4-sweep-fixes`; it landed as 0.3.3 (#28). Archive
-  `feat/productivity-codec` as a tag and delete the branch: that is a push, so it waits for Sam's word.
+- **Switch to the `bob` plugin** (`ssweber/bob`). One PR: delete `devtools/mergeq`, `.claude/skills/bob/SKILL.md`
+  and `.claude/agents/bob-*`; add `.claude/bob/config.toml` and `.claude/bob/profile.md`; point
+  `.claude/settings.json` at the plugin. Delete the stale queue folders in `../laddercodec-wt/buildbot` and the
+  unmerged `chore/agentguard` branch and worktree. Every open session then needs `/hooks` or a restart.
 - **Arc folders.** Delete the closed ones under `laddercodec-wt/buildbot/jobs/`, except `dllqa/`,
   `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
   3) are sorted.
-- **Memory.** Point the session memory at this file, and drop the entries it supersedes.
 
 ## 2. The undecoded marker (nothing; ClickNick and pyrung follow)
 
@@ -186,10 +185,10 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - An End inside a subroutine is not flagged.
 - A slave ID out of range at run time: pyrung assumes an error bit and no send. Only a PLC shows what happens.
 
-## Sam's call
+## Stable public API (nothing; ClickNick follows)
 
-- **Stable public API.**
-  - Proposal: `laddercodec.__all__`, plus the names ClickNick reaches past it for, moved to the top level:
+- **Approved by Sam.**
+  - `laddercodec.__all__`, plus the names ClickNick reaches past it for, moved to the top level:
     - `UnknownCondition` and `UnknownInstruction`;
     - `DecodeError`, `WriterError`, `ConvertError`;
     - `Email`, `Home`, `Position` and `Velocity`, which exist but aren't exported.
@@ -198,9 +197,12 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
     or ClickNick stops using them.
   - Everything else is internal. A test pins `__all__`. Message text is not part of the API.
   - This fits the plan's "named imports" direction.
-- **Hex Math: refuse or rewrite.** CLICK rewrites hex `DH1 + 7` as `7h` and `DH1 + 7H7` as `77h` (delete the
-  first `H` anywhere). The code refuses both. Rewrite as CLICK does, or keep refusing?
-- **Pushing:** permission to push branches and open PRs.
+
+## Settled (don't reopen)
+
+- **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`; never rewrite them as CLICK's dialog does
+  (`7h`, `77h`). The error names the fix.
+- **`feat/productivity-codec`** stays as a branch for now.
 
 ## Later (nothing unless marked)
 
