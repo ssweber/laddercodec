@@ -753,13 +753,13 @@ def _framing_marker(data: bytes | bytearray, rung: int, error: str) -> list:
 
 
 def test_corrupt_rung_index_stops_decoding_at_a_marker():
-    data = bytearray(_synthetic_scr(["first", None, None]))
-    # Corrupt the second rung's index word (locate it: first rung record ends
-    # after its 00 00 count; the next two bytes are the u16 index == 1).
-    idx_pos = data.index(struct.pack("<H", 1) + b"\x00\x00\x00\x00\x02\x00\x03\x00\x00")
-    struct.pack_into("<H", data, idx_pos, 9)
+    """Rung 2's index is wrong, so rung 1's end is not confirmed: the marker starts at 1."""
+    data = bytearray(_synthetic_scr(["first", "second", "third"]))
+    records = _walk_rung_records(bytes(data), _parse_header(data))
+    prefix = records[1].topology.end + 2  # after rung 1's section count
+    struct.pack_into("<H", data, prefix, 9)
 
-    decoded = _framing_marker(data, 1, "rung index mismatch at 0x[0-9A-F]+: expected 1, got 9")
+    decoded = _framing_marker(data, 1, "rung index mismatch at 0x[0-9A-F]+: expected 2, got 9")
     assert [r.comment for r in decoded] == ["first"]
 
 
@@ -929,33 +929,90 @@ def test_corrupt_topology_is_not_skipped_before_a_valid_rung():
         _walk_rung_records(bytes(data), header)
 
 
-@pytest.mark.parametrize("index", [0, 1])
+@pytest.mark.parametrize("index", [0, 1, 2])
 def test_declared_rung_indices_include_zero(index):
-    data = bytearray(_synthetic_scr([None, None]))
+    """A wrong index at rung *index* leaves the rung before unconfirmed (none for rung 0)."""
+    data = bytearray(_synthetic_scr(["a", "b", "c"]))
     header = _parse_header(data)
     records = _walk_rung_records(data, header)
-    prefix = header.rungs_start if index == 0 else records[0].topology.end + 2
+    prefix = header.rungs_start if index == 0 else records[index - 1].topology.end + 2
     struct.pack_into("<H", data, prefix, 42)
-    _framing_marker(data, index, f"rung index mismatch at 0x{prefix:X}: expected {index}, got 42")
+    rung = max(index - 1, 0)
+    decoded = _framing_marker(
+        data, rung, f"rung index mismatch at 0x{prefix:X}: expected {index}, got 42"
+    )
+    assert [r.comment for r in decoded] == ["a", "b", "c"][:rung]
 
 
 @pytest.mark.parametrize(
     ("count", "rung", "error"),
     [
         (0, 0, "rung walk ended"),
-        (1, 1, "rung walk ended"),
-        (3, 2, "truncated rung prefix"),
+        (1, 0, "rung walk ended"),
+        (2, 1, "rung walk ended"),
+        (4, 2, "truncated rung prefix"),
         (256, 2, "truncated rung prefix"),
     ],
 )
 def test_declared_rung_count_is_enforced(count, rung, error):
-    data = bytearray(_synthetic_scr([None, None]))
+    """A count off from the records leaves the last record read unconfirmed."""
+    data = bytearray(_synthetic_scr(["a", "b", "c"]))
     header = _parse_header(data)
     struct.pack_into("<H", data, header.rungs_start - 2, count)
-    # The empty records before the error all decode: after a framing error no rung is the
-    # last, so no trailing placeholder is dropped.
     decoded = _framing_marker(data, rung, error)
-    assert [r.logical_rows for r in decoded] == [1] * rung
+    assert [r.comment for r in decoded] == ["a", "b", "c"][:rung]
+
+
+@pytest.mark.parametrize("comments", [["a", "b", None], ["a", None, None, None]])
+def test_a_framing_error_drops_trailing_placeholders(comments):
+    """After the unconfirmed record is dropped, so are the empty rungs before it.
+
+    The marker then stands for the first of them, and never for a rung past the file's.
+    """
+    data = _synthetic_scr(comments) + b"\x00\x00"
+    decoded = _framing_marker(data, 2 if comments[1] else 1, "rung walk ended")
+    assert [r.comment for r in decoded] == ["a", "b"][: len(decoded)]
+
+
+def test_a_section_count_too_low_puts_the_marker_on_its_record(monkeypatch):
+    """Each record's section count lowered by one: that record ends early.
+
+    The next record's prefix then fails, and the marker starts at the record whose count
+    is wrong.  No rung decodes as a wrong one.
+    """
+    data = (_SCR_FIXTURE_DIR / "coverage.scr").read_bytes()
+    want = decode_program(data)
+    sections: list[tuple[int, int]] = []
+    real = decode_program_module._parse_section_entries
+
+    def spy(data, pos, count, limit):
+        sections.append((pos, count))
+        return real(data, pos, count, limit)
+
+    monkeypatch.setattr(decode_program_module, "_parse_section_entries", spy)
+    records = _walk_rung_records(data, _parse_header(data))
+    monkeypatch.setattr(decode_program_module, "_parse_section_entries", real)
+    with_section = [i for i, r in enumerate(records) if r.instructions]
+    assert len(with_section) == len(sections) > 50
+    checked = 0
+    for (pos, count), index in zip(sections, with_section, strict=True):
+        if (
+            count < 2
+            or index >= len(want.rungs) - 1
+            or (index and not records[index - 1].instructions)
+        ):
+            continue
+        damaged = bytearray(data)
+        struct.pack_into("<H", damaged, pos - 6, count - 1)
+        with pytest.warns(UndecodedRungWarning):
+            got = decode_program(bytes(damaged))
+        (marker,) = got.undecoded
+        assert marker.rung == index
+        assert marker.error.startswith("rung index mismatch")
+        assert got.rungs[:index] == want.rungs[:index]
+        assert len(got.rungs) == index + 1
+        checked += 1
+    assert checked > 20
 
 
 def test_truncated_headers_raise_value_error():

@@ -581,18 +581,33 @@ def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
     return records
 
 
+class _UnconfirmedEnd(ValueError):
+    """A framing error that leaves the last record read unconfirmed.
+
+    A record's end is confirmed only by the next record's prefix (its index), or for the
+    last record by the file's end.  When that check fails, the record before may have
+    ended in the wrong place: a section count one too low ends it early, and it would
+    decode as a wrong rung.
+    """
+
+
 def _walk_until_framing_error(
     data: bytes, header: _ScrHeader
 ) -> tuple[list[_ScrRungRecord], str | None]:
     """The records before the first malformed one, and the framing error, or None.
 
     The walk never searches for a later rung to resume at: the records after a framing
-    error are lost.  A file that ends anywhere but after its last record is a framing
-    error at the index past the last.
+    error are lost.  So is the record before one whose prefix is cut off or holds the
+    wrong index, or the last record when the file does not end after it: its end is not
+    confirmed (:class:`_UnconfirmedEnd`).
     """
     records: list[_ScrRungRecord] = []
     try:
         _read_rung_records(data, header, records)
+    except _UnconfirmedEnd as exc:
+        if records:
+            records.pop()
+        return records, reason(exc)
     except BAD_BYTES as exc:
         return records, reason(exc)
     return records, None
@@ -604,10 +619,10 @@ def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRe
     limit = len(data) - (2 if header.prog_idx == _MAIN_PROG_IDX else 0)
     for index in range(header.rung_count):
         if pos + 6 > limit:
-            raise ValueError(f"truncated rung prefix at 0x{pos:X}")
+            raise _UnconfirmedEnd(f"truncated rung prefix at 0x{pos:X}")
         got = struct.unpack_from("<H", data, pos)[0]
         if got != index:
-            raise ValueError(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
+            raise _UnconfirmedEnd(f"rung index mismatch at 0x{pos:X}: expected {index}, got {got}")
         pos += 2
 
         rtf_len = struct.unpack_from("<I", data, pos)[0]
@@ -643,7 +658,7 @@ def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRe
         records.append(_ScrRungRecord(rtf_bytes, block, instructions))
 
     if pos != limit:
-        raise ValueError(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
+        raise _UnconfirmedEnd(f"rung walk ended at 0x{pos:X}, expected 0x{limit:X}")
 
 
 def _is_trailing_placeholder(record: _ScrRungRecord) -> bool:
@@ -826,8 +841,11 @@ def decode_program(data: bytes) -> Program:
         be decoded comes back as an undecoded marker rung, with an
         ``UndecodedRungWarning``.  After a framing error (a truncated record, or a
         topology or section the walk can't read) the rungs before it decode, and one
-        marker stands for that rung and every rung after it.  Markers act as ``end()`` in
-        the main program and as ``return()`` in a subroutine.
+        marker stands for that rung and every rung after it.  When the error is in a
+        record's prefix, or the file does not end after the last record, the record
+        before is not known to have ended in the right place, so the marker starts at
+        that record.  Markers act as ``end()`` in the main program and as ``return()``
+        in a subroutine.
 
     Raises
     ------
@@ -840,8 +858,9 @@ def decode_program(data: bytes) -> Program:
 
     # Drop trailing content-less rungs — the ordinary empty rungs Click keeps
     # below the last programmed rung (a rung-scoped clipboard copy excludes
-    # them too).  After a framing error no rung is known to be the last.
-    while framing_error is None and records and _is_trailing_placeholder(records[-1]):
+    # them too).  After a framing error they are dropped before the marker, which
+    # then stands for the first of them: an empty rung does nothing when run.
+    while records and _is_trailing_placeholder(records[-1]):
         records.pop()
 
     failed: list[tuple[int, str]] = []
