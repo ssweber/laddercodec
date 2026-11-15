@@ -90,13 +90,35 @@ class TestParser:
         _raises(path, ValueError, "Invalid CSV header", line=3)
 
     def test_empty_file(self, tmp_path: Path) -> None:
+        """The message names the file once, in its location."""
         path = tmp_path / "main.csv"
         path.write_text("", encoding="utf-8")
-        _raises(path, ValueError, "is empty")
+        exc = _raises(path, ValueError, "^CSV file is empty; expected header row \\(at ")
+        assert str(exc).count(str(path)) == 1
 
-    def test_invalid_marker(self, tmp_path: Path) -> None:
+    def test_invalid_marker_in_a_rung(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("Q", {}, "")])
-        _raises(path, ValueError, "Invalid marker 'Q'", line=3)
+        _raises(path, ValueError, "Invalid marker 'Q'", line=3, rung_line=2, row=1)
+
+    def test_invalid_marker_before_any_rung(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [("Q", {}, ""), GOOD])
+        _raises(path, ValueError, "Invalid marker 'Q'", line=2)
+
+    def test_invalid_marker_after_a_comment(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [GOOD, ("#", {0: "note"}, ""), ("Q", {}, "")])
+        _raises(path, ValueError, "Invalid marker 'Q'", line=4)
+
+    def test_comment_row_with_its_af_cell(self, tmp_path: Path) -> None:
+        """A comment row longer than the header, its AF cell filled: column AF."""
+        bad = ["#", "note", *[""] * 30, "stray", ""]
+        path = _write(tmp_path / "main.csv", [bad, GOOD])
+        _raises(path, ValueError, "Comment rows may only", line=2, column=AF)
+
+    def test_every_shape_before_any_token(self, tmp_path: Path) -> None:
+        """A token error on an earlier row loses to a shape error on a later one."""
+        rows: list[Row | list[str]] = [("R", _wired("X1"), "frob(1)"), GOOD, ["", "X2"]]
+        path = _write(tmp_path / "main.csv", rows)
+        _raises(path, ValueError, "Expected 33 columns", line=4, rung_line=3, row=1)
 
     def test_wrong_column_count(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ["", "X002", "-", "out(Y002)"]])
@@ -124,7 +146,7 @@ class TestParser:
         """A quoted cell over two lines moves every later row's line by one."""
         rows: list[Row | list[str]] = [("#", {0: "two\nlines"}, ""), GOOD, ("Q", {}, "")]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, ValueError, "Invalid marker", line=5)
+        _raises(path, ValueError, "Invalid marker", line=5, rung_line=4, row=1)
 
     def test_csv_error(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [GOOD, ("R", {0: "X" * 200}, "out(Y001)")])
@@ -133,6 +155,35 @@ class TestParser:
             _raises(path, csv.Error, "field larger than field limit", line=3)
         finally:
             csv.field_size_limit(limit)
+
+    def test_csv_error_in_a_multiline_cell(self, tmp_path: Path) -> None:
+        """A csv.Error is at the line its row starts on, not the line it was found on."""
+        path = _write(tmp_path / "main.csv", [GOOD, ("R", {0: "a\nb\n" + "X" * 200}, "out(Y1)")])
+        limit = csv.field_size_limit(100)
+        try:
+            _raises(path, csv.Error, "field larger than field limit", line=3)
+        finally:
+            csv.field_size_limit(limit)
+
+    @pytest.mark.parametrize(
+        "bad",
+        [("Q", {}, ""), ["", "X2"], ("#", {0: "note", 2: "stray"}, "")],
+        ids=["marker", "column_count", "comment_cell"],
+    )
+    @pytest.mark.parametrize("reader", ["read_csv", "parse_bundle"])
+    def test_file_closed_while_the_error_is_held(
+        self, tmp_path: Path, bad: Row | list[str], reader: str
+    ) -> None:
+        """A shape error leaves the file closed: it can be removed while the error is held."""
+        path = _write(tmp_path / "main.csv", [GOOD, bad, GOOD, GOOD])
+        with pytest.raises(ValueError) as info:
+            if reader == "read_csv":
+                read_csv(path)
+            else:
+                parse_bundle(tmp_path)
+        assert type(info.value) is ValueError
+        path.unlink()  # PermissionError on Windows while the file is open
+        assert not path.exists()
 
     def test_undecodable_file_names_only_the_file(self, tmp_path: Path) -> None:
         path = tmp_path / "main.csv"
@@ -153,8 +204,13 @@ class TestTokenParser:
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
         _raises(path, ValueError, "Positional arg after", line=2, rung_line=2, row=0, column=AF)
 
-    def test_malformed_quoted_kwarg(self, tmp_path: Path) -> None:
-        af = 'send(target=x,remote_start="a"b"c")'
+    @pytest.mark.parametrize(
+        "value",
+        ['"a"b"c"', '"ab"c'],
+        ids=["lone_quote_inside", "no_closing_quote"],
+    )
+    def test_malformed_quoted_kwarg(self, tmp_path: Path, value: str) -> None:
+        af = f"send(target=x,remote_start={value})"
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), af)])
         _raises(path, ValueError, "Malformed AF quoted", line=2, rung_line=2, row=0, column=AF)
 
@@ -184,6 +240,14 @@ class TestInstructions:
     def test_condition_token_not_understood(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("+"), "out(Y001)")])
         _raises(path, ValueError, "Cannot convert generic", line=2, rung_line=2, row=0, column=0)
+
+    def test_contact_with_non_ascii_digits(self, tmp_path: Path) -> None:
+        """An address written with digits outside 0-9 is refused as an address, at its cell."""
+        cells = {0: "X001", 1: "-", 2: "X١", **{c: "-" for c in range(3, 31)}}
+        path = _write(tmp_path / "main.csv", [("R", cells, "out(Y001)")])
+        exc = _raises(path, AddressError, "Contact.operand", line=2, rung_line=2, row=0, column=2)
+        assert isinstance(exc, FieldError)
+        assert exc.field == "Contact.operand"
 
     def test_unsupported_af(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), "frob(1)")])
@@ -248,30 +312,46 @@ class TestConverterPins:
         assert exc.field is None
 
     def test_refused_pin_keeps_its_field(self, tmp_path: Path) -> None:
-        """A field a pin sets, refused, stays a ConvertError and keeps the field it names."""
+        """A field a pin sets, refused, stays a ConvertError and keeps the field it names.
+
+        The ``.reset()`` row is the fault, so the error is at that row, not the box.
+        """
         rows: list[Row | list[str]] = [
             ("R", _wired("X1"), "off_delay(T1,TD1,preset=1000,unit=Tms)"),
             ("", _wired("X2"), ".reset()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
         exc = _raises(
-            path, ConvertError, "can't be retentive", line=2, rung_line=2, row=0, column=AF
+            path, ConvertError, "can't be retentive", line=3, rung_line=2, row=1, column=AF
         )
         assert isinstance(exc, ConvertError)
         assert exc.field == "Timer.retained"
         assert isinstance(exc.__cause__, FieldError)
 
     def test_refused_jump_target_keeps_its_field(self, tmp_path: Path) -> None:
+        """The refused target is the ``.jump(...)`` row's value: the error is at that row."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM),
             ("", _wired("C2"), ".reset()"),
             ("", _wired("C5"), ".jump(C5)"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        exc = _raises(path, ConvertError, "jump_target", line=2, rung_line=2, row=0, column=AF)
+        exc = _raises(path, ConvertError, "jump_target", line=4, rung_line=2, row=2, column=AF)
         assert isinstance(exc, ConvertError)
         assert exc.field == "Drum.jump_target"
         assert isinstance(exc.__cause__, AddressError)
+
+    def test_refused_jump_target_with_pins_after_it(self, tmp_path: Path) -> None:
+        """A leg under the reset and a jog after the jump don't move the error off the jump."""
+        rows: list[Row | list[str]] = [
+            ("R", _wired("C1"), DRUM),
+            ("", _wired("C2"), ".reset()"),
+            ("", {0: "C4"}, ""),
+            ("", _wired("C5"), ".jump(C5)"),
+            ("", _wired("C3"), ".jog()"),
+        ]
+        path = _write(tmp_path / "main.csv", rows)
+        _raises(path, ConvertError, "jump_target", line=5, rung_line=2, row=3, column=AF)
 
     def test_box_open_at_the_rungs_end(self, tmp_path: Path) -> None:
         """A box still open at the rung's end is located at its own row, not the last."""
@@ -307,7 +387,9 @@ class TestBundle:
         _write(tmp_path / "main.csv", [GOOD, ("Q", {}, "")])
         with pytest.raises(ValueError, match="Invalid marker") as info:
             parse_bundle(tmp_path)
-        assert CsvLocation.of(info.value) == CsvLocation(file=tmp_path / "main.csv", line=3)
+        assert CsvLocation.of(info.value) == CsvLocation(
+            file=tmp_path / "main.csv", line=3, rung_line=2, row=1
+        )
 
     def test_bad_subroutine(self, tmp_path: Path) -> None:
         _write(tmp_path / "main.csv", [GOOD])

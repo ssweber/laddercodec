@@ -23,9 +23,14 @@ class CsvLocation:
     """Where in a CSV an error ``read_csv`` raised was found.
 
     Every exception ``read_csv`` raises for a bad CSV carries one as its ``location``
-    attribute, whatever its class: ``ValueError``, ``FieldError``, ``AddressError`` and the
-    rest keep their class and gain the attribute.  :meth:`of` reads it.  Each field is
-    ``None`` where it is not known or does not apply.
+    attribute, whatever its class: ``ValueError``, ``FieldError``, ``AddressError``,
+    ``csv.Error`` and the rest keep their class and gain the attribute.  :meth:`of` reads
+    it.  A ``ValueError`` (``FieldError`` included) or ``csv.Error`` message ends with
+    `` (at <location>)``; a ``UnicodeDecodeError`` keeps its message and its location
+    holds ``file`` only.  A ``FieldError`` refused while a box takes its pin rows (a
+    ``.jump()`` target, a ``.reset()`` on a timer that can't be retentive) arrives as the
+    ``ConvertError`` it always was, with the field in its ``field``.  Each field is ``None``
+    where it is not known or does not apply.
 
     Attributes
     ----------
@@ -33,13 +38,17 @@ class CsvLocation:
         The CSV file being read.
     line:
         The line of the CSV file the row at fault starts on, counted from 1 as an editor
-        counts them: the header is line 1 in a file with no blank lines before it.
+        counts them, blank lines included: the header is line 1 only when no blank line
+        comes before it.  ``None`` for an error about the whole file.
     rung_line:
         The line of the ``R`` row that starts the rung the row is in, counted the same way.
-        ``None`` for the header, a comment row and a row with no ``R`` row above it.
+        ``None`` when the row is in no rung: the header, a comment row, and a row with no
+        ``R`` row between it and the last comment row or the header above it.
     row:
         The row within that rung, from 0: the ``R`` row is row 0, and the comment rows above
-        it are not counted.  Rows are counted as the CSV holds them, before layout.
+        it are not counted.  Rows are counted as the CSV holds them, before layout.  ``None``
+        when ``rung_line`` is.  A refusal of what a pin row holds is at that pin row; a pin
+        row that is missing is at the box's row.
     column:
         The cell's column, from 0: 0 is ``A``, 30 is ``AE`` and 31 is ``AF``, as
         :class:`laddercodec.Finding` counts them.  ``None`` for an error about a whole row or

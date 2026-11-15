@@ -93,7 +93,7 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
-from .location import AF_COLUMN, at, located
+from .location import AF_COLUMN, add_location, at, located
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -111,6 +111,8 @@ class _ParsedRow:
     token: AfToken = ""
     pin_name: str | None = None
     pin_args: tuple[str, ...] = ()
+    #: The CSV line and rung row of the row, for an error's location.
+    place: dict[str, int | None] = field(default_factory=dict)
 
 
 @dataclass
@@ -244,7 +246,6 @@ def _start_active_block(
     row: _ParsedRow,
     *,
     lead_conditions: list[list[ConditionToken]] | None = None,
-    place: dict[str, int | None] | None = None,
 ) -> _ActiveBlock:
     """Create a new active multi-row AF block from its main AF row."""
     if not isinstance(row.token, AfInstruction):
@@ -253,7 +254,7 @@ def _start_active_block(
         token=row.token,
         main_conditions=row.conditions,
         lead_conditions=lead_conditions or [],
-        place=place or {},
+        place=row.place,
     )
 
 
@@ -341,6 +342,7 @@ def _finalize_pinned_block(
     # Every slot after the first: the main input when there are lead slots.
     slot_rows: list[int] = list(range(1, lead + 1))
     pins: dict[str, tuple[str, ...]] = {}
+    pin_places: dict[str, dict[str, int | None]] = {}
     pending = list(block.continuations)
     prev = lead
     unused = 0
@@ -359,6 +361,7 @@ def _finalize_pinned_block(
         rows.append(pending[j].conditions)
         slot_rows.append(prev)
         pins[slot] = pending[j].pin_args
+        pin_places[slot] = pending[j].place
         pending = pending[j + 1 :]
         unused = 0
     slot_rows.extend(range(prev + 1, prev + 1 + unused))
@@ -378,11 +381,34 @@ def _finalize_pinned_block(
         token = token.with_pins(pins, tuple(slot_rows))
     except ValueError as exc:
         field_name = exc.field if isinstance(exc, FieldError) else None
-        raise ConvertError(str(exc), field=field_name) from exc
+        error = ConvertError(str(exc), field=field_name)
+        if isinstance(exc, FieldError):
+            # A value a pin row sets is refused: locate it at that pin's row.
+            culprit = _refused_pin(token, pins, tuple(slot_rows))
+            if culprit is not None:
+                add_location(error, **pin_places[culprit], column=AF_COLUMN)
+        raise error from exc
     af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _refused_pin(
+    token: PinnedInstruction, pins: dict[str, tuple[str, ...]], slot_rows: tuple[int, ...]
+) -> str | None:
+    """The first used pin without which ``with_pins`` accepts the box, or None.
+
+    That pin's row holds the refused value (a Drum's ``.jump(target)``) or is itself the
+    fault (a ``.reset()`` on a timer that can't be retentive).
+    """
+    for name in pins:
+        try:
+            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+        except ValueError:
+            continue
+        return name
+    return None
 
 
 def _finalize_generic_tall_block(
@@ -536,6 +562,7 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
         place: dict[str, int | None] = {"line": row.line, "row": index}
         with located(**place):
             parsed = _parse_rung_row(row, strict=strict)
+            parsed.place = place
 
             if active_block is not None:
                 with located(column=AF_COLUMN):
@@ -559,9 +586,7 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
                     ):
                         lead_conditions.insert(0, plain_rows.pop().conditions)
                 _flush_plain_rows(plain_rows, condition_rows, af_tokens)
-                active_block = _start_active_block(
-                    parsed, lead_conditions=lead_conditions, place=place
-                )
+                active_block = _start_active_block(parsed, lead_conditions=lead_conditions)
                 continue
 
             if parsed.kind == "pin":

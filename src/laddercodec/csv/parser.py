@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import csv
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Generator, Iterable, Sequence
+from contextlib import closing
 from pathlib import Path
 from typing import Literal
 
 from .ast import CanonicalRow, ParsedCsvFileAst, RowAst, RungAst
 from .contract import (
-    CONDITION_COLUMNS,
     TOTAL_COLUMNS,
     is_rung_marker,
     is_valid_marker,
@@ -42,12 +42,13 @@ def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
         text = padded[1] if len(padded) > 1 else ""
         rest = tuple(cell.strip() for cell in padded[2:-1])
         conditions = (text,) + rest
-        # conditions[i] is column i: A holds the text, B onwards must be blank.
+        # conditions[i] is column i: A holds the text, B onwards must be blank.  A row
+        # longer than the header carries its AF cell as conditions[31].
         column = next((i for i, cell in enumerate(conditions) if i and cell), None)
         if column is not None:
             raise at(
                 ValueError("Comment rows may only populate column A text"),
-                column=column if column < len(CONDITION_COLUMNS) else None,
+                column=column if column <= AF_COLUMN else None,
             )
         return CanonicalRow(marker=marker, conditions=conditions, af="")
 
@@ -86,10 +87,10 @@ def _rows_ast(records: Iterable[tuple[int | None, Sequence[str]]]) -> tuple[RowA
         marker = fields[0].strip() if fields else ""
         if is_rung_marker(marker):
             rung_line, row = line, 0
-        elif marker == "" and row is not None:
-            row += 1
-        else:  # a comment row ends the rung above it; an invalid marker is refused below
+        elif marker == "#":  # a comment row ends the rung above it
             rung_line = row = None
+        elif row is not None:  # a continuation row, or an invalid marker refused below
+            row += 1
         places.append({"line": line, "rung_line": rung_line, "row": row})
         with located(**places[-1]):
             canonical_rows.append(_canonical_row_from_fields(list(fields)))
@@ -154,7 +155,7 @@ def _parse_single_rung_rows(row_fields: Sequence[Sequence[str]]) -> RungAst:
     return rungs[0]
 
 
-def _read_records(path: Path) -> Iterator[tuple[int | None, Sequence[str]]]:
+def _read_records(path: Path) -> Generator[tuple[int | None, Sequence[str]]]:
     """The rows after the header, each with the line it starts on, read as they are taken."""
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle)
@@ -172,11 +173,11 @@ def _read_records(path: Path) -> Iterator[tuple[int | None, Sequence[str]]]:
                     continue
                 yield start, parsed
         except csv.Error as exc:
-            add_location(exc, line=reader.line_num)
+            add_location(exc, line=end + 1)  # the line the row being read starts on
             raise
 
     if header is None:
-        raise ValueError(f"CSV file {path} is empty; expected header row")
+        raise ValueError("CSV file is empty; expected header row")
 
 
 def parse_row(row: str) -> CanonicalRow:
@@ -196,7 +197,9 @@ def parse_csv_file(
     """
     path_obj = Path(path)
     with located_in_file(path_obj):
-        rows = _rows_ast(_read_records(path_obj))
+        # Closing the reader closes the file before an error leaves this block.
+        with closing(_read_records(path_obj)) as records:
+            rows = _rows_ast(records)
         rungs = _segment_rungs(rows)
     role, subroutine_slug = _detect_file_role(path_obj)
     return ParsedCsvFileAst(
