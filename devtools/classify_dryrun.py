@@ -335,11 +335,11 @@ _HEX_SPAN = frozenset("0123456789ABCDEFH")
 def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
     """Remote hex start: 0h to FFFEh.
 
-        The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
-        last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes
-        the span with no digit before the last ``H`` or another ``H`` among them (``H``,
-        ``1HH``) is open: which value the dialog reads from it is not known.  An uppercase
-        ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text.
+    The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
+    last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes
+    the span with no digit before the last ``H`` or another ``H`` among them (``H``,
+    ``1HH``) is open: which value the dialog reads from it is not known.  An uppercase
+    ``H`` stays open: laddercodec keeps refusing it until a capture shows the stored text.
     A MODBUS 984 number is no constant and is skipped.
     """
     if ns.c.parse_digits(value) is not None:

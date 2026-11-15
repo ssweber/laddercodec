@@ -228,8 +228,8 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Home, Velocity, Position and Email status bits:** read-only `outputs` with busy, complete, success,
   error and error code (Email: sending, success, error, error code). The `raw(...)` token stays as it is.
 - **Syntax Check rules `check()` doesn't report.** It reports C0001, C0003, C000A, C0202, C0205 and C0212. Not
-  reported: For/Next nesting, pairing, One Shot and Return/End inside a loop; Next alone on its rung (C0009); a timer inside For/Next (C1004); Break/Continue without a contact or
-  outside a loop; a subroutine without an unconditional Return and Main without an unconditional End; the other
+  reported: For/Next nesting, pairing, One Shot and Return/End inside a loop; Next alone on its rung
+  (C0009); a timer inside For/Next (C1004); Break/Continue without a contact or outside a loop; a subroutine without an unconditional Return and Main without an unconditional End; the other
   timer, counter, shift and drum input-contact rules; duplicate Timer or Counter addresses and Out or Drum on a
   used timer address; an unused timer or counter bit; a Math function not followed by an operator; a motion
   instruction naming an axis that does not exist. Decide which are worth a Finding.
