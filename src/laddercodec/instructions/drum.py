@@ -175,21 +175,13 @@ def _constant_preset_mask(presets: list[str]) -> str:
     return str(mask)
 
 
-#: Banks an event step reads; another bank is OBJ-004.
-DRUM_EVENT_BANKS = BIT_BANKS
-
 #: A constant step duration is 0 to 32767 for every unit, digits only: an int16
-#: with no ``-`` or ``+``, else OBJ-005.
-DRUM_MAX_DURATION = 32767
-_DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=DRUM_MAX_DURATION)
+#: with no ``-`` or ``+``, else OBJ-005.  A register duration is DS (OBJ-004 for another
+#: bank); whether the CPU takes a register at all is a project rule and is not checked.
+_DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=32767)
 
 
 def _check_duration(preset: str, name: str) -> None:
-    """Refuse a step duration CLICK's drum dialog refuses.
-
-    A register duration is DS (OBJ-004 for another bank).  Whether the CPU takes a
-    register at all is a project rule and is not checked.
-    """
     check_operand(preset, name, {"DS"}, _DURATION, letter_first=True)
 
 
@@ -305,7 +297,7 @@ class Drum(PinnedInstruction):
         step_events = self.events_or_presets if kind == "event" else self.events
         for i, event in enumerate(step_events):
             if event:
-                check_address(event, f"Drum.events[{i}]", banks=DRUM_EVENT_BANKS)
+                check_address(event, f"Drum.events[{i}]", banks=BIT_BANKS)
         if kind != "event":
             for i, preset in enumerate(self.events_or_presets):
                 if preset:

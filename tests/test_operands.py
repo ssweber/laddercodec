@@ -8,10 +8,11 @@ import pickle
 import pytest
 
 from laddercodec import Coil, Contact, model
-from laddercodec.instructions import copy, counter, drum, forloop, search, send_receive, shift
+from laddercodec.instructions import copy, counter, forloop, search, send_receive, shift
 from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
+from laddercodec.operands.checks import BIT_BANKS
 from tests.test_operand_guards import (
     BANK_NAMES_ALLOWED,
     INSTRUCTIONS,
@@ -37,7 +38,7 @@ _MASKS = [
     (0x6, send_receive._RECEIVE_LOCAL_BITS, "Receive local bits FC01/02"),
     (0x8BC0, send_receive._RECEIVE_LOCAL_REGS, "Receive local registers"),
     (0xC0, counter.COUNTER_PRESET_BANKS, "Counter set point"),
-    (0x3F, drum.DRUM_EVENT_BANKS, "Drum event"),
+    (0x3F, BIT_BANKS, "Drum event"),
     (0x70C0, forloop.FOR_LIMIT_BANKS, "For count"),
     (0x4, search.FOUND_BANKS, "Search Result Flag"),
     (0x4, shift.SHIFT_BANKS, "Shift start and end bits"),
