@@ -1,6 +1,6 @@
 """Committed files carry no CLICK DLL addresses.
 
-A citation names its evidence (an OBJ-xxx id, a Help topic, a capture, an arc.md ruling or
+A citation names its evidence (an OBJ-xxx id, a Help topic, a capture or
 ``DLL: <name>.dll, <dialog/field>``), never a location inside a CLICK DLL.  The rule is
 :func:`laddercodec.operands.sources.dll_address`, the same one ``Src`` uses.
 """

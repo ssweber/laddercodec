@@ -7,9 +7,9 @@ For every field that takes a constant, each value of a fixed list is tried two w
 - today: the instruction is built from a known-good baseline with the field set to the
   value; the verdict is ``accept`` or ``refuse`` with the exception.
 - classifier: :func:`classify` (or :func:`parse_digits`) reads the value, and the field's
-  documented kinds and limits (the arc.md answers and rulings, each cited at its rule)
-  decide.  A valid address is outside this check and is skipped; a rule that waits on an
-  arc.md question gives ``open``.
+  documented kinds and limits (the dialog answers and rulings, each named at its rule)
+  decide.  A valid address is outside this check and is skipped; a rule that waits on a
+  CLICK question (see ``scratchpad/roadmap.md``) gives ``open``.
 
 Every disagreement is printed: field, value, today's verdict, the classifier's verdict.
 ``DIFFERS?`` marks one whose classifier verdict rests on a DLL reading with no dialog
@@ -153,9 +153,9 @@ def _digits_rule(low: int, high: int, strip: bool = False) -> Callable[[Any, str
 def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
     """Compare, against an operand of ``group``.
 
-    arc.md Q-B7 (DLL: Inst_Compare.dll, baseEx.dll): numeric pairs with an int32 integer or
+    DLL: Inst_Compare.dll, baseEx.dll: numeric pairs with an int32 integer or
     a float, hex with a 16-bit hex constant (32-bit hex is OBJ-005 on either side), text
-    with quoted text or ``$hh``.  arc.md Q-B7 rulings: text is printable ASCII (the field
+    with quoted text or ``$hh``.  Text is printable ASCII (the field
     limit :func:`printable`).
     """
     kinds = {"numeric": {"integer", "float"}, "hex": {"hex"}, "text": {"text", "char"}}[group]
@@ -174,7 +174,7 @@ def compare_rule(group: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def copy_rule(dest: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Single Copy source into ``dest`` (arc.md Q-M5 and the move field rules).
+    """Single Copy source into ``dest`` (the move field rules).
 
     A number constant is an int32 integer, a float or hex; hex above FFFFh goes to DD or
     CTD only.  A text constant goes to TXT only.  A number into TXT, and text that is not
@@ -225,12 +225,12 @@ UNCONFIRMED = "unconfirmed: "
 
 
 def search_rule(table: str) -> Callable[[Any, str], tuple[str, str]]:
-    """Search value against a ``table`` range (arc.md Q-M10 answers and ruling).
+    """Search value against a ``table`` range (the Search value rules).
 
     32-bit hex is OBJ-005.  Text is printable ASCII (Q-M10 ruling, :func:`printable`).
     DLL: Inst_Search.dll, the search value's class picks the range banks (no dialog check):
     an int32 integer or a float searches DS, DD, DF, TD, CTD; 16-bit hex searches DH; text
-    or ``$hh`` searches TXT (arc.md Q-M21, confirmed in the dialog 2026-11-12).
+    or ``$hh`` searches TXT (confirmed in the dialog).
     """
     table_kinds = {"DS": {"integer", "float"}, "DH": {"hex"}, "TXT": {"text", "char"}}[table]
 
@@ -265,7 +265,7 @@ _HEX_TOKEN = re.compile(r"[0-9A-F]+H")
 
 
 def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
-    """A constant in a Math formula (arc.md Q-M9, Q-M13, Q-M13b).
+    """A constant in a Math formula (decimal and hex mode).
 
     Only a value that is one constant token, with at most one leading ``-``, is judged;
     anything else (``1-2``, ``+1``, ``Q1``, ``1,5``) is formula syntax and open.  Decimal: an
@@ -311,7 +311,7 @@ def math_rule(mode: str) -> Callable[[Any, str], tuple[str, str]]:
 
 
 def counter_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Counter preset (arc.md Q-D2 answers).
+    """Counter preset.
 
     An int32 integer: digits with an optional leading ``-`` (no ``+``), under 13 characters.
     """
@@ -324,7 +324,7 @@ def counter_rule(ns: Any, value: str) -> tuple[str, str]:
 
 
 def termination_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Copy termination code: ``0`` (none) or a character code ``$hh`` (arc.md move field rules)."""
+    """Copy termination code: ``0`` (none) or a character code ``$hh`` (the move field rules)."""
     if value == "0":
         return ACCEPT, "none"
     return _by_kind(ns, value, lambda c: ACCEPT if c.kind == "char" else None)
@@ -334,7 +334,7 @@ _HEX_SPAN = frozenset("0123456789ABCDEFH")
 
 
 def modbus_hex_rule(ns: Any, value: str) -> tuple[str, str]:
-    """Remote hex start (arc.md Q-C7; DLL: Inst_SD.dll): 0h to FFFEh.
+    """Remote hex start (DLL: Inst_SD.dll): 0h to FFFEh.
 
     The dialog's own span check, not the shared one: it upper-cases the text, wants ``H``
     last and every character in 0-9, A-F or ``H``, and counts no digits.  Text that passes

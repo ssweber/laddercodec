@@ -41,7 +41,7 @@ class Kind(StrEnum):
     FLOAT = "float"  #: a floating-point number: ``1.5``, ``.5``, ``1E5``, ``-1.5e-3``
     HEX = "hex"  #: hex digits then ``h``: ``FFFFh``, ``0h``
     #: Quoted text: ``"AB"``; the value is the text between the quotes.  ``"$41"`` is the
-    #: three characters ``$41`` (arc.md Q-B7 ruling, 2026-11-11, revised again).
+    #: three characters ``$41`` (a quoted ``$hh`` is literal text).
     TEXT = "text"
     CHAR = "char"  #: a character by code: ``$41``; the value is the code
 
@@ -90,7 +90,7 @@ def classify(text: str) -> Constant | None:
     ``None`` covers an empty text, an address, a value outside its kind and anything else the
     shared check refuses.  A value outside its kind is an integer outside int32, hex longer
     than eight digits, or a float that is not finite or above the float32 range.  Only ASCII
-    digits count (arc.md ruling 2026-11-11): ``٣`` is no digit.  No space is trimmed; a field
+    digits count: ``٣`` is no digit.  No space is trimmed; a field
     that strips its text does so first.
     """
     if len(text) >= 2 and text[0] == text[-1] == '"':
@@ -114,7 +114,7 @@ def classify(text: str) -> Constant | None:
     return None
 
 
-#: The table banks a Search value of each kind searches (arc.md Q-M21, dialog 2026-11-12): a
+#: The table banks a Search value of each kind searches (dialog): a
 #: decimal integer or a real the integer and real banks, a hex value DH, text or a character
 #: code TXT.
 SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
@@ -129,8 +129,7 @@ SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
 def fits_float32(value: float) -> bool:
     """Whether ``value`` is finite and fits float32.
 
-    A value that rounds to float32's largest finite number, about 3.4028235E+38, fits
-    (arc.md Q-M17, dialog answer 2026-11-12).
+    A value that rounds to float32's largest finite number, about 3.4028235E+38, fits.
     """
     if not math.isfinite(value):
         return False
@@ -160,8 +159,7 @@ def printable(text: str) -> bool:
     """Whether ``text`` is printable ASCII only.
 
     Not part of the shared check, which takes any character: a field limit.  A Compare text
-    constant (arc.md Q-B7 ruling, 2026-11-11, revised), a Search text value (arc.md Q-M10
-    ruling) and the text of a single Copy or a Fill (BOB ruling 2026-11-12) hold printable
+    constant, a Search text value and the text of a single Copy or a Fill (BOB ruling 2026-11-12) hold printable
     ASCII only; ``$hh`` spells any other code.
     """
     return PRINTABLE_ASCII.issuperset(text)
@@ -196,8 +194,8 @@ def _hex(digits: str) -> Constant | None:
 
 
 def _integer(sign: str, digits: str) -> Constant | None:
-    # The shared check lets a sign stand anywhere among the digits.  The arc.md Q-D2 dialog
-    # check (2026-11-11) found ``1-2`` refused in the Counter dialog, whose own parse runs
+    # The shared check lets a sign stand anywhere among the digits.  The dialog
+    # check found ``1-2`` refused in the Counter dialog, whose own parse runs
     # after it; the classifier extends that to every field, so a sign only leads.
     significant = digits.lstrip("0") or "0"
     if len(significant) > len(str(INT32_MAX)):

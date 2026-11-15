@@ -1,8 +1,7 @@
 """The Math formula reader against CLICK's Math grammar, one test per rule.
 
 Sources: the Math dialog's check read from Inst_Math.dll ([code]; the steps of
-``docs/internals/instruction-blobs.md``, "Math formula grammar"), the dialog answers in
-``scratchpad/validation/arc.md`` and the native captures.  ``math_unary_plus_pi.bin`` is
+``docs/internals/instruction-blobs.md``, "Math formula grammar"), the dialog answers and the native captures.  ``math_unary_plus_pi.bin`` is
 ``fixtures/v4_captures/math_unary_plus_pi.bin``: two formulas typed in CLICK v4, then one
 rung per formula the dialog refused, its comment naming the formula.
 """
@@ -43,7 +42,7 @@ def _views(expression: str, mode: str) -> tuple[str, str, str, str]:
 
 
 # ---------------------------------------------------------------------------
-# The predictions the dialog confirmed (arc.md, "every prediction held", 2026-11-12)
+# The predictions the dialog confirmed (every prediction held)
 # ---------------------------------------------------------------------------
 
 
@@ -130,7 +129,7 @@ def test_pointer_is_refused() -> None:
     "expression", ["DS1 + FOO", "DS1 + NAN", "DS1 + 0x1A", "DS1 + .", "DS1 . DS2"]
 )
 def test_word_is_refused(expression: str) -> None:
-    # FOO: dialog answer (arc.md).  NAN and the strtod hex real 0x1A: CLICK's converter
+    # FOO: dialog answer.  NAN and the strtod hex real 0x1A: CLICK's converter
     # takes them [inf]; laddercodec refuses them (BOB ruling).  A lone '.':
     # math_unary_plus_pi.bin refuses DS1 + .
     _refused(expression, "decimal", "is not an address, a function name or a constant")
@@ -162,7 +161,7 @@ def test_real_is_f_and_fits_float32() -> None:
 
 
 def test_hex_constant_is_written_as_click_shows_it() -> None:
-    # %Xh of the value (arc.md dialog answers; v4_captures/math_hex_upper_h.bin).
+    # %Xh of the value (dialog answers; v4_captures/math_hex_upper_h.bin).
     assert _views("DH1 + 0fH", "hex") == ("DH1 + Fh", "@ + Fh", "@#+#UH15", "DH1#+#UH15")
     _refused("DH1 + 0FFFEh", "hex", "0FFFEh is outside 0h..FFFFh")  # four digits as typed
 

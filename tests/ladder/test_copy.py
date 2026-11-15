@@ -131,7 +131,7 @@ def test_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
 
 @pytest.mark.parametrize("bad", ["$", "$D", "$0", "$ZZ", "$100"])
 def test_invalid_termination_code_rejected(bad: str) -> None:
-    # The ASCII Table picker writes two digits (arc.md, 2026-11-12).
+    # The ASCII Table picker writes two digits.
     with pytest.raises(FieldError, match="Copy.termination_code"):
         Copy(source="DS20", destination="TXT7", format="text", termination_code=bad)
 

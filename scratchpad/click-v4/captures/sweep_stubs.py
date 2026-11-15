@@ -1,4 +1,4 @@
-"""Write paste-test CSVs for the DLL-sweep fixes (see /arc.md).
+"""Write paste-test CSVs for the DLL-sweep fixes.
 
 stubs/sweep_<group>.csv, one per group.  Each rung's comment is its id, then every
 AF token it should decode to (tests/test_v4_captures.py checks that).

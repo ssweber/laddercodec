@@ -100,7 +100,7 @@ _REFUSED = [
     # bits / words is the bank kind: the blob has no flag for it
     ("pack_bits(DS1..DS2,DD1)", "'DS1' is a register; bits needs a bit bank"),
     ("pack_words(C1..C2,DS1)", "'C1' is a bit; words needs a register bank"),
-    # a TXT source packs only as pack_text, and pack_text needs one (arc.md Q-M12)
+    # a TXT source packs only as pack_text, and pack_text needs one
     ("pack_text(DS1..DS2,DD1)", "'DS1' is not a TXT register; pack_text takes a TXT source"),
     ("pack_text(C1..C2,DS1)", "'C1' is not a TXT register; pack_text takes a TXT source"),
     ("pack_words(TXT1..TXT2,DS1)", "'TXT1' is a TXT register; pack_words has no TXT source"),
@@ -315,7 +315,7 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# arc.md Q-B7 (user, Help ascii table2.gif, 2026-11-12): a $ code is picked from CLICK's Embed
+# A $ code is picked from CLICK's Embed
 # ASCII Code table, $00 to $FF, so it is $ and two hex digits in every field.
 _DOLLAR_FORMS = ["$", "$1", "$D", "$d", "$100", "$4142", "$G1", "$٣٣"]
 _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
@@ -391,7 +391,7 @@ _FILL_VALUE_REFUSED = [
     ("1E999", "DF1", "DF4", _FINITE),
     ("3.5E+38", "DF1", "DF4", _FINITE),
     ("-3.5E+38", "DF1", "DF4", _FINITE),
-    # OBJ-023: a Fill into TXT takes one character (arc.md, 2026-11-12)
+    # OBJ-023: a Fill into TXT takes one character
     ('"AB"', "TXT2", "TXT5", "takes one character"),
     (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),

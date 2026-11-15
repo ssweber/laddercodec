@@ -216,7 +216,7 @@ class TestCompare:
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
-    # arc.md Q-B7 (user, Help ascii table2.gif): a $ code is $ and two hex digits, $00-$FF.
+    # A $ code is $ and two hex digits, $00-$FF.
     @pytest.mark.parametrize("code", ["$1", "$D", "$100", "$4142", "$G1"])
     @pytest.mark.parametrize("field", ["left", "right"])
     def test_other_dollar_forms_refused(self, code: str, field: str) -> None:

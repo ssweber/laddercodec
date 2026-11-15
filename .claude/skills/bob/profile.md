@@ -10,7 +10,7 @@ Repo-specific rules for the /bob skill. Another repo replaces this file.
   always on dev").
 - Worktrees `../laddercodec-wt/<name>` on `bob/<name>`; mergeq home `../laddercodec-wt/buildbot`
   (queue, logs, results, `jobs/<id>/{BRIEF,HANDOFF,REVIEW,LEDGER}.md`).
-- Current arc doc: `scratchpad/validation/arc.md`. One arc doc: fold rulings and leftovers into
+- Open work: `scratchpad/roadmap.md`. One roadmap: fold rulings and leftovers into
   it, not side notes. Give builders the absolute main-checkout path when it is uncommitted.
 
 ## Correctness contract (put in every builder and reviewer brief)
@@ -25,7 +25,7 @@ Repo-specific rules for the /bob skill. Another repo replaces this file.
   of them (the repo is public; `scratchpad/click-v4/.gitignore` shows what stays out).
 - No DLL addresses (`0x1000xxxx`, `@1000xxxx`, offsets into a CLICK DLL) in committed code,
   tests or docs (user ruling 2026-11-11). Committed citations name the evidence kind and a
-  public reference: the OBJ-xxx error id, a Help topic (CLxxx), a capture file, an arc.md
+  public reference: the OBJ-xxx error id, a Help topic (CLxxx), a capture file, a roadmap
   ruling, or `DLL: <name>.dll, <dialog/field>` without an address. Exact addresses go to the
   private map `../laddercodec-wt/buildbot/jobs/dllqa/ADDRESSES.md`, keyed by file and rule.
 - The encoder writes bytes from verified formulas. A change to an encoded byte layout or a
@@ -55,7 +55,7 @@ None yet. Every gate stage is light (the whole suite takes about 20 s), so train
 - Cataloguing from CLICK's files (help pages, ini): `bob-investigator`, Sonnet. It cannot
   write outside $TEMP or run Python, so it returns its report as its final message and BOB
   saves it under `jobs/<id>/`. Anything that needs a DLL read (string tables, disassembly via
-  `scratchpad/click-v4/*.py`) goes to `bob-reviewer` (bounded scripts under $TEMP) or a
+  `../laddercodec-wt/buildbot/tools/click-v4/*.py`) goes to `bob-reviewer` (bounded scripts under $TEMP) or a
   builder in a scratch worktree, not to an investigator.
 
 ## Machine budget

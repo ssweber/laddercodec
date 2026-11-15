@@ -2,7 +2,7 @@
 
 Source: CLICK v4.00 `Inst_Math.dll` (Unicode MFC, read from disassembly), `baseEx.dll` string
 checks, `SC_ErrorList.ini`, Help CL170/CL187/CL203, the 191 Math blobs in the repo's fixtures,
-and the dialog answers in `scratchpad/validation/arc.md`. Nothing in the repo was changed.
+and the dialog answers. Nothing in the repo was changed.
 Scripts are in `%TEMP%\mathgram\`. The executable model is `model.py`, the fixture check is
 `model.py fixtures.json`, and the probes are `predict.py`.
 
@@ -92,7 +92,7 @@ and a running position, which is used to point at the error.
 ### 1.2 Competing hypotheses and open conflicts
 
 - **H1. Hex constant without `h`.** The converter code path I read accepts `DH1 + 7` as
-  `UH7`, shown `7h`. The dialog refused `DH1 + 7` and `DH1 + 70000` [obs arc.md Q-M13b].
+  `UH7`, shown `7h`. The dialog refused `DH1 + 7` and `DH1 + 70000` [obs].
   - `70000` is explained: 5 digits → OBJ-1009.
   - `7` is not explained by the OK path. So there is a check I did not find. Candidates:
     (a) the dialog's live check mark on the formula field (the OK handler reads a

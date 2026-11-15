@@ -176,9 +176,9 @@ class Search(AfInstruction):
                 f"{self.source!r}; text searches with == or !="
             )
         if source.kind in ("number", "text"):
-            # The value field runs CLICK's shared input check (arc.md Q-M10 ruling).
+            # The value field runs CLICK's shared input check.
             check_constant(self.source, "Search.source")
-            # The value's kind ties to the table banks (arc.md Q-M21).
+            # The value's kind ties to the table banks.
             const = classify(self.source)
             if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
                 raise FieldError(

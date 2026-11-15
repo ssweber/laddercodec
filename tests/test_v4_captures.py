@@ -303,7 +303,7 @@ def test_comm_hex_address_capture(index: int, typed: str, stored: str) -> None:
     CLICK stores uppercase digits without leading zeros and a lowercase ``h``.  The
     instruction built from the typed text writes the native address fields.  The rest of
     the blob is not compared: CLICK keeps a stale TCP IP in an RTU target and writes one
-    0x6889 field per pin row, which the encoder does not (the box-height question, arc.md).
+    0x6889 field per pin row, which the encoder does not (the box-height question).
     """
     path = CAPTURE_DIR / "comm_hex_address.bin"
     rung = _decode_file(path)[index]
@@ -977,7 +977,7 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# DLL-sweep captures (arc.md): re-encoding gives CLICK's own AF blob
+# DLL-sweep captures: re-encoding gives CLICK's own AF blob
 # ---------------------------------------------------------------------------
 
 #: Tags CLICK writes but doesn't read back, per class name.

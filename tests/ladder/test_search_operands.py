@@ -104,7 +104,7 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
 
 
 # CLICK's shared constant check (operands.constants.classify; DLL: baseEx.dll,
-# CheckInputData) on the search value: OBJ-005 (arc.md Q-M10 ruling).
+# CheckInputData) on the search value: OBJ-005.
 
 _INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"

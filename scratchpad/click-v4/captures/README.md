@@ -3,7 +3,7 @@
 `v4_capture.py` writes one paste CSV per group into `stubs/`, plus pyrung's own export into `expected/`.
 Each rung's comment is its id, then every AF token it should decode to. laddercodec's
 `tests/test_v4_captures.py` checks every captured rung against that comment.
-The laddercodec side of the loop is in `docs/guides/adding-instructions.md`, "Capturing from CLICK v4".
+The laddercodec side of the loop is in `docs/contributing/adding-instructions.md`, "Capturing from CLICK v4".
 
 The generator builds the rungs with pyrung, so it runs in pyrung's environment. From the laddercodec root:
 
