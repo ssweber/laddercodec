@@ -285,9 +285,13 @@ class TestTimerSetpointRange:
         for value in ("0", "32767"):
             token = f"on_delay(T1,TD1,preset={value},unit={unit})"
             assert _read_af(tmp_path, token) == timer(setpoint=value, unit=unit)
-        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"):
+        with pytest.raises(
+            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             _read_af(tmp_path, f"on_delay(T1,TD1,preset=32768,unit={unit})")
-        with pytest.raises(FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"):
+        with pytest.raises(
+            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             timer(setpoint="32768", unit=unit)
 
     @pytest.mark.parametrize("setpoint", ["-1", "+5", "1 0"])
@@ -321,7 +325,9 @@ class TestCounterPresetRange:
     def test_text_under_13_characters(self) -> None:
         # Counter: a constant's text is under 13 characters (OBJ-005).
         assert counter(preset="000000000001").preset == "000000000001"
-        with pytest.raises(FieldError, match="13 characters; a constant here is at most 12 .OBJ-005."):
+        with pytest.raises(
+            FieldError, match="13 characters; a constant here is at most 12 .OBJ-005."
+        ):
             counter(preset="0000000000001")
 
     @pytest.mark.parametrize("preset", ["DH1", "DF1", "TD1", "CTD1", "SD1", "XD1"])
@@ -385,7 +391,9 @@ class TestDrumDurations:
     def test_limits(self, kind: str, unit: str) -> None:
         assert drum(kind, events_or_presets=["0", "32767"], unit=unit)
         assert drum(kind, events_or_presets=["DS1", "5"], unit=unit)
-        with pytest.raises(FieldError, match=r"^Drum.presets\[1\]: '32768' is outside 0 to 32767 \(OBJ-005\)"):
+        with pytest.raises(
+            FieldError, match=r"^Drum.presets\[1\]: '32768' is outside 0 to 32767 \(OBJ-005\)"
+        ):
             drum(kind, events_or_presets=["1", "32768"], unit=unit)
 
     @pytest.mark.parametrize("preset", ["-1", "+5", "1.5"])
