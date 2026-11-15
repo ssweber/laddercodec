@@ -69,6 +69,19 @@ class TestContact:
 
 
 class TestCompare:
+    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    def test_long_leading_zeros_read_as_their_value(self) -> None:
+        long_one = "0" * 5000 + "1"
+        for side in ("left", "right"):
+            operands = {"left": "DS1", "right": "DS1"} | {side: long_one}
+            assert CompareContact(op="==", **operands) is not None
+            for other in ("DH1", "TXT1"):
+                operands = {"left": other, "right": other} | {side: long_one}
+                with pytest.raises(FieldError, match="^CompareContact"):
+                    CompareContact(op="==", **operands)
+        with pytest.raises(FieldError, match="^CompareContact.right"):
+            CompareContact(op="==", left="DS1", right="1" * 5000)
+
     @pytest.mark.parametrize(
         "token",
         [
@@ -566,9 +579,23 @@ class TestOutVariant:
             debounce(off_preset=preset)
 
     @pytest.mark.parametrize("preset", ["-1", "+5"])
-    def test_signed_preset_names_the_minimum(self, preset: str) -> None:
+    def test_signed_preset_refused_as_unsigned(self, preset: str) -> None:
         with pytest.raises(FieldError, match="takes no sign"):
             debounce(on_preset=preset)
+
+    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    def test_long_leading_zeros_read_as_their_value(self) -> None:
+        long_one = "0" * 5000 + "1"
+        for make in (debounce, timed):
+            assert make(on_preset=long_one).on_preset == long_one
+        debounce(off_preset=long_one)
+        OutVariant(
+            kind="flasher", operand="C1", on_acc="TD1", on_preset=long_one,
+            off_acc="TD2", off_preset=long_one, unit="Tms",
+        )  # fmt: skip
+        for make in (debounce, timed):
+            with pytest.raises(FieldError, match="^OutVariant.on_preset"):
+                make(on_preset="1" * 5000)
 
     def test_preset_floors(self) -> None:
         debounce(on_preset="0")
