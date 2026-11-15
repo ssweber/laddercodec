@@ -4,7 +4,8 @@ Defines the ``InstructionType`` enum, the instruction base classes and the progr
 containers.  It re-exports the field errors (:mod:`laddercodec.operands.errors`), the
 CLICK address check (:func:`check_address`), its display form
 (:func:`normalize_address`) and the ``OPERAND_RE`` shape pattern
-(:mod:`laddercodec.operands.address`).  These are the foundation types imported by
+(:mod:`laddercodec.operands.address`) and the flag check :func:`check_flag`
+(:mod:`laddercodec.operands.checks`).  These are the foundation types imported by
 every ``instructions/`` module — no reverse dependency.
 
 Instruction dataclasses (Contact, Coil, …) and their func-code
@@ -28,6 +29,7 @@ from .operands.address import display_form_only as display_form_only
 from .operands.address import normalize_address as normalize_address
 from .operands.address import to_display as to_display
 from .operands.address import xy_slot as xy_slot
+from .operands.checks import check_flag as check_flag
 from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
 
@@ -78,14 +80,6 @@ class AfInstruction:
 
     def cell_params(self) -> dict:
         raise NotImplementedError
-
-
-def check_flag(value: object, name: str) -> bool:
-    """Return ``value`` as a bool; raise :class:`FieldError` naming ``name`` unless it is
-    True, False, 1 or 0."""
-    if isinstance(value, int) and value in (0, 1):
-        return bool(value)
-    raise FieldError(f"{name}: {value!r} is not True, False, 1 or 0")
 
 
 class PinnedInstruction(AfInstruction):
