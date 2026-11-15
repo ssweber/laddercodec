@@ -214,8 +214,8 @@ def _undecoded(index: int, rung: Rung) -> list[Finding]:
             False,
             row,
             AF_X,
-            f"row {row} from 0, column {OUTPUT_COLUMN}: {token.headline}; "
-            "the rung is not decoded, and encode() refuses the marker",
+            f"row {row} from 0, column {OUTPUT_COLUMN}: an undecoded marker for {token.where}, "
+            f"which encode() refuses: {token.error}",
         )
         for row, token in enumerate(rung.instructions)
         if isinstance(token, Undecoded)

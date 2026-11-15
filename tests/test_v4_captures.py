@@ -57,7 +57,9 @@ from laddercodec.binary_helpers import _parse_tagged_fields_verbose
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import decoded_rung_to_rows, write_csv
-from laddercodec.decode import DecodeError, Rung, decode, inspect_cells
+from laddercodec.decode import Rung, decode, inspect_cells
+from laddercodec.instructions import Undecoded
+from laddercodec.undecoded import UndecodedRungWarning
 from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import Copy
@@ -1150,13 +1152,19 @@ def test_pasted_or_legs_write_as_checked(
 
 
 def test_down_wire_in_the_output_column_is_refused() -> None:
-    """CLICK keeps a path drawn down the AF column until its syntax check; CSV can't hold it."""
-    with pytest.raises(DecodeError) as err:
-        decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
-    assert str(err.value) == (
-        "Rung 0, row 0 (zero-based): the output column has a down wire, "
-        "which isn't supported. CLICK's syntax check removes it."
-    )
+    """CLICK keeps a path drawn down the AF column until its syntax check; CSV can't hold it.
+
+    The rung decodes as an undecoded marker, with a warning.
+    """
+    with pytest.warns(UndecodedRungWarning) as caught:
+        rung = decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
+    error = "the output column has a down wire, which isn't supported. CLICK's syntax check removes it."
+    assert [str(w.message) for w in caught] == [
+        f"rung 0, row 0 is not decoded, and an undecoded marker stands in for it: {error}"
+    ]
+    assert isinstance(rung, Rung)
+    assert rung.instructions == [Undecoded(error, 0, 0, 31, "end")]
+    assert rung.comment == f"UNDECODED: rung 0, row 0: {error}"
 
 
 def test_checked_windy_road_is_one_straight_row() -> None:
@@ -1175,13 +1183,19 @@ def _with_af_down(data: bytes, rung: int, row: int) -> bytes:
 
 
 def test_down_wire_in_the_output_column_names_the_rung() -> None:
-    """In a multi-rung buffer the message names the rung that holds the wire."""
+    """In a multi-rung buffer the marker names the rung that holds the wire; rung 0 decodes."""
     data = (
         COVERAGE_GOLDEN.parent.parent / "ladder_captures" / "golden" / "mr-2rung-wire.bin"
     ).read_bytes()
-    assert len(decode(data)) == 2
-    with pytest.raises(DecodeError, match=r"Rung 1, row 0 \(zero-based\)"):
-        decode(_with_af_down(data, 1, 0))
+    good = decode(data)
+    assert isinstance(good, list) and len(good) == 2
+    with pytest.warns(UndecodedRungWarning, match=r"^rung 1, row 0 is not decoded"):
+        rungs = decode(_with_af_down(data, 1, 0))
+    assert isinstance(rungs, list)
+    assert rungs[0] == good[0]
+    marker = rungs[1].instructions[0]
+    assert isinstance(marker, Undecoded)
+    assert (marker.rung, marker.row, marker.column) == (1, 0, 31)
 
 
 def test_down_wire_beside_an_output_box_is_refused() -> None:
@@ -1194,7 +1208,7 @@ def test_down_wire_beside_an_output_box_is_refused() -> None:
         for r, af in enumerate(rg.instructions)
         if af not in ("", "NOP")
     )
-    with pytest.raises(DecodeError, match=rf"Rung {rung}, row {row} "):
+    with pytest.warns(UndecodedRungWarning, match=rf"^rung {rung}, row {row} is not decoded"):
         decode(_with_af_down(data, rung, row))
 
 

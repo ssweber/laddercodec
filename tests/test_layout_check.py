@@ -27,7 +27,7 @@ import pytest
 from laddercodec import Finding, Rung, check, decode, encode, read_csv
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.decode import DecodeError
+from laddercodec.undecoded import UndecodedRungWarning
 from laddercodec.instructions import Coil, Contact, Timer
 from laddercodec.layout_check import _blank_rows
 from laddercodec.model import InstructionType
@@ -205,12 +205,15 @@ def test_rungs_click_accepted_have_no_findings(path: Path) -> None:
 def test_windy_road_pasted_is_refused_by_decode() -> None:
     """CLICK's check accepted this rung and redrew it as windy_road_checked.bin.
 
-    Its path runs down the AF column, which decode refuses, so there is no Rung to check.
-    layout-afdown (layout phase 2, step 4) decodes that flag; this then becomes a
-    "no findings" test.
+    Its path runs down the AF column, which decode refuses, so the rung decodes as an
+    undecoded marker and check reports only that.  layout-afdown (layout phase 2, step 4)
+    decodes that flag; this then becomes a "no findings" test.
     """
-    with pytest.raises(DecodeError):
-        decode((V4 / "windy_road_pasted.bin").read_bytes())
+    with pytest.warns(UndecodedRungWarning):
+        rung = decode((V4 / "windy_road_pasted.bin").read_bytes())
+    assert [(f.kind, f.code, f.captured, f.row, f.column) for f in check(rung)] == [
+        ("undecoded", None, False, 0, 31)
+    ]
 
 
 _COVERAGE = sorted((FIX / "coverage" / "golden").glob("*.csv")) + sorted(

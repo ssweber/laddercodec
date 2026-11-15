@@ -1,7 +1,8 @@
 """Fixtures the decoders refuse, so a test that decodes every fixture skips them.
 
-Each entry is a path under ``tests/fixtures`` and has a test of its own that checks the
-refusal.
+A refused rung decodes as an undecoded marker, which ``encode()`` refuses and no capture
+holds.  Each entry is a path under ``tests/fixtures`` and has a test of its own that checks
+the refusal.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from pathlib import Path
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
-#: A down wire in the output column: ``decode`` raises ``DecodeError``.
+#: A down wire in the output column: ``decode`` gives a marker for the rung.
 REFUSED = frozenset({"v4_captures/windy_road_pasted.bin"})
 
 
