@@ -37,7 +37,7 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
-## 1. Cruft sweep (Sam says when to switch)
+## 1. Cruft sweep (Sam)
 
 - **Switch to the `bob` plugin** (`ssweber/bob`). One PR: delete `devtools/mergeq`, `.claude/skills/bob/SKILL.md`
   and `.claude/agents/bob-*`; add `.claude/bob/config.toml` and `.claude/bob/profile.md`; point

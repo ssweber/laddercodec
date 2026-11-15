@@ -1,7 +1,7 @@
 name: Docs
 
 on:
-  # Deploy only what is released: the public docs describe the version on PyPI.
+  # Only a published release deploys; PRs and manual runs build the site and stop.
   release:
     types: [published]
   pull_request:
@@ -49,13 +49,13 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.event_name == 'release'
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     environment:

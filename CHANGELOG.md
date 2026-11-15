@@ -11,7 +11,7 @@
 ## Unreleased
 
 ### Changed
-- **Docs site follows releases**: the published docs now update when a release is published, not on every change to `main`, so they always describe the version on PyPI.
+- **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ## 0.4.0 (2026-11-14)
 
