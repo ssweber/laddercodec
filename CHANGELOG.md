@@ -10,8 +10,20 @@
 
 ## Unreleased
 
+### Added
+- **Undecoded marker rungs**: `decode()` and `decode_program()` return a rung they can't read as a one-row rung into an `Undecoded` marker, with an `UndecodedRungWarning`, and the rungs around it decode; the marker acts as `end()` in the main program and `return()` in a subroutine, since a program that ran past a rung it could not read would run wrong.
+- **`Program.undecoded`**: lists a program's undecoded markers, empty when every rung decoded.
+- **`undecoded(...)` CSV token**: `write_csv` writes a marker and `read_csv` reads it back; `encode()` refuses it, so it never reaches CLICK, and `check()` reports it as an `undecoded` finding.
+
 ### Changed
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
+
+### Behaviour changes
+- **A rung that doesn't decode no longer fails the call**: a down wire in the output column, wire flags no token has, a row the clipboard walk can't read, a comment that doesn't decode, or a program file record whose framing breaks gives an undecoded marker where `decode()` and `decode_program()` raised `DecodeError` or `ValueError`; after a framing error, one marker stands for that rung and every rung after it.
+  - Do: check `Program.undecoded`, or catch `UndecodedRungWarning`, where you caught those errors; a buffer whose magic, size or program header is wrong still raises.
+- **SCR comments that don't decode**: `decode_program()` gives a marker for the rung, where it kept the rung with no comment.
+- **`write_csv` writes a marker for a rung it can't write**: a rung holding an unknown condition or instruction is written as an undecoded marker, with an `UndecodedRungWarning`, where `write_csv` raised `WriterError`; its new `stop` argument gives the marker's `stop`.
+  - Do: pass `stop="return"` when writing a subroutine.
 
 ## 0.4.0 (2026-11-14)
 

@@ -140,6 +140,8 @@ To walk a variable-length grid, detect cell boundaries by signature:
 
 Do **not** use `+0x0D` for detection — it varies between 0x00, 0x01, and 0xFF across cell types.
 
+When a data row's cells can't be walked (no cell with the expected signature follows an instruction cell), the decoder scans forward for the next row's cell 0, whose `+0x05` is one past this row's, or the terminal row, and goes on from there; the rung that holds the row decodes as an [undecoded marker](../guides/decoding.md#rungs-that-dont-decode). When there is no such cell, or a row before the last one `row_word` counts has no cell 0, the walk stops, and one marker stands for that rung and every rung after it.
+
 ## Multi-rung format
 
 Multi-rung buffers are **not** concatenated single-rung buffers. They share a single global header and program header, with interleaved data and preamble rows in one cell grid:
@@ -241,7 +243,7 @@ ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaqu
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
-Files with `prog_idx == 1` have a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing raises an offset-bearing error; it never searches for a later rung to resume decoding.
+Files with `prog_idx == 1` have a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. The parser never searches for a later rung to resume decoding.
 
 CLICK keeps trailing content-less editor rungs, sometimes fully wired. The decoder parses them and then omits trailing records with neither instructions nor a raw comment. This existing semantic-output policy is separate from structural parsing.
 

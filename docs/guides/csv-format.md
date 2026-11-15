@@ -569,6 +569,15 @@ Producer may emit:
     rows, as it does for other tall boxes. A box CLICK stores at 1 row (one pasted
     from an earlier version and not yet saved by its dialog) writes `rows=1,sub=1`
     and reads back at 1 row.
+- `undecoded("<error>",rung=N,row=R,column=C,stop=end)` - the marker that stands in
+  for a rung laddercodec could not decode ([Decoding](decoding.md#rungs-that-dont-decode)).
+  `rung`, `row` and `column` count from 0 (column 31 is AF); `row` and `column` are
+  omitted when the failure is not at one row or cell. `stop` is `end` in the main
+  program and `return` in a subroutine: a consumer runs the marker as that
+  instruction, so the program stops where the rung was. `encode()` refuses the
+  marker, so it never reaches CLICK. `write_csv()` also writes a marker, with an
+  `UndecodedRungWarning`, for a rung it can't write, such as one holding an
+  instruction no token holds; its `stop` argument gives the marker's `stop`.
 
 Pin tokens:
 

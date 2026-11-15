@@ -127,8 +127,53 @@ The returned `Program` dataclass has:
 | `name` | `str` | Program name from the file header |
 | `prog_idx` | `int` | Program index (0 = main, 1+ = subroutines) |
 | `rungs` | `list[Rung]` | Decoded rungs — same `Rung` objects as `decode()` returns |
+| `undecoded` | `list[Undecoded]` | The undecoded markers in `rungs`, in order; empty when every rung decoded |
 
 Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs, so you can pass them to `encode()`, `write_csv()`, or any other API that accepts `Rung` objects.
+
+## Rungs that don't decode
+
+A rung laddercodec can't read decodes as an undecoded marker rung, and the rungs
+around it decode as usual. Each marker emits an `UndecodedRungWarning`:
+
+```python
+import warnings
+from laddercodec import UndecodedRungWarning, decode_program
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always", UndecodedRungWarning)
+    program = decode_program(data)
+for marker in program.undecoded:
+    print(marker.headline)
+# UNDECODED: rung 4, row 0: the output column has a down wire, which isn't supported. CLICK's syntax check removes it.
+```
+
+The marker rung is one row, wired from the rail into an `Undecoded` output. Its
+comment is the marker's headline, `UNDECODED: rung N, row R: <error>`, then the
+rung's own comment when that decoded. `Undecoded` has `error`, `rung`, `row`,
+`column` and `stop`; `rung`, `row` and `column` count from 0 (column 31 is AF),
+and `row` and `column` are `None` when the failure is not at one row or cell. The
+warning carries the `marker`, and the `program` name for `decode_program()`.
+
+The marker stops the program where the rung was. Its `stop` is `"end"` in the
+main program and `"return"` in a subroutine, and a consumer that runs the program
+runs the marker as that instruction. A program that ran past a rung it could not
+read would run wrong: the missing rung may set a bit a later rung reads, or hold the
+`end()` or `return()` itself. `decode()` reads a clipboard with no program, so its
+markers have `stop="end"`.
+
+A rung decodes as a marker when a cell's bytes don't decode (wire flags no token
+has), its output column has a down wire, its comment doesn't decode, or a row's
+cells can't be walked. Each such rung has its own marker. When the decoder can't
+find where the rest of the rungs start (a clipboard row cut off, or a program
+file record whose framing is broken), the rungs before it decode, and one marker
+stands for that rung and every rung after it. A buffer the decoder can't read at
+all still raises: `DecodeError` for a clipboard whose magic or size is wrong,
+`ValueError` for a program file whose header doesn't parse.
+
+A marker never reaches CLICK: `encode()` refuses it, and `check()` reports it as an
+`undecoded` finding. `write_csv()` writes it as an `undecoded(...)` token that
+`read_csv()` reads back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).
 
 ## Check for CLICK v4 instructions
 
@@ -182,8 +227,10 @@ shape with that code:
 | `no_coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
 | `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off one net | `C000A` |
 | `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
+| `undecoded` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 
 A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
+A rung that holds an undecoded marker gets only its `undecoded` findings.
 `pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
 and on a reset wired straight from the rail, or whose contacts are all another
 pin's (a contact two pins share counts as the earlier pin's), it has the box's code
