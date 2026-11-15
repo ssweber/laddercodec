@@ -35,7 +35,6 @@ from laddercodec.csv.writer import WriterError
 from laddercodec.instructions import Shift, UnknownCondition, UnknownInstruction
 from laddercodec.model import ConditionInstruction
 from laddercodec.undecoded import marker_rung
-from tests.fixtures_refused import is_refused
 from tests.ladder.test_decode_program import _synthetic_scr
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
@@ -576,13 +575,17 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
     ]
 
 
+#: The one fixture with a rung decode refuses: a down wire in the output column.
+WINDY_ROAD = FIXTURES / "v4_captures" / "windy_road_pasted.bin"
+
+
 def test_no_fixture_decodes_to_a_marker() -> None:
     """Every clipboard and SCR fixture decodes with no marker, but the one decode refuses."""
     clipboard = [
         path
         for folder in ("ladder_captures", "coverage", "scr_captures", "tumbler", "v4_captures")
         for path in sorted((FIXTURES / folder).rglob("*.bin"))
-        if not is_refused(path)
+        if path != WINDY_ROAD
     ]
     rungs_266 = gzip.decompress((FIXTURES / "scr_captures" / "rungs_266.bin.gz").read_bytes())
     scr = sorted(FIXTURES.rglob("*.scr"))
@@ -594,6 +597,16 @@ def test_no_fixture_decodes_to_a_marker() -> None:
         decode(rungs_266)
         for path in scr:
             decode_program(path.read_bytes())
+
+
+def test_windy_road_decodes_to_a_marker() -> None:
+    with pytest.warns(UndecodedRungWarning) as caught:
+        rung = decode(WINDY_ROAD.read_bytes())
+    assert len(caught) == 1
+    assert isinstance(rung, Rung)
+    (marker,) = rung.instructions
+    assert isinstance(marker, Undecoded)
+    assert (marker.rung, marker.column) == (0, 31)
 
 
 def test_a_truncated_scr_record_stops_decoding_at_a_marker() -> None:
