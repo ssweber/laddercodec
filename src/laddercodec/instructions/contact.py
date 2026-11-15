@@ -19,6 +19,7 @@ from ..model import (
     check_flag,
     normalize_address,
 )
+from ..operands.checks import BIT_BANKS
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -55,9 +56,6 @@ for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
 # Tag constants
 # ---------------------------------------------------------------------------
 
-#: Banks a NO, NC or edge contact reads.
-CONTACT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-
 _CONTACT_TYPES = (
     InstructionType.CONTACT_NO,
     InstructionType.CONTACT_NC,
@@ -86,28 +84,35 @@ class Contact(ConditionInstruction):
         if self.type not in _CONTACT_TYPES:
             raise FieldError(
                 f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
-                "CONTACT_EDGE)"
+                "CONTACT_EDGE)",
+                field="Contact.type",
             )
         self.immediate = check_flag(self.immediate, "Contact.immediate")
         self.wire_down = check_flag(self.wire_down, "Contact.wire_down")
         self.operand = normalize_address(self.operand)
-        address = check_address(self.operand, "Contact.operand", CONTACT_BANKS)
+        address = check_address(self.operand, "Contact.operand", BIT_BANKS)
         if self.immediate and self.type == InstructionType.CONTACT_EDGE:
-            raise FieldError("Contact.immediate: an edge contact has no immediate form")
+            raise FieldError(
+                "Contact.immediate: an edge contact has no immediate form",
+                field="Contact.immediate",
+            )
         if self.immediate and address.bank != "X":
             raise FieldError(
                 f"Contact.immediate: {self.operand!r} is not allowed; "
-                "an immediate contact takes X only"
+                "an immediate contact takes X only",
+                field="Contact.immediate",
             )
         if self.type == InstructionType.CONTACT_EDGE:
             if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
                 raise FieldError(
                     f"Contact.edge_kind: {self.edge_kind!r} is not rise or fall; "
-                    "an edge contact needs one"
+                    "an edge contact needs one",
+                    field="Contact.edge_kind",
                 )
         elif self.edge_kind is not None:
             raise FieldError(
-                f"Contact.edge_kind: {self.edge_kind!r} is not allowed; only an edge contact has one"
+                f"Contact.edge_kind: {self.edge_kind!r} is not allowed; only an edge contact has one",
+                field="Contact.edge_kind",
             )
 
     @classmethod

@@ -14,13 +14,14 @@ from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.coil import COIL_NAME_TO_TYPE as COIL_TYPES
-from laddercodec.instructions.coil import WRITABLE_SC, Coil
+from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.model import InstructionType
+from laddercodec.operands.checks import WRITABLE_SC
 
 NO = InstructionType.CONTACT_NO
 OUT = InstructionType.COIL_OUT

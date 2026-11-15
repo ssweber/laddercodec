@@ -6,7 +6,6 @@ Operators: EQ, NE, GT, LT, GE, LE.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Literal, cast
 
@@ -15,12 +14,11 @@ from ..model import (
     ConditionInstruction,
     FieldError,
     InstructionType,
-    check_address,
     check_flag,
     normalize_address,
 )
-from ..operands.checks import check_quoted_text
-from ..operands.constants import check_char_code
+from ..operands.checks import ALL_KINDS, Constants, check_operand
+from ..operands.constants import Kind
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -97,13 +95,10 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 }
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
-_HEX_CONSTANT_RE = re.compile(r"[0-9A-Fa-f]+[hH]")
-_INTEGER_CONSTANT_RE = re.compile(r"[+-]?[0-9]+")
-_NUMERIC_CONSTANT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+#: Every kind of constant; hex is 16-bit, and a real is any spelling.
+_COMPARE_CONSTANTS = Constants(ALL_KINDS, hex_high=0xFFFF, float32=False)
 
-#: Limits of a compare constant; anything outside them is OBJ-005.
-_HEX_MAX = 0xFFFF
-_INTEGER_MIN, _INTEGER_MAX = -2147483648, 2147483647
+_CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numeric"}
 
 #: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
 #: (typing TXT1 into Data A leaves only = and != to choose).
@@ -113,26 +108,10 @@ _TEXT_OPS = ("==", "!=")
 def _operand_group(value: str, name: str) -> str:
     """Return the group (hex, numeric or text) of a compare operand; raise if it is neither a data
     register nor a constant CLICK's compare dialog accepts."""
-    if _HEX_CONSTANT_RE.fullmatch(value):
-        if int(value[:-1], 16) > _HEX_MAX:
-            raise FieldError(f"{name}: {value!r} is above FFFFh; a hex constant is 0h to FFFFh")
-        return "hex"
-    if _INTEGER_CONSTANT_RE.fullmatch(value):
-        # The length guard keeps int() inside Python's digit limit for any input.
-        too_long = len(value.lstrip("+-").lstrip("0")) > len(str(_INTEGER_MAX))
-        if too_long or not _INTEGER_MIN <= int(value) <= _INTEGER_MAX:
-            raise FieldError(f"{name}: {value!r} is outside {_INTEGER_MIN} to {_INTEGER_MAX}")
-        return "numeric"
-    if _NUMERIC_CONSTANT_RE.fullmatch(value):
-        return "numeric"
-    if value.startswith("$"):
-        check_char_code(value, name)
-        return "text"
-    if len(value) >= 2 and value[0] == value[-1] == '"':
-        check_quoted_text(value, name)
-        return "text"
-    bank = check_address(value, name, _DATA_BANKS).bank
-    return next(group for group, banks in _GROUP_BANKS.items() if bank in banks)
+    operand = check_operand(value, name, _DATA_BANKS, _COMPARE_CONSTANTS)
+    if operand.constant is not None:
+        return _CONSTANT_GROUPS.get(operand.constant.kind, "text")
+    return next(group for group, banks in _GROUP_BANKS.items() if operand.bank in banks)
 
 
 # ---------------------------------------------------------------------------
@@ -169,12 +148,14 @@ class CompareContact(ConditionInstruction):
         if left != right:
             raise FieldError(
                 f"CompareContact: {self.left!r} ({left}) and {self.right!r} ({right}) "
-                "are not in one compare group; hex, numeric and text operands do not mix"
+                "are not in one compare group; hex, numeric and text operands do not mix",
+                field="CompareContact",
             )
         if left == "text" and self.op not in _TEXT_OPS:
             raise FieldError(
                 f"CompareContact.op: {self.op!r} is not offered when Data A is text "
-                f"({self.left!r}); a text compare takes == or !="
+                f"({self.left!r}); a text compare takes == or !=",
+                field="CompareContact.op",
             )
 
     @classmethod
