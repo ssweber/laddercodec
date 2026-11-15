@@ -154,3 +154,70 @@ def test_identity_diff_refuses_outputs_it_cannot_compare(tmp_path: Path) -> None
     assert _diff(tmp_path, _doc({}), _doc({})) == 2
     assert _diff(tmp_path, _doc({"k": 1}), {"tool": "t", "meta": {}}) == 2
     assert _diff(tmp_path, _doc({"k": 1}), [1, 2]) == 2
+
+
+def _tiers(tmp_path: Path, a: Any, b: Any, expected: str = "") -> tuple[int, str]:
+    paths = [tmp_path / "a.json", tmp_path / "b.json"]
+    for path, doc in zip(paths, (a, b), strict=True):
+        path.write_text(json.dumps(doc), encoding="utf-8")
+    entries = tmp_path / "expected.txt"
+    entries.write_text(expected, encoding="utf-8")
+    result = _run("identity_diff.py", "--tiers", "--expected", entries, *paths)
+    return result.returncode, result.stdout + result.stderr
+
+
+def test_tiers_list_a_message_change_apart(tmp_path: Path) -> None:
+    a = _doc({"k": {"new": "!FieldError: old words", "csv": "Copy!AddressError: x"}})
+    b = _doc({"k": {"new": "!FieldError: new words", "csv": "Copy!AddressError: y"}})
+    status, out = _tiers(tmp_path, a, b)
+    assert status == 0, out
+    assert "message wording only: 2 difference(s)" in out
+    assert "0 failure(s)" in out
+
+
+@pytest.mark.parametrize(
+    "new",
+    [
+        "ok",  # a refusal became an accept
+        "!AddressError: same words",  # the exception class changed
+        "!probe: same words",  # a probe note is not an exception
+    ],
+)
+def test_tiers_fail_on_a_verdict_or_class_change(tmp_path: Path, new: str) -> None:
+    status, out = _tiers(
+        tmp_path, _doc({"k": {"new": "!FieldError: same words"}}), _doc({"k": {"new": new}})
+    )
+    assert status == 1, out
+    assert "1 failure(s)" in out
+
+
+def test_tiers_fail_on_an_added_case_and_other_fields(tmp_path: Path) -> None:
+    a = _doc({"k": {"csv": "x", "new": "!FieldError: m"}})
+    b = _doc({"k": {"csv": "y", "new": "!FieldError: m"}, "j": {"new": "ok"}})
+    status, out = _tiers(tmp_path, a, b)
+    assert status == 1, out
+    assert "2 failure(s)" in out
+
+
+def test_tiers_take_an_expected_entry(tmp_path: Path) -> None:
+    a = _doc({"Copy/s/source='DS[1]'": {"new": "ok"}, "other": {"new": "ok"}})
+    b = _doc({"Copy/s/source='DS[1]'": {"new": "!FieldError: m"}, "other": {"new": "ok"}})
+    expected = (
+        "# comment\n\nCopy/*/source='DS[1]' | a pointer index is a DS address\nnone | unused\n"
+    )
+    status, out = _tiers(tmp_path, a, b, expected)
+    assert status == 0, out
+    assert "Copy/*/source='DS[1]' | a pointer index is a DS address" in out
+    assert "match no difference: 1" in out
+    assert "0 failure(s), 1 expected" in out
+
+
+@pytest.mark.parametrize("line", ["no reason here", "key | ", " | reason"])
+def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> None:
+    status, out = _tiers(tmp_path, _doc({"k": 1}), _doc({"k": 1}), line + "\n")
+    assert status == 2, out
+    assert "cannot read the expected-diff file" in out
+
+
+def test_the_committed_expected_file_reads() -> None:
+    _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")

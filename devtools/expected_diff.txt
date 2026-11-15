@@ -1,0 +1,9 @@
+# Expected differences for identity_diff.py --tiers.
+#
+# One case per line: <case key> | <reason>
+#
+# The key is an operand_probe.py or fixture_snapshot.py case key, matched whole; * stands
+# for any run of characters.  The reason states the rule the new verdict follows.
+#
+# A case belongs here only when CLICK itself shows that the verdict before the change was
+# wrong.  A message-only change needs no entry: --tiers lists it apart.
