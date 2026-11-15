@@ -42,9 +42,9 @@ The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
 ## 1. Cruft sweep (nothing)
 
-- **Arc folders.** Delete the closed ones under `laddercodec-wt/buildbot/jobs/`, except `dllqa/`,
-  `validation-arc/`, `validation/`, `rs2/` and `postrelease/`. Those hold until the expected-diff entries (item
-  3) are sorted.
+- **Arc folders.** The closed arc folders under `laddercodec-wt/buildbot/jobs/` can all be deleted: the hold on
+  `dllqa/`, `validation-arc/`, `validation/`, `rs2/` and `postrelease/` ended once the expected-diff entries
+  (item 3) were sorted.
 
 ## 2. The undecoded marker (done in #38; ClickNick and pyrung follow)
 
@@ -59,19 +59,27 @@ shared functions.
 
 - **Identity has two tiers** (done). `devtools/identity_diff.py --tiers` fails on a change of verdict,
   exception class, CSV, bytes or decode result, and lists message changes apart.
-- **Expected-diff file** (done). `devtools/expected_diff.txt` holds no entry: no case had ground truth
-  against today's verdict. The dry run now compares today's checks with the shared functions in
-  `operands/checks.py`, each called with the field's parameters, and shows 0 disagreements in verdict or
-  exception class. Fill into TXT taking one character, Compare's float32 edge, Fill's hex above FFFFh and the
-  remote-address hex edge are parameters; Copy's termination keyword is fixed in the dry run; Math stays out.
+- **Expected-diff file** (done). `devtools/expected_diff.txt` takes a case where CLICK shows today's verdict
+  is wrong (none so far) or where today's code crashes on the value. It lists the crashes on text of more than
+  4300 digits, which Python's `int()` refuses, in six fields. The dry run compares today's checks with the
+  shared functions in `operands/checks.py`, each called with the field's parameters, and shows 0
+  disagreements in verdict or exception class apart from those entries. Fill into TXT taking one character,
+  Compare's float32 edge, Fill's hex above FFFFh and the remote-address hex edge are parameters; Copy's
+  termination keyword is fixed in the dry run; Math stays out.
 - **Provenance out of src (done).**
   - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
     `tests/test_no_dll_addresses.py`.
   - Delete the citation comments: 142 lines in 16 files.
   - The OBJ ids in messages stay.
 - **Per family** (bits, data, flow, move, comm):
-  - Replace the private regexes and bank sets with the shared functions (`check_operand`, `check_constant`,
-    `check_address`, `check_flag`, `check_out_target`), and shrink the guard allowlists.
+  - Replace the private regexes and the bank sets more than one family uses with the shared functions
+    (`check_operand`, `check_constant`, `check_quoted_text`, `check_address`, `check_flag`,
+    `check_out_target`) and sets (`BIT_BANKS`, `REGISTER_BANKS`, `POINTER_BANKS`, `OUT_BANKS`), and shrink
+    the guard allowlists.
+  - A set only one family uses (the compare groups, the For limit banks) may stay in that family, and so may a
+    check the shared functions don't express: the Modbus `device_id` (a FieldError for a bad DS address), the
+    For count's blank and spaced-digit refusals, the Drum register-preset test and the remote address's digits
+    branch. `devtools/classify_dryrun.py` names each one beside its rule.
   - Each family must delete more lines than it adds.
 - **`FieldError.field` explicit everywhere.**
   - Pass `field=` at every raise site (198 today; only 5 pass it, and about 45 come out None). Then drop the
@@ -128,6 +136,10 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   Copy puts it into DD or CTD only; the code's Fill takes it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
   store? The code refuses both.
+- **Number constant into TXT:** a single Copy and a Fill take a decimal or hex constant into a TXT range. What
+  does CLICK store in each TXT register? The code accepts it.
+- **Text outside printable ASCII:** do the Copy and Fill dialogs take quoted text with a character outside
+  space to `~` (an accented letter, a control character)? The code refuses it.
 - **Quoted text with an `E`:** the Copy dialog reads such text as a number. Does lowercase `e` do the same, does
   Fill, and what does CLICK keep when such a Copy is pasted? The code accepts and encodes the text as typed.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,

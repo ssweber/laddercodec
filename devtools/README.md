@@ -12,10 +12,15 @@ the base and the branch:
   It reads every `.csv` strictly and with `strict=False`, and records the same hashes.
 - `operand_probe.py` builds every registered instruction class with one field varied over a
   fixed value list (bank edges, X/Y slots, pointers, padded forms, integer and hex limits, text
-  and float constants, spaces, ranges). For each case it records the constructor's result
-  (`ok` or the exception class and message), `to_csv()`, the blob hash, the CSV writer's
-  result, `encode()` and `decode()` of a rung holding the instance, the case read back through
-  the CSV path, and the blob parsed back by the decoder.
+  and float constants, spaces, ranges, digits beyond Python's 4300-digit `int()` limit). For
+  each case it records the constructor's result (`ok` or the exception class), `to_csv()`, the
+  blob hash, the CSV writer's result, `encode()` and `decode()` of a rung holding the instance,
+  the case read back through the CSV path, and the blob parsed back by the decoder.
+
+Both tools write a step that raises as `!Class` where its result would be, and list the
+case's exceptions in order under `errors`, as `[class, message]`. No other value of a case
+holds an exception message. A probe case is keyed `<Class>/<baseline>/<field>=<value>`, with
+the value's repr; text over 1000 characters is written as its runs (`'0'*5000+'1'`).
 
 Check out the base `src` in a detached worktree outside the repository, run both tools on the
 base and on the branch, writing outside the repository, then diff:
@@ -64,8 +69,8 @@ What the tools leave out:
   probed over a short value list.
 - Probe baselines are built by the tree under test from literal arguments: a change to a
   default or a derived field shows as a difference in every case of that baseline.
-- Error messages in the probe are recorded as raised; the snapshot writes the fixture root and
-  the `src` path in them as `<fixtures>` and `<src>`.
+- Error messages in the probe's `errors` are recorded as raised; the snapshot writes the
+  fixture root and the `src` path in them as `<fixtures>` and `<src>`.
 
 Besides the public API, the tools import the family registry in `laddercodec.instructions`
 (with `UnknownCondition` and `UnknownInstruction`), `laddercodec.decode.Rung`,
@@ -86,28 +91,38 @@ verdict. `identity_diff.py --tiers` compares two outputs of the same tool with t
 uv run python -I devtools/identity_diff.py --tiers "$TEMP/probe_base.json" "$TEMP/probe_branch.json"
 ```
 
-- **Must stay identical:** accept or refuse, the exception class, the CSV written, the bytes,
-  the decode result, and the set of cases. The tools record an exception as
-  `!Class: message`; the comparison cuts each one to `!Class`.
-- **Listed apart, not a failure:** a case that differs only in a message's wording.
+- **Must stay identical (the first tier):** every value of a case (accept or refuse, the
+  exception class, the CSV written, the bytes, the decode result), the class of each exception
+  in `errors` and of each warning, the class names an exception's message holds, and the set
+  of cases.
+- **Listed apart, not a failure:** a case that differs only in the text of a message or a
+  warning.
 
-A case that differs in the first tier fails the run (exit 1) unless
-[`expected_diff.txt`](expected_diff.txt) lists it. Each line of that file is
-`<case key> | <reason>`: the key is a probe or snapshot case key, matched whole, with `*` for
-any run of characters; the reason states the rule the new verdict follows. A case goes in only
-when CLICK shows the old verdict was wrong. `--expected FILE` reads another file.
+A case whose first tier differs fails the run (exit 1) unless an entry of
+[`expected_diff.txt`](expected_diff.txt) allows it. Each line of that file is
+`<case key> | <reason>`, or `<case key> | keys=<k>,<k> | <reason>`:
+
+- the key is a probe, snapshot or dry-run case key, matched whole, with `*` for any run of
+  characters, `\*` for a star and `\\` for a backslash;
+- `keys=` names the record keys (`new`, `csv`, `blob`, ...) whose first-tier difference the
+  entry allows; without it the entry allows any, and a case added or removed;
+- the reason states the rule the new verdict follows.
+
+A case goes in only when (a) CLICK shows the old verdict was wrong, or (b) the old code raised
+something other than a `FieldError` or `AddressError` for the field value: a crash, not a
+verdict. `--expected FILE` reads another file. The dry run below reads the same file.
 
 A family branch that wires in the shared checks:
 
 1. runs the probe and the snapshot on its base and on the branch, as above;
 2. runs `identity_diff.py --tiers` on each pair;
 3. reads the message-only list, which needs no action;
-4. fixes every first-tier difference, or, where CLICK shows the old verdict was wrong, adds the
-   case to `expected_diff.txt` in the same commit as the change, with its reason.
+4. fixes every first-tier difference, or, for a case of kind (a) or (b), adds the case to
+   `expected_diff.txt` in the same commit as the change, with its reason.
 
-The run also lists the entries that matched no difference. An entry describes a change against
-the base it was made on; once its branch has landed, the next branch that touches the file
-removes it.
+The run also lists the entries that matched no difference. An entry lives on the branch that
+adds it; the next branch that touches the file removes the entries the tools report as
+matching no difference.
 
 ## Shared field check dry run
 
@@ -115,14 +130,16 @@ removes it.
 `laddercodec.operands.checks`, which no field calls yet. For each field that takes a constant,
 and for the coil target, it tries a fixed value list two ways: building the instruction from a
 known-good baseline (today), and the field's calls to `check_operand`, `check_constant` or
-`check_out_target` with that field's parameters, plus the pairing the family keeps for itself (a
-Compare group, a Copy destination, a Search table). Each rule's docstring states the field's
-kinds and limits, and the order of calls that keeps today's exception class. It prints every
-disagreement and the totals per family, exits 1 on any, and changes nothing:
+`check_out_target` with that field's parameters, plus what the family keeps for itself (a
+Compare group, a Copy destination, a Search table, a few refusals of its own). Each rule's
+docstring states the field's kinds and limits, what the family keeps, and the order of calls
+that keeps today's exception class. Cases are keyed as the probe keys them. It prints every
+disagreement and the totals per family, and changes nothing:
 
 ```bash
 uv run python -I devtools/classify_dryrun.py src
 ```
 
-`DIFFERS` is a verdict that differs; `class` is a refusal with a different exception class.
-Math is left out: its formula has its own grammar.
+`DIFFERS` is a verdict that differs; `class` is a refusal with a different exception class;
+`expected` is either one that an entry of `expected_diff.txt` allows. The run exits 1 on any
+`DIFFERS` or `class`. Math is left out: its formula has its own grammar.

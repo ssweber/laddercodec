@@ -58,7 +58,8 @@ src/laddercodec/
 │   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, display form, X/Y slots
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
 │   ├── checks.py         # Shared field checks (not wired in yet): check_operand, check_constant,
-│   │                     #   check_out_target with per-field Constants; check_flag (re-exported by model.py)
+│   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
+│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet);
 │   │                     #   fits_float32() (Math), hex_display() (Math, Send/Receive)
 │   └── errors.py         # FieldError (ValueError), AddressError (.field, .obj)
