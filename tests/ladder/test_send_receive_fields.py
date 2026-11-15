@@ -41,6 +41,24 @@ def test_rtu_device_id_range_refused_at_construction(device_id) -> None:
         ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
 
 
+@pytest.mark.parametrize("digits", ["1" * 5000, "9" * 4301, "45010", "0"])
+def test_ds_device_id_beyond_ds4500_is_a_field_error(digits) -> None:
+    """A DS number past DS4500 is a FieldError however many digits it has (not int()'s limit)."""
+    with pytest.raises(FieldError, match="device_id") as caught:
+        ModbusRtuTarget(name="r", com_port="cpu2", device_id="DS" + digits)
+    assert caught.value.field == "ModbusRtuTarget.device_id"
+    with pytest.raises(FieldError, match="device_id") as caught:
+        ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id="DS" + digits)
+    assert caught.value.field == "ModbusTcpTarget.device_id"
+
+
+def test_ds_device_id_edges() -> None:
+    ModbusRtuTarget(name="r", com_port="cpu2", device_id="DS1")
+    ModbusRtuTarget(name="r", com_port="cpu2", device_id="DS4500")
+    with pytest.raises(FieldError, match="device_id"):
+        ModbusRtuTarget(name="r", com_port="cpu2", device_id="DS4501")
+
+
 def test_device_id_range_edges_accepted() -> None:
     ModbusRtuTarget(name="r", com_port="cpu2", device_id=0)
     ModbusRtuTarget(name="r", com_port="cpu2", device_id=247)
