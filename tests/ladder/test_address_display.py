@@ -131,10 +131,7 @@ class TestNormalizeAddress:
             ("x0", r"^Copy\.source: 'x0' \(X000\) is outside X001-X016"),
             ("xd1u", r"^Copy\.source: 'xd1u' \(XD1u\) is outside XD0, XD0u, XD1-XD8$"),
             ("yd09", r"^Copy\.source: 'yd09' \(YD9\) is outside YD0, YD0u, YD1-YD8$"),
-            (
-                "ds[ds0]",
-                r"^Copy\.source: 'ds\[ds0\]' \(DS\[DS0\]\) is refused; a pointer's index is a DS address$",
-            ),
+            ("ds[ds0]", r"^Copy\.source pointer: 'DS0' is outside DS1-DS4500$"),
         ],
     )
     def test_lowercase_refused_on_a_ds_field(self, typed: str, message: str) -> None:

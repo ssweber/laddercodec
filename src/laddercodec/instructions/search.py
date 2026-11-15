@@ -33,11 +33,10 @@ from ..operands.checks import (
     ALL_KINDS,
     REGISTER_BANKS,
     Constants,
-    check_operand,
     check_quoted_text,
 )
 from ..operands.constants import SEARCH_TABLE_BANKS, Kind
-from .copy import _check_range
+from .copy import _check_range, _operand
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -165,12 +164,12 @@ class Search(AfInstruction):
         table, _ = _check_range(
             "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
         )
-        check_operand(self.result, "Search.result", RESULT_BANKS)
-        check_operand(self.found, "Search.found", FOUND_BANKS)
+        _operand(self.result, "Search.result", RESULT_BANKS)
+        _operand(self.found, "Search.found", FOUND_BANKS)
         if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
             check_quoted_text(self.source, "Search.source")
         # The search value is a constant or a data register, never a bit.
-        source = check_operand(self.source, "Search.source", REGISTER_BANKS, _VALUE)
+        source = _operand(self.source, "Search.source", REGISTER_BANKS, _VALUE)
         const = source.constant
         if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or source.bank == "TXT":
             if self.comparison not in _TEXT_OPS:

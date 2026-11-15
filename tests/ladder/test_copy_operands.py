@@ -16,7 +16,7 @@ from laddercodec import AddressError, FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.comparison import CompareContact
-from laddercodec.instructions.copy import Copy, Fill, Pack, Unpack
+from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.search import Search
 
@@ -50,7 +50,7 @@ _REFUSED = [
     # the pointer is a DS
     (
         "copy(DS[DD1],DS2)",
-        r"Copy.source: 'DS\[DD1\]' is refused; a pointer's index is a DS address",
+        "Copy.source pointer: 'DD1' is not allowed",
     ),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
     # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
@@ -65,7 +65,7 @@ _REFUSED = [
     ("copy(DS1,XD[DS2])", r"Copy.destination: 'XD\[DS2\]' is not allowed"),
     (
         "copy(DD[DS1+2],DS1)",
-        r"Copy.source: 'DD\[DS1\+2\]' is refused; a pointer's index is a DS address",
+        r"Copy.source pointer: 'DS1\+2' is not a CLICK address",
     ),
     # converters
     ("copy(DS1,TXT1,convert=to_value)", "to_value copies TXT to a number"),
@@ -73,7 +73,7 @@ _REFUSED = [
     ("copy(TXT1,DS1,convert=to_text(suppress_zero=1))", "to_text copies a number to TXT"),
     ("copy(DS1,DD1,convert=to_binary)", "to_binary copies a number to TXT"),
     # Block Copy: no pointers, one bank per range, converts only from TXT
-    ("blockcopy(DS[DS1]..DS5,DS10..DS14)", "is a pointer; .* takes none"),
+    ("blockcopy(DS[DS1]..DS5,DS10..DS14)", "is a pointer; only a single Copy"),
     ("blockcopy(DS1..DD4,DS10..DS13)", "BlockCopy.source_end: 'DD4' is not in the bank"),
     ("blockcopy(DS1..DS4,DS10..DS4501)", "outside DS1-DS4500"),
     ("blockcopy(TXT1..TXT4,TXT10..TXT1001)", "outside TXT1-TXT1000"),
@@ -85,7 +85,7 @@ _REFUSED = [
     ('fill("A",DS1..DS4)', "can't take '\"A\"'; a text constant copies to TXT"),
     ("fill(5,C1..C4)", "Fill.dest_start: 'C1' is not allowed"),
     ("fill(0,DS1..DD5)", "Fill.dest_end: 'DD5' is not in the bank"),
-    ("fill(DS[DS1],DS2..DS5)", "is a pointer; .* takes none"),
+    ("fill(DS[DS1],DS2..DS5)", "is a pointer; only a single Copy"),
     # Pack / Unpack: one slot (OBJ-033/035/019), counts (OBJ-027/041/040, 032/039/042)
     ("pack_bits(X016..X101,DD1)", "spans two X slots"),
     ("unpack_to_bits(DS1,Y101..Y201)", "spans two Y slots"),
@@ -103,7 +103,7 @@ _REFUSED = [
     ("unpack_to_bits(DS1,C1..C17)", "is 17 bits; an unpack from 'DS1' takes at most 16"),
     ("unpack_to_bits(DD1,C1..C33)", "at most 32"),
     ("unpack_to_words(DD1,DS1..DS3)", "is 3 words; an unpack from 'DD1' takes at most 2"),
-    ("pack_bits(C1..C2,DS[DS1])", "is a pointer; .* takes none"),
+    ("pack_bits(C1..C2,DS[DS1])", "is a pointer; only a single Copy"),
     ("pack_bits(C1..DS2,DS1)", "Pack.source_end: 'DS2' is not in the bank"),
     # bits / words is the bank kind: the blob has no flag for it
     ("pack_bits(DS1..DS2,DD1)", "'DS1' is a register; bits needs a bit bank"),
@@ -672,3 +672,50 @@ def test_pack_unpack_constructors_keep_to_one_slot(first: str, last: str) -> Non
     message = f"Unpack.dest_end: {y_first}..{y_last} spans two Y slots"
     with pytest.raises(FieldError, match=re.escape(message)):
         Unpack("DD1", y_first, y_last, unpack_type="bits")
+
+
+# ---------------------------------------------------------------------------
+# FieldError.field names the field that was refused
+# ---------------------------------------------------------------------------
+
+
+def _ascii_code_out_of_range() -> object:
+    from laddercodec.instructions.copy import _ascii_code
+
+    return _ascii_code(300)
+
+
+@pytest.mark.parametrize(
+    ("build", "field"),
+    [
+        (lambda: Copy("DS1", "DS2", format="bogus"), "Copy.format"),
+        (
+            lambda: Copy.from_csv_token("copy(DS1,TXT2,convert=to_binary(suppress_zero=1))"),
+            "Copy.format",
+        ),
+        (lambda: Copy("DS1", "TXT2", format="text", exponential="1"), "Copy.exponential"),
+        (_ascii_code_out_of_range, "Copy.termination_code"),
+        (lambda: BlockCopy("DS1", "DS2", "DS3", "DS4", format="bogus"), "BlockCopy.format"),
+        (lambda: Pack("C1", "C16", "DS1", pack_type="bogus"), "Pack.pack_type"),
+        (lambda: Unpack("DS1", "C1", "C16", unpack_type="bogus"), "Unpack.unpack_type"),
+    ],
+)
+def test_field_names_the_refused_field(build, field: str) -> None:
+    with pytest.raises(FieldError) as info:
+        build()
+    assert info.value.field == field
+
+
+@pytest.mark.parametrize(
+    ("build", "field"),
+    [
+        (lambda: Copy("DS[DS0]", "DS1"), "Copy.source pointer"),
+        (lambda: Copy("DS[DD1]", "DS1"), "Copy.source pointer"),
+        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.destination pointer"),
+        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination pointer"),
+    ],
+)
+def test_pointer_index_field_says_pointer(build, field: str) -> None:
+    with pytest.raises(AddressError) as info:
+        build()
+    assert info.value.field == field

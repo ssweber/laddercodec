@@ -29,14 +29,17 @@ from ..model import (
     AddressError,
     AfInstruction,
     FieldError,
+    check_address,
     normalize_address,
     xy_slot,
 )
 from ..operands.checks import (
     ALL_KINDS,
     BIT_BANKS,
+    POINTER_BANKS,
     REGISTER_BANKS,
     Constants,
+    Operand,
     check_constant,
     check_operand,
     constant_shape,
@@ -199,6 +202,36 @@ def _register_kind(bank: str) -> str:
     return "txt" if bank == "TXT" else "word"
 
 
+def _operand(
+    value: str,
+    name: str,
+    banks: Collection[str] | None,
+    constants: Constants | None = None,
+    *,
+    pointer: bool = False,
+) -> Operand:
+    """The shared ``check_operand``, with the two pointer refusals this family words itself.
+
+    A pointer (``BANK[DSn]``) outside a single Copy is refused with "only a single Copy takes
+    one", and a pointer's bad index with the field ``<name> pointer``.
+    """
+    bank, _, rest = value.partition("[")
+    if (
+        rest.endswith("]")
+        and bank.isascii()
+        and bank.isalpha()
+        and bank.isupper()
+        and len(bank) <= 3
+    ):
+        if not pointer:
+            raise AddressError(
+                f"{name}: {value!r} is a pointer; only a single Copy takes one", field=name
+            )
+        if bank in POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks):
+            check_address(rest[:-1], f"{name} pointer", {"DS"})
+    return check_operand(value, name, banks, constants, pointer=pointer)
+
+
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
     """The kind of a Copy source or Fill value: ``bit``, ``word``, ``txt``, ``number`` or
     ``text``.
@@ -211,7 +244,7 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
         check_constant(value, name, _CONSTANTS)
     if shape is not None:
         return "text" if shape in (Kind.TEXT, Kind.CHAR) else "number"
-    bank = check_operand(value, name, banks, pointer=pointer).bank
+    bank = _operand(value, name, banks, pointer=pointer).bank
     assert bank is not None
     return _register_kind(bank)
 
@@ -256,7 +289,7 @@ def _check_range(
     """
     ends = []
     for field_name, value in ((start_field, start), (end_field, end)):
-        address = check_operand(value, f"{cls}.{field_name}", banks).address
+        address = _operand(value, f"{cls}.{field_name}", banks).address
         assert address is not None
         ends.append(address)
     first, last = ends
@@ -364,12 +397,12 @@ _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
 def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse a hex constant above FFFFh that ``dest_bank`` can't take."""
-    if (
-        constant_shape(source, _CONSTANTS) is Kind.HEX
-        and int(source[:-1], 16) > 0xFFFF
-        and dest_bank not in _HEX32_DEST_BANKS
-    ):
+    """Refuse an integer outside 32 bits, or a hex constant above FFFFh that ``dest_bank``
+    can't take."""
+    shape = constant_shape(source, _CONSTANTS)
+    if shape is Kind.INTEGER:
+        check_constant(source, "Copy.source", _CONSTANTS)
+    if shape is Kind.HEX and int(source[:-1], 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise AddressError(
             f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
             f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}",
@@ -392,9 +425,8 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
-    first = check_operand(
-        destination, "Copy.destination", pointer=True
-    )  # a TXT: text copies only there
+    # A TXT: text copies only there.
+    first = check_operand(destination, "Copy.destination", pointer=True)
     if first.address is None:
         return None
     return Address("TXT", first.address.number + len(source) - 3)
@@ -590,7 +622,7 @@ class Copy(AfInstruction):
                     field=f"Copy.{option}",
                 )
         kind = _source_kind(self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, pointer=True)
-        dst = check_operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
+        dst = _operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
         assert dst.bank is not None
         _check_pair(
             "Copy", self.source, kind, "destination", self.destination, dst.bank, _COPY_PAIRS
@@ -1047,7 +1079,7 @@ class Pack(AfInstruction):
             "Pack", "source_start", self.source_start, "source_end", self.source_end,
             _sources(_PACK_ROWS), one_module=True,
         )  # fmt: skip
-        dest = check_operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
+        dest = _operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
         assert dest.bank is not None
         _check_row(
             "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}", first.bank,
@@ -1165,7 +1197,7 @@ class Unpack(AfInstruction):
             raise FieldError(
                 f"Invalid unpack type: {self.unpack_type!r}", field="Unpack.unpack_type"
             )
-        src = check_operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
+        src = _operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
         assert src.bank is not None
         first, last = _check_range(
             "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end,
