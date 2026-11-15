@@ -265,7 +265,8 @@ def check_quoted_text(value: str, name: str) -> None:
 
     The text between the quotes is 1 to :data:`TEXT_MAX` printable ASCII characters,
     with no quote inside: a quote would end the text in the CSV token, so it is written
-    ``$22``.
+    ``$22``.  On hardware the text is compared against consecutive TXT registers from the
+    named one.
     """
     inner = value[1:-1]
     if not 1 <= len(inner) <= TEXT_MAX or any(ord(c) not in _TEXT_CHARS for c in inner):
