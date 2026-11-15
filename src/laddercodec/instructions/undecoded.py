@@ -126,7 +126,9 @@ def parse_af_call(call: AfCall) -> Undecoded:
     rung = _whole_number(call, "rung")
     if rung is None:
         raise FieldError(f"Undecoded.rung: {call.to_token()!r} has no rung=")
-    stop = call.kwargs.get("stop", "")
+    stop = call.kwargs.get("stop")
+    if stop is None:
+        raise FieldError(f"Undecoded.stop: {call.to_token()!r} has no stop=")
     if stop not in _STOPS:
         raise FieldError(f"Undecoded.stop: {stop!r} must be 'end' or 'return'")
     return Undecoded(
