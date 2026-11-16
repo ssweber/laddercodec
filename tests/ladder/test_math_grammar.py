@@ -48,9 +48,27 @@ def _views(expression: str, mode: str) -> tuple[str, str, str, str]:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("constant", ["1Eh", "0Eh", "2E5h"])
+@pytest.mark.parametrize("constant", ["1Eh", "0Eh", "2E5Ah"])
 def test_hex_constant_with_digits_then_e_is_refused(constant: str) -> None:
     _refused(f"DH1 + {constant}", "hex", f"{constant} is refused; CLICK reads the digits before E")
+
+
+@pytest.mark.parametrize(
+    ("typed", "display", "value"),
+    [("1E3h", "1E3h", 0x1E3), ("1e3H", "1E3h", 0x1E3), ("01E3h", "1E3h", 0x1E3), ("2E5h", "2E5h", 0x2E5)],
+)
+def test_hex_constant_click_stores_with_digits_e_digits_is_read(
+    typed: str, display: str, value: int
+) -> None:
+    # A hex Math stores a constant typed 1e3 (no h) as 1E3h, UH483: the real number the
+    # tokenizer cuts is followed only by the h, so the word is read as hex.
+    assert _views(f"DH1 + {typed}", "hex") == (
+        f"DH1 + {display}",
+        f"@ + {display}",
+        f"@#+#UH{value}",
+        f"DH1#+#UH{value}",
+    )
+    _refused(f"DS1 + {typed}", "decimal", f"{display} is a hex constant; a decimal Math")
 
 
 def test_sign_after_an_operator_is_refused_and_accepted_in_parentheses() -> None:
@@ -79,8 +97,9 @@ def test_trig_body_holds_a_colon_only_in_a_sum() -> None:
 
 def test_hex_bare_digits_stay_refused() -> None:
     # CLICK rewrites hex DH1 + 7 as 7h; laddercodec keeps the CSV's intent and refuses it,
-    # as it refuses 7H7, which CLICK rewrites as 77h.
-    _refused("DH1 + 7", "hex", "7 is a decimal constant; a hex Math")
+    # naming the h form, as it refuses 7H7, which CLICK rewrites as 77h.
+    _refused("DH1 + 7", "hex", "7 has no h; a hex Math takes hex constants, .* write 7h")
+    _refused("DH1 + 1e3", "hex", "1e3 has no h; .* reads it as 1E3h: write 1E3h")
     _refused("DH1 + 7H7", "hex", "'7H7' is not an address")
 
 
@@ -96,8 +115,8 @@ def test_hex_bare_digits_stay_refused() -> None:
         ("SUM(DS1:DS3)", "SUM ( DS1 : DS3 )"),  # and on ( ) , :
         ("DS1\t+   DS2", "DS1 + DS2"),  # a run of spaces or tabs is one gap
         ("DF1*1.5E+10", "DF1 * 1.5E+10"),  # a real number keeps its exponent sign
-        ("DF1+.5", "DF1 + .5"),
-        ("DF1+1.", "DF1 + 1."),
+        ("DF1+.5", "DF1 + 0.5"),  # a real is printed back
+        ("DF1+1.", "DF1 + 1.0"),
     ],
 )
 def test_tokenizer_splits_as_clicks(typed: str, display: str) -> None:
@@ -158,8 +177,30 @@ def test_decimal_integer_must_print_back_at_its_length(constant: str) -> None:
 
 
 def test_real_is_f_and_fits_float32() -> None:
-    assert parse("DF1 * 1.5e5", "decimal").internal() == "DF1#*#F1.5e5"  # case kept as typed
+    assert parse("DF1 * 1.5e5", "decimal").internal() == "DF1#*#F150000.0"
     _refused("DF1 * 1E39", "decimal", "1E39 is outside the float32 range")
+
+
+@pytest.mark.parametrize(
+    ("typed", "stored"),
+    [
+        # CLICK's answers: a real is stored as CLICK prints it back, display and internal.
+        ("1.50", "1.5"),
+        ("1e3", "1000.0"),
+        (".5", "0.5"),
+        ("1.5E+10", "1.5E+10"),
+        # A typed sign stays with it (DS1 + ( +2.5 ) is stored F+2.5).
+        ("( +2.50 )", "( +2.5 )"),
+        ("( -1.5e10 )", "( -1.5E+10 )"),
+    ],
+)
+def test_real_is_written_as_click_prints_it(typed: str, stored: str) -> None:
+    formula = parse(f"DS2 + {typed}", "decimal")
+    assert formula.display == f"DS2 + {stored}"
+    constant = stored.strip("( )")
+    assert formula.internal() == "DS2#+#" + stored.replace(constant, f"F{constant}").replace(
+        " ", "#"
+    )
 
 
 def test_hex_constant_is_written_as_click_shows_it() -> None:

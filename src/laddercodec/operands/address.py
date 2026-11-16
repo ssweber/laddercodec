@@ -104,11 +104,15 @@ def to_display(value: str, display: str, field: str | None) -> str:
     """Return ``display``, the form CLICK writes for ``value``.
 
     Inside :func:`display_form_only` a ``value`` that differs from it raises
-    :class:`NotDisplayForm` naming ``field``, the field ``value`` was read for.
+    :class:`NotDisplayForm` naming ``field``, the field ``value`` was read for, at the
+    start of its message as every refusal does.
     """
     if display != value and _DISPLAY_FORM_ONLY.get():
+        prefix = f"{field}: " if field else ""
         raise NotDisplayForm(
-            f"{value!r} is not CLICK's display form {display!r}", field=field, reason=Reason.FORM
+            f"{prefix}{value!r} is not CLICK's display form {display!r}",
+            field=field,
+            reason=Reason.FORM,
         )
     return display
 

@@ -48,7 +48,7 @@ def test_internal_form_normalizes_literals() -> None:
     assert parse("DF401 * ( -2.5 )", "decimal").internal() == "DF401#*#(#F-2.5#)"
     assert parse("DF401 * ( -1.5E+10 )", "decimal").internal() == "DF401#*#(#F-1.5E+10#)"
     assert parse("DF1 * 3.14", "decimal").internal() == "DF1#*#F3.14"
-    assert parse("DF1 * .5 + 1E5", "decimal").internal() == "DF1#*#F.5#+#F1E5"
+    assert parse("DF1 * .5 + 1E5", "decimal").internal() == "DF1#*#F0.5#+#F100000.0"
     assert parse("- DS401", "decimal").internal() == "-#DS401"
     assert parse("DH221 + Ah", "hex").internal() == "DH221#+#UH10"
     assert parse("DH1 AND AB59h", "hex").internal() == "DH1#AND#UH43865"
@@ -111,9 +111,9 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
         ("DS1*(-5)", "DS1 * ( -5 )"),
         ("DS1*(-2.5)", "DS1 * ( -2.5 )"),
         ("-DS1", "- DS1"),
-        ("DF1*1.0E-10", "DF1 * 1.0E-10"),
-        ("DF1*(-1.5e+10)", "DF1 * ( -1.5e+10 )"),
-        ("DF1+.5", "DF1 + .5"),
+        ("DF1*1.0E-10", "DF1 * 1E-10"),
+        ("DF1*(-1.5e+10)", "DF1 * ( -1.5E+10 )"),
+        ("DF1+.5", "DF1 + 0.5"),
         ("DS1 MOD 2", "DS1 MOD 2"),
         ("DS1 MOD (- 2)", "DS1 MOD ( -2 )"),
         ("SUM(DS1:DS9)", "SUM ( DS1 : DS9 )"),

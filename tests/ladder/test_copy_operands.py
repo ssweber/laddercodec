@@ -19,6 +19,7 @@ from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.search import Search
+from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
 
 
@@ -330,22 +331,30 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
 # A $ code is picked from CLICK's Embed
 # ASCII Code table, $00 to $FF, so it is $ and two hex digits in every field.
 _DOLLAR_FORMS = ["$", "$1", "$D", "$d", "$100", "$4142", "$G1", "$٣٣"]
+#: A single Copy's source takes $ and one hex digit, which CLICK stores with two ($1 is $01).
+_ONE_DIGIT_CODES = ["$1", "$D", "$d"]
+_COPY_DOLLAR_FORMS = [form for form in _DOLLAR_FORMS if form not in _ONE_DIGIT_CODES]
 _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
+_DOLLAR_FIELDS = [
+    ("Copy.source", lambda code: Copy(code, "TXT2")),
+    ("Fill.value", lambda code: Fill(code, "TXT2", "TXT5")),
+    ("Search.source", lambda code: Search("TXT1", "TXT10", code, "DS20", "C1", "==")),
+    ("CompareContact.right", lambda code: CompareContact("==", "TXT1", code)),
+    ("CompareContact.left", lambda code: CompareContact("==", code, "TXT1")),
+    (
+        "Copy.termination_code",
+        lambda code: Copy("DS20", "TXT7", format="text", termination_code=code),
+    ),
+]
 
 
-@pytest.mark.parametrize("code", ["$", "$1", "$G1"])
 @pytest.mark.parametrize(
-    ("field", "build"),
+    ("field", "build", "code"),
     [
-        ("Copy.source", lambda code: Copy(code, "TXT2")),
-        ("Fill.value", lambda code: Fill(code, "TXT2", "TXT5")),
-        ("Search.source", lambda code: Search("TXT1", "TXT10", code, "DS20", "C1", "==")),
-        ("CompareContact.right", lambda code: CompareContact("==", "TXT1", code)),
-        ("CompareContact.left", lambda code: CompareContact("==", code, "TXT1")),
-        (
-            "Copy.termination_code",
-            lambda code: Copy("DS20", "TXT7", format="text", termination_code=code),
-        ),
+        (field, build, code)
+        for code in ["$", "$1", "$G1"]
+        for field, build in _DOLLAR_FIELDS
+        if not (field == "Copy.source" and code in _ONE_DIGIT_CODES)
     ],
 )
 def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: str) -> None:
@@ -361,7 +370,7 @@ def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: s
     )
 
 
-@pytest.mark.parametrize("source", _DOLLAR_FORMS)
+@pytest.mark.parametrize("source", _COPY_DOLLAR_FORMS)
 def test_copy_source_other_dollar_forms_refused(tmp_path: Path, source: str) -> None:
     with pytest.raises(FieldError, match=rf"^Copy.source: .* {_DOLLAR_RULE}"):
         Copy(source, "TXT2")
@@ -384,7 +393,26 @@ def test_fill_value_other_dollar_forms_refused(tmp_path: Path, value: str) -> No
 def test_other_dollar_form_blob_keeps_its_refusal(tags: dict[int, str], value: str) -> None:
     assert kept(from_tags_af("Copy", 0x2721, tags | {0x6074: "$41"})) is not None
     field = "Fill.value" if 0x6077 in tags else "Copy.source"
+    if field == "Copy.source" and value in _ONE_DIGIT_CODES:
+        # Taken, in CLICK's two-digit form.
+        decoded = from_tags_af("Copy", 0x2721, tags | {0x6074: value})
+        assert isinstance(decoded, Copy)
+        assert decoded.source == f"$0{value[1]}"
+        assert refusals(decoded) == ()
+        return
     kept(from_tags_af("Copy", 0x2721, tags | {0x6074: value}), field)
+
+
+@pytest.mark.parametrize(("typed", "stored"), [("$1", "$01"), ("$D", "$0D"), ("$d", "$0d")])
+def test_copy_source_one_digit_code_is_written_with_two(
+    tmp_path: Path, typed: str, stored: str
+) -> None:
+    # CLICK's Copy takes $1 into TXT and stores $01.  Fill, Search and Compare still refuse it.
+    copy = Copy(typed, "TXT2")
+    assert copy.source == stored
+    assert copy.to_csv() == f"copy({stored},TXT2)"
+    assert _read_af(tmp_path, f"copy({typed},TXT2)") == copy
+    assert parse_af_blob(copy.build_blob()) == copy
 
 
 _FILL_VALUE_REFUSED = [

@@ -45,7 +45,7 @@ from ..operands.checks import (
     check_writable_sd,
     constant_shape,
 )
-from ..operands.constants import TEXT_MAX, Kind
+from ..operands.constants import TEXT_MAX, Kind, real_display
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -164,6 +164,33 @@ def _ascii_code(code: int) -> str:
             reason=Reason.RANGE,
         )
     return f"${code:02X}"
+
+
+_HEX_DIGITS = frozenset("0123456789ABCDEFabcdef")
+
+
+def _is_one_digit_code(source: str) -> bool:
+    """Whether ``source`` is ``$`` and one hex digit (``$1``)."""
+    return len(source) == 2 and source[0] == "$" and source[1] in _HEX_DIGITS
+
+
+def _source_display(source: str, kind: Kind) -> str:
+    """CLICK's form of a single Copy's constant source, one it takes.
+
+    A decimal integer keeps its sign, typed ``+`` too, and loses its leading zeros
+    (``005`` is ``5``, ``+5`` stays ``+5``); a hex constant has its digits uppercased,
+    leading zeros kept, then a lowercase ``h`` (``0ffh`` is ``0FFh``); a real is printed
+    back (``1.50`` is ``1.5``, ``1E5`` is ``100000.0``).  Text and a character code come
+    back as given.
+    """
+    if kind is Kind.INTEGER:
+        sign = source[:1] if source[:1] in ("+", "-") else ""
+        return sign + (source[len(sign) :].lstrip("0") or "0")
+    if kind is Kind.HEX:
+        return f"{source[:-1].upper()}h"
+    if kind is Kind.FLOAT:
+        return real_display(source)
+    return source
 
 
 # ---------------------------------------------------------------------------
@@ -802,6 +829,17 @@ class Copy(AfInstruction):
         with Refusals(self) as check:
             # A constant comes back from normalize_address as written.
             check.normalize("source", "destination")
+            if _is_one_digit_code(self.source):
+                # A single Copy takes $ and one hex digit as a character code; CLICK stores
+                # it with two ($1 is $01).
+                self.source = f"$0{self.source[1]}"
+            elif self.source.upper() == "EH":
+                check.refuse(
+                    "source",
+                    f"{self.source!r} is refused; CLICK's Copy reads it as the real 0.0, not "
+                    "as hex E: write 0Eh for hex E or 0.0 for the real",
+                    Reason.FORM,
+                )
             if self.format not in _VALID_FORMATS:
                 check.refuse(
                     "format",
@@ -886,7 +924,10 @@ class Copy(AfInstruction):
                     "OBJ-036",
                 )
             if kind in ("number", "text"):
-                check("source", check_constant, _CONSTANTS)
+                const = check("source", check_constant, _CONSTANTS)
+                if const is not None:
+                    # Written as CLICK stores it.
+                    self.source = _source_display(self.source, const.kind)
             if not check.refused("source", "destination"):
                 end = _text_fill_end(self.source, self.destination)
                 if end is not None and end.number > _TXT_LAST:

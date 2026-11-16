@@ -148,6 +148,38 @@ def hex_display(digits: str) -> str:
     return f"{digits.upper().lstrip('0') or '0'}h"
 
 
+#: The significant digits CLICK prints a real constant with.
+REAL_DIGITS = 7
+
+
+def real_display(text: str) -> str:
+    """CLICK's form of a real constant: its value printed back, with a typed ``+`` kept.
+
+    A Math and a Copy source store a real as CLICK prints it: at most 7 significant
+    digits, positional with at least one digit after the point (``1.50`` is ``1.5``,
+    ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``), and in exponent
+    form from 1E+07 up and below 1E-04 (``1.5e10`` is ``1.5E+10``).  ``text`` comes back as
+    given where that print is another float32 value (more than 7 significant digits that
+    count).  ``text`` is a real :func:`classify` reads: finite and within float32.
+    """
+    value = float(text)
+    printed = f"{value:.{REAL_DIGITS}G}"
+    if "." not in printed and "E" not in printed:
+        printed += ".0"
+    same = _float32_bits(float(printed))
+    if same is None or same != _float32_bits(value):
+        return text
+    return f"+{printed}" if text.startswith("+") else printed
+
+
+def _float32_bits(value: float) -> bytes | None:
+    """``value`` as float32 bytes; None above the float32 range."""
+    try:
+        return struct.pack("<f", value)
+    except OverflowError:
+        return None
+
+
 def _text(inner: str) -> Constant | None:
     # A quote inside the text is refused: the CSV token can't hold one ($22 spells it).
     if not 1 <= len(inner) <= TEXT_MAX or '"' in inner:
