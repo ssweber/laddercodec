@@ -349,7 +349,7 @@ class TestCoil:
         coil = _read_af(tmp_path, f"{name}({op})")
         assert isinstance(coil, Coil) and coil.operand == op
 
-    # Out: OBJ-004.  Set and Reset refuse the same banks.
+    # Out, Set and Reset: OBJ-004.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["X001", "T1", "CT1", "DS1"])
     def test_other_banks_refused(self, tmp_path: Path, name: str, op: str) -> None:
@@ -424,7 +424,7 @@ class TestCoil:
         coil = _read_af(tmp_path, f"{name}(C1..C2000)")
         assert isinstance(coil, Coil) and coil.range_end == "C2000"
 
-    # Out: OBJ-008.  Set and Reset refuse C5..Y5 too.
+    # Out, Set and Reset: OBJ-008.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C5..Y5", "C1..SC50", "Y1..C2"])
     def test_range_same_bank(self, tmp_path: Path, name: str, token: str) -> None:
@@ -434,7 +434,7 @@ class TestCoil:
         with pytest.raises(FieldError, match="^Coil.range_end"):
             Coil(COIL_TYPES[name], start, range_end=end)
 
-    # Out: OBJ-009 (C5..C5).  Set and Reset refuse C9..C1 and C5..C5 too.
+    # Out, Set and Reset: OBJ-009 for C9..C1, OBJ-012 for C5..C5.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C9..C1", "C5..C5", "Y101..Y16", "Y001..Y1"])
     def test_range_ascends(self, tmp_path: Path, name: str, token: str) -> None:

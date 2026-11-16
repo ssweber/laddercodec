@@ -100,34 +100,32 @@ class Coil(AfInstruction):
                 check.normalize("range_end")
             # A refused immediate flag is not read: the bank checks still run.
             immediate = self.immediate is True
-            out = self.type == InstructionType.COIL_OUT
-            # Out, Set and Reset follow the same target and range rules; Out's id for a bank
-            # it does not take is OBJ-004.
-            bank_id = "OBJ-004" if out else None
-            start = check("operand", check_out_target, immediate=immediate, bank_id=bank_id)
+            # Out, Set and Reset follow the same target and range rules, with the same ids:
+            # OBJ-004 for a bank they do not take, OBJ-003 for an SC bit they can't write.
+            ids = {"bank_id": "OBJ-004", "not_writable_id": "OBJ-003"}
+            start = check("operand", check_out_target, immediate=immediate, **ids)
             if self.range_end is None:
                 return
             # An SC range needs both ends writable; the bits between are not checked.
-            end = check("range_end", check_out_target, immediate=immediate, bank_id=bank_id)
+            end = check("range_end", check_out_target, immediate=immediate, **ids)
             if start is None or end is None:
                 return
             if end.bank != start.bank:
-                # Set and Reset refuse C5..Y5 the same way.
                 check.refuse(
                     ("range_end", "operand"),
                     f"{self.range_end!r} is in bank {end.bank}; the range starts in bank "
                     f"{start.bank} and must stay in it",
                     Reason.CONFLICT,
-                    "OBJ-008" if out else None,
+                    "OBJ-008",
                 )
             elif end.number <= start.number:
-                # C5..C5 is refused too; Set and Reset refuse C9..C1 and C5..C5 as Out does.
+                # An end below the start is OBJ-009; the same address at both ends, OBJ-012.
                 check.refuse(
                     ("range_end", "operand"),
                     f"{self.range_end!r} is not above {self.operand!r}; a range runs from a "
                     "lower to a higher address",
                     Reason.CONFLICT,
-                    "OBJ-009" if out else None,
+                    "OBJ-009" if end.number < start.number else "OBJ-012",
                 )
 
     @classmethod

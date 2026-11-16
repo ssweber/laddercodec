@@ -479,12 +479,15 @@ def check_out_target(
     banks: Collection[str] = OUT_BANKS,
     label: str | None = None,
     bank_id: str | None = None,
+    not_writable_id: str | None = None,
 ) -> Address:
     """Check an address a coil writes; return it.
 
     The bank is one of ``banks`` (Y, C and SC for Out, Set, Reset and the Out variants),
     an immediate target is Y, and an SC bit is one of :data:`WRITABLE_SC`.  A target the
     immediate box refuses is a conflict of ``field`` with the instruction's ``immediate``.
+    ``bank_id`` and ``not_writable_id`` are the ids CLICK's dialog gives for a bank the field
+    does not take and for an SC bit it can't write, where they are known.
     """
     at = _at(field, label)
     address = check_address(value, field, banks, label=label, bank_id=bank_id)
@@ -502,6 +505,7 @@ def check_out_target(
             value,
             f"is not a writable SC bit; a coil writes {writable}",
             Reason.NOT_WRITABLE,
+            not_writable_id,
             cls=AddressError,
         )
     return address
@@ -540,7 +544,8 @@ class Refusals:
 
     A field is named by its attribute (``"outputs[2]"`` for an item); the error names
     ``Class.attr``.  Once a field is refused, a later check or refusal that names it is
-    skipped: what depends on a refused value is not checked.  A refusal of a list field
+    skipped: what depends on a refused value is not checked.  A refusal of a pair refuses
+    its leading field only, so its partner is still checked.  A refusal of a list field
     counts for each of its items, and a refusal of an item for the list.  A
     :class:`FieldError` raised straight out of the block ends it and joins the refusals the
     same way, each of its :attr:`~FieldError.errors` (an instruction built inside the block
@@ -586,10 +591,17 @@ class Refusals:
         return self._names_refused(tuple(self.field(attr) for attr in attrs))
 
     def _names_refused(self, fields: tuple[str, ...]) -> bool:
+        """Whether one of ``fields`` leads a kept refusal (its list or an item of it too).
+
+        Only the leading field counts: a refusal of a pair refuses its first field, and its
+        partner is still checked on its own."""
+
         def overlap(a: str, b: str) -> bool:
             return a == b or a.startswith(f"{b}[") or b.startswith(f"{a}[")
 
-        return any(overlap(f, g) for e in self._errors for g in e.fields for f in fields)
+        return any(
+            e.field is not None and overlap(f, e.field) for e in self._errors for f in fields
+        )
 
     def add(self, error: FieldError) -> None:
         """Keep each of ``error``'s :attr:`~FieldError.errors`, unless it names a field

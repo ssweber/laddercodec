@@ -105,12 +105,16 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 - **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
   Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
   TXT.
-- **SC gaps:** check a point in a gap of `WRITABLE_SC` (SC163, SC310); click has been asked.
-- **Out with an equal range (C1..C1):** OBJ-009 or OBJ-012? The out grid's cases settle it. The code gives
-  OBJ-009.
+- **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
+  SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
+  OBJ-003 for it.
+- **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
+  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends. Math result bank
+  refusal is OBJ-004: the math grids' result rows confirm it.
 - **OBJ-023 on a Fill into TXT** (one character) is unverified for Fill's dialog.
 - **OBJ-002 and OBJ-003:** which dialogs give them for an address that is not one and for a number outside its
-  bank. `click_id` is set only for OBJ-004, where the code records a field's dialog.
+  bank. `click_id` is set only where the code records a field's dialog: OBJ-004, and OBJ-003 for a coil's SC
+  bit.
 
 ## 4. Canonical constants (CLICK)
 
@@ -119,12 +123,35 @@ Addresses are written canonical everywhere, and tested. Constants are written as
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
 
-Math constants and Modbus hex addresses are already canonical.
+Modbus hex addresses are already canonical.
 
-**Question for CLICK:** what does each dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into? Ask
-in Copy, Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
-click's runner (job B) is saving and decoding what CLICK stores for `005`, `+5`, `-5`, `0ffh`, `1.50`, `1e3` and
-`.5` in Math and Copy; the other dialogs still need asking.
+**click's answers for Math and Copy (2026-11-16):**
+- Hex Math reads a constant without `h` as hex: `005` and `5` are stored `5h`, `FF` is `FFh`, `1e3` is `1E3h`
+  (483), and `1Eh` is refused. laddercodec refuses `005` and `FF`.
+- A real is stored as CLICK prints it back, in Math (display and internal) and in a Copy source: `1.50` is
+  `1.5`, `1e3` is `1000.0`, `.5` is `0.5`, `1E5` is `100000.0`; `1.5E+10` stays as typed. laddercodec writes
+  the typed text.
+- A Copy source is stored as CLICK reads it: a decimal integer without leading zeros but with a typed `+`
+  (`005` is `5`, `+5` stays `+5`); hex with its digits uppercased, leading zeros kept, then a lowercase `h`
+  (`0ffh` is `0FFh`, `ffh` is `FFh`, `ABCH` is `ABCh`, `DH` is `Dh`).
+- `EH` as a Copy source is stored as the real `0.0`; laddercodec reads it as hex 14.
+- `$1` into TXT is accepted and stored `$01`; laddercodec refuses it.
+- Decode: a hex Math holding `1E3h`, as CLICK itself stores it, decodes as `raw(Math, ...)`. Decode must read
+  what CLICK writes.
+
+**Ruling (Sam, 2026-11-16):**
+- The encoder writes the form CLICK's dialog stores wherever its correction keeps the meaning: `1.50` is
+  written `1.5`, `1e3` `1000.0`, `.5` `0.5`, `005` `5` in a Copy, `0ffh` `0FFh`, `$1` `$01`, and the rest of
+  click's answers. The canonical form is what CLICK stores, not a stripped form: a typed `+` and the leading
+  zeros of a hex Copy source are kept.
+- Where the dialog's correction would change what the CSV text says, keep refusing and name the fix in the
+  message:
+  - a hex Math constant without `h` (`005`, `FF`, `1e3`): the settled ruling stands;
+  - `EH` as a Copy source: refuse it, and say to write `0Eh` for hex or `0.0` for the real. Today the code
+    reads it as hex 14; that changes on this item's branch.
+
+**Question for CLICK:** what does each other dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into?
+Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
 
 Then make one behaviour-change branch: a test that every writer's output is canonical, the golden `.bin` files
 that change, and Sam's paste checks of them.

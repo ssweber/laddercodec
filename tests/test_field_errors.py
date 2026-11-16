@@ -184,21 +184,23 @@ def test_coil_gives_every_refusal() -> None:
     errors = _refusals(lambda: Coil(LATCH, "X1", "SC1", oneshot=True))
     assert _shape(errors) == [
         ("Coil.oneshot", "conflict", None),
-        ("Coil.operand", "bank", None),
-        ("Coil.range_end", "not_writable", None),
+        ("Coil.operand", "bank", "OBJ-004"),
+        ("Coil.range_end", "not_writable", "OBJ-003"),
     ]
     assert errors[0].fields == ("Coil.oneshot", "Coil.type")
 
 
+@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
 @pytest.mark.parametrize(
-    ("kind", "start", "end", "click_id"),
-    [(OUT, "C5", "Y5", "OBJ-008"), (OUT, "C9", "C1", "OBJ-009"), (LATCH, "C5", "Y5", None)],
+    ("start", "end", "click_id"),
+    [("C5", "Y5", "OBJ-008"), ("C9", "C1", "OBJ-009"), ("C5", "C5", "OBJ-012")],
 )
-def test_coil_range(kind: InstructionType, start: str, end: str, click_id: str | None) -> None:
+def test_coil_range(kind: InstructionType, start: str, end: str, click_id: str) -> None:
+    """Out, Set and Reset give the same ids: another bank, an end below, the same address."""
     (error,) = _refusals(lambda: Coil(kind, start, end))
     assert error.fields == ("Coil.range_end", "Coil.operand")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, click_id)
-    assert str(error).endswith(f" ({click_id})") == (click_id is not None)
+    assert str(error).endswith(f" ({click_id})")
 
 
 def test_coil_skips_what_depends_on_a_refused_field() -> None:
@@ -226,15 +228,31 @@ def test_coil_immediate_target_is_a_conflict_with_immediate() -> None:
     (error,) = _refusals(lambda: Coil(OUT, "C1", immediate=True))
     assert error.fields == ("Coil.operand", "Coil.immediate")
     assert error.reason == Reason.CONFLICT
-    # The range end's own immediate refusal names a field already refused: not kept.
-    (error,) = _refusals(lambda: Coil(OUT, "C1", "C5", immediate=True))
-    assert error.fields == ("Coil.operand", "Coil.immediate")
+    # A pair refuses its leading field only: the range end is checked against immediate too.
+    errors = _refusals(lambda: Coil(OUT, "C1", "C5", immediate=True))
+    assert [e.fields for e in errors] == [
+        ("Coil.operand", "Coil.immediate"),
+        ("Coil.range_end", "Coil.immediate"),
+    ]
 
 
-@pytest.mark.parametrize(("kind", "click_id"), [(OUT, "OBJ-004"), (LATCH, None)])
-def test_coil_bank_id(kind: InstructionType, click_id: str | None) -> None:
+@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
+def test_coil_bank_id(kind: InstructionType) -> None:
     (error,) = _refusals(lambda: Coil(kind, "DS1"))
-    assert (error.reason, error.click_id) == (Reason.BANK, click_id)
+    assert (error.reason, error.click_id) == (Reason.BANK, "OBJ-004")
+
+
+@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
+def test_coil_sc_not_writable_is_obj_003(kind: InstructionType) -> None:
+    (error,) = _refusals(lambda: Coil(kind, "SC163"))
+    assert (error.field, error.reason, error.click_id) == (
+        "Coil.operand",
+        Reason.NOT_WRITABLE,
+        "OBJ-003",
+    )
+    assert str(error).endswith(" (OBJ-003)")
+    assert Coil(kind, "SC50").operand == "SC50"
+    assert Coil(kind, "SC162").operand == "SC162"
 
 
 # ---------------------------------------------------------------------------
@@ -289,6 +307,10 @@ class _Outer(AfInstruction):
                 check.refuse("items[1]", "is refused", Reason.BANK)
                 check.refuse("items", "is refused too", Reason.RANGE)  # its item was refused
                 check.refuse("other", "is refused", Reason.KIND)
+            elif self.mode == "pair":
+                check.refuse(("items", "other"), "is refused", Reason.CONFLICT)
+                check.refuse(("other", "mode"), "is refused too", Reason.CONFLICT)
+                check.refuse("items[0]", "is skipped", Reason.BANK)  # items leads a refusal
             elif self.mode == "list":
                 check.refuse("items", "is refused", Reason.RANGE)
                 assert check.refused("items[0]")
@@ -306,6 +328,14 @@ class _Outer(AfInstruction):
 def test_an_item_refused_covers_its_list() -> None:
     errors = _refusals(lambda: _Outer(mode="item"))
     assert [e.field for e in errors] == ["_Outer.items[1]", "_Outer.other"]
+
+
+def test_a_pair_refuses_its_leading_field_only() -> None:
+    errors = _refusals(lambda: _Outer(mode="pair"))
+    assert [e.fields for e in errors] == [
+        ("_Outer.items", "_Outer.other"),
+        ("_Outer.other", "_Outer.mode"),
+    ]
 
 
 def test_a_list_refused_covers_its_items() -> None:

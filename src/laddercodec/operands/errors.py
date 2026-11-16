@@ -18,7 +18,7 @@ class Reason(StrEnum):
     BANK = "bank"
     """A CLICK address in a bank the field does not take."""
     RANGE = "range"
-    """A number, a constant or a length over the field's limit."""
+    """A number, a constant or a length outside the field's limits."""
     POINTER = "pointer"
     """A pointer the field does not take: any pointer, one to this bank, or this index."""
     KIND = "kind"
