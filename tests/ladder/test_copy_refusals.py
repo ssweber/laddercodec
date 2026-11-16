@@ -71,7 +71,7 @@ def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None,
             [
                 ("Pack.pack_type", "choice", None),
                 ("Pack.source_end", "address", None),
-                ("Pack.destination", "bank", None),
+                ("Pack.destination", "bank", "OBJ-004"),
                 ("Pack.allow_whitespace", "flag", None),
             ],
         ),
@@ -79,7 +79,7 @@ def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None,
             lambda: Unpack("X1", "C1", "C0", unpack_type="bogus", oneshot=2),
             [
                 ("Unpack.unpack_type", "choice", None),
-                ("Unpack.source", "bank", None),
+                ("Unpack.source", "bank", "OBJ-004"),
                 ("Unpack.dest_end", "address", None),
                 ("Unpack.oneshot", "flag", None),
             ],
@@ -279,6 +279,57 @@ def test_blockcopy_bank_and_ends() -> None:
     assert error.fields[1] == "BlockCopy.source_start"
     (error,) = _errors(lambda: BlockCopy("C1", "C16", "Y010", "Y025"))
     assert (error.field, error.reason) == ("BlockCopy.dest_start", "conflict")
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "click_id"),
+    [
+        # A bit into a bit bank a Copy does not write: an address it can't use.
+        ("X001", "X001", "OBJ-004"),
+        ("C1", "SC50", "OBJ-004"),
+        ("C1", "SC303", "OBJ-004"),
+        ("C1", "T1", "OBJ-004"),
+        ("C1", "CT1", "OBJ-004"),
+        # Anything else into a bit bank: a pairing of kinds.
+        ("DS2", "X001", "OBJ-024"),
+        ("5", "X001", "OBJ-024"),
+        ("TXT1", "SC50", "OBJ-024"),
+        ('"A"', "T1", "OBJ-024"),
+        # XD has no answer.
+        ("DS1", "XD1", None),
+        ("C1", "XD1", None),
+    ],
+)
+def test_copy_destination_bank_id_follows_the_source_kind(
+    source: str, destination: str, click_id: str | None
+) -> None:
+    (error,) = _errors(lambda: Copy(source, destination))
+    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "bank", click_id)
+
+
+def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
+    error, dest = _errors(lambda: Copy("DS0", "X001"))
+    assert error.field == "Copy.source"
+    assert (dest.field, dest.reason, dest.click_id) == ("Copy.destination", "bank", None)
+
+
+@pytest.mark.parametrize(
+    ("build", "field"),
+    [
+        (lambda: Pack("C1", "C16", "X001"), "Pack.destination"),
+        (lambda: Pack("C1", "C16", "SD29"), "Pack.destination"),
+        (lambda: Pack("X001", "X016", "Y001"), "Pack.destination"),
+        (lambda: Unpack("X001", "C1", "C16"), "Unpack.source"),
+        (lambda: Unpack("C1", "C2", "C17"), "Unpack.source"),
+        (lambda: Unpack("DS1", "X001", "X016"), "Unpack.dest_start"),
+        (lambda: Unpack("DH1", "SC50", "SC65"), "Unpack.dest_start"),
+        (lambda: Unpack("DD1", "SD31", "SD32", unpack_type="words"), "Unpack.dest_start"),
+    ],
+)
+def test_pack_and_unpack_bank_no_row_holds_is_obj_004(build: Any, field: str) -> None:
+    error = _errors(build)[0]
+    assert (error.field, error.reason, error.click_id) == (field, "bank", "OBJ-004")
+    assert str(error).endswith(" (OBJ-004)")
 
 
 def test_blockcopy_ends_are_not_computed_from_a_refused_range() -> None:
