@@ -697,8 +697,10 @@ currently emit:
   (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
   constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`7`, `1.5`); a hex
   constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
-  writes it (`7H` becomes `7h`). A hex `math` formula takes no DS register
-  (`DS1 + 1h`) and no bit, not even in a `SUM` (`SUM ( X001 : X002 )`).
+  writes it (`7H` becomes `7h`). A hex `math` formula takes only hex values:
+  hex constants and the DH, XD and YD registers. Any other register (`DS1 + 1h`,
+  `DD1 + 1h`) and any bit is refused, in a `SUM` too (`SUM ( X001 : X002 )`);
+  copy the value into a DH first, or use a decimal `math`.
   `SUM` takes no CT range, and the formula is at most 270 characters as CLICK
   stores it: a sum of 68 addresses fits, 69 does not; constants, functions and
   parentheses count too.

@@ -659,7 +659,9 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
                 continue
             outside_sum.add(i)
             if i not in sum_at:
-                found.append(_error(f"{token.text} is refused; {_HEX_RULE}", Reason.BANK, "OBJ-1002"))
+                found.append(
+                    _error(f"{token.text} is refused; {_HEX_RULE}", Reason.BANK, "OBJ-1002")
+                )
             elif sum_at[i] not in sum_refused:
                 sum_refused.add(sum_at[i])
                 rule = f"SUM over {token.text} is refused; {_HEX_RULE}"
