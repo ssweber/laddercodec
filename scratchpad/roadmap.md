@@ -33,16 +33,88 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Order
 
-1. Cruft sweep (done).
-2. The undecoded marker (done).
-3. The field-rule restructure (done in #43-#51).
-4. Canonical constants, once CLICK has answered.
+Done: the cruft sweep, the undecoded marker (#38) and the field-rule restructure (#43-#51).
 
-The stable public API and the SCR blob dataclass fit in wherever they are ready.
+Sam's direction of 2026-11-16: pyrung's CLICK validation moves onto laddercodec first, ahead of its export and
+import. pyrung builds laddercodec's objects and turns each refusal into a finding; its own bank tables go.
 
-## 2. The undecoded marker (done in #38; ClickNick and pyrung follow)
+1. The field error pyrung reads. pyrung's validation waits on it and on a release with it.
+2. Decoding that does not depend on the checks.
+3. Field rules tightened to the CLICK grids, as the grids arrive.
+4. Canonical constants, once CLICK has answered (the runner is asking now). It can run beside 1-3.
 
-ClickNick drops its stand-in rung for `write_csv`'s marker; pyrung reads the `undecoded(...)` token.
+The stable public API and the SCR blob dataclass fit in wherever they are ready. pyrung's export needs come
+later (below).
+
+laddercodec refuses what CLICK's editor refuses, plus what breaks the encoding or crashes CLICK on a paste. A
+rule that rests on what a PLC does stays in pyrung.
+
+## 1. The field error pyrung reads (nothing; Sam releases, then pyrung follows)
+
+pyrung learns what a field takes by building the object and reading the error. Accepted by Sam 2026-11-16.
+Not built: a rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction
+without its checks (pyrung's conformance probes use `raw(...)`).
+
+- **Every refusal.** The constructor raises one `FieldError` whose `.errors` holds every refusal, itself first,
+  so `except FieldError` in the decoders is unchanged. A check that depends on an earlier field
+  (`Timer.current`'s number against `Timer.done_bit`) is skipped when that field was refused. A Timer with a
+  wrong done bit and a preset of 40000 gives two.
+- **The Math formula parser** stops at its first error; collecting more there is the costly part. If a first
+  version leaves it out, tell Sam what that loses (pyrung reports up to six findings on one Math) and let him
+  choose.
+- **Uniform `.field`.** Always `Class.attr`, with `[i]` for an element. Today the shared checks take one `name`
+  for both the message and `.field`, which gives `Receive dest`, `Copy.source pointer` and `Math.expression`
+  for every formula error: split the label from the field. A refusal about a pair (bare `CompareContact`)
+  names both in `.fields`. `to_display`'s refusals, whose field is None today, take the caller's field.
+- **A stable `.reason`** from a small fixed set the shared checks own (`bank`, `pointer`, `kind`, `range`,
+  `not_writable`, `flag`, ...), plus `.click_id` (`OBJ-005`) where CLICK has one. pyrung's finding codes
+  separate reasons on one field (`Timer.setpoint`: wrong bank, too large, a pointer). Messages stay free text
+  and are not API.
+- **read_csv keeps only the first refusal:** `ConvertError` and `add_location` carry the raised error's
+  `.field` and message only; carry `.errors`, `.reason` and `.click_id` through.
+- **Every class.** Then tell Sam it is on `main`. The next release waits for it and carries it with everything
+  since v0.4.0, the undecoded marker included; the release is Sam's. pyrung's validation follows straight
+  after its `Rung` to `rung` rename.
+
+## 2. Decoding that does not depend on the checks (nothing)
+
+A stored instruction that breaks a dialog rule (such as an older paste of `DH70 == DS3920`) decodes as raw or an
+unknown condition today. Before any rule is tightened, `decode` builds the object from what is stored and
+attaches a finding; otherwise every tightened rule turns instructions in real projects into raw. `read_csv`
+takes an opt-in flag for the writer's self-check. Construction, plain `read_csv` and `encode()` stay strict.
+
+## 3. Field rules tightened to the CLICK grids (CLICK)
+
+The runner tries whole grids, not samples: every bank and constant kind in each dialog field. Its answers are
+committed here as test data, which makes these tests the one place CLICK's field rules are recorded. No rule is
+written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
+
+- **Case lists (Sam, 2026-11-16):** laddercodec writes them, since it knows how each field is modelled (banks,
+  constant kinds, modes), in the shape of ClickNick's `devtools/editor_cases.json`. click's runner runs them
+  and returns the answers; cases and answers are committed as test data. The runner's `try` drives Math, Copy
+  (single, block, pack, unpack) and Out today, about 4 seconds a case, so those grids run first. click is
+  adding a run that resumes and more dialogs, Receive first.
+- **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
+  with laddercodec's verdict beside each case. Waiting on: click's run, then its answers committed as
+  `<grid>.answers.json` and a test comparing them with the verdicts. Next grids, once the runner drives their
+  dialogs: Receive, Compare, Search, Fill, timers, counters, For.
+- **A writable-SD list,** taken once from CLICK's DLLs, help or a grid, not copied from pyrung or pyclickplc.
+  The sampled rows: the editor refuses a single Copy into SD1, a Math result into SD1, and a Block Copy into
+  SD1 or into SD29..SD30 (every address in the destination range must be writable); it accepts SD29 and
+  SD31..SD32.
+- **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
+  Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
+  TXT.
+- **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
+  SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
+  OBJ-003 for it.
+- **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
+  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends.
+- **Math result bank refusal:** the code gives OBJ-004; the math grids' result rows are to confirm it.
+- **OBJ-023 on a Fill into TXT** (one character) is unverified for Fill's dialog.
+- **OBJ-002 and OBJ-003:** which dialogs give them for an address that is not one and for a number outside its
+  bank. `click_id` is set only where the code records a field's dialog: OBJ-004, and OBJ-003 for a coil's SC
+  bit.
 
 ## 4. Canonical constants (CLICK)
 
@@ -51,16 +123,44 @@ Addresses are written canonical everywhere, and tested. Constants are written as
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
 
-Math constants and Modbus hex addresses are already canonical.
+Modbus hex addresses are already canonical.
 
-**Question for CLICK:** what does each dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into? Ask
-in Copy, Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
-This is a job for the sandbox runner (plan item 4), or for Sam.
+**click's answers for Math and Copy (2026-11-16):**
+- Hex Math reads a constant without `h` as hex: `005` and `5` are stored `5h`, `FF` is `FFh`, `1e3` is `1E3h`
+  (483), and `1Eh` is refused. laddercodec refuses `005` and `FF`.
+- A real is stored as CLICK prints it back, in Math (display and internal) and in a Copy source: `1.50` is
+  `1.5`, `1e3` is `1000.0`, `.5` is `0.5`; in a Copy, `1E5` is `100000.0`; in a Math, `1.5E+10` stays as typed
+  (not asked in a Copy). laddercodec writes the typed text.
+- A Copy source is stored as CLICK reads it: a decimal integer without leading zeros but with a typed `+`
+  (`005` is `5`, `+5` stays `+5`); hex with its digits uppercased, leading zeros kept, then a lowercase `h`
+  (`0ffh` is `0FFh`, `ffh` is `FFh`, `ABCH` is `ABCh`, `DH` is `Dh`).
+- `EH` as a Copy source is stored as the real `0.0`; laddercodec reads it as hex 14.
+- `$1` into TXT is accepted and stored `$01`; laddercodec refuses it.
+- Decode: a hex Math holding `1E3h`, as CLICK itself stores it, decodes as `raw(Math, ...)`. Decode must read
+  what CLICK writes.
+
+**Ruling (Sam, 2026-11-16):**
+- The encoder writes the form CLICK's dialog stores wherever its correction keeps the meaning: `1.50` is
+  written `1.5`, `1e3` `1000.0`, `.5` `0.5`, `005` `5` in a Copy, `0ffh` `0FFh`, `$1` `$01`, and the rest of
+  click's answers. The canonical form is what CLICK stores, not a stripped form: a typed `+` and the leading
+  zeros of a hex Copy source are kept.
+- Where the dialog's correction would change what the CSV text says, keep refusing and name the fix in the
+  message:
+  - a hex Math constant without `h` (`005`, `FF`, `1e3`): the settled ruling stands;
+  - `EH` as a Copy source: refuse it, and say to write `0Eh` for hex or `0.0` for the real. Today the code
+    reads it as hex 14; that changes on this item's branch.
+
+**Question for CLICK:** what does each other dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into?
+Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
 
 Then make one behaviour-change branch: a test that every writer's output is canonical, the golden `.bin` files
 that change, and Sam's paste checks of them.
 
-## 5. Open CLICK questions (CLICK)
+The same branch writes a constant from a Python value (an int as hex, a float as a Real, a str as text) in
+CLICK's canonical form, so pyrung stops spelling constants itself (its `click/ladder/translator.py` does today).
+Approved by Sam 2026-11-16.
+
+## Open CLICK questions (CLICK)
 
 Each is a dialog check or a capture. Until answered, the code keeps the behaviour named.
 
@@ -69,11 +169,10 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   17 and with 102 elements, and Y101 from T1 with 1 element.
 - **Which X point is the 17th element from X001** in a Send or Receive. CLICK stores only the start and the
   count, so this needs a PLC.
-- **Block Copy into SD:** CLICK checks the destination against its list of writable SD addresses. The code
-  doesn't, because the list isn't extracted. Ask which SD addresses the dialog refuses.
 - **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?
 - **Coil range over SC:** does Compile refuse an SC range with read-only bits between its ends?
-- **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored.
+- **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored. (Whether the dialog
+  accepts them is item 3's grids; this is what a paste stores.)
 - **Math X/Y range members:** a span of more than two expansion slots, and a Y range that starts in the option
   slot. The fitted rule covers every capture so far.
 - **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
@@ -96,11 +195,21 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Other non-pinned boxes in a compact OR layout:** `read_csv` lays them out as it does stacked 2-row Copies,
   which CLICK's post-check layout confirmed. Capture one more shape (Math, Search or a timer under an OR).
 
+## For pyrung's export (later; another repo first)
+
+From the ecosystem plan's item 2; each waits until pyrung's export reaches it, after items 1-3.
+
+- An entry that takes a series-parallel tree and returns rows. The private `_layout.render.render` does this,
+  but takes a `Network` beside the `RungTree`.
+- The rows in memory, with the number of CLICK rungs each source rung became (`write_csv` only writes a file).
+- A writer for `main.csv` plus `subroutines/` (`csv/bundle.py` only reads).
+- A check on a whole program, approved by Sam 2026-11-16, moving from pyrung: for-loop nesting depth, a One Shot
+  or a Return inside a loop, nested calls, the 8,000-step limit, and pyrung's estimate of program steps (its
+  `click/ladder/steps.py`). It comes after pyrung's export goes through laddercodec, since only then does pyrung
+  hold a laddercodec program to pass in. See the Syntax Check rules item in Later.
+
 ## Waits on another repo
 
-- **Parity test** for the private bank copy, with pyclickplc as a dev-only dependency. It waits for
-  pyclickplc's `parse_address` change. It must convert units: XD here is 0-8 plus `u`, in pyclickplc 0-16
-  Modbus units.
 - **`docs/guides/csv-format.md`:** delete the pyrung-specific sections after pyrung has its copy.
 
 **For pyrung** (one line each; unchecked against pyrung's current source):
@@ -144,17 +253,18 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 
 ## Later (nothing unless marked)
 
+- **Parity test** for the private bank copy, with pyclickplc (0.6.0 or later, which has the `parse_address`
+  change) as a dev-only dependency. It must convert units: XD here is 0-8 plus `u`, in pyclickplc 0-16 Modbus
+  units. Don't compare `WRITABLE_SC`: pyclickplc's means writable in Data View, a different fact from the
+  ladder-writable list here.
+
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches, since
   their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them or wire them.
 - **Search's refusal message** says "is a integer value". Fix the article.
 - **Hex message without an OBJ id (CLICK):** the refusal for a padded 32-bit constant ("a hex constant above
   FFFFh has at most 8 digits") carries no OBJ id. Find the id CLICK shows, if any.
-- **`to_display` refusals** give `FieldError.field` None. They could take the caller's field.
 - **Kind-mismatch refusal for junk input:** "<field> takes a decimal integer", for a blank or a stray character,
   states the rule but not what was wrong with the input.
-- **Read-only description of each field's rule (Sam, another repo):** banks, constant kinds and limits, for
-  callers such as pyrung. Under discussion in the ecosystem plan (`ssweber.github.io/plan/README.md`); not
-  repeated here.
 - **Operand probe recheck:** recheck, against the operand probe, every operand field it finds surprising, and fix
   or delete.
 - **Comment styling characters (Sam):** comment text with a literal `_x_` pair (or other styling characters)
@@ -169,7 +279,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   - Proof: the native SCR and clipboard pairs (793 AF blobs, 755 conditions). Today 120 of the 793 differ.
 - **Output-column down wire:**
   - Decode would keep the flag and lift the refusal (the layout work left it out). Sam punted it: no one draws one.
-  - Until it lands, such a rung becomes an undecoded marker (item 2).
+  - Until it lands, such a rung becomes an undecoded marker.
 - `layout_check._blank_rows` counts a first row holding only an unpowered NOP as content, so C0202 row numbers
   can be off by one.
 - **Clipboard row count too low:** when the program header counts fewer rows than the grid holds, the clipboard
@@ -202,7 +312,3 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Send/Receive padding slots:** CLICK writes the slot index; the encoder writes another form. Changing it
   changes all 19 Send/Receive goldens and needs paste checks. Check against the current encoder before
   starting.
-- **A stored rung that breaks a dialog rule** (such as an older paste of `DH70 == DS3920`) decodes as raw or an
-  unknown condition. If more users hit it, `decode` builds the object from the stored text and attaches a
-  finding, and `read_csv` takes an opt-in flag for the writer's self-check. Construction, plain `read_csv` and
-  `encode()` stay strict.

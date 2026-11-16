@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test golden coverage-golden upgrade build clean docs-generate docs-serve docs-build docs-check editor-grids
+.PHONY: default install lint test golden coverage-golden upgrade build clean docs-generate docs-serve docs-build docs-check editor-grids field-sweep
 
 default: install lint test
 
@@ -75,3 +75,6 @@ clean:
 editor-grids:
 	uv run devtools/editor_grids.py
 	uv run devtools/editor_grids.py --check
+
+field-sweep:
+	uv run devtools/field_sweep.py

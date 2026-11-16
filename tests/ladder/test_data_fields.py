@@ -333,7 +333,9 @@ class TestCounterPresetRange:
 
     @pytest.mark.parametrize("preset", ["DH1", "DF1", "TD1", "CTD1", "SD1", "XD1"])
     def test_other_registers_refused(self, tmp_path: Path, preset: str) -> None:
-        message = rf"^Counter.preset: '{preset}' is not allowed; Counter.preset takes DS, DD"
+        message = (
+            rf"^Counter.preset: '{preset}' is not allowed; Counter.preset takes DS, DD \(OBJ-004\)"
+        )
         with pytest.raises(AddressError, match=message + _AT_AF):
             _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
         with pytest.raises(AddressError, match=message + "$"):
@@ -362,7 +364,7 @@ class TestShiftRules:
         ],
     )
     def test_other_banks_refused(self, tmp_path: Path, token: str, field: str) -> None:
-        with pytest.raises(AddressError, match=rf"^Shift.{field}: .* takes C{_AT_AF}"):
+        with pytest.raises(AddressError, match=rf"^Shift.{field}: .* takes C \(OBJ-004\){_AT_AF}"):
             _read_af(tmp_path, token)
 
     @pytest.mark.parametrize("end", ["C1", "C001"])
@@ -410,7 +412,7 @@ class TestDrumDurations:
 
     @pytest.mark.parametrize("preset", ["DD1", "TD1", "DH1"])
     def test_other_registers_refused(self, preset: str) -> None:
-        with pytest.raises(AddressError, match=r"^Drum.presets\[0\]: .* takes DS$"):
+        with pytest.raises(AddressError, match=r"^Drum.presets\[0\]: .* takes DS \(OBJ-004\)$"):
             drum("time", events_or_presets=[preset, "1"])
 
     def test_csv(self, tmp_path: Path) -> None:
@@ -491,7 +493,7 @@ class TestFieldNames:
         assert steps.value.field == "Drum.events_or_presets"
         with pytest.raises(FieldError) as step:
             drum("time_event", events_or_presets=["", "5"], events=["", ""])
-        assert step.value.field == "Drum"
+        assert step.value.fields == ("Drum.events_or_presets[0]", "Drum.events[0]")
         with pytest.raises(FieldError) as outs:
             drum(outs=33, steps=1)
         assert outs.value.field == "Drum.outputs"

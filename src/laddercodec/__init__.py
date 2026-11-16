@@ -39,7 +39,7 @@ from .instructions import (
 )
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
-from .model import AddressError, FieldError, Program, Project
+from .model import AddressError, FieldError, Program, Project, Reason
 from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
 __all__ = [
@@ -58,6 +58,7 @@ __all__ = [
     "Project",
     "FieldError",
     "AddressError",
+    "Reason",
     "LegacyEncodingWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",

@@ -37,7 +37,7 @@ from ..model import (
     FieldError,
     check_address,
     check_flag,
-    normalize_address,
+    normalize_fields,
 )
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
@@ -200,8 +200,8 @@ class Math(AfInstruction):
                 "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)",
                 field="Math.expression",
             )
-        self.result = normalize_address(self.result)
-        check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
+        normalize_fields(self, "result")
+        check_address(self.result, "Math.result", RESULT_BANKS[self.mode], bank_id="OBJ-004")
         self.expression = parse(self.expression, self.mode).display
         self.oneshot = check_flag(self.oneshot, "Math.oneshot")
 

@@ -55,14 +55,16 @@ src/laddercodec/
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
 ├── model.py              # InstructionType enum, ConditionInstruction / AfInstruction bases; re-exports operands/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
-│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, display form, X/Y slots
+│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, normalize_fields,
+│   │                     #   normalize_items, display form, X/Y slots
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
-│   ├── checks.py         # Shared field checks (not wired in yet): check_operand, check_constant,
+│   ├── checks.py         # Shared field checks: check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
-│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS
+│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS;
+│   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet);
 │   │                     #   fits_float32() (Math), hex_display() (Math, Send/Receive)
-│   └── errors.py         # FieldError (ValueError), AddressError (.field, .obj)
+│   └── errors.py         # FieldError (ValueError), AddressError; .errors, .field(s), .reason (Reason), .click_id, .obj
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── family.py         # Family SPEC (csv names, parse_csv_call) used by the registry and CSV dispatch
@@ -89,7 +91,7 @@ src/laddercodec/
 - **Operand rules.** A refused field raises `FieldError` (`AddressError` for an address) at construction; the same refusal makes a blob decode as raw. `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed. `devtools/classify_dryrun.py` reports where the shared checks in `operands/checks.py`, called with each field's parameters, disagree with today's checks.
 - **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it; a rung CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).
 - **csv/.** `read_csv` takes a canonical CSV (33 columns: marker + A..AE + AF; wire tokens `T`, `-`, `|`, blank). `converter.py` handles pin rows (`.reset()` → retentive timers) and tall-instruction padding.
-- **Devtools.** `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs; `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV. `make editor-grids` writes `tests/fixtures/editor_grids/` (the cases ClickNick's runner types into CLICK's dialogs, with laddercodec's verdict on each) and checks the files. Agent tooling (BOB, the test-run guard) comes from the `bob` plugin; this repo's settings are in `.claude/bob/`.
+- **Devtools.** `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs; `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV. `make editor-grids` writes `tests/fixtures/editor_grids/` (the cases ClickNick's runner types into CLICK's dialogs, with laddercodec's verdict on each) and checks the files. `make field-sweep` records, for a golden instruction new to `tests/fixtures/field_sweep/`, what odd field values do to it; `tests/test_field_sweep.py` lets a crash there become a refusal and nothing else. Agent tooling (BOB, the test-run guard) comes from the `bob` plugin; this repo's settings are in `.claude/bob/`.
 
 ## Tests
 

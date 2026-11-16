@@ -15,7 +15,7 @@ from ..model import (
     FieldError,
     InstructionType,
     check_flag,
-    normalize_address,
+    normalize_fields,
 )
 from ..operands.checks import ALL_KINDS, Constants, check_operand
 from ..operands.constants import Kind
@@ -141,15 +141,14 @@ class CompareContact(ConditionInstruction):
     def __post_init__(self) -> None:
         self.wire_down = check_flag(self.wire_down, "CompareContact.wire_down")
         # A constant comes back from normalize_address as written.
-        self.left = normalize_address(self.left)
-        self.right = normalize_address(self.right)
+        normalize_fields(self, "left", "right")
         left = _operand_group(self.left, "CompareContact.left")
         right = _operand_group(self.right, "CompareContact.right")
         if left != right:
             raise FieldError(
                 f"CompareContact: {self.left!r} ({left}) and {self.right!r} ({right}) "
                 "are not in one compare group; hex, numeric and text operands do not mix",
-                field="CompareContact",
+                field=("CompareContact.left", "CompareContact.right"),
             )
         if left == "text" and self.op not in _TEXT_OPS:
             raise FieldError(

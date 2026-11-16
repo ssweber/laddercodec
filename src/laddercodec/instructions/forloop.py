@@ -59,8 +59,8 @@ def _validate_for_limit(value: str) -> str:
             f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only",
             field="ForLoop.limit",
         )
-    text = normalize_address(text)
-    check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS)
+    text = normalize_address(text, "ForLoop.limit")
+    check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
     return text
 
 

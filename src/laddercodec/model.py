@@ -3,10 +3,10 @@
 Defines the ``InstructionType`` enum, the instruction base classes and the program
 containers.  It re-exports:
 
-- the field errors, from :mod:`laddercodec.operands.errors`;
+- the field errors and :class:`Reason`, from :mod:`laddercodec.operands.errors`;
 - the CLICK address check (:func:`check_address`), its display form
-  (:func:`normalize_address`) and the ``OPERAND_RE`` shape pattern, from
-  :mod:`laddercodec.operands.address`;
+  (:func:`normalize_address`, :func:`normalize_fields`, :func:`normalize_items`) and the
+  ``OPERAND_RE`` shape pattern, from :mod:`laddercodec.operands.address`;
 - the flag check :func:`check_flag`, from :mod:`laddercodec.operands.checks`.
 
 These are the foundation types imported by every ``instructions/`` module — no reverse
@@ -31,11 +31,14 @@ from .operands.address import _name_typed_text
 from .operands.address import check_address as check_address
 from .operands.address import display_form_only as display_form_only
 from .operands.address import normalize_address as normalize_address
+from .operands.address import normalize_fields as normalize_fields
+from .operands.address import normalize_items as normalize_items
 from .operands.address import to_display as to_display
 from .operands.address import xy_slot as xy_slot
 from .operands.checks import check_flag as check_flag
 from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
+from .operands.errors import Reason as Reason
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -118,14 +121,19 @@ class PinnedInstruction(AfInstruction):
                 f"{name}: {rows!r} must be a tuple with one row per input "
                 f"({want} for a {type(self).__name__})",
                 field=name,
+                reason=Reason.FORM,
             )
         if not all(type(row) is int and 1 <= row <= 255 for row in rows):
             raise FieldError(
-                f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255", field=name
+                f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255",
+                field=name,
+                reason=Reason.RANGE,
             )
         if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
             raise FieldError(
-                f"{name}: {rows!r} must ascend; each input sits below the last", field=name
+                f"{name}: {rows!r} must ascend; each input sits below the last",
+                field=name,
+                reason=Reason.FORM,
             )
 
     @property
@@ -222,13 +230,16 @@ def check_program_name(name: str, field_name: str) -> None:
     text = name.strip()
     if not text:
         raise FieldError(
-            f"{field_name}: {name!r} is blank; a subroutine needs a name", field=field_name
+            f"{field_name}: {name!r} is blank; a subroutine needs a name",
+            field=field_name,
+            reason=Reason.MISSING,
         )
     if len(text) > PROGRAM_NAME_MAX:
         raise FieldError(
             f"{field_name}: {name!r} is {len(text)} characters; a subroutine name is at "
             f"most {PROGRAM_NAME_MAX}",
             field=field_name,
+            reason=Reason.RANGE,
         )
     bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
     if bad:
@@ -236,6 +247,8 @@ def check_program_name(name: str, field_name: str) -> None:
             f"{field_name}: {name!r} holds {' '.join(bad)}; a subroutine name may not hold "
             f"any of {' '.join(_PROGRAM_NAME_FORBIDDEN)} (GUI-040)",
             field=field_name,
+            reason=Reason.FORM,
+            click_id="GUI-040",
         )
     base = text.rsplit(".", 1)[0] if "." in text else text
     if base.upper() in _DEVICE_NAMES:
@@ -243,6 +256,8 @@ def check_program_name(name: str, field_name: str) -> None:
             f"{field_name}: {name!r} uses the Windows device name {base!r}; CLICK refuses "
             "it as a subroutine name (GUI-040)",
             field=field_name,
+            reason=Reason.FORM,
+            click_id="GUI-040",
         )
 
 

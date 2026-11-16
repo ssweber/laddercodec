@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction, FieldError, check_flag, normalize_address
+from ..model import AfInstruction, FieldError, check_flag, normalize_fields
 from ..operands.checks import (
     ALL_KINDS,
     REGISTER_BANKS,
@@ -151,8 +151,7 @@ class Search(AfInstruction):
 
     def __post_init__(self) -> None:
         # A constant search value comes back from normalize_address as written.
-        for name in ("table_start", "table_end", "source", "result", "found"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(self, "table_start", "table_end", "source", "result", "found")
         if self.comparison not in _OP_TO_FUNC:
             raise FieldError(
                 f"Search.comparison: {self.comparison!r} is not allowed; it is one of "

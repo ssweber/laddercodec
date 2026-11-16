@@ -267,11 +267,11 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
     upper = word.upper()
     if not raw.number and not raw.cut:
         if upper in NAMES:
-            text = to_display(word, upper)
+            text = to_display(word, upper, _NAME)
             if upper in WORD_OPERATORS:
                 return Token("op", text)
             return Token("pi" if upper == "PI" else "func", text)
-        address = normalize_address(word)
+        address = normalize_address(word, _NAME)
         if address_parts(address) is not None:
             check_address(address, _NAME, ADDRESS_BANKS)
             return Token("addr", address)
@@ -288,7 +288,9 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
                 f"{_NAME}: {hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits",
                 field=_NAME,
             )
-        return Token("const", to_display(word, hex_display(hex_digits)), f"UH{int(hex_digits, 16)}")
+        return Token(
+            "const", to_display(word, hex_display(hex_digits), _NAME), f"UH{int(hex_digits, 16)}"
+        )
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             raise FieldError(
