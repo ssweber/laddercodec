@@ -299,9 +299,7 @@ def parse_af_token(token: str) -> AfNode:
     )
 
 
-def fill_blank_args(
-    token: str, fill: Callable[[int], str], *, ranges: bool = False
-) -> str | None:
+def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = False) -> str | None:
     """*token*, an AF call, with each blank argument replaced by ``fill(i)``, or None when no
     argument is blank.
 
@@ -327,9 +325,7 @@ def fill_blank_args(
     return f"{m.group(1)}({','.join(filled)})"
 
 
-def _filled(
-    value: str, i: int, fill: Callable[[int], str], *, ranges: bool
-) -> str | None:
+def _filled(value: str, i: int, fill: Callable[[int], str], *, ranges: bool) -> str | None:
     """*value*, argument *i*, with its blanks ``fill(i)``, or None when it has none."""
     if not ranges:
         return fill(i) if not value else None
