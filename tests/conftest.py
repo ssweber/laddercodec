@@ -27,7 +27,6 @@ from laddercodec.operands.errors import FieldError, Reason
 
 _FIELD = re.compile(r"(\w+)\.(\w+)(?:\[\d+\])?")
 
-
 #: Instruction classes whose every refusal has a reason (and so a Reason from the fixed set).
 REASONED = frozenset(
     {
@@ -48,6 +47,10 @@ REASONED = frozenset(
         "Pack",
         "Unpack",
         "Math",
+        "Send",
+        "Receive",
+        "RawInstruction",
+        "Undecoded",
     }
 )
 

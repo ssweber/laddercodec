@@ -170,12 +170,14 @@ A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
 address) when the instruction is built. `errors` holds every refusal of that
 instruction, the raised one first. `Timer`, `Coil`, `Contact`, `CompareContact`,
 `OutVariant`, `Counter`, `Shift`, `Call`, `ForLoop`, `Drum`, `Search`, `Copy`,
-`BlockCopy`, `Fill`, `Pack`, `Unpack` and `Math` report every field they refuse;
+`BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Send`, `Receive`, the Modbus targets and address,
+`RawInstruction` and `Undecoded` report every field they refuse;
 the other instructions report the first. A Math formula gives one refusal for each
 address, constant, key or range it refuses, each on `Math.expression`; an error in
 its parentheses or in the order of its tokens ends the list. After a word that is
 none of an address, a name or a constant, the order, bit and range checks are
-skipped. Each refusal has:
+skipped. A target refused when it is built names its own field (`ModbusTcpTarget.port`)
+before any `Send` or `Receive` holds it. Each refusal has:
 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|
