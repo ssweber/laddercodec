@@ -25,6 +25,7 @@
 ### Changed
 - **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset, Drum preset, Modbus hex address, Copy, Fill and Search value fields are reworded; the refusals themselves are the same.
 - **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`, and for a bad Copy or BlockCopy format, Copy `exponential` or termination code, Pack or Unpack type, `rows=` or `sub=` in a `raw(...)` token, and an `undecoded(...)` token of the wrong shape (`Undecoded`).
+- **Undecoded comments keep their text**: a comment that doesn't decode now reads `UNDECODED comment: <error>` followed on the next line by the plain text that could be read from its bytes, cut and ended with `...` where it would be too long to encode, so `encode()` writes the text back into CLICK.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ### Behaviour changes
