@@ -94,7 +94,7 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
-from .location import AF_COLUMN, add_location, at, located
+from .location import AF_COLUMN, add_location, add_own_location, at, located
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -390,14 +390,38 @@ def _finalize_pinned_block(
         error = ConvertError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
         if isinstance(exc, FieldError):
             # A value a pin row sets is refused: locate it at that pin's row.
-            culprit = _refused_pin(token, pins, tuple(slot_rows))
+            slots = tuple(slot_rows)
+            culprit = _refused_pin(token, pins, slots)
             if culprit is not None:
-                add_location(error, **pin_places[culprit], column=AF_COLUMN)
+                add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
+            for refusal in exc.errors:
+                owner = _refusing_pin(token, pins, slots, refusal)
+                if owner is not None:
+                    add_own_location(refusal, **pin_places[owner], column=AF_COLUMN)
         raise error from exc
     af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _refusing_pin(
+    token: PinnedInstruction,
+    pins: dict[str, tuple[str, ...]],
+    slot_rows: tuple[int, ...],
+    refusal: FieldError,
+) -> str | None:
+    """The first used pin without which *refusal* is no longer raised, or None."""
+    for name in pins:
+        try:
+            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+        except FieldError as other:
+            if any(str(e) == str(refusal) for e in other.errors):
+                continue
+        except ValueError:
+            continue
+        return name
+    return None
 
 
 def _refused_pin(
@@ -519,7 +543,9 @@ class ConvertError(ValueError):
     a ``ConvertError`` (not a ``FieldError``, so ``except FieldError`` does not catch it),
     now carrying the refusal's data.  ``field``, ``fields``, ``reason`` and ``click_id``
     are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
-    refusal of the box, each a ``FieldError`` with its own ``location``.  An error that is
+    refusal of the box, each a ``FieldError`` with its own ``location``; ``errors[0]`` is the
+    wrapped ``FieldError`` (also ``__cause__``), not this exception.  A refusal a pin row's
+    value causes is located at that pin's row, any other at the box's own row.  An error that is
     no field refusal (a pin token that does not parse, a rung with no rows) has ``field``,
     ``reason`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
     """
@@ -528,7 +554,7 @@ class ConvertError(ValueError):
     fields: tuple[str, ...]
     reason: Reason | None
     click_id: str | None
-    errors: tuple[ValueError, ...]
+    errors: tuple[FieldError, ...] | tuple[ConvertError]
 
     def __init__(
         self,

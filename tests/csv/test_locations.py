@@ -453,3 +453,38 @@ class TestEveryRefusal:
             read_csv(path)
         assert info.value.errors == (info.value,)
         assert info.value.reason is None
+
+
+class TestOwnLocations:
+    def test_pin_and_box_refusals_each_have_their_own_row(self) -> None:
+        """``with_pins`` refusing a pin's value and an unrelated field: each is at its own row.
+
+        No CSV reaches this (a box's own fields are refused when it is built, before its
+        pins), so a stub box stands in for one.
+        """
+        from laddercodec.csv import converter
+
+        pin_error = FieldError("pin", field="Box.pin")
+        box_error = FieldError("box", field="Box.other")
+        both = FieldError("pin", field="Box.pin")
+        both.errors = (both, box_error)
+
+        class Box:
+            def with_pins(self, pins: dict, slots: tuple) -> object:
+                if pins:
+                    raise both
+                if True:
+                    raise FieldError("box", field="Box.other")
+
+        owner = converter._refusing_pin(Box(), {"p": ()}, (), pin_error)  # type: ignore[arg-type]
+        assert owner == "p"
+        assert converter._refusing_pin(Box(), {"p": ()}, (), box_error) is None
+
+    def test_condition_cell_refusals_are_each_located(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [("R", _wired("X9999"), "out(Y001)")])
+        with pytest.raises(FieldError) as info:
+            read_csv(path)
+        for refusal in info.value.errors:
+            found = CsvLocation.of(refusal)
+            assert found is not None
+            assert (found.file, found.line, found.column) == (path, 2, 0)

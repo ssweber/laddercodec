@@ -88,9 +88,8 @@ class CsvLocation:
         return ", ".join(parts)
 
 
-def add_location(exc: BaseException, **known: object) -> None:
-    """Give *exc*, and every refusal in its ``errors``, the fields of *known* its location
-    does not have yet."""
+def add_own_location(exc: BaseException, **known: object) -> None:
+    """Give *exc* alone, not the refusals in its ``errors``, the fields of *known* it lacks."""
     old = CsvLocation.of(exc) or CsvLocation()
     new = {
         f.name: known[f.name]
@@ -98,6 +97,12 @@ def add_location(exc: BaseException, **known: object) -> None:
         if known.get(f.name) is not None and getattr(old, f.name) is None
     }
     object.__setattr__(exc, "location", replace(old, **new))
+
+
+def add_location(exc: BaseException, **known: object) -> None:
+    """Give *exc*, and every refusal in its ``errors``, the fields of *known* its location
+    does not have yet."""
+    add_own_location(exc, **known)
     for nested in getattr(exc, "errors", ()):
         if nested is not exc and isinstance(nested, BaseException):
             add_location(nested, **known)
