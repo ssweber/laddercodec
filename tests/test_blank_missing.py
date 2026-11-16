@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from laddercodec import FieldError, Reason
+from tests.sweep_keys import kind_of
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -81,7 +82,8 @@ ACCEPTS_BLANK = frozenset(
         ("Drum", "event", "unit"),
         ("Drum", "time_event", "events"),  # a step with a duration needs no event
         ("Drum", "time_event", "events_or_presets"),  # and one with an event needs no duration
-        *(("Drum", kind, "jump_target") for kind in ("event", "time", "time_event")),  # no jump
+        # no jump: with the jump on, the target is checked
+        *(("Drum", f"{kind}, jump off", "jump_target") for kind in ("event", "time", "time_event")),
         ("ModbusRtuTarget", None, "name"),  # a label, not in the binary
         ("ModbusTcpTarget", None, "name"),
         ("OutVariant", "toggle", "on_acc"),  # a toggle has none of the five
@@ -104,15 +106,11 @@ ACCEPTS_BLANK = frozenset(
 )
 
 
-def _kind(inst: Any) -> str | None:
-    """The OutVariant or Drum kind of ``inst``, ``None`` for a class without one."""
-    return getattr(inst, "kind", None) or getattr(inst, "drum_kind", None)
-
-
 def _key(inst: Any, field: str) -> tuple[str, str | None, str]:
     """The ``ACCEPTS_BLANK`` key of the blank ``field`` (``Class.attr`` or ``Class.attr[i]``)."""
     cls, _, attr = field.partition(".")
-    return cls, _kind(inst), attr.split("[")[0]
+    attr = attr.split("[")[0]
+    return cls, kind_of(inst, attr), attr
 
 
 def _cases() -> list[Any]:

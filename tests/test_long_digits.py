@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 
 from laddercodec import FieldError
+from tests.sweep_keys import kind_of
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,12 +69,14 @@ OUT_OF_RANGE = [
 ]
 
 #: Fields no check reads, so any text is kept, as ``(Class.field, kind)``: a drum's jump target
-#: while its jump is off (the time & event golden is the one that has it off), its accumulator
-#: and unit where its kind has none (an event drum), a Modbus target's name, and a raw
-#: instruction's class name.  ``kind`` is the Drum or OutVariant kind, ``None`` for a class
-#: without one: a time drum's accumulator and unit are checked.
+#: while its jump is off, its accumulator and unit where its kind has none (an event drum), a
+#: Modbus target's name, and a raw instruction's class name.  ``kind`` is the Drum or OutVariant
+#: kind (a jump target's also says whether the jump is on), ``None`` for a class without one:
+#: a time drum's accumulator and unit, and a jump-on drum's target, are checked.
 UNCHECKED = {
-    ("Drum.jump_target", "time_event"),
+    ("Drum.jump_target", "event, jump off"),
+    ("Drum.jump_target", "time, jump off"),
+    ("Drum.jump_target", "time_event, jump off"),
     ("Drum.accumulator", "event"),
     ("Drum.unit", "event"),
     ("ModbusRtuTarget.name", None),
@@ -86,11 +89,6 @@ OPAQUE = {"Email", "Home", "Position", "Velocity"}
 
 #: Instruction classes with no text field to sweep.
 NO_TEXT_FIELDS = {"End", "Return", "Next", "Break", "Continue"}
-
-
-def _kind(inst: Any) -> str | None:
-    """The Drum or OutVariant kind of ``inst``, ``None`` for a class without one."""
-    return getattr(inst, "kind", None) or getattr(inst, "drum_kind", None)
 
 
 def _roots() -> list[Any]:
@@ -136,10 +134,11 @@ def _replace(obj: Any, path: Path_, text: str) -> Any:
 
 def _cases() -> list[tuple[str, Any, Path_]]:
     """One case per (field, value it held) in the golden set, with the instruction to rebuild."""
-    seen: dict[tuple[str, str], tuple[str, Any, Path_]] = {}
+    seen: dict[tuple[str, str, str | None], tuple[str, Any, Path_]] = {}
     for inst in _roots():
         for label, path, value in _walk(inst, type(inst).__name__, ()):
-            seen.setdefault((label, repr(value)), (label, inst, path))
+            kind = kind_of(inst, label.split(".")[-1])
+            seen.setdefault((label, repr(value), kind), (label, inst, path))
     return list(seen.values())
 
 
@@ -175,7 +174,9 @@ def test_long_digit_text_is_refused_not_a_crash(case: tuple[str, Any, Path_]) ->
             if text in OUT_OF_RANGE and not (label in HUGE_REAL_FIELDS and text in HUGE_REALS):
                 accepted.append(text[:6] + "..." + text[-6:])
     assert not crashes, f"{label} crashed: {crashes}"
-    if (label, _kind(inst)) not in UNCHECKED and label.split(".")[0] not in OPAQUE:
+    if (label, kind_of(inst, label.split(".")[-1])) not in UNCHECKED and label.split(".")[
+        0
+    ] not in OPAQUE:
         assert not accepted, f"{label} accepted long digit text: {accepted}"
 
 
