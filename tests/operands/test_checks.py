@@ -88,7 +88,7 @@ def test_compare_reads_a_real_beyond_float32_as_infinite() -> None:
 
 REFUSED: list[tuple[str, Constants, str]] = [
     # what classify() refuses, whatever the field
-    ("", ANY, "not a constant"),
+    ("", ANY, "is blank"),
     ("2147483648", ANY, "-2147483648 to 2147483647"),
     ("+1h", ANY, "has no sign"),
     ("100000000h", ANY, "is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh (OBJ-005)"),
@@ -222,7 +222,7 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
     ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
     ("$41", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
-    ("", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
+    ("", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "is blank"),
     ("DD1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "takes DS"),
     ("1,5", {"constants": ANY}, AddressError, "not a CLICK address"),
     ("nan", {"constants": ANY}, AddressError, "not a CLICK address"),
@@ -233,7 +233,7 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("FFFFh", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, AddressError, "not a CLICK address"),
     ("+1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "takes no plus sign"),
     ("1.5", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "is a real"),
-    ("", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "X.f takes a decimal integer"),
+    ("", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "is blank"),
     (" DS1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "X.f takes a decimal integer"),
     # Without constants, every text is an address.
     ("5", {"banks": {"DS"}}, AddressError, "not a CLICK address"),

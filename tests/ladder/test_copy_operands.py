@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, read_csv
+from laddercodec import AddressError, FieldError, Reason, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.comparison import CompareContact
@@ -448,11 +448,18 @@ def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) ->
 
 
 @pytest.mark.parametrize("fmt", ["text", "binary"])
-@pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "None", "00", ""])
+@pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "None", "00"])
 def test_termination_code_is_a_character_code(fmt: str, code: str) -> None:
     """The blob stores a termination code only as a character code (OBJ-036)."""
     with pytest.raises(FieldError, match=r"^Copy.termination_code: .* is not allowed; it is a"):
         Copy("DS20", "TXT7", format=fmt, termination_code=code)
+
+
+@pytest.mark.parametrize("fmt", ["text", "binary"])
+def test_blank_termination_code_is_missing(fmt: str) -> None:
+    with pytest.raises(FieldError, match=r"^Copy.termination_code: is blank") as raised:
+        Copy("DS20", "TXT7", format=fmt, termination_code="")
+    assert (raised.value.reason, raised.value.click_id) == ("missing", None)
 
 
 @pytest.mark.parametrize("fmt", ["text", "binary"])
@@ -607,10 +614,17 @@ def test_termination_code_needs_a_number_register_copied_to_text() -> None:
 
 
 @pytest.mark.parametrize("option", ["suppress_zero", "exponential"])
-@pytest.mark.parametrize("value", ["2", "5", "-1", ""])
+@pytest.mark.parametrize("value", ["2", "5", "-1"])
 def test_text_options_are_zero_or_one(option: str, value: str) -> None:
     with pytest.raises(FieldError, match=f"Copy.{option}: '{value}' is not allowed"):
         Copy("DF1", "TXT1", format="text", **{option: value})
+
+
+@pytest.mark.parametrize("option", ["suppress_zero", "exponential"])
+def test_a_blank_text_option_is_missing(option: str) -> None:
+    with pytest.raises(FieldError, match=f"^Copy.{option}: is blank") as raised:
+        Copy("DF1", "TXT1", format="text", **{option: ""})
+    assert raised.value.reason is Reason.MISSING
 
 
 @pytest.mark.parametrize(("source", "option"), [("DS1", "suppress_zero"), ("DF1", "exponential")])

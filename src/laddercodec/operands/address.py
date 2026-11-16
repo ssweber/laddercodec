@@ -225,6 +225,10 @@ def check_address(
     of ``outside_range_of`` (the field's noun, else its name), and what the field takes.
     """
     name = label or field
+    if value == "":
+        raise AddressError(
+            f"{name}: is blank; it needs an address", field=field, reason=Reason.MISSING
+        )
     match = _ADDRESS_RE.fullmatch(value)
     if match is None:
         raise AddressError(

@@ -743,7 +743,13 @@ class Copy(AfInstruction):
                 )
             # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
             # "none" is the CSV spelling of no code, which to_csv writes.
-            if self.termination_code == "none":
+            if self.termination_code == "":
+                check.refuse(
+                    "termination_code",
+                    "is blank; it needs a code, or 'none' for no code",
+                    Reason.MISSING,
+                )
+            elif self.termination_code == "none":
                 self.termination_code = "0"
             elif self.termination_code.startswith("$"):
                 code = check("termination_code", check_constant, _TERMINATION, char_id="OBJ-036")

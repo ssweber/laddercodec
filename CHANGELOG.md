@@ -46,6 +46,8 @@
   - Do: pass `stop="return"` when writing a subroutine.
 - **Flags refuse a non-flag value**: the flags of `Copy`, `BlockCopy`, `Fill`, `Pack` (`allow_whitespace`, `oneshot`), `Unpack`, `Search` (`continuous`, `oneshot`), `Math`, `ForLoop`, `OutVariant` (`immediate`, `maintained`), `Send` and `Receive` (`word_swap`) now raise `FieldError` for a value other than True, False, 1 or 0, where they accepted it; `oneshot=2` was written as `oneshot=1`.
   - Do: pass True, False, 1 or 0.
+- **A blank field is refused as `missing`**: an empty required field, in any instruction or Modbus target, has `FieldError.reason` `missing`, where it had the reason of a bad value (`address` for a blank address, `kind` for a blank Out variant or Counter preset, `choice` for a blank unit, type or mode, `form` or `conflict` for a blank Copy termination code, `form` for a blank Modbus target `ip`, `kind` for a blank `ModbusAddress.address`); a Copy `termination_code=""` no longer carries `OBJ-036`; which values are accepted, the field each refusal names and the other ids are unchanged.
+  - Do: where you read `reason` to tell a blank from a bad value, test for `Reason.MISSING`; where you matched a blank on `address`, `kind`, `choice`, `form` or `conflict`, match `missing` instead.
 
 ## 0.4.0 (2026-11-14)
 
