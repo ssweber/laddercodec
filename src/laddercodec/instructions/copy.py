@@ -36,7 +36,6 @@ from ..operands.checks import (
     ALL_KINDS,
     BIT_BANKS,
     REGISTER_BANKS,
-    Constant,
     Constants,
     Operand,
     Refusals,
@@ -483,7 +482,7 @@ def _check_count(
             cls,
             (end_field, start_field, other_field),
             f"{span_text} is {count} {unit}; {verb} {single!r} takes at most {limit}",
-            Reason.CONFLICT,
+            Reason.RANGE,
             pack_id if cls == "Pack" else unpack_id,
             FieldError,
         )
@@ -528,20 +527,6 @@ def _check_copy_constant(source: str, dest_field: str, destination: str, dest_ba
             Reason.CONFLICT,
             "OBJ-024",
         )
-
-
-def _check_fill_value(value: str, field: str, constants: Constants) -> Constant:
-    """The shared constant check for a Fill value.
-
-    A Fill's one-character refusal carries no CLICK id: which id its dialog gives is not known.
-    """
-    try:
-        return check_constant(value, field, constants)
-    except FieldError as exc:
-        if exc.click_id == "OBJ-023":
-            exc.click_id = None
-            exc.args = (str(exc).removesuffix(" (OBJ-023)"),)
-        raise
 
 
 #: The last TXT register.
@@ -1175,7 +1160,7 @@ class Fill(AfInstruction):
                 if kind in ("number", "text"):
                     # A Fill into TXT takes one character of text.
                     text_max = 1 if dest.bank == "TXT" else TEXT_MAX
-                    check("value", _check_fill_value, replace(_CONSTANTS, text_max=text_max))
+                    check("value", check_constant, replace(_CONSTANTS, text_max=text_max))
             check.flag("oneshot")
 
     @property

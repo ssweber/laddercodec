@@ -446,7 +446,7 @@ _TEXT1 = Constants(frozenset({Kind.TEXT}), text_max=1)
         (lambda: check_constant("101", "X.f", _INT), "range", "OBJ-005"),
         (lambda: check_constant("99999999999", "X.f", _INT), "range", "OBJ-005"),
         (lambda: check_constant("-1", "X.f", _INT), "form", "OBJ-005"),
-        (lambda: check_constant('"AB"', "X.f", _TEXT1), "range", "OBJ-023"),
+        (lambda: check_constant('"AB"', "X.f", _TEXT1), "range", None),
         (lambda: check_constant('""', "X.f", Constants(ALL_KINDS)), "range", None),
         (lambda: check_constant('"a"b"', "X.f", Constants(ALL_KINDS)), "form", None),
         (lambda: check_constant('"\t"', "X.f", Constants(ALL_KINDS)), "form", None),

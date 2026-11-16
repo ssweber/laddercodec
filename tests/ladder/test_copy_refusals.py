@@ -283,7 +283,6 @@ def test_fill_reasons() -> None:
 def test_fill_into_txt_takes_one_character_with_no_id() -> None:
     (error,) = _errors(lambda: Fill('"AB"', "TXT1", "TXT4"))
     assert (error.field, error.reason, error.click_id) == ("Fill.value", "range", None)
-    assert "OBJ-023" not in str(error)
     assert "takes one character" in str(error)
 
 
@@ -312,6 +311,6 @@ def test_pack_and_unpack_choices_and_kinds() -> None:
 )
 def test_pack_and_unpack_counts(build: Any, click_id: str) -> None:
     (error,) = _errors(build)
-    assert (error.reason, error.click_id) == ("conflict", click_id)
+    assert (error.reason, error.click_id) == ("range", click_id)
     assert len(error.fields) == 3
     assert error.field.endswith("_end")

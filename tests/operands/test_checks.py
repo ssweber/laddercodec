@@ -124,7 +124,7 @@ REFUSED: list[tuple[str, Constants, str]] = [
     ("10000h", COMPARE, "above FFFFh"),
     ("FFFFh", Constants(frozenset({H}), hex_high=0xFFFE), "above FFFEh"),
     ("0000000000005", COUNTER, "13 characters"),
-    ('"AB"', ONE_CHAR, "one character (OBJ-023)"),
+    ('"AB"', ONE_CHAR, "takes one character"),
     ('"A' + "B" * 128 + '"', ONE_CHAR, "a text constant is one character in quotes"),
     ('"ABC"', Constants(frozenset({T}), text_max=2), "at most 2"),
     ('"é"', ANY, "printable ASCII"),

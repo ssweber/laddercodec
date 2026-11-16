@@ -402,7 +402,7 @@ _FILL_VALUE_REFUSED = [
     ("1E999", "DF1", "DF4", _FINITE),
     ("3.5E+38", "DF1", "DF4", _FINITE),
     ("-3.5E+38", "DF1", "DF4", _FINITE),
-    # OBJ-023: a Fill into TXT takes one character
+    # a Fill into TXT takes one character
     ('"AB"', "TXT2", "TXT5", "takes one character"),
     (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),
