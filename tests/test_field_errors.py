@@ -211,9 +211,7 @@ def test_coil_skips_what_depends_on_a_refused_field() -> None:
         ("Coil.immediate", "flag", None)
     ]
     # A refused range start: the range pairing is not checked.
-    assert _shape(_refusals(lambda: Coil(OUT, "C0", "Y5"))) == [
-        ("Coil.operand", "address", None)
-    ]
+    assert _shape(_refusals(lambda: Coil(OUT, "C0", "Y5"))) == [("Coil.operand", "address", None)]
 
 
 def test_coil_typed_text_is_named_in_each_refusal() -> None:

@@ -55,9 +55,10 @@ src/laddercodec/
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
 ├── model.py              # InstructionType enum, ConditionInstruction / AfInstruction bases; re-exports operands/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
-│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, display form, X/Y slots
+│   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, normalize_fields,
+│   │                     #   normalize_items, display form, X/Y slots
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
-│   ├── checks.py         # Shared field checks (not wired in yet): check_operand, check_constant,
+│   ├── checks.py         # Shared field checks: check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
 │   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS;
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)

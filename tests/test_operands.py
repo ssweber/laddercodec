@@ -186,7 +186,9 @@ def test_constructor_refusal_names_field_and_instance() -> None:
     with pytest.raises(errors.AddressError) as info:
         Coil(InstructionType.COIL_OUT, "x0")
     exc = info.value
-    assert str(exc) == "Coil.operand: 'x0' (X000) is not allowed; Coil.operand takes Y, C, SC"
+    assert str(exc) == (
+        "Coil.operand: 'x0' (X000) is not allowed; Coil.operand takes Y, C, SC (OBJ-004)"
+    )
     assert exc.field == "Coil.operand"
     assert isinstance(exc.obj, Coil)
 

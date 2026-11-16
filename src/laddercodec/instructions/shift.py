@@ -60,9 +60,7 @@ class Shift(PinnedInstruction):
         normalize_fields(self, "start_bit", "end_bit")
         # Both ends are C; another bank, or an end in another bank than the start, is
         # OBJ-004.
-        start = check_address(
-            self.start_bit, "Shift.start_bit", SHIFT_BANKS, bank_id="OBJ-004"
-        )
+        start = check_address(self.start_bit, "Shift.start_bit", SHIFT_BANKS, bank_id="OBJ-004")
         end = check_address(self.end_bit, "Shift.end_bit", SHIFT_BANKS, bank_id="OBJ-004")
         # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
         # address as it is typed (C001 becomes C1), so the

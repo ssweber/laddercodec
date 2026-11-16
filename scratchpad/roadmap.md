@@ -70,6 +70,8 @@ without its checks (pyrung's conformance probes use `raw(...)`).
   `not_writable`, `flag`, ...), plus `.click_id` (`OBJ-005`) where CLICK has one. pyrung's finding codes
   separate reasons on one field (`Timer.setpoint`: wrong bank, too large, a pointer). Messages stay free text
   and are not API.
+- **read_csv keeps only the first refusal:** `ConvertError` and `add_location` carry the raised error's
+  `.field` and message only; carry `.errors`, `.reason` and `.click_id` through.
 - **Every class.** Then tell Sam it is on `main`. The next release waits for it and carries it with everything
   since v0.4.0, the undecoded marker included; the release is Sam's. pyrung's validation follows straight
   after its `Rung` to `rung` rename.
@@ -104,6 +106,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
   TXT.
 - **SC gaps:** check a point in a gap of `WRITABLE_SC` (SC163, SC310); click has been asked.
+- **Out with an equal range (C1..C1):** OBJ-009 or OBJ-012? The out grid's cases settle it. The code gives
+  OBJ-009.
+- **OBJ-023 on a Fill into TXT** (one character) is unverified for Fill's dialog.
+- **OBJ-002 and OBJ-003:** which dialogs give them for an address that is not one and for a number outside its
+  bank. `click_id` is set only for OBJ-004, where the code records a field's dialog.
 
 ## 4. Canonical constants (CLICK)
 

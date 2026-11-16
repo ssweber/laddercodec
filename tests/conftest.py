@@ -1,11 +1,15 @@
-"""Every refusal raised while an instruction is built names a field of that instruction.
+"""A refusal an instruction's ``__post_init__`` raises names a field of that instruction.
 
-The fixture below wraps the step that completes a construction's refusals, so every test that
-builds a refused instruction checks the error's shape too: each refusal's ``field`` (and each
-of its ``fields``) is ``Class.attr`` or ``Class.attr[i]``, where ``Class`` is the class name
-of the instance being built and ``attr`` one of its dataclass fields, and its ``reason`` is a
-:class:`~laddercodec.Reason` or None.  A refusal that breaks this fails the test that built
-it with an ``AssertionError``.
+The fixture below wraps the step that completes the refusals of an instruction class's
+``__post_init__``, so every test that builds a refused instruction checks the error's shape
+too: each refusal's ``field`` (and each of its ``fields``) is ``Class.attr`` or
+``Class.attr[i]``, where ``Class`` is the class name of the instance its refusal is about and
+``attr`` one of its dataclass fields, and its ``reason`` is a :class:`~laddercodec.Reason` or
+None.  A refusal that breaks this fails the test that built it with an ``AssertionError``.
+
+It sees only the refusals the suite builds, and only through an instruction class's
+``__post_init__``: not those of CSV token parsing or of the Modbus target classes.
+``tests/test_field_names.py`` reads every field name written out in the source.
 """
 
 from __future__ import annotations

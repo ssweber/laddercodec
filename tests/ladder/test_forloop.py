@@ -190,6 +190,7 @@ class TestForCount:
     def test_other_banks_refused(self, tmp_path: Path, limit: str) -> None:
         message = (
             rf"^ForLoop.limit: '{limit}' is not allowed; ForLoop.limit takes DS, DD, TD, CTD, SD"
+            r" \(OBJ-004\)"
         )
         with pytest.raises(AddressError, match=message + _AT_AF):
             _read_af(tmp_path, f"for({limit})")

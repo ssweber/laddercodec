@@ -168,8 +168,8 @@ except FieldError as exc:
 
 A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
 address) when the instruction is built. `errors` holds every refusal of that
-instruction, the raised one first; `Timer` and `Coil` report each field they
-refuse, the other instructions the first one. Each refusal has:
+instruction, the raised one first. `Timer` and `Coil` report every field they
+refuse; the other instructions report the first. Each refusal has:
 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|
@@ -180,8 +180,9 @@ refuse, the other instructions the first one. Each refusal has:
 | `obj`      | the instruction being built                                                            |
 
 `reason` is one of `address`, `bank`, `range`, `pointer`, `kind`, `form`,
-`not_writable`, `flag`, `choice`, `conflict` and `missing`, or `None` for a
-refusal not given one yet. A field that depends on a refused one is not checked:
+`not_writable`, `flag`, `choice`, `conflict` and `missing` (each is described under
+`Reason` in the [Codec API](../reference/api/codec.md)), or `None` for a refusal not
+given one yet. A field that depends on a refused one is not checked:
 a Timer whose done bit is refused is not checked for a current value that
 matches it.
 

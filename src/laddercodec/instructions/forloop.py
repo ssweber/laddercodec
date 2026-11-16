@@ -60,9 +60,7 @@ def _validate_for_limit(value: str) -> str:
             field="ForLoop.limit",
         )
     text = normalize_address(text, "ForLoop.limit")
-    check_operand(
-        text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004"
-    )
+    check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
     return text
 
 

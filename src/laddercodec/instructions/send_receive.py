@@ -426,7 +426,9 @@ def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
     """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
-    normalize_fields(inst, *(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str)))
+    normalize_fields(
+        inst, *(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str))
+    )
 
 
 def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:
