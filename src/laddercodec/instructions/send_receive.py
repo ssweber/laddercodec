@@ -368,13 +368,11 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 # ---------------------------------------------------------------------------
 # Field rules
 #
-# A bank outside a field's set is OBJ-004, a count outside its limit OBJ-010 and one C bit
-# serving two status fields OBJ-014.
+# A bank outside a field's set raises OBJ-004, a number outside its limit OBJ-010.
 # ---------------------------------------------------------------------------
 
 _BANK_ID = "OBJ-004"
 _RANGE_ID = "OBJ-010"
-_DUPLICATE_ID = "OBJ-014"
 
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
@@ -460,7 +458,12 @@ def _check_status(
     return None
 
 
-def _check_status_bits(check: Refusals, inst: Send | Receive, names: tuple[str, str, str]) -> None:
+def _check_status_bits(
+    check: Refusals,
+    inst: Send | Receive,
+    names: tuple[str, str, str],
+    click_id: str | None = None,
+) -> None:
     """Each status field is a C bit, and no C bit serves two of them."""
     seen: dict[tuple[str, int], str] = {}
     for name in names:
@@ -473,7 +476,7 @@ def _check_status_bits(check: Refusals, inst: Send | Receive, names: tuple[str, 
                 (name, seen[key]),
                 f"{getattr(inst, name)} is already the {seen[key]} bit",
                 Reason.CONFLICT,
-                _DUPLICATE_ID,
+                click_id,
             )
         else:
             seen[key] = name
@@ -690,7 +693,7 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
                 )
 
     # Send: one C bit can't serve two status fields (OBJ-014).
-    _check_status_bits(check, send, ("sending", "success", "error"))
+    _check_status_bits(check, send, ("sending", "success", "error"), "OBJ-014")
     _check_status(check, send, "exception_response", _EXCEPTION_BANKS)
     if fc is None or default_fc is None:
         return None

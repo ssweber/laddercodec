@@ -227,7 +227,7 @@ def test_send_conflicts_name_both_fields(
     [
         (lambda: receive(function_code=1), ("function_code", "remote_start"), Reason.CONFLICT, None),
         (lambda: receive(remote_start=ModbusAddress("400001"), function_code=1), ("function_code", "remote_start"), Reason.CONFLICT, None),
-        (lambda: receive(receiving="C1", success="C1"), ("success", "receiving"), Reason.CONFLICT, "OBJ-014"),
+        (lambda: receive(receiving="C1", success="C1"), ("success", "receiving"), Reason.CONFLICT, None),
         (lambda: receive(remote_start="C1", dest="C1", word_swap=True), ("word_swap", "remote_start"), Reason.CONFLICT, None),
         (lambda: receive(dest="YD1", remote_start="DH1", word_swap=True), ("word_swap", "dest"), Reason.CONFLICT, None),
         (lambda: receive(word_swap=True), ("word_swap", "quantity"), Reason.CONFLICT, None),
