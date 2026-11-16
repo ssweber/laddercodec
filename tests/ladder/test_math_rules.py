@@ -85,10 +85,30 @@ _REFUSED = [
     ("DH1 + $41", "DH9", "hex", "holds a text constant"),
     # a decimal formula takes DS, DD, DF, TD, CTD and SD, and X, Y, C, T and SC only as the
     # range of a SUM (OBJ-1002)
-    ("SUM ( CT1 : CT3 )", "DS9", "decimal", "SUM over CT1 is refused; " + _DECIMAL_ONLY),
-    ("SUM ( DH1 : DH3 )", "DS9", "decimal", "SUM over DH1 is refused; " + _DECIMAL_ONLY),
-    ("SUM ( XD0 : XD1 )", "DS9", "decimal", "SUM over XD0 is refused; " + _DECIMAL_ONLY),
-    ("SUM ( TXT1 : TXT3 )", "DS9", "decimal", "SUM over TXT1 is refused; " + _DECIMAL_ONLY),
+    (
+        "SUM ( CT1 : CT3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( CT1 : CT3 \\) is refused for CT1; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( DH1 : DH3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( DH1 : DH3 \\) is refused for DH1; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( XD0 : XD1 )",
+        "DS9",
+        "decimal",
+        "SUM \\( XD0 : XD1 \\) is refused for XD0; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( TXT1 : TXT3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( TXT1 : TXT3 \\) is refused for TXT1; " + _DECIMAL_ONLY,
+    ),
     ("DS1 + DH1", "DS9", "decimal", "DH1 is refused; " + _DECIMAL_ONLY),
     ("DS1 + XD0", "DS9", "decimal", "XD0 is refused; " + _DECIMAL_ONLY),
     ("DS1 + YD0u", "DS9", "decimal", "YD0u is refused; " + _DECIMAL_ONLY),
@@ -105,16 +125,26 @@ _REFUSED = [
     ("DH1 ^ DH2", "DH9", "hex", "\\^ is decimal only"),
     ("DS1 AND DS2", "DS9", "decimal", "AND is hex only"),
     ("LSH ( DS1 , 1 )", "DS9", "decimal", "LSH is hex only"),
-    # a bit stands only in SUM over a bit range
+    # a decimal formula takes X, Y, C, T and SC bits only as the range of a SUM
     ("C1 + DS1", "DS9", "decimal", "C1 is refused; " + _DECIMAL_ONLY),
     ("X001 + 1", "DS9", "decimal", "X001 is refused; " + _DECIMAL_ONLY),
     ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is refused; " + _DECIMAL_ONLY),
     # a hex formula takes only DH, XD and YD registers, in a SUM too (OBJ-1002)
-    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; " + _HEX_ONLY),
-    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; " + _HEX_ONLY),
-    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; " + _HEX_ONLY),
-    ("SUM ( DS1 : DS3 )", "DH9", "hex", "SUM over DS1 is refused; " + _HEX_ONLY),
-    ("SUM ( TXT1 : TXT3 )", "DH9", "hex", "SUM over TXT1 is refused; " + _HEX_ONLY),
+    (
+        "SUM ( X001 : X002 )",
+        "DH9",
+        "hex",
+        "SUM \\( X001 : X002 \\) is refused for X001; " + _HEX_ONLY,
+    ),
+    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM \\( C1 : C16 \\) is refused for C1; " + _HEX_ONLY),
+    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM \\( CT1 : CT3 \\) is refused for CT1; " + _HEX_ONLY),
+    ("SUM ( DS1 : DS3 )", "DH9", "hex", "SUM \\( DS1 : DS3 \\) is refused for DS1; " + _HEX_ONLY),
+    (
+        "SUM ( TXT1 : TXT3 )",
+        "DH9",
+        "hex",
+        "SUM \\( TXT1 : TXT3 \\) is refused for TXT1; " + _HEX_ONLY,
+    ),
     ("DH1 + C1", "DH9", "hex", "C1 is refused; " + _HEX_ONLY),
     ("DS1 + 1h", "DH9", "hex", "DS1 is refused; " + _HEX_ONLY),
     ("DD1 + 1h", "DH9", "hex", "DD1 is refused; " + _HEX_ONLY),

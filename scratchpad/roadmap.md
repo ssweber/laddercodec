@@ -103,7 +103,12 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       as the range of `SUM ( a : b )`. DH, XD, YD, TXT and CT are refused anywhere, a `SUM` included. The
       Address Picker for a decimal `SUM` enables exactly X, Y, C, T, SC, DS, DD, DF, TD, CTD and SD.
     - Every bank refusal is OBJ-1002, reason `bank`: one for each address outside a `SUM`, one for each
-      `SUM`. Open: which hex `SUM` banks the `math_hex` answers confirm.
+      `SUM`. Open:
+      - Do the `math_hex` and `math_decimal` answers confirm every bank in every position (alone, beside a
+        constant, a RAND bound, a range end, a `SUM`)? That includes XD and YD in hex, and DH, XD, YD, TXT
+        and CT in decimal outside a `SUM`.
+      - Does OBJ-1002 come ahead of OBJ-1014 or OBJ-1015 for a `SUM` over a refused bank whose ends are also
+        reversed (`SUM ( DH2 : DH1 )`) or in two banks (`SUM ( X001 : TXT2 )`)?
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
     Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
     instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and

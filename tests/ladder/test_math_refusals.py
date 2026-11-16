@@ -207,10 +207,34 @@ def test_formula_decimal_sum_over_a_refused_bank_is_refused_once() -> None:
         "+ SUM ( YD0 : YD1 ) + SUM ( TXT1 : TXT2 )"
     )
     assert [str(e) for e in errors] == [
-        f"Math.expression: SUM over {start} is refused; {_DECIMAL_ONLY}"
-        for start in ("CT1", "CT7", "DH1", "XD0", "YD0", "TXT1")
+        f"Math.expression: SUM ( {low} : {high} ) is refused for {low}; {_DECIMAL_ONLY}"
+        for low, high in (
+            ("CT1", "CT5"),
+            ("CT7", "CT9"),
+            ("DH1", "DH3"),
+            ("XD0", "XD1"),
+            ("YD0", "YD1"),
+            ("TXT1", "TXT2"),
+        )
     ]
     assert {(e.reason, e.click_id) for e in errors} == {(Reason.BANK, "OBJ-1002")}
+
+
+def test_formula_sum_refusal_names_the_refused_end() -> None:
+    """A SUM over two banks names the range and the end refused; the span is refused too."""
+    errors = _formula("SUM ( X001 : TXT2 )")
+    assert [str(e) for e in errors] == [
+        f"Math.expression: SUM ( X001 : TXT2 ) is refused for TXT2; {_DECIMAL_ONLY}",
+        "Math.expression: X001 : TXT2 spans two banks; a range stays in one (OBJ-1015)",
+    ]
+
+
+def test_formula_bank_refusal_still_checks_the_range_order() -> None:
+    """An end refused for its bank is still checked for its order: OBJ-1002, then OBJ-1014."""
+    assert _shape(_formula("SUM ( DH2 : DH1 )")) == [
+        (_EXPR, "bank", "OBJ-1002"),
+        (_EXPR, "form", "OBJ-1014"),
+    ]
 
 
 @pytest.mark.parametrize("address", ["DH1", "XD0", "XD0u", "YD1", "TXT1", "C1", "X001", "CT1"])
@@ -234,10 +258,10 @@ def test_formula_hex_sum_over_a_refused_bank_is_refused_once() -> None:
         "SUM ( X001 : X036 ) + SUM ( CT1 : CT3 ) + SUM ( C1 : C2 ) + SUM ( DS1 : DS3 )", "hex"
     )
     assert [str(e) for e in errors] == [
-        f"Math.expression: SUM over X001 is refused; {_HEX_ONLY}",
-        f"Math.expression: SUM over CT1 is refused; {_HEX_ONLY}",
-        f"Math.expression: SUM over C1 is refused; {_HEX_ONLY}",
-        f"Math.expression: SUM over DS1 is refused; {_HEX_ONLY}",
+        f"Math.expression: SUM ( X001 : X036 ) is refused for X001; {_HEX_ONLY}",
+        f"Math.expression: SUM ( CT1 : CT3 ) is refused for CT1; {_HEX_ONLY}",
+        f"Math.expression: SUM ( C1 : C2 ) is refused for C1; {_HEX_ONLY}",
+        f"Math.expression: SUM ( DS1 : DS3 ) is refused for DS1; {_HEX_ONLY}",
     ]
     assert {(e.reason, e.click_id) for e in errors} == {(Reason.BANK, "OBJ-1002")}
 

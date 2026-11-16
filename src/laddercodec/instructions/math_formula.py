@@ -123,8 +123,9 @@ class _Operands:
     rule: str
 
 
-#: The operand banks of each mode.  A decimal SUM takes no CT range on a CPU with the v4
-#: functions; an older CPU's refusal of every bit is a project rule.
+#: The operand banks of each mode.  A decimal SUM takes no CT range.  An older CPU takes no
+#: bit range in a SUM at all; :func:`~laddercodec.compat.find_v4_only` reports those, and
+#: construction accepts them.
 _OPERANDS = {
     "decimal": _Operands(
         banks(Bank.DS | Bank.DD | Bank.DF | Bank.TD | Bank.CTD | Bank.SD),
@@ -661,7 +662,9 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     bits it takes only as the range of ``SUM ( a : b )``.  An address of any other bank is
     refused with OBJ-1002.  An X or Y range CLICK would store a wrong member list for is
     refused too.  One refusal for each address refused outside a SUM, one for each SUM
-    refused, and at most one for each range; a refused address is not checked again.
+    refused, and at most one for each range.  An address refused while it was read (``DS0``)
+    is not checked again; a range with an end refused for its bank is still checked for its
+    banks, its order and a median's size, but not for its member list.
     """
     operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
@@ -671,7 +674,7 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
     sum_refused: set[int] = set()  # the SUMs refused for their bank, once each
-    outside_sum: set[int] = set()  # the addresses refused for their bank, in a SUM or not
+    bank_refused: set[int] = set()  # the addresses refused for their bank, in a SUM or not
     for i, token in enumerate(tokens):
         parts = address_parts(token.text)
         if token.refused or parts is None:
@@ -679,13 +682,14 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         bank = parts[0]
         if bank in operands.anywhere or (i in sum_at and bank in operands.in_sum):
             continue
-        outside_sum.add(i)
+        bank_refused.add(i)
         if i not in sum_at:
             rule = f"{token.text} is refused; {operands.rule}"
             found.append(_error(rule, Reason.BANK, "OBJ-1002"))
-        elif sum_at[i] not in sum_refused:
-            sum_refused.add(sum_at[i])
-            rule = f"SUM over {token.text} is refused; {operands.rule}"
+        elif (at := sum_at[i]) not in sum_refused:
+            sum_refused.add(at)
+            shown = f"SUM ( {texts[at + 2]} : {texts[at + 4]} )"
+            rule = f"{shown} is refused for {token.text}; {operands.rule}"
             found.append(_error(rule, Reason.BANK, "OBJ-1002"))
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
@@ -716,7 +720,7 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
             )
             continue
         # The member list matters only to a SUM: a bit range anywhere else is refused already.
-        if low[0] in _XY_BANKS and i - 1 not in outside_sum:
+        if low[0] in _XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
                 found.append(error)

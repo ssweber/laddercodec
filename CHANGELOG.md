@@ -60,7 +60,7 @@
 - **Each Math mode takes its own banks**: a hex `Math` formula takes hex constants and the DH, XD and YD registers only, and a decimal one decimal constants, the DS, DD, DF, TD, CTD and SD registers, and X, Y, C, T and SC bits only as the range of a `SUM`. Every other address, in a `SUM` too, is refused with `OBJ-1002` and reason `bank`, and each refusal states its mode's rule.
   - A DD, DF, TD, CTD, SD or TXT register in a hex formula, and a DH, XD, YD or TXT register in a decimal one, is now refused, where it was accepted.
   - A `SUM` over CT, in either mode, now carries `OBJ-1002`, where it had no id.
-  - Do: in a hex formula, copy the value into a DH register first, or use a decimal `Math`; in a decimal formula, copy a DH, XD, YD or TXT value into a DS first, or use a hex `Math`.
+  - Do: for a hex formula, copy a register into a DH first or pack bits into a DH, or use a decimal `Math` for a DS, DD, DF, TD, CTD or SD value; for a decimal formula, copy a DH, XD, YD or TXT register into a DS first, or use a hex `Math` for a DH, XD or YD value, and pack CT bits into a DH, then copy the DH into a DS or use it in a hex `Math`.
 
 ## 0.4.0 (2026-11-14)
 

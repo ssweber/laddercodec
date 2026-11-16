@@ -702,13 +702,16 @@ currently emit:
   a `SUM` too:
   - A hex formula takes only hex values: hex constants and the DH, XD and YD
     registers. Any other register (`DS1 + 1h`, `DD1 + 1h`) and any bit is
-    refused (`SUM ( X001 : X002 )`); copy the value into a DH first, or use a
-    decimal `math`.
+    refused (`SUM ( X001 : X002 )`). Copy a register into a DH first, or pack
+    bits into a DH; or use a decimal `math` for a DS, DD, DF, TD, CTD or SD
+    value.
   - A decimal formula takes decimal constants and the DS, DD, DF, TD, CTD and SD
     registers; an X, Y, C, T or SC bit stands only as the range of a `SUM`
     (`SUM ( X001 : X016 )`, not `X001 + 1`). A DH, XD, YD or TXT register and a
-    CT bit are refused (`DS1 + DH1`, `SUM ( CT1 : CT5 )`); copy the value into a
-    DS first, or use a hex `math`.
+    CT bit are refused (`DS1 + DH1`, `SUM ( CT1 : CT5 )`). Copy a DH, XD, YD or
+    TXT register into a DS first, or use a hex `math` for a DH, XD or YD value;
+    pack CT bits into a DH, then copy the DH into a DS or use it in a hex
+    `math`.
 - A `math` formula is at most 270 characters as CLICK stores it: a sum of 68
   addresses fits, 69 does not; constants, functions and parentheses count too.
 - A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
