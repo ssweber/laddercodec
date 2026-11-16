@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, FieldError, check_address, normalize_address
+from ..model import AfInstruction, FieldError, check_address, check_flag, normalize_address
 from ..operands.checks import Constants, check_operand, check_out_target
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
@@ -140,6 +140,12 @@ class OutVariant(AfInstruction):
     maintained: bool = False  # timed only
 
     def __post_init__(self) -> None:
+        self._check_fields()
+        # Last, so a junk flag value changes no earlier refusal.
+        self.immediate = check_flag(self.immediate, "OutVariant.immediate")
+        self.maintained = check_flag(self.maintained, "OutVariant.maintained")
+
+    def _check_fields(self) -> None:
         for name in ("operand", "on_acc", "on_preset", "off_acc", "off_preset"):
             setattr(self, name, normalize_address(getattr(self, name)))
         # The target follows Out's rule, writable SC list included.

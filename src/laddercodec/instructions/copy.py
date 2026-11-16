@@ -29,6 +29,7 @@ from ..model import (
     AddressError,
     AfInstruction,
     FieldError,
+    check_flag,
     normalize_address,
     xy_slot,
 )
@@ -665,6 +666,7 @@ class Copy(AfInstruction):
                 f"past TXT{_TXT_LAST}",
                 field="Copy.destination",
             )
+        self.oneshot = check_flag(self.oneshot, "Copy.oneshot")
 
     def _destination_end(self) -> str:
         """Tag 0x6077: the last TXT a text of two or more characters fills, else empty."""
@@ -893,6 +895,7 @@ class BlockCopy(AfInstruction):
                 f"{self.source_start}..{self.source_end}",
                 field=f"{cls}.format",
             )
+        self.oneshot = check_flag(self.oneshot, "BlockCopy.oneshot")
 
     @property
     def func_code(self) -> str:
@@ -983,6 +986,7 @@ class Fill(AfInstruction):
             # A Fill into TXT takes one character of text.
             text_max = 1 if dest.bank == "TXT" else TEXT_MAX
             check_constant(self.value, "Fill.value", replace(_CONSTANTS, text_max=text_max))
+        self.oneshot = check_flag(self.oneshot, "Fill.oneshot")
 
     @property
     def func_code(self) -> str:
@@ -1090,13 +1094,14 @@ class Pack(AfInstruction):
                 f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
                 field="Pack.source_start",
             )
-        if self.pack_type == "text":
-            return
-        _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
-        _check_count(
-            "Pack", "source_end", f"{self.source_start}..{self.source_end}", _span(first, last),
-            self.pack_type, dest.bank, self.destination,
-        )  # fmt: skip
+        if self.pack_type != "text":
+            _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
+            _check_count(
+                "Pack", "source_end", f"{self.source_start}..{self.source_end}", _span(first, last),
+                self.pack_type, dest.bank, self.destination,
+            )  # fmt: skip
+        self.allow_whitespace = check_flag(self.allow_whitespace, "Pack.allow_whitespace")
+        self.oneshot = check_flag(self.oneshot, "Pack.oneshot")
 
     @property
     def func_code(self) -> str:
@@ -1208,6 +1213,7 @@ class Unpack(AfInstruction):
             "Unpack", "dest_end", f"{self.dest_start}..{self.dest_end}", _span(first, last),
             self.unpack_type, src.bank, self.source,
         )  # fmt: skip
+        self.oneshot = check_flag(self.oneshot, "Unpack.oneshot")
 
     @property
     def func_code(self) -> str:
