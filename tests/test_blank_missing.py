@@ -19,6 +19,7 @@ from typing import Any
 import pytest
 
 from laddercodec import FieldError, Reason
+from tests.sweep_keys import kind_of
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -71,33 +72,45 @@ def _blanks(inst: Any) -> list[tuple[str, Callable[[Any], Any]]]:
     return found
 
 
-#: The fields that accept a blank, as ``Class.attr`` (an item of a list as its list).  A
-#: blank anywhere else must be refused as ``missing``; one accepted that is not here fails.
+#: What each kind of instruction accepts blank, as ``(class, kind, field)`` (an item of a list as
+#: its list).  ``kind`` is the OutVariant or Drum kind, ``None`` for a class without one.  A blank
+#: anywhere else must be refused as ``missing``; one accepted that is not here fails, and an
+#: entry no blank reaches fails too.
 ACCEPTS_BLANK = frozenset(
     {
-        "Drum.accumulator",  # an event drum has none
-        "Drum.events",  # a step with a duration needs no event
-        "Drum.events_or_presets",
-        "Drum.jump_target",  # no jump
-        "Drum.unit",  # an event drum has none
-        "ModbusRtuTarget.name",  # a label, not in the binary
-        "ModbusTcpTarget.name",
-        "OutVariant.off_acc",  # a one-phase debounce leaves a phase empty
-        "OutVariant.off_preset",
-        "OutVariant.on_acc",
-        "OutVariant.on_preset",
-        "OutVariant.unit",  # a toggle has none
-        "RawInstruction.class_name",
-        "Receive.error",  # an optional status bit
-        "Receive.exception_response",
-        "Receive.receiving",
-        "Receive.success",
-        "Send.error",
-        "Send.exception_response",
-        "Send.sending",
-        "Send.success",
+        ("Drum", "event", "accumulator"),  # an event drum has none
+        ("Drum", "event", "unit"),
+        ("Drum", "time_event", "events"),  # a step with a duration needs no event
+        ("Drum", "time_event", "events_or_presets"),  # and one with an event needs no duration
+        # no jump: with the jump on, the target is checked
+        *(("Drum", f"{kind}, jump off", "jump_target") for kind in ("event", "time", "time_event")),
+        ("ModbusRtuTarget", None, "name"),  # a label, not in the binary
+        ("ModbusTcpTarget", None, "name"),
+        ("OutVariant", "toggle", "on_acc"),  # a toggle has none of the five
+        ("OutVariant", "toggle", "on_preset"),
+        ("OutVariant", "toggle", "off_acc"),
+        ("OutVariant", "toggle", "off_preset"),
+        ("OutVariant", "toggle", "unit"),
+        ("OutVariant", "timed", "off_acc"),  # a timed box has an on phase only
+        ("OutVariant", "timed", "off_preset"),
+        ("RawInstruction", None, "class_name"),
+        *(
+            (cls, None, field)  # an optional status bit
+            for cls, fields in {
+                "Receive": ("error", "exception_response", "receiving", "success"),
+                "Send": ("error", "exception_response", "sending", "success"),
+            }.items()
+            for field in fields
+        ),
     }
 )
+
+
+def _key(inst: Any, field: str) -> tuple[str, str | None, str]:
+    """The ``ACCEPTS_BLANK`` key of the blank ``field`` (``Class.attr`` or ``Class.attr[i]``)."""
+    cls, _, attr = field.partition(".")
+    attr = attr.split("[")[0]
+    return cls, kind_of(inst, attr), attr
 
 
 def _cases() -> list[Any]:
@@ -127,7 +140,7 @@ def test_a_blank_field_is_missing(inst: Any, field: str, rebuild: Callable[[Any]
             if e.field == field and len(e.fields) == 1:  # a pair is a rule of two fields
                 assert ": is blank" in str(e), str(e)
     else:
-        assert field.split("[")[0] in ACCEPTS_BLANK, f"{inst!r} accepts {field} blank"
+        assert _key(inst, field) in ACCEPTS_BLANK, f"{inst!r} accepts {field} blank"
 
 
 def test_accepts_blank_lists_only_fields_that_do() -> None:
@@ -138,7 +151,7 @@ def test_accepts_blank_lists_only_fields_that_do() -> None:
             rebuild(inst)
         except FieldError:
             continue
-        accepted.add(field.split("[")[0])
+        accepted.add(_key(inst, field))
     assert accepted == ACCEPTS_BLANK
 
 
