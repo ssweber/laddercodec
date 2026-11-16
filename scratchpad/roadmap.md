@@ -66,9 +66,11 @@ checks (pyrung's conformance probes use `raw(...)`).
   spans its `A : B`, SUM's CT and X/Y refusals the range argument. It is new public API.
 - **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
   int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
-  range-shape refusal with no id while a comment records OBJ-037 for it.
+  range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
 - **Copy termination code:** a non-`$` code gets OBJ-036; `$ZZ` and `$D`, refused by the shared check, get
   none.
+- **A test of long digit text:** feed every constant field more than 4300 digits and expect a refusal, never a
+  crash (Math's formula once crashed there).
 
 ## 2. Decoding that does not depend on the checks (nothing)
 
@@ -96,9 +98,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) won't run as cases (Sam, 2026-11-16): the runner
   reads the SC and SD addresses each output field's Address Picker lists, into `sc_sd_writable.json` per
   instruction, field and bank, checked against the answers in hand. Commit it as test data, compare it with
-  those grids' verdicts, then decide whether the sweep grids stay. The sampled rows: the editor refuses a single Copy into SD1, a Math result into SD1, and a Block Copy into
-  SD1 or into SD29..SD30 (every address in the destination range must be writable); it accepts SD29 and
-  SD31..SD32.
+  those grids' verdicts, then decide whether the sweep grids stay. The sampled rows: the editor refuses a
+  single Copy into SD1, a Math result into SD1, and a Block Copy into SD1 or into SD29..SD30 (every address in
+  the destination range must be writable); it accepts SD29 and SD31..SD32.
 - **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
   Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
   TXT.
@@ -112,12 +114,14 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
     than one character (OBJ-023?).
   - Pack and Block Copy, a source range spanning two X/Y modules: OBJ-033 or OBJ-035, which is whose?
-  - Receive, one C bit for two status fields (Send's is OBJ-014); the Modbus remote start past its hex limit.
+  - Receive, one C bit for two status fields (Send's is OBJ-014). A Modbus remote address in hex past FFFFh,
+    refused while the address is read (a hex start past FFFDh in a Send has OBJ-010). Whether OBJ-010 is
+    also CLICK's id for a Send or Receive that runs past C2000, and for the room left in a DD hex start.
   - The Out variant's bank and not-writable SC refusals.
   - OBJ-002 and OBJ-003: which dialogs give them for an address that is not one and for a number outside its
     bank.
-  - The Math ids read from CLICK's own code (OBJ-1001, 1004, 1005, 1006, 1014, and 1009 for float32 and more
-    than four hex digits) are to be confirmed by the math grids, with the result's OBJ-004.
+  - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
+    from CLICK's own code; the math grids are to confirm each.
 
 ## 4. Canonical constants (CLICK)
 
