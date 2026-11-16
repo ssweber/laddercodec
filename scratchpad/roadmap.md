@@ -159,7 +159,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   ("read only addresses between") into SD42 and SD147, and OBJ-004 into SD215; the rule fitted to these three
   is OBJ-018 for an unlisted SD before SD215 and OBJ-004 for one past it, no id for a range with both, and no
   id for an unlisted start. The sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) are
-  removed: the picker list answers them. Open: a Block Copy whose start is not listed, and an unlisted SD
+  removed: the picker list answers them. Open: CLICK's answer to the last nine `copy.block.destination.banks` cases (a writable start whose range reaches read-only SD, controls inside the list, and a read-only start that ends writable); a Block Copy whose start is not listed, and an unlisted SD
   below SD29 in each field; a Fill into SD still takes every SD (no answer covers it).
 - **The picker's lists for 8 more fields are in:** Pack's destination (with nothing, an X source and a C
   source filled first), Unpack's destination and destination end (with nothing, a DH source and a DS source),
