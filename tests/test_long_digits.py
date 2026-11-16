@@ -9,7 +9,7 @@ replaced by digit text in the spellings a constant takes:
 decimal, signed, hex, real, with an exponent, and inside an expression.  Each rebuild is
 accepted or refused with ``FieldError``; any other exception fails.  A spelling beyond every
 field's range must be refused.  Leading zeros and a long fraction hold a value in range, so a
-field may take them.  The fields no check reads are named in ``UNCHECKED``.
+field may take them.  The fields no check reads, by kind, are named in ``UNCHECKED``.
 """
 
 from __future__ import annotations
@@ -67,16 +67,18 @@ OUT_OF_RANGE = [
     "DS[" + _RUN + "]",
 ]
 
-#: Fields (``Class.field``) no check reads, so any text is kept: a drum's jump target while
-#: its jump is off, its accumulator and unit where its kind has none, a Modbus target's
-#: name, and a raw instruction's class name.
+#: Fields no check reads, so any text is kept, as ``(Class.field, kind)``: a drum's jump target
+#: while its jump is off (the time & event golden is the one that has it off), its accumulator
+#: and unit where its kind has none (an event drum), a Modbus target's name, and a raw
+#: instruction's class name.  ``kind`` is the Drum or OutVariant kind, ``None`` for a class
+#: without one: a time drum's accumulator and unit are checked.
 UNCHECKED = {
-    "Drum.jump_target",
-    "Drum.accumulator",
-    "Drum.unit",
-    "ModbusRtuTarget.name",
-    "ModbusTcpTarget.name",
-    "RawInstruction.class_name",
+    ("Drum.jump_target", "time_event"),
+    ("Drum.accumulator", "event"),
+    ("Drum.unit", "event"),
+    ("ModbusRtuTarget.name", None),
+    ("ModbusTcpTarget.name", None),
+    ("RawInstruction.class_name", None),
 }
 
 #: Classes whose fields are opaque tag-keyed text, kept as written.
@@ -84,6 +86,11 @@ OPAQUE = {"Email", "Home", "Position", "Velocity"}
 
 #: Instruction classes with no text field to sweep.
 NO_TEXT_FIELDS = {"End", "Return", "Next", "Break", "Continue"}
+
+
+def _kind(inst: Any) -> str | None:
+    """The Drum or OutVariant kind of ``inst``, ``None`` for a class without one."""
+    return getattr(inst, "kind", None) or getattr(inst, "drum_kind", None)
 
 
 def _roots() -> list[Any]:
@@ -168,7 +175,7 @@ def test_long_digit_text_is_refused_not_a_crash(case: tuple[str, Any, Path_]) ->
             if text in OUT_OF_RANGE and not (label in HUGE_REAL_FIELDS and text in HUGE_REALS):
                 accepted.append(text[:6] + "..." + text[-6:])
     assert not crashes, f"{label} crashed: {crashes}"
-    if label not in UNCHECKED and label.split(".")[0] not in OPAQUE:
+    if (label, _kind(inst)) not in UNCHECKED and label.split(".")[0] not in OPAQUE:
         assert not accepted, f"{label} accepted long digit text: {accepted}"
 
 
