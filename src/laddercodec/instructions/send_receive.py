@@ -21,15 +21,15 @@ from ..model import (
     ADDRESS_BANKS,
     XY_SLOTS,
     Address,
+    AddressError,
     AfInstruction,
     FieldError,
+    Reason,
     check_address,
-    check_flag,
     normalize_address,
-    normalize_fields,
     to_display,
 )
-from ..operands.checks import BIT_BANKS, Constants, check_constant
+from ..operands.checks import BIT_BANKS, Constants, Refusals, check_constant
 from ..operands.constants import Kind, hex_display
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -54,14 +54,14 @@ class ModbusRtuTarget:
     device_id: int | str
 
     def __post_init__(self) -> None:
-        if self.com_port not in _RTU_PORT_MODE:
-            raise FieldError(
-                f"ModbusRtuTarget com_port must be one of {', '.join(_RTU_PORT_MODE)}, "
-                f"got {self.com_port!r}",
-                field="ModbusRtuTarget.com_port",
-            )
-        _normalize_device_id(self)
-        _check_device_id(self.device_id, "ModbusRtuTarget", 247)
+        with Refusals(self) as check:
+            if self.com_port not in _RTU_PORT_MODE:
+                check.refuse(
+                    "com_port",
+                    f"must be one of {', '.join(_RTU_PORT_MODE)}, got {self.com_port!r}",
+                    _choice_reason(self.com_port),
+                )
+            _check_device_id(check, self, 247)
 
 
 @dataclass(frozen=True)
@@ -76,68 +76,75 @@ class ModbusTcpTarget:
     com_port: str = "ethernet"  # "ethernet" (CPU Port 1) or "wlan"
 
     def __post_init__(self) -> None:
-        if self.com_port not in _TCP_PORT_MODE:
-            raise FieldError(
-                f"ModbusTcpTarget com_port must be one of {', '.join(_TCP_PORT_MODE)}, "
-                f"got {self.com_port!r}",
-                field="ModbusTcpTarget.com_port",
-            )
-        _normalize_device_id(self)
-        _check_device_id(self.device_id, "ModbusTcpTarget")
-        _check_ip(self.ip)
-        if isinstance(self.port, bool) or not isinstance(self.port, int):
-            raise FieldError(
-                f"ModbusTcpTarget port must be an integer, got {self.port!r}",
-                field="ModbusTcpTarget.port",
-            )
-        if not 1 <= self.port <= 65535:
-            raise FieldError(
-                f"ModbusTcpTarget port must be 1-65535, got {self.port}",
-                field="ModbusTcpTarget.port",
-            )
+        with Refusals(self) as check:
+            if self.com_port not in _TCP_PORT_MODE:
+                check.refuse(
+                    "com_port",
+                    f"must be one of {', '.join(_TCP_PORT_MODE)}, got {self.com_port!r}",
+                    _choice_reason(self.com_port),
+                )
+            _check_device_id(check, self, 255)
+            _check_ip(check, self.ip)
+            if isinstance(self.port, bool) or not isinstance(self.port, int):
+                check.refuse("port", f"must be an integer, got {self.port!r}", Reason.FORM)
+            elif not 1 <= self.port <= 65535:
+                check.refuse("port", f"must be 1-65535, got {self.port}", Reason.RANGE)
+
+
+def _choice_reason(value: object) -> Reason:
+    """Why text is not one of a field's named values: another member (a choice), or no text."""
+    return Reason.CHOICE if isinstance(value, str) else Reason.FORM
 
 
 _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 
-def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
-    """Write a Slave ID address in display form."""
-    if isinstance(target.device_id, str):
-        normalize_fields(target, "device_id")
-
-
-def _check_device_id(device_id: int | str, cls: str, high: int = 255) -> None:
+def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, high: int) -> None:
     """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
-    field = f"{cls}.device_id"
+    device_id = target.device_id
     if isinstance(device_id, str):
-        m = _DS_ADDRESS_RE.fullmatch(device_id)
+        check.normalize("device_id")
+        if check.refused("device_id"):
+            return
+        typed = str(target.device_id)  # in display form now
+        m = _DS_ADDRESS_RE.fullmatch(typed)
         # Four digits at most: DS4500 is the last, and int() refuses a longer digit string.
         if not m or len(m.group(1)) > 4 or int(m.group(1)) > 4500:
-            raise FieldError(
-                f"device_id must be a number or a DS address (DS1..DS4500), got {device_id!r}",
-                field=field,
+            check.refuse(
+                "device_id",
+                f"must be a number or a DS address (DS1..DS4500), got {typed!r}",
+                _device_id_reason(typed, check.field("device_id")),
             )
     elif isinstance(device_id, bool) or not isinstance(device_id, int):
-        raise FieldError(
-            f"device_id must be a number or a DS address, got {device_id!r}", field=field
+        check.refuse(
+            "device_id", f"must be a number or a DS address, got {device_id!r}", Reason.FORM
         )
     elif not 0 <= device_id <= high:
-        raise FieldError(
-            f"device_id must be 0-{high} or a DS address, got {device_id!r}", field=field
+        check.refuse(
+            "device_id", f"must be 0-{high} or a DS address, got {device_id!r}", Reason.RANGE
         )
+
+
+def _device_id_reason(device_id: str, field: str) -> Reason:
+    """Why text is no DS address: no address at all, another bank, or a number past DS4500."""
+    try:
+        address = check_address(device_id, field)
+    except AddressError as exc:
+        return exc.reason or Reason.FORM
+    return Reason.BANK if address.bank != "DS" else Reason.FORM
 
 
 _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
 
 
-def _check_ip(ip: str) -> None:
+def _check_ip(check: Refusals, ip: str) -> None:
     """A TCP server IP is four octets, each 0-255 (0.0.0.0 is accepted)."""
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
-    if m is None or any(int(octet) > 255 for octet in m.groups()):
-        raise FieldError(
-            f"ModbusTcpTarget ip must be four octets, each 0-255 (a.b.c.d), got {ip!r}",
-            field="ModbusTcpTarget.ip",
-        )
+    rule = f"must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
+    if m is None:
+        check.refuse("ip", rule, Reason.FORM)
+    elif any(int(octet) > 255 for octet in m.groups()):
+        check.refuse("ip", rule, Reason.RANGE)
 
 
 @dataclass(frozen=True)
@@ -148,27 +155,32 @@ class ModbusAddress:
     register_type: str | None = None  # "coil"|"holding"|... — only for hex
 
     def __post_init__(self) -> None:
-        if self.register_type is not None and self.register_type not in REGISTER_TYPES:
-            raise FieldError(
-                f"ModbusAddress register_type must be one of {', '.join(REGISTER_TYPES)}, "
-                f"got {self.register_type!r}",
-                field="ModbusAddress.register_type",
-            )
-        if self.address.endswith(("h", "H")):
-            check_constant(self.address, "ModbusAddress.address", _REMOTE_HEX)
-            # The range check reads the typed value: padding past four digits is still in range.
-            # CLICK stores uppercase digits without leading zeros and a lowercase h
-            # (0FFFEh -> FFFEh, 0H -> 0h).
-            display = to_display(
-                self.address, hex_display(self.address[:-1]), "ModbusAddress.address"
-            )
-            object.__setattr__(self, "address", display)
-        elif not self.address.isascii() or not self.address.isdigit():
-            raise FieldError(
-                f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
-                f"got {self.address!r}",
-                field="ModbusAddress.address",
-            )
+        with Refusals(self) as check:
+            if self.register_type is not None and self.register_type not in REGISTER_TYPES:
+                check.refuse(
+                    "register_type",
+                    f"must be one of {', '.join(REGISTER_TYPES)}, got {self.register_type!r}",
+                    _choice_reason(self.register_type),
+                )
+            if self.address.endswith(("h", "H")):
+                if check("address", check_constant, _REMOTE_HEX) is not None:
+                    # The range check reads the typed value: padding past four digits is still
+                    # in range.  CLICK stores uppercase digits without leading zeros and a
+                    # lowercase h (0FFFEh -> FFFEh, 0H -> 0h).
+                    display = check.run(
+                        to_display,
+                        self.address,
+                        hex_display(self.address[:-1]),
+                        check.field("address"),
+                    )
+                    if display is not None:
+                        object.__setattr__(self, "address", display)
+            elif not self.address.isascii() or not self.address.isdigit():
+                check.refuse(
+                    "address",
+                    f"must be a MODBUS 984 number or hex (0h-FFFEh), got {self.address!r}",
+                    Reason.KIND,
+                )
 
     @property
     def is_hex(self) -> bool:
@@ -178,7 +190,7 @@ class ModbusAddress:
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
 #: A hex remote address: 0h to FFFEh.
-_REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE)
+_REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE, range_id=None)
 
 
 # ---------------------------------------------------------------------------
@@ -218,15 +230,13 @@ _RD_FC_REGISTER_TYPE: dict[int, str] = dict(zip((1, 2, 3, 4), REGISTER_TYPES, st
 _RD_REGISTER_TYPE_FC: dict[str, int] = {v: k for k, v in _RD_FC_REGISTER_TYPE.items()}
 
 
-def _check_function_code(who: str, function_code: object, allowed: tuple[int, ...]) -> None:
+def _check_function_code(check: Refusals, function_code: object, allowed: tuple[int, ...]) -> None:
     if function_code is None:
         return
     if type(function_code) is not int or function_code not in allowed:
         listed = ", ".join(str(fc) for fc in allowed)
-        raise FieldError(
-            f"{who} function_code: {function_code!r} is not one of {listed}",
-            field=f"{who}.function_code",
-        )
+        reason = Reason.FORM if type(function_code) is not int else Reason.CHOICE
+        check.refuse("function_code", f"{function_code!r} is not one of {listed}", reason)
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +297,7 @@ def _receive_y_room(
     return room
 
 
-def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
+def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -> None:
     """A count between local C and a CLICK remote also fits the remote side.
 
     The room is the lesser of the C room and the remote's: the slot run from an X/Y start
@@ -297,20 +307,24 @@ def _check_c_remote_room(who: str, quantity: int, remote_addr: Address) -> None:
     if bank in _XY_BANKS:
         room = _xy_click_room(number)
         if quantity > room:
-            raise FieldError(
-                f"{who} quantity: {quantity} from remote {remote_addr.display} is outside "
+            check.refuse(
+                "quantity",
+                f"{quantity} from remote {remote_addr.display} is outside "
                 f"1-{room} (X/Y points count by slot: {bank}001-{bank}016 with {bank}021-"
                 f"{bank}036, then {bank}101-{bank}116 ...)",
-                field=f"{who}.quantity",
+                Reason.RANGE,
+                _RANGE_ID,
             )
         return
     last_number = ADDRESS_BANKS[bank][1]
     left = last_number - number + 1
     if quantity > left:
-        raise FieldError(
-            f"{who} quantity: {quantity} from remote {remote_addr.display} runs past "
+        check.refuse(
+            "quantity",
+            f"{quantity} from remote {remote_addr.display} runs past "
             f"{bank}{last_number} ({left} left)",
-            field=f"{who}.quantity",
+            Reason.RANGE,
+            _RANGE_ID,
         )
 
 
@@ -324,7 +338,9 @@ def _xy_nth(number: int, steps: int, cls: str) -> int:
             return first + steps
         steps -= hi - first + 1
     raise FieldError(
-        f"X/Y count runs past the last slot from point {number}", field=f"{cls}.quantity"
+        f"X/Y count runs past the last slot from point {number}",
+        field=f"{cls}.quantity",
+        reason=Reason.RANGE,
     )
 
 
@@ -358,8 +374,12 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 # ---------------------------------------------------------------------------
 # Field rules
 #
-# A bank outside a field's set raises OBJ-004, a number outside its limit OBJ-010.
+# A bank outside a field's set raises OBJ-004; a count past its cap or room, or a hex start
+# past FFFDh, OBJ-010.
 # ---------------------------------------------------------------------------
+
+_BANK_ID = "OBJ-004"
+_RANGE_ID = "OBJ-010"
 
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
@@ -411,68 +431,84 @@ _RECEIVE_984_KINDS = {
 _SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
 
 
-def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int) -> None:
+def _check_slave_id(
+    check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int
+) -> None:
     """A numeric Slave ID: Receive RTU starts at 1 (the 0-247 and 0-255 ceilings are checked
-    when the target is built); a DS address always passes."""
+    when the target is built); a DS address always passes.
+
+    A target refused by its own checks never reaches the instruction, and names its own
+    field (``ModbusTcpTarget.port``); the floor Receive adds names ``Receive.target``."""
     device_id = target.device_id
     if isinstance(device_id, str):
         return
     if isinstance(target, ModbusRtuTarget) and device_id < rtu_low:
-        raise FieldError(
-            f"{who} target.device_id: {device_id} is outside {rtu_low}-247 for RTU",
-            field=f"{who}.target",
+        check.refuse(
+            "target",
+            f"its device_id {device_id} is outside {rtu_low}-247 for RTU",
+            Reason.RANGE,
         )
 
 
-def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
+def _normalize_operands(check: Refusals, inst: Send | Receive, names: tuple[str, ...]) -> None:
     """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
-    normalize_fields(
-        inst, *(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str))
-    )
+    check.normalize(*(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str)))
 
 
-def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:
+def _check_status(
+    check: Refusals, inst: Send | Receive, name: str, banks: frozenset[str]
+) -> Address | None:
+    value = getattr(inst, name)
     if value:
-        return check_address(value, f"{who}.{name}", banks, label=f"{who} {name}")
+        label = f"{type(inst).__name__} {name}"
+        return check(name, check_address, banks, label=label, bank_id=_BANK_ID)
     return None
 
 
-def _check_status_bits(who: str, inst: Send | Receive, names: tuple[str, str, str]) -> None:
+def _check_status_bits(
+    check: Refusals,
+    inst: Send | Receive,
+    names: tuple[str, str, str],
+    click_id: str | None = None,
+) -> None:
     """Each status field is a C bit, and no C bit serves two of them."""
     seen: dict[tuple[str, int], str] = {}
     for name in names:
-        value = getattr(inst, name)
-        found = _check_status(who, name, value, _STATUS_BITS)
+        found = _check_status(check, inst, name, _STATUS_BITS)
         if found is None:
             continue
         key = (found.bank, found.number)
         if key in seen:
-            raise FieldError(
-                f"{who} {name}: {value} is already the {seen[key]} bit", field=f"{who}.{name}"
+            check.refuse(
+                (name, seen[key]),
+                f"{getattr(inst, name)} is already the {seen[key]} bit",
+                Reason.CONFLICT,
+                click_id,
             )
-        seen[key] = name
+        else:
+            seen[key] = name
 
 
-def _check_984(who: str, address: str, kinds: dict[str, tuple[int, int]]) -> str:
-    """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to."""
+def _check_984(check: Refusals, address: str, kinds: dict[str, tuple[int, int]]) -> str | None:
+    """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to; None if refused."""
     n = int(address)
     for kind, (low, high) in kinds.items():
         if low <= n <= high:
             return kind
     ranges = ", ".join(f"{low}-{high}" for low, high in kinds.values())
-    raise FieldError(
-        f"{who} remote_start: {address!r} is outside the MODBUS 984 ranges {ranges}",
-        field=f"{who}.remote_start",
+    check.refuse(
+        "remote_start", f"{address!r} is outside the MODBUS 984 ranges {ranges}", Reason.RANGE
     )
+    return None
 
 
-def _check_int_quantity(who: str, quantity: object) -> None:
+def _check_int_quantity(check: Refusals, quantity: object) -> None:
     if isinstance(quantity, bool) or not isinstance(quantity, int):
-        raise FieldError(f"{who} quantity: {quantity!r} is not an integer", field=f"{who}.quantity")
+        check.refuse("quantity", f"{quantity!r} is not an integer", Reason.FORM)
 
 
 def _check_quantity(
-    who: str,
+    check: Refusals,
     quantity: int,
     local: Address,
     caps: tuple[int, int, int],
@@ -492,17 +528,18 @@ def _check_quantity(
     else:
         high, kind = regs, "registers"
     if not 1 <= quantity <= high:
-        raise FieldError(
-            f"{who} quantity: {quantity} is outside 1-{high} {kind}", field=f"{who}.quantity"
-        )
+        check.refuse("quantity", f"{quantity} is outside 1-{high} {kind}", Reason.RANGE, _RANGE_ID)
+        return
     if local.bank in _XY_BANKS:
         room = _xy_points_left(local.number) if xy_room is None else xy_room
         if quantity > room:
-            raise FieldError(
-                f"{who} quantity: {quantity} from {local.display} is outside "
+            check.refuse(
+                "quantity",
+                f"{quantity} from {local.display} is outside "
                 f"1-{room} (X/Y points count by slot: {local.bank}001-{local.bank}016 with "
                 f"{local.bank}021-{local.bank}036, then {local.bank}101-{local.bank}116 ...)",
-                field=f"{who}.quantity",
+                Reason.RANGE,
+                _RANGE_ID,
             )
         return
     if local.bank in ("XD", "YD"):
@@ -510,11 +547,22 @@ def _check_quantity(
     last_number = ADDRESS_BANKS[local.bank][1]
     left = last_number - local.number + 1
     if quantity > left:
-        raise FieldError(
-            f"{who} quantity: {quantity} from {local.display} runs past "
-            f"{local.bank}{last_number} ({left} left)",
-            field=f"{who}.quantity",
+        check.refuse(
+            "quantity",
+            f"{quantity} from {local.display} runs past {local.bank}{last_number} ({left} left)",
+            Reason.RANGE,
+            _RANGE_ID,
         )
+
+
+def _check_quantity_bounds(
+    check: Refusals, quantity: int, caps: tuple[int, int, int], bit: bool | None
+) -> None:
+    """A count no start could take: below 1, or above the largest cap of the kinds the
+    remote and local fields leave possible.  Used when one of them is refused."""
+    high = caps[1] if bit is False else caps[0]
+    if not 1 <= quantity <= high:
+        check.refuse("quantity", f"{quantity} is outside 1-{high}", Reason.RANGE, _RANGE_ID)
 
 
 def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | None) -> int:
@@ -530,193 +578,285 @@ def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | N
 
 def _validate_send(send: Send) -> tuple[int, int]:
     """Check every field; return the function code the Send is written with, and the default."""
+    with Refusals(send) as check:
+        found = _check_send(send, check)
+    assert found is not None  # a refusal ended the block
+    return found
+
+
+def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
+    """Check every field, keeping each refusal; a field that depends on a refused one is not
+    checked.  Return the function code the Send is written with, and the default; None when
+    a refusal means neither is known."""
     who = "Send"
-    _check_slave_id(who, send.target, 0)
-    _check_function_code(who, send.function_code, tuple(_SD_FC_SUBTYPE))
+    _check_slave_id(check, send.target, 0)
+    _check_function_code(check, send.function_code, tuple(_SD_FC_SUBTYPE))
     remote, quantity = send.remote_start, send.quantity
-    _check_int_quantity(who, quantity)
+    _check_int_quantity(check, quantity)
+    counted = not check.refused("quantity")
     remote_addr: Address | None = None
+    bit: bool | None = None  # None: the remote_start is refused, so its kind is not known
     if isinstance(remote, str):
-        remote_addr = check_address(
-            remote,
-            f"{who}.remote_start",
+        remote_addr = check(
+            "remote_start",
+            check_address,
             _SEND_REMOTE_BITS | _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16,
             label=f"{who} remote_start",
+            bank_id=_BANK_ID,
         )
-        bit = remote_addr.bank in _SEND_REMOTE_BITS
+        if remote_addr is not None:
+            bit = remote_addr.bank in _SEND_REMOTE_BITS
     elif remote.is_hex:
         register_type = remote.register_type or "holding"
         if register_type not in ("coil", "holding"):
-            raise FieldError(
-                f"{who} remote_start: register_type {register_type!r} cannot be written; "
-                "a Send takes coil or holding",
-                field="Send.remote_start",
+            check.refuse(
+                "remote_start",
+                f"register_type {register_type!r} cannot be written; a Send takes coil or holding",
+                Reason.CHOICE,
             )
-        bit = register_type == "coil"
+        else:
+            bit = register_type == "coil"
     else:
-        bit = _check_984(who, remote.address, _SEND_984_KINDS) == "coil"
+        kind = _check_984(check, remote.address, _SEND_984_KINDS)
+        if kind is not None:
+            bit = kind == "coil"
 
-    if bit:
+    if bit is None:
+        banks = BIT_BANKS | _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
+    elif bit:
         banks = BIT_BANKS
     else:
         banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
-    local = check_address(send.source, f"{who}.source", banks, label=f"{who} source")
+    local = check("source", check_address, banks, label=f"{who} source", bank_id=_BANK_ID)
     remote_bank = remote_addr.bank if remote_addr is not None else None
-    default_fc = _send_default_fc(send, bit, local, remote_bank)
-    fc = send.function_code or default_fc
+    default_fc = None
+    if bit is not None and local is not None:
+        default_fc = _send_default_fc(send, bit, local, remote_bank)
+    fc = None
+    if not check.refused("function_code"):
+        fc = send.function_code or default_fc
 
     # The function code must suit the remote kind, and FC05/FC06 carry one element.
-    if fc not in ((5, 15) if bit else (6, 16)):
-        kind = "a coil" if bit else "a register"
-        raise FieldError(
-            f"{who} function_code: FC{fc:02d} cannot write {kind}", field=f"{who}.function_code"
-        )
-    if fc in (5, 6) and quantity != 1:
-        raise FieldError(
-            f"{who} function_code: FC{fc:02d} writes one element, not {quantity}",
-            field=f"{who}.function_code",
-        )
-    if not bit:
-        fc06 = fc == 6
-        local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
-        check_address(send.source, f"{who}.source", local_banks, label=f"{who} source (FC{fc:02d})")
-        if isinstance(remote, str):
-            remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
-            label = f"{who} remote_start (FC{fc:02d})"
-            check_address(remote, f"{who}.remote_start", remote_banks, label=label)
+    if fc is not None and bit is not None:
+        if fc not in ((5, 15) if bit else (6, 16)):
+            kind = "a coil" if bit else "a register"
+            check.refuse(
+                ("function_code", "remote_start"),
+                f"FC{fc:02d} cannot write {kind}",
+                Reason.CONFLICT,
+            )
+        if fc in (5, 6) and counted and quantity != 1:
+            check.refuse(
+                ("function_code", "quantity"),
+                f"FC{fc:02d} writes one element, not {quantity}",
+                Reason.CONFLICT,
+            )
+        if not bit and local is not None and not check.refused("function_code"):
+            fc06 = fc == 6
+            local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
+            check(
+                "source",
+                check_address,
+                local_banks,
+                label=f"{who} source (FC{fc:02d})",
+                bank_id=_BANK_ID,
+            )
+            if isinstance(remote, str):
+                remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
+                check(
+                    "remote_start",
+                    check_address,
+                    remote_banks,
+                    label=f"{who} remote_start (FC{fc:02d})",
+                    bank_id=_BANK_ID,
+                )
 
-    xy_room = None
-    if local.bank in _XY_BANKS and remote_addr is not None:
-        if remote_addr.bank in _XY_BANKS:
-            # Send: the higher of the two start numbers decides the room.
-            xy_room = _xy_click_room(max(local.number, remote_addr.number))
-        else:
-            # Remote C: the room left in C or in the local slot run.
-            c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
-            xy_room = min(c_room, _xy_click_room(local.number))
-    _check_quantity(who, quantity, local, _SEND_CAPS, bit, xy_room)
-    if local.bank == "C" and remote_addr is not None:
-        _check_c_remote_room(who, quantity, remote_addr)
+    if bit is not None and local is not None and counted:
+        xy_room = None
+        if local.bank in _XY_BANKS and remote_addr is not None:
+            if remote_addr.bank in _XY_BANKS:
+                # Send: the higher of the two start numbers decides the room.
+                xy_room = _xy_click_room(max(local.number, remote_addr.number))
+            else:
+                # Remote C: the room left in C or in the local slot run.
+                c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+                xy_room = min(c_room, _xy_click_room(local.number))
+        _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
+        if local.bank == "C" and remote_addr is not None:
+            _check_c_remote_room(check, quantity, remote_addr)
+    elif counted:
+        _check_quantity_bounds(check, quantity, _SEND_CAPS, bit)
 
-    if isinstance(remote, ModbusAddress) and remote.is_hex and local.bank in _SEND_HEX_FFFD:
+    if (
+        isinstance(remote, ModbusAddress)
+        and remote.is_hex
+        and local is not None
+        and local.bank in _SEND_HEX_FFFD
+    ):
         start = int(remote.address[:-1], 16)
-        if start > 0xFFFD:  # OBJ-010
-            raise FieldError(
-                f"{who} remote_start: {remote.address!r} is outside 0h-FFFDh for a "
-                f"{local.bank} source",
-                field=f"{who}.remote_start",
+        if start > 0xFFFD:
+            check.refuse(
+                ("remote_start", "source"),
+                f"{remote.address!r} is outside 0h-FFFDh for a {local.bank} source",
+                Reason.CONFLICT,
+                _RANGE_ID,
             )
-        room = min(_SEND_CAPS[2], 0xFFFE - start)
-        if local.bank == "DD" and quantity > room:
-            raise FieldError(
-                f"{who} quantity: {quantity} from hex {remote.address!r} is outside 1-{room}",
-                field=f"{who}.quantity",
-            )
+        else:
+            room = min(_SEND_CAPS[2], 0xFFFE - start)
+            if local.bank == "DD" and counted and quantity > room:
+                check.refuse(
+                    "quantity",
+                    f"{quantity} from hex {remote.address!r} is outside 1-{room}",
+                    Reason.RANGE,
+                    _RANGE_ID,
+                )
 
     # Send: one C bit can't serve two status fields (OBJ-014).
-    _check_status_bits(who, send, ("sending", "success", "error"))
-    _check_status(who, "exception_response", send.exception_response, _EXCEPTION_BANKS)
+    _check_status_bits(check, send, ("sending", "success", "error"), "OBJ-014")
+    _check_status(check, send, "exception_response", _EXCEPTION_BANKS)
+    if fc is None or default_fc is None:
+        return None
     return fc, default_fc
 
 
-def _receive_default_fc(remote: str | ModbusAddress, bit: bool) -> int:
+def _is_flag(value: object) -> bool:
+    """Whether ``value`` is True, False, 1 or 0."""
+    return isinstance(value, int) and value in (0, 1)
+
+
+def _receive_default_fc(remote: str | ModbusAddress, bit: bool, kind_984: str | None) -> int:
     """FC01 or FC03 for a CLICK address; a hex or 984 address names its own code."""
     if isinstance(remote, str):
         return 1 if bit else 3
     if remote.is_hex:
         return _RD_REGISTER_TYPE_FC[remote.register_type or "holding"]
-    return _RD_REGISTER_TYPE_FC[_check_984("Receive", remote.address, _RECEIVE_984_KINDS)]
+    return _RD_REGISTER_TYPE_FC[kind_984 or "holding"]
 
 
 def _validate_receive(receive: Receive) -> tuple[int, int]:
     """Check every field; return the function code the Receive is written with, and the default."""
+    with Refusals(receive) as check:
+        found = _check_receive(receive, check)
+    assert found is not None  # a refusal ended the block
+    return found
+
+
+def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
+    """Check every field, keeping each refusal; a field that depends on a refused one is not
+    checked.  Return the function code the Receive is written with, and the default; None
+    when a refusal means neither is known."""
     who = "Receive"
-    _check_slave_id(who, receive.target, 1)
-    _check_function_code(who, receive.function_code, tuple(_RD_FC_SUBTYPE))
+    _check_slave_id(check, receive.target, 1)
+    _check_function_code(check, receive.function_code, tuple(_RD_FC_SUBTYPE))
     remote, quantity = receive.remote_start, receive.quantity
-    _check_int_quantity(who, quantity)
+    _check_int_quantity(check, quantity)
+    counted = not check.refused("quantity")
     remote_addr: Address | None = None
+    kind_984: str | None = None
+    bit: bool | None = None  # None: the remote_start is refused, so its kind is not known
     if isinstance(remote, str):
-        remote_addr = check_address(
-            remote,
-            f"{who}.remote_start",
+        remote_addr = check(
+            "remote_start",
+            check_address,
             BIT_BANKS | _RECEIVE_REMOTE_REGS,
             label=f"{who} remote_start",
+            bank_id=_BANK_ID,
         )
-        bit = remote_addr.bank in BIT_BANKS
+        if remote_addr is not None:
+            bit = remote_addr.bank in BIT_BANKS
     elif remote.is_hex:
         bit = (remote.register_type or "holding") in ("coil", "discrete_input")
     else:
-        bit = _check_984(who, remote.address, _RECEIVE_984_KINDS) in ("coil", "discrete_input")
-    default_fc = _receive_default_fc(remote, bit)
-    fc = receive.function_code or default_fc
-    if remote_addr is not None:
-        # Receive: a CLICK address is read with whichever code is picked.
-        if fc not in ((1, 2) if bit else (3, 4)):
-            kind = "a bit" if bit else "a register"
-            raise FieldError(
-                f"{who} function_code: FC{fc:02d} cannot read {kind}",
-                field=f"{who}.function_code",
+        kind_984 = _check_984(check, remote.address, _RECEIVE_984_KINDS)
+        if kind_984 is not None:
+            bit = kind_984 in ("coil", "discrete_input")
+    default_fc = None if bit is None else _receive_default_fc(remote, bit, kind_984)
+    fc = None
+    if not check.refused("function_code"):
+        fc = receive.function_code or default_fc
+    if fc is not None:
+        if remote_addr is not None:
+            # Receive: a CLICK address is read with whichever code is picked.
+            if bit is not None and fc not in ((1, 2) if bit else (3, 4)):
+                kind = "a bit" if bit else "a register"
+                check.refuse(
+                    ("function_code", "remote_start"),
+                    f"FC{fc:02d} cannot read {kind}",
+                    Reason.CONFLICT,
+                )
+        elif default_fc is not None and fc != default_fc and not isinstance(remote, str):
+            check.refuse(
+                ("function_code", "remote_start"),
+                f"FC{fc:02d} does not match remote_start "
+                f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}",
+                Reason.CONFLICT,
             )
-    elif fc != default_fc:
-        raise FieldError(
-            f"{who} function_code: FC{fc:02d} does not match remote_start "
-            f"{_remote_start_to_csv(remote)}, which is FC{default_fc:02d}",
-            field=f"{who}.function_code",
-        )
 
-    local = check_address(
-        receive.dest,
-        f"{who}.dest",
-        _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS,
-        label=f"{who} dest",
-    )
+    if bit is None:
+        dest_banks = _RECEIVE_LOCAL_BITS | _RECEIVE_LOCAL_REGS
+    else:
+        dest_banks = _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS
+    local = check("dest", check_address, dest_banks, label=f"{who} dest", bank_id=_BANK_ID)
     hex_pair = False
-    if isinstance(remote, str) and remote_addr is not None and not bit:
-        label = f"{who} remote_start (for a {local.bank} dest)"
-        check_address(
-            remote, f"{who}.remote_start", _RECEIVE_REMOTE_FOR_DEST[local.bank], label=label
+    if remote_addr is not None and bit is False and local is not None:
+        check(
+            "remote_start",
+            check_address,
+            _RECEIVE_REMOTE_FOR_DEST[local.bank],
+            label=f"{who} remote_start (for a {local.bank} dest)",
+            bank_id=_BANK_ID,
         )
         hex_pair = remote_addr.bank in ("XD", "YD")
-    xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
-    _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit, xy_room)
-    if local.bank == "C" and remote_addr is not None:
-        _check_c_remote_room(who, quantity, remote_addr)
-    if (local.bank == "YD" or hex_pair) and quantity != 1:
-        # Receive: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
-        raise FieldError(
-            f"{who} quantity: {quantity} is outside 1-1 for this dest and remote",
-            field=f"{who}.quantity",
-        )
-    if local.bank == "TXT" and (quantity < 2 or quantity % 2):
-        # Receive: text arrives two characters per register.
-        raise FieldError(
-            f"{who} quantity: {quantity} TXT characters must be an even count of 2+",
-            field=f"{who}.quantity",
-        )
+    if bit is not None and local is not None and counted:
+        xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
+        _check_quantity(check, quantity, local, _RECEIVE_CAPS, bit, xy_room)
+        if local.bank == "C" and remote_addr is not None:
+            _check_c_remote_room(check, quantity, remote_addr)
+        if (local.bank == "YD" or hex_pair) and quantity != 1:
+            # Receive: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
+            check.refuse(
+                "quantity",
+                f"{quantity} is outside 1-1 for this dest and remote",
+                Reason.RANGE,
+                _RANGE_ID,
+            )
+        if local.bank == "TXT" and (quantity < 2 or quantity % 2):
+            # Receive: text arrives two characters per register.
+            check.refuse(
+                "quantity",
+                f"{quantity} TXT characters must be an even count of 2+",
+                Reason.RANGE,
+            )
+    elif counted:
+        _check_quantity_bounds(check, quantity, _RECEIVE_CAPS, bit)
 
-    if receive.word_swap:
-        # Receive: CLICK forces Word Swap off here.
+    # Receive: CLICK forces Word Swap off here.  A value that is no flag is refused as one.
+    if receive.word_swap and bit is not None:
         if bit:
-            reason = "bits"
+            why, partner = "bits", "remote_start"
+        elif local is None:
+            why, partner = "", ""
         elif local.bank in ("YD", "TXT") or hex_pair:
-            reason = f"a {local.bank} dest"
+            why, partner = f"a {local.bank} dest", "dest"
         elif local.bank in ("DD", "DF") and remote_addr is not None:
-            reason = f"a {local.bank} dest read from a CLICK address"
-        elif local.bank in ("DS", "DH") and quantity == 1:
+            why, partner = f"a {local.bank} dest read from a CLICK address", "dest"
+        elif local.bank in ("DS", "DH") and counted and quantity == 1:
             # Receive: a DS or DH dest enables Word Swap above one element.
-            reason = f"one {local.bank} element"
+            why, partner = f"one {local.bank} element", "quantity"
         else:
-            reason = ""
-        if reason:
-            raise FieldError(
-                f"{who} word_swap: CLICK turns Word Swap off for {reason}",
-                field=f"{who}.word_swap",
+            why, partner = "", ""
+        if why and not _is_flag(receive.word_swap):
+            check.flag("word_swap")
+        elif why:
+            check.refuse(
+                ("word_swap", partner), f"CLICK turns Word Swap off for {why}", Reason.CONFLICT
             )
 
     # Receive: one C bit can't serve two status fields.
-    _check_status_bits(who, receive, ("receiving", "success", "error"))
-    _check_status(who, "exception_response", receive.exception_response, _EXCEPTION_BANKS)
+    _check_status_bits(check, receive, ("receiving", "success", "error"))
+    _check_status(check, receive, "exception_response", _EXCEPTION_BANKS)
+    if fc is None or default_fc is None:
+        return None
     return fc, default_fc
 
 
@@ -905,10 +1045,15 @@ class Receive(AfInstruction):
     function_code: int | None = None
 
     def __post_init__(self) -> None:
-        _normalize_operands(self, ("dest", "receiving", "success", "error", "exception_response"))
-        fc, default_fc = _validate_receive(self)
+        with Refusals(self) as check:
+            _normalize_operands(
+                check, self, ("dest", "receiving", "success", "error", "exception_response")
+            )
+            found = _check_receive(self, check)
+            check.flag("word_swap")
+        assert found is not None  # a refusal ended the block
+        fc, default_fc = found
         self.function_code = None if fc == default_fc else fc
-        self.word_swap = check_flag(self.word_swap, "Receive.word_swap")
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -1004,10 +1149,15 @@ class Send(AfInstruction):
     function_code: int | None = None
 
     def __post_init__(self) -> None:
-        _normalize_operands(self, ("source", "sending", "success", "error", "exception_response"))
-        fc, default_fc = _validate_send(self)
+        with Refusals(self) as check:
+            _normalize_operands(
+                check, self, ("source", "sending", "success", "error", "exception_response")
+            )
+            found = _check_send(self, check)
+            check.flag("word_swap")
+        assert found is not None  # a refusal ended the block
+        fc, default_fc = found
         self.function_code = None if fc == default_fc else fc
-        self.word_swap = check_flag(self.word_swap, "Send.word_swap")
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -1284,7 +1434,11 @@ def _strip_quotes(s: str) -> str:
 def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     m = _CONSTRUCTOR_RE.fullmatch(raw.strip())
     if not m:
-        raise ValueError(f"Cannot parse target: {raw!r}")
+        raise FieldError(
+            f"Cannot parse target: {raw!r}",
+            field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
+        )
     cls_name = m.group(1)
     kw = _parse_constructor_kwargs(m.group(2))
 
@@ -1302,13 +1456,18 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         raw_port = kw.get("port", "502")
         if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
             raise FieldError(
-                f"ModbusTcpTarget port must be an integer, got {raw_port!r}",
+                f"ModbusTcpTarget.port: must be an integer, got {raw_port!r}",
                 field="ModbusTcpTarget.port",
+                reason=Reason.FORM,
             )
         port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
-    raise ValueError(f"Unknown target type: {cls_name!r}")
+    raise FieldError(
+        f"Unknown target type: {cls_name!r}",
+        field=None,  # token syntax, not a field value
+        reason=Reason.FORM,
+    )
 
 
 def _parse_remote_start(raw: str) -> str | ModbusAddress:
@@ -1340,17 +1499,21 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
         m_end = _ADDR_NUM_RE.fullmatch(end)
         if not (m_start and m_end):
             raise FieldError(
-                f"range {raw!r} must run between two addresses of one bank", field=field
+                f"range {raw!r} must run between two addresses of one bank",
+                field=field,
+                reason=Reason.FORM,
             )
         prefix = m_start.group(1)
         if m_end.group(1) != prefix:
             raise FieldError(
-                f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}", field=field
+                f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}",
+                field=field,
+                reason=Reason.FORM,
             )
         check_address(end, field, {prefix}, label=f"range end of {raw!r}")
         first, last = int(m_start.group(2)), int(m_end.group(2))
         if last < first:
-            raise FieldError(f"range {raw!r} runs backwards", field=field)
+            raise FieldError(f"range {raw!r} runs backwards", field=field, reason=Reason.FORM)
         qty = _xy_points(first, last) if prefix in _XY_BANKS else last - first + 1
         return start, qty
     return raw.strip(), 1
@@ -1362,7 +1525,9 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
         return None
     if not raw.isascii() or not raw.isdigit():
         raise FieldError(
-            f"function_code must be a number, got {raw!r}", field=f"{cls}.function_code"
+            f"function_code must be a number, got {raw!r}",
+            field=f"{cls}.function_code",
+            reason=Reason.FORM,
         )
     return int(raw)
 
@@ -1414,7 +1579,11 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             function_code=function_code,
         )
 
-    raise ValueError(f"Unsupported send_receive instruction: {call.name!r}")
+    raise FieldError(
+        f"Unsupported send_receive instruction: {call.name!r}",
+        field=None,  # token syntax, not a field value
+        reason=Reason.FORM,
+    )
 
 
 # ---------------------------------------------------------------------------

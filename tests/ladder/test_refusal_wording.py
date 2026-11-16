@@ -66,7 +66,7 @@ def test_modbus_hex_address_allows_padding() -> None:
         ("+1h", "'+1h' is refused; a hex constant has no sign"),
         (
             "100000000h",
-            "'100000000h' is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)",
+            "'100000000h' is above FFFEh; a hex constant here is 0h to FFFEh",
         ),
     ],
 )

@@ -36,7 +36,8 @@ from ..binary_helpers import (
     _utf16le_null,
     _variant_tagged_field,
 )
-from ..model import AfInstruction, FieldError
+from ..model import AfInstruction, FieldError, Reason
+from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec, cell_rows_spec
 
 if TYPE_CHECKING:
@@ -266,13 +267,25 @@ _FIELD_SPEC_RE = re.compile(
 )
 
 
+def _token_error(message: str) -> FieldError:
+    """A raw token that does not follow the token syntax: no field, the reason form."""
+    return FieldError(message, field=None, reason=Reason.FORM)
+
+
+def _fromhex(text: str) -> bytes:
+    try:
+        return bytes.fromhex(text)
+    except ValueError:
+        raise _token_error(f"{text!r} is not hex bytes") from None
+
+
 def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
     """Parse field-spec strings back to ``(tag, sentinel, value)`` tuples."""
     fields: list[tuple[int, bytes, str]] = []
     for spec in specs:
         m = _FIELD_SPEC_RE.fullmatch(spec)
         if not m:
-            raise ValueError(f"Invalid field spec: {spec!r}")
+            raise _token_error(f"Invalid field spec: {spec!r}")
         tag = int(m.group(1), 16)
         array_count = int(m.group(2)) if m.group(2) else None
         sentinel_hex = m.group(3)
@@ -284,7 +297,7 @@ def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
                 fields.append((tag, struct.pack("<I", idx), value))
         elif sentinel_hex is not None:
             # Explicit variant sentinel.
-            fields.append((tag, bytes.fromhex(sentinel_hex), value))
+            fields.append((tag, _fromhex(sentinel_hex), value))
         else:
             # Standard sentinel.
             fields.append((tag, _STANDARD_SENTINEL, value))
@@ -374,29 +387,33 @@ class RawInstruction(AfInstruction):
 
     def __post_init__(self) -> None:
         # A decoded blob gives any class name and a 16-bit part count; check only the types.
-        if not isinstance(self.class_name, str):
-            raise FieldError(
-                f"RawInstruction.class_name: {self.class_name!r} is not text",
-                field="RawInstruction.class_name",
-            )
-        if not isinstance(self.blob, bytes):
-            raise FieldError(
-                f"RawInstruction.blob: {type(self.blob).__name__} is not bytes",
-                field="RawInstruction.blob",
-            )
-        if type(self.part_count) is not int or not 0 <= self.part_count <= 0xFFFF:
-            raise FieldError(
-                f"RawInstruction.part_count: {self.part_count!r} is not a whole number "
-                "from 0 to 65535",
-                field="RawInstruction.part_count",
-            )
-        for name in ("visual_rows", "sub_rows"):
-            rows = getattr(self, name)
-            if rows is not None and (type(rows) is not int or not 1 <= rows <= 0xFF):
-                raise FieldError(
-                    f"RawInstruction.{name}: {rows!r} is not a whole number from 1 to 255",
-                    field=f"RawInstruction.{name}",
+        with Refusals(self) as check:
+            if not isinstance(self.class_name, str):
+                check.refuse("class_name", f"{self.class_name!r} is not text", Reason.FORM)
+            if not isinstance(self.blob, bytes):
+                check.refuse("blob", f"{type(self.blob).__name__} is not bytes", Reason.FORM)
+            part_count = self.part_count
+            if type(part_count) is not int:
+                check.refuse(
+                    "part_count",
+                    f"{part_count!r} is not a whole number from 0 to 65535",
+                    Reason.FORM,
                 )
+            elif not 0 <= part_count <= 0xFFFF:
+                check.refuse(
+                    "part_count",
+                    f"{part_count!r} is not a whole number from 0 to 65535",
+                    Reason.RANGE,
+                )
+            for name in ("visual_rows", "sub_rows"):
+                rows = getattr(self, name)
+                if rows is None:
+                    continue
+                rule = f"{rows!r} is not a whole number from 1 to 255"
+                if type(rows) is not int:
+                    check.refuse(name, rule, Reason.FORM)
+                elif not 1 <= rows <= 0xFF:
+                    check.refuse(name, rule, Reason.RANGE)
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
@@ -508,10 +525,12 @@ class RawInstruction(AfInstruction):
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise ValueError(f"Not a raw token: {token!r}")
+            raise _token_error(f"Not a raw token: {token!r}")
         inner = token[4:-1]
 
         # Split on first comma to get class name.
+        if "," not in inner:
+            raise _token_error(f"raw({inner}): a raw token is raw(ClassName,...)")
         first_comma = inner.index(",")
         class_name = inner[:first_comma].strip()
         rest = inner[first_comma + 1 :].strip()
@@ -528,14 +547,16 @@ class RawInstruction(AfInstruction):
                 f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
                 "holds the part bytes",
                 field=None,  # token syntax, not a field value
+                reason=Reason.FORM,
             )
         if extra:
             raise FieldError(
                 f"raw({class_name},hex,...): only rows= and sub= may follow the hex, "
                 f"not {extra[0]!r}",
                 field=None,  # token syntax, not a field value
+                reason=Reason.FORM,
             )
-        blob = bytes.fromhex(hex_blob)
+        blob = _fromhex(hex_blob)
         try:
             _, _, part_count = find_blob_boundary(blob)
         except (ValueError, IndexError):
@@ -551,11 +572,17 @@ class RawInstruction(AfInstruction):
             or not re.fullmatch(r"(?:0[xX])?[0-9A-Fa-f]+", parts[0])
             or not re.fullmatch(r"[0-9]+", parts[1])
         ):
-            raise ValueError(
+            raise _token_error(
                 f"raw({class_name},...): type marker is 0xTTTT and part count is digits"
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
+        if part_count > 0xFFFF:
+            raise FieldError(
+                f"raw({class_name},...): part count {part_count} is not a whole number from 0 to 65535",
+                field=None,  # token syntax, not a field value
+                reason=Reason.RANGE,
+            )
         visual_rows, sub_rows, pins, field_specs = _take_box_rows(
             class_name, parts[2:], raw_token=True
         )
@@ -566,6 +593,7 @@ class RawInstruction(AfInstruction):
                 f"raw({class_name},...): rows={visual_rows} does not fit {stated}; the box "
                 f"ends one row below its last pin (rows={extra_bytes[-1] + 1})",
                 field="RawInstruction.visual_rows",
+                reason=Reason.FORM,  # the token's rows= and pins= disagree
             )
 
         fields = _parse_field_specs(field_specs)
@@ -584,6 +612,7 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
         raise FieldError(
             f"raw({class_name},...): pins= is only for a box of 2 or more parts",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     return rows, sub, rest
 
@@ -608,7 +637,8 @@ def _take_box_rows(
     for key in values:
         if i < len(parts) and parts[i].startswith(f"{key}="):
             text = parts[i][len(key) + 1 :]
-            if not (text.isascii() and text.isdigit() and 1 <= int(text) <= limits[key]):
+            digits = text.isascii() and text.isdigit()
+            if not (digits and 1 <= int(text) <= limits[key]):
                 raise FieldError(
                     f"raw({class_name},...): {key}={text!r} is not a whole number "
                     f"from 1 to {limits[key]}",
@@ -621,6 +651,8 @@ def _take_box_rows(
                         if raw_token
                         else None
                     ),
+                    # A refused number of a field is a range; any other text is no number.
+                    reason=Reason.RANGE if raw_token and digits else Reason.FORM,
                 )
             values[key] = int(text)
             i += 1
@@ -634,6 +666,7 @@ def _take_box_rows(
                 f"raw({class_name},...): {part!r} goes right after the part count, "
                 "rows= then sub= then pins=, once each",
                 field=None,  # token syntax, not a field value
+                reason=Reason.FORM,
             )
     return values["rows"], values["sub"], pins, parts[i:]
 
@@ -646,12 +679,19 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
     """
     want = max(0, part_count - 1)
     if text is None:
+        if want > 0xFF:  # a part byte is one byte
+            raise FieldError(
+                f"raw({class_name},...): {part_count} parts need pins=, each row 1 to 31",
+                field=None,  # token syntax, not a field value
+                reason=Reason.RANGE,
+            )
         return bytes(range(1, want + 1))
     if want == 0:
         raise FieldError(
             f"raw({class_name},...): pins={text} is only for a box of 2 or more parts, "
             f"not {part_count}",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     values = text.split("/")
     if len(values) != want:
@@ -659,18 +699,21 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
             f"raw({class_name},...): pins={text} must hold {want} rows, one per part "
             f"after the first, joined by /",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     if not all(v.isascii() and v.isdigit() and 1 <= int(v) <= 31 for v in values):
         raise FieldError(
             f"raw({class_name},...): pins={text} holds a row that is not a whole number "
             "from 1 to 31",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     rows = [int(v) for v in values]
     if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
         raise FieldError(
             f"raw({class_name},...): pins={text} must ascend",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     return bytes(rows)
 
@@ -706,6 +749,7 @@ def _take_fixed_cell_rows(class_name: str, parts: list[str], params: dict[str, i
             f"raw({class_name},...): rows={got[0]},sub={got[1]} is not the {class_name} "
             f"box's height (rows={want[0]},sub={want[1]})",
             field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
         )
     return rest
 
