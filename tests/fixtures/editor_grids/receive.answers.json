@@ -1,0 +1,724 @@
+{
+ "grid": "receive_cases.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "rx2"
+ ],
+ "cases": [
+  {
+   "row": "B7",
+   "case": "01 -> X001",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "X001",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.65,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "X001",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> Y001",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "Y001",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.862,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "Y001",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> C1",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "C1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.291,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "C1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> T1",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "T1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.651,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "T1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> CT1",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "CT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.648,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "CT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> SC1",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "SC1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.649,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "SC1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "01 -> DS1",
+   "instruction": "receive",
+   "choices": {
+    "function": "01 - Read Coil Status"
+   },
+   "fields": {
+    "slave_address": "1",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.651,
+   "read_back": {
+    "slave_address": "1",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DS1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.473,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TD1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.673,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "TD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> SD1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "SD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.652,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "SD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DD1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.436,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "DD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DH1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DH1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.443,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "DH1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DF1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DF1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.575,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "DF1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TXT1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.352,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> XD0",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "XD0",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.661,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "XD0",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> YD0",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "YD0",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.43,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "YD0",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> CTD1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "CTD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.665,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "CTD1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> C1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "C1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.656,
+   "read_back": {
+    "slave_address": "400001",
+    "master_address": "C1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_address": 30000,
+    "master_address": 30000,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  }
+ ]
+}

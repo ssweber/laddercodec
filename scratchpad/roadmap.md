@@ -79,6 +79,9 @@ unknown condition today. Before any rule is tightened, `decode` builds the objec
 attaches a finding; otherwise every tightened rule turns instructions in real projects into raw. `read_csv`
 takes an opt-in flag for the writer's self-check. Construction, plain `read_csv` and `encode()` stay strict.
 
+CLICK saves a single Copy's destination and a Pack's destination with an edge space kept (`DS1 `, ` DS1`);
+decode reads that save as raw today, and must read it.
+
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 
 The runner tries whole grids, not samples: every bank and constant kind in each dialog field. Its answers are
@@ -91,16 +94,23 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   (single, block, pack, unpack) and Out today, about 4 seconds a case, so those grids run first. click is
   adding a run that resumes and more dialogs, Receive first.
 - **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
-  with laddercodec's verdict beside each case. Waiting on: click's run, then its answers committed as
-  `<grid>.answers.json` and a test comparing them with the verdicts. Next grids, once the runner drives their
-  dialogs: Receive, Compare, Search, Fill, timers, counters, For.
-- **A writable-SD list,** taken once from CLICK, not copied from pyrung or pyclickplc. The SC/SD sweep grids
-  (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) won't run as cases (Sam, 2026-11-16): the runner
-  reads the SC and SD addresses each output field's Address Picker lists, into `sc_sd_writable.json` per
-  instruction, field and bank, checked against the answers in hand. Commit it as test data, compare it with
-  those grids' verdicts, then decide whether the sweep grids stay. The sampled rows: the editor refuses a
-  single Copy into SD1, a Math result into SD1, and a Block Copy into SD1 or into SD29..SD30 (every address in
-  the destination range must be writable); it accepts SD29 and SD31..SD32.
+  with laddercodec's verdict beside each case. CLICK answered `preflight` and `risky` (159 cases), Receive
+  (18) and the picker checks (28); `tests/test_editor_answers.py` compares them and lists each difference.
+  Left: the grids' other rows (Math, Copy, Out files), then Receive, Compare, Search, Fill, timers, counters
+  and For. What the answers showed:
+  - Hex Math `DH1 + 0`, `DH1 = 0` and `RAND(5,Ah)` are accepted, laddercodec refuses on purpose (item 4).
+  - Hex Math `SUM(X001:X002)` and a DS in a hex formula (`DS1 + 1h`) are refused (OBJ-1002), laddercodec
+    accepts: tighten.
+  - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
+    Pack destination and an Unpack source, laddercodec refuses: decide the rule here (the saves trim it except
+    a single Copy's and a Pack's destination; see item 2).
+  - Unpack of a DS into DS is refused with OBJ-004, laddercodec says OBJ-024: align the id.
+  - Receive accepts TXT as the master address under function code 03, laddercodec refuses: loosen.
+- **The writable-SD list has arrived:** `sc_sd_writable.answers.json` (29 SD for a single Copy, a Block Copy
+  and a decimal Math result, none for Out; 25 SC for Out, none elsewhere), and the 28 picker checks agree
+  with it. laddercodec's `WRITABLE_SC` is the same 25; its rules accept all 1,000 SD in each of the three
+  fields, so each tightens to the list (a Block Copy needs every address of its destination range listed).
+  Then decide whether the sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) stay.
 - **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
   Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
   TXT.

@@ -1,0 +1,720 @@
+{
+ "grid": "pickcheck_cases.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "pc1"
+ ],
+ "cases": [
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD42",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD42"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.087,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD42"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD215",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD215"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.953,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD215"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD107",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD107"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.884,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD107"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD43",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD43"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD43"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD105",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD105"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.432,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD105"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD216",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD216"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD216"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SD",
+   "case": "single DS1 -> SD1000",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "SD1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "source": "DS1",
+    "destination": "SD1000"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD146",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD146"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.26,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD146"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD214",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD214"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.02,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD214"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD106",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD106"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.02,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD106"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD42",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD42"
+   },
+   "outcome": "refused",
+   "code": "OBJ-018",
+   "message": "Between the two addresses, there are Read Only addresses.",
+   "syntax_check": null,
+   "seconds": 0.49,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD42"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD147",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD147"
+   },
+   "outcome": "refused",
+   "code": "OBJ-018",
+   "message": "Between the two addresses, there are Read Only addresses.",
+   "syntax_check": null,
+   "seconds": 0.478,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD147"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SD",
+   "case": "block DS1..DS2 -> SD215",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD215"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.632,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "SD215"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.math.decimal.SD",
+   "case": "dec SD147 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "SD147",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.633,
+   "read_back": {
+    "result": "SD147",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "pick.math.decimal.SD",
+   "case": "dec SD61 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "SD61",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.064,
+   "read_back": {
+    "result": "SD61",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "pick.math.decimal.SD",
+   "case": "dec SD148 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "SD148",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.435,
+   "read_back": {
+    "result": "SD148",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "pick.math.decimal.SD",
+   "case": "dec SD62 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "SD62",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "SD62",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "pick.math.decimal.SD",
+   "case": "dec SD999 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "SD999",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "SD999",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC75",
+   "instruction": "out",
+   "fields": {
+    "address": "SC75"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.079,
+   "read_back": {
+    "address": "SC75"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC121",
+   "instruction": "out",
+   "fields": {
+    "address": "SC121"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.094,
+   "read_back": {
+    "address": "SC121"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC305",
+   "instruction": "out",
+   "fields": {
+    "address": "SC305"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.375,
+   "read_back": {
+    "address": "SC305"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC77",
+   "instruction": "out",
+   "fields": {
+    "address": "SC77"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "address": "SC77"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC122",
+   "instruction": "out",
+   "fields": {
+    "address": "SC122"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "address": "SC122"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.out.SC",
+   "case": "out SC307",
+   "instruction": "out",
+   "fields": {
+    "address": "SC307"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "address": "SC307"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SC",
+   "case": "single C1 -> SC50",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "C1",
+    "destination": "SC50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "source": "C1",
+    "destination": "SC50"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SC",
+   "case": "block C1..C2 -> SC50",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "C1",
+    "source_end": "C2",
+    "destination": "SC50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.448,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C2",
+    "destination": "SC50"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.single.SC",
+   "case": "single C1 -> SC303",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "C1",
+    "destination": "SC303"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "source": "C1",
+    "destination": "SC303"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "pick.copy.block.SC",
+   "case": "block C1..C2 -> SC303",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "C1",
+    "source_end": "C2",
+    "destination": "SC303"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.449,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C2",
+    "destination": "SC303"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  }
+ ]
+}
