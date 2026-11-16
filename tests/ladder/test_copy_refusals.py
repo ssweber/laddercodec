@@ -21,6 +21,11 @@ def _errors(build: Any) -> tuple[FieldError, ...]:
     return caught.value.errors
 
 
+#: A Block Copy into SD refused for an address after its start: the destination with the
+#: source, whose length sets the end.
+_SD_RANGE = ("BlockCopy.dest_start", "BlockCopy.source_start", "BlockCopy.source_end")
+
+
 def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None, str | None]]:
     return [(e.field, e.reason, e.click_id) for e in errors]
 
@@ -229,10 +234,17 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
             ("Unpack.dest_end", "Unpack.dest_start"),
             "OBJ-019",
         ),
+        # An Unpack's destination refuses a bank its source can't unpack to as a bank
+        # (OBJ-004), where the other pairings are OBJ-024.
         (
             lambda: Unpack("DS5", "Y1", "Y16", unpack_type="bits"),
             ("Unpack.dest_start", "Unpack.source"),
-            "OBJ-024",
+            "OBJ-004",
+        ),
+        (
+            lambda: Unpack("DS1", "DS1", "DS2", unpack_type="words"),
+            ("Unpack.dest_start", "Unpack.source"),
+            "OBJ-004",
         ),
     ],
 )
@@ -274,6 +286,54 @@ def test_blockcopy_ends_are_not_computed_from_a_refused_range() -> None:
     assert _shape(_errors(lambda: BlockCopy("DS4", "DS1", "DS10", "DS99"))) == [
         ("BlockCopy.source_end", "conflict", "OBJ-009")
     ]
+
+
+# ---------------------------------------------------------------------------
+# The writable SD registers: a single Copy's and a Block Copy's destination
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("address", ["SD1", "SD28", "SD30", "SD43", "SD105", "SD216", "SD1000"])
+def test_copy_into_an_sd_that_is_not_writable_is_obj_004(address: str) -> None:
+    assert _shape(_errors(lambda: Copy("DS1", address))) == [
+        ("Copy.destination", "not_writable", "OBJ-004")
+    ]
+
+
+@pytest.mark.parametrize("address", ["SD29", "SD42", "SD107", "SD140", "SD147", "SD215"])
+def test_copy_into_a_writable_sd(address: str) -> None:
+    assert Copy("DS1", address).destination == address
+    assert Copy("5", address).destination == address
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "dest", "dest_end", "fields", "click_id"),
+    [
+        # the start is not writable: no id
+        ("DS1", "DS2", "SD43", "SD44", ("BlockCopy.dest_start",), None),
+        ("DS1", "DS2", "SD1", "SD2", ("BlockCopy.dest_start",), None),
+        # a read-only SD after a writable start (OBJ-018)
+        ("DS1", "DS2", "SD42", "SD43", _SD_RANGE, "OBJ-018"),
+        ("DS1", "DS2", "SD147", "SD148", _SD_RANGE, "OBJ-018"),
+        ("DS1", "DS9", "SD140", "SD148", _SD_RANGE, "OBJ-018"),
+        # past SD215, the last writable SD (OBJ-004)
+        ("DS1", "DS2", "SD215", "SD216", _SD_RANGE, "OBJ-004"),
+        ("DS1", "DS3", "SD214", "SD216", _SD_RANGE, "OBJ-004"),
+        # both: no id
+        ("DS1", "DS70", "SD147", "SD216", _SD_RANGE, None),
+    ],
+)
+def test_blockcopy_into_sd_needs_every_address_writable(
+    start: str, end: str, dest: str, dest_end: str, fields: tuple[str, ...], click_id: str | None
+) -> None:
+    (error,) = _errors(lambda: BlockCopy(start, end, dest, dest_end))
+    assert (error.fields, error.reason, error.click_id) == (fields, "not_writable", click_id)
+
+
+def test_blockcopy_into_writable_sd() -> None:
+    assert BlockCopy("DS1", "DS8", "SD140", "SD147").dest_end == "SD147"
+    assert BlockCopy("DS1", "DS2", "SD214", "SD215").dest_end == "SD215"
+    assert BlockCopy("DS1", "DS3", "SD34", "SD36").dest_end == "SD36"
 
 
 def test_fill_reasons() -> None:

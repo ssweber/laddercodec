@@ -242,7 +242,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("", "decimal", "missing", None),
         # Words.
         ("DS1 + ٣", "decimal", "form", None),
-        ("DS1 + 1Eh", "hex", "form", None),
+        ("DH1 + 1Eh", "hex", "form", None),
         ("DS1 + 1.5x", "decimal", "kind", "OBJ-1001"),
         ("DS1 + FOO", "decimal", "kind", "OBJ-1001"),
         ("DS1 + DS0", "decimal", "address", None),
