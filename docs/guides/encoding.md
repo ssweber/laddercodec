@@ -168,8 +168,9 @@ except FieldError as exc:
 
 A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
 address) when the instruction is built. `errors` holds every refusal of that
-instruction, the raised one first. `Timer` and `Coil` report every field they
-refuse; the other instructions report the first. Each refusal has:
+instruction, the raised one first. `Timer`, `Coil`, `Contact`, `CompareContact`, `OutVariant`, `Counter`, `Shift`,
+`Call`, `ForLoop`, `Drum`, `Search`, `Copy`, `BlockCopy`, `Fill`, `Pack` and `Unpack`
+report every field they refuse; the other instructions report the first. Each refusal has:
 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|
