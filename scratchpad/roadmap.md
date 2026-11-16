@@ -167,7 +167,8 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   id that can't be backed stays None. Open:
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
     than one character (OBJ-023?).
-  - Pack and Block Copy, a source range spanning two X/Y modules: OBJ-033 or OBJ-035, which is whose?
+  - Block Copy, a source range spanning two X/Y modules: CLICK's answer for Pack is OBJ-033 (set); no recorded
+    answer covers Block Copy's, so it stays None. What OBJ-035 is for is still unknown.
   - Receive, one C bit for two status fields (Send's is OBJ-014). A Modbus remote address in hex past FFFEh,
     refused while the address is read (a hex start past FFFDh in a Send has OBJ-010). Whether OBJ-010 is
     also CLICK's id for a Send or Receive that runs past C2000, and for the room left in a DD hex start.

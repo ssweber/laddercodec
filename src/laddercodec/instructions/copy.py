@@ -1345,7 +1345,7 @@ class Pack(AfInstruction):
                 )
             first, last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
-                _sources(_PACK_ROWS), one_module=True,
+                _sources(_PACK_ROWS), one_module=True, module_id="OBJ-033",
             )  # fmt: skip
             # A bank no source packs into is one the field can't use (OBJ-004: X001, SD29 and
             # SD31 after C1..C16); a bank another source packs into is a pairing (OBJ-024).

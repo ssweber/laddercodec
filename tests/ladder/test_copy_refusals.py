@@ -222,7 +222,7 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
         (
             lambda: Pack("X016", "X021", "DH1", pack_type="bits"),
             ("Pack.source_end", "Pack.source_start"),
-            None,
+            "OBJ-033",
         ),
         (
             lambda: Pack("X1", "X16", "DS1", pack_type="bits"),
