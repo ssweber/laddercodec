@@ -11,6 +11,7 @@ from laddercodec import AddressError, CsvLocation, FieldError, RefusedFieldWarni
 from laddercodec.csv.bundle import parse_bundle
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import ConvertError
+from laddercodec.operands.unchecked import refusals
 
 AF = 31
 DRUM = "event_drum(outputs=[C3],events=[C2],pattern=[[1]],current_step=DS1,completion_flag=C1)"
@@ -529,6 +530,23 @@ class TestHeldRefusals:
         [refusal] = _held_refusals(path)
         want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=1)
         assert CsvLocation.of(refusal) == want
+        with pytest.raises(FieldError) as raised:
+            read_csv(path)
+        assert CsvLocation.of(raised.value) == want
+
+    def test_a_contact_with_a_down_wire(self, tmp_path: Path) -> None:
+        """Layout copies the contact to mark its down wire; the copy keeps the location."""
+        rows: list[Row | list[str]] = [
+            ("R", {**_wired("X1"), 1: "T:DS2"}, "out(Y001)"),
+            ("", {0: "X2", 1: "X3"}, ""),
+        ]
+        path = _write(tmp_path / "main.csv", rows)
+        with pytest.warns(RefusedFieldWarning):
+            [rung] = read_csv(path, unchecked=True)
+        contact = rung.conditions[0][1]
+        assert getattr(contact, "wire_down", False)
+        want = CsvLocation(file=path, line=2, rung_line=2, row=0, column=1)
+        assert [CsvLocation.of(e) for e in refusals(contact)] == [want]
         with pytest.raises(FieldError) as raised:
             read_csv(path)
         assert CsvLocation.of(raised.value) == want

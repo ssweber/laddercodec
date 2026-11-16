@@ -73,13 +73,19 @@ checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
   int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
   range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
 - **The blanks a CSV token still reads as syntax:** a blank argument is now its field `missing` where it fills
-  one text field or a range. The family parsers check these before construction, so a blank is a syntax error
-  with no field, where Python says `missing`: a unit (`on_delay(...,unit=)`, the time drums), a Math `mode=`,
-  a time-event drum `accumulator=`, a drum list (`outputs=`, `presets=`, `events=`, `pattern=`) and a whole
-  Modbus `target=`. Reading them as `missing` means changing `timer.py`, `drum.py`, `math.py` and
-  `send_receive.py`. Two blanks read as before and differ by family: `oneshot=` is the default in Copy, Pack,
-  Unpack, Fill, Search and Math but a syntax error in `out` and `for` (as is `maintained=` in `timed`), and
-  `out(C1,)` accepts a trailing blank the coil parser drops.
+  one text field or a range (a range with a blank end, `..DS4`, too). The family parsers check these before
+  construction, so a blank is a syntax error with no field, where Python says `missing`: a Timer or time drum
+  `unit=` (an Out variant's reads as `missing`, an event drum's is accepted), a Math `mode=`, a time-event drum
+  `accumulator=`, a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a
+  search expression (`search(,result=DS1,found=C1)`). Reading them as `missing` means changing `timer.py`,
+  `drum.py`, `math.py`, `search.py` and `send_receive.py`.
+  - A token with blanks of two forms, a range and a single field (`pack_bits(,)`, `unpack_to_bits(,)`), stays a
+    syntax error: every blank in a token is tried in the same form.
+  - Condition tokens are not read for blanks: `rise()`, `DS1==` and `~` are syntax errors.
+  - `oneshot=` is the default in Copy, Pack, Unpack, Fill, Search and Math but a syntax error in `out` and
+    `for` (as is `maintained=` in `timed`).
+  - The coil parser drops a blank argument: `out(C1,)` is accepted, and `out(,oneshot=)` reads `oneshot=` as
+    the operand, an `address` refusal.
 
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 

@@ -478,10 +478,13 @@ A blank argument is its field left blank: `out()`, `on_delay(T1,TD1,preset=,unit
 and `blockcopy(,DS10..DS13)` are refused with a `FieldError` whose `reason` is
 `missing` and whose `field` is the blank one (`Coil.operand`, `Timer.setpoint`; both
 ends of a range), as building the instruction with that field blank is. A range
-argument `..` is blank too: `write_csv` writes a range with both ends blank so. A blank
-unit, mode, list or Modbus target is a syntax error, with no `field`, and so is a
-blank argument the token has no field for (`toggle(C1,on_acc=)`) and a token broken
-in another way.
+with a blank end is read so too: `..` where a range goes, and `..DS4` or `DS1..`,
+are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere `..`
+is the value written (`copy(..,DS1)` is refused as an address). These blanks are
+still syntax errors, with no `field`: a Timer or time drum `unit=`, a Math `mode=`,
+a time-event drum `accumulator=`, a drum list, a whole Modbus `target=`, a search
+expression, a blank flag in `out` or `for` (`oneshot=`), and a blank argument the
+token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way.
 
 Producer may emit:
 
