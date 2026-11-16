@@ -16,7 +16,7 @@ from laddercodec import AddressError, FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.comparison import CompareContact
-from laddercodec.instructions.copy import Copy, Fill, Pack, Unpack
+from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.search import Search
 
@@ -29,6 +29,9 @@ def _read_af(tmp_path: Path, af: str) -> object:
         w.writerow(["R", "C1"] + ["-"] * 30 + [af])
     return read_csv(path)[0].instructions[0]
 
+
+#: An integer outside int32, as a message pattern.
+INT_RULE = r"is outside -2147483648 to 2147483647 \(OBJ-005\)"
 
 _REFUSED = [
     # a bit copies to Y or C, a register to a register
@@ -45,7 +48,10 @@ _REFUSED = [
     ("copy(DS1,Q5)", "no CLICK bank 'Q'"),
     ("copy(DS1,DS)", "not a CLICK address"),
     # the pointer is a DS
-    ("copy(DS[DD1],DS2)", "Copy.source pointer: 'DD1' is not allowed"),
+    (
+        "copy(DS[DD1],DS2)",
+        "Copy.source pointer: 'DD1' is not allowed",
+    ),
     ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
     # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
     (
@@ -57,7 +63,10 @@ _REFUSED = [
     ("copy(T[DS1],C1)", r"Copy.source: 'T\[DS1\]' is not allowed"),
     ("copy(C1,Y[DS1])", r"Copy.destination: 'Y\[DS1\]' is not allowed"),
     ("copy(DS1,XD[DS2])", r"Copy.destination: 'XD\[DS2\]' is not allowed"),
-    ("copy(DD[DS1+2],DS1)", r"Copy.source pointer: 'DS1\+2' is not a CLICK address"),
+    (
+        "copy(DD[DS1+2],DS1)",
+        r"Copy.source pointer: 'DS1\+2' is not a CLICK address",
+    ),
     # converters
     ("copy(DS1,TXT1,convert=to_value)", "to_value copies TXT to a number"),
     ("copy(TXT1,TXT2,convert=to_ascii)", "to_ascii copies TXT to a number"),
@@ -108,8 +117,8 @@ _REFUSED = [
     ("unpack_to_words(DS1,C1..C16)", "'C1' is a bit; words needs a register bank"),
     # Single Copy constants: an integer is 32-bit (OBJ-005); hex above FFFFh goes to
     # the 32-bit integer registers only (OBJ-024)
-    ("copy(5000000000,DD1)", "Copy.source: '5000000000' is outside -2147483648..2147483647"),
-    ("copy(-2147483649,DD1)", "is outside -2147483648..2147483647"),
+    ("copy(5000000000,DD1)", "Copy.source: '5000000000' " + INT_RULE),
+    ("copy(-2147483649,DD1)", INT_RULE),
     ("copy(10000h,DH1)", "can't take '10000h'; a hex constant above FFFFh copies to DD, CTD"),
     ("copy(1FFFFh,DS1)", "a hex constant above FFFFh copies to DD, CTD"),
     ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
@@ -252,7 +261,7 @@ _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
-_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_INT32 = INT_RULE
 _FINITE = "a real constant is a finite number"
 
 _COPY_SOURCE_REFUSED = [
@@ -663,3 +672,63 @@ def test_pack_unpack_constructors_keep_to_one_slot(first: str, last: str) -> Non
     message = f"Unpack.dest_end: {y_first}..{y_last} spans two Y slots"
     with pytest.raises(FieldError, match=re.escape(message)):
         Unpack("DD1", y_first, y_last, unpack_type="bits")
+
+
+# ---------------------------------------------------------------------------
+# FieldError.field names the field that was refused
+# ---------------------------------------------------------------------------
+
+
+def _ascii_code_out_of_range() -> object:
+    from laddercodec.instructions.copy import _ascii_code
+
+    return _ascii_code(300)
+
+
+@pytest.mark.parametrize(
+    ("build", "field"),
+    [
+        (lambda: Copy("DS1", "DS2", format="bogus"), "Copy.format"),
+        (
+            lambda: Copy.from_csv_token("copy(DS1,TXT2,convert=to_binary(suppress_zero=1))"),
+            "Copy.format",
+        ),
+        (lambda: Copy("DS1", "TXT2", format="text", exponential="1"), "Copy.exponential"),
+        (_ascii_code_out_of_range, "Copy.termination_code"),
+        (lambda: BlockCopy("DS1", "DS2", "DS3", "DS4", format="bogus"), "BlockCopy.format"),
+        (lambda: Pack("C1", "C16", "DS1", pack_type="bogus"), "Pack.pack_type"),
+        (lambda: Unpack("DS1", "C1", "C16", unpack_type="bogus"), "Unpack.unpack_type"),
+    ],
+)
+def test_field_names_the_refused_field(build, field: str) -> None:
+    with pytest.raises(FieldError) as info:
+        build()
+    assert info.value.field == field
+
+
+@pytest.mark.parametrize(
+    ("build", "field"),
+    [
+        (lambda: Copy("DS[DS0]", "DS1"), "Copy.source pointer"),
+        (lambda: Copy("DS[DD1]", "DS1"), "Copy.source pointer"),
+        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.destination pointer"),
+        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination pointer"),
+    ],
+)
+def test_pointer_index_field_says_pointer(build, field: str) -> None:
+    with pytest.raises(AddressError) as info:
+        build()
+    assert info.value.field == field
+
+
+@pytest.mark.parametrize("source", ["99999999999", "-2147483649"])
+@pytest.mark.parametrize(
+    ("destination", "format", "termination"),
+    [("DS1", "value", "0"), ("TXT2", "text", "$0D"), ("DS1", "none", "$0D")],
+)
+def test_integer_out_of_range_is_reported_before_format_and_termination(
+    source: str, destination: str, format: str, termination: str
+) -> None:
+    with pytest.raises(FieldError) as info:
+        Copy(source, destination, format=format, termination_code=termination)
+    assert info.value.field == "Copy.source"

@@ -104,7 +104,7 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
 
 # CLICK's shared constant check (operands.constants.classify) on the search value: OBJ-005.
 
-_INT32 = "is outside -2147483648..2147483647; an integer constant is 32-bit"
+_INT32 = r"is outside -2147483648 to 2147483647 \(OBJ-005\)"
 _HEX_SIGN = "a hex constant has no sign and at most 8 digits"
 _FINITE = "a real constant is a finite number"
 

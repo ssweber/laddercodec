@@ -23,8 +23,8 @@
 - **Long DS Slave ID**: a Modbus target whose `device_id` is `DS` followed by more than 4300 digits raises `FieldError`, where it raised a bare `ValueError`.
 
 ### Changed
-- **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset, Drum preset and Modbus hex address fields are reworded; the refusals themselves are the same.
-- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, and for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`.
+- **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset, Drum preset, Modbus hex address, Copy, Fill and Search value fields are reworded; the refusals themselves are the same.
+- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`, and for a bad Copy or BlockCopy format, Copy `exponential` or termination code, and Pack or Unpack type.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
 ### Behaviour changes
