@@ -44,7 +44,7 @@ ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
 
 #: The files of cases CLICK answered, in the order they are compared.
-ANSWER_FILES = ("preflight", "risky", "receive", "pickcheck")
+ANSWER_FILES = ("preflight", "risky", "receive", "receive_count", "pickcheck")
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
 
@@ -65,9 +65,6 @@ SD_LIST = (
 #: Every difference between CLICK's answers and the rules.  Kinds: ``outcome`` (accepted or
 #: refused), ``code`` (the OBJ id), ``stored`` (the save reads back as raw), ``list`` (the
 #: writable SC or SD addresses).
-#: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-MIN_CODES_COMPARED = 50
-
 DISAGREEMENTS: dict[Key, str] = {
     ("preflight", "hex DH1 = DH1 + 0", "outcome"): HEX_BARE,
     ("preflight", "hex DH1 = 0", "outcome"): HEX_BARE,
@@ -78,9 +75,9 @@ DISAGREEMENTS: dict[Key, str] = {
         "CLICK refuses Unpack into DS with OBJ-004 (a bank), the rules say OBJ-024: item 3"
     ),
     ("receive", "03 -> TXT1", "outcome"): (
-        "CLICK accepts TXT1 at the dialog's default count, which the runner does not set and "
-        "this test takes as 1; the rules need an even TXT count of 2 or more: item 3 (what is "
-        "the default count, and does CLICK accept 1 TXT?)"
+        "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
+        "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
+        "accept; no answer says what rx2 held"
     ),
     ("risky", "dec  DS1 = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
     ("risky", "dec DS1  = DS2 + 1", "outcome"): EDGE_SPACE + " (Math formula)",
@@ -103,6 +100,9 @@ DISAGREEMENTS: dict[Key, str] = {
     ("sc_sd_writable", "copy.block.destination.SD", "list"): SD_LIST,
     ("sc_sd_writable", "math.decimal.result.SD", "list"): SD_LIST,
 }
+
+#: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
+MIN_CODES_COMPARED = 52
 
 
 @pytest.fixture(scope="module")
@@ -127,15 +127,16 @@ def too_long(case: dict[str, Any]) -> bool:
 
 
 def _receive(case: dict[str, Any]) -> object:
-    """A Receive from a case.  Every Receive case is compared at quantity 1: the runner leaves
-    the dialog's count at its default and the answers have no count field."""
+    """A Receive from a case, with the count the dialog held at OK (``read_back``).  A case
+    with no recorded count (the rx2 file) is compared at quantity 1."""
     f = case["fields"]
+    count = int(case["read_back"].get("count", 1))
     code = int(case["choices"]["function"].split(" ")[0])
     return Receive(
         target=ModbusRtuTarget(name="r", com_port="cpu2", device_id=1),
         remote_start=ModbusAddress(f["slave_address"]),
         dest=f["master_address"],
-        quantity=1,
+        quantity=count,
         receiving=f["receiving"],
         success=f["success"],
         error=f["error"],
@@ -312,7 +313,13 @@ def test_every_case_was_answered() -> None:
     for grid in ANSWER_FILES:
         for case in _answers(grid):
             assert case["outcome"] in ("accepted", "refused"), (grid, case["case"])
-            assert case["read_back"] == case["fields"], (grid, case["case"])
+            read_back = case["read_back"]
+            if grid == "receive_count":
+                # The dialog also held the Slave ID and, where a case left the count unset,
+                # the count it defaults to.
+                assert all(read_back[k] == v for k, v in case["fields"].items()), case["case"]
+            else:
+                assert read_back == case["fields"], (grid, case["case"])
 
 
 def test_codes_compared_do_not_drop(generator: Any) -> None:

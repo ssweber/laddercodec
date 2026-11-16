@@ -19,6 +19,7 @@
 - **Read errors carry every refusal**: a `FieldError` from `read_csv` has a `location` on each refusal in `.errors`, not only the raised one, and the `ConvertError` of a refused pin row now carries `fields`, `reason`, `click_id` and `errors` as a `FieldError` does.
 
 ### Fixed
+- **Receive TXT count ids**: a Receive TXT count below 2 is refused with CLICK's `OBJ-010` and an odd one with `OBJ-029`, where both had no id; the refusals themselves are the same.
 - **Long digit runs in Compare and Out variants**: a constant of more than 4300 digits, such as a long run of leading zeros, no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` where its pairing or limit refuses it.
 - **For count of thousands of digits**: a For count of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError`; the messages for an above-limit count and a pointer count are reworded.
 - **Long digit runs in Timer and Drum**: a Timer set point or Drum preset of more than 4300 digits (leading zeros) no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` above its limit, and a Counter preset that long is refused with `FieldError`.

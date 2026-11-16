@@ -25,6 +25,7 @@ from laddercodec.instructions.send_receive import (
     from_tags,
     parse_af_call,
 )
+from laddercodec.model import Reason
 
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
@@ -865,10 +866,26 @@ def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
             receive(remote_start=remote, dest="DH1", quantity=2)
 
 
-@pytest.mark.parametrize("quantity", [1, 3, 125])
-def test_receive_text_count_is_even(quantity) -> None:
-    """Receive: at least 2 TXT characters, and an even count."""
-    with pytest.raises(FieldError, match="even count"):
+@pytest.mark.parametrize(
+    ("quantity", "click_id"), [(1, "OBJ-010"), (3, "OBJ-029"), (125, "OBJ-029")]
+)
+def test_receive_text_count_is_even(quantity, click_id) -> None:
+    """Receive: at least 2 TXT characters, and an even count: below 2 is OBJ-010 (the range
+    message, once, for 1 too) and an odd count OBJ-029."""
+    with pytest.raises(FieldError, match="even count") as caught:
+        receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+    assert caught.value.click_id == click_id
+    assert caught.value.reason is Reason.RANGE
+    assert caught.value.field == "Receive.quantity"
+    assert len(caught.value.errors) == 1
+
+
+@pytest.mark.parametrize("quantity", [250, 251, 252])
+def test_receive_text_count_past_the_register_cap(quantity) -> None:
+    """CLICK's range message for a TXT count is 2 to 250.  The rules cap a count at 125, the
+    register cap, so they refuse 250 (and 252, even) and 126 on; 124 is the largest even
+    count they accept.  Recorded, not changed: the roadmap lists it."""
+    with pytest.raises(FieldError, match="outside 1-125"):
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
 
 

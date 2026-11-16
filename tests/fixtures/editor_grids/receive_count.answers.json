@@ -1,0 +1,334 @@
+{
+ "grid": "receive_count_cases.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "rxc1"
+ ],
+ "note": "read_back holds every open field as OK found it, the ones a case leaves unset included",
+ "cases": [
+  {
+   "row": "B7",
+   "case": "03 -> TXT1 count unset",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.913,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "count": "2",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TXT1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-010",
+   "message": "The entered value is outside the range. Range: <2> to <250>",
+   "syntax_check": null,
+   "seconds": 0.679,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TXT1 count 2",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.909,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "count": "2",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TXT1 count 3",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-029",
+   "message": "Only an even number value can be used.",
+   "syntax_check": null,
+   "seconds": 0.699,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "count": "3",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> TXT1 count 4",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "4"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.791,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "TXT1",
+    "count": "4",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DS1 count 1",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.423,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  },
+  {
+   "row": "B7",
+   "case": "03 -> DS1 count 2",
+   "instruction": "receive",
+   "choices": {
+    "function": "03 - Read Holding Registers"
+   },
+   "fields": {
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100",
+    "count": "2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.742,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "2",
+    "receiving": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "receiving": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16
+   }
+  }
+ ]
+}

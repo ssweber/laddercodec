@@ -380,6 +380,7 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 
 _BANK_ID = "OBJ-004"
 _RANGE_ID = "OBJ-010"
+_ODD_ID = "OBJ-029"  # a Receive TXT count that is odd: "only an even number"
 
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
@@ -820,12 +821,21 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 Reason.RANGE,
                 _RANGE_ID,
             )
-        if local.bank == "TXT" and (quantity < 2 or quantity % 2):
-            # Receive: text arrives two characters per register.
+        if local.bank == "TXT" and quantity < 2:
+            # Receive: text arrives two characters per register; below 2 is the range
+            # message, even for 1, which is also odd.
             check.refuse(
                 "quantity",
                 f"{quantity} TXT characters must be an even count of 2+",
                 Reason.RANGE,
+                _RANGE_ID,
+            )
+        elif local.bank == "TXT" and quantity % 2:
+            check.refuse(
+                "quantity",
+                f"{quantity} TXT characters must be an even count of 2+",
+                Reason.RANGE,
+                _ODD_ID,
             )
     elif counted:
         _check_quantity_bounds(check, quantity, _RECEIVE_CAPS, bit)
