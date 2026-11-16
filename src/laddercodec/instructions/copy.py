@@ -746,7 +746,7 @@ class Copy(AfInstruction):
             if self.termination_code == "none":
                 self.termination_code = "0"
             elif self.termination_code.startswith("$"):
-                code = check("termination_code", check_constant, _TERMINATION)
+                code = check("termination_code", check_constant, _TERMINATION, char_id="OBJ-036")
                 if code is not None:
                     spelled = check.run(_ascii_code, int(code.value))
                     if spelled is not None:

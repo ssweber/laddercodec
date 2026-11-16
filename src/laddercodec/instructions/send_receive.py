@@ -419,6 +419,7 @@ _SEND_CAPS = (1968, 123, 61)
 _RECEIVE_CAPS = (2000, 125, 62)
 #: A Receive TXT count is in characters, two to a register.
 _TXT_RECEIVE_MAX = 250
+_TXT_COUNT_RULE = "{} TXT characters must be an even count of 2 to " + str(_TXT_RECEIVE_MAX)
 
 #: MODBUS 984 start addresses by kind.
 _984_COIL = (1, 65535)
@@ -836,14 +837,14 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
             # message, even for 1, which is also odd.
             check.refuse(
                 "quantity",
-                f"{quantity} TXT characters must be an even count of 2 to 250",
+                _TXT_COUNT_RULE.format(quantity),
                 Reason.RANGE,
                 _RANGE_ID,
             )
         elif local.bank == "TXT" and quantity % 2:
             check.refuse(
                 "quantity",
-                f"{quantity} TXT characters must be an even count of 2 to 250",
+                _TXT_COUNT_RULE.format(quantity),
                 Reason.RANGE,
                 _ODD_ID,
             )

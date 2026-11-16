@@ -67,10 +67,6 @@ checks (pyrung's conformance probes use `raw(...)`).
 - **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
   int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
   range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
-- **Copy termination code:** a non-`$` code gets OBJ-036; `$ZZ` and `$D`, refused by the shared check, get
-  none.
-- **A test of long digit text:** feed every constant field more than 4300 digits and expect a refusal, never a
-  crash (Math's formula once crashed there).
 
 ## 2. Decoding that does not depend on the checks (nothing)
 
@@ -285,6 +281,9 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 - **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`; never rewrite them as CLICK's dialog does
   (`7h`, `77h`). The error names the fix.
 - **`feat/productivity-codec`** stays as a branch for now.
+- **A last rung of only wires in an SCR save:** it can't be told from CLICK's own trailing empty rungs (both are
+  records with no instruction and no comment, byte-identical; CLICK keeps 1 to 4 trailing empties), so
+  `decode_program` drops it. Nothing to do unless CLICK's save differs somewhere not yet seen.
 
 ## Later (nothing unless marked)
 
