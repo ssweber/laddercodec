@@ -30,8 +30,6 @@ from ..model import (
     AfInstruction,
     FieldError,
     Reason,
-    check_flag,
-    normalize_fields,
     xy_slot,
 )
 from ..operands.checks import (
@@ -40,6 +38,7 @@ from ..operands.checks import (
     REGISTER_BANKS,
     Constants,
     Operand,
+    Refusals,
     check_constant,
     check_operand,
     constant_shape,
@@ -156,7 +155,11 @@ def _is_text_constant(operand: str) -> bool:
 def _ascii_code(code: int) -> str:
     """Spell a character code the way CLICK and pyrung do: ``$`` + two hex digits (``$0D``)."""
     if not 0 <= code <= 0xFF:
-        raise FieldError(f"ASCII code out of range 0..0xFF: {code}", field="Copy.termination_code")
+        raise FieldError(
+            f"Copy.termination_code: ASCII code {code} is outside 0 to 0xFF",
+            field="Copy.termination_code",
+            reason=Reason.RANGE,
+        )
     return f"${code:02X}"
 
 
@@ -203,7 +206,12 @@ def _register_kind(bank: str) -> str:
 
 
 def check_box_operand(
-    value: str, name: str, banks: Collection[str] | None, constants: Constants | None = None
+    value: str,
+    name: str,
+    banks: Collection[str] | None,
+    constants: Constants | None = None,
+    *,
+    bank_id: str | None = None,
 ) -> Operand:
     """The shared ``check_operand`` for a field that takes no pointer: every Copy-family field
     but a single Copy's source and destination.
@@ -223,7 +231,22 @@ def check_box_operand(
             field=name,
             reason=Reason.POINTER,
         )
-    return check_operand(value, name, banks, constants)
+    return check_operand(value, name, banks, constants, bank_id=bank_id)
+
+
+def _refusal(
+    cls: str,
+    attrs: tuple[str, ...],
+    rule: str,
+    reason: Reason,
+    click_id: str | None = None,
+    error: type[FieldError] = AddressError,
+) -> FieldError:
+    """A refusal of ``cls.attrs[0]`` (a pair or more, when the rule is about several
+    fields): ``Class.attr: rule``, with CLICK's id at the end."""
+    fields = tuple(f"{cls}.{attr}" for attr in attrs)
+    tail = f" ({click_id})" if click_id else ""
+    return error(f"{fields[0]}: {rule}{tail}", field=fields, reason=reason, click_id=click_id)
 
 
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
@@ -264,6 +287,61 @@ def _span(first: Address, last: Address) -> int | None:
     return last.number - first.number + 1
 
 
+def _range_end(
+    value: str, field: str, banks: Collection[str] | None, bank_id: str | None
+) -> Address:
+    """One end of a range: an address, never a pointer."""
+    address = check_box_operand(value, field, banks, bank_id=bank_id).address
+    assert address is not None
+    return address
+
+
+def _check_relation(
+    cls: str,
+    start_field: str,
+    start: str,
+    end_field: str,
+    end: str,
+    first: Address,
+    last: Address,
+    *,
+    one_module: bool,
+    ordered: bool,
+    module_id: str | None,
+    ids: bool,
+) -> None:
+    """Refuse an end that does not fit its start: another bank, not after it, or in another
+    X or Y slot.  A refusal of the pair, the end's field first."""
+    pair = (end_field, start_field)
+    if first.bank != last.bank:
+        raise _refusal(
+            cls,
+            pair,
+            f"{end!r} is not in the bank of {start!r}; both ends of a range are in one bank",
+            Reason.CONFLICT,
+            "OBJ-008" if ids else None,
+        )
+    if ordered and _position(last) <= _position(first):
+        same = _position(last) == _position(first)
+        raise _refusal(
+            cls,
+            pair,
+            f"{start}..{end} {'is one address' if same else 'runs backwards'}; "
+            "a range ends after its start",
+            Reason.CONFLICT,
+            ("OBJ-012" if same else "OBJ-009") if ids else None,
+        )
+    if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
+        raise _refusal(
+            cls,
+            pair,
+            f"{start}..{end} spans two {first.bank} slots; "
+            f"the range stays in one 16-point {first.bank} slot",
+            Reason.CONFLICT,
+            module_id,
+        )
+
+
 def check_range(
     cls: str,
     start_field: str,
@@ -274,6 +352,9 @@ def check_range(
     *,
     one_module: bool = False,
     ordered: bool = True,
+    bank_id: str | None = None,
+    module_id: str | None = None,
+    ids: bool = True,
 ) -> tuple[Address, Address]:
     """Check a ``start..end`` range and return its two ends.
 
@@ -281,94 +362,133 @@ def check_range(
     comes after the start: an end before it is OBJ-009 and the same address OBJ-012
     (Search repeats this range check).
     With ``one_module``, an X or Y range stays inside one 16-point slot of
-    :data:`~laddercodec.model.XY_SLOTS` (OBJ-033, OBJ-035, OBJ-019); the dual option slot,
-    21-36, is a slot of its own.  The module check applies to the
-    Pack source, the Block Copy source and the Unpack destination.
+    :data:`~laddercodec.model.XY_SLOTS` (``module_id`` is CLICK's id for the refusal); the
+    dual option slot, 21-36, is a slot of its own.  The module check applies to the
+    Pack source, the Block Copy source and the Unpack destination.  ``bank_id`` is CLICK's id
+    for an end in a bank the field does not take.  A refusal of how the ends fit is a refusal
+    of the pair, the end's field first.  ``ids=False`` leaves out OBJ-008, OBJ-009 and
+    OBJ-012, for a dialog whose ids are not known.
     """
-    ends = []
-    for field_name, value in ((start_field, start), (end_field, end)):
-        address = check_box_operand(value, f"{cls}.{field_name}", banks).address
-        assert address is not None
-        ends.append(address)
-    first, last = ends
-    if first.bank != last.bank:
-        raise AddressError(
-            f"{cls}.{end_field}: {end!r} is not in the bank of {start!r}; "
-            "both ends of a range are in one bank",
-            field=f"{cls}.{end_field}",
-        )
-    if ordered and _position(last) <= _position(first):
-        what = "is one address" if _position(last) == _position(first) else "runs backwards"
-        raise AddressError(
-            f"{cls}.{end_field}: {start}..{end} {what}; a range ends after its start",
-            field=f"{cls}.{end_field}",
-        )
-    if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
-        raise AddressError(
-            f"{cls}.{end_field}: {start}..{end} spans two {first.bank} slots; "
-            f"the range stays in one 16-point {first.bank} slot",
-            field=f"{cls}.{end_field}",
-        )
+    first = _range_end(start, f"{cls}.{start_field}", banks, bank_id)
+    last = _range_end(end, f"{cls}.{end_field}", banks, bank_id)
+    _check_relation(
+        cls, start_field, start, end_field, end, first, last,
+        one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
+    )  # fmt: skip
+    return first, last
+
+
+def _check_range(
+    check: Refusals,
+    start_attr: str,
+    start: str,
+    end_attr: str,
+    end: str,
+    banks: Collection[str] | None = None,
+    *,
+    one_module: bool = False,
+    ordered: bool = True,
+    bank_id: str | None = None,
+    module_id: str | None = None,
+    ids: bool = True,
+) -> tuple[Address | None, Address | None]:
+    """:func:`check_range` keeping every refusal: each end on its own, then the pair.
+
+    The ends come back, None for a refused one, even when the relation between them was
+    refused (the end's field leads that refusal).
+    """
+    cls = check.field(start_attr).partition(".")[0]
+    first = check(start_attr, _range_end, banks, bank_id)
+    last = check(end_attr, _range_end, banks, bank_id)
+    if first is not None and last is not None:
+        check.run(
+            _check_relation, cls, start_attr, start, end_attr, end, first, last,
+            one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
+        )  # fmt: skip
     return first, last
 
 
 def _check_pair(
     cls: str,
+    source_field: str,
     source: str,
     kind: str,
     dest_field: str,
     destination: str,
     dest_bank: str,
     pairs: dict[str, frozenset[str]],
+    click_id: str | None = None,
 ) -> None:
-    """Refuse a destination bank the source kind can't copy into (OBJ-024)."""
+    """Refuse a destination bank the source kind can't copy into: a refusal of the
+    destination with the source."""
     allowed = pairs[kind]
     if dest_bank not in allowed:
-        raise AddressError(
-            f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
+        raise _refusal(
+            cls,
+            (dest_field, source_field),
+            f"{destination!r} can't take {source!r}; "
             f"{_KIND_TEXT[kind]} copies to {_bank_list(allowed)}",
-            field=f"{cls}.{dest_field}",
+            Reason.CONFLICT,
+            click_id,
         )
 
 
-def _check_kind(cls: str, field_name: str, value: str, bank: str, kind: str) -> None:
+def _check_kind(
+    cls: str, field_name: str, value: str, bank: str, kind: str, kind_field: str
+) -> None:
     """Pack/unpack ``bits`` takes a bit range and ``words`` a register range.
 
-    The blob stores no bits/words flag; the decoder reads it from this bank.
+    The blob stores no bits/words flag; the decoder reads it from this bank.  A refusal of
+    the range's start with ``kind_field``.
     """
     if (kind == "bits") != (bank in BIT_BANKS):
         what = "a register" if kind == "bits" else "a bit"
         need = f"a bit bank ({_bank_list(BIT_BANKS)})" if kind == "bits" else "a register bank"
-        raise AddressError(
-            f"{cls}.{field_name}: {value!r} is {what}; {kind} needs {need}",
-            field=f"{cls}.{field_name}",
+        raise _refusal(
+            cls,
+            (field_name, kind_field),
+            f"{value!r} is {what}; {kind} needs {need}",
+            Reason.CONFLICT,
         )
 
 
-#: Most bits one register packs into or unpacks from (OBJ-027/041, OBJ-032/039).
+#: Most bits one register packs into or unpacks from.
 _BITS_PER_REGISTER = {"DS": 16, "DH": 16, "DD": 32, "DF": 32}
-#: Most words one pack or unpack moves (OBJ-040, OBJ-042).
+#: Most words one pack or unpack moves.
 _MAX_WORDS = 2
+#: CLICK's id for a count over the limit: (bits or words, limit) -> (Pack's id, Unpack's id).
+_COUNT_IDS = {
+    ("bits", 16): ("OBJ-027", "OBJ-032"),
+    ("bits", 32): ("OBJ-041", "OBJ-039"),
+    ("words", _MAX_WORDS): ("OBJ-040", "OBJ-042"),
+}
 
 
 def _check_count(
     cls: str,
+    start_field: str,
     end_field: str,
+    other_field: str,
     span_text: str,
     count: int | None,
     kind: str,
     bank: str | None,
     single: str,
 ) -> None:
-    """Refuse a pack source or unpack destination longer than the single register holds."""
+    """Refuse a pack source or unpack destination longer than the single register holds: a
+    refusal of the range's end with its start and the single register's field."""
     limit = _BITS_PER_REGISTER.get(bank or "") if kind == "bits" else _MAX_WORDS
     if limit is not None and count is not None and count > limit:
         unit = "bits" if kind == "bits" else "words"
         verb = "a pack into" if cls == "Pack" else "an unpack from"
-        raise FieldError(
-            f"{cls}.{end_field}: {span_text} is {count} {unit}; "
-            f"{verb} {single!r} takes at most {limit}",
-            field=f"{cls}.{end_field}",
+        pack_id, unpack_id = _COUNT_IDS[(unit, limit)]
+        raise _refusal(
+            cls,
+            (end_field, start_field, other_field),
+            f"{span_text} is {count} {unit}; {verb} {single!r} takes at most {limit}",
+            Reason.RANGE,
+            pack_id if cls == "Pack" else unpack_id,
+            FieldError,
         )
 
 
@@ -403,10 +523,13 @@ def _check_copy_constant(source: str, dest_field: str, destination: str, dest_ba
         # puts the 32-bit integer refusal ahead of the format and termination refusals.
         check_constant(source, "Copy.source", _CONSTANTS)
     if shape is Kind.HEX and int(source[:-1], 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
-        raise AddressError(
-            f"Copy.{dest_field}: {destination!r} can't take {source!r}; a hex constant above "
+        raise _refusal(
+            "Copy",
+            (dest_field, "source"),
+            f"{destination!r} can't take {source!r}; a hex constant above "
             f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}",
-            field=f"Copy.{dest_field}",
+            Reason.CONFLICT,
+            "OBJ-024",
         )
 
 
@@ -477,19 +600,24 @@ def _check_row(
     cls: str,
     rows: _Rows,
     source: str,
+    source_field: str,
     source_bank: str,
     dest_field: str,
     destination: str,
     dest_bank: str,
 ) -> None:
-    """Refuse a destination bank the source bank's pairing row leaves out (OBJ-004, OBJ-024)."""
+    """Refuse a destination bank the source bank's pairing row leaves out: a refusal of the
+    destination with the source."""
     allowed = next(dst for src, dst in rows if source_bank in src)
     if dest_bank not in allowed:
         what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
-        raise AddressError(
-            f"{cls}.{dest_field}: {destination!r} can't take {source!r}; "
+        raise _refusal(
+            cls,
+            (dest_field, source_field),
+            f"{destination!r} can't take {source!r}; "
             f"{what} from {source_bank} goes to {_bank_list(allowed)}",
-            field=f"{cls}.{dest_field}",
+            Reason.CONFLICT,
+            "OBJ-024",
         )
 
 
@@ -546,6 +674,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
                 raise FieldError(
                     f"to_binary: {k!r} is not an option; it takes only termination_code",
                     field="Copy.format",
+                    reason=Reason.CHOICE,
                 )
             text_opts[k] = v.strip()
 
@@ -603,79 +732,101 @@ class Copy(AfInstruction):
     termination_code: str = "0"
 
     def __post_init__(self) -> None:
-        # A constant comes back from normalize_address as written.
-        normalize_fields(self, "source", "destination")
-        if self.format not in _VALID_FORMATS:
-            raise FieldError(f"Invalid copy format: {self.format!r}", field="Copy.format")
-        # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
-        # "none" is the CSV spelling of no code, which to_csv writes.
-        if self.termination_code == "none":
-            self.termination_code = "0"
-        elif self.termination_code.startswith("$"):
-            code = check_constant(self.termination_code, "Copy.termination_code", _TERMINATION)
-            self.termination_code = _ascii_code(int(code.value))
-        for option in ("suppress_zero", "exponential"):
-            if getattr(self, option) not in ("0", "1"):
-                raise FieldError(
-                    f"Copy.{option}: {getattr(self, option)!r} is not allowed; it is '0' or '1'",
-                    field=f"Copy.{option}",
+        with Refusals(self) as check:
+            # A constant comes back from normalize_address as written.
+            check.normalize("source", "destination")
+            if self.format not in _VALID_FORMATS:
+                check.refuse(
+                    "format",
+                    f"{self.format!r} is not allowed; it is none, value, text, binary or ascii",
+                    Reason.CHOICE,
                 )
-        kind = _source_kind(self.source, "Copy.source", BIT_BANKS | REGISTER_BANKS, pointer=True)
-        dst = check_operand(self.destination, "Copy.destination", _COPY_DEST_BANKS, pointer=True)
-        assert dst.bank is not None
-        _check_pair(
-            "Copy", self.source, kind, "destination", self.destination, dst.bank, _COPY_PAIRS
-        )
-        if kind == "number":
-            _check_copy_constant(self.source, "destination", self.destination, dst.bank)
-        self._check_format(kind, dst.bank)
-        if self.termination_code != "0" and not (
-            self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT"
-        ):
-            # CLICK v4's dialog: termination is for a single copy from a number register to
-            # text; the box is greyed for TXT -> TXT and constant -> TXT.
-            raise FieldError(
-                f"Copy.termination_code: {self.termination_code!r} needs a numeric register "
-                f"copied to TXT with to_text or to_binary, not {self.source!r} -> "
-                f"{self.destination!r} with format {self.format!r}",
-                field="Copy.termination_code",
-            )
-        if self.format == "text":
-            # CLICK's dialog offers suppress zero for an integer source and
-            # real/exponential for a DF source, never both.
-            if _is_df(self.source):
-                self.suppress_zero = "1"  # what CLICK stores; not a setting
-            elif self.exponential == "1":
-                raise FieldError(
-                    f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
-                    "an integer source only has suppress_zero",
-                    field="Copy.exponential",
+            # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
+            # "none" is the CSV spelling of no code, which to_csv writes.
+            if self.termination_code == "none":
+                self.termination_code = "0"
+            elif self.termination_code.startswith("$"):
+                code = check("termination_code", check_constant, _TERMINATION)
+                if code is not None:
+                    spelled = check.run(_ascii_code, int(code.value))
+                    if spelled is not None:
+                        self.termination_code = spelled
+            for option in ("suppress_zero", "exponential"):
+                if getattr(self, option) not in ("0", "1"):
+                    check.refuse(
+                        option,
+                        f"{getattr(self, option)!r} is not allowed; it is '0' or '1'",
+                        Reason.CHOICE,
+                    )
+            kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
+            dst = check("destination", check_operand, _COPY_DEST_BANKS, pointer=True)
+            if kind is not None and dst is not None:
+                assert dst.bank is not None
+                check.run(
+                    _check_pair, "Copy", "source", self.source, kind,
+                    "destination", self.destination, dst.bank, _COPY_PAIRS, "OBJ-024",
+                )  # fmt: skip
+                if kind == "number":
+                    check.run(
+                        _check_copy_constant, self.source, "destination", self.destination, dst.bank
+                    )
+                self._check_format(check, kind, dst.bank)
+                if self.termination_code != "0" and not (
+                    self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT"
+                ):
+                    # CLICK v4's dialog: termination is for a single copy from a number register
+                    # to text; the box is greyed for TXT -> TXT and constant -> TXT.
+                    check.refuse(
+                        ("termination_code", "format", "source", "destination"),
+                        f"{self.termination_code!r} needs a numeric register copied to TXT "
+                        f"with to_text or to_binary, not {self.source!r} -> "
+                        f"{self.destination!r} with format {self.format!r}",
+                        Reason.CONFLICT,
+                    )
+            if self.format == "text":
+                # CLICK's dialog offers suppress zero for an integer source and
+                # real/exponential for a DF source, never both.
+                if _is_df(self.source):
+                    self.suppress_zero = "1"  # what CLICK stores; not a setting
+                elif self.exponential == "1":
+                    check.refuse(
+                        ("exponential", "source"),
+                        f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
+                        "an integer source only has suppress_zero",
+                        Reason.CONFLICT,
+                    )
+            if not self.termination_code.startswith("$") and self.termination_code != "0":
+                # The blob stores a termination code only as a character code.
+                check.refuse(
+                    "termination_code",
+                    f"{self.termination_code!r} is not allowed; it is a "
+                    "character code ($0D), or '0' or 'none' for no code",
+                    Reason.FORM,
+                    "OBJ-036",
                 )
-        if not self.termination_code.startswith("$") and self.termination_code != "0":
-            # The blob stores a termination code only as a character code (OBJ-036).
-            raise FieldError(
-                f"Copy.termination_code: {self.termination_code!r} is not allowed; it is a "
-                "character code ($0D), or '0' or 'none' for no code",
-                field="Copy.termination_code",
-            )
-        if kind in ("number", "text"):
-            check_constant(self.source, "Copy.source", _CONSTANTS)
-        end = _text_fill_end(self.source, self.destination)
-        if end is not None and end.number > _TXT_LAST:
-            raise AddressError(
-                f"Copy.destination: {self.destination!r} can't take {self.source!r}; its "
-                f"{len(self.source) - 2} characters fill {self.destination}..{end.display}, "
-                f"past TXT{_TXT_LAST}",
-                field="Copy.destination",
-            )
-        self.oneshot = check_flag(self.oneshot, "Copy.oneshot")
+            if kind in ("number", "text"):
+                check("source", check_constant, _CONSTANTS)
+            if not check.refused("source", "destination"):
+                end = _text_fill_end(self.source, self.destination)
+                if end is not None and end.number > _TXT_LAST:
+                    check.add(
+                        _refusal(
+                            "Copy",
+                            ("destination", "source"),
+                            f"{self.destination!r} can't take {self.source!r}; its "
+                            f"{len(self.source) - 2} characters fill "
+                            f"{self.destination}..{end.display}, past TXT{_TXT_LAST}",
+                            Reason.CONFLICT,
+                        )
+                    )
+            check.flag("oneshot")
 
     def _destination_end(self) -> str:
         """Tag 0x6077: the last TXT a text of two or more characters fills, else empty."""
         end = _text_fill_end(self.source, self.destination)
         return "" if end is None else end.display
 
-    def _check_format(self, kind: str, dest_bank: str) -> None:
+    def _check_format(self, check: Refusals, kind: str, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
         fmt = self.format
         if fmt == "binary" and _is_dd_df_pair(self.source, self.destination):
@@ -687,9 +838,10 @@ class Copy(AfInstruction):
         else:
             return
         if not ok:
-            raise FieldError(
-                f"Copy.format: to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}",
-                field="Copy.format",
+            check.refuse(
+                ("format", "source", "destination"),
+                f"to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}",
+                Reason.CONFLICT,
             )
 
     @classmethod
@@ -853,50 +1005,71 @@ class BlockCopy(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        normalize_fields(self, "source_start", "source_end", "dest_start", "dest_end")
-        if self.format not in _BLOCKCOPY_FORMATS:
-            raise FieldError(f"Invalid blockcopy format: {self.format!r}", field="BlockCopy.format")
-        cls = "BlockCopy"
-        src, src_last = check_range(
-            cls, "source_start", self.source_start, "source_end", self.source_end,
-            _sources(_BLOCK_ROWS), one_module=True,
-        )  # fmt: skip
-        # CLICK fills in the destination end itself, so a one-address destination stays
-        # unordered here and is refused below as an end that doesn't match.
-        dest, dest_last = check_range(
-            cls, "dest_start", self.dest_start, "dest_end", self.dest_end,
-            _destinations(_BLOCK_ROWS), ordered=False,
-        )  # fmt: skip
-        _check_row(
-            cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}", src.bank,
-            "dest_start", self.dest_start, dest.bank,
-        )  # fmt: skip
-        # The destination end is the start plus the source's
-        # element count (GetNextAddress), whatever the two banks.
-        end = dest.number + src_last.number - src.number
-        if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
-            # GetNextAddress steps a Y run on into the next slot; what CLICK then stores
-            # for the destination is not captured.
-            raise AddressError(
-                f"{cls}.dest_start: {self.source_start}..{self.source_end} into "
-                f"{self.dest_start} crosses a Y slot; crossing a slot is not supported yet: "
-                "it needs a capture",
-                field=f"{cls}.dest_start",
-            )
-        if dest_last.number != end:
-            spelled = Address(dest.bank, end).display
-            raise AddressError(
-                f"{cls}.dest_end: {self.dest_end!r} is not where the copy ends; "
-                f"{self.source_start}..{self.source_end} fills {self.dest_start}..{spelled}",
-                field=f"{cls}.dest_end",
-            )
-        if self.format != "none" and src.bank != "TXT":
-            raise FieldError(
-                f"{cls}.format: to_{self.format} needs a TXT source, not "
-                f"{self.source_start}..{self.source_end}",
-                field=f"{cls}.format",
-            )
-        self.oneshot = check_flag(self.oneshot, "BlockCopy.oneshot")
+        with Refusals(self) as check:
+            check.normalize("source_start", "source_end", "dest_start", "dest_end")
+            if self.format not in _BLOCKCOPY_FORMATS:
+                check.refuse(
+                    "format", f"{self.format!r} is not allowed; it is none, value or ascii",
+                    Reason.CHOICE,
+                )  # fmt: skip
+            cls = "BlockCopy"
+            src, src_last = _check_range(
+                check, "source_start", self.source_start, "source_end", self.source_end,
+                _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004",
+            )  # fmt: skip
+            # CLICK fills in the destination end itself, so a one-address destination stays
+            # unordered here and is refused below as an end that doesn't match.
+            dest, dest_last = _check_range(
+                check, "dest_start", self.dest_start, "dest_end", self.dest_end,
+                _destinations(_BLOCK_ROWS), ordered=False, bank_id="OBJ-004",
+            )  # fmt: skip
+            if src is not None and dest is not None:
+                check.run(
+                    _check_row, cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}",
+                    "source_start", src.bank, "dest_start", self.dest_start, dest.bank,
+                )  # fmt: skip
+            if (
+                src is not None and src_last is not None
+                and dest is not None and dest_last is not None
+                and not check.refused("source_end", "dest_end")
+            ):  # fmt: skip
+                # The destination end is the start plus the source's
+                # element count (GetNextAddress), whatever the two banks.
+                end = dest.number + src_last.number - src.number
+                spans = ("source_start", "source_end")
+                if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
+                    # GetNextAddress steps a Y run on into the next slot; what CLICK then
+                    # stores for the destination is not captured.
+                    check.add(
+                        _refusal(
+                            cls,
+                            ("dest_start", *spans),
+                            f"{self.source_start}..{self.source_end} into "
+                            f"{self.dest_start} crosses a Y slot; crossing a slot is not "
+                            "supported yet: it needs a capture",
+                            Reason.CONFLICT,
+                        )
+                    )
+                if dest_last.number != end:
+                    spelled = Address(dest.bank, end).display
+                    check.add(
+                        _refusal(
+                            cls,
+                            ("dest_end", "dest_start", *spans),
+                            f"{self.dest_end!r} is not where the copy ends; "
+                            f"{self.source_start}..{self.source_end} fills "
+                            f"{self.dest_start}..{spelled}",
+                            Reason.CONFLICT,
+                        )
+                    )
+            if self.format != "none" and src is not None and src.bank != "TXT":
+                check.refuse(
+                    ("format", "source_start", "source_end"),
+                    f"to_{self.format} needs a TXT source, not "
+                    f"{self.source_start}..{self.source_end}",
+                    Reason.CONFLICT,
+                )
+            check.flag("oneshot")
 
     @property
     def func_code(self) -> str:
@@ -975,18 +1148,24 @@ class Fill(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        normalize_fields(self, "value", "dest_start", "dest_end")
-        kind = _source_kind(self.value, "Fill.value", REGISTER_BANKS)
-        # Fill runs the range check on the destination.
-        dest, _ = check_range(
-            "Fill", "dest_start", self.dest_start, "dest_end", self.dest_end, _REGISTER_DEST_BANKS
-        )
-        _check_pair("Fill", self.value, kind, "dest_start", self.dest_start, dest.bank, _FILL_PAIRS)
-        if kind in ("number", "text"):
-            # A Fill into TXT takes one character of text.
-            text_max = 1 if dest.bank == "TXT" else TEXT_MAX
-            check_constant(self.value, "Fill.value", replace(_CONSTANTS, text_max=text_max))
-        self.oneshot = check_flag(self.oneshot, "Fill.oneshot")
+        with Refusals(self) as check:
+            check.normalize("value", "dest_start", "dest_end")
+            kind = check("value", _source_kind, REGISTER_BANKS)
+            # Fill runs the range check on the destination.
+            dest, _ = _check_range(
+                check, "dest_start", self.dest_start, "dest_end", self.dest_end,
+                _REGISTER_DEST_BANKS, ids=False,
+            )  # fmt: skip
+            if kind is not None and dest is not None:
+                check.run(
+                    _check_pair, "Fill", "value", self.value, kind,
+                    "dest_start", self.dest_start, dest.bank, _FILL_PAIRS,
+                )  # fmt: skip
+                if kind in ("number", "text"):
+                    # A Fill into TXT takes one character of text.
+                    text_max = 1 if dest.bank == "TXT" else TEXT_MAX
+                    check("value", check_constant, replace(_CONSTANTS, text_max=text_max))
+            check.flag("oneshot")
 
     @property
     def func_code(self) -> str:
@@ -1071,36 +1250,51 @@ class Pack(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        normalize_fields(self, "source_start", "source_end", "destination")
-        if self.pack_type not in _PACK_TYPES:
-            raise FieldError(f"Invalid pack type: {self.pack_type!r}", field="Pack.pack_type")
-        first, last = check_range(
-            "Pack", "source_start", self.source_start, "source_end", self.source_end,
-            _sources(_PACK_ROWS), one_module=True,
-        )  # fmt: skip
-        dest = check_box_operand(self.destination, "Pack.destination", _destinations(_PACK_ROWS))
-        assert dest.bank is not None
-        _check_row(
-            "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}", first.bank,
-            "destination", self.destination, dest.bank,
-        )  # fmt: skip
-        if (first.bank == "TXT") != (self.pack_type == "text"):
-            raise AddressError(
-                f"Pack.source_start: {self.source_start!r} is "
-                f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
-                f"pack_{self.pack_type} "
-                f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
-                f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
-                field="Pack.source_start",
-            )
-        if self.pack_type != "text":
-            _check_kind("Pack", "source_start", self.source_start, first.bank, self.pack_type)
-            _check_count(
-                "Pack", "source_end", f"{self.source_start}..{self.source_end}", _span(first, last),
-                self.pack_type, dest.bank, self.destination,
+        with Refusals(self) as check:
+            check.normalize("source_start", "source_end", "destination")
+            if self.pack_type not in _PACK_TYPES:
+                check.refuse(
+                    "pack_type",
+                    f"{self.pack_type!r} is not allowed; it is bits, words or text",
+                    Reason.CHOICE,
+                )
+            first, last = _check_range(
+                check, "source_start", self.source_start, "source_end", self.source_end,
+                _sources(_PACK_ROWS), one_module=True,
             )  # fmt: skip
-        self.allow_whitespace = check_flag(self.allow_whitespace, "Pack.allow_whitespace")
-        self.oneshot = check_flag(self.oneshot, "Pack.oneshot")
+            dest = check("destination", check_box_operand, _destinations(_PACK_ROWS))
+            if first is not None and dest is not None:
+                assert dest.bank is not None
+                check.run(
+                    _check_row, "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}",
+                    "source_start", first.bank, "destination", self.destination, dest.bank,
+                )  # fmt: skip
+            if first is not None and not check.refused("pack_type"):
+                if (first.bank == "TXT") != (self.pack_type == "text"):
+                    check.add(
+                        _refusal(
+                            "Pack",
+                            ("source_start", "pack_type"),
+                            f"{self.source_start!r} is "
+                            f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
+                            f"pack_{self.pack_type} "
+                            f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
+                            f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
+                            Reason.CONFLICT,
+                        )
+                    )
+                if self.pack_type != "text":
+                    check.run(
+                        _check_kind, "Pack", "source_start", self.source_start, first.bank,
+                        self.pack_type, "pack_type",
+                    )  # fmt: skip
+                    if last is not None and dest is not None:
+                        check.run(
+                            _check_count, "Pack", "source_start", "source_end", "destination",
+                            f"{self.source_start}..{self.source_end}", _span(first, last),
+                            self.pack_type, dest.bank, self.destination,
+                        )  # fmt: skip
+            check.flag("allow_whitespace", "oneshot")
 
     @property
     def func_code(self) -> str:
@@ -1191,27 +1385,37 @@ class Unpack(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        normalize_fields(self, "source", "dest_start", "dest_end")
-        if self.unpack_type not in _UNPACK_TYPES:
-            raise FieldError(
-                f"Invalid unpack type: {self.unpack_type!r}", field="Unpack.unpack_type"
-            )
-        src = check_box_operand(self.source, "Unpack.source", _sources(_UNPACK_ROWS))
-        assert src.bank is not None
-        first, last = check_range(
-            "Unpack", "dest_start", self.dest_start, "dest_end", self.dest_end,
-            _destinations(_UNPACK_ROWS), one_module=True,
-        )  # fmt: skip
-        _check_row(
-            "Unpack", _UNPACK_ROWS, self.source, src.bank,
-            "dest_start", self.dest_start, first.bank,
-        )  # fmt: skip
-        _check_kind("Unpack", "dest_start", self.dest_start, first.bank, self.unpack_type)
-        _check_count(
-            "Unpack", "dest_end", f"{self.dest_start}..{self.dest_end}", _span(first, last),
-            self.unpack_type, src.bank, self.source,
-        )  # fmt: skip
-        self.oneshot = check_flag(self.oneshot, "Unpack.oneshot")
+        with Refusals(self) as check:
+            check.normalize("source", "dest_start", "dest_end")
+            if self.unpack_type not in _UNPACK_TYPES:
+                check.refuse(
+                    "unpack_type",
+                    f"{self.unpack_type!r} is not allowed; it is bits or words",
+                    Reason.CHOICE,
+                )
+            src = check("source", check_box_operand, _sources(_UNPACK_ROWS))
+            first, last = _check_range(
+                check, "dest_start", self.dest_start, "dest_end", self.dest_end,
+                _destinations(_UNPACK_ROWS), one_module=True, module_id="OBJ-019",
+            )  # fmt: skip
+            if src is not None and first is not None:
+                assert src.bank is not None
+                check.run(
+                    _check_row, "Unpack", _UNPACK_ROWS, self.source, "source", src.bank,
+                    "dest_start", self.dest_start, first.bank,
+                )  # fmt: skip
+            if first is not None and not check.refused("unpack_type"):
+                check.run(
+                    _check_kind, "Unpack", "dest_start", self.dest_start, first.bank,
+                    self.unpack_type, "unpack_type",
+                )  # fmt: skip
+                if last is not None and src is not None:
+                    check.run(
+                        _check_count, "Unpack", "dest_start", "dest_end", "source",
+                        f"{self.dest_start}..{self.dest_end}", _span(first, last),
+                        self.unpack_type, src.bank, self.source,
+                    )  # fmt: skip
+            check.flag("oneshot")
 
     @property
     def func_code(self) -> str:

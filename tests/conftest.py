@@ -5,7 +5,8 @@ The fixture below wraps the step that completes the refusals of an instruction c
 too: each refusal's ``field`` (and each of its ``fields``) is ``Class.attr`` or
 ``Class.attr[i]``, where ``Class`` is the class name of the instance its refusal is about and
 ``attr`` one of its dataclass fields, and its ``reason`` is a :class:`~laddercodec.Reason` or
-None.  A refusal that breaks this fails the test that built it with an ``AssertionError``.
+None, and a class in ``REASONED`` has no refusal without one.  A refusal that breaks this
+fails the test that built it with an ``AssertionError``.
 
 It sees only the refusals the suite builds, and only through an instruction class's
 ``__post_init__``: not those of CSV token parsing or of the Modbus target classes.
@@ -27,6 +28,29 @@ from laddercodec.operands.errors import FieldError, Reason
 _FIELD = re.compile(r"(\w+)\.(\w+)(?:\[\d+\])?")
 
 
+#: Instruction classes whose every refusal has a reason (and so a Reason from the fixed set).
+REASONED = frozenset(
+    {
+        "Coil",
+        "Timer",
+        "Contact",
+        "CompareContact",
+        "OutVariant",
+        "Counter",
+        "Shift",
+        "Call",
+        "ForLoop",
+        "Drum",
+        "Search",
+        "Copy",
+        "BlockCopy",
+        "Fill",
+        "Pack",
+        "Unpack",
+    }
+)
+
+
 def refusal_problems(error: FieldError) -> list[str]:
     """What is wrong with the shape of one refusal raised while ``error.obj`` was built."""
     obj = error.obj
@@ -41,6 +65,8 @@ def refusal_problems(error: FieldError) -> list[str]:
             problems.append(f"{field!r} is no {cls.__name__}.<dataclass field>")
     if error.reason is not None and not isinstance(error.reason, Reason):
         problems.append(f"reason {error.reason!r} is not a Reason")
+    if error.reason is None and cls.__name__ in REASONED:
+        problems.append(f"{error.field!r} has no reason")
     return problems
 
 

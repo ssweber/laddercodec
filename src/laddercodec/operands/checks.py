@@ -337,7 +337,6 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
                     value,
                     f"is {len(text)} characters; {at.label} takes one character",
                     Reason.RANGE,
-                    "OBJ-023",
                 )
             raise at.error(
                 value,
