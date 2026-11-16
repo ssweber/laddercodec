@@ -3,7 +3,7 @@
 
 .DEFAULT_GOAL := default
 
-.PHONY: default install lint test golden coverage-golden upgrade build clean docs-generate docs-serve docs-build docs-check
+.PHONY: default install lint test golden coverage-golden upgrade build clean docs-generate docs-serve docs-build docs-check editor-grids
 
 default: install lint test
 
@@ -71,3 +71,7 @@ clean:
 	$(RM) .mypy_cache/
 	$(RM) .venv/
 	$(FIND_PYCACHE)
+
+editor-grids:
+	uv run devtools/editor_grids.py
+	uv run devtools/editor_grids.py --check

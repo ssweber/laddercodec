@@ -11,7 +11,9 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 
 | Grid | What it holds |
 | --- | --- |
-| `math_decimal.json`, `math_hex.json` | Math: each bank and pointer form as the result, as an operand (with a constant and alone), as a RAND bound and as a SUM range; every constant spelling as an operand and alone; RAND with equal and reversed bounds; the range functions |
+| `preflight.json` | the first case of every row of the other grids: each field and state in one short run |
+| `risky.json` | the spellings a dialog field may not take as typed: empty, a space at either end, a tab, a character outside ASCII, text over 40 characters (128- and 129-character quoted text) |
+| `math_decimal.json`, `math_hex.json` | Math (without the risky spellings): each bank and pointer form as the result, as an operand (with a constant and alone), as a RAND bound and as a SUM range; every constant spelling as an operand and alone; RAND with equal and reversed bounds; the range functions |
 | `copy_single.json` | Single Copy: each bank, pointer form and constant spelling as the source and the destination; each source bank against each destination bank; constants against each bank; text into TXT |
 | `copy_block.json` | Block Copy: source ranges, destination banks, bank pairs |
 | `copy_pack.json` | Pack: each bit bank against each register bank at 16 and 32 bits (and 1, 2, 17 and 33 for DS and DD); register sources |
@@ -26,29 +28,21 @@ A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner read
 unique in its file and stable: it is built from the fields' text. `row` groups the cases that ask
 one question (`copy.single.source.banks`). Out has no `mode`. Cases are in a fixed order.
 
-A file takes the runner about 4 seconds a case (see the counts below). The files are split by
-dialog and mode so none passes about 2,000 cases, and the sweeps over SD and SC are files of
-their own.
+The runner aborts the whole run when a field does not read back as typed, so **run `preflight.json`
+and `risky.json` first**. Preflight tries one case in each row, so a field that cannot take text
+(Out's range end, a constant or pointer in a range end) stops a short run. The risky spellings are
+in their own file so that one stopping the run costs little. Preflight repeats cases of the other
+files, with the same labels.
 
-| File | Cases | Runner time |
-| --- | ---: | ---: |
-| `math_decimal.json` | 1,089 | 1.2 h |
-| `math_hex.json` | 901 | 1.0 h |
-| `math_sd.json` | 1,000 | 1.1 h |
-| `copy_single.json` | 911 | 1.0 h |
-| `copy_block.json` | 593 | 0.7 h |
-| `copy_pack.json` | 598 | 0.7 h |
-| `copy_unpack.json` | 586 | 0.7 h |
-| `copy_sd_single.json` | 1,000 | 1.1 h |
-| `copy_sd_block.json` | 1,000 | 1.1 h |
-| `out.json` | 488 | 0.5 h |
-| `out_sc.json` | 1,000 | 1.1 h |
+The runner takes about 4 seconds a case. The files are split by dialog and mode so none passes
+about 2,000 cases, and the sweeps over SD and SC are files of their own. The generator prints the
+number of cases and the time of each file.
 
 ## Regenerating
 
 ```bash
-uv run devtools/editor_grids.py           # write these files
-uv run devtools/editor_grids.py --check   # exit 1 if they differ
+make editor-grids                         # write these files, then check them
+uv run devtools/editor_grids.py --check   # exit 1 if they differ, messages included
 ```
 
 The generator builds the lists from laddercodec's own bank ranges, X/Y slots, pointer banks and
@@ -62,11 +56,11 @@ the committed files differ from what the generator writes.
 built as the instruction laddercodec would make from it: Block Copy's destination end is the
 start plus the source's length, which CLICK works out itself; Pack and Unpack take the bits or
 words form of the bank typed. The verdicts exist to be compared with CLICK's answers case by
-case. The test compares the verdict, error and field, not the message.
+case. `--check` compares the messages too; the test compares the verdict, error and field only.
 
 ## CLICK's answers
 
 The runner writes `result.json` with one entry per case under `cases`: the case's own keys, then
 `outcome` (`accepted`, `refused` or `other`), `code` and `message` (the error box's), `syntax_check`
-and `seconds`. Commit each run's answers beside its grid, as test data. They are CLICK's, and are
+and `seconds`. Commit each run's answers beside its grid as `<grid>.answers.json`, as test data. They are CLICK's, and are
 never edited to fit the code: when a rule and an answer disagree, the rule changes.

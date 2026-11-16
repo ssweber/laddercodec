@@ -1,6 +1,7 @@
 """Write the editor grids: the cases ClickNick's runner types into CLICK's instruction dialogs.
 
-    uv run devtools/editor_grids.py            # write tests/fixtures/editor_grids/
+    make editor-grids                          # write tests/fixtures/editor_grids/, then check
+    uv run devtools/editor_grids.py            # write only
     uv run devtools/editor_grids.py --check    # exit 1 if the committed files differ
 
 A grid is a case list in the runner's own shape (``{"cases": [{"row", "case", "instruction",
@@ -18,6 +19,7 @@ rest.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import sys
 from collections.abc import Callable
@@ -295,7 +297,7 @@ class Grid:
 
     def __init__(self, check: Callable[[dict[str, Any]], dict[str, Any]]) -> None:
         self.cases: list[dict[str, Any]] = []
-        self.labels: set[str] = set()
+        self.labels: dict[str, dict[str, Any]] = {}
         self.check = check
 
     def add(
@@ -307,13 +309,18 @@ class Grid:
         **fields: str,
     ) -> None:
         """Add a case; one with a label already in the file is the same case and is kept once."""
-        if label in self.labels:
-            return
-        self.labels.add(label)
         case: dict[str, Any] = {"row": row, "case": label, "instruction": instruction}
         if mode is not None:
             case["mode"] = mode
         case["fields"] = fields
+        if label in self.labels:
+            kept = self.labels[label]
+            # Same fields; the row may differ (a spelling asked under two questions).
+            assert {k: v for k, v in kept.items() if k != "row"} == {
+                k: v for k, v in case.items() if k != "row"
+            }, f"two different cases share the label {label!r}"
+            return
+        self.labels[label] = case
         self.cases.append(case)
 
     def verdicts(self) -> dict[str, dict[str, Any]]:
@@ -585,6 +592,10 @@ def copy_grid() -> Grid:
     for src in BANKS:
         for dst in BANKS:
             block("pairs.banks", low(src), run_to(src, 2), low(dst))
+    for dst in BANKS:
+        for bank in XY:
+            for end in (addr(bank, 16), addr(bank, 36)):
+                block("pairs.xy-spans", low(bank), end, low(dst))
         for other in PARTNERS:
             block("source.mixed-banks", low(src), low(other), "DS11")
     for text in FORMS_SHORT:
@@ -605,6 +616,10 @@ def copy_grid() -> Grid:
             if word in ("DS", "DD"):
                 for count in (1, 2, 17, 33):
                     pack("bits.widths", low(bit), run_to(bit, count), low(word))
+            if bit in XY:
+                # Two full slots (X001..X036 is 32 points), and a span inside one slot.
+                pack("bits.xy-spans", low(bit), addr(bit, 36), low(word))
+                pack("bits.xy-spans", low(bit), addr(bit, 16), low(word))
     for word in REGISTER_ORDER:
         for dst in REGISTER_ORDER:
             pack("words.widths", low(word), run_to(word, 2), low(dst))
@@ -635,6 +650,9 @@ def copy_grid() -> Grid:
             if word in ("DS", "DD"):
                 for count in (1, 2, 17, 33):
                     unpack("bits.widths", low(word), low(bit), run_to(bit, count))
+            if bit in XY:
+                unpack("bits.xy-spans", low(word), low(bit), addr(bit, 36))
+                unpack("bits.xy-spans", low(word), low(bit), addr(bit, 16))
         for dst in REGISTER_ORDER:
             unpack("words.widths", low(word), low(dst), run_to(dst, 2))
             if dst in ("DS", "DD"):
@@ -735,33 +753,86 @@ def out_sc_grid() -> Grid:
 # ---------------------------------------------------------------------------
 
 
-def only(make: Callable[[], Grid], mode: str) -> Callable[[], Grid]:
-    """The cases of ``make`` in one mode."""
+#: A field longer than this is risky.
+RISKY_LENGTH = 40
+
+
+def is_risky(case: dict[str, Any]) -> bool:
+    """Whether a field's text may not survive typing into the dialog: empty, a space at either
+    end, a tab, a character outside ASCII, or a long text. The runner aborts the whole run
+    when a field does not read back as typed, so these cases are a file of their own."""
+    return any(
+        not v or v != v.strip() or "\t" in v or not v.isascii() or len(v) > RISKY_LENGTH
+        for v in case["fields"].values()
+    )
+
+
+@functools.cache
+def _whole(name: str) -> Grid:
+    return {"math": math_grid, "copy": copy_grid, "out": out_grid}[name]()
+
+
+def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
+    """The safe cases of a dialog's grid, in one mode."""
 
     def part() -> Grid:
-        whole = make()
+        whole = _whole(name)
         grid = Grid(whole.check)
         for case in whole.cases:
-            if case["mode"] == mode:
+            if case.get("mode") == mode and not is_risky(case):
+                grid.labels[case["case"]] = case
                 grid.cases.append(case)
-                grid.labels.add(case["case"])
         return grid
 
     return part
 
 
+def check_case(case: dict[str, Any]) -> dict[str, Any]:
+    """laddercodec's verdict on a case of any dialog."""
+    checks = {"math": _math_check, "copy": _copy_check, "out": _out_check}
+    return checks[case["instruction"]](case)
+
+
+def risky_grid() -> Grid:
+    """The risky spellings of every dialog."""
+    grid = Grid(check_case)
+    for name in ("math", "copy", "out"):
+        for case in _whole(name).cases:
+            if is_risky(case):
+                grid.labels[case["case"]] = case
+                grid.cases.append(case)
+    return grid
+
+
+def preflight_grid() -> Grid:
+    """The first safe case of every row of the dialog grids: each field and state the control
+    cases do not type into (Out's range end, a constant or pointer in a range end), tried
+    once, so a field that will not take text stops a short run."""
+    grid = Grid(check_case)
+    for name in ("math", "copy", "out"):
+        seen: set[str] = set()
+        for case in _whole(name).cases:
+            if case["row"] not in seen and not is_risky(case):
+                seen.add(case["row"])
+                grid.labels[case["case"]] = case
+                grid.cases.append(case)
+    return grid
+
+
 #: One file per dialog and mode: Math and Copy have modes whose lists are long.
 GRIDS: dict[str, Callable[[], Grid]] = {
-    "math_decimal": only(math_grid, "decimal"),
-    "math_hex": only(math_grid, "hex"),
+    "preflight": preflight_grid,
+    "risky": risky_grid,
+    "math_decimal": only("math", "decimal"),
+    "math_hex": only("math", "hex"),
     "math_sd": math_sd_grid,
-    "copy_single": only(copy_grid, "single"),
-    "copy_block": only(copy_grid, "block"),
-    "copy_pack": only(copy_grid, "pack"),
-    "copy_unpack": only(copy_grid, "unpack"),
+    "copy_single": only("copy", "single"),
+    "copy_block": only("copy", "block"),
+    "copy_pack": only("copy", "pack"),
+    "copy_unpack": only("copy", "unpack"),
     "copy_sd_single": copy_sd_single_grid,
     "copy_sd_block": copy_sd_block_grid,
-    "out": out_grid,
+    "out": only("out"),
     "out_sc": out_sc_grid,
 }
 
