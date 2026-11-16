@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from laddercodec import AddressError, BlockCopy, Copy, FieldError, Fill, Pack, Unpack
+from laddercodec import AddressError, BlockCopy, Copy, FieldError, Fill, Pack, Search, Unpack
 
 
 def _errors(build: Any) -> tuple[FieldError, ...]:
@@ -348,3 +348,17 @@ def test_pack_txt_refusals_stay_address_errors() -> None:
 def test_pack_and_unpack_shared_refusals(build: Any, field: str, reason: str) -> None:
     error = _errors(build)[0]
     assert (error.field, error.reason) == (field, reason)
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "click_id"),
+    [("DS1", "DD5", "OBJ-008"), ("DS9", "DS1", "OBJ-009"), ("DS5", "DS5", "OBJ-012")],
+)
+def test_search_table_range_refusals_carry_reason_and_id(
+    start: str, end: str, click_id: str
+) -> None:
+    """Search uses ``check_range`` for its table: the pair, a reason and CLICK's id."""
+    (error,) = _errors(lambda: Search(start, end, "5", "DS20", "C1", "=="))
+    assert error.fields == ("Search.table_end", "Search.table_start")
+    assert (error.reason, error.click_id) == ("conflict", click_id)
+    assert str(error).endswith(f" ({click_id})")
