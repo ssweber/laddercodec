@@ -704,8 +704,8 @@ currently emit:
   in `to_csv()`, `write_csv` and the encoded rung alike:
   - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
     `0.5`, `1E5` is `100000.0`, and a typed `+2.5` stays. laddercodec prints a
-    real with 7 significant digits, as those are printed, and keeps a typed `+`
-    (`+2.50` is written `+2.5`); CLICK has not answered for the rest. A real
+    real with 7 significant digits, which fits those answers, and keeps a typed
+    `+` (`+2.50` is written `+2.5`); CLICK has not answered for the rest. A real
     that 7 significant digits would print in exponent form (from `1E+07` up and
     below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
     7-digit print is another float32 value (`1234567.89`);
@@ -791,9 +791,9 @@ currently emit:
   two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise
   `FieldError` in every field, and so does `$1` except as a `copy` source.
   CLICK writes one TXT register per character of a text constant, so `""`
-  writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
-  `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
-  stores no end for it. A Copy source, a Fill value, a compare and a search take
+  writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose
+  text would run past TXT1000 raises `AddressError`. A `copy` of text into a
+  pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK stores no end for it. A Copy source, a Fill value, a compare and a search take
   1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
   matches the same window) and refuse `""`, a longer or non-ASCII text and a
   quote inside the text when it is read or built; spell any other character as

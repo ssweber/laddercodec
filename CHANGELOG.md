@@ -19,7 +19,7 @@
 - **Read errors carry every refusal**: a `FieldError` from `read_csv` has a `location` on each refusal in `.errors`, not only the raised one, and the `ConvertError` of a refused pin row now carries `fields`, `reason`, `click_id` and `errors` as a `FieldError` does.
 - **`RefusedFieldWarning`**: `decode()` and `decode_program()` emit one for each decoded instruction that holds a value CLICK's dialog refuses, with the instruction, its refusals, its rung and its program.
 - **`read_csv(..., unchecked=True)`**: reads an instruction whose values its checks refuse as written, as the decoders read a stored one, with a `RefusedFieldWarning`, so the CSV `write_csv` writes for such an instruction reads back.
-- **`constant_text()`**: writes a Python int, float or str as the constant text a `Math` or a `Copy` source takes, in CLICK's form (`constant_text(255, hex=True)` is `FFh`, `constant_text(1e3)` is `1000.0`, `constant_text("AB")` is `"AB"`).
+- **`constant_text()`**: writes a Python int, float or str as the constant text a `Math` or a `Copy` source takes, as building the instruction stores it (`constant_text(255, hex=True)` is `FFh`, `constant_text(1e3)` is `1000.0`, `constant_text("AB")` is `"AB"`).
 
 ### Fixed
 - **Refusals read unchecked say where**: each refusal `read_csv(..., unchecked=True)` keeps carries the `CsvLocation` the default read raises it with (file, line, rung, row and column, a pin row's value at that pin's row), and the `RefusedFieldWarning` message ends with the first one's, where they carried no location.
