@@ -111,8 +111,8 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
         ("DS1*(-5)", "DS1 * ( -5 )"),
         ("DS1*(-2.5)", "DS1 * ( -2.5 )"),
         ("-DS1", "- DS1"),
-        ("DF1*1.0E-10", "DF1 * 1E-10"),
-        ("DF1*(-1.5e+10)", "DF1 * ( -1.5E+10 )"),
+        ("DF1*1.0E-10", "DF1 * 1.0E-10"),  # exponent form is kept as typed
+        ("DF1*(-1.5e+10)", "DF1 * ( -1.5e+10 )"),
         ("DF1+.5", "DF1 + 0.5"),
         ("DS1 MOD 2", "DS1 MOD 2"),
         ("DS1 MOD (- 2)", "DS1 MOD ( -2 )"),

@@ -40,6 +40,7 @@ from .instructions import (
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
 from .model import AddressError, FieldError, Program, Project, Reason
+from .operands.constants import constant_text
 from .refused import RefusedFieldWarning
 from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
@@ -93,4 +94,5 @@ __all__ = [
     "Return",
     "Search",
     "Shift",
+    "constant_text",
 ]

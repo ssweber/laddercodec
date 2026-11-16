@@ -89,6 +89,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Return",
     "Search",
     "Shift",
+    "constant_text",
 )
 
 

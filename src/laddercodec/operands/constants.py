@@ -157,27 +157,82 @@ def real_display(text: str) -> str:
 
     A Math and a Copy source store a real as CLICK prints it: at most 7 significant
     digits, positional with at least one digit after the point (``1.50`` is ``1.5``,
-    ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``), and in exponent
-    form from 1E+07 up and below 1E-04 (``1.5e10`` is ``1.5E+10``).  ``text`` comes back as
-    given where that print is another float32 value (more than 7 significant digits that
-    count).  ``text`` is a real :func:`classify` reads: finite and within float32.
+    ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``).  ``text`` comes back
+    as given where that print is another float32 value (more than 7 significant digits that
+    count), and where 7 digits print it in exponent form, from 1E+07 up and below 1E-04:
+    how CLICK writes that form is not known beyond ``1.5E+10`` kept as typed.  ``text`` is a
+    real :func:`classify` reads: finite and within float32.
     """
     value = float(text)
     printed = f"{value:.{REAL_DIGITS}G}"
-    if "." not in printed and "E" not in printed:
+    if "E" in printed:
+        return text
+    if "." not in printed:
         printed += ".0"
-    same = _float32_bits(float(printed))
-    if same is None or same != _float32_bits(value):
+    if struct.pack("<f", float(printed)) != struct.pack("<f", value):
         return text
     return f"+{printed}" if text.startswith("+") else printed
 
 
-def _float32_bits(value: float) -> bytes | None:
-    """``value`` as float32 bytes; None above the float32 range."""
-    try:
-        return struct.pack("<f", value)
-    except OverflowError:
-        return None
+#: The most significant digits that tell every float32 value apart.
+_FLOAT32_DIGITS = 9
+
+
+def constant_text(value: int | float | str, *, hex: bool = False) -> str:  # noqa: A002
+    """Write a Python value as the constant text a Math or a Copy source takes, in CLICK's form.
+
+    - an ``int`` is a decimal integer (``-7``), or with ``hex=True`` hex digits then ``h``
+      (``255`` is ``FFh``), as a hex Math and a Copy into DH take it;
+    - a ``float`` is a real as CLICK prints it (``1000.0``, ``0.5``): the float32 value
+      nearest it, in the fewest significant digits that read back as that value;
+    - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
+      ASCII is its code, ``$`` and two hex digits (``$0D``).
+
+    The text spells the value; whether a field takes it (an int above int16, a hex value
+    above FFFFh, a real in a hex Math) is the field's check, made when the instruction is
+    built.  A value no constant spells raises ``ValueError``: a negative hex value, a real
+    that is not finite or is outside the float32 range, empty text, text with a quote or
+    longer than 128 characters, or a character above ``$FF``.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise TypeError(f"{value!r} is not an int, a float or a str")
+    if isinstance(value, str):
+        return _text_constant(value)
+    if hex:
+        if not isinstance(value, int):
+            raise TypeError(f"{value!r} is not an int; a hex constant is a whole number")
+        if value < 0:
+            raise ValueError(f"{value} is negative; a hex constant is 0h or more")
+        return hex_display(f"{value:X}")
+    if isinstance(value, int):
+        return str(value)
+    if not fits_float32(value):
+        raise ValueError(f"{value!r} is not a finite float32 value")
+    # The float32 value nearest, then the fewest digits that read back as it.
+    nearest = struct.unpack("<f", struct.pack("<f", value))[0]
+    text = repr(nearest)
+    for digits in range(1, _FLOAT32_DIGITS + 1):
+        text = f"{nearest:.{digits}G}"
+        if struct.unpack("<f", struct.pack("<f", float(text)))[0] == nearest:
+            break
+    if "." not in text and "E" not in text:
+        text += ".0"  # a real, not an integer
+    return real_display(text)
+
+
+def _text_constant(value: str) -> str:
+    if len(value) == 1 and not printable(value):
+        if ord(value) > 0xFF:
+            raise ValueError(f"{value!r} is above $FF; a character code is $00 to $FF")
+        return f"${ord(value):02X}"
+    if not 1 <= len(value) <= TEXT_MAX or '"' in value:
+        raise ValueError(
+            f"{value!r} is no text constant: 1 to {TEXT_MAX} characters, with no quote "
+            "($22 spells one)"
+        )
+    return f'"{value}"'
+
+
 
 
 def _text(inner: str) -> Constant | None:

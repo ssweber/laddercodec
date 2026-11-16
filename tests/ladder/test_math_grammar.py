@@ -191,7 +191,12 @@ def test_real_is_f_and_fits_float32() -> None:
         ("1.5E+10", "1.5E+10"),
         # A typed sign stays with it (DS1 + ( +2.5 ) is stored F+2.5).
         ("( +2.50 )", "( +2.5 )"),
-        ("( -1.5e10 )", "( -1.5E+10 )"),
+        # Exponent form is kept as typed: how CLICK prints it is not known beyond 1.5E+10.
+        ("( -1.5e10 )", "( -1.5e10 )"),
+        ("1.0E-10", "1.0E-10"),
+        # More than 7 significant digits that count are kept.
+        ("1234567.89", "1234567.89"),
+        ("0.123456789", "0.123456789"),
     ],
 )
 def test_real_is_written_as_click_prints_it(typed: str, stored: str) -> None:
