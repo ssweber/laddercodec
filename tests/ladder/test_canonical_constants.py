@@ -25,10 +25,9 @@ _MATH_DISPLAY = 0x6228
 _MATH_INTERNAL = 0x61FD
 
 #: (typed source, destination, CLICK's form): CLICK's answers for a single Copy.
-_COPY = [
+_COPY_ANSWERED = [
     ("005", "DS1", "5"),
     ("+5", "DS1", "+5"),
-    ("-007", "DS1", "-7"),
     ("0ffh", "DH1", "0FFh"),
     ("ffh", "DH1", "FFh"),
     ("ABCH", "DH1", "ABCh"),
@@ -42,10 +41,17 @@ _COPY = [
     ("70000", "DD1", "70000"),
     ("$1", "TXT1", "$01"),
     ("$41", "TXT1", "$41"),
+]
+#: The same rules on spellings CLICK was not asked about.
+_COPY_DERIVED = [
+    ("-007", "DS1", "-7"),
+    ("0abch", "DD1", "0ABCh"),
     ('"AB"', "TXT1", '"AB"'),
 ]
+_COPY = _COPY_ANSWERED + _COPY_DERIVED
 
-#: (typed formula, mode, CLICK's display, CLICK's internal form): CLICK's answers for Math.
+#: (typed formula, mode, CLICK's display, CLICK's internal form): the constant forms of
+#: CLICK's Math answers, in a formula; 1E3h is the form CLICK stores for a typed 1e3.
 _MATH = [
     ("DS2 + 1.50", "decimal", "DS2 + 1.5", "DS2#+#F1.5"),
     ("DS2 + 1e3", "decimal", "DS2 + 1000.0", "DS2#+#F1000.0"),

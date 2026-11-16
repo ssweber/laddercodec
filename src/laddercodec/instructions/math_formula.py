@@ -297,6 +297,16 @@ def _signed(raws: Sequence[_Raw], i: int, word: str) -> str:
     return word
 
 
+def _in_call(raws: Sequence[_Raw], i: int) -> bool:
+    """Whether ``raws[i]`` starts an argument of RAND, LSH, RSH, LRO or RRO."""
+    if i < 1:
+        return False
+    before = raws[i - 1].text
+    return before == "," or (
+        before == "(" and i >= 2 and raws[i - 2].text.upper() in COMMA_FUNCTIONS
+    )
+
+
 def _word_refusal(word: str) -> FieldError:
     return _error(
         f"{word!r} is not an address, a function name or a constant; "
@@ -380,22 +390,17 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
         except FieldError as exc:
             return refuse(exc, "const")
         return Token("const", text, f"UH{int(hex_digits, 16)}")
-    if (
-        mode == "hex"
-        and word
-        and all(c in _HEX_DIGITS for c in word)
-        and len(hex_display(word)) <= 5  # four digits and the h
-    ):
-        # CLICK's hex Math reads hex digits without h as hex (005 is 5h, FF is FFh, 1e3 is
-        # 1E3h); laddercodec refuses the text and names the h form, which says what it means.
+    if mode == "hex" and 0 < len(word) <= 4 and all(c in _HEX_DIGITS for c in word):
+        # CLICK's hex Math reads up to 4 hex digits without h as hex (005 is 5h, FF is FFh,
+        # 1e3 is 1E3h; it refuses 5 digits, 00005 too); laddercodec refuses the text and
+        # names the h form, which says what it means, where that form is taken.
         signed = _signed(raws, i, word)
-        sign = signed[: len(signed) - len(word)]
-        error = _error(
-            f"{signed} has no h; a hex Math takes hex constants, and CLICK reads it as "
-            f"{sign}{hex_display(word)}: write {sign}{hex_display(word)}",
-            Reason.KIND,
-        )
-        return refuse(error, "const")
+        fixed = f"{signed[: len(signed) - len(word)]}{hex_display(word)}"
+        rule = f"{signed} has no h; a hex Math takes hex constants such as 7h"
+        if signed == word or not _in_call(raws, i - 1):
+            # A signed argument of RAND, LSH, RSH, LRO or RRO is refused with its h too.
+            rule = f"{signed} has no h; a hex Math takes hex constants, and CLICK reads it as {fixed}: write {fixed}"
+        return refuse(_error(rule, Reason.KIND), "const")
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             error = _error(
@@ -612,7 +617,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
         if token.kind == "," and i not in call_separators:
             # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
             # (OBJ-037: DS1 , DS2 is refused).  MAX ( DS1 , DS2 ) is refused too, by the
-            # range shape at MAX before its comma is read; no answer gives its id.
+            # range shape at MAX before its comma is read; its id is not known.
             return _error(
                 "',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); CLICK reads it as a "
                 "decimal comma: use a period (.) as the decimal point",

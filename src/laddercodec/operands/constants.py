@@ -154,15 +154,17 @@ REAL_DIGITS = 7
 
 
 def real_display(text: str) -> str:
-    """CLICK's form of a real constant: its value printed back, with a typed ``+`` kept.
+    """A real constant as laddercodec writes it: its value printed back, a typed ``+`` kept.
 
-    A Math and a Copy source store a real as CLICK prints it: at most 7 significant
-    digits, positional with at least one digit after the point (``1.50`` is ``1.5``,
-    ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``).  ``text`` comes back
-    as given where that print is another float32 value (more than 7 significant digits that
-    count), and where 7 digits print it in exponent form, from 1E+07 up and below 1E-04:
-    how CLICK writes that form is not known beyond ``1.5E+10`` kept as typed.  ``text`` is a
-    real :func:`classify` reads: finite and within float32.
+    CLICK stores a real in a Math and a Copy source as it prints it back: ``1.50`` is
+    ``1.5``, ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and a typed
+    ``+2.5`` stays.  laddercodec prints with 7 significant digits, positional with at least
+    one digit after the point, as those answers do; the digit count and the rest are
+    laddercodec's until CLICK answers.  ``text`` comes back as given where that print is
+    another float32 value (more than 7 significant digits that count), and where 7 digits
+    print it in exponent form, from 1E+07 up and below 1E-04: CLICK keeps ``1.5E+10`` as
+    typed, and its form for the rest is not known.  ``text`` is a real :func:`classify`
+    reads: finite and within float32.
     """
     value = float(text)
     printed = f"{value:.{REAL_DIGITS}G}"
@@ -175,25 +177,36 @@ def real_display(text: str) -> str:
     return f"+{printed}" if text.startswith("+") else printed
 
 
-#: The most significant digits that tell every float32 value apart.
-_FLOAT32_DIGITS = 9
+#: The largest finite float32 value.
+_FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
+#: Enough significant digits to write any float32 value at or below its exact value.
+_REAL_DIGITS_MAX = 17
 
 
 def constant_text(value: int | float | str, *, hex: bool = False) -> str:
-    """Write a Python value as the constant text a Math or a Copy source takes, in CLICK's form.
+    """Write a Python value as the constant text a Math or a Copy source takes.
 
-    - an ``int`` is a decimal integer (``-7``), or with ``hex=True`` hex digits then ``h``
-      (``255`` is ``FFh``), as a hex Math and a Copy into DH take it;
-    - a ``float`` is a real as CLICK prints it (``1000.0``, ``0.5``): the float32 value
-      nearest it, in the fewest significant digits that read back as that value;
+    The text is the one building the instruction stores for that value:
+
+    - an ``int`` is a decimal integer, -2147483648 to 2147483647 (``-7``), or with
+      ``hex=True`` hex digits then ``h``, 0h to FFFFFFFFh (``255`` is ``FFh``);
+    - a ``float`` is the float32 value nearest it, in the fewest significant digits that
+      read back as that value and stay within float32, printed as laddercodec prints a real
+      (``1000.0``, ``0.5``);
     - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
       ASCII is its code, ``$`` and two hex digits (``$0D``).
 
-    The text spells the value; whether a field takes it (an int above int16, a hex value
-    above FFFFh, a real in a hex Math) is the field's check, made when the instruction is
-    built.  A value no constant spells raises ``ValueError``: a negative hex value, a real
-    that is not finite or is outside the float32 range, empty text, text with a quote or
-    longer than 128 characters, or a character above ``$FF``.
+    Provisional until CLICK answers: a real that 7 significant digits print in exponent
+    form (from 1E+07 up and below 1E-04) is written in Python's ``G`` form (``1.5E+10``),
+    and one that needs more than 7 digits keeps them (``0.33333334``); how CLICK writes
+    either is not known.
+
+    Whether a field takes the text (an int above int16, a hex value above FFFFh, a real in
+    a hex Math) is the field's check, made when the instruction is built.  A value no
+    constant spells raises ``ValueError``: an int outside the ranges above, a real that is
+    not finite or is outside the float32 range, empty text, text with a quote or longer
+    than 128 characters, or a character above ``$FF``.  A ``bool``, a float with
+    ``hex=True`` or any other type raises ``TypeError``.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{value!r} is not an int, a float or a str")
@@ -202,19 +215,25 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     if hex:
         if not isinstance(value, int):
             raise TypeError(f"{value!r} is not an int; a hex constant is a whole number")
-        if value < 0:
-            raise ValueError(f"{value} is negative; a hex constant is 0h or more")
+        if not 0 <= value < 16**HEX32_DIGITS:
+            raise ValueError(f"{value} is outside 0h..FFFFFFFFh, the hex constants")
         return hex_display(f"{value:X}")
     if isinstance(value, int):
+        if not INT32_MIN <= value <= INT32_MAX:
+            raise ValueError(f"{value} is outside {INT32_MIN}..{INT32_MAX}, the integer constants")
         return str(value)
     if not fits_float32(value):
         raise ValueError(f"{value!r} is not a finite float32 value")
-    # The float32 value nearest, then the fewest digits that read back as it.
+    # The float32 value nearest, then the fewest digits that read back as it.  A rounded
+    # print above the largest float32 value is skipped, though it may round back to it.
     nearest = struct.unpack("<f", struct.pack("<f", value))[0]
     text = repr(nearest)
-    for digits in range(1, _FLOAT32_DIGITS + 1):
-        text = f"{nearest:.{digits}G}"
-        if struct.unpack("<f", struct.pack("<f", float(text)))[0] == nearest:
+    for digits in range(1, _REAL_DIGITS_MAX + 1):
+        candidate = f"{nearest:.{digits}G}"
+        if abs(float(candidate)) > _FLOAT32_MAX:
+            continue
+        if struct.unpack("<f", struct.pack("<f", float(candidate)))[0] == nearest:
+            text = candidate
             break
     if "." not in text and "E" not in text:
         text += ".0"  # a real, not an integer

@@ -20,12 +20,14 @@ from laddercodec.operands.constants import classify, real_display
         (".5", "0.5"),
         ("1E5", "100000.0"),
         ("1.5E+10", "1.5E+10"),
-        # A typed + is kept, as CLICK keeps it.
+        ("+2.5", "+2.5"),
+        # laddercodec's, until CLICK answers: printed with 7 significant digits, a typed +
+        # kept as CLICK keeps it on +2.5.
         ("+2.50", "+2.5"),
         ("-1.50", "-1.5"),
         ("1.", "1.0"),
         ("0.0001", "0.0001"),
-        # Digits beyond the float32 value are dropped: it is the same value.
+        # laddercodec's: digits beyond the float32 value are dropped, the same value.
         ("0.30000001", "0.3"),
         ("9999999.4", "9999999.0"),
         # Kept as typed: 7 digits print another float32 value.
@@ -75,6 +77,38 @@ def test_constant_text(value: int | float | str, hex_: bool, text: str) -> None:
     assert classify(text) is not None
 
 
+_FLOAT32_MAX = struct.unpack("<f", bytes.fromhex("ffff7f7f"))[0]
+
+
+@pytest.mark.parametrize("sign", [1, -1])
+def test_constant_text_at_the_float32_edge(sign: int) -> None:
+    # The fewest digits that read back as the largest float32 and stay within it.
+    text = constant_text(sign * _FLOAT32_MAX)
+    assert text == ("-" if sign < 0 else "") + "3.402823466E+38"
+    assert struct.unpack("<f", struct.pack("<f", float(text)))[0] == sign * _FLOAT32_MAX
+    assert constant_text(sign * 3.4025e38) == ("-" if sign < 0 else "") + "3.4025E+38"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [0, 5, -7, 70000, -(2**31), 2**31 - 1, 0.5, 1000.0, 1e5, 1.5e10, 1 / 3, 1e-10, "AB", chr(13)],
+)
+def test_constant_text_is_what_construction_stores(value: int | float | str) -> None:
+    text = constant_text(value)
+    destination = "TXT1" if isinstance(value, str) else "DD1" if isinstance(value, int) else "DF1"
+    assert Copy(text, destination).source == text
+    if not isinstance(value, str):
+        assert Math(text, "DF1").expression.replace(" ", "") == text
+
+
+@pytest.mark.parametrize("value", [0, 255, 0x1E3, 0xFFFF, 0x10000, 0xFFFFFFFF])
+def test_constant_text_hex_is_what_construction_stores(value: int) -> None:
+    text = constant_text(value, hex=True)
+    assert Copy(text, "DD1").source == text
+    if value <= 0xFFFF:
+        assert Math(text, "DH1", mode="hex").expression == text
+
+
 def test_constant_text_builds_clicks_instruction() -> None:
     assert Copy(constant_text(1000.0), "DF1") == Copy("1e3", "DF1")
     assert Math(f"DH2 + {constant_text(0x1E3, hex=True)}", "DH1", mode="hex").expression == (
@@ -90,6 +124,10 @@ def test_constant_text_builds_clicks_instruction() -> None:
         (None, False, TypeError),
         (1.5, True, TypeError),
         (-1, True, ValueError),
+        (2**32, True, ValueError),
+        (2**31, False, ValueError),
+        (-(2**31) - 1, False, ValueError),
+        (2**40, False, ValueError),
         (math.inf, False, ValueError),
         (math.nan, False, ValueError),
         (1e39, False, ValueError),

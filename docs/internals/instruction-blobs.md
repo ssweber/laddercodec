@@ -169,9 +169,9 @@ The formula appears four times in the header:
   bare decimal literal prefixed with `H` (`W` outside int16, `F` for a real: `H+5`,
   `F-2.5`) and each hex constant written `UH` and its decimal value. An integer
   keeps its typed text; a real is the value CLICK prints back, in both forms
-  (`1.50` is stored `1.5` and `F1.5`, `1e3` is `1000.0` and `F1000.0`). Click splits it on `#`, so an
-  unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
-  raises a Math instruction error.
+  (`1.50` is stored `1.5` and `F1.5`, `1e3` is `1000.0` and `F1000.0`). Click
+  splits it on `#`, so an unspaced `ABS(` becomes a single unknown token. In
+  CLICK v4 that pastes but raises a Math instruction error.
 - **Comma functions** (`RAND`, `LSH`, `RSH`, `LRO`, `RRO`) are stored infix in
   the internal form: `F ( a , b )` becomes `a#F#b`, followed by a trailing `#`
   when the call ends the formula (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`,

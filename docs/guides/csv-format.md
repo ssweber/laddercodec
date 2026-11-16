@@ -703,10 +703,12 @@ currently emit:
 - A single `copy` source and a `math` constant are written as CLICK stores them,
   in `to_csv()`, `write_csv` and the encoded rung alike:
   - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
-    `0.5`, `1E5` is `100000.0`, a typed `+` stays (`+2.50` is `+2.5`). A real
-    7 significant digits print in exponent form (from `1E+07` up and below
-    `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose 7-digit
-    print is another float32 value (`1234567.89`);
+    `0.5`, `1E5` is `100000.0`, and a typed `+2.5` stays. laddercodec prints a
+    real with 7 significant digits, as those are printed, and keeps a typed `+`
+    (`+2.50` is written `+2.5`); CLICK has not answered for the rest. A real
+    that 7 significant digits would print in exponent form (from `1E+07` up and
+    below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
+    7-digit print is another float32 value (`1234567.89`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
     stays), and a hex constant with uppercase digits, its leading zeros and a
     lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
@@ -717,7 +719,8 @@ currently emit:
 
   `copy(EH,DH1)` is refused: CLICK's Copy stores `EH` as the real `0.0`, so write
   `0Eh` for hex E or `0.0` for the real. `constant_text()` writes a Python int,
-  float or str in this form (`constant_text(255, hex=True)` is `FFh`).
+  float or str as building the instruction stores it (`constant_text(255, hex=True)`
+  is `FFh`).
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -765,7 +768,7 @@ currently emit:
     (`RAND ( DS1 + 1 , 2 )` is refused), and the first argument of a shift or
     rotate is an address (`LSH ( 1h , 2h )` is refused). A `,` anywhere else is
     refused (`DS1 , DS2`, `MAX ( DS1 , DS2 )`): CLICK reads it as a decimal
-    comma (OBJ-037 for `DS1 , DS2`; no CLICK id is recorded for `MAX ( DS1 , DS2 )`).
+    comma (OBJ-037 for `DS1 , DS2`; `MAX ( DS1 , DS2 )` carries no id).
   - `SUM`, `MAX`, `MIN`, `MDN` and `AVG` take `( a : b )`, a range of two
     addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )` and `SUM ( 1 : 5 )` are
     refused). A `:` anywhere else is refused (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
@@ -786,8 +789,8 @@ currently emit:
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise
-  `FieldError` in every field, and so does `$1` except as a `copy` source. CLICK writes one TXT register per character of a
-  text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
+  `FieldError` in every field, and so does `$1` except as a `copy` source.
+  CLICK writes one TXT register per character of a text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
   TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
   `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
   stores no end for it. A Copy source, a Fill value, a compare and a search take

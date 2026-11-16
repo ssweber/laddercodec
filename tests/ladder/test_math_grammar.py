@@ -108,6 +108,57 @@ def test_hex_bare_digits_stay_refused() -> None:
     _refused("DH1 + 7H7", "hex", "'7H7' is not an address")
 
 
+@pytest.mark.parametrize(
+    ("expression", "fix", "fixed"),
+    [
+        ("DH1 + 7", "7h", "DH1 + 7h"),
+        ("DH1 + 005", "5h", "DH1 + 5h"),
+        ("FF", "FFh", "FFh"),
+        ("abc", "ABCh", "ABCh"),
+        ("( -5 )", "-5h", "( -5h )"),
+        ("-5", "-5h", "-5h"),
+        ("RAND ( 5 , Ah )", "5h", "RAND ( 5h , Ah )"),
+        ("LSH ( DH1 , 1 )", "1h", "LSH ( DH1 , 1h )"),
+    ],
+)
+def test_hex_no_h_message_names_a_fix_that_is_taken(expression: str, fix: str, fixed: str) -> None:
+    with pytest.raises(FieldError) as caught:
+        parse(expression, "hex")
+    (error,) = caught.value.errors
+    assert error.click_id is None
+    assert str(error).endswith(f": write {fix}")
+    parse(fixed, "hex")
+
+
+@pytest.mark.parametrize(
+    ("expression", "with_h"),
+    [
+        ("RAND ( -5 , Ah )", "RAND ( -5h , Ah )"),
+        ("RAND ( Ah , -5 )", "RAND ( Ah , -5h )"),
+        ("LSH ( DH1 , -1 )", "LSH ( DH1 , -1h )"),
+    ],
+)
+def test_hex_no_h_message_names_no_fix_where_the_h_form_is_refused(
+    expression: str, with_h: str
+) -> None:
+    # A signed argument of RAND or a shift is refused with its h too (OBJ-1001).
+    with pytest.raises(FieldError) as caught:
+        parse(expression, "hex")
+    first = str(caught.value.errors[0])
+    assert "has no h; a hex Math takes hex constants such as 7h" in first
+    assert "write" not in first
+    with pytest.raises(FieldError, match="OBJ-1001"):
+        parse(with_h, "hex")
+
+
+@pytest.mark.parametrize("word", ["00005", "000FF", "0FFFE"])
+def test_hex_five_typed_digits_name_no_h_form(word: str) -> None:
+    # CLICK counts the digits as typed: five are refused (OBJ-1009), so no h form is named.
+    with pytest.raises(FieldError) as caught:
+        parse(f"DH1 + {word}", "hex")
+    assert "has no h" not in str(caught.value)
+
+
 # ---------------------------------------------------------------------------
 # Tokenizer (§1.1 step 1)
 # ---------------------------------------------------------------------------

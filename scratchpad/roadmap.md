@@ -214,14 +214,18 @@ Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, dru
 Then one behaviour-change branch per answer set, as for Math and Copy.
 
 **Questions for CLICK on Math and Copy** (until answered, the code keeps the behaviour named):
-- **Reals in exponent form.** Typed `1e6` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math and a Copy: where
-  does CLICK switch to exponent form, and does it write `1E+07`, `1.0E+07` or `1E7`? The code writes a real
-  positionally below 1E+07 and from 1E-04 up, and keeps any other as typed.
-- **More than 7 significant digits.** Typed `1234567.89` and `0.123456789`: does CLICK store 7 digits (another
-  float32 value) or keep them? The code keeps them as typed.
+- **Reals in exponent form.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math
+  and a Copy: is the switch to exponent form between 1E6 and 1E7 (the code's 1E+07), and does CLICK write
+  `1E+07`, `1.0E+07` or `1E7`? The code writes a real positionally below 1E+07 and from 1E-04 up, and keeps any
+  other as typed.
+- **More than 7 significant digits.** Typed `1234567.89`, `0.123456789` and `0.30000001`: does CLICK store 7
+  digits, and what? The code keeps the first two as typed (7 digits are another float32 value) and writes the
+  third `0.3` (the same float32 value).
+- **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math and a Copy. The code writes `+2.5`.
+- **Integer `-0` in a Copy:** typed `-0` and `-00`. The code writes `-0` for both.
 - **`$0d` as a Copy source:** stored `$0d` or `$0D`? The code keeps the case typed, as for `$0d` everywhere.
-- **Other hex Copy sources with `E`:** `1EH`, `E0H`, `EEH`, `1E3H` in a Copy: hex or real? The code reads them as
-  hex and refuses only `EH`.
+- **Other hex Copy sources with `E`:** `0EH`, `1EH`, `E0H`, `EEH`, `1E3H` in a Copy: hex or real? The code reads
+  them as hex and refuses only `EH`, whose message tells the user to write `0Eh`.
 - **Typed `1E3h` in a hex Math:** does the dialog take it, as CLICK stores `1e3` that way? The code takes it, so
   that a stored `1E3h` decodes and reads back.
 - **`MAX ( DS1 , DS2 )`:** which id does the dialog give? The code refuses it with no id.
