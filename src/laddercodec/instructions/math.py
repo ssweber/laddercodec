@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, FieldError, Reason, check_address
-from ..operands.checks import Refusals
+from ..operands.checks import HEX_MATH_RESULT, Refusals
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse
@@ -198,7 +198,9 @@ class Math(AfInstruction):
             check.normalize("result")
             # The result's banks and the formula's reading depend on the mode.
             if not check.refused("mode"):
-                check("result", check_address, RESULT_BANKS[self.mode], bank_id="OBJ-004")
+                extra = HEX_MATH_RESULT if self.mode == "hex" else {}
+                banks = RESULT_BANKS[self.mode]
+                check("result", check_address, banks, bank_id="OBJ-004", **extra)
                 if not check.refused("expression"):
                     # Every refusal of the formula, each on Math.expression.
                     formula = check.run(parse, self.expression, self.mode)

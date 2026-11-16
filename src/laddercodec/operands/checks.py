@@ -108,6 +108,16 @@ class Constants:
     range_id: str | None = "OBJ-005"
 
 
+#: The ids and wording CLICK gives a hex Math result outside its range: an SD, or a YD past
+#: YD8, is outside the range (OBJ-003); another bank it does not take is OBJ-004.  Pass as
+#: keyword arguments to :func:`check_address`.
+HEX_MATH_RESULT: dict[str, Any] = {
+    "bank_ids": {"SD": "OBJ-003"},
+    "range_ids": {"YD": "OBJ-003"},
+    "outside_range_of": "a hex Math result",
+}
+
+
 class Operand(NamedTuple):
     """A checked operand: an address, a pointer or a constant."""
 

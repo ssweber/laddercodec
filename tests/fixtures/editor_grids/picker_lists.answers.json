@@ -1,0 +1,433 @@
+{
+ "grid": "pickcheck_cases.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "pc1"
+ ],
+ "cases": [
+  {
+   "row": "picker",
+   "case": "hex YD0u = DH1 + DH2 (listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "YD0u",
+    "formula": "DH1 + DH2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.024,
+   "read_back": {
+    "result": "YD0u",
+    "formula": "DH1 + DH2"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1 + DH2,YD0u,mode=hex)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "hex YD8 = DH1 (listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "YD8",
+    "formula": "DH1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.527,
+   "read_back": {
+    "result": "YD8",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1,YD8,mode=hex)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "hex DH500 = DH1 (listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH500",
+    "formula": "DH1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.641,
+   "read_back": {
+    "result": "DH500",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1,DH500,mode=hex)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "hex YD9 = DH1 (not listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "YD9",
+    "formula": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.552,
+   "read_back": {
+    "result": "YD9",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "picker",
+   "case": "hex SD29 = DH1 (not listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "SD29",
+    "formula": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "result": "SD29",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "picker",
+   "case": "hex SD31 = DH1 (not listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "SD31",
+    "formula": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "SD31",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "picker",
+   "case": "hex DS1 = DH1 (not listed)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DS1",
+    "formula": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DH1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "picker",
+   "case": "pack C1..C16 to DS1 (listed)",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.612,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"pack_bits(C1..C16,DS1)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "pack C1..C16 to SD29 (not listed)",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "SD29"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.455,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "SD29"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "picker",
+   "case": "pack C1..C16 to SD31 (not listed)",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "SD31"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.455,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "SD31"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "picker",
+   "case": "pack C1..C16 to TD1 (greyed for a C source)",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "TD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.446,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "TD1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "picker",
+   "case": "unpack DH1 to Y001..Y016 (listed)",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DH1",
+    "destination": "Y001",
+    "destination_end": "Y016"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 6.694,
+   "read_back": {
+    "source": "DH1",
+    "destination": "Y001",
+    "destination_end": "Y016"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"unpack_to_bits(DH1,Y001..Y016)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "unpack DH1 to SC50..SC65 (not listed)",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DH1",
+    "destination": "SC50",
+    "destination_end": "SC65"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "source": "DH1",
+    "destination": "SC50",
+    "destination_end": "SC65"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "picker",
+   "case": "unpack DD1 to DH1..DH2 (listed with no source)",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DD1",
+    "destination": "DH1",
+    "destination_end": "DH2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 6.458,
+   "read_back": {
+    "source": "DD1",
+    "destination": "DH1",
+    "destination_end": "DH2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"unpack_to_words(DD1,DH1..DH2)\""
+   ]
+  },
+  {
+   "row": "picker",
+   "case": "unpack DD1 to SD31..SD32 (not listed)",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DD1",
+    "destination": "SD31",
+    "destination_end": "SD32"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.452,
+   "read_back": {
+    "source": "DD1",
+    "destination": "SD31",
+    "destination_end": "SD32"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  }
+ ]
+}

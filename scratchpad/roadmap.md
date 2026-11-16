@@ -115,6 +115,15 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   with it. laddercodec's `WRITABLE_SC` is the same 25; its rules accept all 1,000 SD in each of the three
   fields, so each tightens to the list (a Block Copy needs every address of its destination range listed).
   Then decide whether the sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) stay.
+- **The picker's lists for 8 more fields are in:** Pack's destination (with nothing, an X source and a C
+  source filled first), Unpack's destination and destination end (with nothing, a DH source and a DS source),
+  and a hex Math result. None lists an SC or SD address, and the rules accept none. The 15 `try` cases from
+  those lists (`picker_lists.answers.json`) and CLICK's two rule-table rows (`rule_rows.answers.json`: a
+  block Copy of TXT into TXT and a hex Math into YD) agree with the rules, except one id: CLICK refuses an
+  SD as a hex Math result with OBJ-003 (outside the range), answered for SD29 and SD31 and applied to all of
+  SD; YD9 is answered the same way, applied to a YD past YD8. The rules now say so, where they said OBJ-004 or
+  gave no id.
+  A bank a hex result does not take (DS1) stays OBJ-004.
 - **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
   Math and a decimal register in a hex one; a RAND bound that is a real or a DF or DH, and equal bounds; SUM over
   TXT.
@@ -145,6 +154,10 @@ Addresses are written canonical everywhere, and tested. Constants are written as
 - timer `preset=0050`, Search `005`.
 
 Modbus hex addresses are already canonical.
+
+Open: does a clipboard copy-back of a dialog-made Copy carry tag 0x1201 as "0"? The clipboard form natively
+writes "0" (tumbler), and the SCR form keeps it empty or leaves it out; a pasted block Copy was saved without
+it. The encoder writes "0" in every Copy-family blob; no change until CLICK answers.
 
 **click's answers for Math and Copy (2026-11-16):**
 - Hex Math reads a constant without `h` as hex: `005` and `5` are stored `5h`, `FF` is `FFh`, `1e3` is `1E3h`

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import functools
 import re
-from collections.abc import Collection, Generator
+from collections.abc import Collection, Generator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, NamedTuple
@@ -203,6 +203,9 @@ def check_address(
     *,
     label: str | None = None,
     bank_id: str | None = None,
+    bank_ids: Mapping[str, str] | None = None,
+    range_ids: Mapping[str, str] | None = None,
+    outside_range_of: str | None = None,
 ) -> Address:
     """Parse a CLICK address; raise :class:`AddressError` naming ``field`` if refused.
 
@@ -216,7 +219,10 @@ def check_address(
     ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
     YD.  The message names ``label``, or the field when no label is given.  ``bank_id`` is
     the error id CLICK's dialog gives for a bank the field does not take (``"OBJ-004"``),
-    where it is known; it becomes the refusal's ``click_id``.
+    where it is known; it becomes the refusal's ``click_id``.  ``bank_ids`` gives another id
+    for particular banks (``{"SD": "OBJ-003"}``), and ``range_ids`` one for a number outside
+    its bank's range, by bank.  A refusal with one of those ids says it is outside the range
+    of ``outside_range_of`` (the field's noun, else its name), and what the field takes.
     """
     name = label or field
     match = _ADDRESS_RE.fullmatch(value)
@@ -232,16 +238,38 @@ def check_address(
             reason=Reason.ADDRESS,
         )
     if banks is not None and bank not in banks:
-        allowed = ", ".join(b for b in ADDRESS_BANKS if b in banks)
+        allowed = [b for b in ADDRESS_BANKS if b in banks]
+        specific = (bank_ids or {}).get(bank)
+        if specific is not None:
+            names = (
+                ", ".join(allowed[:-1]) + " and " + allowed[-1] if len(allowed) > 1 else allowed[0]
+            )
+            raise AddressError(
+                f"{name}: {value!r} is outside the range of {outside_range_of or name} "
+                f"({specific}); it takes {names}",
+                field=field,
+                reason=Reason.BANK,
+                click_id=specific,
+            )
         tail = f" ({bank_id})" if bank_id else ""
         raise AddressError(
-            f"{name}: {value!r} is not allowed; {name} takes {allowed}{tail}",
+            f"{name}: {value!r} is not allowed; {name} takes {', '.join(allowed)}{tail}",
             field=field,
             reason=Reason.BANK,
             click_id=bank_id,
         )
     if not _in_range(bank, digits, upper):
         # No such address: the number is outside its bank.
+        in_range = (range_ids or {}).get(bank)
+        if in_range is not None:
+            takes = ", ".join(_bank_range_text(b) for b in ADDRESS_BANKS if b in (banks or {bank}))
+            raise AddressError(
+                f"{name}: {value!r} is outside the range of {outside_range_of or name} "
+                f"({in_range}); it takes {takes}",
+                field=field,
+                reason=Reason.ADDRESS,
+                click_id=in_range,
+            )
         raise AddressError(
             f"{name}: {value!r} is outside {_bank_range_text(bank)}",
             field=field,
