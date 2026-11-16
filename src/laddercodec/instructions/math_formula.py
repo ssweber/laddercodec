@@ -69,6 +69,7 @@ def _raise(found: Sequence[FieldError]) -> NoReturn:
     first.errors = tuple(found)
     raise first
 
+
 # ---------------------------------------------------------------------------
 # Names (the keyword map of grammar step 2)
 # ---------------------------------------------------------------------------
@@ -637,7 +638,9 @@ def _check_operands(tokens: Sequence[Token]) -> list[FieldError]:
             found.append(_error(rule, Reason.BANK, "OBJ-1002"))
         elif parts[0] in _SUM_REFUSED_BANKS and sum_at[i] not in ct_refused:
             ct_refused.add(sum_at[i])
-            found.append(_error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK))
+            found.append(
+                _error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK)
+            )
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
             continue
@@ -844,7 +847,9 @@ def parse(text: str, mode: str) -> Formula:
     for raw in raws:
         if raw.symbol and raw.text in ("[", "]"):
             # A pointer such as DS[DS1]: refused before its bank name reads as a word.
-            raise _error(f"{raw.text!r} is part of a pointer; Math takes no pointer", Reason.POINTER)
+            raise _error(
+                f"{raw.text!r} is part of a pointer; Math takes no pointer", Reason.POINTER
+            )
     found: list[FieldError] = []
     tokens: list[Token] = []
     known = True  # every word looks like a token

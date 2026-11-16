@@ -23,9 +23,7 @@ def _called_name(node: ast.Call) -> str | None:
     return None
 
 
-def calls_without_field(
-    source: str, filename: str = "<src>", keyword: str = "field"
-) -> list[str]:
+def calls_without_field(source: str, filename: str = "<src>", keyword: str = "field") -> list[str]:
     """``file:line`` of each FieldError or AddressError call without a ``keyword=`` keyword."""
     missing = []
     for node in ast.walk(ast.parse(source)):

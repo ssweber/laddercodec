@@ -600,9 +600,7 @@ class Refusals:
             return a == b or a.startswith(f"{b}[") or b.startswith(f"{a}[")
 
         return any(
-            e.field is not None and overlap(f, e.field)
-            for e in self._errors[:kept]
-            for f in fields
+            e.field is not None and overlap(f, e.field) for e in self._errors[:kept] for f in fields
         )
 
     def add(self, error: FieldError) -> None:
