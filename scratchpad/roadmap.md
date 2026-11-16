@@ -92,6 +92,10 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   and returns the answers; cases and answers are committed as test data. The runner's `try` drives Math, Copy
   (single, block, pack, unpack) and Out today, about 4 seconds a case, so those grids run first. click is
   adding a run that resumes and more dialogs, Receive first.
+- **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
+  with laddercodec's verdict beside each case. Waiting on: click's run, then its answers committed as
+  `<grid>.answers.json` and a test comparing them with the verdicts. Next grids, once the runner drives their
+  dialogs: Receive, Compare, Search, Fill, timers, counters, For.
 - **A writable-SD list,** taken once from CLICK's DLLs, help or a grid, not copied from pyrung or pyclickplc.
   The sampled rows: the editor refuses a single Copy into SD1, a Math result into SD1, and a Block Copy into
   SD1 or into SD29..SD30 (every address in the destination range must be writable); it accepts SD29 and
@@ -118,6 +122,10 @@ click's runner (job B) is saving and decoding what CLICK stores for `005`, `+5`,
 Then make one behaviour-change branch: a test that every writer's output is canonical, the golden `.bin` files
 that change, and Sam's paste checks of them.
 
+The same branch writes a constant from a Python value (an int as hex, a float as a Real, a str as text) in
+CLICK's canonical form, so pyrung stops spelling constants itself (its `click/ladder/translator.py` does today).
+Approved by Sam 2026-11-16.
+
 ## Open CLICK questions (CLICK)
 
 Each is a dialog check or a capture. Until answered, the code keeps the behaviour named.
@@ -130,7 +138,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?
 - **Coil range over SC:** does Compile refuse an SC range with read-only bits between its ends?
 - **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored. (Whether the dialog
-  accepts them is item 3's grid; this is what a paste stores.)
+  accepts them is item 3's grids; this is what a paste stores.)
 - **Math X/Y range members:** a span of more than two expansion slots, and a Y range that starts in the option
   slot. The fitted rule covers every capture so far.
 - **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
@@ -161,8 +169,10 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
   but takes a `Network` beside the `RungTree`.
 - The rows in memory, with the number of CLICK rungs each source rung became (`write_csv` only writes a file).
 - A writer for `main.csv` plus `subroutines/` (`csv/bundle.py` only reads).
-- Later, a whole-program check: loop nesting, nested calls, the 8,000-step limit and a step estimate. See the
-  Syntax Check rules item in Later.
+- A check on a whole program, approved by Sam 2026-11-16, moving from pyrung: for-loop nesting depth, a One Shot
+  or a Return inside a loop, nested calls, the 8,000-step limit, and pyrung's estimate of program steps (its
+  `click/ladder/steps.py`). It comes after pyrung's export goes through laddercodec, since only then does pyrung
+  hold a laddercodec program to pass in. See the Syntax Check rules item in Later.
 
 ## Waits on another repo
 
