@@ -149,18 +149,17 @@ def test_attributes_default_to_none() -> None:
 
 
 @pytest.mark.parametrize(
-    ("message", "field"),
+    "message",
     [
-        ("Coil.range_end: 'C5' is not above 'C9'; a range runs up", "Coil.range_end"),
-        ("Drum.outputs[2]: 'Y001' is already output 0", "Drum.outputs[2]"),
-        ("Call.subroutine cannot be empty: CLICK requires a subroutine name", "Call.subroutine"),
-        ("CompareContact: 'DS1' (numeric) and 'DH1' (hex) do not mix", None),
-        ("Drum steps: 0 is outside 1-16", None),
-        ("to_binary: 'x' is not an option", None),
+        "Coil.range_end: 'C5' is not above 'C9'; a range runs up",
+        "Drum.outputs[2]: 'Y001' is already output 0",
+        "Call.subroutine cannot be empty: CLICK requires a subroutine name",
+        "to_binary: 'x' is not an option",
     ],
 )
-def test_field_from_message(message: str, field: str | None) -> None:
-    assert errors.FieldError(message).field == field
+def test_field_is_not_read_from_the_message(message: str) -> None:
+    assert errors.FieldError(message).field is None
+    assert errors.FieldError(message, field="Coil.operand").field == "Coil.operand"
 
 
 def test_check_address_names_the_field() -> None:
@@ -187,7 +186,7 @@ def test_display_form_refusal_names_instance() -> None:
 
 
 def test_pickle_keeps_message_and_attributes() -> None:
-    exc = errors.AddressError("Coil.operand: 'C0' is outside C1-C2000")
+    exc = errors.AddressError("Coil.operand: 'C0' is outside C1-C2000", field="Coil.operand")
     copy_ = pickle.loads(pickle.dumps(exc))
     assert type(copy_) is errors.AddressError
     assert str(copy_) == str(exc)
@@ -197,3 +196,18 @@ def test_pickle_keeps_message_and_attributes() -> None:
 def test_pickle_keeps_explicit_field() -> None:
     exc = errors.FieldError("refused", field="Send source")
     assert pickle.loads(pickle.dumps(exc)).field == "Send source"
+
+
+def test_token_rows_refusal_names_a_field_only_for_a_raw_token() -> None:
+    from laddercodec.instructions import Velocity
+    from laddercodec.instructions.raw import RawInstruction
+
+    with pytest.raises(errors.FieldError) as info:
+        RawInstruction.from_csv_token("raw(Timer,0x0001,2,rows=abc)")
+    assert info.value.field == "RawInstruction.visual_rows"
+    with pytest.raises(errors.FieldError) as info:
+        RawInstruction.from_csv_token("raw(Timer,0x0001,2,sub=0)")
+    assert info.value.field == "RawInstruction.sub_rows"
+    with pytest.raises(errors.FieldError) as info:
+        Velocity.from_csv_token("raw(Velocity,0x2735,1,rows=abc)")
+    assert info.value.field is None

@@ -375,19 +375,27 @@ class RawInstruction(AfInstruction):
     def __post_init__(self) -> None:
         # A decoded blob gives any class name and a 16-bit part count; check only the types.
         if not isinstance(self.class_name, str):
-            raise FieldError(f"RawInstruction.class_name: {self.class_name!r} is not text")
+            raise FieldError(
+                f"RawInstruction.class_name: {self.class_name!r} is not text",
+                field="RawInstruction.class_name",
+            )
         if not isinstance(self.blob, bytes):
-            raise FieldError(f"RawInstruction.blob: {type(self.blob).__name__} is not bytes")
+            raise FieldError(
+                f"RawInstruction.blob: {type(self.blob).__name__} is not bytes",
+                field="RawInstruction.blob",
+            )
         if type(self.part_count) is not int or not 0 <= self.part_count <= 0xFFFF:
             raise FieldError(
                 f"RawInstruction.part_count: {self.part_count!r} is not a whole number "
-                "from 0 to 65535"
+                "from 0 to 65535",
+                field="RawInstruction.part_count",
             )
         for name in ("visual_rows", "sub_rows"):
             rows = getattr(self, name)
             if rows is not None and (type(rows) is not int or not 1 <= rows <= 0xFF):
                 raise FieldError(
-                    f"RawInstruction.{name}: {rows!r} is not a whole number from 1 to 255"
+                    f"RawInstruction.{name}: {rows!r} is not a whole number from 1 to 255",
+                    field=f"RawInstruction.{name}",
                 )
 
     def cell_params(self) -> dict:
@@ -514,16 +522,18 @@ class RawInstruction(AfInstruction):
 
         # Legacy hex format.
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
-        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts)
+        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
         if pins is not None:
             raise FieldError(
                 f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
-                "holds the part bytes"
+                "holds the part bytes",
+                field=None,  # token syntax, not a field value
             )
         if extra:
             raise FieldError(
                 f"raw({class_name},hex,...): only rows= and sub= may follow the hex, "
-                f"not {extra[0]!r}"
+                f"not {extra[0]!r}",
+                field=None,  # token syntax, not a field value
             )
         blob = bytes.fromhex(hex_blob)
         try:
@@ -546,13 +556,16 @@ class RawInstruction(AfInstruction):
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
-        visual_rows, sub_rows, pins, field_specs = _take_box_rows(class_name, parts[2:])
+        visual_rows, sub_rows, pins, field_specs = _take_box_rows(
+            class_name, parts[2:], raw_token=True
+        )
         extra_bytes = _pin_rows(class_name, part_count, pins)
         if extra_bytes and visual_rows is not None and visual_rows != extra_bytes[-1] + 1:
             stated = "pins=" + pins if pins is not None else "no pins= (rows 1, 2, ...)"
             raise FieldError(
                 f"raw({class_name},...): rows={visual_rows} does not fit {stated}; the box "
-                f"ends one row below its last pin (rows={extra_bytes[-1] + 1})"
+                f"ends one row below its last pin (rows={extra_bytes[-1] + 1})",
+                field="RawInstruction.visual_rows",
             )
 
         fields = _parse_field_specs(field_specs)
@@ -566,20 +579,26 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
     Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
     A ``pins=`` among the parts raises FieldError (see :func:`_take_box_rows`).
     """
-    rows, sub, pins, rest = _take_box_rows(class_name, parts)
+    rows, sub, pins, rest = _take_box_rows(class_name, parts, raw_token=False)
     if pins is not None:
-        raise FieldError(f"raw({class_name},...): pins= is only for a box of 2 or more parts")
+        raise FieldError(
+            f"raw({class_name},...): pins= is only for a box of 2 or more parts",
+            field=None,  # token syntax, not a field value
+        )
     return rows, sub, rest
 
 
 def _take_box_rows(
-    class_name: str, parts: list[str]
+    class_name: str, parts: list[str], *, raw_token: bool
 ) -> tuple[int | None, int | None, str | None, list[str]]:
     """Read the leading ``rows=``, ``sub=`` and ``pins=`` of a raw token's *parts*.
 
     Returns ``(visual_rows, sub_rows, pins text, remaining parts)``; an absent
     field is None.  A box spans at most a rung's rows; its sub-rows byte may
     exceed its span (a native Drum stores ``04 05``).
+
+    A refused ``rows=`` or ``sub=`` names the RawInstruction field only when the token is a
+    ``raw(...)`` token (*raw_token*); a typed class's token has no such field.
     """
     from ..encode import MAX_ROWS
 
@@ -592,7 +611,16 @@ def _take_box_rows(
             if not (text.isascii() and text.isdigit() and 1 <= int(text) <= limits[key]):
                 raise FieldError(
                     f"raw({class_name},...): {key}={text!r} is not a whole number "
-                    f"from 1 to {limits[key]}"
+                    f"from 1 to {limits[key]}",
+                    field=(
+                        (
+                            "RawInstruction.visual_rows"
+                            if key == "rows"
+                            else "RawInstruction.sub_rows"
+                        )
+                        if raw_token
+                        else None
+                    ),
                 )
             values[key] = int(text)
             i += 1
@@ -604,7 +632,8 @@ def _take_box_rows(
         if part.startswith(("rows=", "sub=", "pins=")):
             raise FieldError(
                 f"raw({class_name},...): {part!r} goes right after the part count, "
-                "rows= then sub= then pins=, once each"
+                "rows= then sub= then pins=, once each",
+                field=None,  # token syntax, not a field value
             )
     return values["rows"], values["sub"], pins, parts[i:]
 
@@ -621,22 +650,28 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
     if want == 0:
         raise FieldError(
             f"raw({class_name},...): pins={text} is only for a box of 2 or more parts, "
-            f"not {part_count}"
+            f"not {part_count}",
+            field=None,  # token syntax, not a field value
         )
     values = text.split("/")
     if len(values) != want:
         raise FieldError(
             f"raw({class_name},...): pins={text} must hold {want} rows, one per part "
-            f"after the first, joined by /"
+            f"after the first, joined by /",
+            field=None,  # token syntax, not a field value
         )
     if not all(v.isascii() and v.isdigit() and 1 <= int(v) <= 31 for v in values):
         raise FieldError(
             f"raw({class_name},...): pins={text} holds a row that is not a whole number "
-            "from 1 to 31"
+            "from 1 to 31",
+            field=None,  # token syntax, not a field value
         )
     rows = [int(v) for v in values]
     if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
-        raise FieldError(f"raw({class_name},...): pins={text} must ascend")
+        raise FieldError(
+            f"raw({class_name},...): pins={text} must ascend",
+            field=None,  # token syntax, not a field value
+        )
     return bytes(rows)
 
 
@@ -669,7 +704,8 @@ def _take_fixed_cell_rows(class_name: str, parts: list[str], params: dict[str, i
     if got != want:
         raise FieldError(
             f"raw({class_name},...): rows={got[0]},sub={got[1]} is not the {class_name} "
-            f"box's height (rows={want[0]},sub={want[1]})"
+            f"box's height (rows={want[0]},sub={want[1]})",
+            field=None,  # token syntax, not a field value
         )
     return rest
 

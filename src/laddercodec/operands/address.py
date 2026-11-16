@@ -103,7 +103,8 @@ def to_display(value: str, display: str) -> str:
     :class:`FieldError`.
     """
     if display != value and _DISPLAY_FORM_ONLY.get():
-        raise FieldError(f"{value!r} is not CLICK's display form {display!r}")
+        # No field: the caller's value, not a named field of one instruction.
+        raise FieldError(f"{value!r} is not CLICK's display form {display!r}", field=None)
     return display
 
 
