@@ -111,6 +111,13 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
     destination bank its source can't unpack to now carries OBJ-004. Open: only DS into DS is answered; ask
     CLICK for a DH source into DS and a DD source into Y.
+  - Copy-family bank ids (closed for the answered rows): a bank no row of the field holds is OBJ-004 for a
+    Pack destination (answered for X001, SD29 and SD31), an Unpack source (X001) and an Unpack destination
+    (X, SC and SD); a single Copy into a bit bank it does not write is OBJ-004 from a bit source (X001 into
+    X001, C1 into SC50 and SC303) and OBJ-024 from any other (DS2 and 5 into X001). The rules give these ids
+    to every bank of each check. Open, ask CLICK: T and CT as a single Copy destination from a bit source and
+    from a DS; an XD destination (no id); a Pack into Y, C or TXT; an Unpack from C or TXT and into T, DD or
+    TXT.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
     the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its
