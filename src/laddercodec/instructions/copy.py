@@ -512,6 +512,7 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
+
 def _copy_dest_bank_id(kind: str | None, dest_bank: str) -> str | None:
     """CLICK's id for a single Copy destination in a bank a Copy does not write, by the
     source's kind.
