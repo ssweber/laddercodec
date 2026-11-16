@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Literal, cast
 
 from ..instructions.comparison import split_comparison
@@ -296,3 +297,28 @@ def parse_af_token(token: str) -> AfNode:
         kwargs=kwargs,
         raw=text,
     )
+
+
+def fill_blank_args(token: str, fill: Callable[[int], str]) -> str | None:
+    """*token*, an AF call, with each blank argument replaced by ``fill(i)``, or None when no
+    argument is blank.
+
+    ``i`` counts the top-level arguments from 0.  A blank positional argument becomes
+    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument.
+    A ``raw(...)`` token has none: its arguments are its own field specs.
+    """
+    m = _CALL_RE.fullmatch(token.strip())
+    if not m or m.group(1) == "raw":
+        return None
+    segments = list(_split_top_level_csv_like(m.group(2).strip())) or [""]
+    filled = []
+    for i, seg in enumerate(segments):
+        eq_idx = _kwarg_eq_index(seg)
+        if eq_idx >= 0 and not seg[eq_idx + 1 :].strip():
+            seg = f"{seg[: eq_idx + 1]}{fill(i)}"
+        elif not seg:
+            seg = fill(i)
+        filled.append(seg)
+    if filled == segments:
+        return None
+    return f"{m.group(1)}({','.join(filled)})"

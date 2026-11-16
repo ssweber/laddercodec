@@ -57,8 +57,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from typing import cast
+from dataclasses import dataclass, field, fields, is_dataclass, replace
+from typing import Any, cast
 
 from .._layout import canonical
 from ..decode import Rung
@@ -97,7 +97,7 @@ from .ast import (
     VerticalPassThroughWire,
 )
 from .location import AF_COLUMN, add_location, add_own_location, at, locate_held, located
-from .token_parser import parse_af_token, parse_condition_token
+from .token_parser import fill_blank_args, parse_af_token, parse_condition_token
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -539,13 +539,107 @@ def condition_node_to_token(node: object) -> ConditionToken:
 
 
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
-    """Convert a parsed AF call node to an encode-ready token."""
-    token = parse_af_call(call)
-    if token is not None:
-        return token
-    if strict:
-        raise ValueError(f"Unsupported AF instruction: {call.name!r}")
-    return ""
+    """Convert a parsed AF call node to an encode-ready token.
+
+    A token that holds a blank argument and that its family's parser refuses (raises, or
+    inside ``read_csv(..., unchecked=True)`` builds holding refusals) is read with the
+    field that argument fills left blank (:func:`_with_blank_fields`): it is refused, or
+    kept, as building the instruction with that field blank refuses it (``missing``).  A
+    token the parser accepts is read as before.
+    """
+    refused: ValueError | None = None
+    try:
+        token = parse_af_call(call)
+    except ValueError as exc:
+        refused, token = exc, None
+    if refused is None:
+        if token is None:
+            if strict:
+                raise ValueError(f"Unsupported AF instruction: {call.name!r}")
+            return ""
+        if not refusals(token):
+            return token
+    blanked = _with_blank_fields(call)
+    if blanked is not None:
+        return blanked
+    if refused is not None:
+        raise refused
+    return cast(AfInstruction, token)
+
+
+def _with_blank_fields(call: AfCall) -> AfInstruction | None:
+    """The instruction *call* reads to with each blank argument's field blank, or None.
+
+    Each blank argument is read as a marker, in each of :data:`_MARKER_FORMS` until the
+    token parses: bare, quoted (a name), and as a range (``M..M``, two fields).  The
+    fields the marker lands in are the argument's.  The instruction is then built again
+    from its fields, each marker blank, with the checks construction runs: inside
+    ``read_csv(..., unchecked=True)`` it keeps the refusals, else it raises them.  None
+    when the token holds no blank argument, does not parse with the markers, or a marker
+    lands in no field.
+    """
+    text = call.raw or call.to_token()
+    for form in _MARKER_FORMS:
+        found = _marked(text, form)
+        if found is None:
+            return None
+        marked, marks = found
+        try:
+            with unchecked():
+                probe = parse_af_call(cast(AfCall, parse_af_token(marked)))
+        except ValueError:
+            continue
+        if probe is None:
+            return None
+        if all(_holds_text(probe, m) for m in marks):
+            return cast(AfInstruction, _built_with_blanks(probe, marks))
+    return None
+
+
+#: How a blank argument is written while its fields are found: ``@`` stands for the marker.
+_MARKER_FORMS = ("@", '"@"', "@..@")
+
+
+def _marked(text: str, form: str) -> tuple[str, set[str]] | None:
+    """*text* with each blank argument a marker written in *form*, and the markers; None
+    when no argument is blank."""
+    marks: set[str] = set()
+
+    def mark(i: int) -> str:
+        found = f"BLANK{i}Q"  # no address, constant or name
+        while found in text:
+            found += "Q"
+        marks.add(found)
+        return form.replace("@", found)
+
+    marked = fill_blank_args(text, mark)
+    return None if marked is None else (marked, marks)
+
+
+def _holds_text(value: object, text: str) -> bool:
+    """Whether *value*, a field or one of its items, a dataclass's fields included, is *text*."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return any(_holds_text(getattr(value, f.name), text) for f in fields(value))
+    if isinstance(value, (list, tuple)):
+        return any(_holds_text(item, text) for item in value)
+    return value == text
+
+
+def _built_with_blanks(value: object, marks: set[str]) -> object:
+    """*value* with each field or item that is a marker in *marks* blank; each dataclass it
+    holds, and *value* itself, built again with its checks."""
+    if is_dataclass(value) and not isinstance(value, type):
+        changes = {
+            f.name: _built_with_blanks(getattr(value, f.name), marks)
+            for f in fields(value)
+            if f.init
+        }
+        return replace(cast(Any, value), **changes)
+    if type(value) in (list, tuple):
+        return type(value)(_built_with_blanks(item, marks) for item in cast(Any, value))
+    if isinstance(value, str) and value in marks:
+        return ""
+    return value
 
 
 def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:

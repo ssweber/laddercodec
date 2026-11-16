@@ -524,8 +524,7 @@ class TestHeldRefusals:
     raises it."""
 
     def test_condition_cell(self, tmp_path: Path) -> None:
-        rows: list[Row | list[str]] = [GOOD, ("R", {0: "X1", 1: "DS2", **_wired("X1")}, "")]
-        rows[1] = ("R", {**_wired("X1"), 1: "DS2"}, "out(Y001)")
+        rows: list[Row | list[str]] = [GOOD, ("R", {**_wired("X1"), 1: "DS2"}, "out(Y001)")]
         path = _write(tmp_path / "main.csv", rows)
         [refusal] = _held_refusals(path)
         want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=1)
