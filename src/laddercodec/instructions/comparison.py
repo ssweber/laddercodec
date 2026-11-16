@@ -139,6 +139,12 @@ class CompareContact(ConditionInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.flag("wire_down")
+            if not isinstance(self.op, str) or self.op not in COMPARE_OP_TO_FUNC:
+                check.refuse(
+                    "op",
+                    f"{self.op!r} is not allowed; it is one of " + ", ".join(COMPARE_OP_TO_FUNC),
+                    Reason.CHOICE,
+                )
             # A constant comes back from normalize_address as written.
             check.normalize("left", "right")
             left = check("left", _operand_group)

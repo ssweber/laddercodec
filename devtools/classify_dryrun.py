@@ -310,13 +310,13 @@ def counter_rule(ns: Any, value: str) -> None:
 def modbus_hex_rule(ns: Any, value: str) -> None:
     """Remote address: a MODBUS 984 number (digits), or hex from 0h to FFFEh.
 
-    The family keeps the digits branch: it takes any string of ASCII digits, beyond int32
-    too, and calls no shared check.
+    The family keeps the digits branch: it takes any string of ASCII digits of up to 4300,
+    beyond int32 too (int() refuses more), and calls no shared check.
     """
     if value.endswith(("h", "H")):
         constants = ns.constants({ns.Kind.HEX}, hex_high=0xFFFE)
         ns.checks.check_constant(value, "ModbusAddress.address", constants)
-    elif not (value.isascii() and value.isdigit()):
+    elif not (value.isascii() and value.isdigit()) or len(value) > 4300:
         ns.refuse("not a MODBUS 984 number or hex")
 
 

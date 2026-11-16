@@ -19,6 +19,7 @@
 - **Read errors carry every refusal**: a `FieldError` from `read_csv` has a `location` on each refusal in `.errors`, not only the raised one, and the `ConvertError` of a refused pin row now carries `fields`, `reason`, `click_id` and `errors` as a `FieldError` does.
 
 ### Fixed
+- **Long MODBUS address and compare operator**: a Send or Receive `ModbusAddress` of more than 4300 digits is refused with a `FieldError` on `ModbusAddress.address`, where it crashed with `ValueError`, and a `CompareContact` operator outside `==`, `!=`, `<`, `>`, `<=` and `>=` is refused on `CompareContact.op`, where `build_blob` crashed with `KeyError`.
 - **Copy termination code**: a `$` code that is no character code (`$ZZ`, `$D`) is refused with CLICK's `OBJ-036`, as a code with no `$` already was; the same values are accepted and refused.
 - **SD or YD out of range as a hex Math result**: an SD, or a YD past YD8, is refused with CLICK's `OBJ-003` (outside the range) and a message that says so, where an SD carried `OBJ-004` and a YD no id; the refusal itself is the same.
 - **`check()` on a circuit that is not series-parallel**: such a rung gets its C0001 finding and no C000A finding or finding about a pin's contacts, as CLICK reports a bridge with an output above a retentive timer, where it also got C000A and C0205.

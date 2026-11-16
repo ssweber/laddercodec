@@ -147,6 +147,10 @@ def _check_ip(check: Refusals, ip: str) -> None:
         check.refuse("ip", rule, Reason.RANGE)
 
 
+#: int() refuses a longer digit string, so a longer decimal address is refused as no number.
+_MAX_INT_DIGITS = 4300
+
+
 @dataclass(frozen=True)
 class ModbusAddress:
     """Non-CLICK remote address (MODBUS 984 or hex)."""
@@ -175,7 +179,11 @@ class ModbusAddress:
                     )
                     if display is not None:
                         object.__setattr__(self, "address", display)
-            elif not self.address.isascii() or not self.address.isdigit():
+            elif (
+                not self.address.isascii()
+                or not self.address.isdigit()
+                or len(self.address) > _MAX_INT_DIGITS
+            ):
                 check.refuse(
                     "address",
                     f"must be a MODBUS 984 number or hex (0h-FFFEh), got {self.address!r}",
