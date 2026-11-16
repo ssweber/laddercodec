@@ -790,8 +790,8 @@ currently emit:
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise
   `FieldError` in every field, and so does `$1` except as a `copy` source.
-  CLICK writes one TXT register per character of a text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
-  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
+  CLICK writes one TXT register per character of a text constant, so `""`
+  writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
   `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
   stores no end for it. A Copy source, a Fill value, a compare and a search take
   1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
