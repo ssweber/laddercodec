@@ -29,7 +29,8 @@ class CsvLocation:
     `` (at <location>)``; a ``UnicodeDecodeError`` keeps its message and its location
     holds ``file`` only.  A ``FieldError`` refused while a box takes its pin rows (a
     ``.jump()`` target, a ``.reset()`` on a timer that can't be retentive) arrives as the
-    ``ConvertError`` it always was, with the field in its ``field``.  Each field is ``None``
+    ``ConvertError`` it always was, with the refusal's data.  Each refusal in a
+    ``FieldError``'s ``errors`` carries its own location.  Each field is ``None``
     where it is not known or does not apply.
 
     Attributes
@@ -88,7 +89,8 @@ class CsvLocation:
 
 
 def add_location(exc: BaseException, **known: object) -> None:
-    """Give *exc* the fields of *known* its location does not have yet."""
+    """Give *exc*, and every refusal in its ``errors``, the fields of *known* its location
+    does not have yet."""
     old = CsvLocation.of(exc) or CsvLocation()
     new = {
         f.name: known[f.name]
@@ -96,6 +98,9 @@ def add_location(exc: BaseException, **known: object) -> None:
         if known.get(f.name) is not None and getattr(old, f.name) is None
     }
     object.__setattr__(exc, "location", replace(old, **new))
+    for nested in getattr(exc, "errors", ()):
+        if nested is not exc and isinstance(nested, BaseException):
+            add_location(nested, **known)
 
 
 def at(exc: _E, **known: object) -> _E:
