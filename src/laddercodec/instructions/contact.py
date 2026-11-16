@@ -13,13 +13,11 @@ from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     ConditionInstruction,
-    FieldError,
     InstructionType,
+    Reason,
     check_address,
-    check_flag,
-    normalize_fields,
 )
-from ..operands.checks import BIT_BANKS
+from ..operands.checks import BIT_BANKS, Refusals
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -81,39 +79,41 @@ class Contact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
-        if self.type not in _CONTACT_TYPES:
-            raise FieldError(
-                f"Contact.type: {self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or "
-                "CONTACT_EDGE)",
-                field="Contact.type",
-            )
-        self.immediate = check_flag(self.immediate, "Contact.immediate")
-        self.wire_down = check_flag(self.wire_down, "Contact.wire_down")
-        normalize_fields(self, "operand")
-        address = check_address(self.operand, "Contact.operand", BIT_BANKS)
-        if self.immediate and self.type == InstructionType.CONTACT_EDGE:
-            raise FieldError(
-                "Contact.immediate: an edge contact has no immediate form",
-                field="Contact.immediate",
-            )
-        if self.immediate and address.bank != "X":
-            raise FieldError(
-                f"Contact.immediate: {self.operand!r} is not allowed; "
-                "an immediate contact takes X only",
-                field="Contact.immediate",
-            )
-        if self.type == InstructionType.CONTACT_EDGE:
-            if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
-                raise FieldError(
-                    f"Contact.edge_kind: {self.edge_kind!r} is not rise or fall; "
-                    "an edge contact needs one",
-                    field="Contact.edge_kind",
+        with Refusals(self) as check:
+            if self.type not in _CONTACT_TYPES:
+                check.refuse(
+                    "type",
+                    f"{self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or CONTACT_EDGE)",
+                    Reason.CHOICE,
                 )
-        elif self.edge_kind is not None:
-            raise FieldError(
-                f"Contact.edge_kind: {self.edge_kind!r} is not allowed; only an edge contact has one",
-                field="Contact.edge_kind",
-            )
+            check.flag("immediate", "wire_down")
+            check.normalize("operand")
+            address = check("operand", check_address, BIT_BANKS)
+            if self.immediate is True and self.type == InstructionType.CONTACT_EDGE:
+                check.refuse(
+                    ("immediate", "type"),
+                    "an edge contact has no immediate form",
+                    Reason.CONFLICT,
+                )
+            if self.immediate is True and address is not None and address.bank != "X":
+                check.refuse(
+                    ("immediate", "operand"),
+                    f"{self.operand!r} is not allowed; an immediate contact takes X only",
+                    Reason.CONFLICT,
+                )
+            if self.type == InstructionType.CONTACT_EDGE:
+                if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
+                    check.refuse(
+                        "edge_kind",
+                        f"{self.edge_kind!r} is not rise or fall; an edge contact needs one",
+                        Reason.CHOICE,
+                    )
+            elif self.edge_kind is not None:
+                check.refuse(
+                    ("edge_kind", "type"),
+                    f"{self.edge_kind!r} is not allowed; only an edge contact has one",
+                    Reason.CONFLICT,
+                )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Contact:

@@ -28,11 +28,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction, FieldError, check_flag, normalize_fields
+from ..model import Address, AfInstruction, Reason
 from ..operands.checks import (
     ALL_KINDS,
     REGISTER_BANKS,
     Constants,
+    Operand,
+    Refusals,
     check_quoted_text,
 )
 from ..operands.constants import SEARCH_TABLE_BANKS, Kind
@@ -150,42 +152,64 @@ class Search(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        # A constant search value comes back from normalize_address as written.
-        normalize_fields(self, "table_start", "table_end", "source", "result", "found")
-        if self.comparison not in _OP_TO_FUNC:
-            raise FieldError(
-                f"Search.comparison: {self.comparison!r} is not allowed; it is one of "
-                f"{', '.join(_OP_TO_FUNC)}",
-                field="Search.comparison",
-            )
-        # Search has no pointer path, so no field takes one.  The table is
-        # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
-        table, _ = check_range(
-            "Search", "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
-        )
-        check_box_operand(self.result, "Search.result", RESULT_BANKS)
-        check_box_operand(self.found, "Search.found", FOUND_BANKS)
-        if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
-            check_quoted_text(self.source, "Search.source")
-        # The search value is a constant or a data register, never a bit.
-        source = check_box_operand(self.source, "Search.source", REGISTER_BANKS, _VALUE)
+        with Refusals(self) as check:
+            # A constant search value comes back from normalize_address as written.
+            check.normalize("table_start", "table_end", "source", "result", "found")
+            if self.comparison not in _OP_TO_FUNC:
+                check.refuse(
+                    "comparison",
+                    f"{self.comparison!r} is not allowed; it is one of {', '.join(_OP_TO_FUNC)}",
+                    Reason.CHOICE,
+                )
+            # Search has no pointer path, so no field takes one.  The table is
+            # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
+            start = check("table_start", check_box_operand, TABLE_BANKS)
+            end = check("table_end", check_box_operand, TABLE_BANKS)
+            table = None
+            if start is not None and end is not None:
+                ends = check.run(
+                    check_range,
+                    "Search",
+                    "table_start",
+                    self.table_start,
+                    "table_end",
+                    self.table_end,
+                    TABLE_BANKS,
+                )
+                table = ends[0] if ends is not None else None
+            check("result", check_box_operand, RESULT_BANKS)
+            check("found", check_box_operand, FOUND_BANKS)
+            if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
+                check("source", check_quoted_text)
+            # The search value is a constant or a data register, never a bit.
+            source = check("source", check_box_operand, REGISTER_BANKS, _VALUE)
+            if source is not None:
+                self._check_source(check, source, table)
+            check.flag("continuous", "oneshot")
+
+    def _check_source(self, check: Refusals, source: Operand, table: Address | None) -> None:
+        """The rules that tie the search value to the comparison and to the table."""
         const = source.constant
         if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or source.bank == "TXT":
             if self.comparison not in _TEXT_OPS:
-                raise FieldError(
-                    f"Search.comparison: {self.comparison!r} is not offered for text "
+                check.refuse(
+                    ("comparison", "source"),
+                    f"{self.comparison!r} is not offered for text "
                     f"{self.source!r}; text searches with == or !=",
-                    field="Search.comparison",
+                    Reason.CONFLICT,
                 )
         # The value's kind ties to the table banks.
-        if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
-            raise FieldError(
-                f"Search.source: {self.source!r} is a {const.kind} value, which searches "
+        if (
+            const is not None
+            and table is not None
+            and table.bank not in SEARCH_TABLE_BANKS[const.kind]
+        ):
+            check.refuse(
+                ("source", "table_start"),
+                f"{self.source!r} is a {const.kind} value, which searches "
                 f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
-                field="Search.source",
+                Reason.CONFLICT,
             )
-        self.continuous = check_flag(self.continuous, "Search.continuous")
-        self.oneshot = check_flag(self.oneshot, "Search.oneshot")
 
     @property
     def func_code(self) -> str:

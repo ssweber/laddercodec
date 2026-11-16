@@ -17,15 +17,8 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import (
-    FieldError,
-    InstructionType,
-    PinnedInstruction,
-    check_address,
-    check_flag,
-    normalize_fields,
-)
-from ..operands.checks import Constants, check_operand
+from ..model import InstructionType, PinnedInstruction, Reason, check_address
+from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
@@ -83,45 +76,42 @@ class Counter(PinnedInstruction):
     pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
-        if self.counter_type not in ("count_up", "count_down"):
-            raise FieldError(
-                f"Counter.counter_type: {self.counter_type!r} is not count_up or count_down",
-                field="Counter.counter_type",
+        with Refusals(self) as check:
+            if self.counter_type not in ("count_up", "count_down"):
+                check.refuse(
+                    "counter_type",
+                    f"{self.counter_type!r} is not count_up or count_down",
+                    Reason.CHOICE,
+                )
+            check.flag("down_enabled", "reset_enabled")
+            if self.reset_enabled is False:
+                check.refuse("reset_enabled", "a counter always has a Reset input", Reason.CHOICE)
+            if self.down_enabled is True and self.counter_type == "count_down":
+                # count_down's own input is Down; its box has no separate .down() input.
+                check.refuse(
+                    ("down_enabled", "counter_type"),
+                    "count_down has no .down() input; only count_up does",
+                    Reason.CONFLICT,
+                )
+            check.normalize("done_bit", "current", "preset")
+            done = check("done_bit", check_address, banks={"CT"})
+            current = check("current", check_address, banks={"CTD"})
+            if done is not None and current is not None and done.number != current.number:
+                check.refuse(
+                    ("current", "done_bit"),
+                    f"{self.current!r} must be CTD{done.number} to match Counter.done_bit "
+                    f"{self.done_bit!r}",
+                    Reason.CONFLICT,
+                )
+            check(
+                "preset",
+                check_operand,
+                COUNTER_PRESET_BANKS,
+                _PRESET,
+                letter_first=True,
+                bank_id="OBJ-004",
             )
-        self.down_enabled = check_flag(self.down_enabled, "Counter.down_enabled")
-        self.reset_enabled = check_flag(self.reset_enabled, "Counter.reset_enabled")
-        if not self.reset_enabled:
-            raise FieldError(
-                "Counter.reset_enabled: a counter always has a Reset input",
-                field="Counter.reset_enabled",
-            )
-        if self.down_enabled and self.counter_type == "count_down":
-            # count_down's own input is Down; its box has no separate .down() input.
-            raise FieldError(
-                "Counter.down_enabled: count_down has no .down() input; only count_up does",
-                field="Counter.down_enabled",
-            )
-        self._check_fields()
-        self._check_pin_rows()
-
-    def _check_fields(self) -> None:
-        normalize_fields(self, "done_bit", "current", "preset")
-        done = check_address(self.done_bit, "Counter.done_bit", banks={"CT"})
-        current = check_address(self.current, "Counter.current", banks={"CTD"})
-        if done.number != current.number:
-            raise FieldError(
-                f"Counter.current: {self.current!r} must be CTD{done.number} to match "
-                f"Counter.done_bit {self.done_bit!r}",
-                field="Counter.current",
-            )
-        check_operand(
-            self.preset,
-            "Counter.preset",
-            COUNTER_PRESET_BANKS,
-            _PRESET,
-            letter_first=True,
-            bank_id="OBJ-004",
-        )
+            check.run(self._check_pin_rows)
 
     @property
     def lead_rows(self) -> int:

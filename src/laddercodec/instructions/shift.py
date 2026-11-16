@@ -18,14 +18,8 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
-from ..model import (
-    FieldError,
-    InstructionType,
-    PinnedInstruction,
-    Reason,
-    check_address,
-    normalize_fields,
-)
+from ..model import InstructionType, PinnedInstruction, Reason, check_address
+from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -57,23 +51,24 @@ class Shift(PinnedInstruction):
     pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
-        normalize_fields(self, "start_bit", "end_bit")
-        # Both ends are C; another bank, or an end in another bank than the start, is
-        # OBJ-004.
-        start = check_address(self.start_bit, "Shift.start_bit", SHIFT_BANKS, bank_id="OBJ-004")
-        end = check_address(self.end_bit, "Shift.end_bit", SHIFT_BANKS, bank_id="OBJ-004")
-        # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
-        # address as it is typed (C001 becomes C1), so the
-        # parsed addresses are compared.  Start > end stays allowed: it reverses the shift.
-        if end == start:
-            raise FieldError(
-                f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
-                f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)",
-                field=("Shift.end_bit", "Shift.start_bit"),
-                reason=Reason.CONFLICT,
-                click_id="OBJ-012",
-            )
-        self._check_pin_rows()
+        with Refusals(self) as check:
+            check.normalize("start_bit", "end_bit")
+            # Both ends are C; another bank, or an end in another bank than the start, is
+            # OBJ-004.
+            start = check("start_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
+            end = check("end_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
+            # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
+            # address as it is typed (C001 becomes C1), so the
+            # parsed addresses are compared.  Start > end stays allowed: it reverses the shift.
+            if start is not None and end is not None and end == start:
+                check.refuse(
+                    ("end_bit", "start_bit"),
+                    f"{self.end_bit!r} is the same address as Shift.start_bit "
+                    f"{self.start_bit!r}; a shift register needs two different ends",
+                    Reason.CONFLICT,
+                    "OBJ-012",
+                )
+            check.run(self._check_pin_rows)
 
     def pin_names(self) -> tuple[str, ...]:
         return (".clock", ".reset")

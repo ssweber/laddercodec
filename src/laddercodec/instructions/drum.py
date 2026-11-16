@@ -20,15 +20,13 @@ from typing import TYPE_CHECKING, Literal, cast
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..model import (
     Address,
-    FieldError,
     PinnedInstruction,
+    Reason,
     check_address,
-    check_flag,
     normalize_address,
-    normalize_fields,
     normalize_items,
 )
-from ..operands.checks import BIT_BANKS, Constants, check_operand
+from ..operands.checks import BIT_BANKS, Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
@@ -183,27 +181,49 @@ def _constant_preset_mask(presets: list[str]) -> str:
 _DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=32767)
 
 
-def _check_distinct_outputs(outputs: list[Address], texts: list[str], flag: Address) -> None:
+def _check_distinct_outputs(
+    check: Refusals, outputs: list[Address | None], texts: list[str], flag: Address | None
+) -> None:
     """Refuse an output used twice, or used as the completion flag (OBJ-014).
 
     CLICK normalizes an address as it is typed (``C001`` becomes ``C1``) before it
-    compares, so ``C1`` and ``C001`` are the same output.
+    compares, so ``C1`` and ``C001`` are the same output.  An output refused on its own
+    (``None``) is not compared.
     """
     seen: dict[Address, int] = {}
     for i, (output, text) in enumerate(zip(outputs, texts, strict=True)):
+        if output is None:
+            continue
         if output in seen:
-            raise FieldError(
-                f"Drum.outputs[{i}]: {text!r} is already output {seen[output]}; "
-                "each output is a different bit (OBJ-014)",
-                field=f"Drum.outputs[{i}]",
+            check.refuse(
+                (f"outputs[{i}]", f"outputs[{seen[output]}]"),
+                f"{text!r} is already output {seen[output]}; each output is a different bit",
+                Reason.CONFLICT,
+                "OBJ-014",
             )
+            continue
         seen[output] = i
         if output == flag:
-            raise FieldError(
-                f"Drum.outputs[{i}]: {text!r} is the completion flag; an output is "
-                "a different bit (OBJ-014)",
-                field=f"Drum.outputs[{i}]",
+            check.refuse(
+                (f"outputs[{i}]", "completion_flag"),
+                f"{text!r} is the completion flag; an output is a different bit",
+                Reason.CONFLICT,
+                "OBJ-014",
             )
+
+
+def _refuse_blank_steps(
+    check: Refusals, attr: str, blank: list[int], rule: str, click_id: str
+) -> None:
+    """Refuse a list field with a blank step: the list itself, or, where another refusal
+    already covers the list, each blank step, so that refusal does not hide this one."""
+    if not blank:
+        return
+    if check.refused(attr):
+        for i in blank:
+            check.refuse(f"{attr}[{i}]", rule, Reason.MISSING, click_id)
+    else:
+        check.refuse(attr, rule, Reason.MISSING, click_id)
 
 
 def _timer_done_bit(accumulator: str) -> str:
@@ -248,98 +268,125 @@ class Drum(PinnedInstruction):
     pin_rows: tuple[int, ...] = (1, 2, 3)
 
     def __post_init__(self) -> None:
-        self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")
-        self.jump_enabled = check_flag(self.jump_enabled, "Drum.jump_enabled")
-        self._check_pin_rows()
-        normalize_items(self, "outputs", "events_or_presets", "events")
-        normalize_fields(self, "current_step", "completion_flag", "accumulator", "jump_target")
-        kind = self.drum_kind
-        if kind not in ("event", "time", "time_event"):
-            raise FieldError(
-                f"Drum.drum_kind: {kind!r} is not event, time or time_event",
-                field="Drum.drum_kind",
-            )
-        steps, outputs = self.num_steps, self.num_outputs
-        if not 1 <= steps <= _MAX_DRUM_SIZE:
-            raise FieldError(
-                f"Drum steps: {steps} is outside 1-{_MAX_DRUM_SIZE}",
-                field="Drum.events_or_presets",
-            )
-        if not 1 <= outputs <= _MAX_DRUM_SIZE:
-            raise FieldError(
-                f"Drum outputs: {outputs} is outside 1-{_MAX_DRUM_SIZE}", field="Drum.outputs"
-            )
+        with Refusals(self) as check:
+            check.flag("jog_enabled", "jump_enabled")
+            check.run(self._check_pin_rows)
+            for name in ("outputs", "events_or_presets", "events"):
+                check.run(normalize_items, self, name)
+            check.normalize("current_step", "completion_flag", "accumulator", "jump_target")
+            kind = self.drum_kind
+            if kind not in ("event", "time", "time_event"):
+                check.refuse(
+                    "drum_kind", f"{kind!r} is not event, time or time_event", Reason.CHOICE
+                )
+            steps, outputs = self.num_steps, self.num_outputs
+            sizes_ok = True
+            if not 1 <= steps <= _MAX_DRUM_SIZE:
+                sizes_ok = False
+                check.refuse(
+                    "events_or_presets",
+                    f"{steps} steps is outside 1-{_MAX_DRUM_SIZE}",
+                    Reason.RANGE,
+                )
+            if not 1 <= outputs <= _MAX_DRUM_SIZE:
+                sizes_ok = False
+                check.refuse(
+                    "outputs", f"{outputs} outputs is outside 1-{_MAX_DRUM_SIZE}", Reason.RANGE
+                )
+            if sizes_ok:
+                self._check_pattern(check, steps, outputs)
+            addresses = [
+                check(f"outputs[{i}]", check_address, banks={"Y", "C"})
+                for i in range(len(self.outputs))
+            ]
+            check("current_step", check_address, banks={"DS"})
+            flag = check("completion_flag", check_address, banks={"C"})
+            _check_distinct_outputs(check, addresses, self.outputs, flag)
+            # An event drum keeps its events in events_or_presets.
+            events = "events_or_presets" if kind == "event" else "events"
+            for i, event in enumerate(getattr(self, events)):
+                if event:
+                    check(
+                        f"{events}[{i}]", check_address, banks=BIT_BANKS, label=f"Drum.events[{i}]"
+                    )
+            if kind != "event":
+                for i, preset in enumerate(self.events_or_presets):
+                    if preset:
+                        check(
+                            f"events_or_presets[{i}]",
+                            check_operand,
+                            {"DS"},
+                            _DURATION,
+                            letter_first=True,
+                            label=f"Drum.presets[{i}]",
+                            bank_id="OBJ-004",
+                        )
+            if self.jump_enabled is True:
+                check("jump_target", check_address, banks={"DS"})
+            if kind == "event":
+                _refuse_blank_steps(
+                    check,
+                    "events_or_presets",
+                    [i for i, event in enumerate(self.events_or_presets) if not event],
+                    "every step needs an event",
+                    "OBJ-021",
+                )
+            elif kind in ("time", "time_event"):
+                self._check_timed(check, kind, steps, sizes_ok)
+
+    def _check_pattern(self, check: Refusals, steps: int, outputs: int) -> None:
+        """The pattern is one row per step and one cell per output, each 0 or 1."""
         if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
-            raise FieldError(
-                f"Drum.pattern: needs {steps} steps of {outputs} cells each, got "
+            check.refuse(
+                "pattern",
+                f"needs {steps} steps of {outputs} cells each, got "
                 f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells",
-                field="Drum.pattern",
+                Reason.FORM,
             )
+            return
         for row in self.pattern:
             for cell in row:
                 if type(cell) is not int or cell not in (0, 1):
-                    raise FieldError(
-                        f"Drum.pattern: {cell!r} is not allowed, cells are 0 or 1",
-                        field="Drum.pattern",
+                    check.refuse(
+                        "pattern", f"{cell!r} is not allowed, cells are 0 or 1", Reason.CHOICE
                     )
-        outputs = [
-            check_address(output, f"Drum.outputs[{i}]", banks={"Y", "C"})
-            for i, output in enumerate(self.outputs)
-        ]
-        check_address(self.current_step, "Drum.current_step", banks={"DS"})
-        flag = check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
-        _check_distinct_outputs(outputs, self.outputs, flag)
-        # An event drum keeps its events in events_or_presets.
-        events = "events_or_presets" if kind == "event" else "events"
-        for i, event in enumerate(getattr(self, events)):
-            if event:
-                check_address(
-                    event, f"Drum.{events}[{i}]", banks=BIT_BANKS, label=f"Drum.events[{i}]"
-                )
-        if kind != "event":
-            for i, preset in enumerate(self.events_or_presets):
-                if preset:
-                    check_operand(
-                        preset,
-                        f"Drum.events_or_presets[{i}]",
-                        {"DS"},
-                        _DURATION,
-                        letter_first=True,
-                        label=f"Drum.presets[{i}]",
-                        bank_id="OBJ-004",
-                    )
-        if self.jump_enabled:
-            check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
-        if kind == "event":
-            if any(not event for event in self.events_or_presets):
-                raise FieldError(
-                    "Drum.events: every step needs an event (OBJ-021)",
-                    field="Drum.events_or_presets",
-                )
-            return
+                    return
+
+    def _check_timed(self, check: Refusals, kind: str, steps: int, sizes_ok: bool) -> None:
+        """What a time or time & event drum adds: the unit, the accumulator, each step's
+        duration and event."""
         if self.unit not in _DRUM_UNIT_TO_INDEX:
-            raise FieldError(
-                f"Drum.unit: {self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}",
-                field="Drum.unit",
+            check.refuse(
+                "unit",
+                f"{self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}",
+                Reason.CHOICE,
             )
-        check_address(self.accumulator, "Drum.accumulator", banks={"TD"})
+        check("accumulator", check_address, banks={"TD"})
         if kind == "time":
-            if any(not preset for preset in self.events_or_presets):
-                raise FieldError(
-                    "Drum.presets: every step needs a duration (OBJ-022)",
-                    field="Drum.events_or_presets",
-                )
+            _refuse_blank_steps(
+                check,
+                "events_or_presets",
+                [i for i, preset in enumerate(self.events_or_presets) if not preset],
+                "every step needs a duration",
+                "OBJ-022",
+            )
+            return
+        if not sizes_ok:
             return
         if len(self.events) != steps:
-            raise FieldError(
-                f"Drum.events: needs one event per step ({steps}), got {len(self.events)}",
-                field="Drum.events",
+            check.refuse(
+                ("events", "events_or_presets"),
+                f"needs one event per step ({steps}), got {len(self.events)}",
+                Reason.CONFLICT,
             )
+            return
         for i, (preset, event) in enumerate(zip(self.events_or_presets, self.events, strict=True)):
             if not preset and not event:
-                raise FieldError(
-                    f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)",
-                    field=(f"Drum.events_or_presets[{i}]", f"Drum.events[{i}]"),
+                check.refuse(
+                    (f"events_or_presets[{i}]", f"events[{i}]"),
+                    f"step {i + 1} needs a duration or an event",
+                    Reason.MISSING,
+                    "OBJ-1019",
                 )
 
     @property
