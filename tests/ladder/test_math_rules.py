@@ -35,6 +35,11 @@ def _sum_of(n: int) -> str:
 
 
 _NINE_DEEP = "( " * 9 + "DS1" + " )" * 9
+_HEX_ONLY = "a hex Math takes only DH, XD and YD registers and hex constants \\(OBJ-1002\\)"
+_DECIMAL_ONLY = (
+    "a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, "
+    "and X, Y, C, T and SC bits only as the range of SUM \\( a : b \\) \\(OBJ-1002\\)"
+)
 
 _REFUSED = [
     # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
@@ -78,8 +83,38 @@ _REFUSED = [
     ("DS1 + $41", "DS9", "decimal", "holds a text constant"),
     ('DH1 + "A"', "DH9", "hex", "holds a text constant"),
     ("DH1 + $41", "DH9", "hex", "holds a text constant"),
-    # SUM takes no CT range (OBJ-1002)
-    ("SUM ( CT1 : CT3 )", "DS9", "decimal", "SUM over CT1 is refused; SUM takes no CT range"),
+    # a decimal formula takes DS, DD, DF, TD, CTD and SD, and X, Y, C, T and SC only as the
+    # range of a SUM (OBJ-1002)
+    (
+        "SUM ( CT1 : CT3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( CT1 : CT3 \\) is refused for CT1; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( DH1 : DH3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( DH1 : DH3 \\) is refused for DH1; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( XD0 : XD1 )",
+        "DS9",
+        "decimal",
+        "SUM \\( XD0 : XD1 \\) is refused for XD0; " + _DECIMAL_ONLY,
+    ),
+    (
+        "SUM ( TXT1 : TXT3 )",
+        "DS9",
+        "decimal",
+        "SUM \\( TXT1 : TXT3 \\) is refused for TXT1; " + _DECIMAL_ONLY,
+    ),
+    ("DS1 + DH1", "DS9", "decimal", "DH1 is refused; " + _DECIMAL_ONLY),
+    ("DS1 + XD0", "DS9", "decimal", "XD0 is refused; " + _DECIMAL_ONLY),
+    ("DS1 + YD0u", "DS9", "decimal", "YD0u is refused; " + _DECIMAL_ONLY),
+    ("DS1 + TXT1", "DS9", "decimal", "TXT1 is refused; " + _DECIMAL_ONLY),
+    ("RAND ( DH1 , 10 )", "DS9", "decimal", "DH1 is refused"),
+    ("MAX ( TXT1 : TXT3 )", "DS9", "decimal", "TXT1 is refused"),
     # parentheses: at most 8 deep (OBJ-1010), balanced (OBJ-1004, OBJ-1005)
     (_NINE_DEEP, "DS9", "decimal", "nests parentheses 9 deep; CLICK allows 8"),
     ("( DS1 + DS2", "DS9", "decimal", "has a '\\(' with no '\\)'"),
@@ -90,19 +125,37 @@ _REFUSED = [
     ("DH1 ^ DH2", "DH9", "hex", "\\^ is decimal only"),
     ("DS1 AND DS2", "DS9", "decimal", "AND is hex only"),
     ("LSH ( DS1 , 1 )", "DS9", "decimal", "LSH is hex only"),
-    # a bit stands only in SUM over a bit range
-    ("C1 + DS1", "DS9", "decimal", "C1 is a bit"),
-    ("X001 + 1", "DS9", "decimal", "X001 is a bit"),
-    ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is a bit"),
-    # a hex formula takes no bit, not even in SUM, and no DS (OBJ-1002)
-    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; a hex Math takes no bit"),
-    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; a hex Math takes no bit"),
-    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; SUM takes no CT range"),
-    ("DH1 + C1", "DH9", "hex", "C1 is a bit; a hex Math takes no bit"),
-    ("DS1 + 1h", "DH9", "hex", "DS1 is a DS register; a hex Math takes no DS"),
-    ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is a DS register"),
-    ("SUM ( DS1 : DS3 )", "DH9", "hex", "DS1 is a DS register"),
-    ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is a DS register"),
+    # a decimal formula takes X, Y, C, T and SC bits only as the range of a SUM
+    ("C1 + DS1", "DS9", "decimal", "C1 is refused; " + _DECIMAL_ONLY),
+    ("X001 + 1", "DS9", "decimal", "X001 is refused; " + _DECIMAL_ONLY),
+    ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is refused; " + _DECIMAL_ONLY),
+    # a hex formula takes only DH, XD and YD registers, in a SUM too (OBJ-1002)
+    (
+        "SUM ( X001 : X002 )",
+        "DH9",
+        "hex",
+        "SUM \\( X001 : X002 \\) is refused for X001; " + _HEX_ONLY,
+    ),
+    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM \\( C1 : C16 \\) is refused for C1; " + _HEX_ONLY),
+    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM \\( CT1 : CT3 \\) is refused for CT1; " + _HEX_ONLY),
+    ("SUM ( DS1 : DS3 )", "DH9", "hex", "SUM \\( DS1 : DS3 \\) is refused for DS1; " + _HEX_ONLY),
+    (
+        "SUM ( TXT1 : TXT3 )",
+        "DH9",
+        "hex",
+        "SUM \\( TXT1 : TXT3 \\) is refused for TXT1; " + _HEX_ONLY,
+    ),
+    ("DH1 + C1", "DH9", "hex", "C1 is refused; " + _HEX_ONLY),
+    ("DS1 + 1h", "DH9", "hex", "DS1 is refused; " + _HEX_ONLY),
+    ("DD1 + 1h", "DH9", "hex", "DD1 is refused; " + _HEX_ONLY),
+    ("DF1 + 1h", "DH9", "hex", "DF1 is refused; " + _HEX_ONLY),
+    ("TD1 + 1h", "DH9", "hex", "TD1 is refused; " + _HEX_ONLY),
+    ("CTD1 + 1h", "DH9", "hex", "CTD1 is refused; " + _HEX_ONLY),
+    ("SD1 + 1h", "DH9", "hex", "SD1 is refused; " + _HEX_ONLY),
+    ("TXT1 + 1h", "DH9", "hex", "TXT1 is refused; " + _HEX_ONLY),
+    ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is refused"),
+    ("MAX ( DD1 : DD3 )", "DH9", "hex", "DD1 is refused"),
+    ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is refused"),
     # a decimal result in SD is a writable SD register (OBJ-003)
     ("DS1 + 1", "SD1", "decimal", "Math.result: 'SD1' is not a writable SD register"),
     ("DS1 + 1", "SD62", "decimal", "Math.result: 'SD62' is not a writable SD register"),
@@ -173,6 +226,8 @@ def test_unknown_mode_refused() -> None:
         ("SUM ( TD1 : TD3 )", "DS9", "decimal"),
         ("MAX ( TD1 : TD5 )", "DD9", "decimal"),
         ("MAX ( DS1 : DS3 )", "DS9", "decimal"),
+        # the decimal registers: DS, DD, DF, TD, CTD and SD
+        ("DS1 + DD1 + DF1 + TD1 + CTD1 + SD1 + SUM ( CTD1 : CTD3 )", "DF9", "decimal"),
         # result banks
         ("DS1 + 1", "SD29", "decimal"),
         ("DS1 + 1", "SD215", "decimal"),
@@ -188,6 +243,8 @@ def test_unknown_mode_refused() -> None:
         ("DS1 + 0", "DS9", "decimal"),
         ("SUM ( DS1 : DS1 )", "DS9", "decimal"),
         ("MAX ( XD0 : XD0u )", "DH9", "hex"),
+        # the hex registers: DH, XD and YD
+        ("SUM ( DH1 : DH3 ) + XD0 + YD0u", "DH9", "hex"),
         ("MDN ( DS1 : DS512 )", "DS9", "decimal"),
         ("MDN ( DD1 : DD256 )", "DD9", "decimal"),
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
@@ -265,10 +322,10 @@ def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
 @pytest.mark.parametrize(
     ("expression", "result", "mode"),
     [
-        ("XD0u + 1", "DS9", "decimal"),
+        ("XD0u + 1h", "DH9", "hex"),
         ("PI * SQRT ( DF1 )", "DF9", "decimal"),
         ("SUM ( DS1 : DS9 ) MOD 3", "DS9", "decimal"),
-        ("TXT1 + SD1 + CTD1 + TD1 + DD1 + DF1", "DS9", "decimal"),
+        ("SD1 + CTD1 + TD1 + DD1 + DF1", "DS9", "decimal"),
         ("LRO ( DH1 , 1h ) XOR RRO ( DH2 , 1h )", "DH9", "hex"),
     ],
 )

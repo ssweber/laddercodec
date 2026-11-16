@@ -20,16 +20,17 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
    refused (step 8).
 6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
    starts and ends (step 9).
-7. Bits, the registers a hex formula refuses, ranges and the 270-character cap of the
-   internal template.
+7. :func:`_check_operands`: the banks each mode takes (:data:`_OPERANDS`), ranges, and
+   then the 270-character cap of the internal template.
 
 A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
 and a token out of order each end the reading there.  Every other refusal is one of many:
-each word refused, each constant's value, each key of the other mode, each bit, each DS in a
-hex formula and each range, and the reading goes on past it, taking a refused word as what
-it looks like (an address, a constant, a function name).  After a word that looks like none
-of those, the order is not checked, nor are the bits and ranges.  The length is not checked after a
-refused constant or such a word, which have no internal form to count.
+each word refused, each constant's value, each key of the other mode, each address in a bank
+its mode does not take and each range, and the reading goes on past it, taking a refused
+word as what it looks like (an address, a constant, a function name).  After a word that
+looks like none of those, the order is not checked, nor are the banks and ranges.  The
+length is not checked after a refused constant or such a word, which have no internal form
+to count.
 
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
 the nickname display and the two internal ``#`` forms.
@@ -51,7 +52,6 @@ from ..model import (
     to_display,
 )
 from ..operands.banks import Bank, banks
-from ..operands.checks import BIT_BANKS
 from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display
 from ..operands.errors import Reason
 
@@ -109,11 +109,36 @@ _MAX_PRINTED = 11
 _TWO_BYTE_BANKS = banks(Bank.DS | Bank.DH | Bank.TD | Bank.SD)
 _FOUR_BYTE_BANKS = banks(Bank.DD | Bank.DF | Bank.CTD)
 _MEDIAN_MAX_BYTES = 1024
-#: SUM over a range refuses only CT on a CPU with the v4 functions.
-_SUM_REFUSED_BANKS = banks(Bank.CT)
-#: Registers a hex formula refuses (OBJ-1002); a hex formula takes no bit either, not even in
-#: a SUM.
-_HEX_REFUSED_BANKS = banks(Bank.DS)
+
+
+@dataclass(frozen=True)
+class _Operands:
+    """The banks a formula of one mode takes; an address of any other is refused (OBJ-1002)."""
+
+    #: Registers taken anywhere in the formula.
+    anywhere: frozenset[str]
+    #: Bits taken only as the range of ``SUM ( a : b )``.
+    in_sum: frozenset[str]
+    #: The rule, as each refusal states it.
+    rule: str
+
+
+#: The operand banks of each mode.  A decimal SUM takes no CT range.  An older CPU takes no
+#: bit range in a SUM at all; :func:`~laddercodec.compat.find_v4_only` reports those, and
+#: construction accepts them.
+_OPERANDS = {
+    "decimal": _Operands(
+        banks(Bank.DS | Bank.DD | Bank.DF | Bank.TD | Bank.CTD | Bank.SD),
+        banks(Bank.X | Bank.Y | Bank.C | Bank.T | Bank.SC),
+        "a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, "
+        "and X, Y, C, T and SC bits only as the range of SUM ( a : b )",
+    ),
+    "hex": _Operands(
+        banks(Bank.DH | Bank.XD | Bank.YD),
+        frozenset(),
+        "a hex Math takes only DH, XD and YD registers and hex constants",
+    ),
+}
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
@@ -631,54 +656,40 @@ def _range_position(bank: str, number: str) -> int:
 
 
 def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
-    """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high.
+    """Each address is in a bank its mode takes; a range stays in one bank and runs low : high.
 
-    A hex formula takes no bit, not even in a SUM, and no DS.  An X or Y range CLICK would
-    store a wrong member list for is refused too.  One refusal for each bit or DS outside a
-    SUM, one for each SUM refused, and at most one for each range; a refused address is not
-    checked again.
+    :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, and the
+    bits it takes only as the range of ``SUM ( a : b )``.  An address of any other bank is
+    refused with OBJ-1002.  An X or Y range CLICK would store a wrong member list for is
+    refused too.  One refusal for each address refused outside a SUM, one for each SUM
+    refused, and at most one for each range.  An address refused while it was read (``DS0``)
+    is not checked again; a range with an end refused for its bank is still checked for its
+    banks, its order and a median's size, but not for its member list.
     """
+    operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
     found: list[FieldError] = []
-    # SUM ( a : b ) is the one place a bit may stand, in a decimal formula, and not a CT bit
-    # (OBJ-1002; an older CPU's refusal of every bit is a project rule).
     sum_at: dict[int, int] = {}  # each end of a SUM range: where its SUM stands
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
-    sum_refused: set[int] = set()  # the SUMs refused for a bit range, once each
-    outside_sum: set[int] = set()  # the bits refused, outside a SUM or in a hex formula
+    sum_refused: set[int] = set()  # the SUMs refused for their bank, once each
+    bank_refused: set[int] = set()  # the addresses refused for their bank, in a SUM or not
     for i, token in enumerate(tokens):
         parts = address_parts(token.text)
         if token.refused or parts is None:
             continue
-        if mode == "hex" and parts[0] in _HEX_REFUSED_BANKS:
-            rule = f"{token.text} is a {parts[0]} register; a hex Math takes no {parts[0]}"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+        bank = parts[0]
+        if bank in operands.anywhere or (i in sum_at and bank in operands.in_sum):
             continue
-        if parts[0] not in BIT_BANKS:
-            continue
+        bank_refused.add(i)
         if i not in sum_at:
-            outside_sum.add(i)
-            rule = (
-                "a hex Math takes no bit"
-                if mode == "hex"
-                else "a bit stands only in SUM over a bit range"
-            )
-            found.append(_error(f"{token.text} is a bit; {rule}", Reason.BANK, "OBJ-1002"))
-            continue
-        if mode == "hex":
-            outside_sum.add(i)
-        if sum_at[i] in sum_refused:
-            continue
-        if parts[0] in _SUM_REFUSED_BANKS:
-            sum_refused.add(sum_at[i])
-            found.append(
-                _error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK)
-            )
-        elif mode == "hex":
-            sum_refused.add(sum_at[i])
-            rule = f"SUM over {token.text} is refused; a hex Math takes no bit, not even in SUM"
+            rule = f"{token.text} is refused; {operands.rule}"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+        elif (at := sum_at[i]) not in sum_refused:
+            sum_refused.add(at)
+            shown = f"SUM ( {texts[at + 2]} : {texts[at + 4]} )"
+            rule = f"{shown} is refused for {token.text}; {operands.rule}"
             found.append(_error(rule, Reason.BANK, "OBJ-1002"))
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
@@ -709,7 +720,7 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
             )
             continue
         # The member list matters only to a SUM: a bit range anywhere else is refused already.
-        if low[0] in _XY_BANKS and i - 1 not in outside_sum:
+        if low[0] in _XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
                 found.append(error)

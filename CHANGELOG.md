@@ -57,6 +57,10 @@
   - Do: nothing to decode and encode a rung unchanged. Catch `RefusedFieldWarning` to find these instructions; fix the field each names before you encode one you read from CSV.
 - **Hex Math formula and SD writes follow CLICK**: a hex `Math` formula holding a DS register (`DS1 + 1h`) or a bit in a `SUM` (`SUM ( X001 : X002 )`) is refused with `OBJ-1002`, where both were accepted; an SD register other than the 29 a program writes (SD29, SD31, SD32, SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114, SD140-SD147, SD214, SD215) is refused as a `Copy` destination (`OBJ-004`), anywhere in a `BlockCopy` destination range (`OBJ-018` for a read-only SD after a writable start, `OBJ-004` past SD215) and as a decimal `Math` result (`OBJ-003`), each with reason `not_writable`, where it was accepted.
   - Do: change such a value before you build or read the instruction; a decoded program that holds one decodes it with a `RefusedFieldWarning` and encodes it unchanged.
+- **Each Math mode takes its own banks**: a hex `Math` formula takes hex constants and the DH, XD and YD registers only, and a decimal one decimal constants, the DS, DD, DF, TD, CTD and SD registers, and X, Y, C, T and SC bits only as the range of a `SUM`. Every other address, in a `SUM` too, is refused with `OBJ-1002` and reason `bank`, and each refusal states its mode's rule.
+  - A DD, DF, TD, CTD, SD or TXT register in a hex formula, and a DH, XD, YD or TXT register in a decimal one, is now refused, where it was accepted.
+  - A `SUM` over CT, in either mode, now carries `OBJ-1002`, where it had no id.
+  - Do: for a hex formula, copy a register into a DH first or pack bits into a DH, or use a decimal `Math` for a DS, DD, DF, TD, CTD or SD value; for a decimal formula, copy a DH, XD, YD or TXT register into a DS first, or use a hex `Math` for a DH, XD or YD value, and pack CT bits into a DH, then copy the DH into a DS or use it in a hex `Math`.
 
 ## 0.4.0 (2026-11-14)
 

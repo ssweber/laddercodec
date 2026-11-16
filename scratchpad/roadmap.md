@@ -95,14 +95,20 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   Left: the full Math, Copy and Out grids, then Receive, Compare, Search, Fill, timers, counters
   and For. What the answers showed:
   - Hex Math `DH1 + 0`, `DH1 = 0` and `RAND(5,Ah)` are accepted, laddercodec refuses on purpose (item 4).
-  - Hex Math `SUM(X001:X002)` and a DS in a hex formula (`DS1 + 1h`) are refused (OBJ-1002). Closed for X
-    and DS: a hex formula now refuses a DS register and a bit in a `SUM`, with OBJ-1002, one refusal for each
-    `SUM`. Only X is answered; the rule takes every bit bank alike, since a hex formula refuses a bit of any
-    bank outside a `SUM`, and the exception that lets a bit stand in a `SUM` is a decimal one: X, which a
-    decimal `SUM` takes, is refused in a hex one. A hex `SUM` over CT keeps its refusal with no id. Open:
-    - C, Y, T, SC and CT in a hex SUM: the math_hex grid asks them.
-    - The answers hold DH only among the other banks, so a hex formula still takes DD, DF, TD, CTD, SD, XD,
-      YD and TXT; the full `math_hex` grid answers them.
+  - Math formula banks (ruled, Sam, 2026-11-16), one table per mode in `math_formula._OPERANDS`:
+    - Hex: hex constants and the DH, XD and YD registers only. Every other register (DS, DD, DF, TD, CTD,
+      SD, TXT) and every bit is refused, in a `SUM` too. The answers hold DH accepted, and DS and X refused
+      (X in a `SUM` too); the rest is the ruling ahead of CLICK.
+    - Decimal: decimal constants and the DS, DD, DF, TD, CTD and SD registers; X, Y, C, T and SC bits only
+      as the range of `SUM ( a : b )`. DH, XD, YD, TXT and CT are refused anywhere, a `SUM` included. The
+      Address Picker for a decimal `SUM` enables exactly X, Y, C, T, SC, DS, DD, DF, TD, CTD and SD.
+    - Every bank refusal is OBJ-1002, reason `bank`: one for each address outside a `SUM`, one for each
+      `SUM`. Open:
+      - Do the `math_hex` and `math_decimal` answers confirm every bank in every position (alone, beside a
+        constant, a RAND bound, a range end, a `SUM`)? That includes XD and YD in hex, and DH, XD, YD, TXT
+        and CT in decimal outside a `SUM`.
+      - Does OBJ-1002 come ahead of OBJ-1014 or OBJ-1015 for a `SUM` over a refused bank whose ends are also
+        reversed (`SUM ( DH2 : DH1 )`) or in two banks (`SUM ( X001 : TXT2 )`)?
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
     Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
     instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and
@@ -155,9 +161,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   SD; YD9 is answered the same way, applied to a YD past YD8. The rules now say so, where they said OBJ-004 or
   gave no id.
   A bank a hex result does not take (DS1) stays OBJ-004.
-- **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
-  Math and a DD, DF, TD, CTD or SD register in a hex one; a RAND bound that is a real or a DF or DH, and equal
-  bounds; SUM over TXT.
+- **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a RAND bound that
+  is a real or a DF, and equal bounds. A DH in a decimal Math, a DD, DF, TD, CTD or SD register in a hex one
+  and a SUM over TXT are refused now, by the formula bank ruling above.
 - **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
   SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
   OBJ-003 for it.
