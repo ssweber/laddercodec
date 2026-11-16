@@ -51,17 +51,33 @@ class Undecoded(AfInstruction):
 
     def __post_init__(self) -> None:
         if not isinstance(self.error, str) or not self.error.strip():
-            raise FieldError(f"Undecoded.error: {self.error!r} must be text that says why")
+            raise FieldError(
+                f"Undecoded.error: {self.error!r} must be text that says why",
+                field="Undecoded.error",
+            )
         if "\n" in self.error or "\r" in self.error:
-            raise FieldError(f"Undecoded.error: {self.error!r} must be one line")
+            raise FieldError(
+                f"Undecoded.error: {self.error!r} must be one line", field="Undecoded.error"
+            )
         if not _is_index(self.rung):
-            raise FieldError(f"Undecoded.rung: {self.rung!r} must be a whole number from 0")
+            raise FieldError(
+                f"Undecoded.rung: {self.rung!r} must be a whole number from 0",
+                field="Undecoded.rung",
+            )
         if self.row is not None and not _is_index(self.row):
-            raise FieldError(f"Undecoded.row: {self.row!r} must be None or a whole number from 0")
+            raise FieldError(
+                f"Undecoded.row: {self.row!r} must be None or a whole number from 0",
+                field="Undecoded.row",
+            )
         if self.column is not None and not (_is_index(self.column) and self.column <= _LAST_COLUMN):
-            raise FieldError(f"Undecoded.column: {self.column!r} must be None or 0 to 31")
+            raise FieldError(
+                f"Undecoded.column: {self.column!r} must be None or 0 to 31",
+                field="Undecoded.column",
+            )
         if self.stop not in _STOPS:
-            raise FieldError(f"Undecoded.stop: {self.stop!r} must be 'end' or 'return'")
+            raise FieldError(
+                f"Undecoded.stop: {self.stop!r} must be 'end' or 'return'", field="Undecoded.stop"
+            )
 
     @property
     def where(self) -> str:
@@ -106,7 +122,9 @@ def _whole_number(call: AfCall, key: str) -> int | None:
     if text is None:
         return None
     if not (text.isascii() and text.isdigit()):
-        raise FieldError(f"Undecoded.{key}: {text!r} must be a whole number from 0")
+        raise FieldError(
+            f"Undecoded.{key}: {text!r} must be a whole number from 0", field=f"Undecoded.{key}"
+        )
     return int(text)
 
 
@@ -119,16 +137,23 @@ def parse_af_call(call: AfCall) -> Undecoded:
     if len(call.args) != 1 or not call.args[0].startswith('"') or extra:
         raise FieldError(
             f"Undecoded: {call.to_token()!r} must be "
-            'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional'
+            'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
+            field="Undecoded",
         )
     rung = _whole_number(call, "rung")
     if rung is None:
-        raise FieldError(f"Undecoded.rung: {call.to_token()!r} has no rung=")
+        raise FieldError(
+            f"Undecoded.rung: {call.to_token()!r} has no rung=", field="Undecoded.rung"
+        )
     stop = call.kwargs.get("stop")
     if stop is None:
-        raise FieldError(f"Undecoded.stop: {call.to_token()!r} has no stop=")
+        raise FieldError(
+            f"Undecoded.stop: {call.to_token()!r} has no stop=", field="Undecoded.stop"
+        )
     if stop not in _STOPS:
-        raise FieldError(f"Undecoded.stop: {stop!r} must be 'end' or 'return'")
+        raise FieldError(
+            f"Undecoded.stop: {stop!r} must be 'end' or 'return'", field="Undecoded.stop"
+        )
     return Undecoded(
         error=_decode_af_string_literal(call.args[0]),
         rung=rung,

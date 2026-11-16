@@ -179,7 +179,7 @@ def check_char_code(text: str, name: str) -> int:
     """
     m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
     if m is None:
-        raise FieldError(f"{name}: {text!r} is refused; {CHAR_CODE_RULE}")
+        raise FieldError(f"{name}: {text!r} is refused; {CHAR_CODE_RULE}", field=name)
     return int(m.group(1), 16)
 
 

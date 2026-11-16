@@ -2,12 +2,7 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
-
-#: A message that starts with the field it is about: ``Coil.range_end: ...``,
-#: ``Drum.outputs[2]: ...``, ``Call.subroutine cannot be empty``.
-_FIELD_PREFIX_RE = re.compile(r"([A-Z][A-Za-z0-9]*\.[a-z_][a-z0-9_]*(?:\[[0-9]+\])?)[: ]")
 
 
 class FieldError(ValueError):
@@ -18,7 +13,8 @@ class FieldError(ValueError):
     Attributes
     ----------
     field:
-        The field the message names (``Coil.range_end``, ``Drum.outputs[2]``), or None.
+        The field the raiser names (``Coil.range_end``, ``Drum.outputs[2]``), or None when the
+        refusal is about no single field.
     obj:
         The instruction being built when its checks refused the value, or None.
     """
@@ -28,9 +24,6 @@ class FieldError(ValueError):
 
     def __init__(self, *args: object, field: str | None = None, obj: Any = None) -> None:
         super().__init__(*args)
-        if field is None and args and isinstance(args[0], str):
-            match = _FIELD_PREFIX_RE.match(args[0])
-            field = match.group(1) if match else None
         self.field = field
         self.obj = obj
 
