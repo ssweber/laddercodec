@@ -1,0 +1,2402 @@
+{
+ "grid": "preflight.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "pf1",
+  "pf2"
+ ],
+ "cases": [
+  {
+   "row": "math.control",
+   "case": "dec DS1 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.04,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DS2 + 1,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.result.decimal.banks",
+   "case": "dec X001 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "X001",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "result": "X001",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.decimal.forms",
+   "case": "dec X[DS1] = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "X[DS1]",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "result": "X[DS1]",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.decimal.not-an-address",
+   "case": "dec 5 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "5",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "result": "5",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.decimal.banks",
+   "case": "dec DS1 = X001 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "X001 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.435,
+   "read_back": {
+    "result": "DS1",
+    "formula": "X001 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.decimal.banks-alone",
+   "case": "dec DS1 = X001",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.427,
+   "read_back": {
+    "result": "DS1",
+    "formula": "X001"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.decimal.forms",
+   "case": "dec DS1 = X[DS1] + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "X[DS1] + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "result": "DS1",
+    "formula": "X[DS1] + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + 0",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + 0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.304,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + 0"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DS1 + 0,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = 0",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 8.197,
+   "read_back": {
+    "result": "DS1",
+    "formula": "0"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(0,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.rand.decimal.low-bound",
+   "case": "dec DS1 = RAND(X001,10)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "RAND(X001,10)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.442,
+   "read_back": {
+    "result": "DS1",
+    "formula": "RAND(X001,10)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.rand.decimal.high-bound",
+   "case": "dec DS1 = RAND(1,X001)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "RAND(1,X001)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.434,
+   "read_back": {
+    "result": "DS1",
+    "formula": "RAND(1,X001)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.rand.decimal.order",
+   "case": "dec DS1 = RAND(1,10)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "RAND(1,10)"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case09",
+    "lines": []
+   },
+   "seconds": 6.12,
+   "read_back": {
+    "result": "DS1",
+    "formula": "RAND(1,10)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(RAND ( 1 , 10 ),DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.rand.decimal.constants",
+   "case": "dec DS1 = RAND(5,10)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "RAND(5,10)"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 7.928,
+   "read_back": {
+    "result": "DS1",
+    "formula": "RAND(5,10)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(RAND ( 5 , 10 ),DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.sum.decimal.ranges",
+   "case": "dec DS1 = SUM(X001:X002)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "SUM(X001:X002)"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case13",
+    "lines": []
+   },
+   "seconds": 6.793,
+   "read_back": {
+    "result": "DS1",
+    "formula": "SUM(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(SUM ( X001 : X002 ),DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.result.hex.banks",
+   "case": "hex X001 = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "X001",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.441,
+   "read_back": {
+    "result": "X001",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.hex.forms",
+   "case": "hex X[DS1] = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "X[DS1]",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "result": "X[DS1]",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.hex.not-an-address",
+   "case": "hex 5 = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "5",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.448,
+   "read_back": {
+    "result": "5",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.hex.banks",
+   "case": "hex DH1 = X001 + 1h",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "X001 + 1h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.449,
+   "read_back": {
+    "result": "DH1",
+    "formula": "X001 + 1h"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.hex.banks-alone",
+   "case": "hex DH1 = X001",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "X001"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.hex.forms",
+   "case": "hex DH1 = X[DS1] + 1h",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "X[DS1] + 1h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "result": "DH1",
+    "formula": "X[DS1] + 1h"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + 0",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + 0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case14",
+    "lines": []
+   },
+   "seconds": 6.592,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + 0"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1 + 0h,DH1,mode=hex)\""
+   ]
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = 0",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case21 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase21 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case21",
+    "lines": []
+   },
+   "seconds": 6.071,
+   "read_back": {
+    "result": "DH1",
+    "formula": "0"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(0h,DH1,mode=hex)\""
+   ]
+  },
+  {
+   "row": "math.rand.hex.low-bound",
+   "case": "hex DH1 = RAND(X001,Ah)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "RAND(X001,Ah)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.448,
+   "read_back": {
+    "result": "DH1",
+    "formula": "RAND(X001,Ah)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.rand.hex.high-bound",
+   "case": "hex DH1 = RAND(1h,X001)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "RAND(1h,X001)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "result": "DH1",
+    "formula": "RAND(1h,X001)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.rand.hex.order",
+   "case": "hex DH1 = RAND(1h,Ah)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "RAND(1h,Ah)"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case22 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase22 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case22",
+    "lines": []
+   },
+   "seconds": 6.107,
+   "read_back": {
+    "result": "DH1",
+    "formula": "RAND(1h,Ah)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(RAND ( 1h , Ah ),DH1,mode=hex)\""
+   ]
+  },
+  {
+   "row": "math.rand.hex.constants",
+   "case": "hex DH1 = RAND(5,Ah)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "RAND(5,Ah)"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case25 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase25 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case25",
+    "lines": []
+   },
+   "seconds": 8.343,
+   "read_back": {
+    "result": "DH1",
+    "formula": "RAND(5,Ah)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(RAND ( 5h , Ah ),DH1,mode=hex)\""
+   ]
+  },
+  {
+   "row": "math.sum.hex.ranges",
+   "case": "hex DH1 = SUM(X001:X002)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "SUM(X001:X002)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.455,
+   "read_back": {
+    "result": "DH1",
+    "formula": "SUM(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.sum.decimal.mixed",
+   "case": "dec DS1 = SUM(X001:C2)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "SUM(X001:C2)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1015",
+   "message": "The Ranged Addresses must be in the same Address Block.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "result": "DS1",
+    "formula": "SUM(X001:C2)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.max.decimal.ranges",
+   "case": "dec DS1 = MAX(X001:X002)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "MAX(X001:X002)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "DS1",
+    "formula": "MAX(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.min.decimal.ranges",
+   "case": "dec DS1 = MIN(X001:X002)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "MIN(X001:X002)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "result": "DS1",
+    "formula": "MIN(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.mdn.decimal.ranges",
+   "case": "dec DS1 = MDN(X001:X002)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "MDN(X001:X002)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "DS1",
+    "formula": "MDN(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.avg.decimal.ranges",
+   "case": "dec DS1 = AVG(X001:X002)",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "AVG(X001:X002)"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "result": "DS1",
+    "formula": "AVG(X001:X002)"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "copy.single.control",
+   "case": "single DS1 -> DS2",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1",
+    "destination": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case26 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase26 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case26",
+    "lines": []
+   },
+   "seconds": 6.068,
+   "read_back": {
+    "source": "DS1",
+    "destination": "DS2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DS1,DS2)\""
+   ]
+  },
+  {
+   "row": "copy.single.source.banks",
+   "case": "single X001 -> C1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "X001",
+    "destination": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case33 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase33 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case33",
+    "lines": []
+   },
+   "seconds": 6.426,
+   "read_back": {
+    "source": "X001",
+    "destination": "C1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(X001,C1)\""
+   ]
+  },
+  {
+   "row": "copy.single.destination.banks",
+   "case": "single DS2 -> X001",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS2",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "source": "DS2",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.forms",
+   "case": "single X[DS1] -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "X[DS1]",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "source": "X[DS1]",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.destination.forms",
+   "case": "single DS2 -> X[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS2",
+    "destination": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.434,
+   "read_back": {
+    "source": "DS2",
+    "destination": "X[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single 0 -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "0",
+    "destination": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case34 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase34 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case34",
+    "lines": []
+   },
+   "seconds": 6.114,
+   "read_back": {
+    "source": "0",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(0,DS1)\""
+   ]
+  },
+  {
+   "row": "copy.single.pairs.banks",
+   "case": "single X001 -> X001",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "X001",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.427,
+   "read_back": {
+    "source": "X001",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.pairs.constants",
+   "case": "single 5 -> X001",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "5",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "source": "5",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.pairs.constants-pointer",
+   "case": "single 5 -> X[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "5",
+    "destination": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "source": "5",
+    "destination": "X[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.pairs.pointer",
+   "case": "single C1 -> X[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "C1",
+    "destination": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "source": "C1",
+    "destination": "X[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.text.fill",
+   "case": "single \"AB\" -> TXT999",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"AB\"",
+    "destination": "TXT999"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.224,
+   "read_back": {
+    "source": "\"AB\"",
+    "destination": "TXT999"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(\"\"AB\"\",TXT999)\""
+   ]
+  },
+  {
+   "row": "copy.block.control",
+   "case": "block DS1..DS2 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case43 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase43 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case43",
+    "lines": []
+   },
+   "seconds": 7.451,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"blockcopy(DS1..DS2,DS11..DS12)\""
+   ]
+  },
+  {
+   "row": "copy.block.source.ranges",
+   "case": "block X001..X002 -> C1",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case44 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase44 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case44",
+    "lines": []
+   },
+   "seconds": 6.714,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "C1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"blockcopy(X001..X002,C1..C2)\""
+   ]
+  },
+  {
+   "row": "copy.block.destination.banks",
+   "case": "block DS1..DS2 -> X001",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source.banks",
+   "case": "block X016..X016 -> C1",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "X016",
+    "source_end": "X016",
+    "destination": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.453,
+   "read_back": {
+    "source": "X016",
+    "source_end": "X016",
+    "destination": "C1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.pairs.banks",
+   "case": "block X001..X002 -> X001",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source.mixed-banks",
+   "case": "block X001..X001 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "X001",
+    "source_end": "X001",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X001",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.pairs.xy-spans",
+   "case": "block X001..X016 -> X001",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "X001",
+    "source_end": "X016",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X016",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source.forms",
+   "case": "block DS[DS1]..DS2 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS[DS1]",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.454,
+   "read_back": {
+    "source": "DS[DS1]",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source-end.forms",
+   "case": "block DS1..DS[DS1] -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS[DS1]",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.452,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS[DS1]",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.destination.forms",
+   "case": "block DS1..DS2 -> DS[DS1]",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.451,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source.constants",
+   "case": "block 5..DS2 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "5",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.449,
+   "read_back": {
+    "source": "5",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source-end.constants",
+   "case": "block DS1..5 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "5",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.451,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "5",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.destination.constants",
+   "case": "block DS1..DS2 -> 5",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.444,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "5"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.control",
+   "case": "pack C1..C16 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case45 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase45 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case45",
+    "lines": []
+   },
+   "seconds": 6.568,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"pack_bits(C1..C16,DS1)\""
+   ]
+  },
+  {
+   "row": "copy.pack.bits.widths",
+   "case": "pack X001..X016 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "X001",
+    "source_end": "X016",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X016",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.bits.xy-spans",
+   "case": "pack X001..X036 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "X001",
+    "source_end": "X036",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-033",
+   "message": "Change the range of the Source addresses to fit within one module.",
+   "syntax_check": null,
+   "seconds": 0.446,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X036",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.words.widths",
+   "case": "pack DS1..DS2 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.446,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source.ranges",
+   "case": "pack X001..X002 -> DH1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "DH1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case57 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase57 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case57",
+    "lines": []
+   },
+   "seconds": 6.337,
+   "read_back": {
+    "source": "X001",
+    "source_end": "X002",
+    "destination": "DH1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"pack_bits(X001..X002,DH1)\""
+   ]
+  },
+  {
+   "row": "copy.pack.destination.banks",
+   "case": "pack C1..C16 -> X001",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "X001"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source.banks",
+   "case": "pack X016..X016 -> DH1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "X016",
+    "source_end": "X016",
+    "destination": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.458,
+   "read_back": {
+    "source": "X016",
+    "source_end": "X016",
+    "destination": "DH1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source.forms",
+   "case": "pack DS[DS1]..C16 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "DS[DS1]",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "source": "DS[DS1]",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source-end.forms",
+   "case": "pack C1..DS[DS1] -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "DS[DS1]",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.453,
+   "read_back": {
+    "source": "C1",
+    "source_end": "DS[DS1]",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.destination.forms",
+   "case": "pack C1..C16 -> DS[DS1]",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "DS[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source.constants",
+   "case": "pack 5..C16 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "5",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "source": "5",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source-end.constants",
+   "case": "pack C1..5 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "5",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.449,
+   "read_back": {
+    "source": "C1",
+    "source_end": "5",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.destination.constants",
+   "case": "pack C1..C16 -> 5",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.444,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": "5"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.unpack.control",
+   "case": "unpack DS1 -> C1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case61 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase61 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case61",
+    "lines": []
+   },
+   "seconds": 6.095,
+   "read_back": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"unpack_to_bits(DS1,C1..C16)\""
+   ]
+  },
+  {
+   "row": "copy.unpack.bits.widths",
+   "case": "unpack DS1 -> X001..X016",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.442,
+   "read_back": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X016"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.bits.xy-spans",
+   "case": "unpack DS1 -> X001..X036",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X036"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.words.widths",
+   "case": "unpack DS1 -> DS1..DS2",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "DS1",
+    "destination_end": "DS2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.444,
+   "read_back": {
+    "source": "DS1",
+    "destination": "DS1",
+    "destination_end": "DS2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination.ranges",
+   "case": "unpack DS1 -> X001..X021",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.442,
+   "read_back": {
+    "source": "DS1",
+    "destination": "X001",
+    "destination_end": "X021"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.source.banks",
+   "case": "unpack X001 -> C1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "X001",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.453,
+   "read_back": {
+    "source": "X001",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination.banks",
+   "case": "unpack DS1 -> X016..X016",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "X016",
+    "destination_end": "X016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.442,
+   "read_back": {
+    "source": "DS1",
+    "destination": "X016",
+    "destination_end": "X016"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.source.forms",
+   "case": "unpack DS[DS1] -> C1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS[DS1]",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.453,
+   "read_back": {
+    "source": "DS[DS1]",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination.forms",
+   "case": "unpack DS1 -> DS[DS1]..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "DS[DS1]",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "source": "DS1",
+    "destination": "DS[DS1]",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination-end.forms",
+   "case": "unpack DS1 -> C1..DS[DS1]",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.454,
+   "read_back": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "DS[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.source.constants",
+   "case": "unpack 5 -> C1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "5",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.454,
+   "read_back": {
+    "source": "5",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination.constants",
+   "case": "unpack DS1 -> 5..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "5",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "source": "DS1",
+    "destination": "5",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination-end.constants",
+   "case": "unpack DS1 -> C1..5",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": "5"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "out.control",
+   "case": "out Y001",
+   "instruction": "out",
+   "fields": {
+    "address": "Y001"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case70 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase70 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case70",
+    "lines": []
+   },
+   "seconds": 6.488,
+   "read_back": {
+    "address": "Y001"
+   },
+   "limits": {
+    "address": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ]
+  },
+  {
+   "row": "out.banks",
+   "case": "out X001",
+   "instruction": "out",
+   "fields": {
+    "address": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "address": "X001"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.forms",
+   "case": "out X[DS1]",
+   "instruction": "out",
+   "fields": {
+    "address": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": "X[DS1]"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out 0",
+   "instruction": "out",
+   "fields": {
+    "address": "0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "address": "0"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.ranges",
+   "case": "out X001..X002",
+   "instruction": "out",
+   "fields": {
+    "address": "X001",
+    "address_end": "X002"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "address": "X001",
+    "address_end": "X002"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.range-end.banks",
+   "case": "out X001..X036",
+   "instruction": "out",
+   "fields": {
+    "address": "X001",
+    "address_end": "X036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": "X001",
+    "address_end": "X036"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.ranges.mixed",
+   "case": "out X001..C1",
+   "instruction": "out",
+   "fields": {
+    "address": "X001",
+    "address_end": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "address": "X001",
+    "address_end": "C1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.range-end.forms",
+   "case": "out Y001..DS[DS1]",
+   "instruction": "out",
+   "fields": {
+    "address": "Y001",
+    "address_end": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "address": "Y001",
+    "address_end": "DS[DS1]"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.range-start.forms",
+   "case": "out DS[DS1]..Y002",
+   "instruction": "out",
+   "fields": {
+    "address": "DS[DS1]",
+    "address_end": "Y002"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": "DS[DS1]",
+    "address_end": "Y002"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.range-end.constants",
+   "case": "out Y001..5",
+   "instruction": "out",
+   "fields": {
+    "address": "Y001",
+    "address_end": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.43,
+   "read_back": {
+    "address": "Y001",
+    "address_end": "5"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  }
+ ]
+}

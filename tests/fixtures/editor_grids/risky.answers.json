@@ -1,0 +1,1630 @@
+{
+ "grid": "risky.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "rk1"
+ ],
+ "cases": [
+  {
+   "row": "math.result.decimal.forms",
+   "case": "dec  DS1 = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": " DS1",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.198,
+   "read_back": {
+    "result": " DS1",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DS2 + 1,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.result.decimal.forms",
+   "case": "dec DS1  = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1 ",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.288,
+   "read_back": {
+    "result": "DS1 ",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DS2 + 1,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.result.decimal.not-an-address",
+   "case": "dec  = DS2 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "",
+    "formula": "DS2 + 1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-001",
+   "message": "Please enter an Address.",
+   "syntax_check": null,
+   "seconds": 0.427,
+   "read_back": {
+    "result": "",
+    "formula": "DS2 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.decimal.forms",
+   "case": "dec DS1 =  DS1 + 1",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": " DS1 + 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.0,
+   "read_back": {
+    "result": "DS1",
+    "formula": " DS1 + 1"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DS1 + 1,DS1,mode=decimal)\""
+   ]
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + \"\u00e9\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + \"\u00e9\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + \"\u00e9\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = \"\u00e9\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "\"\u00e9\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.429,
+   "read_back": {
+    "result": "DS1",
+    "formula": "\"\u00e9\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + \"\t\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + \"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + \"\t\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = \"\t\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "\"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "result": "DS1",
+    "formula": "\"\t\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "result": "DS1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "result": "DS1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + ",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = ",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.429,
+   "read_back": {
+    "result": "DS1",
+    "formula": ""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 +  ",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 +  "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 +  "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 =  ",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": " "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "result": "DS1",
+    "formula": " "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal",
+   "case": "dec DS1 = DS1 + \u0663",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "DS1 + \u0663"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "result": "DS1",
+    "formula": "DS1 + \u0663"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.decimal.alone",
+   "case": "dec DS1 = \u0663",
+   "instruction": "math",
+   "mode": "decimal",
+   "fields": {
+    "result": "DS1",
+    "formula": "\u0663"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.426,
+   "read_back": {
+    "result": "DS1",
+    "formula": "\u0663"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.hex.forms",
+   "case": "hex  DS1 = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": " DS1",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.503,
+   "read_back": {
+    "result": " DS1",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.hex.forms",
+   "case": "hex DS1  = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DS1 ",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "result": "DS1 ",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.result.hex.not-an-address",
+   "case": "hex  = DH2 + DH3",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "",
+    "formula": "DH2 + DH3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-001",
+   "message": "Please enter an Address.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "result": "",
+    "formula": "DH2 + DH3"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.operand.hex.forms",
+   "case": "hex DH1 =  DS1 + 1h",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": " DS1 + 1h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1002",
+   "message": "The Address cannot be used.",
+   "syntax_check": null,
+   "seconds": 0.444,
+   "read_back": {
+    "result": "DH1",
+    "formula": " DS1 + 1h"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + \"\u00e9\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + \"\u00e9\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + \"\u00e9\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = \"\u00e9\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "\"\u00e9\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "\"\u00e9\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + \"\t\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + \"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.444,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + \"\t\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = \"\t\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "\"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "\"\t\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.446,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "result": "DH1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.441,
+   "read_back": {
+    "result": "DH1",
+    "formula": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + ",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = ",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.441,
+   "read_back": {
+    "result": "DH1",
+    "formula": ""
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 +  ",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 +  "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 +  "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 =  ",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": " "
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.442,
+   "read_back": {
+    "result": "DH1",
+    "formula": " "
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex",
+   "case": "hex DH1 = DH1 + \u0663",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "DH1 + \u0663"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.441,
+   "read_back": {
+    "result": "DH1",
+    "formula": "DH1 + \u0663"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "math.constants.hex.alone",
+   "case": "hex DH1 = \u0663",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "DH1",
+    "formula": "\u0663"
+   },
+   "outcome": "refused",
+   "code": "OBJ-1001",
+   "message": "The Formula has an error.",
+   "syntax_check": null,
+   "seconds": 0.443,
+   "read_back": {
+    "result": "DH1",
+    "formula": "\u0663"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   }
+  },
+  {
+   "row": "copy.single.source.forms",
+   "case": "single  DS1 -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": " DS1",
+    "destination": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.078,
+   "read_back": {
+    "source": " DS1",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DS1,DS1)\""
+   ]
+  },
+  {
+   "row": "copy.single.destination.forms",
+   "case": "single DS2 ->  DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS2",
+    "destination": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case37 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase37 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case37",
+    "lines": []
+   },
+   "seconds": 6.459,
+   "read_back": {
+    "source": "DS2",
+    "destination": " DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=DS2,6076= DS1,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.single.source.forms",
+   "case": "single DS1  -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS1 ",
+    "destination": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case38 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase38 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case38",
+    "lines": []
+   },
+   "seconds": 8.122,
+   "read_back": {
+    "source": "DS1 ",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"copy(DS1,DS1)\""
+   ]
+  },
+  {
+   "row": "copy.single.destination.forms",
+   "case": "single DS2 -> DS1 ",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "DS2",
+    "destination": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case39 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase39 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case39",
+    "lines": []
+   },
+   "seconds": 6.379,
+   "read_back": {
+    "source": "DS2",
+    "destination": "DS1 "
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100040000007460ffffffff44005300320000007660ffffffff440053003100200000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single \"\u00e9\" -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"\u00e9\"",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "source": "\"\u00e9\"",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single \"\t\" -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"\t\"",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "source": "\"\t\"",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.436,
+   "read_back": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.429,
+   "read_back": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single  -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.432,
+   "read_back": {
+    "source": "",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single   -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": " ",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "source": " ",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.single.source.constants",
+   "case": "single \u0663 -> DS1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\u0663",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "source": "\u0663",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.source.forms",
+   "case": "block  DS1..DS2 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": " DS1",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case40 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase40 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case40",
+    "lines": []
+   },
+   "seconds": 6.745,
+   "read_back": {
+    "source": " DS1",
+    "source_end": "DS2",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"blockcopy(DS1..DS2,DS11..DS12)\""
+   ]
+  },
+  {
+   "row": "copy.block.source-end.forms",
+   "case": "block DS1.. DS1 -> DS11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": " DS1",
+    "destination": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.457,
+   "read_back": {
+    "source": "DS1",
+    "source_end": " DS1",
+    "destination": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.block.destination.forms",
+   "case": "block DS1..DS2 ->  DS1",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-019",
+   "message": "Change length of Source to fit within valid Destination addresses. Destination addresses cannot include more than one module.",
+   "syntax_check": null,
+   "seconds": 0.459,
+   "read_back": {
+    "source": "DS1",
+    "source_end": "DS2",
+    "destination": " DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source.forms",
+   "case": "pack  DS1..C16 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": " DS1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 0.445,
+   "read_back": {
+    "source": " DS1",
+    "source_end": "C16",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.source-end.forms",
+   "case": "pack C1.. DS1 -> DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": " DS1",
+    "destination": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 0.672,
+   "read_back": {
+    "source": "C1",
+    "source_end": " DS1",
+    "destination": "DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   }
+  },
+  {
+   "row": "copy.pack.destination.forms",
+   "case": "pack C1..C16 ->  DS1",
+   "instruction": "copy",
+   "mode": "pack",
+   "fields": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case48 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase48 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case48",
+    "lines": []
+   },
+   "seconds": 6.564,
+   "read_back": {
+    "source": "C1",
+    "source_end": "C16",
+    "destination": " DS1"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=C1,6075=C16,6076= DS1,2223=3,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.unpack.source.forms",
+   "case": "unpack  DS1 -> C1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": " DS1",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case53 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase53 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case53",
+    "lines": []
+   },
+   "seconds": 6.071,
+   "read_back": {
+    "source": " DS1",
+    "destination": "C1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"unpack_to_bits(DS1,C1..C16)\""
+   ]
+  },
+  {
+   "row": "copy.unpack.destination.forms",
+   "case": "unpack DS1 ->  DS1..C16",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": " DS1",
+    "destination_end": "C16"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.438,
+   "read_back": {
+    "source": "DS1",
+    "destination": " DS1",
+    "destination_end": "C16"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.unpack.destination-end.forms",
+   "case": "unpack DS1 -> C1.. DS1",
+   "instruction": "copy",
+   "mode": "unpack",
+   "fields": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 0.454,
+   "read_back": {
+    "source": "DS1",
+    "destination": "C1",
+    "destination_end": " DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "out.forms",
+   "case": "out  DS1",
+   "instruction": "out",
+   "fields": {
+    "address": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": " DS1"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.forms",
+   "case": "out DS1 ",
+   "instruction": "out",
+   "fields": {
+    "address": "DS1 "
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": "DS1 "
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out \"\u00e9\"",
+   "instruction": "out",
+   "fields": {
+    "address": "\"\u00e9\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": "\"\u00e9\""
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out \"\t\"",
+   "instruction": "out",
+   "fields": {
+    "address": "\"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": "\"\t\""
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "out",
+   "fields": {
+    "address": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "address": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "out",
+   "fields": {
+    "address": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out ",
+   "instruction": "out",
+   "fields": {
+    "address": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-001",
+   "message": "Please enter an Address.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": ""
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out  ",
+   "instruction": "out",
+   "fields": {
+    "address": " "
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "address": " "
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.constants",
+   "case": "out \u0663",
+   "instruction": "out",
+   "fields": {
+    "address": "\u0663"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": "\u0663"
+   },
+   "limits": {
+    "address": 16
+   }
+  },
+  {
+   "row": "out.range-end.forms",
+   "case": "out Y001.. DS1",
+   "instruction": "out",
+   "fields": {
+    "address": "Y001",
+    "address_end": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-008",
+   "message": "The memory types are different. Please specify the same memory type.",
+   "syntax_check": null,
+   "seconds": 0.432,
+   "read_back": {
+    "address": "Y001",
+    "address_end": " DS1"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  },
+  {
+   "row": "out.range-start.forms",
+   "case": "out  DS1..Y002",
+   "instruction": "out",
+   "fields": {
+    "address": " DS1",
+    "address_end": "Y002"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "address": " DS1",
+    "address_end": "Y002"
+   },
+   "limits": {
+    "address": 16,
+    "address_end": 16
+   }
+  }
+ ]
+}
