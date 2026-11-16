@@ -972,6 +972,10 @@ NESTED = ("ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress")
 # ---------------------------------------------------------------------------
 
 
+#: What a decoded token that holds refusals adds to its description, before the fields.
+HELD = " refused["
+
+
 class Namespace:
     """The laddercodec names the probe tables and runner use."""
 
@@ -1010,6 +1014,11 @@ class Namespace:
         self.decode: Any = laddercodec.decode
         self.decompose: Any = _decompose_blob
         self.compose: Any = _compose_blob
+        try:
+            from laddercodec.operands.unchecked import refusals
+        except ImportError:  # a laddercodec whose decoders hold no refusals
+            refusals = None
+        self.refusals: Any = refusals
         for name in NESTED:
             setattr(self, name, getattr(instructions, name))
 
@@ -1240,7 +1249,16 @@ class Runner:
             parsed = parse(blob)
         except Exception as exc:
             return error_text(exc)
-        return "None" if parsed is None else self.describe(parsed)
+        if parsed is None:
+            return "None"
+        return self.describe(parsed) + self.held(parsed)
+
+    def held(self, token: Any) -> str:
+        """`` refused[<field>,...]`` for a decoded token that holds refusals; else empty."""
+        found = self.ns.refusals(token) if self.ns.refusals is not None else ()
+        if not found:
+            return ""
+        return f"{HELD}{','.join(str(error.field) for error in found)}]"
 
     def run(self, cls: type, key_base: str, base: dict[str, Any], kwargs: dict[str, Any]) -> dict:
         ns = self.ns
@@ -1319,8 +1337,8 @@ class Runner:
         except Exception as exc:
             record["dec"] = f"build{error_text(exc)}"
         else:
-            dec = self.decode_blob(blob, condition)
-            record["dec"] = "=" if dec == text else dec
+            dec, held, fields = self.decode_blob(blob, condition).partition(HELD)
+            record["dec"] = ("=" if dec == text else dec) + held + fields
         tag = self.tag_swap(cls, key_base, base, kwargs, condition)
         if tag is not None:
             record["tag"] = tag

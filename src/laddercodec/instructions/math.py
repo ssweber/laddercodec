@@ -155,6 +155,11 @@ def _reconstruct_expression(template_display: str, formula_internal: str) -> str
     return "".join(rebuilt)
 
 
+def _holds_nickname(expression: str) -> bool:
+    """Whether *expression* holds a ``<nickname>``, as CLICK's nickname view shows one."""
+    return "<" in expression and ">" in expression.split("<", 1)[1]
+
+
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
@@ -188,7 +193,7 @@ class Math(AfInstruction):
         with Refusals(self) as check:
             if self.mode not in RESULT_BANKS:
                 check.refuse("mode", f"{self.mode!r} is not 'decimal' or 'hex'", Reason.CHOICE)
-            if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
+            if _holds_nickname(self.expression):
                 check.refuse(
                     "expression",
                     f"{self.expression!r} holds a <nickname>; Math takes addresses, not "
@@ -299,7 +304,9 @@ def from_tags(
         tag_value(tags, 0x61FF),
         tag_value(tags, 0x61FD),
     ) or tag_value(tags, 0x6228)
-    if not result or not expression:
+    if not result or not expression or _holds_nickname(expression):
+        # The display text of CLICK's nickname view names no addresses: it is not a
+        # formula laddercodec can read, so the blob stays raw.
         return None
 
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
@@ -313,9 +320,11 @@ def from_tags(
             oneshot=oneshot,
         )
     except FieldError:
-        # A formula the reader refuses (nickname display text, say) decodes as raw.
+        # A refusal no decoded instruction keeps (see laddercodec.operands.unchecked)
+        # leaves the blob raw; the decoders build the Math keeping any other.
         return None
-    findings = _legacy_findings(tag_value(tags, 0x61FD))
+    # Older laddercodec wrote H only for a decimal constant, which a hex Math refuses.
+    findings = _legacy_findings(tag_value(tags, 0x61FD)) if mode == "decimal" else []
     if findings:
         math._legacy_findings = findings
     return math

@@ -82,12 +82,16 @@ _LOOSE_POINTER_RE = re.compile(r"([A-Za-z]{1,3})\[([^\[\]]*)\]")
 _DISPLAY_FORM_ONLY: ContextVar[bool] = ContextVar("_DISPLAY_FORM_ONLY", default=False)
 
 
+class NotDisplayForm(FieldError):
+    """Text not in CLICK's display form, refused inside :func:`display_form_only`."""
+
+
 @contextmanager
 def display_form_only() -> Generator[None]:
     """Refuse, rather than normalize, text that is not in CLICK's display form.
 
     The ``from_tags`` dispatchers build instructions inside this block: a blob holding
-    ``x1`` or ``C001`` raises :class:`FieldError` and stays unparsed.
+    ``x1`` or ``C001`` raises :class:`NotDisplayForm` and stays unparsed.
     """
     token = _DISPLAY_FORM_ONLY.set(True)
     try:
@@ -100,10 +104,10 @@ def to_display(value: str, display: str, field: str | None) -> str:
     """Return ``display``, the form CLICK writes for ``value``.
 
     Inside :func:`display_form_only` a ``value`` that differs from it raises
-    :class:`FieldError` naming ``field``, the field ``value`` was read for.
+    :class:`NotDisplayForm` naming ``field``, the field ``value`` was read for.
     """
     if display != value and _DISPLAY_FORM_ONLY.get():
-        raise FieldError(
+        raise NotDisplayForm(
             f"{value!r} is not CLICK's display form {display!r}", field=field, reason=Reason.FORM
         )
     return display

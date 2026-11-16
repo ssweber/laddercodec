@@ -8,7 +8,14 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, decode, decode_program, read_csv
+from laddercodec import (
+    AddressError,
+    FieldError,
+    RefusedFieldWarning,
+    decode,
+    decode_program,
+    read_csv,
+)
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions.counter import Counter
@@ -16,6 +23,8 @@ from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
+from laddercodec.operands.unchecked import refusals
+from tests.kept_refusals import kept
 
 
 def timer(**kw) -> Timer:
@@ -189,8 +198,9 @@ class TestDrumPatternCells:
             drum(steps=1, outs=1, pattern=[[cell]])
 
 
-# A native-shaped blob the rules refuse decodes as raw(...).  The bytes come from
-# a valid instruction, edited past the checks.
+# A native-shaped blob the rules refuse decodes as that instruction, keeping the
+# refusal; one not in display form, or the parser can't read, decodes as raw(...).  The
+# bytes come from a valid instruction, edited past the checks.
 
 _SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
@@ -204,11 +214,11 @@ def _scr_text(text: str) -> bytes:
     return bytes([len(text) * 2 + 1]) + _utf16(text) + b"\x00"
 
 
-def _clipboard_raw(af: Timer | Counter | Drum, old: str, new: str) -> RawInstruction:
+def _clipboard_decoded(af: Timer | Counter | Drum, old: str, new: str) -> object:
     data = encode_rung(1, [["-"] * 31], [af])
     assert data.count(_utf16(old)) == 1
-    [decoded] = decode(data.replace(_utf16(old), _utf16(new))).instructions
-    assert isinstance(decoded, RawInstruction)
+    with pytest.warns(RefusedFieldWarning):
+        [decoded] = decode(data.replace(_utf16(old), _utf16(new))).instructions
     return decoded
 
 
@@ -219,20 +229,36 @@ def _scr_raw_names(old: str, new: str, name: str = "coverage") -> list[str]:
     return [a.class_name for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
 
 
-class TestRefusedBlobsDecodeAsRaw:
+def _scr_refused(old: str, new: str, name: str = "coverage") -> list[tuple[str, list[str]]]:
+    """Each instruction of the edited SCR program that keeps refusals: class and fields."""
+    data = (_SCR_DIR / f"{name}.scr").read_bytes()
+    assert data.count(_scr_text(old)) >= 1
+    with pytest.warns(RefusedFieldWarning):
+        rungs = decode_program(data.replace(_scr_text(old), _scr_text(new))).rungs
+    return [
+        (type(a).__name__, [error.field for error in refusals(a)])
+        for r in rungs
+        for a in r.instructions
+        if refusals(a)
+    ]
+
+
+class TestRefusedBlobsDecode:
     def test_timer_with_mismatched_current(self) -> None:
-        raw = _clipboard_raw(timer(), "TD1", "TD2")
-        assert raw.class_name == "Tmr"
+        decoded = kept(_clipboard_decoded(timer(), "TD1", "TD2"), "Timer.current")
+        assert isinstance(decoded, Timer) and decoded.current == "TD2"
 
     def test_timer_scr_with_non_numeric_setpoint(self) -> None:
-        assert _scr_raw_names("3000", "abcd") == ["Tmr"]
+        assert _scr_refused("3000", "abcd") == [("Timer", ["Timer.setpoint"])]
 
     def test_counter_scr_with_mismatched_current(self) -> None:
-        assert set(_scr_raw_names("CTD1", "CTD2", "counter_scr")) == {"Cnt"}
+        refused = _scr_refused("CTD1", "CTD2", "counter_scr")
+        assert refused and set(map(str, refused)) == {str(("Counter", ["Counter.current"]))}
 
     def test_counter_with_non_numeric_preset(self) -> None:
-        raw = _clipboard_raw(counter(preset="100", reset_enabled=True), "100", "abc")
-        assert raw.class_name == "Cnt"
+        af = counter(preset="100", reset_enabled=True)
+        decoded = kept(_clipboard_decoded(af, "100", "abc"), "Counter.preset")
+        assert isinstance(decoded, Counter) and decoded.preset == "abc"
 
     def test_drum_scr_with_refused_current_step(self) -> None:
         assert _scr_raw_names("DS182", "DS000") == ["Drum"]
@@ -269,13 +295,15 @@ def _read_af(tmp_path: Path, af: str) -> object:
 _AT_AF = r" \(at .*rung\.csv, line 2, rung at line 2, row 0 from 0, column AF\)$"
 
 
-def _raw_after(model: object, **bad: object) -> RawInstruction:
-    """Encode ``model`` with ``bad`` fields set past the checks; decode it back."""
+def _decoded_after(model: object, *fields: str, **bad: object) -> object:
+    """Encode ``model`` with ``bad`` fields set past the checks; decode it back as the same
+    instruction, holding them and keeping the refusals of ``fields``."""
     for name, value in bad.items():
         object.__setattr__(model, name, value)
-    [decoded] = decode(encode_rung(1, [["-"] * 31], [model])).instructions
-    assert isinstance(decoded, RawInstruction)
-    return decoded
+    with pytest.warns(RefusedFieldWarning):
+        [decoded] = decode(encode_rung(1, [["-"] * 31], [model])).instructions
+    assert decoded == model
+    return kept(decoded, *fields)
 
 
 class TestTimerSetpointRange:
@@ -299,8 +327,8 @@ class TestTimerSetpointRange:
         with pytest.raises(FieldError, match="^Timer.setpoint"):
             _read_af(tmp_path, f"off_delay(T1,TD1,preset={setpoint},unit=Ts)")
 
-    def test_refused_setpoint_decodes_as_raw(self) -> None:
-        assert _raw_after(timer(), setpoint="40000").class_name == "Tmr"
+    def test_refused_setpoint_decodes(self) -> None:
+        _decoded_after(timer(), "Timer.setpoint", setpoint="40000")
 
 
 class TestCounterPresetRange:
@@ -342,8 +370,8 @@ class TestCounterPresetRange:
             counter(preset=preset)
 
     @pytest.mark.parametrize("preset", ["DH1", "2147483648", "0000000000001"])
-    def test_refused_presets_decode_as_raw(self, preset: str) -> None:
-        assert _raw_after(counter(reset_enabled=True), preset=preset).class_name == "Cnt"
+    def test_refused_presets_decode(self, preset: str) -> None:
+        _decoded_after(counter(reset_enabled=True), "Counter.preset", preset=preset)
 
 
 class TestShiftRules:
@@ -375,16 +403,21 @@ class TestShiftRules:
         with pytest.raises(FieldError, match="OBJ-012"):
             Shift(start_bit="C1", end_bit=end)
 
-    @pytest.mark.parametrize("bad", [{"end_bit": "C1"}, {"start_bit": "Y1", "end_bit": "Y2"}])
-    def test_refused_blobs_decode_as_raw(self, bad: dict[str, str]) -> None:
-        assert _raw_after(Shift(start_bit="C1", end_bit="C2"), **bad).class_name == "SR"
+    def test_refused_blob_decodes(self) -> None:
+        _decoded_after(Shift(start_bit="C1", end_bit="C2"), "Shift.end_bit", end_bit="C1")
 
-    def test_scr_same_address_decodes_as_raw(self) -> None:
+    def test_blob_not_in_display_form_decodes_as_raw(self) -> None:
+        shift = Shift(start_bit="C1", end_bit="C2")
+        object.__setattr__(shift, "start_bit", "Y1")
+        object.__setattr__(shift, "end_bit", "Y2")
+        [decoded] = decode(encode_rung(1, [["-"] * 31], [shift])).instructions
+        assert isinstance(decoded, RawInstruction) and decoded.class_name == "SR"
+
+    def test_scr_same_address_decodes(self) -> None:
         # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
         data = (_SCR_DIR / "shift_scr.scr").read_bytes()
         assert data.count(_scr_text("C2")) == 2
-        rungs = decode_program(data.replace(_scr_text("C2"), _scr_text("C1"))).rungs
-        assert [type(r.instructions[0]) for r in rungs] == [RawInstruction, RawInstruction]
+        assert _scr_refused("C2", "C1", "shift_scr") == [("Shift", ["Shift.end_bit"])] * 2
 
 
 class TestDrumDurations:
@@ -424,9 +457,8 @@ class TestDrumDurations:
             _read_af(tmp_path, token)
         assert isinstance(_read_af(tmp_path, token.replace("32768", "32767")), Drum)
 
-    def test_refused_duration_decodes_as_raw(self) -> None:
-        raw = _raw_after(drum("time"), events_or_presets=["40000", "1"])
-        assert raw.class_name == "Drum"
+    def test_refused_duration_decodes(self) -> None:
+        _decoded_after(drum("time"), "Drum.events_or_presets[0]", events_or_presets=["40000", "1"])
 
 
 class TestDrumEventsAndOutputs:
@@ -468,20 +500,27 @@ class TestDrumEventsAndOutputs:
             drum(kind, outputs=["C1", "C050"], completion_flag="C50")
 
     @pytest.mark.parametrize(
-        "bad",
+        ("bad", "field"),
         [
-            {"outputs": ["C1", "C1"]},
-            {"outputs": ["C1", "C50"]},
-            {"events_or_presets": ["DS1", "C10"]},
+            ({"outputs": ["C1", "C1"]}, "Drum.outputs[1]"),
+            ({"outputs": ["C1", "C50"]}, "Drum.outputs[1]"),
+            ({"events_or_presets": ["DS1", "C10"]}, "Drum.events_or_presets[0]"),
         ],
     )
-    def test_refused_blobs_decode_as_raw(self, bad: dict[str, list[str]]) -> None:
-        assert _raw_after(drum(), **bad).class_name == "Drum"
+    def test_refused_blobs_decode(self, bad: dict[str, list[str]], field: str) -> None:
+        _decoded_after(drum(), field, **bad)
 
-    @pytest.mark.parametrize(("old", "new"), [("C184", "C183"), ("C184", "C187"), ("C185", "DS18")])
-    def test_scr_refused_blobs_decode_as_raw(self, old: str, new: str) -> None:
+    @pytest.mark.parametrize(
+        ("old", "new", "field"),
+        [
+            ("C184", "C183", "Drum.outputs[1]"),
+            ("C184", "C187", "Drum.outputs[1]"),
+            ("C185", "DS18", "Drum.events_or_presets[0]"),
+        ],
+    )
+    def test_scr_refused_blobs_decode(self, old: str, new: str, field: str) -> None:
         # coverage: event_drum(outputs=[C183,C184],events=[C185,C186],...,completion_flag=C187).
-        assert _scr_raw_names(old, new) == ["Drum"]
+        assert _scr_refused(old, new) == [("Drum", [field])]
 
 
 class TestFieldNames:

@@ -32,6 +32,7 @@ from typing import Any
 import pytest
 
 from laddercodec.csv import read_csv
+from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
@@ -63,8 +64,8 @@ HEX_BARE_MIXED = (
 HEX_REFUSED = "CLICK refuses (OBJ-1002), the rules accept: tighten the rule (item 3)"
 EDGE_SPACE = "CLICK accepts an edge space and the save trims it, the rules refuse: item 3 decides"
 EDGE_SPACE_KEPT = (
-    "CLICK accepts an edge space and the save keeps it, the rules refuse: item 3 decides, "
-    "and decode reads that save as raw (item 2)"
+    "CLICK accepts an edge space and the save keeps it, the rules refuse: item 3 decides; "
+    "decode reads that save as the address without the space"
 )
 SD_LIST = (
     "the Address Picker lists 29 of the 1,000 SD, the rules accept all: tighten the rule (item 3)"
@@ -92,12 +93,9 @@ DISAGREEMENTS: dict[Key, str] = {
     ("risky", "single  DS1 -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
     ("risky", "single DS1  -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
     ("risky", "single DS2 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Copy destination)",
-    ("risky", "single DS2 ->  DS1", "stored"): EDGE_SPACE_KEPT + " (Copy destination)",
     ("risky", "single DS2 -> DS1 ", "outcome"): EDGE_SPACE_KEPT + " (Copy destination)",
-    ("risky", "single DS2 -> DS1 ", "stored"): EDGE_SPACE_KEPT + " (Copy destination)",
     ("risky", "block  DS1..DS2 -> DS11", "outcome"): EDGE_SPACE + " (Block Copy source)",
     ("risky", "pack C1..C16 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Pack destination)",
-    ("risky", "pack C1..C16 ->  DS1", "stored"): EDGE_SPACE_KEPT + " (Pack destination)",
     ("risky", "unpack  DS1 -> C1..C16", "outcome"): EDGE_SPACE + " (Unpack source)",
     # Picker-check cases are keyed by row: each row is one field's list, and the cases in it
     # that the rules accept all differ the same way.
@@ -181,7 +179,11 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
 
 
 def reads_as_raw(rows: list[str]) -> bool:
-    """Whether the saved rung reads back as ``raw(...)`` (or an unknown condition)."""
+    """Whether the saved rung reads back as ``raw(...)`` (or an unknown condition).
+
+    The rows were written by the laddercodec of the run; a ``raw(...)`` among them is read
+    again from its bytes, as decode reads that save today.
+    """
     lines = ["marker," + ",".join(_columns()), *rows]
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "stored.csv"
@@ -190,7 +192,12 @@ def reads_as_raw(rows: list[str]) -> bool:
             rungs = read_csv(path)
         except Exception:
             return True
-    return any(isinstance(i, (RawInstruction, Undecoded)) for r in rungs for i in r.instructions)
+    return any(
+        isinstance(i, Undecoded)
+        or (isinstance(i, RawInstruction) and parse_af_blob(i.blob) is None)
+        for r in rungs
+        for i in r.instructions
+    )
 
 
 def _columns() -> list[str]:

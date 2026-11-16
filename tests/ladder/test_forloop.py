@@ -7,13 +7,21 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, decode, decode_program, read_csv
+from laddercodec import (
+    AddressError,
+    FieldError,
+    RefusedFieldWarning,
+    decode,
+    decode_program,
+    read_csv,
+)
 from laddercodec.binary_helpers import _build_blob
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import Break, Call, Continue, ForLoop, Next, parse_af_blob
 from laddercodec.instructions.forloop import NEXT_TYPE_MARKER
 from laddercodec.instructions.raw import RawInstruction
+from tests.kept_refusals import kept
 
 _SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
@@ -218,20 +226,22 @@ class TestForCount:
         ("old", "new"),
         [("DS100", "DF100"), ("DS100", "DS[1]"), ("DS100", "3 000"), ("2000000000", "3000000000")],
     )
-    def test_refused_blobs_decode_as_raw(self, old: str, new: str) -> None:
-        af = _clipboard_af(ForLoop(limit=old), old, new)
-        assert isinstance(af, RawInstruction)
-        assert af.class_name == "For"
+    def test_refused_blobs_keep_their_refusal(self, old: str, new: str) -> None:
+        with pytest.warns(RefusedFieldWarning):
+            af = _clipboard_af(ForLoop(limit=old), old, new)
+        kept(af, "ForLoop.limit")
+        assert isinstance(af, ForLoop) and af.limit == new
 
-    def test_refused_bank_decodes_as_raw_scr(self) -> None:
+    def test_refused_bank_keeps_its_refusal_scr(self) -> None:
         # coverage.scr: for(DS1), stored as a length byte then text and one NUL byte.
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         old = bytes.fromhex("65600744005300310000")
         new = bytes.fromhex("65600744004600310000")  # DF1
         assert data.count(old) == 1
-        rungs = decode_program(data.replace(old, new)).rungs
-        raws = [a for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
-        assert [a.class_name for a in raws if a.class_name == "For"] == ["For"]
+        with pytest.warns(RefusedFieldWarning):
+            rungs = decode_program(data.replace(old, new)).rungs
+        loops = [a for r in rungs for a in r.instructions if isinstance(a, ForLoop)]
+        assert [kept(a, "ForLoop.limit").limit for a in loops if a.limit == "DF1"] == ["DF1"]
 
 
 class TestSubroutineNames:
@@ -289,20 +299,22 @@ class TestSubroutineNames:
         with pytest.raises(FieldError, match="^Call.subroutine: .* is blank"):
             _read_af(tmp_path, f'call("{name}")')
 
-    def test_refused_name_decodes_as_raw(self) -> None:
-        af = _clipboard_af(Call(subroutine="coverage_sub"), "coverage_sub", "coverage:sub")
-        assert isinstance(af, RawInstruction)
-        assert af.class_name == "Call"
+    def test_refused_name_keeps_its_refusal(self) -> None:
+        with pytest.warns(RefusedFieldWarning):
+            af = _clipboard_af(Call(subroutine="coverage_sub"), "coverage_sub", "coverage:sub")
+        kept(af, "Call.subroutine")
+        assert isinstance(af, Call) and af.subroutine == "coverage:sub"
 
-    def test_refused_name_decodes_as_raw_scr(self) -> None:
+    def test_refused_name_keeps_its_refusal_scr(self) -> None:
         # coverage.scr: call("coverage_sub"), stored as a length byte, the text and one NUL.
         old = bytes([25]) + "coverage_sub".encode("utf-16-le") + b"\x00"
         new = bytes([25]) + "coverage:sub".encode("utf-16-le") + b"\x00"
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         assert data.count(old) == 1
-        rungs = decode_program(data.replace(old, new)).rungs
-        raws = [a for r in rungs for a in r.instructions if isinstance(a, RawInstruction)]
-        assert [a.class_name for a in raws] == ["Call"]
+        with pytest.warns(RefusedFieldWarning):
+            rungs = decode_program(data.replace(old, new)).rungs
+        calls = [a for r in rungs for a in r.instructions if isinstance(a, Call)]
+        assert [kept(a, "Call.subroutine").subroutine for a in calls] == ["coverage:sub"]
 
     # CLICK trims the name before it checks it, so the checks see the trimmed text.
     @pytest.mark.parametrize("name", [" " + "x" * 24, "x" * 24 + " ", " a "])

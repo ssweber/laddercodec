@@ -10,10 +10,10 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import replace
 from typing import Any, cast
 
 from ..model import PinnedInstruction
+from ..operands.unchecked import rebuilt
 from .network import GridCell, Network, cell_of, network
 from .render import render
 from .tree import Branch, LayoutError, Leaf, Node, Out, RungTree, Series, trees
@@ -154,7 +154,7 @@ class _Circuit:
             self.leaves.append(id(node.edge))
             contact = node.edge.contact
             if hasattr(contact, "wire_down"):
-                return replace(cast(Any, contact), wire_down=False)
+                return rebuilt(cast(Any, contact), wire_down=False)
             return contact
         if isinstance(node, Out):
             return self.box(node.sink)

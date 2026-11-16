@@ -14,6 +14,7 @@ from laddercodec import AddressError, FieldError, decode, encode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import AfCall
 from laddercodec.csv.token_parser import parse_af_token
+from laddercodec.encode import encode_rung
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.send_receive import (
@@ -26,6 +27,8 @@ from laddercodec.instructions.send_receive import (
     parse_af_call,
 )
 from laddercodec.model import Reason
+from laddercodec.operands.unchecked import refusals
+from tests.kept_refusals import kept
 
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
@@ -516,22 +519,22 @@ def test_c_room_from_a_remote_bank_through_csv(tmp_path: Path) -> None:
         _read_af(tmp_path, f'receive(target={target},remote_start="T490",dest=C1..C20)')
 
 
-def test_c_room_from_a_remote_bank_decodes_as_raw() -> None:
+def test_c_room_from_a_remote_bank_keeps_its_refusal() -> None:
     fields = _fields(receive(remote_start="T490", dest="C1", quantity=11))
     fields[0x3210] = "12"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    assert kept(from_tags_af("RD", 0x2728, fields), "Receive.quantity").quantity == 12
     fields = _fields(send(remote_start="C1990", source="C1", quantity=11))
     fields[0x3210] = "12"
-    assert from_tags_af("SD", 0x2729, fields) is None
+    assert kept(from_tags_af("SD", 0x2729, fields), "Send.quantity").quantity == 12
 
 
-def test_refused_room_decodes_as_raw() -> None:
+def test_refused_room_keeps_its_refusal() -> None:
     fields = _fields(receive(remote_start="C1", dest="Y001", quantity=32))
     fields[0x3210] = "33"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    assert kept(from_tags_af("RD", 0x2728, fields), "Receive.quantity").quantity == 33
     fields = _fields(send(remote_start="Y101", source="C1", quantity=16))
     fields[0x3210] = "17"
-    assert from_tags_af("SD", 0x2729, fields) is None
+    assert kept(from_tags_af("SD", 0x2729, fields), "Send.quantity").quantity == 17
 
 
 # --- status operands --------------------------------------------------------
@@ -652,14 +655,14 @@ def _fields(instr: Send | Receive) -> dict[int, str]:
     return {tag: value for tag, _s, value in _decompose_blob(instr.build_blob())[4]}
 
 
-def test_refused_blob_decodes_as_raw() -> None:
+def test_refused_blob_keeps_its_refusal() -> None:
     fields = _fields(receive(quantity=5))
     fields[0x3210] = "200"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    kept(from_tags_af("RD", 0x2728, fields), "Receive.quantity")
     fields = _fields(send())
     fields[0x6085] = "200001"
     fields[0x320F] = "0"
-    assert from_tags_af("SD", 0x2729, fields) is None
+    kept(from_tags_af("SD", 0x2729, fields), "Send.remote_start")
 
 
 @pytest.mark.parametrize("instr", [send(quantity=5), receive(quantity=5)])
@@ -831,20 +834,28 @@ def test_function_code_through_read_csv(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("class_name", "type_code", "instr", "fc_subtype"),
+    ("class_name", "type_code", "instr", "fc_subtype", "fc"),
     [
-        ("SD", 0x2729, send(), "0"),  # FC05 with a register remote
-        ("SD", 0x2729, send(), "7"),
-        ("RD", 0x2728, receive(), "1"),  # FC02 with a register remote
-        ("RD", 0x2728, receive(remote_start=ModbusAddress("400001")), "3"),  # 4xxxxx is FC03
+        ("SD", 0x2729, send(), "0", 5),  # FC05 with a register remote
+        ("RD", 0x2728, receive(), "1", 2),  # FC02 with a register remote
+        ("RD", 0x2728, receive(remote_start=ModbusAddress("400001")), "3", 4),  # 4xxxxx is FC03
     ],
 )
-def test_function_code_that_does_not_fit_decodes_as_raw(
-    class_name, type_code, instr, fc_subtype
+def test_function_code_that_does_not_fit_keeps_its_refusal(
+    class_name, type_code, instr, fc_subtype, fc
 ) -> None:
     fields = _fields(instr)
     fields[0x2211] = fc_subtype
-    assert from_tags_af(class_name, type_code, fields) is None
+    decoded = kept(
+        from_tags_af(class_name, type_code, fields), f"{type(instr).__name__}.function_code"
+    )
+    assert decoded.function_code == fc
+
+
+def test_function_code_subtype_that_names_no_code_decodes_as_raw() -> None:
+    fields = _fields(send())
+    fields[0x2211] = "7"
+    assert from_tags_af("SD", 0x2729, fields) is None
 
 
 # --- Receive counts and Word Swap -------------------------
@@ -955,10 +966,10 @@ def test_receive_word_swap_on_one_element_through_csv(tmp_path: Path) -> None:
         _read_af(tmp_path, f'receive(target={target},remote_start="DS1",dest=DS1,word_swap=1)')
 
 
-def test_receive_word_swap_on_one_element_decodes_as_raw() -> None:
+def test_receive_word_swap_on_one_element_keeps_its_refusal() -> None:
     fields = _fields(receive(remote_start="DS1", dest="DS1"))
     fields[0x221C] = "0"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    assert kept(from_tags_af("RD", 0x2728, fields), "Receive.word_swap").word_swap
 
 
 @pytest.mark.parametrize(
@@ -982,22 +993,22 @@ def test_receive_status_bit_used_twice_through_csv(tmp_path: Path) -> None:
         _read_af(tmp_path, call)
 
 
-def test_receive_status_bit_used_twice_decodes_as_raw() -> None:
+def test_receive_status_bit_used_twice_keeps_its_refusal() -> None:
     fields = _fields(receive())
     fields[0x607D] = "C2"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    assert kept(from_tags_af("RD", 0x2728, fields), "Receive.error").error == "C2"
 
 
-def test_refused_receive_decodes_as_raw() -> None:
+def test_refused_receive_keeps_its_refusal() -> None:
     fields = _fields(receive(remote_start="C1", dest="C1", quantity=2))
     fields[0x221C] = "0"  # word swap on a bit Receive
-    assert from_tags_af("RD", 0x2728, fields) is None
+    kept(from_tags_af("RD", 0x2728, fields), "Receive.word_swap")
     fields = _fields(receive(remote_start=ModbusAddress("400001")))
     fields[0x607E] = "TD1"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    kept(from_tags_af("RD", 0x2728, fields), "Receive.dest")
     fields = _fields(receive(remote_start="DD1", dest="DD1"))
     fields[0x6085] = "DS1"
-    assert from_tags_af("RD", 0x2728, fields) is None
+    kept(from_tags_af("RD", 0x2728, fields), "Receive.remote_start")
 
 
 # --- Send status bits and hex start -----------------------
@@ -1017,10 +1028,10 @@ def test_send_status_bit_used_twice(kw) -> None:
         send(**kw)
 
 
-def test_send_status_bit_used_twice_decodes_as_raw() -> None:
+def test_send_status_bit_used_twice_keeps_its_refusal() -> None:
     fields = _fields(send())
     fields[0x607B] = "C1"
-    assert from_tags_af("SD", 0x2729, fields) is None
+    assert kept(from_tags_af("SD", 0x2729, fields), "Send.success").success == "C1"
 
 
 @pytest.mark.parametrize("source", ["DD1", "DF1", "CTD1", "TXT1"])
@@ -1075,12 +1086,25 @@ def test_device_id_range_edges_through_csv(tmp_path: Path) -> None:
         assert isinstance(got, Send)
 
 
-@pytest.mark.parametrize("device_id", ["248", "256", "-1"])
-def test_blob_with_out_of_range_device_id_decodes_to_raw(device_id) -> None:
+@pytest.mark.parametrize(
+    ("device_id", "refused"),
+    [
+        ("248", ["ModbusRtuTarget.device_id"]),
+        ("256", ["ModbusRtuTarget.device_id"]),
+        ("-1", ["ModbusRtuTarget.device_id", "Send.target"]),
+    ],
+)
+def test_blob_with_out_of_range_device_id_keeps_the_target_refusal(device_id, refused) -> None:
     fields = _fields(send())
     fields[0x320E] = device_id
     fields[0x60B2] = device_id
-    assert from_tags_af("SD", 0x2729, fields) is None
+    sent = kept(from_tags_af("SD", 0x2729, fields), *refused)
+    assert isinstance(sent.target, ModbusRtuTarget)
+    assert sent.target.device_id == int(device_id)
+    # The target's refusal names the target; encode() refuses the Send with it.
+    assert refusals(sent)[0].obj is sent.target
+    with pytest.raises(FieldError, match="device_id"):
+        encode_rung(3, [["-"] * 31] + [[""] * 31] * 2, [sent, "", ""])
 
 
 @pytest.mark.parametrize(("written", "stored"), [("0FFFEh", "FFFEh"), ("0000Fh", "Fh")])

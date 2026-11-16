@@ -40,7 +40,7 @@ All standard Click instruction types are decoded into domain objects:
 - **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue` (CLICK v4)
 - **Modbus** → `Send`, `Receive`
 
-Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline.
+Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline. A stored value CLICK's dialog refuses does not make a cell raw: the cell decodes as its instruction ([Values CLICK's dialog refuses](#values-clicks-dialog-refuses)).
 
 At the moment, Click `Email`, `Home`, `Position`, and `Velocity` instructions
 also surface this way. They are supported for binary/SCR round-trip, but they
@@ -62,6 +62,59 @@ with warnings.catch_warnings(record=True) as caught:
     rungs = decode(data)
 legacy = [w.message for w in caught if issubclass(w.category, LegacyEncodingWarning)]
 ```
+
+### Values CLICK's dialog refuses
+
+A stored instruction can hold a value CLICK's dialog refuses: CLICK keeps what a
+paste holds, and CLICK v4 and older laddercodec versions store values that
+today's checks refuse. `decode()` and `decode_program()` build such an
+instruction with every value as stored and emit a `RefusedFieldWarning` for it:
+
+```python
+import warnings
+from laddercodec import RefusedFieldWarning, decode
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always", RefusedFieldWarning)
+    rungs = decode(data)
+for w in caught:
+    if issubclass(w.category, RefusedFieldWarning):
+        print(w.message.rung, w.message.instruction.to_csv())
+        print(w.message.error)
+# 2 math(SUM ( X001 : X036 ),DS1,mode=decimal)
+# Math.expression: SUM ( X001 : X036 ) is refused; CLICK v4 stores a wrong member list ...
+```
+
+The warning carries `instruction`, `error` (the `FieldError` building the
+instruction raises), `errors` (every refusal, `error` first), `rung` (0-based
+index, or `None`) and `program` (for `decode_program()`). The refusals are the
+ones construction raises ([Refused values](encoding.md#refused-values)).
+
+Left unchanged, the instruction encodes as it did when it decoded as
+`RawInstruction`, so `encode(decode(data))` writes the rung back as before:
+decoded from a clipboard, as the blob and cell rows CLICK stored; an output box
+decoded by `decode_program()`, as the blob its tags make. A condition decoded by
+`decode_program()` has no such blob, and `encode()` raises its `error`.
+
+Change a field the blob holds (any field but a contact's `wire_down`), and the
+instruction is checked again: `encode()` raises the refusal it holds now, or, if
+the change fixed it, encodes it as building it from its fields would (`ds2` is
+written `DS2`). Fix the field the error names, then encode.
+
+`write_csv()` writes the instruction as it is held, and
+`read_csv(path, unchecked=True)` reads it back with the same warning; by default
+`read_csv` refuses it. A CSV holds no blob, so the instruction it reads compares
+equal to the decoded one but `encode()` raises its `error`.
+
+A value no stored instruction holds still decodes as `RawInstruction` (or an
+unknown condition) with its bytes kept: an address not in CLICK's display form
+(`C001`), a value outside a field's named values (a timer unit, a compare
+operator), text that is no number in a numeric field, pin rows the box can't
+take, a value a check crashes on, a Math stored in nickname view, and an
+instruction whose CSV would not read back as the same instruction. A Copy or Pack
+destination stored with a space at either edge decodes as the address without the
+space; left unchanged, it encodes as it did when it decoded as `RawInstruction`,
+space and all.
 
 ### Wire tokens
 

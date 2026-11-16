@@ -22,6 +22,7 @@ from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
 from laddercodec.model import InstructionType
 from laddercodec.operands.checks import WRITABLE_SC
+from tests.kept_refusals import kept
 
 NO = InstructionType.CONTACT_NO
 OUT = InstructionType.COIL_OUT
@@ -244,10 +245,11 @@ class TestCompare:
         ):
             CompareContact(op="==", **operands)
 
-    def test_other_dollar_form_blob_is_an_unknown_condition(self) -> None:
+    def test_other_dollar_form_blob_keeps_its_refusal(self) -> None:
         tags = {0x3218: "4103", 0x6066: "TXT1", 0x6067: "$41", 0x21F7: "0"}
         assert isinstance(from_tags_condition("Compare", 0x2714, tags), CompareContact)
-        assert from_tags_condition("Compare", 0x2714, tags | {0x6067: "$4"}) is None
+        compare = from_tags_condition("Compare", 0x2714, tags | {0x6067: "$4"})
+        assert kept(compare, "CompareContact.right").right == "$4"
 
     def test_quote_inside_text_refused(self) -> None:
         with pytest.raises(FieldError, match="no quote inside"):
@@ -805,20 +807,28 @@ class TestOutVariant:
 
 
 class TestDecodeRefusal:
+    """A stored blob whose values the checks refuse decodes as that instruction, keeping
+    the refusal; a value not in display form leaves it unparsed."""
+
     @pytest.mark.parametrize(
-        ("left", "right", "type_idx"),
+        ("left", "right", "type_idx", "field"),
         [
-            ("TXT1", '""', "0"),  # empty text
-            ("TXT1", '"A"', "2"),  # > with text as Data A
-            ("DS1", "3000000000", "0"),  # outside int32
-            ("DH1", "10000h", "0"),  # above FFFFh
-            ("TXT1", '"' + "A" * 129 + '"', "0"),  # more than 128 characters
-            ("TXT1", '"""', "0"),  # the quote character
+            ("TXT1", '""', "0", "CompareContact.right"),  # empty text
+            ("TXT1", '"A"', "2", "CompareContact.op"),  # > with text as Data A
+            ("DS1", "3000000000", "0", "CompareContact.right"),  # outside int32
+            ("DH1", "10000h", "0", "CompareContact.right"),  # above FFFFh
+            ("TXT1", '"' + "A" * 129 + '"', "0", "CompareContact.right"),  # over 128 characters
+            ("TXT1", '"""', "0", "CompareContact.right"),  # the quote character
         ],
     )
-    def test_refused_compare_blob_is_unknown(self, left: str, right: str, type_idx: str) -> None:
+    def test_refused_compare_blob_keeps_its_refusal(
+        self, left: str, right: str, type_idx: str, field: str
+    ) -> None:
         tags = {0x3218: "4103", 0x6066: left, 0x6067: right, 0x21F7: type_idx}
-        assert from_tags_condition("Compare", 0x2714, tags) is None
+        compare = kept(from_tags_condition("Compare", 0x2714, tags), field)
+        assert (compare.left, compare.right) == (left, right)
+        with pytest.raises(FieldError):
+            encode_rung(1, [[compare, *["-"] * 30]], [Coil(InstructionType.COIL_OUT, "Y001")])
 
     def test_multi_character_compare_blob_decodes(self) -> None:
         tags = {0x3218: "4103", 0x6066: "TXT771", 0x6067: '"AB"', 0x21F7: "0"}
@@ -835,33 +845,48 @@ class TestDecodeRefusal:
         compare = from_tags_condition("Compare", 0x2714, tags)
         assert isinstance(compare, CompareContact) and compare.right == '"A"'
 
-    @pytest.mark.parametrize(("on_preset", "off_acc"), [("32768", "TD2"), ("5", "TD1")])
-    def test_refused_debounce_blob_is_not_a_variant(self, on_preset: str, off_acc: str) -> None:
+    @pytest.mark.parametrize(
+        ("on_preset", "off_acc", "field"),
+        [("32768", "TD2", "OutVariant.on_preset"), ("5", "TD1", "OutVariant.off_acc")],
+    )
+    def test_refused_debounce_blob_keeps_its_refusal(
+        self, on_preset: str, off_acc: str, field: str
+    ) -> None:
         tags = {
             0x6066: "C1", 0x60B3: on_preset, 0x60B4: "TD1", 0x60B5: "5", 0x60B6: off_acc,
             0x21F9: TIMER_UNIT_TO_INDEX["Tms"], 0x2248: "1", 0x3218: "8226",
         }  # fmt: skip
-        assert from_tags_af("Out", 0x2715, tags) is None
+        variant = kept(from_tags_af("Out", 0x2715, tags), field)
+        assert (variant.kind, variant.on_preset, variant.off_acc) == (
+            "debounce",
+            on_preset,
+            off_acc,
+        )
         tags[0x60B3], tags[0x60B6] = "5", "TD2"
-        assert isinstance(from_tags_af("Out", 0x2715, tags), OutVariant)
+        assert kept(from_tags_af("Out", 0x2715, tags)) == OutVariant(
+            kind="debounce", operand="C1", on_acc="TD1", on_preset="5", off_acc="TD2",
+            off_preset="5", unit="Tms",
+        )  # fmt: skip
 
-    def test_refused_contact_blob_is_unknown(self) -> None:
-        assert from_tags_condition("ContactNO", 0x2711, {0x6065: "DS1", 0x11F5: "0"}) is None
+    def test_refused_contact_blob_keeps_its_refusal(self) -> None:
+        contact = kept(from_tags_condition("ContactNO", 0x2711, {0x6065: "DS1"}), "Contact.operand")
+        assert contact.operand == "DS1"
 
-    def test_refused_coil_blob_is_not_a_coil(self) -> None:
-        tags = {0x6066: "X1", 0x6067: "", 0x11F8: "0", 0x11F5: "0", 0x3218: "8193"}
+    def test_coil_blob_not_in_display_form_is_left_unparsed(self) -> None:
+        tags = {0x6066: "X1", 0x6067: "", 0x3218: "8193"}
         assert from_tags_af("Out", 0x2715, tags) is None
 
     @pytest.mark.parametrize(
-        ("type_code", "operand", "range_end", "func_code"),
+        ("type_code", "operand", "range_end", "func_code", "field"),
         [
-            (0x2715, "SC52", "", "8193"),  # Out of a read-only SC
-            (0x2716, "X1", "", "8195"),  # Set of X
-            (0x2717, "C9", "C1", "8219"),  # Reset of a reversed range
+            (0x2715, "SC52", "", "8193", "Coil.operand"),  # Out of a read-only SC
+            (0x2716, "X001", "", "8195", "Coil.operand"),  # Set of X
+            (0x2717, "C9", "C1", "8219", "Coil.range_end"),  # Reset of a reversed range
         ],
     )
-    def test_refused_coil_blobs(
-        self, type_code: int, operand: str, range_end: str, func_code: str
+    def test_refused_coil_blobs_keep_their_refusal(
+        self, type_code: int, operand: str, range_end: str, func_code: str, field: str
     ) -> None:
-        tags = {0x6066: operand, 0x6067: range_end, 0x11F8: "0", 0x11F5: "0", 0x3218: func_code}
-        assert from_tags_af("Out", type_code, tags) is None
+        tags = {0x6066: operand, 0x6067: range_end, 0x3218: func_code}
+        coil = kept(from_tags_af("Out", type_code, tags), field)
+        assert (coil.operand, coil.range_end or "") == (operand, range_end)

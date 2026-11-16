@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, decode, decode_program
+from laddercodec import AddressError, FieldError, RefusedFieldWarning, decode, decode_program
 from laddercodec.binary_helpers import (
     _parse_tagged_fields_verbose,
     _tagged_field,
@@ -26,6 +26,8 @@ from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math import Math, _reconstruct_expression
 from laddercodec.instructions.math_formula import parse
 from laddercodec.instructions.raw import RawInstruction
+from laddercodec.operands.unchecked import refusals
+from tests.kept_refusals import kept
 from tests.test_v4_captures import REFUSED_XY_RANGES
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
@@ -571,13 +573,21 @@ def test_refused_stored_formula_decodes_as_raw() -> None:
     assert isinstance(rungs[1].instructions[0], Math)
 
 
-def test_refused_stored_formula_decodes_as_raw_from_scr() -> None:
+def test_refused_stored_formula_keeps_its_refusal_from_scr() -> None:
     # sm_IsCmdValid.scr's DH51 AND DH52, its template rewritten to DH51 DH52 AND.
     data = (FIXTURES / "tumbler" / "subroutines" / "sm_IsCmdValid.scr").read_bytes()
     stored = "@ AND @".encode("utf-16-le")
     assert stored in data
-    program = decode_program(data.replace(stored, "@ @ AND".encode("utf-16-le")))
-    assert _raw_maths(program.rungs)
+    with pytest.warns(RefusedFieldWarning):
+        program = decode_program(data.replace(stored, "@ @ AND".encode("utf-16-le")))
+    assert not _raw_maths(program.rungs)
+    refused = [
+        i
+        for rung in program.rungs
+        for i in rung.instructions
+        if isinstance(i, Math) and refusals(i)
+    ]
+    assert [kept(math, "Math.expression").expression for math in refused] == ["DH51 DH52 AND"]
 
 
 def _blob(template: str, internal: str) -> bytes:
@@ -598,9 +608,10 @@ def _blob(template: str, internal: str) -> bytes:
     return bytes(out)
 
 
-def test_stored_constant_of_5000_digits_decodes_as_raw() -> None:
+def test_stored_constant_of_5000_digits_keeps_its_refusal() -> None:
     digits = "9" * 5000
-    assert parse_af_blob(_blob(f"@ + {digits}", f"DS1#+#H{digits}")) is None
+    parsed = kept(parse_af_blob(_blob(f"@ + {digits}", f"DS1#+#H{digits}")), "Math.expression")
+    assert parsed.expression == f"DS1 + {digits}"
     # A long constant only in the internal formula reads no further than the template.
     parsed = parse_af_blob(_blob("@ + 5", f"DS1#+#H{digits}"))
     assert isinstance(parsed, Math)

@@ -73,12 +73,14 @@ from ..instructions import AfToken as RungAfToken
 from ..instructions import ConditionToken as RungConditionToken
 from ..model import (
     AfInstruction,
+    ConditionInstruction,
     FieldError,
     InstructionType,
     PinnedInstruction,
     check_address,
 )
 from ..operands.errors import Reason
+from ..operands.unchecked import checked, unchecked
 from .ast import (
     AfBlank,
     AfCall,
@@ -95,6 +97,7 @@ from .ast import (
     VerticalPassThroughWire,
 )
 from .location import AF_COLUMN, add_location, add_own_location, at, located
+from .token_parser import parse_af_token, parse_condition_token
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -411,10 +414,15 @@ def _refusing_pin(
     slot_rows: tuple[int, ...],
     refusal: FieldError,
 ) -> str | None:
-    """The first used pin without which *refusal* is no longer raised, or None."""
+    """The first used pin without which *refusal* is no longer raised, or None.
+
+    Each probe runs its checks, inside ``read_csv(..., unchecked=True)`` too, so a refusal
+    the box would hold there still tells the pins apart.
+    """
     for name in pins:
         try:
-            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+            with checked():
+                token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
         except FieldError as other:
             if any(str(e) == str(refusal) for e in other.errors):
                 continue
@@ -430,11 +438,13 @@ def _refused_pin(
     """The first used pin without which ``with_pins`` accepts the box, or None.
 
     That pin's row holds the refused value (a Drum's ``.jump(target)``) or is itself the
-    fault (a ``.reset()`` on a timer that can't be retentive).
+    fault (a ``.reset()`` on a timer that can't be retentive).  Each probe runs its checks,
+    as :func:`_refusing_pin`'s do.
     """
     for name in pins:
         try:
-            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+            with checked():
+                token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
         except ValueError:
             continue
         return name
@@ -529,6 +539,34 @@ def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
             return "NOP"
         return _af_call_to_token(node, strict=strict)
     raise TypeError(f"Unknown AF node type: {type(node).__name__}")
+
+
+def reads_back(token: object) -> bool:
+    """Whether an instruction's CSV token, with its pin rows, reads back to an equal one.
+
+    Read as ``read_csv(..., unchecked=True)`` reads it, so an instruction that keeps
+    refusals is compared with one that keeps the same.  Any failure to write or read it
+    is a no: the CSV can't hold it.
+    """
+    try:
+        with unchecked():
+            if isinstance(token, ConditionInstruction):
+                again: object = condition_node_to_token(parse_condition_token(token.to_csv()))
+            elif isinstance(token, AfInstruction):
+                again = af_node_to_token(parse_af_token(token.to_csv()))
+                if isinstance(token, PinnedInstruction) and isinstance(again, PinnedInstruction):
+                    calls = [
+                        cast(AfCall, parse_af_token(label))
+                        for label in token.pin_labels()
+                        if label is not None
+                    ]
+                    pins = {call.name: call.args for call in calls}
+                    again = again.with_pins(pins, token.pin_rows)
+            else:
+                return False
+    except Exception:  # noqa: BLE001 - a value the CSV can't hold breaks it anywhere
+        return False
+    return again == token
 
 
 # ---------------------------------------------------------------------------

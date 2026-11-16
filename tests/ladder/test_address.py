@@ -6,13 +6,14 @@ Bank ranges are CLICK's.
 from __future__ import annotations
 
 import csv
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import laddercodec.instructions as instructions_mod
-from laddercodec import decode, decode_program, read_csv
+from laddercodec import RefusedFieldWarning, decode, decode_program, encode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
@@ -20,14 +21,11 @@ from laddercodec.instructions import (
     Contact,
     Counter,
     ForLoop,
-    RawInstruction,
     Shift,
-    UnknownCondition,
     parse_af_blob,
     parse_condition_blob,
 )
 from laddercodec.instructions.out_variant import OutVariant
-from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.model import (
     ADDRESS_BANKS,
     Address,
@@ -36,6 +34,7 @@ from laddercodec.model import (
     InstructionType,
     check_address,
 )
+from laddercodec.operands.unchecked import refusals
 
 # (bank, lowest, highest) for every bank without module or slot numbering.
 _LINEAR_BANKS = [
@@ -309,60 +308,115 @@ def _swap_operand(blob: bytes, old: str, new: str) -> bytes:
 
 
 class TestDecodeRefusedAddress:
-    """A blob whose address CLICK refuses decodes unparsed, not as the model.
+    """A blob whose address CLICK refuses decodes as the model, keeping the refusal.
 
     Both decoders reach the families through ``from_tags_af``/``from_tags_condition``,
-    which turn the family's ``ValueError`` into "not parsed".
+    which build the instruction from what is stored.  An address not in display form
+    (``C00``, ``DS000``) is text CLICK never writes, and leaves the blob unparsed.
     """
 
     def test_af_families(self) -> None:
         cases = [
-            (Coil(InstructionType.COIL_OUT, "Y801"), "Y801", "Y901"),
-            (Coil(InstructionType.COIL_OUT, "C1", range_end="C1999"), "C1999", "C2999"),
-            (Counter("count_up", "CT1", "CTD1", "10", reset_enabled=True), "CTD1", "CTD0"),
-            (Shift(start_bit="C1", end_bit="C10"), "C10", "C00"),
-            (ForLoop(limit="DS100"), "DS100", "DS000"),
-            (OutVariant(kind="toggle", operand="C1"), "C1", "C0"),
+            (Coil(InstructionType.COIL_OUT, "Y801"), "Y801", "Y901", "Coil.operand"),
+            (
+                Coil(InstructionType.COIL_OUT, "C1", range_end="C1999"),
+                "C1999",
+                "C2999",
+                "Coil.range_end",
+            ),
+            (
+                Counter("count_up", "CT1", "CTD1", "10", reset_enabled=True),
+                "CTD1",
+                "CTD0",
+                "Counter.current",
+            ),
+            (Shift(start_bit="C1", end_bit="C10"), "C10", "C00", None),
+            (ForLoop(limit="DS100"), "DS100", "DS000", None),
+            (OutVariant(kind="toggle", operand="C1"), "C1", "C0", "OutVariant.operand"),
             (
                 OutVariant(kind="timed", operand="C1", on_acc="TD1", on_preset="1", unit="Tms"),
                 "TD1",
                 "TD0",
+                "OutVariant.on_acc",
             ),
         ]
-        for model, old, new in cases:
+        for model, old, new, field in cases:
             blob = model.build_blob()
-            assert parse_af_blob(blob) is not None
-            assert parse_af_blob(_swap_operand(blob, old, new)) is None, model
+            assert parse_af_blob(blob) == model
+            parsed = parse_af_blob(_swap_operand(blob, old, new))
+            if field is None:
+                assert parsed is None, model
+                continue
+            assert type(parsed) is type(model), model
+            (error,) = refusals(parsed)
+            assert isinstance(error, AddressError)
+            assert error.field == field
+            assert error.obj is parsed
 
     def test_contact(self) -> None:
         blob = Contact(InstructionType.CONTACT_NO, "X101").build_blob()
         assert isinstance(parse_condition_blob(blob), Contact)
-        assert parse_condition_blob(_swap_operand(blob, "X101", "X117")) is None
+        parsed = parse_condition_blob(_swap_operand(blob, "X101", "X117"))
+        assert isinstance(parsed, Contact)
+        assert parsed.operand == "X117"
+        assert [error.field for error in refusals(parsed)] == ["Contact.operand"]
 
     def test_clipboard_decode(self) -> None:
         conditions = [[Contact(InstructionType.CONTACT_NO, "X101"), *["-"] * 30]]
         data = encode_rung(1, conditions, [Coil(InstructionType.COIL_OUT, "Y801")])
         data = _swap_operand(_swap_operand(data, "Y801", "Y901"), "X101", "X117")
-        rung = decode(data)
-        assert isinstance(rung.conditions[0][0], UnknownCondition)
-        [af] = rung.instructions
-        assert isinstance(af, RawInstruction)
-        assert af.class_name == "Out"
-        fields = _decompose_blob(af.blob)[4]
-        assert "Y901" in [value for _tag, _sentinel, value in fields]
+        with pytest.warns(RefusedFieldWarning) as caught:
+            rung = decode(data)
+        contact, coil = rung.conditions[0][0], rung.instructions[0]
+        assert isinstance(contact, Contact) and contact.operand == "X117"
+        assert isinstance(coil, Coil) and coil.operand == "Y901"
+        found = [w.message for w in caught if isinstance(w.message, RefusedFieldWarning)]
+        assert [(w.instruction, w.error.field, w.rung) for w in found] == [
+            (contact, "Contact.operand", 0),
+            (coil, "Coil.operand", 0),
+        ]
+        # Unchanged, the instructions write the bytes CLICK stored.
+        assert encode_rung(1, rung.conditions, rung.instructions) == data
+        # A copy runs its checks; a changed field drops the stored blob.
+        with pytest.raises(AddressError, match="Y901"):
+            replace(coil, oneshot=True)
+        coil.oneshot = True
+        with pytest.raises(AddressError, match="Y901"):
+            encode_rung(1, rung.conditions, rung.instructions)
+        # A field fixed by assignment is accepted; the unchanged contact still writes its bytes.
+        coil.operand = "Y001"
+        assert not refusals(coil)
+        assert encode_rung(1, rung.conditions, rung.instructions) != data
 
     def test_scr_decode(self) -> None:
         # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
         data = (_SCR_DIR / "shift_scr.scr").read_bytes()
         data = data.replace(_utf16z("C2"), _utf16z("C0"))
-        for rung in decode_program(data).rungs:
-            assert isinstance(rung.instructions[0], RawInstruction)
-            assert rung.instructions[0].class_name == "SR"
+        with pytest.warns(RefusedFieldWarning):
+            rungs = decode_program(data).rungs
+        for rung in rungs:
+            shift = rung.instructions[0]
+            assert isinstance(shift, Shift)
+            assert shift.end_bit == "C0"
+            assert [error.field for error in refusals(shift)] == ["Shift.end_bit"]
+            # Unchanged, it writes the blob its raw box wrote, composed from the entry's tags.
+            stored = shift.build_blob()
+            assert stored in encode(rung)
+            # Changed, it is checked again: a fixed field is accepted, a refused one raises.
+            shift.end_bit = "C3"
+            assert not refusals(shift)
+            assert shift.build_blob() != stored
+            shift.end_bit = "X117"
+            with pytest.raises(AddressError, match="X117"):
+                encode(rung)
         # coverage rung 1 is ~C4 -> out(C3); C4 occurs once.
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         assert data.count(_utf16z("C4")) == 1
-        rung = decode_program(data.replace(_utf16z("C4"), _utf16z("C0"))).rungs[1]
-        assert isinstance(rung.conditions[0][0], UnknownCondition)
+        with pytest.warns(RefusedFieldWarning):
+            rung = decode_program(data.replace(_utf16z("C4"), _utf16z("C0"))).rungs[1]
+        contact = rung.conditions[0][0]
+        assert isinstance(contact, Contact) and contact.operand == "C0"
+        assert [error.field for error in refusals(contact)] == ["Contact.operand"]
         assert rung.instructions[0] == Coil(InstructionType.COIL_OUT, "C3")
 
     def test_dispatchers_catch_only_field_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:

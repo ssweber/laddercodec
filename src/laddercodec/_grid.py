@@ -25,6 +25,7 @@ from .encode import (
     _normalize_af,
 )
 from .instructions import AfInstruction, ConditionInstruction, Copy, Fill, Undecoded
+from .operands.unchecked import refusals, stored_blob, stored_cell_rows
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -60,6 +61,24 @@ def _check_text_constants(
             )
 
 
+def _check_instruction(
+    token: ConditionInstruction | AfInstruction, prefix: str, where: str
+) -> None:
+    """Refuse what *token* holds that CLICK's dialog refuses.
+
+    An unchanged decoded instruction that keeps its stored blob writes those bytes, as a
+    ``RawInstruction`` does, and is not checked.  Otherwise, an instruction built from
+    what is stored that keeps refusals raises the error building it raises (see
+    ``laddercodec.operands.unchecked``): ``encode()`` writes only what construction accepts.
+    """
+    if stored_blob(token) is not None:
+        return
+    found = refusals(token)
+    if found:
+        raise found[0].with_traceback(None)
+    _check_text_constants(token, prefix, where)
+
+
 def _validate_rung(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
@@ -91,7 +110,7 @@ def _validate_rung(
             )
         for col_idx, token in enumerate(row):
             if isinstance(token, ConditionInstruction):
-                _check_text_constants(token, prefix, f"row={row_idx}, col={col_idx}")
+                _check_instruction(token, prefix, f"row={row_idx}, col={col_idx}")
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
                 raise ValueError(
@@ -112,7 +131,7 @@ def _validate_rung(
         if isinstance(af, Undecoded):
             raise ValueError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
         if isinstance(af, AfInstruction):
-            _check_text_constants(af, prefix, f"row={row_idx}, AF")
+            _check_instruction(af, prefix, f"row={row_idx}, AF")
 
     nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
     if nop_count > 1:
@@ -271,7 +290,8 @@ def _build_rung_grid(
                         if isinstance(af, Math)
                         else af.build_blob()
                     )
-                    params = af.cell_params()
+                    # A decoded instruction writing its stored blob writes its cell rows too.
+                    params = {**af.cell_params(), **stored_cell_rows(af)}
                     is_multi_row = params.get("visual_rows", 1) > 1
                     cells.append(
                         ClickCell(

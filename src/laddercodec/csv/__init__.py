@@ -10,16 +10,19 @@ etc.) and the layout CLICK's syntax check draws.
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 
 from ..decode import Rung
+from ..operands.unchecked import unchecked as _unchecked
+from ..refused import warn_refused
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import convert_rung
 from .location import CsvLocation, located_in_file
 from .parser import parse_csv_file
 
 
-def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
+def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) -> list[Rung]:
     """Read any Click Ladder CSV and return one ``Rung`` per CLICK rung.
 
     Handles both single-rung and multi-rung CSV files in a single call.
@@ -45,6 +48,13 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
     When *strict* is ``False``, unsupported AF instructions are silently
     replaced with blank tokens instead of raising.
 
+    When *unchecked* is ``True``, an instruction whose values its checks refuse
+    is read as written, as ``decode()`` reads a stored one, with a
+    ``RefusedFieldWarning`` carrying the refusals; ``encode()`` still refuses
+    it.  A value no stored instruction holds (a timer unit that is none of
+    CLICK's, a flag that is not 0 or 1, pin rows the box can't take) still
+    raises.  By default every refusal raises.
+
     An exception raised for a bad CSV keeps its class (``ValueError``,
     ``FieldError``, ``AddressError``, ...) and carries a :class:`CsvLocation`
     as its ``location``: the file, line, rung, row and column where they are
@@ -53,9 +63,11 @@ def read_csv(path: Path | str, *, strict: bool = True) -> list[Rung]:
     path = Path(path)
     ast = parse_csv_file(path, syntax="canonical")
     rungs: list[Rung] = []
-    with located_in_file(path):
+    with located_in_file(path), _unchecked() if unchecked else nullcontext():
         for rung in ast.rungs:
             rungs.extend(convert_rung(rung, strict=strict))
+    if unchecked:
+        warn_refused(rungs)
     return rungs
 
 

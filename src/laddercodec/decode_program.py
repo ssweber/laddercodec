@@ -31,6 +31,8 @@ from .instructions.contact import Contact
 from .instructions.undecoded import Stop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
+from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
+from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 from .undecoded import (
     BAD_BYTES,
@@ -392,8 +394,26 @@ def _scr_box(
         variant_string_tags,
     )
     if parsed_af is not None and _fits_stored_span(parsed_af, cell_rows[0]):
+        if needs_stored_blob(parsed_af):
+            # It writes the blob a raw box of the entry writes, while it is unchanged: one
+            # that holds refusals, or that reads a stored address without its edge space.
+            keep_stored_blob(parsed_af, _scr_blob(class_name, type_code, tags, part_rows))
+            keep_cell_rows(parsed_af, cell_rows[0], cell_rows[1])
         return parsed_af
     return _scr_raw(class_name, type_code, tags, part_rows, cell_rows)
+
+
+def _scr_blob(class_name: str, type_code: int, tags: dict[int, str], part_rows: bytes) -> bytes:
+    """The clipboard blob composed from an SCR entry's tags, as a raw box writes it."""
+    from .instructions.raw import _compose_blob
+
+    return _compose_blob(
+        class_name,
+        type_code,
+        len(part_rows),
+        _clipboard_part_rows(part_rows),
+        [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
+    )
 
 
 def _scr_raw(
@@ -407,18 +427,9 @@ def _scr_raw(
 
     The entry's row bytes are the clipboard cell's +0x09 and +0x0A.
     """
-    from .instructions.raw import _compose_blob
-
-    blob = _compose_blob(
-        class_name,
-        type_code,
-        len(part_rows),
-        _clipboard_part_rows(part_rows),
-        [(t, _STANDARD_SENTINEL, v) for t, v in tags.items()],
-    )
     return RawInstruction(
         class_name=class_name,
-        blob=blob,
+        blob=_scr_blob(class_name, type_code, tags, part_rows),
         part_count=len(part_rows),
         visual_rows=cell_rows[0] or None,
         sub_rows=cell_rows[1] or None,
@@ -870,6 +881,7 @@ def decode_program(data: bytes) -> Program:
         rungs.append(marker_rung(Undecoded(to_the_end(framing_error, index), index, stop=stop)))
 
     warn_legacy(rungs, program=header.name)
+    warn_refused(rungs, program=header.name)
     warn_comments(failed, program=header.name)
     warn_undecoded(rungs, program=header.name)
     return Program(name=header.name, prog_idx=header.prog_idx, rungs=rungs)

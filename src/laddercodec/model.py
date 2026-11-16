@@ -19,7 +19,7 @@ tables live in :mod:`laddercodec.instructions`.
 from __future__ import annotations
 
 from collections.abc import Collection
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, cast
 
@@ -39,6 +39,7 @@ from .operands.checks import check_flag as check_flag
 from .operands.errors import AddressError as AddressError
 from .operands.errors import FieldError as FieldError
 from .operands.errors import Reason as Reason
+from .operands.unchecked import holds_refusals, rebuilt
 
 if TYPE_CHECKING:
     from .decode import Rung
@@ -52,9 +53,13 @@ if TYPE_CHECKING:
 class ConditionInstruction:
     """Base class for condition-side instructions (Contact, CompareContact)."""
 
+    # A plain class attribute, out of equality: see AfInstruction._refusal.
+    _refusal: FieldError | None = None
+
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         _name_typed_text(cls)
+        holds_refusals(cls)
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -74,10 +79,15 @@ class AfInstruction:
     #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
     #: see :mod:`laddercodec.legacy`.
     _legacy_findings: Collection[tuple[str, str, str]] = ()
+    #: The error construction raises, kept by an instruction built from what is stored;
+    #: see :mod:`laddercodec.operands.unchecked`.  A plain class attribute for the same
+    #: reason.
+    _refusal: FieldError | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        _name_typed_text(cls)
+        _name_typed_text(cls)  # first: the error it completes is the one kept
+        holds_refusals(cls)
 
     def to_csv(self) -> str:
         raise NotImplementedError
@@ -156,8 +166,8 @@ class PinnedInstruction(AfInstruction):
         raise NotImplementedError
 
     def with_pin_rows(self, pin_rows: tuple[int, ...]) -> PinnedInstruction:
-        """Copy at ``pin_rows`` (subclasses are dataclasses)."""
-        return replace(cast(Any, self), pin_rows=pin_rows)
+        """Copy at ``pin_rows`` (subclasses are dataclasses); it keeps any refusals."""
+        return rebuilt(cast(Any, self), pin_rows=pin_rows)
 
 
 class InstructionType(IntEnum):

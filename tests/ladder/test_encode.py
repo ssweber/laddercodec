@@ -31,6 +31,7 @@ from laddercodec.encode import _sanitize_to_ascii, encode_rung
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
+from tests.kept_refusals import kept
 
 # -- Golden CSV/BIN round-trip tests --
 
@@ -430,15 +431,20 @@ def test_encode_accepts_nul_and_nonempty_text_constants(
     assert d.instructions[0].to_csv() == af  # type: ignore[union-attr]
 
 
-def test_decoder_refuses_empty_text_constant() -> None:
-    """A Copy, Fill or compare blob holding "" is refused when built, so it decodes as
-    raw or unknown."""
+def test_decoded_empty_text_constant_is_refused_by_encode() -> None:
+    """A Copy, Fill or compare blob holding "" decodes keeping the refusal building it
+    raises, and encode() raises it."""
     copy_tags = {0x6074: '""', 0x6076: "TXT1"}
-    assert from_tags_af("Copy", 0x2721, copy_tags) is None
+    copy = kept(from_tags_af("Copy", 0x2721, copy_tags), "Copy.source")
     fill_tags = {0x6074: '""', 0x6076: "TXT1", 0x6077: "TXT4", 0x2223: "2"}
-    assert from_tags_af("Copy", 0x2721, fill_tags) is None
+    fill = kept(from_tags_af("Copy", 0x2721, fill_tags), "Fill.value")
     tags = {0x6066: "TXT1", 0x6067: '""', 0x21F7: "0"}
-    assert from_tags_condition("Compare", 0x2714, tags) is None
+    compare = kept(from_tags_condition("Compare", 0x2714, tags), "CompareContact.right")
+    for af in (copy, fill):
+        with pytest.raises(FieldError, match="is refused; a text constant"):
+            encode_rung(1, [["-"] * 31], [af])
+    with pytest.raises(FieldError, match="is refused; a text constant"):
+        encode_rung(1, [[compare, *["-"] * 30]], [""])
 
 
 # -- ASCII sanitization --

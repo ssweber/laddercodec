@@ -54,6 +54,8 @@ from .instructions import (
 from .instructions.raw import find_blob_boundary
 from .legacy import warn_legacy
 from .model import PinnedInstruction
+from .operands.unchecked import keep_cell_rows
+from .refused import warn_refused
 from .topology import (
     CELL_SIZE,
     CELL_TAIL_SIZE,
@@ -698,6 +700,7 @@ def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> Af
     instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
     parsed_af = parse_af_blob(instr_raw)
     if parsed_af is not None and _fits_stored_span(parsed_af, data[pos + 0x09]):
+        keep_cell_rows(parsed_af, data[pos + 0x09], data[pos + 0x0A])
         return parsed_af
     # Try to extract a raw instruction blob.
     try:
@@ -850,11 +853,13 @@ def decode(data: bytes) -> Rung | list[Rung]:
     if is_multi:
         rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
         warn_legacy(rungs)
+        warn_refused(rungs)
         warn_comments(failed)
         warn_undecoded(rungs)
         return rungs
     rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_refused([rung])
     warn_comments(failed)
     warn_undecoded([rung])
     return rung
@@ -895,6 +900,7 @@ def decode_rung(data: bytes) -> Rung:
     failed: list[tuple[int, str]] = []
     rung = _decode_single(data, row_infos, total_grid_rows, rung0_rtf, failed)
     warn_legacy([rung])
+    warn_refused([rung])
     warn_comments(failed)
     warn_undecoded([rung])
     return rung
@@ -938,6 +944,7 @@ def decode_rungs(data: bytes) -> list[Rung]:
     failed: list[tuple[int, str]] = []
     rungs = _decode_multi(data, row_infos, rung0_rtf, failed)
     warn_legacy(rungs)
+    warn_refused(rungs)
     warn_comments(failed)
     warn_undecoded(rungs)
     return rungs
