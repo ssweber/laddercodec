@@ -174,12 +174,12 @@ def _rtf_text(payload: bytes) -> str:
             i += 1
             continue
         if ch == "}":
-            if not stack:
-                i += 1
+            if not stack or (len(stack) == 1 and body[i + 1 :].strip(" \t\r\n\x00")):
+                i += 1  # stray, or closing the outermost group with text still to come
                 continue
             skip, uc = stack.pop()
             if not stack:
-                break  # the outermost group is closed: nothing after it is comment text
+                break  # the outermost group is closed, with only whitespace after it
             first = False
             i += 1
             continue

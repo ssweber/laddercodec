@@ -45,9 +45,14 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"lone \\u-10179?end"), "lone end"),
         (_rtf(b"a\\\\b\\{c\\}"), "a\\b{c}"),
         (_rtf(b"a\\~b\\_c"), "a b-c"),
-        # a stray closer ends the outermost group, and nothing after it is text
-        (_rtf(b"a}b\\"), "a"),
-        (_rtf(b"hi") + b"garbage after", "hi"),
+        # a closer that closes the outermost group while text follows is stray: reading goes on
+        (_rtf(b"a}}b"), "ab"),
+        (_rtf(b"{\\b one}} two"), "one two"),
+        (_rtf(b"one } two\\par three"), "one  two\nthree"),
+        # the end is the closer with only whitespace or NULs after it
+        (_rtf(b"hi") + b"\r\n \x00", "hi"),
+        # bytes after the end are text too, since the record is length-bounded
+        (_rtf(b"hi") + b"garbage after", "hi\ngarbage after"),
         # a lone backslash at the end
         (_rtf(b"ab\\"), "ab"),
         # numbers too long to read are skipped, and the text goes on
@@ -187,6 +192,6 @@ def test_scr_comment_text_is_recovered() -> None:
 
 def test_recovered_comment_of_zero_byte_characters_fits_whole() -> None:
     """Combining marks cost no bytes once encoded, so none of them is cut."""
-    comment = recovered_comment("why", _rtf(b"\u768 " * 100000))
+    comment = recovered_comment("why", _rtf(b"\\u768 " * 100000))
     assert not comment.endswith("...")
     assert len(_build_rtf_body(comment).encode("cp1252")) <= COMMENT_MAX_BYTES
