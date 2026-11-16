@@ -423,3 +423,18 @@ def test_every_refusal_written_here_gives_a_reason(module: str) -> None:
         elif name == "refuse" and isinstance(func, ast.Attribute):
             given = len(call.args) >= 3 or any(k.arg == "reason" for k in call.keywords)
             assert given, f"{module}:{call.lineno}"
+
+
+def test_drum_refused_kind_leaves_out_the_checks_that_read_it() -> None:
+    build = lambda: Drum(  # noqa: E731
+        "zzz", ["Y1", "Y2"], ["X1", "X2"], [[1, 0], [0, 1]], "DS1", "C1", events=["ZZ", ""]
+    )
+    assert _errors(build) == [("Drum.drum_kind", Reason.CHOICE, None)]
+
+
+def test_out_variant_junk_maintained_refuses_unit_first() -> None:
+    build = lambda: _variant(maintained="x")  # noqa: E731
+    assert [(f, r) for f, r, _ in _errors(build)] == [
+        ("OutVariant.unit", Reason.CHOICE),
+        ("OutVariant.maintained", Reason.FLAG),
+    ]

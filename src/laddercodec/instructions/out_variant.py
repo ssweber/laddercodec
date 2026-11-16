@@ -175,7 +175,9 @@ class OutVariant(AfInstruction):
             )
         if self.kind == "toggle":
             return
-        # A refused maintained flag decides nothing about the unit.
+        # The func code is looked up with the flag as given, so a junk ``maintained`` can
+        # refuse ``unit`` first; the flag itself is refused last.  A ``maintained`` refused
+        # above (a kind that has none) already explains the failed lookup.
         if (
             not check.refused("maintained")
             and (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES

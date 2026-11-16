@@ -302,37 +302,43 @@ class Drum(PinnedInstruction):
             check("current_step", check_address, banks={"DS"})
             flag = check("completion_flag", check_address, banks={"C"})
             _check_distinct_outputs(check, addresses, self.outputs, flag)
-            # An event drum keeps its events in events_or_presets.
-            events = "events_or_presets" if kind == "event" else "events"
-            for i, event in enumerate(getattr(self, events)):
-                if event:
-                    check(
-                        f"{events}[{i}]", check_address, banks=BIT_BANKS, label=f"Drum.events[{i}]"
-                    )
-            if kind != "event":
-                for i, preset in enumerate(self.events_or_presets):
-                    if preset:
+            # The checks of the items read the kind: a refused kind leaves them out.
+            if not check.refused("drum_kind"):
+                # An event drum keeps its events in events_or_presets.
+                events = "events_or_presets" if kind == "event" else "events"
+                for i, event in enumerate(getattr(self, events)):
+                    if event:
                         check(
-                            f"events_or_presets[{i}]",
-                            check_operand,
-                            {"DS"},
-                            _DURATION,
-                            letter_first=True,
-                            label=f"Drum.presets[{i}]",
-                            bank_id="OBJ-004",
+                            f"{events}[{i}]",
+                            check_address,
+                            banks=BIT_BANKS,
+                            label=f"Drum.events[{i}]",
                         )
+                if kind != "event":
+                    for i, preset in enumerate(self.events_or_presets):
+                        if preset:
+                            check(
+                                f"events_or_presets[{i}]",
+                                check_operand,
+                                {"DS"},
+                                _DURATION,
+                                letter_first=True,
+                                label=f"Drum.presets[{i}]",
+                                bank_id="OBJ-004",
+                            )
             if self.jump_enabled is True:
                 check("jump_target", check_address, banks={"DS"})
-            if kind == "event":
-                _refuse_blank_steps(
-                    check,
-                    "events_or_presets",
-                    [i for i, event in enumerate(self.events_or_presets) if not event],
-                    "every step needs an event",
-                    "OBJ-021",
-                )
-            elif kind in ("time", "time_event"):
-                self._check_timed(check, kind, steps, sizes_ok)
+            if not check.refused("drum_kind"):
+                if kind == "event":
+                    _refuse_blank_steps(
+                        check,
+                        "events_or_presets",
+                        [i for i, event in enumerate(self.events_or_presets) if not event],
+                        "every step needs an event",
+                        "OBJ-021",
+                    )
+                elif kind in ("time", "time_event"):
+                    self._check_timed(check, kind, steps, sizes_ok)
 
     def _check_pattern(self, check: Refusals, steps: int, outputs: int) -> None:
         """The pattern is one row per step and one cell per output, each 0 or 1."""
