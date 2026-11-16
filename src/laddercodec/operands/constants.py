@@ -31,7 +31,7 @@ import struct
 from enum import StrEnum
 from typing import NamedTuple
 
-from .errors import FieldError
+from .errors import FieldError, Reason
 
 
 class Kind(StrEnum):
@@ -169,9 +169,9 @@ def printable(text: str) -> bool:
 CHAR_CODE_RULE = "a character code is $ and two hex digits, $00 to $FF, such as $41"
 
 
-def check_char_code(text: str, name: str) -> int:
-    """Return the code ``text`` spells as ``$hh``; raise :class:`FieldError` naming field
-    ``name`` for any other text.
+def check_char_code(text: str, field: str) -> int:
+    """Return the code ``text`` spells as ``$hh``; raise :class:`FieldError` naming
+    ``field`` for any other text.
 
     A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``, so ``$``, ``$1``,
     ``$100`` and ``$G1`` are refused.  Compare, Search, Fill, a single Copy source and a Copy
@@ -179,7 +179,9 @@ def check_char_code(text: str, name: str) -> int:
     """
     m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
     if m is None:
-        raise FieldError(f"{name}: {text!r} is refused; {CHAR_CODE_RULE}", field=name)
+        raise FieldError(
+            f"{field}: {text!r} is refused; {CHAR_CODE_RULE}", field=field, reason=Reason.FORM
+        )
     return int(m.group(1), 16)
 
 

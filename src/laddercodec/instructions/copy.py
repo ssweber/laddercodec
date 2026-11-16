@@ -29,8 +29,9 @@ from ..model import (
     AddressError,
     AfInstruction,
     FieldError,
+    Reason,
     check_flag,
-    normalize_address,
+    normalize_fields,
     xy_slot,
 )
 from ..operands.checks import (
@@ -218,7 +219,9 @@ def check_box_operand(
         and len(bank) <= 3
     ):
         raise AddressError(
-            f"{name}: {value!r} is a pointer; only a single Copy takes one", field=name
+            f"{name}: {value!r} is a pointer; only a single Copy takes one",
+            field=name,
+            reason=Reason.POINTER,
         )
     return check_operand(value, name, banks, constants)
 
@@ -601,8 +604,7 @@ class Copy(AfInstruction):
 
     def __post_init__(self) -> None:
         # A constant comes back from normalize_address as written.
-        self.source = normalize_address(self.source)
-        self.destination = normalize_address(self.destination)
+        normalize_fields(self, "source", "destination")
         if self.format not in _VALID_FORMATS:
             raise FieldError(f"Invalid copy format: {self.format!r}", field="Copy.format")
         # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
@@ -851,8 +853,7 @@ class BlockCopy(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        for name in ("source_start", "source_end", "dest_start", "dest_end"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(self, "source_start", "source_end", "dest_start", "dest_end")
         if self.format not in _BLOCKCOPY_FORMATS:
             raise FieldError(f"Invalid blockcopy format: {self.format!r}", field="BlockCopy.format")
         cls = "BlockCopy"
@@ -974,8 +975,7 @@ class Fill(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        for name in ("value", "dest_start", "dest_end"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(self, "value", "dest_start", "dest_end")
         kind = _source_kind(self.value, "Fill.value", REGISTER_BANKS)
         # Fill runs the range check on the destination.
         dest, _ = check_range(
@@ -1071,8 +1071,7 @@ class Pack(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        for name in ("source_start", "source_end", "destination"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(self, "source_start", "source_end", "destination")
         if self.pack_type not in _PACK_TYPES:
             raise FieldError(f"Invalid pack type: {self.pack_type!r}", field="Pack.pack_type")
         first, last = check_range(
@@ -1192,8 +1191,7 @@ class Unpack(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        for name in ("source", "dest_start", "dest_end"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(self, "source", "dest_start", "dest_end")
         if self.unpack_type not in _UNPACK_TYPES:
             raise FieldError(
                 f"Invalid unpack type: {self.unpack_type!r}", field="Unpack.unpack_type"

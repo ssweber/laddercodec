@@ -12,8 +12,8 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
-from ..model import FieldError, PinnedInstruction, check_address, check_flag, normalize_address
-from ..operands.checks import Constants, check_operand
+from ..model import PinnedInstruction, Reason, check_address
+from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
@@ -73,37 +73,35 @@ class Timer(PinnedInstruction):
     pin_rows: tuple[int, ...] = (1,)
 
     def __post_init__(self) -> None:
-        self.retained = check_flag(self.retained, "Timer.retained")
-        if self.timer_type not in ("on_delay", "off_delay"):
-            raise FieldError(
-                f"Timer.timer_type: {self.timer_type!r} is not on_delay or off_delay",
-                field="Timer.timer_type",
-            )
-        if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
-            raise FieldError(
-                f"Timer.unit: {self.unit!r} is not one of {', '.join(TIMER_UNIT_TO_INDEX)}",
-                field="Timer.unit",
-            )
-        self.done_bit = normalize_address(self.done_bit)
-        self.current = normalize_address(self.current)
-        self.setpoint = normalize_address(self.setpoint)
-        done = check_address(self.done_bit, "Timer.done_bit", banks={"T"})
-        current = check_address(self.current, "Timer.current", banks={"TD"})
-        if done.number != current.number:
-            raise FieldError(
-                f"Timer.current: {self.current!r} must be TD{done.number} to match "
-                f"Timer.done_bit {self.done_bit!r}",
-                field="Timer.current",
-            )
-        # An address set point is DS only, OBJ-004.
-        check_operand(self.setpoint, "Timer.setpoint", {"DS"}, _SETPOINT)
-        if self.timer_type == "off_delay" and self.retained:
-            raise FieldError(
-                "Timer.retained: off_delay can't be retentive (no .reset() pin); CLICK's "
-                "Timer dialog offers Retentive only for an On Delay timer",
-                field="Timer.retained",
-            )
-        self._check_pin_rows()
+        with Refusals(self) as check:
+            check.flag("retained")
+            if self.timer_type not in ("on_delay", "off_delay"):
+                check.refuse(
+                    "timer_type", f"{self.timer_type!r} is not on_delay or off_delay", Reason.CHOICE
+                )
+            if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
+                units = ", ".join(TIMER_UNIT_TO_INDEX)
+                check.refuse("unit", f"{self.unit!r} is not one of {units}", Reason.CHOICE)
+            check.normalize("done_bit", "current", "setpoint")
+            done = check("done_bit", check_address, banks={"T"})
+            current = check("current", check_address, banks={"TD"})
+            if done is not None and current is not None and done.number != current.number:
+                check.refuse(
+                    ("current", "done_bit"),
+                    f"{self.current!r} must be TD{done.number} to match Timer.done_bit "
+                    f"{self.done_bit!r}",
+                    Reason.CONFLICT,
+                )
+            # An address set point is DS only, OBJ-004.
+            check("setpoint", check_operand, {"DS"}, _SETPOINT)
+            if self.timer_type == "off_delay" and self.retained:
+                check.refuse(
+                    ("retained", "timer_type"),
+                    "off_delay can't be retentive (no .reset() pin); CLICK's Timer dialog "
+                    "offers Retentive only for an On Delay timer",
+                    Reason.CONFLICT,
+                )
+            check.run(self._check_pin_rows)
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:

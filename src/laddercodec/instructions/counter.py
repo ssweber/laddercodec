@@ -23,7 +23,7 @@ from ..model import (
     PinnedInstruction,
     check_address,
     check_flag,
-    normalize_address,
+    normalize_fields,
 )
 from ..operands.checks import Constants, check_operand
 from ..operands.constants import Kind
@@ -105,9 +105,7 @@ class Counter(PinnedInstruction):
         self._check_pin_rows()
 
     def _check_fields(self) -> None:
-        self.done_bit = normalize_address(self.done_bit)
-        self.current = normalize_address(self.current)
-        self.preset = normalize_address(self.preset)
+        normalize_fields(self, "done_bit", "current", "preset")
         done = check_address(self.done_bit, "Counter.done_bit", banks={"CT"})
         current = check_address(self.current, "Counter.current", banks={"CTD"})
         if done.number != current.number:

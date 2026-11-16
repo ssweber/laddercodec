@@ -138,7 +138,7 @@ def parse_af_call(call: AfCall) -> Undecoded:
         raise FieldError(
             f"Undecoded: {call.to_token()!r} must be "
             'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
-            field="Undecoded",
+            field=None,  # token syntax, not a field value
         )
     rung = _whole_number(call, "rung")
     if rung is None:

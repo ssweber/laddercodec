@@ -712,16 +712,19 @@ def test_field_names_the_refused_field(build, field: str) -> None:
 @pytest.mark.parametrize(
     ("build", "field"),
     [
-        (lambda: Copy("DS[DS0]", "DS1"), "Copy.source pointer"),
-        (lambda: Copy("DS[DD1]", "DS1"), "Copy.source pointer"),
-        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.destination pointer"),
-        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination pointer"),
+        (lambda: Copy("DS[DS0]", "DS1"), "Copy.source"),
+        (lambda: Copy("DS[DD1]", "DS1"), "Copy.source"),
+        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.destination"),
+        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination"),
     ],
 )
-def test_pointer_index_field_says_pointer(build, field: str) -> None:
+def test_pointer_index_refusal_is_a_pointer_refusal(build, field: str) -> None:
+    """A refused index names the operand's field; the message says pointer."""
     with pytest.raises(AddressError) as info:
         build()
     assert info.value.field == field
+    assert info.value.reason == "pointer"
+    assert str(info.value).startswith(f"{field} pointer: ")
 
 
 @pytest.mark.parametrize("source", ["99999999999", "-2147483649"])

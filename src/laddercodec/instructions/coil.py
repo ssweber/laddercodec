@@ -13,12 +13,10 @@ from ..binary_helpers import tag_flag, tag_value
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     AfInstruction,
-    FieldError,
     InstructionType,
-    check_flag,
-    normalize_address,
+    Reason,
 )
-from ..operands.checks import check_out_target
+from ..operands.checks import Refusals, check_out_target
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -55,6 +53,7 @@ COIL_NAME_TO_TYPE = {
 }
 
 COIL_TYPE_TO_NAME = {v: k for k, v in COIL_NAME_TO_TYPE.items()}
+_SET_RESET = (InstructionType.COIL_LATCH, InstructionType.COIL_RESET)
 
 # Reverse lookup: func_code string → (InstructionType, is_range, immediate, oneshot).
 _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
@@ -83,42 +82,49 @@ class Coil(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        if self.type not in tuple(COIL_TYPE_TO_NAME):
-            raise FieldError(
-                f"Coil.type: {self.type!r} is not a coil (out, latch or reset)", field="Coil.type"
-            )
-        self.immediate = check_flag(self.immediate, "Coil.immediate")
-        self.oneshot = check_flag(self.oneshot, "Coil.oneshot")
-        if self.oneshot and self.type != InstructionType.COIL_OUT:
-            # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
-            raise FieldError(
-                f"Coil.oneshot: {COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; "
-                "only out() does",
-                field="Coil.oneshot",
-            )
-        self.operand = normalize_address(self.operand)
-        if self.range_end is not None:
-            self.range_end = normalize_address(self.range_end)
-        # Out, Set and Reset follow the same target and range rules.
-        start = check_out_target(self.operand, "Coil.operand", immediate=self.immediate)
-        if self.range_end is None:
-            return
-        # An SC range needs both ends writable; the bits between are not checked.
-        end = check_out_target(self.range_end, "Coil.range_end", immediate=self.immediate)
-        # Out: OBJ-008; Set and Reset refuse C5..Y5 the same way.
-        if end.bank != start.bank:
-            raise FieldError(
-                f"Coil.range_end: {self.range_end!r} is in bank {end.bank}; "
-                f"the range starts in bank {start.bank} and must stay in it",
-                field="Coil.range_end",
-            )
-        # Out: OBJ-009 (C5..C5 refused); Set and Reset refuse C9..C1 and C5..C5 as Out does.
-        if end.number <= start.number:
-            raise FieldError(
-                f"Coil.range_end: {self.range_end!r} is not above {self.operand!r}; "
-                "a range runs from a lower to a higher address",
-                field="Coil.range_end",
-            )
+        with Refusals(self) as check:
+            if self.type not in tuple(COIL_TYPE_TO_NAME):
+                check.refuse(
+                    "type", f"{self.type!r} is not a coil (out, latch or reset)", Reason.CHOICE
+                )
+            check.flag("immediate", "oneshot")
+            if self.oneshot and self.type in _SET_RESET:
+                # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
+                check.refuse(
+                    ("oneshot", "type"),
+                    f"{COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; only out() does",
+                    Reason.CONFLICT,
+                )
+            check.normalize("operand", "range_end")
+            # A refused immediate flag is not read: the bank checks still run.
+            immediate = self.immediate is True
+            # Out, Set and Reset follow the same target and range rules.
+            start = check("operand", check_out_target, immediate=immediate)
+            if self.range_end is None:
+                return
+            # An SC range needs both ends writable; the bits between are not checked.
+            end = check("range_end", check_out_target, immediate=immediate)
+            if start is None or end is None:
+                return
+            out = self.type == InstructionType.COIL_OUT
+            if end.bank != start.bank:
+                # Set and Reset refuse C5..Y5 the same way.
+                check.refuse(
+                    ("range_end", "operand"),
+                    f"{self.range_end!r} is in bank {end.bank}; the range starts in bank "
+                    f"{start.bank} and must stay in it",
+                    Reason.CONFLICT,
+                    "OBJ-008" if out else None,
+                )
+            elif end.number <= start.number:
+                # C5..C5 is refused too; Set and Reset refuse C9..C1 and C5..C5 as Out does.
+                check.refuse(
+                    ("range_end", "operand"),
+                    f"{self.range_end!r} is not above {self.operand!r}; a range runs from a "
+                    "lower to a higher address",
+                    Reason.CONFLICT,
+                    "OBJ-009" if out else None,
+                )
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:

@@ -257,14 +257,15 @@ def test_check_operand_refuses(
 @pytest.mark.parametrize(
     ("value", "message", "field"),
     [
-        ("DS[DD1]", "X.f pointer: 'DD1' is not allowed", "X.f pointer"),
-        ("DS[DS0]", "X.f pointer: 'DS0' is outside DS1-DS4500", "X.f pointer"),
+        ("DS[DD1]", "X.f pointer: 'DD1' is not allowed", "X.f"),
+        ("DS[DS0]", "X.f pointer: 'DS0' is outside DS1-DS4500", "X.f"),
     ],
 )
-def test_pointer_index_is_refused_under_its_own_field(value: str, message: str, field: str) -> None:
+def test_pointer_index_is_refused_as_a_pointer(value: str, message: str, field: str) -> None:
     with pytest.raises(AddressError, match=re.escape(message)) as caught:
         check_operand(value, "X.f", pointer=True)
     assert caught.value.field == field
+    assert caught.value.reason == "pointer"
 
 
 def test_pointer_banks() -> None:

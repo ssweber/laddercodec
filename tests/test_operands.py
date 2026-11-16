@@ -47,22 +47,35 @@ _MASKS = [
 
 def _literal_banks(module: str, field: str) -> frozenset[str]:
     """The literal banks of the ``check_address(..., field, banks=...)`` or
-    ``check_operand(value, field, banks, ...)`` call in ``module``."""
+    ``check_operand(value, field, banks, ...)`` call in ``module``, or of the same check run
+    through ``Refusals``: ``check(attr, check_operand, banks, ...)``."""
     tree = ast.parse((INSTRUCTIONS / module).read_text(encoding="utf-8"))
+    attr = field.split(".", 1)[1]
     for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or len(node.args) < 2:
+            continue
+        first, second = node.args[0], node.args[1]
         if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
+            isinstance(node.func, ast.Name)
             and node.func.id in ("check_address", "check_operand")
-            and len(node.args) >= 2
-            and isinstance(node.args[1], ast.Constant)
-            and node.args[1].value == field
+            and isinstance(second, ast.Constant)
+            and second.value == field
         ):
-            if node.func.id == "check_operand":
-                banks_arg = node.args[2]
-            else:
-                (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
-            return frozenset(ast.literal_eval(banks_arg))
+            name, rest = node.func.id, node.args[2:]
+        elif (
+            isinstance(first, ast.Constant)
+            and first.value == attr
+            and isinstance(second, ast.Name)
+            and second.id in ("check_address", "check_operand")
+        ):
+            name, rest = second.id, node.args[2:]
+        else:
+            continue
+        if name == "check_operand":
+            banks_arg = rest[0]
+        else:
+            (banks_arg,) = [k.value for k in node.keywords if k.arg == "banks"]
+        return frozenset(ast.literal_eval(banks_arg))
     raise AssertionError(f"no check_address for {field} in {module}")
 
 
@@ -182,7 +195,8 @@ def test_display_form_refusal_names_instance() -> None:
     with address.display_form_only(), pytest.raises(errors.FieldError) as info:
         Contact(InstructionType.CONTACT_NO, "x1")
     assert isinstance(info.value.obj, Contact)
-    assert info.value.field is None
+    assert info.value.field == "Contact.operand"
+    assert info.value.reason == "form"
 
 
 def test_pickle_keeps_message_and_attributes() -> None:

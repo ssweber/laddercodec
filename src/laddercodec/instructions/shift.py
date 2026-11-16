@@ -23,7 +23,7 @@ from ..model import (
     InstructionType,
     PinnedInstruction,
     check_address,
-    normalize_address,
+    normalize_fields,
 )
 from .family import AfInstructionFamilySpec
 
@@ -56,8 +56,7 @@ class Shift(PinnedInstruction):
     pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
-        self.start_bit = normalize_address(self.start_bit)
-        self.end_bit = normalize_address(self.end_bit)
+        normalize_fields(self, "start_bit", "end_bit")
         # Both ends are C; another bank, or an end in another bank than the start, is
         # OBJ-004.
         start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)

@@ -25,6 +25,7 @@ from ..model import (
     check_address,
     check_flag,
     normalize_address,
+    normalize_fields,
 )
 from ..operands.checks import BIT_BANKS, Constants, check_operand
 from ..operands.constants import Kind
@@ -249,11 +250,11 @@ class Drum(PinnedInstruction):
         self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")
         self.jump_enabled = check_flag(self.jump_enabled, "Drum.jump_enabled")
         self._check_pin_rows()
-        self.outputs = [normalize_address(output) for output in self.outputs]
-        self.events_or_presets = [normalize_address(value) for value in self.events_or_presets]
-        self.events = [normalize_address(event) for event in self.events]
-        for name in ("current_step", "completion_flag", "accumulator", "jump_target"):
-            setattr(self, name, normalize_address(getattr(self, name)))
+        normalize_fields(
+            self,
+            *("outputs", "events_or_presets", "events"),
+            *("current_step", "completion_flag", "accumulator", "jump_target"),
+        )
         kind = self.drum_kind
         if kind not in ("event", "time", "time_event"):
             raise FieldError(
@@ -290,22 +291,31 @@ class Drum(PinnedInstruction):
         check_address(self.current_step, "Drum.current_step", banks={"DS"})
         flag = check_address(self.completion_flag, "Drum.completion_flag", banks={"C"})
         _check_distinct_outputs(outputs, self.outputs, flag)
-        step_events = self.events_or_presets if kind == "event" else self.events
-        for i, event in enumerate(step_events):
+        # An event drum keeps its events in events_or_presets.
+        events = "events_or_presets" if kind == "event" else "events"
+        for i, event in enumerate(getattr(self, events)):
             if event:
-                check_address(event, f"Drum.events[{i}]", banks=BIT_BANKS)
+                check_address(
+                    event, f"Drum.{events}[{i}]", banks=BIT_BANKS, label=f"Drum.events[{i}]"
+                )
         if kind != "event":
             for i, preset in enumerate(self.events_or_presets):
                 if preset:
                     check_operand(
-                        preset, f"Drum.presets[{i}]", {"DS"}, _DURATION, letter_first=True
+                        preset,
+                        f"Drum.events_or_presets[{i}]",
+                        {"DS"},
+                        _DURATION,
+                        letter_first=True,
+                        label=f"Drum.presets[{i}]",
                     )
         if self.jump_enabled:
             check_address(self.jump_target, "Drum.jump_target", banks={"DS"})
         if kind == "event":
             if any(not event for event in self.events_or_presets):
                 raise FieldError(
-                    "Drum.events: every step needs an event (OBJ-021)", field="Drum.events"
+                    "Drum.events: every step needs an event (OBJ-021)",
+                    field="Drum.events_or_presets",
                 )
             return
         if self.unit not in _DRUM_UNIT_TO_INDEX:
@@ -317,7 +327,8 @@ class Drum(PinnedInstruction):
         if kind == "time":
             if any(not preset for preset in self.events_or_presets):
                 raise FieldError(
-                    "Drum.presets: every step needs a duration (OBJ-022)", field="Drum.presets"
+                    "Drum.presets: every step needs a duration (OBJ-022)",
+                    field="Drum.events_or_presets",
                 )
             return
         if len(self.events) != steps:
@@ -328,7 +339,8 @@ class Drum(PinnedInstruction):
         for i, (preset, event) in enumerate(zip(self.events_or_presets, self.events, strict=True)):
             if not preset and not event:
                 raise FieldError(
-                    f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)", field="Drum"
+                    f"Drum step {i + 1}: needs a duration or an event (OBJ-1019)",
+                    field=(f"Drum.events_or_presets[{i}]", f"Drum.events[{i}]"),
                 )
 
     @property
@@ -669,7 +681,7 @@ def parse_af_call(call: AfCall) -> Drum:
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_EVENT_FC_BASE:
             raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
-        accumulator = normalize_address(call.kwargs.get("accumulator", ""))
+        accumulator = normalize_address(call.kwargs.get("accumulator", ""), "Drum.accumulator")
         _timer_done_bit(accumulator)
         return Drum(
             drum_kind="time_event",

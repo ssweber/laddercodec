@@ -39,6 +39,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "Finding",
             "FieldError",
             "AddressError",
+            "Reason",
             "LegacyEncodingWarning",
             "UndecodedRungWarning",
             "UndecodedCommentWarning",

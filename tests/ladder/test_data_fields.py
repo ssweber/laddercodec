@@ -491,7 +491,7 @@ class TestFieldNames:
         assert steps.value.field == "Drum.events_or_presets"
         with pytest.raises(FieldError) as step:
             drum("time_event", events_or_presets=["", "5"], events=["", ""])
-        assert step.value.field == "Drum"
+        assert step.value.fields == ("Drum.events_or_presets[0]", "Drum.events[0]")
         with pytest.raises(FieldError) as outs:
             drum(outs=33, steps=1)
         assert outs.value.field == "Drum.outputs"

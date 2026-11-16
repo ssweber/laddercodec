@@ -79,13 +79,26 @@ def _post_init_tree(source: str) -> ast.AST:
 
 
 def flag_checked_fields(source: str, class_name: str) -> set[str]:
-    """Names ``x`` assigned as ``self.x = check_flag(self.x, "<class_name>.x")``.
+    """Names ``x`` assigned as ``self.x = check_flag(self.x, "<class_name>.x")``, or checked
+    as ``check.flag("x", ...)`` inside a ``Refusals`` block, which stores the bool back.
 
     A bare call, a discarded result, a different target or a label that is not
     ``<class_name>.x`` does not count.
     """
     names: set[str] = set()
     for node in ast.walk(_post_init_tree(source)):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "flag"
+            and isinstance(node.func.value, ast.Name)
+        ):
+            names.update(
+                arg.value
+                for arg in node.args
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+            )
+            continue
         if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
             continue
         target, call = node.targets[0], node.value
@@ -203,6 +216,8 @@ def test_guard_counts_only_an_assignment_with_the_class_label() -> None:
     assert found('self.x = check_flag(self.x, "C.y")') == set()  # label of another field
     assert found('self.x = check_flag(self.x, "D.x")') == set()  # label of another class
     assert found('self.x = check_flag(self.x, f"C.x")') == set()  # not a plain string
+    assert found('check.flag("x", "y")') == {"x", "y"}  # Refusals stores each one back
+    assert found('check.flag(f"x")') == set()  # not a plain string
 
 
 def test_guard_resolves_inherited_checks() -> None:

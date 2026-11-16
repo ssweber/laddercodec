@@ -26,6 +26,7 @@ from ..model import (
     check_address,
     check_flag,
     normalize_address,
+    normalize_fields,
     to_display,
 )
 from ..operands.checks import BIT_BANKS, Constants, check_constant
@@ -100,9 +101,8 @@ _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 
 def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
-    """Write a Slave ID address in display form (the target is frozen)."""
-    if isinstance(target.device_id, str):
-        object.__setattr__(target, "device_id", normalize_address(target.device_id))
+    """Write a Slave ID address in display form."""
+    normalize_fields(target, "device_id")
 
 
 def _check_device_id(device_id: int | str, cls: str, high: int = 255) -> None:
@@ -158,9 +158,10 @@ class ModbusAddress:
             # The range check reads the typed value: padding past four digits is still in range.
             # CLICK stores uppercase digits without leading zeros and a lowercase h
             # (0FFFEh -> FFFEh, 0H -> 0h).
-            object.__setattr__(
-                self, "address", to_display(self.address, hex_display(self.address[:-1]))
+            display = to_display(
+                self.address, hex_display(self.address[:-1]), "ModbusAddress.address"
             )
+            object.__setattr__(self, "address", display)
         elif not self.address.isascii() or not self.address.isdigit():
             raise FieldError(
                 f"ModbusAddress address must be a MODBUS 984 number or hex (0h-FFFEh), "
@@ -424,17 +425,12 @@ def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
     """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
-    if isinstance(inst.remote_start, str):
-        inst.remote_start = normalize_address(inst.remote_start)
-    for name in names:
-        value = getattr(inst, name)
-        if isinstance(value, str):
-            setattr(inst, name, normalize_address(value))
+    normalize_fields(inst, "remote_start", *names)
 
 
 def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:
     if value:
-        return check_address(value, f"{who} {name}", banks=banks)
+        return check_address(value, f"{who}.{name}", banks, label=f"{who} {name}")
     return None
 
 
@@ -540,8 +536,9 @@ def _validate_send(send: Send) -> tuple[int, int]:
     if isinstance(remote, str):
         remote_addr = check_address(
             remote,
-            f"{who} remote_start",
+            f"{who}.remote_start",
             _SEND_REMOTE_BITS | _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16,
+            label=f"{who} remote_start",
         )
         bit = remote_addr.bank in _SEND_REMOTE_BITS
     elif remote.is_hex:
@@ -560,7 +557,7 @@ def _validate_send(send: Send) -> tuple[int, int]:
         banks = BIT_BANKS
     else:
         banks = _SEND_LOCAL_REGS_FC06 | _SEND_LOCAL_REGS_FC16
-    local = check_address(send.source, f"{who} source", banks)
+    local = check_address(send.source, f"{who}.source", banks, label=f"{who} source")
     remote_bank = remote_addr.bank if remote_addr is not None else None
     default_fc = _send_default_fc(send, bit, local, remote_bank)
     fc = send.function_code or default_fc
@@ -579,10 +576,13 @@ def _validate_send(send: Send) -> tuple[int, int]:
     if not bit:
         fc06 = fc == 6
         local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
-        check_address(send.source, f"{who} source (FC{fc:02d})", local_banks)
+        check_address(
+            send.source, f"{who}.source", local_banks, label=f"{who} source (FC{fc:02d})"
+        )
         if isinstance(remote, str):
             remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
-            check_address(remote, f"{who} remote_start (FC{fc:02d})", remote_banks)
+            label = f"{who} remote_start (FC{fc:02d})"
+            check_address(remote, f"{who}.remote_start", remote_banks, label=label)
 
     xy_room = None
     if local.bank in _XY_BANKS and remote_addr is not None:
@@ -636,7 +636,12 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
     _check_int_quantity(who, quantity)
     remote_addr: Address | None = None
     if isinstance(remote, str):
-        remote_addr = check_address(remote, f"{who} remote_start", BIT_BANKS | _RECEIVE_REMOTE_REGS)
+        remote_addr = check_address(
+            remote,
+            f"{who}.remote_start",
+            BIT_BANKS | _RECEIVE_REMOTE_REGS,
+            label=f"{who} remote_start",
+        )
         bit = remote_addr.bank in BIT_BANKS
     elif remote.is_hex:
         bit = (remote.register_type or "holding") in ("coil", "discrete_input")
@@ -660,12 +665,17 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
         )
 
     local = check_address(
-        receive.dest, f"{who} dest", _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS
+        receive.dest,
+        f"{who}.dest",
+        _RECEIVE_LOCAL_BITS if bit else _RECEIVE_LOCAL_REGS,
+        label=f"{who} dest",
     )
     hex_pair = False
     if isinstance(remote, str) and remote_addr is not None and not bit:
-        name = f"{who} remote_start (for a {local.bank} dest)"
-        check_address(remote, name, _RECEIVE_REMOTE_FOR_DEST[local.bank])
+        label = f"{who} remote_start (for a {local.bank} dest)"
+        check_address(
+            remote, f"{who}.remote_start", _RECEIVE_REMOTE_FOR_DEST[local.bank], label=label
+        )
         hex_pair = remote_addr.bank in ("XD", "YD")
     xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
     _check_quantity(who, quantity, local, _RECEIVE_CAPS, bit, xy_room)
@@ -1323,8 +1333,8 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
     """
     if ".." in raw:
         start, end = raw.split("..", 1)
-        start = normalize_address(start.strip())
-        end = normalize_address(end.strip())
+        start = normalize_address(start.strip(), field)
+        end = normalize_address(end.strip(), field)
         m_start = _ADDR_NUM_RE.fullmatch(start)
         m_end = _ADDR_NUM_RE.fullmatch(end)
         if not (m_start and m_end):
@@ -1336,7 +1346,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
             raise FieldError(
                 f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}", field=field
             )
-        check_address(end, f"range end of {raw!r}", banks={prefix})
+        check_address(end, field, {prefix}, label=f"range end of {raw!r}")
         first, last = int(m_start.group(2)), int(m_end.group(2))
         if last < first:
             raise FieldError(f"range {raw!r} runs backwards", field=field)
