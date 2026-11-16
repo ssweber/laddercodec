@@ -10,15 +10,23 @@ is still accepted.
 from __future__ import annotations
 
 import csv
-import re
 import dataclasses
+import re
 import warnings
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from laddercodec import CsvLocation, FieldError, Reason, RefusedFieldWarning, read_csv
+from laddercodec import (
+    CsvLocation,
+    FieldError,
+    Reason,
+    RefusedFieldWarning,
+    Rung,
+    read_csv,
+    write_csv,
+)
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import af_node_to_token
 from laddercodec.csv.token_parser import fill_blank_args, parse_af_token
@@ -60,7 +68,10 @@ BLANKS = [
     ("reset()", ["Coil.operand"]),
     ("toggle()", ["OutVariant.operand"]),
     ("timed(,on_acc=TD18,on_preset=1000,unit=Tms)", ["OutVariant.operand"]),
-    ("flasher(,on_acc=TD12,on_preset=500,off_acc=TD13,off_preset=250,unit=Tms)", ["OutVariant.operand"]),
+    (
+        "flasher(,on_acc=TD12,on_preset=500,off_acc=TD13,off_preset=250,unit=Tms)",
+        ["OutVariant.operand"],
+    ),
     ("timed(C1,on_acc=,on_preset=1000,unit=Tms)", ["OutVariant.on_acc"]),
     ("on_delay(,TD1,preset=1,unit=Tms)", ["Timer.done_bit"]),
     ("on_delay(T1,TD1,preset=,unit=Tms)", ["Timer.setpoint"]),
@@ -72,6 +83,9 @@ BLANKS = [
     ("shift()", ["Shift.start_bit", "Shift.end_bit"]),
     ("blockcopy(,DS40..DS43)", ["BlockCopy.source_start", "BlockCopy.source_end"]),
     ("blockcopy(DS1..DS4,)", ["BlockCopy.dest_start", "BlockCopy.dest_end"]),
+    # write_csv writes a range whose ends are blank as `..`.
+    ("shift(..)", ["Shift.start_bit", "Shift.end_bit"]),
+    ("blockcopy(..,DS40..DS43)", ["BlockCopy.source_start", "BlockCopy.source_end"]),
     ("pack_bits(,DS1)", ["Pack.source_start", "Pack.source_end"]),
     ("fill(,DS1..DS4)", ["Fill.value"]),
     ("copy(DS1,)", ["Copy.destination"]),
@@ -120,7 +134,9 @@ def _said(errors: tuple[FieldError, ...]) -> list[tuple[object, ...]]:
 
 
 @pytest.mark.parametrize(("token", "fields"), BLANKS)
-def test_a_blank_argument_is_its_field_missing(tmp_path: Path, token: str, fields: list[str]) -> None:
+def test_a_blank_argument_is_its_field_missing(
+    tmp_path: Path, token: str, fields: list[str]
+) -> None:
     path = _write(tmp_path / "main.csv", token)
     with pytest.raises(FieldError) as raised:
         read_csv(path)
@@ -157,6 +173,21 @@ def test_unchecked_keeps_it_located(tmp_path: Path, token: str, fields: list[str
         )
 
 
+def _read_unchecked(path: Path) -> list[Rung]:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RefusedFieldWarning)
+        return read_csv(path, unchecked=True)
+
+
+@pytest.mark.parametrize(("token", "fields"), BLANKS)
+def test_write_csv_writes_it_back(tmp_path: Path, token: str, fields: list[str]) -> None:
+    """Read unchecked, the instruction with the blank field writes a CSV that reads back."""
+    rungs = _read_unchecked(_write(tmp_path / "main.csv", token))
+    written = tmp_path / "written.csv"
+    write_csv(written, rungs)
+    assert _read_unchecked(written) == rungs
+
+
 @pytest.mark.parametrize(("token", "match"), SYNTAX)
 def test_a_token_broken_otherwise_stays_a_syntax_error(token: str, match: str) -> None:
     with pytest.raises(ValueError, match=match) as raised:
@@ -170,6 +201,7 @@ def test_fill_blank_args() -> None:
 
     assert fill_blank_args("out()", fill) == "out(<0>)"
     assert fill_blank_args("out(C1)", fill) is None
+    assert fill_blank_args("blockcopy(..,DS1..DS4)", fill) == "blockcopy(<0>,DS1..DS4)"
     assert fill_blank_args("timed(,on_acc=,unit=Tms)", fill) == "timed(<0>,on_acc=<1>,unit=Tms)"
     assert fill_blank_args('send(target=T(ip=),x="")', fill) is None  # nested, and quoted
     assert fill_blank_args("raw(,0000)", fill) is None  # a raw token's own field specs
@@ -236,4 +268,3 @@ def test_a_blank_python_accepts_reads_from_its_csv_token(
     assert kind_of(holder, attr) == kind
     value = getattr(holder, attr)
     assert value == "" or (isinstance(value, list) and "" in value), value
-

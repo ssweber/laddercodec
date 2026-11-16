@@ -59,8 +59,6 @@ rule-description API (`field_rules(Copy)["source"]`), and a public way to build 
 checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
 `laddercodec.operands.unchecked.unchecked()`, which a public API could expose).
 
-- **Where a held refusal is in a CSV.** `read_csv(..., unchecked=True)` warns with the rung index of the rungs it
-  returns; the refusals it keeps carry no `CsvLocation`, as a raised one does.
 - **A strict numeric tag.** `tag_int` reads a tag through `int()`, so it accepts `" 1"`, `"+1"`, `"1_0"` and
   non-ASCII digits, as it did before. Reading only ASCII digits would leave those blobs raw.
 - **A held condition from a program file.** A contact `decode_program()` builds with a refusal has no blob to
@@ -74,9 +72,14 @@ checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
 - **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
   int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
   range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
-- **A blank in a CSV token:** in `read_csv`, a blank argument that breaks a token's syntax
-  (`on_delay(,TD1)`, `count_up(CT1,)`, `toggle(C1,on_acc=)`) is a token-syntax error with no field and no
-  reason, where a blank field built in Python is `missing`.
+- **The blanks a CSV token still reads as syntax:** a blank argument is now its field `missing` where it fills
+  one text field or a range. The family parsers check these before construction, so a blank is a syntax error
+  with no field, where Python says `missing`: a unit (`on_delay(...,unit=)`, the time drums), a Math `mode=`,
+  a time-event drum `accumulator=`, a drum list (`outputs=`, `presets=`, `events=`, `pattern=`) and a whole
+  Modbus `target=`. Reading them as `missing` means changing `timer.py`, `drum.py`, `math.py` and
+  `send_receive.py`. Two blanks read as before and differ by family: `oneshot=` is the default in Copy, Pack,
+  Unpack, Fill, Search and Math but a syntax error in `out` and `for` (as is `maintained=` in `timed`), and
+  `out(C1,)` accepts a trailing blank the coil parser drops.
 
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 

@@ -304,7 +304,8 @@ def fill_blank_args(token: str, fill: Callable[[int], str]) -> str | None:
     argument is blank.
 
     ``i`` counts the top-level arguments from 0.  A blank positional argument becomes
-    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument.
+    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument,
+    and ``..`` is a blank range (``write_csv`` writes a range whose ends are blank so).
     A ``raw(...)`` token has none: its arguments are its own field specs.
     """
     m = _CALL_RE.fullmatch(token.strip())
@@ -314,11 +315,16 @@ def fill_blank_args(token: str, fill: Callable[[int], str]) -> str | None:
     filled = []
     for i, seg in enumerate(segments):
         eq_idx = _kwarg_eq_index(seg)
-        if eq_idx >= 0 and not seg[eq_idx + 1 :].strip():
+        if eq_idx >= 0 and _is_blank(seg[eq_idx + 1 :]):
             seg = f"{seg[: eq_idx + 1]}{fill(i)}"
-        elif not seg:
+        elif eq_idx < 0 and _is_blank(seg):
             seg = fill(i)
         filled.append(seg)
     if filled == segments:
         return None
     return f"{m.group(1)}({','.join(filled)})"
+
+
+def _is_blank(arg: str) -> bool:
+    """Whether *arg* is blank: nothing, or a range with both ends blank (``..``)."""
+    return arg.strip() in ("", "..")
