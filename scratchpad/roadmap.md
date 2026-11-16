@@ -111,6 +111,26 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
     destination bank its source can't unpack to now carries OBJ-004. Open: only DS into DS is answered; ask
     CLICK for a DH source into DS and a DD source into Y.
+  - Copy-family bank ids (closed for the answered rows): a bank no row of the field holds is OBJ-004 for a
+    Pack destination (answered for X001, SD29 and SD31), an Unpack source (X001) and an Unpack destination
+    (X, SC and SD); a single Copy into a bit bank it does not write is OBJ-004 from a bit source (X001 into
+    X001, C1 into SC50 and SC303) and OBJ-024 from any other (DS2 and 5 into X001). The rules give these ids
+    to every bank of each check. Open, ask CLICK:
+    - Single Copy: T and CT as the destination, from a bit source and from a DS; a non-bit source (DS, a
+      number) into SC; a TXT register or a text constant into any bit bank (X, T, CT, SC); an XD destination
+      (no id).
+    - Pack into Y, C, T, CT, SC, XD, YD or TXT.
+    - Unpack from Y, C, T, CT, SC, XD, YD, TD, CTD, SD or TXT, and into T, DD or TXT.
+    - Order: does CLICK report a refused constant source (`99999999999`, `1e99`, `FFFFFFFFFh`, `"é"`, text
+      of 200 characters) before the destination, and with which id, when the destination is a bit bank
+      (X001)? The rules give the destination's bank refusal no id then, and refuse the constant after it.
+      `"é"` into DS1 gives OBJ-024, so CLICK may report the pairing first.
+    - Order: a single Copy into an SD it does not write is OBJ-004 from any source (`C1 -> SD1` too), while
+      a non-bit source into SC is OBJ-024 (pairing first). What does CLICK give for a bit (C1) and for a text
+      constant into an unwritable SD (SD1, SD43)?
+    - An address past its bank's range in a bank the field refuses (`C1 -> X017`, `DS1 -> X017`, a Pack or
+      Unpack into X017, `C1 -> SC1001`) gets the bank's id, since the bank is checked first; CLICK may give
+      OBJ-005 (the value is illegal) instead.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
     the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its

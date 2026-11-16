@@ -512,6 +512,32 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
+
+def _copy_dest_bank_id(kind: str | None, source: str, dest_bank: str) -> str | None:
+    """CLICK's id for a single Copy destination in a bank a Copy does not write, by the
+    source's kind.
+
+    CLICK refuses a bit copied into a bit bank it does not write as an address the
+    instruction can't use (OBJ-004: X001 into X001, C1 into SC50 and SC303), and anything
+    else copied into a bit bank as a pairing of kinds (OBJ-024: DS2 and 5 into X001), the
+    id of every other pairing a single Copy refuses.  T and CT take the X and SC answers,
+    since a Copy writes no bit bank but Y and C.  XD, the one register bank a Copy does not
+    write, has no answer and no id.
+
+    A source that is refused has no id here: an address ``_source_kind`` refuses (``kind``
+    None), and a constant the source's own check refuses later (out of range, or text it
+    can't hold); that refusal stays after the destination's.
+    """
+    if kind is None or dest_bank not in BIT_BANKS:
+        return None
+    if kind in ("number", "text"):
+        try:
+            check_constant(source, "Copy.source", _CONSTANTS)
+        except FieldError:
+            return None
+    return "OBJ-004" if kind == "bit" else "OBJ-024"
+
+
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
 #: (OBJ-024).
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
@@ -806,7 +832,10 @@ class Copy(AfInstruction):
                         Reason.CHOICE,
                     )
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
-            dst = check("destination", check_operand, _COPY_DEST_BANKS, pointer=True)
+            dst = check(
+                "destination", check_operand, _COPY_DEST_BANKS, pointer=True,
+                bank_id=_copy_dest_bank_id(kind, self.source, _bank_prefix(self.destination)),
+            )  # fmt: skip
             if dst is not None and dst.address is not None:
                 # A Copy writes only the writable SD registers (OBJ-004).
                 check.run(
@@ -1318,7 +1347,11 @@ class Pack(AfInstruction):
                 check, "source_start", self.source_start, "source_end", self.source_end,
                 _sources(_PACK_ROWS), one_module=True,
             )  # fmt: skip
-            dest = check("destination", check_box_operand, _destinations(_PACK_ROWS))
+            # A bank no source packs into is one the field can't use (OBJ-004: X001, SD29 and
+            # SD31 after C1..C16); a bank another source packs into is a pairing (OBJ-024).
+            dest = check(
+                "destination", check_box_operand, _destinations(_PACK_ROWS), bank_id="OBJ-004"
+            )
             if first is not None and dest is not None:
                 assert dest.bank is not None
                 check.run(
@@ -1449,10 +1482,14 @@ class Unpack(AfInstruction):
                     f"{self.unpack_type!r} is not allowed; it is bits or words",
                     Reason.CHOICE,
                 )
-            src = check("source", check_box_operand, _sources(_UNPACK_ROWS))
+            # A bank no row holds is one the field can't use (OBJ-004): answered for an X
+            # source, and for X, SC and SD destinations, as for a bank the source's row
+            # leaves out (_ROW_IDS).
+            src = check("source", check_box_operand, _sources(_UNPACK_ROWS), bank_id="OBJ-004")
             first, last = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
-                _destinations(_UNPACK_ROWS), one_module=True, module_id="OBJ-019",
+                _destinations(_UNPACK_ROWS), one_module=True, bank_id="OBJ-004",
+                module_id="OBJ-019",
             )  # fmt: skip
             if src is not None and first is not None:
                 assert src.bank is not None
