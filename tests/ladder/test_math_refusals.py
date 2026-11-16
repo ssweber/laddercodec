@@ -201,25 +201,49 @@ def test_formula_sum_over_ct_is_refused_once() -> None:
     ]
 
 
-def test_formula_hex_sum_over_bits_is_refused_once() -> None:
-    """One refusal for each SUM over a bit range in a hex formula; over CT, the CT one."""
-    errors = _formula("SUM ( X001 : X036 ) + SUM ( CT1 : CT3 ) + SUM ( C1 : C2 )", "hex")
+_HEX_ONLY = "a hex Math takes only DH, XD and YD registers and hex constants (OBJ-1002)"
+
+
+def test_formula_hex_sum_over_a_refused_bank_is_refused_once() -> None:
+    """One refusal for each SUM over a bank a hex formula does not take, CT and DS included."""
+    errors = _formula(
+        "SUM ( X001 : X036 ) + SUM ( CT1 : CT3 ) + SUM ( C1 : C2 ) + SUM ( DS1 : DS3 )", "hex"
+    )
     assert [str(e) for e in errors] == [
-        "Math.expression: SUM over X001 is refused; a hex Math takes no bit, not even in SUM "
-        "(OBJ-1002)",
-        "Math.expression: SUM over CT1 is refused; SUM takes no CT range",
-        "Math.expression: SUM over C1 is refused; a hex Math takes no bit, not even in SUM "
-        "(OBJ-1002)",
+        f"Math.expression: SUM over X001 is refused; {_HEX_ONLY}",
+        f"Math.expression: SUM over CT1 is refused; {_HEX_ONLY}",
+        f"Math.expression: SUM over C1 is refused; {_HEX_ONLY}",
+        f"Math.expression: SUM over DS1 is refused; {_HEX_ONLY}",
+    ]
+    assert {(e.reason, e.click_id) for e in errors} == {(Reason.BANK, "OBJ-1002")}
+
+
+def test_formula_hex_address_outside_sum_is_refused_each() -> None:
+    """Each address a hex formula does not take, a bit or a register, is one refusal."""
+    errors = _formula("DH1 + C1 + MAX ( X001 : X002 ) + MIN ( DD1 : DD3 ) + XD0 + YD1", "hex")
+    assert [str(e) for e in errors] == [
+        f"Math.expression: C1 is refused; {_HEX_ONLY}",
+        f"Math.expression: X001 is refused; {_HEX_ONLY}",
+        f"Math.expression: X002 is refused; {_HEX_ONLY}",
+        f"Math.expression: DD1 is refused; {_HEX_ONLY}",
+        f"Math.expression: DD3 is refused; {_HEX_ONLY}",
     ]
 
 
-def test_formula_hex_bit_outside_sum_is_refused_each() -> None:
-    errors = _formula("DH1 + C1 + MAX ( X001 : X002 )", "hex")
-    assert [str(e) for e in errors] == [
-        "Math.expression: C1 is a bit; a hex Math takes no bit (OBJ-1002)",
-        "Math.expression: X001 is a bit; a hex Math takes no bit (OBJ-1002)",
-        "Math.expression: X002 is a bit; a hex Math takes no bit (OBJ-1002)",
-    ]
+@pytest.mark.parametrize("bank", ["DS", "DD", "DF", "TD", "CTD", "SD", "TXT"])
+def test_formula_hex_refuses_each_register_but_dh_xd_yd(bank: str) -> None:
+    errors = _formula(f"DH1 + {bank}1", "hex")
+    assert [str(e) for e in errors] == [f"Math.expression: {bank}1 is refused; {_HEX_ONLY}"]
+    assert _shape(errors) == [(_EXPR, "bank", "OBJ-1002")]
+
+
+def test_formula_hex_takes_dh_xd_and_yd() -> None:
+    Math("SUM ( DH1 : DH3 ) + XD0u + MAX ( YD0 : YD2 ) + 1h", "DH100", "hex")
+
+
+def test_formula_decimal_sum_over_ct_keeps_its_own_refusal() -> None:
+    """The hex rule is the hex formula's: a decimal SUM over CT keeps the CT refusal."""
+    assert _shape(_formula("SUM ( CT1 : CT3 )")) == [(_EXPR, "bank", None)]
 
 
 def test_formula_bit_range_outside_sum_has_no_member_refusal() -> None:

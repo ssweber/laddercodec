@@ -35,6 +35,7 @@ def _sum_of(n: int) -> str:
 
 
 _NINE_DEEP = "( " * 9 + "DS1" + " )" * 9
+_HEX_ONLY = "a hex Math takes only DH, XD and YD registers and hex constants \\(OBJ-1002\\)"
 
 _REFUSED = [
     # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
@@ -94,15 +95,23 @@ _REFUSED = [
     ("C1 + DS1", "DS9", "decimal", "C1 is a bit"),
     ("X001 + 1", "DS9", "decimal", "X001 is a bit"),
     ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is a bit"),
-    # a hex formula takes no bit, not even in SUM, and no DS (OBJ-1002)
-    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; a hex Math takes no bit"),
-    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; a hex Math takes no bit"),
-    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; SUM takes no CT range"),
-    ("DH1 + C1", "DH9", "hex", "C1 is a bit; a hex Math takes no bit"),
-    ("DS1 + 1h", "DH9", "hex", "DS1 is a DS register; a hex Math takes no DS"),
-    ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is a DS register"),
-    ("SUM ( DS1 : DS3 )", "DH9", "hex", "DS1 is a DS register"),
-    ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is a DS register"),
+    # a hex formula takes only DH, XD and YD registers, in a SUM too (OBJ-1002)
+    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; " + _HEX_ONLY),
+    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; " + _HEX_ONLY),
+    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; " + _HEX_ONLY),
+    ("SUM ( DS1 : DS3 )", "DH9", "hex", "SUM over DS1 is refused; " + _HEX_ONLY),
+    ("SUM ( TXT1 : TXT3 )", "DH9", "hex", "SUM over TXT1 is refused; " + _HEX_ONLY),
+    ("DH1 + C1", "DH9", "hex", "C1 is refused; " + _HEX_ONLY),
+    ("DS1 + 1h", "DH9", "hex", "DS1 is refused; " + _HEX_ONLY),
+    ("DD1 + 1h", "DH9", "hex", "DD1 is refused; " + _HEX_ONLY),
+    ("DF1 + 1h", "DH9", "hex", "DF1 is refused; " + _HEX_ONLY),
+    ("TD1 + 1h", "DH9", "hex", "TD1 is refused; " + _HEX_ONLY),
+    ("CTD1 + 1h", "DH9", "hex", "CTD1 is refused; " + _HEX_ONLY),
+    ("SD1 + 1h", "DH9", "hex", "SD1 is refused; " + _HEX_ONLY),
+    ("TXT1 + 1h", "DH9", "hex", "TXT1 is refused; " + _HEX_ONLY),
+    ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is refused"),
+    ("MAX ( DD1 : DD3 )", "DH9", "hex", "DD1 is refused"),
+    ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is refused"),
     # a decimal result in SD is a writable SD register (OBJ-003)
     ("DS1 + 1", "SD1", "decimal", "Math.result: 'SD1' is not a writable SD register"),
     ("DS1 + 1", "SD62", "decimal", "Math.result: 'SD62' is not a writable SD register"),
@@ -188,6 +197,8 @@ def test_unknown_mode_refused() -> None:
         ("DS1 + 0", "DS9", "decimal"),
         ("SUM ( DS1 : DS1 )", "DS9", "decimal"),
         ("MAX ( XD0 : XD0u )", "DH9", "hex"),
+        # the hex registers: DH, XD and YD
+        ("SUM ( DH1 : DH3 ) + XD0 + YD0u", "DH9", "hex"),
         ("MDN ( DS1 : DS512 )", "DS9", "decimal"),
         ("MDN ( DD1 : DD256 )", "DD9", "decimal"),
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
