@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 
 from laddercodec import AddressError, FieldError, Math, Reason
+from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math_formula import parse
 from laddercodec.operands.address import display_form_only
 
@@ -179,16 +180,22 @@ def test_formula_bit_range_outside_sum_has_no_member_refusal() -> None:
     ]
 
 
-def test_formula_length_is_checked_only_without_a_refused_word() -> None:
+def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
     (error,) = _formula(_LONG)
     assert (error.reason, error.click_id) == (Reason.RANGE, "OBJ-1008")
-    # A refused word has no internal form: the length is not counted.
-    assert _shape(_formula(_LONG.replace("DS69", "DS0"))) == [(_EXPR, "address", None)]
-    # A refused bit leaves every token's form: the length is still counted.
-    assert _shape(_formula(_LONG.replace("DS69", "C1"))) == [
-        (_EXPR, "bank", "OBJ-1002"),
-        (_EXPR, "range", "OBJ-1008"),
-    ]
+    # A refused constant has no internal form: the length is not counted.
+    assert _shape(_formula(_LONG.replace("DS69", "FFh"))) == [(_EXPR, "kind", "OBJ-1001")]
+    # A refused address is still an @ in the template, and a refused bit keeps every
+    # token's form: the length is still counted.
+    for refused, shape in [("DS0", ("address", None)), ("C1", ("bank", "OBJ-1002"))]:
+        assert _shape(_formula(_LONG.replace("DS69", refused))) == [
+            (_EXPR, *shape),
+            (_EXPR, "range", "OBJ-1008"),
+        ]
+    # So is a name not in display form, read as its own text.
+    with display_form_only():
+        errors = _formula(_LONG.replace("DS69", "sum ( DS70 : DS71 )"))
+    assert _shape(errors) == [(_EXPR, "form", None), (_EXPR, "range", "OBJ-1008")]
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +228,12 @@ def test_formula_length_is_checked_only_without_a_refused_word() -> None:
         ("1E39", "decimal", "range", "OBJ-1009"),
         ("123456789012", "decimal", "range", "OBJ-1009"),
         ("000000000005", "decimal", "form", "OBJ-1009"),
+        # Leading zeros are the form refused: 6000000000 alone is taken.
+        ("06000000000", "decimal", "form", "OBJ-1009"),
+        ("-03000000000", "decimal", "range", "OBJ-1009"),
+        ("0" * 4301 + "1", "decimal", "form", "OBJ-1009"),
+        ("-" + "0" * 5000 + "1", "decimal", "form", "OBJ-1009"),
+        ("0" * 5000 + "12345678901", "decimal", "range", "OBJ-1009"),
         ("3000000000", "decimal", "range", "OBJ-1009"),
         ("007", "decimal", "form", "OBJ-1009"),
         # A key of the other mode.
@@ -253,6 +266,31 @@ def test_formula_reason(expression: str, mode: str, reason: str, click_id: str |
     assert str(error).endswith(f" ({click_id})") == (click_id is not None)
     expected = (_EXPR, _MODE) if reason == "conflict" else (_EXPR,)
     assert error.fields == expected
+
+
+#: Constants of more than 4300 digits, which Python will not read as one number.
+_LONG_DIGITS = [
+    "DS1 + " + "0" * 4301 + "1",
+    "DS1 + -" + "0" * 5000 + "1",
+    "foo + " + "0" * 5000 + "1",
+]
+
+
+@pytest.mark.parametrize("expression", _LONG_DIGITS)
+def test_formula_long_digit_run_is_refused(expression: str) -> None:
+    errors = _refusals(lambda: Math(expression, "DS1"))
+    assert all(e.field == _EXPR and isinstance(e.reason, Reason) for e in errors)
+    assert any(e.click_id == "OBJ-1009" and e.reason == Reason.FORM for e in errors)
+
+
+@pytest.mark.parametrize("expression", _LONG_DIGITS)
+def test_formula_long_digit_run_decodes_as_raw(expression: str) -> None:
+    """A stored formula with such a constant keeps the blob raw."""
+    blob = Math("DS1 + 12345", "DS1").build_blob()
+    assert parse_af_blob(blob) == Math("DS1 + 12345", "DS1")
+    text = expression.removeprefix("DS1 + ")
+    stored = blob.replace("12345".encode("utf-16-le"), text.encode("utf-16-le"))
+    assert parse_af_blob(stored) is None
 
 
 @pytest.mark.parametrize("expression", ["sin ( DS1 )", "ds1 + 1", "DH1 + ffh"])

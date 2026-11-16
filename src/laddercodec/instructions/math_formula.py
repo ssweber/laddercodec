@@ -27,8 +27,8 @@ and a token out of order each end the reading there.  Every other refusal is one
 each word refused, each constant's value, each key of the other mode, each bit and each
 range, and the reading goes on past it, taking a refused word as what it looks like (an
 address, a constant, a function name).  After a word that looks like none of those, the
-order is not checked, nor are the bits and ranges.  The length is checked only when no
-word or constant was refused.
+order is not checked, nor are the bits and ranges.  The length is not checked after a
+refused constant or such a word, which have no internal form to count.
 
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
 the nickname display and the two internal ``#`` forms.
@@ -429,26 +429,22 @@ def _decimal_internal(text: str) -> str | FieldError:
             )
         return f"F{text}"
     if len(text) > _MAX_PRINTED:
-        # %d of a 32-bit value, with a typed '+', prints at most 11 characters.  Too many
-        # digits is a value out of range; leading zeros are a form.
-        digits = body.lstrip("0")
-        outside = len(digits) > _MAX_PRINTED - 1 or not _INT32_MIN <= int(text) <= _INT32_MAX
+        # %d of a 32-bit value, with a typed '+', prints at most 11 characters.
         return _error(
             f"{text} is refused; CLICK prints an integer back in at most {_MAX_PRINTED} "
             "characters, which is not what was typed",
-            Reason.RANGE if outside else Reason.FORM,
+            _integer_reason(text, body),
             "OBJ-1009",
         )
     value = int(text)
-    outside = not _INT32_MIN <= value <= _INT32_MAX
     # _wtoi64 saturates at the int64 limits.
     low = (max(-(2**63), min(2**63 - 1, value)) + 2**31) % 2**32 - 2**31
     printed = f"+{low}" if text.startswith("+") else str(low)
     if len(printed) != len(text):
-        if outside:
+        if not _INT32_MIN <= value <= _INT32_MAX:
             return _error(
                 f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit",
-                Reason.RANGE,
+                _integer_reason(text, body),
                 "OBJ-1009",
             )
         return _error(
@@ -457,6 +453,24 @@ def _decimal_internal(text: str) -> str | FieldError:
             "OBJ-1009",
         )
     return f"{'H' if INT16_MIN <= value <= INT16_MAX else 'W'}{text}"
+
+
+def _integer_reason(text: str, body: str) -> Reason:
+    """Why an integer CLICK refuses is refused: RANGE when its value is, else FORM.
+
+    Leading zeros are a form: ``06000000000`` is refused where ``6000000000`` is taken, so
+    the value counts only when it is refused without its zeros too.  ``body`` is ``text``
+    without its sign.  The whole text is never read as a number, which Python refuses past
+    4300 digits.
+    """
+    stripped = text[: len(text) - len(body)] + (body.lstrip("0") or "0")
+    if len(stripped) > _MAX_PRINTED:
+        return Reason.RANGE  # 11 digits and a sign, or 12 digits: no 32-bit value
+    if stripped != text:
+        alone = _decimal_internal(stripped)
+        refused = isinstance(alone, FieldError) and alone.reason is Reason.RANGE
+        return Reason.RANGE if refused else Reason.FORM
+    return Reason.FORM if _INT32_MIN <= int(text) <= _INT32_MAX else Reason.RANGE
 
 
 def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldError]:
@@ -883,9 +897,10 @@ def parse(text: str, mode: str) -> Formula:
     formula = Formula(tuple(tokens))
     # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At
     # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.
-    # A refused word or constant has no internal form to count.
-    refused = any(t.refused for t in tokens)
-    if not refused and (length := len(formula.internal(template=True))) > MAX_INTERNAL_LENGTH:
+    # A refused constant, or a word that looks like no token, has no internal form to count;
+    # a refused address is still an @ and a refused name its own text.
+    uncounted = any(t.refused and t.kind in ("const", "word") for t in tokens)
+    if not uncounted and (length := len(formula.internal(template=True))) > MAX_INTERNAL_LENGTH:
         found.append(
             _error(
                 f"the formula is {length} characters in CLICK's internal form; CLICK allows "
