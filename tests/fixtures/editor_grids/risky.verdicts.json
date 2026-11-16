@@ -20,7 +20,7 @@
   "hex  DS1 = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.result", "message": "Math.result: ' DS1' is not a CLICK address"},
   "hex DS1  = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.result", "message": "Math.result: 'DS1 ' is not a CLICK address"},
   "hex  = DH2 + DH3": {"verdict": "refused", "error": "AddressError", "field": "Math.result", "message": "Math.result: is blank; it needs an address"},
-  "hex DH1 =  DS1 + 1h": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: DS1 is a DS register; a hex Math takes no DS (OBJ-1002)"},
+  "hex DH1 =  DS1 + 1h": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: DS1 is refused; a hex Math takes only DH, XD and YD registers and hex constants (OBJ-1002)"},
   "hex DH1 = DH1 + \"\u00e9\"": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: 'DH1 + \"\u00e9\"' holds a text constant; a Math formula takes numbers only"},
   "hex DH1 = \"\u00e9\"": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: '\"\u00e9\"' holds a text constant; a Math formula takes numbers only"},
   "hex DH1 = DH1 + \"\t\"": {"verdict": "refused", "error": "FieldError", "field": "Math.expression", "message": "Math.expression: 'DH1 + \"\\t\"' holds a text constant; a Math formula takes numbers only"},
