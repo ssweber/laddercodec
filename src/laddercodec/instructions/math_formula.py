@@ -20,14 +20,15 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
    refused (step 8).
 6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
    starts and ends (step 9).
-7. Bits, ranges and the 270-character cap of the internal template.
+7. Bits, the registers a hex formula refuses, ranges and the 270-character cap of the
+   internal template.
 
 A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
 and a token out of order each end the reading there.  Every other refusal is one of many:
-each word refused, each constant's value, each key of the other mode, each bit and each
-range, and the reading goes on past it, taking a refused word as what it looks like (an
-address, a constant, a function name).  After a word that looks like none of those, the
-order is not checked, nor are the bits and ranges.  The length is not checked after a
+each word refused, each constant's value, each key of the other mode, each bit, each DS in a
+hex formula and each range, and the reading goes on past it, taking a refused word as what
+it looks like (an address, a constant, a function name).  After a word that looks like none
+of those, the order is not checked, nor are the bits and ranges.  The length is not checked after a
 refused constant or such a word, which have no internal form to count.
 
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
@@ -110,6 +111,9 @@ _FOUR_BYTE_BANKS = banks(Bank.DD | Bank.DF | Bank.CTD)
 _MEDIAN_MAX_BYTES = 1024
 #: SUM over a range refuses only CT on a CPU with the v4 functions.
 _SUM_REFUSED_BANKS = banks(Bank.CT)
+#: Registers a hex formula refuses (OBJ-1002); a hex formula takes no bit either, not even in
+#: a SUM.
+_HEX_REFUSED_BANKS = banks(Bank.DS)
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
@@ -626,35 +630,56 @@ def _range_position(bank: str, number: str) -> int:
     return int(number.rstrip("u"))
 
 
-def _check_operands(tokens: Sequence[Token]) -> list[FieldError]:
+def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high.
 
-    An X or Y range CLICK would store a wrong member list for is refused too.  One refusal
-    for each bit, and at most one for each range; a refused address is not checked again.
+    A hex formula takes no bit, not even in a SUM, and no DS.  An X or Y range CLICK would
+    store a wrong member list for is refused too.  One refusal for each bit or DS outside a
+    SUM, one for each SUM refused, and at most one for each range; a refused address is not
+    checked again.
     """
     texts = [t.text for t in tokens]
     found: list[FieldError] = []
-    # SUM ( a : b ) is the one place a bit may stand, and not a CT bit
+    # SUM ( a : b ) is the one place a bit may stand, in a decimal formula, and not a CT bit
     # (OBJ-1002; an older CPU's refusal of every bit is a project rule).
     sum_at: dict[int, int] = {}  # each end of a SUM range: where its SUM stands
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
-    ct_refused: set[int] = set()  # the SUMs refused for a CT range, once each
-    outside_sum: set[int] = set()  # the bits refused outside a SUM
+    sum_refused: set[int] = set()  # the SUMs refused for a bit range, once each
+    outside_sum: set[int] = set()  # the bits refused, outside a SUM or in a hex formula
     for i, token in enumerate(tokens):
         parts = address_parts(token.text)
-        if token.refused or parts is None or parts[0] not in BIT_BANKS:
+        if token.refused or parts is None:
+            continue
+        if mode == "hex" and parts[0] in _HEX_REFUSED_BANKS:
+            rule = f"{token.text} is a {parts[0]} register; a hex Math takes no {parts[0]}"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+            continue
+        if parts[0] not in BIT_BANKS:
             continue
         if i not in sum_at:
             outside_sum.add(i)
-            rule = f"{token.text} is a bit; a bit stands only in SUM over a bit range"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
-        elif parts[0] in _SUM_REFUSED_BANKS and sum_at[i] not in ct_refused:
-            ct_refused.add(sum_at[i])
+            rule = (
+                "a hex Math takes no bit"
+                if mode == "hex"
+                else "a bit stands only in SUM over a bit range"
+            )
+            found.append(_error(f"{token.text} is a bit; {rule}", Reason.BANK, "OBJ-1002"))
+            continue
+        if mode == "hex":
+            outside_sum.add(i)
+        if sum_at[i] in sum_refused:
+            continue
+        if parts[0] in _SUM_REFUSED_BANKS:
+            sum_refused.add(sum_at[i])
             found.append(
                 _error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK)
             )
+        elif mode == "hex":
+            sum_refused.add(sum_at[i])
+            rule = f"SUM over {token.text} is refused; a hex Math takes no bit, not even in SUM"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
             continue
@@ -893,7 +918,7 @@ def parse(text: str, mode: str) -> Formula:
         _raise(found)
     if (error := _check_order(tokens)) is not None:
         _raise([*found, error])
-    found += _check_operands(tokens)
+    found += _check_operands(tokens, mode)
     formula = Formula(tuple(tokens))
     # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At
     # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.

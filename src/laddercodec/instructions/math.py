@@ -33,7 +33,7 @@ from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, FieldError, Reason, check_address
-from ..operands.checks import HEX_MATH_RESULT, Refusals
+from ..operands.checks import HEX_MATH_RESULT, Refusals, check_writable_sd
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse
@@ -88,7 +88,8 @@ _EMPTY_RESERVED_BYTES = b"".join(
     struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
-#: Result banks per mode (another bank is OBJ-004).
+#: Result banks per mode (another bank is OBJ-004).  A decimal result in SD is one of
+#: ``WRITABLE_SD`` (another SD is OBJ-003).
 RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
@@ -205,7 +206,10 @@ class Math(AfInstruction):
             if not check.refused("mode"):
                 extra = HEX_MATH_RESULT if self.mode == "hex" else {}
                 banks = RESULT_BANKS[self.mode]
-                check("result", check_address, banks, bank_id="OBJ-004", **extra)
+                result = check("result", check_address, banks, bank_id="OBJ-004", **extra)
+                if result is not None:
+                    # A decimal result writes only the writable SD registers (OBJ-003).
+                    check.run(check_writable_sd, result, check.field("result"), click_id="OBJ-003")
                 if not check.refused("expression"):
                     # Every refusal of the formula, each on Math.expression.
                     formula = check.run(parse, self.expression, self.mode)

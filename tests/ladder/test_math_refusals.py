@@ -201,6 +201,27 @@ def test_formula_sum_over_ct_is_refused_once() -> None:
     ]
 
 
+def test_formula_hex_sum_over_bits_is_refused_once() -> None:
+    """One refusal for each SUM over a bit range in a hex formula; over CT, the CT one."""
+    errors = _formula("SUM ( X001 : X036 ) + SUM ( CT1 : CT3 ) + SUM ( C1 : C2 )", "hex")
+    assert [str(e) for e in errors] == [
+        "Math.expression: SUM over X001 is refused; a hex Math takes no bit, not even in SUM "
+        "(OBJ-1002)",
+        "Math.expression: SUM over CT1 is refused; SUM takes no CT range",
+        "Math.expression: SUM over C1 is refused; a hex Math takes no bit, not even in SUM "
+        "(OBJ-1002)",
+    ]
+
+
+def test_formula_hex_bit_outside_sum_is_refused_each() -> None:
+    errors = _formula("DH1 + C1 + MAX ( X001 : X002 )", "hex")
+    assert [str(e) for e in errors] == [
+        "Math.expression: C1 is a bit; a hex Math takes no bit (OBJ-1002)",
+        "Math.expression: X001 is a bit; a hex Math takes no bit (OBJ-1002)",
+        "Math.expression: X002 is a bit; a hex Math takes no bit (OBJ-1002)",
+    ]
+
+
 def test_formula_bit_range_outside_sum_has_no_member_refusal() -> None:
     errors = _formula("MAX ( X001 : X036 )")
     assert [str(e) for e in errors] == [
@@ -242,7 +263,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("", "decimal", "missing", None),
         # Words.
         ("DS1 + ٣", "decimal", "form", None),
-        ("DS1 + 1Eh", "hex", "form", None),
+        ("DH1 + 1Eh", "hex", "form", None),
         ("DS1 + 1.5x", "decimal", "kind", "OBJ-1001"),
         ("DS1 + FOO", "decimal", "kind", "OBJ-1001"),
         ("DS1 + DS0", "decimal", "address", None),

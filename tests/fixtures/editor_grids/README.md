@@ -19,10 +19,6 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `copy_pack.json` | Pack: each bit bank against each register bank at 16 and 32 bits (and 1, 2, 17 and 33 for DS and DD); register sources |
 | `copy_unpack.json` | Unpack: the same, in the other direction |
 | `out.json` | Out: each bank, pointer form and constant as the target; ranges |
-| `math_sd.json` | every SD address as the result of a decimal Math |
-| `copy_sd_single.json` | every SD address as a single Copy destination |
-| `copy_sd_block.json` | every SD address as the start of a Block Copy destination range of two (`DS1..DS2` copied there) |
-| `out_sc.json` | every SC address as an Out target |
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. `case` is
 unique in its file and stable: it is built from the fields' text. `row` groups the cases that ask
@@ -35,8 +31,7 @@ in their own file so that one stopping the run costs little. Preflight repeats c
 files, with the same labels.
 
 The runner takes about 4 seconds a case. The files are split by dialog and mode so none passes
-about 2,000 cases, and the sweeps over SD and SC are files of their own. The generator prints the
-number of cases and the time of each file.
+about 2,000 cases. The generator prints the number of cases and the time of each file.
 
 ## Regenerating
 

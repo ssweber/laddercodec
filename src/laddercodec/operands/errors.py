@@ -27,7 +27,7 @@ class Reason(StrEnum):
     """Written in a form the field does not take: a sign, a quote, a character, a shape,
     ``XD0u`` where the field takes no upper byte, or an address not in display form."""
     NOT_WRITABLE = "not_writable"
-    """An address the instruction can't write: a read-only SC bit."""
+    """An address the instruction can't write: a read-only SC bit or SD register."""
     FLAG = "flag"
     """Not True, False, 1 or 0."""
     CHOICE = "choice"

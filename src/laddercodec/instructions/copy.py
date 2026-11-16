@@ -36,11 +36,13 @@ from ..operands.checks import (
     ALL_KINDS,
     BIT_BANKS,
     REGISTER_BANKS,
+    WRITABLE_SD,
     Constants,
     Operand,
     Refusals,
     check_constant,
     check_operand,
+    check_writable_sd,
     constant_shape,
 )
 from ..operands.constants import TEXT_MAX, Kind
@@ -581,7 +583,7 @@ _PACK_ROWS: _Rows = (
     (frozenset({"DH"}), frozenset({"DD"})),
     (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD"})),
 )
-#: Unpack rows: only DH unpacks to Y (OBJ-024).
+#: Unpack rows: only DH unpacks to Y.
 _UNPACK_ROWS: _Rows = (
     (frozenset({"DS"}), frozenset({"C"})),
     (frozenset({"DD", "DF"}), frozenset({"C", "DS", "DH"})),
@@ -595,6 +597,12 @@ def _sources(rows: _Rows) -> frozenset[str]:
 
 def _destinations(rows: _Rows) -> frozenset[str]:
     return frozenset().union(*(dst for _, dst in rows))
+
+
+#: CLICK's id for a destination bank the source's row leaves out: an Unpack's destination
+#: field gives OBJ-004 for every bank its source greys out; Block Copy and Pack give OBJ-024
+#: for a pairing.
+_ROW_IDS = {"BlockCopy": "OBJ-024", "Pack": "OBJ-024", "Unpack": "OBJ-004"}
 
 
 def _check_row(
@@ -618,8 +626,40 @@ def _check_row(
             f"{destination!r} can't take {source!r}; "
             f"{what} from {source_bank} goes to {_bank_list(allowed)}",
             Reason.CONFLICT,
-            "OBJ-024",
+            _ROW_IDS[cls],
         )
+
+
+#: The last SD register a Copy writes.
+_LAST_WRITABLE_SD = max(WRITABLE_SD)
+
+
+def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
+    """Refuse a Block Copy into SD whose range, after its writable start, holds an SD that
+    is not writable: a refusal of the destination with the source, whose length sets the end.
+
+    CLICK's id: OBJ-018 when every unwritable SD in the range lies below SD215, OBJ-004 when
+    every one lies past it, no id when it has both.
+    """
+    unwritable = [n for n in range(dest.number, end + 1) if n not in WRITABLE_SD]
+    if not unwritable:
+        return
+    if all(n > _LAST_WRITABLE_SD for n in unwritable):
+        click_id: str | None = "OBJ-004"
+    elif all(n < _LAST_WRITABLE_SD for n in unwritable):
+        click_id = "OBJ-018"
+    else:
+        click_id = None
+    first = Address("SD", unwritable[0]).display
+    raise _refusal(
+        "BlockCopy",
+        ("dest_start", "source_start", "source_end"),
+        f"{source[0]}..{source[1]} into {dest.display} fills "
+        f"{dest.display}..{Address('SD', end).display}, and {first} is not a writable SD "
+        f"register; the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
+        Reason.NOT_WRITABLE,
+        click_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -767,6 +807,11 @@ class Copy(AfInstruction):
                     )
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
             dst = check("destination", check_operand, _COPY_DEST_BANKS, pointer=True)
+            if dst is not None and dst.address is not None:
+                # A Copy writes only the writable SD registers (OBJ-004).
+                check.run(
+                    check_writable_sd, dst.address, check.field("destination"), click_id="OBJ-004"
+                )
             if kind is not None and dst is not None:
                 assert dst.bank is not None
                 check.run(
@@ -1030,6 +1075,8 @@ class BlockCopy(AfInstruction):
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
                 _destinations(_BLOCK_ROWS), ordered=False, bank_id="OBJ-004",
             )  # fmt: skip
+            if dest is not None:
+                check.run(check_writable_sd, dest, check.field("dest_start"))
             if src is not None and dest is not None:
                 check.run(
                     _check_row, cls, _BLOCK_ROWS, f"{self.source_start}..{self.source_end}",
@@ -1057,6 +1104,8 @@ class BlockCopy(AfInstruction):
                             Reason.CONFLICT,
                         )
                     )
+                if dest.bank == "SD" and not check.refused("dest_start"):
+                    check.run(_check_sd_range, dest, end, (self.source_start, self.source_end))
                 if dest_last.number != end:
                     spelled = Address(dest.bank, end).display
                     check.add(

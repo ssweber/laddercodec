@@ -6,6 +6,7 @@
   :func:`constant_shape` names the kind of constant a text is spelled as, limits aside.
 - :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it.
 - :func:`check_out_target`: an address a coil writes.
+- :func:`check_writable_sd`: an SD register a Copy or a decimal Math writes.
 - :func:`check_flag`: a True/False field.
 - :class:`Refusals`: runs one instruction's checks and raises every refusal as one error.
 
@@ -49,6 +50,7 @@ __all__ = [
     "POINTER_BANKS",
     "REGISTER_BANKS",
     "WRITABLE_SC",
+    "WRITABLE_SD",
     "Constants",
     "Operand",
     "Refusals",
@@ -58,6 +60,7 @@ __all__ = [
     "check_operand",
     "check_out_target",
     "check_quoted_text",
+    "check_writable_sd",
     "constant_shape",
 ]
 
@@ -511,6 +514,37 @@ WRITABLE_SC = frozenset(
     {50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121, 162, 165, 168, 171}
     | {303, 304, 305, 306, 323, 324, 325, 326}
 )
+
+#: The SD registers a single Copy, a Block Copy and a decimal Math write: the read-write
+#: system registers.  No other SD is accepted in those fields.
+WRITABLE_SD = frozenset(
+    {29, 31, 32, 34, 35, 36, 40, 41, 42, 50, 51, 60, 61, 106, 107, 108, 112, 113, 114}
+    | set(range(140, 148))
+    | {214, 215}
+)
+
+
+def check_writable_sd(
+    address: Address, field: str, *, label: str | None = None, click_id: str | None = None
+) -> None:
+    """Refuse an SD register outside :data:`WRITABLE_SD`, in a field that writes it.
+
+    ``click_id`` is the id CLICK's dialog gives for the refusal, where it is known.  An
+    address of another bank passes.
+    """
+    if address.bank != "SD" or address.number in WRITABLE_SD:
+        return
+    raise _at(field, label).error(
+        address.display,
+        f"is not a writable SD register; the writable SD are {_sd_list()}",
+        Reason.NOT_WRITABLE,
+        click_id,
+        cls=AddressError,
+    )
+
+
+def _sd_list() -> str:
+    return ", ".join(f"SD{n}" for n in sorted(WRITABLE_SD))
 
 
 def check_out_target(

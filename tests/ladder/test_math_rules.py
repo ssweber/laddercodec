@@ -94,6 +94,21 @@ _REFUSED = [
     ("C1 + DS1", "DS9", "decimal", "C1 is a bit"),
     ("X001 + 1", "DS9", "decimal", "X001 is a bit"),
     ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is a bit"),
+    # a hex formula takes no bit, not even in SUM, and no DS (OBJ-1002)
+    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; a hex Math takes no bit"),
+    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; a hex Math takes no bit"),
+    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; SUM takes no CT range"),
+    ("DH1 + C1", "DH9", "hex", "C1 is a bit; a hex Math takes no bit"),
+    ("DS1 + 1h", "DH9", "hex", "DS1 is a DS register; a hex Math takes no DS"),
+    ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is a DS register"),
+    ("SUM ( DS1 : DS3 )", "DH9", "hex", "DS1 is a DS register"),
+    ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is a DS register"),
+    # a decimal result in SD is a writable SD register (OBJ-003)
+    ("DS1 + 1", "SD1", "decimal", "Math.result: 'SD1' is not a writable SD register"),
+    ("DS1 + 1", "SD62", "decimal", "Math.result: 'SD62' is not a writable SD register"),
+    ("DS1 + 1", "SD148", "decimal", "Math.result: 'SD148' is not a writable SD"),
+    ("DS1 + 1", "SD216", "decimal", "Math.result: 'SD216' is not a writable SD"),
+    ("DS1 + 1", "SD1000", "decimal", "Math.result: 'SD1000' is not a writable SD"),
     # ranges: one bank (OBJ-1015), low : high (OBJ-1014), median <= 1024 bytes (OBJ-1013)
     ("SUM ( DS1 : DD5 )", "DD9", "decimal", "DS1 : DD5 spans two banks"),
     ("SUM ( DS10 : DS1 )", "DD9", "decimal", "DS10 : DS1 runs high to low"),
@@ -159,7 +174,8 @@ def test_unknown_mode_refused() -> None:
         ("MAX ( TD1 : TD5 )", "DD9", "decimal"),
         ("MAX ( DS1 : DS3 )", "DS9", "decimal"),
         # result banks
-        ("DS1 + 1", "SD9", "decimal"),
+        ("DS1 + 1", "SD29", "decimal"),
+        ("DS1 + 1", "SD215", "decimal"),
         ("DH1 + 1h", "YD1", "hex"),
         ("DH1 + 1h", "YD0u", "hex"),
         # 32-bit integers and 4-digit hex constants
@@ -201,7 +217,9 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
     ("fields", "field"),
     [
         ({0x6065: "C1"}, "Math.result"),  # a bit result
-        ({0x11FE: "-1"}, "Math.result"),  # a hex Math into DS9
+        ({0x6065: "SD62"}, "Math.result"),  # an SD that is not writable
+        ({0x11FE: "-1", 0x6065: "DH9", 0x61FD: "DS1#+#DH2"}, "Math.expression"),  # hex DS
+        ({0x11FE: "-1", 0x61FD: "DH1#+#DH2"}, "Math.result"),  # a hex Math into DS9
         ({0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"}, "Math.expression"),  # CT
         ({0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"}, "Math.expression"),  # int32
         ({0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"}, "Math.expression"),  # reads back as 7
@@ -256,6 +274,30 @@ def test_math_refuses_a_word_that_is_no_name(expression: str) -> None:
 )
 def test_math_keeps_its_words(expression: str, result: str, mode: str) -> None:
     Math(expression, result, mode)
+
+
+@pytest.mark.parametrize(
+    ("expression", "result", "mode", "click_id"),
+    [
+        ("SUM ( X001 : X002 )", "DH9", "hex", "OBJ-1002"),
+        ("DS1 + 1h", "DH9", "hex", "OBJ-1002"),
+        ("DS1 + 1", "SD62", "decimal", "OBJ-003"),
+        ("DS1 + 1", "SD148", "decimal", "OBJ-003"),
+        ("DS1 + 1", "SD999", "decimal", "OBJ-003"),
+    ],
+)
+def test_hex_formula_and_sd_result_refusals_carry_clicks_id(
+    expression: str, result: str, mode: str, click_id: str
+) -> None:
+    with pytest.raises(FieldError) as caught:
+        Math(expression, result, mode=mode)  # type: ignore[arg-type]
+    assert caught.value.click_id == click_id
+    assert caught.value.reason == ("not_writable" if result.startswith("SD") else "bank")
+
+
+def test_hex_formula_takes_dh_and_decimal_sum_takes_bits() -> None:
+    assert Math("SUM ( DH1 : DH3 ) + DH4", "DH9", "hex").expression == "SUM ( DH1 : DH3 ) + DH4"
+    assert Math("SUM ( X001 : X002 )", "DS9", "decimal").expression == "SUM ( X001 : X002 )"
 
 
 def test_pasted_formula_over_the_cap_keeps_its_refusal() -> None:

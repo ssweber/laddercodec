@@ -61,14 +61,14 @@ HEX_BARE = "deliberate: a hex Math constant needs h (roadmap item 4)"
 HEX_BARE_MIXED = (
     "deliberate: a hex Math constant needs h, even beside an h constant (roadmap item 4)"
 )
-HEX_REFUSED = "CLICK refuses (OBJ-1002), the rules accept: tighten the rule (item 3)"
-EDGE_SPACE = "CLICK accepts an edge space and the save trims it, the rules refuse: item 3 decides"
-EDGE_SPACE_KEPT = (
-    "CLICK accepts an edge space and the save keeps it, the rules refuse: item 3 decides; "
-    "decode reads that save as the address without the space"
+EDGE_SPACE = (
+    "deliberate: CLICK accepts an edge space and the save trims it; an instruction holds the "
+    "address in display form, so construction refuses the space"
 )
-SD_LIST = (
-    "the Address Picker lists 29 of the 1,000 SD, the rules accept all: tighten the rule (item 3)"
+EDGE_SPACE_KEPT = (
+    "deliberate: CLICK accepts an edge space and the save keeps it; an instruction holds the "
+    "address in display form, so construction refuses the space, and decode reads that save "
+    "as the address without it"
 )
 
 #: Every difference between CLICK's answers and the rules.  Kinds: ``outcome`` (accepted or
@@ -78,18 +78,13 @@ DISAGREEMENTS: dict[Key, str] = {
     ("preflight", "hex DH1 = DH1 + 0", "outcome"): HEX_BARE,
     ("preflight", "hex DH1 = 0", "outcome"): HEX_BARE,
     ("preflight", "hex DH1 = RAND(5,Ah)", "outcome"): HEX_BARE_MIXED,
-    ("preflight", "hex DH1 = SUM(X001:X002)", "outcome"): HEX_REFUSED,
-    ("risky", "hex DH1 =  DS1 + 1h", "outcome"): HEX_REFUSED + " (a DS in a hex formula)",
-    ("preflight", "unpack DS1 -> DS1..DS2", "code"): (
-        "CLICK refuses Unpack into DS with OBJ-004 (a bank), the rules say OBJ-024: item 3"
-    ),
     ("receive", "03 -> TXT1", "outcome"): (
         "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
         "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
         "accept; no answer says what rx2 held"
     ),
     ("risky", "dec  DS1 = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
-    ("risky", "dec DS1  = DS2 + 1", "outcome"): EDGE_SPACE + " (Math formula)",
+    ("risky", "dec DS1  = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
     ("risky", "single  DS1 -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
     ("risky", "single DS1  -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
     ("risky", "single DS2 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Copy destination)",
@@ -97,18 +92,10 @@ DISAGREEMENTS: dict[Key, str] = {
     ("risky", "block  DS1..DS2 -> DS11", "outcome"): EDGE_SPACE + " (Block Copy source)",
     ("risky", "pack C1..C16 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Pack destination)",
     ("risky", "unpack  DS1 -> C1..C16", "outcome"): EDGE_SPACE + " (Unpack source)",
-    # Picker-check cases are keyed by row: each row is one field's list, and the cases in it
-    # that the rules accept all differ the same way.
-    ("pickcheck", "pick.copy.single.SD", "outcome"): SD_LIST,
-    ("pickcheck", "pick.copy.block.SD", "outcome"): SD_LIST,
-    ("pickcheck", "pick.math.decimal.SD", "outcome"): SD_LIST,
-    ("sc_sd_writable", "copy.single.destination.SD", "list"): SD_LIST,
-    ("sc_sd_writable", "copy.block.destination.SD", "list"): SD_LIST,
-    ("sc_sd_writable", "math.decimal.result.SD", "list"): SD_LIST,
 }
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 58
+CODES_COMPARED = 70
 
 
 @pytest.fixture(scope="module")

@@ -10,10 +10,6 @@ constant kinds and field rules so the lists keep in step with the code. Each gri
 verdicts file beside it, ``<grid>.verdicts.json``: what laddercodec's rules say about each
 case today, keyed by the case's label, for comparing with CLICK's answers when they come. The
 runner reads only the grid.
-
-The SD and SC sweeps are files of their own (``copy_sd_single``, ``copy_sd_block``,
-``math_sd``, ``out_sc``): each is one case per address, so a run can take them apart from the
-rest.
 """
 
 from __future__ import annotations
@@ -460,15 +456,6 @@ def math_grid() -> Grid:
     return grid
 
 
-def math_sd_grid() -> Grid:
-    """Every SD address as the result of a decimal Math."""
-    grid = Grid(_math_check)
-    for n in range(ADDRESS_BANKS["SD"][0], ADDRESS_BANKS["SD"][1] + 1):
-        grid.add("math.result.sd", f"dec SD{n} = DS2 + 1", "math", "decimal",
-                 result=f"SD{n}", formula="DS2 + 1")  # fmt: skip
-    return grid
-
-
 # ---------------------------------------------------------------------------
 # Copy
 # ---------------------------------------------------------------------------
@@ -677,24 +664,6 @@ def copy_grid() -> Grid:
     return grid
 
 
-def copy_sd_single_grid() -> Grid:
-    """Every SD address as the destination of a single Copy."""
-    grid = Grid(_copy_check)
-    for n in range(ADDRESS_BANKS["SD"][0], ADDRESS_BANKS["SD"][1] + 1):
-        grid.add("copy.single.sd", f"single DS1 -> SD{n}", "copy", "single",
-                 source="DS1", destination=f"SD{n}")  # fmt: skip
-    return grid
-
-
-def copy_sd_block_grid() -> Grid:
-    """Every SD address as the start of a Block Copy destination range of two."""
-    grid = Grid(_copy_check)
-    for n in range(ADDRESS_BANKS["SD"][0], ADDRESS_BANKS["SD"][1] + 1):
-        grid.add("copy.block.sd", f"block DS1..DS2 -> SD{n}", "copy", "block",
-                 source="DS1", source_end="DS2", destination=f"SD{n}")  # fmt: skip
-    return grid
-
-
 # ---------------------------------------------------------------------------
 # Out
 # ---------------------------------------------------------------------------
@@ -737,14 +706,6 @@ def out_grid() -> Grid:
         out("range-start.forms", text, "Y002")
     for text in REPRESENTATIVES:
         out("range-end.constants", "Y001", text)
-    return grid
-
-
-def out_sc_grid() -> Grid:
-    """Every SC address as an Out target."""
-    grid = Grid(_out_check)
-    for n in range(ADDRESS_BANKS["SC"][0], ADDRESS_BANKS["SC"][1] + 1):
-        grid.add("out.sc", f"out SC{n}", "out", None, address=f"SC{n}")
     return grid
 
 
@@ -820,21 +781,17 @@ def preflight_grid() -> Grid:
 
 
 #: The preflight and risky files, then one file per dialog and mode (Math and Copy have modes whose
-#: lists are long) and the SD and SC sweeps.
+#: lists are long).
 GRIDS: dict[str, Callable[[], Grid]] = {
     "preflight": preflight_grid,
     "risky": risky_grid,
     "math_decimal": only("math", "decimal"),
     "math_hex": only("math", "hex"),
-    "math_sd": math_sd_grid,
     "copy_single": only("copy", "single"),
     "copy_block": only("copy", "block"),
     "copy_pack": only("copy", "pack"),
     "copy_unpack": only("copy", "unpack"),
-    "copy_sd_single": copy_sd_single_grid,
-    "copy_sd_block": copy_sd_block_grid,
     "out": only("out"),
-    "out_sc": out_sc_grid,
 }
 
 
