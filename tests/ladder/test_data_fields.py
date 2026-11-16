@@ -122,13 +122,13 @@ class TestDrum:
 
     @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
     def test_step_and_output_counts(self, kind: str) -> None:
-        with pytest.raises(FieldError, match="steps: 17"):
+        with pytest.raises(FieldError, match="17 steps"):
             drum(kind, steps=17)
-        with pytest.raises(FieldError, match="outputs: 17"):
+        with pytest.raises(FieldError, match="17 outputs"):
             drum(kind, outs=17)
-        with pytest.raises(FieldError, match="steps: 0"):
+        with pytest.raises(FieldError, match="0 steps"):
             drum(kind, steps=0)
-        with pytest.raises(FieldError, match="outputs: 0"):
+        with pytest.raises(FieldError, match="0 outputs"):
             drum(kind, outs=0)
 
     def test_pattern_shape_and_cells(self) -> None:
