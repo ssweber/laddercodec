@@ -12,7 +12,8 @@ are constants.  It tries, in order:
 
 - hex: hex digits then ``H``.  At most FFFFh is 16-bit; above that, at most eight digits
   is 32-bit (:attr:`Constant.wide`); longer text is no constant.  Hex comes before an
-  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants.
+  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants (a single Copy refuses ``EH``,
+  which CLICK's Copy stores as the real 0.0).
 - text: ``"..."``, the text between the quotes (see :data:`TEXT_MAX`).
 - an address, which is no constant (:func:`classify` returns ``None``).
 - a decimal integer: an int16 value, or an int32 value (wide); outside int32, no constant.
@@ -260,7 +261,8 @@ def check_char_code(text: str, field: str) -> int:
 
     A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``, so ``$``, ``$1``,
     ``$100`` and ``$G1`` are refused.  Compare, Search, Fill, a single Copy source and a Copy
-    termination code call it on every ``$`` value.
+    termination code call it on every ``$`` value; a single Copy writes a source ``$1`` as
+    ``$01`` first, as CLICK stores it.
     """
     m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
     if m is None:
