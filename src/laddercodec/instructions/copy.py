@@ -308,6 +308,7 @@ def _check_relation(
     one_module: bool,
     ordered: bool,
     module_id: str | None,
+    ids: bool,
 ) -> None:
     """Refuse an end that does not fit its start: another bank, not after it, or in another
     X or Y slot.  A refusal of the pair, the end's field first."""
@@ -318,7 +319,7 @@ def _check_relation(
             pair,
             f"{end!r} is not in the bank of {start!r}; both ends of a range are in one bank",
             Reason.CONFLICT,
-            "OBJ-008",
+            "OBJ-008" if ids else None,
         )
     if ordered and _position(last) <= _position(first):
         same = _position(last) == _position(first)
@@ -328,7 +329,7 @@ def _check_relation(
             f"{start}..{end} {'is one address' if same else 'runs backwards'}; "
             "a range ends after its start",
             Reason.CONFLICT,
-            "OBJ-012" if same else "OBJ-009",
+            ("OBJ-012" if same else "OBJ-009") if ids else None,
         )
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise _refusal(
@@ -353,6 +354,7 @@ def check_range(
     ordered: bool = True,
     bank_id: str | None = None,
     module_id: str | None = None,
+    ids: bool = True,
 ) -> tuple[Address, Address]:
     """Check a ``start..end`` range and return its two ends.
 
@@ -364,13 +366,14 @@ def check_range(
     dual option slot, 21-36, is a slot of its own.  The module check applies to the
     Pack source, the Block Copy source and the Unpack destination.  ``bank_id`` is CLICK's id
     for an end in a bank the field does not take.  A refusal of how the ends fit is a refusal
-    of the pair, the end's field first.
+    of the pair, the end's field first.  ``ids=False`` leaves out OBJ-008, OBJ-009 and
+    OBJ-012, for a dialog whose ids are not known.
     """
     first = _range_end(start, f"{cls}.{start_field}", banks, bank_id)
     last = _range_end(end, f"{cls}.{end_field}", banks, bank_id)
     _check_relation(
         cls, start_field, start, end_field, end, first, last,
-        one_module=one_module, ordered=ordered, module_id=module_id,
+        one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
     )  # fmt: skip
     return first, last
 
@@ -387,6 +390,7 @@ def _check_range(
     ordered: bool = True,
     bank_id: str | None = None,
     module_id: str | None = None,
+    ids: bool = True,
 ) -> tuple[Address | None, Address | None]:
     """:func:`check_range` keeping every refusal: each end on its own, then the pair.
 
@@ -399,7 +403,7 @@ def _check_range(
     if first is not None and last is not None:
         check.run(
             _check_relation, cls, start_attr, start, end_attr, end, first, last,
-            one_module=one_module, ordered=ordered, module_id=module_id,
+            one_module=one_module, ordered=ordered, module_id=module_id, ids=ids,
         )  # fmt: skip
     return first, last
 
@@ -1011,7 +1015,7 @@ class BlockCopy(AfInstruction):
             cls = "BlockCopy"
             src, src_last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
-                _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004", module_id="OBJ-035",
+                _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004",
             )  # fmt: skip
             # CLICK fills in the destination end itself, so a one-address destination stays
             # unordered here and is refused below as an end that doesn't match.
@@ -1150,7 +1154,7 @@ class Fill(AfInstruction):
             # Fill runs the range check on the destination.
             dest, _ = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
-                _REGISTER_DEST_BANKS,
+                _REGISTER_DEST_BANKS, ids=False,
             )  # fmt: skip
             if kind is not None and dest is not None:
                 check.run(
@@ -1256,7 +1260,7 @@ class Pack(AfInstruction):
                 )
             first, last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
-                _sources(_PACK_ROWS), one_module=True, module_id="OBJ-033",
+                _sources(_PACK_ROWS), one_module=True,
             )  # fmt: skip
             dest = check("destination", check_box_operand, _destinations(_PACK_ROWS))
             if first is not None and dest is not None:
@@ -1267,14 +1271,17 @@ class Pack(AfInstruction):
                 )  # fmt: skip
             if first is not None and not check.refused("pack_type"):
                 if (first.bank == "TXT") != (self.pack_type == "text"):
-                    check.refuse(
-                        ("source_start", "pack_type"),
-                        f"{self.source_start!r} is "
-                        f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
-                        f"pack_{self.pack_type} "
-                        f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
-                        f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
-                        Reason.CONFLICT,
+                    check.add(
+                        _refusal(
+                            "Pack",
+                            ("source_start", "pack_type"),
+                            f"{self.source_start!r} is "
+                            f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
+                            f"pack_{self.pack_type} "
+                            f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
+                            f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
+                            Reason.CONFLICT,
+                        )
                     )
                 if self.pack_type != "text":
                     check.run(

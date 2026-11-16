@@ -11,7 +11,7 @@ from typing import Any
 
 import pytest
 
-from laddercodec import BlockCopy, Copy, FieldError, Fill, Pack, Unpack
+from laddercodec import AddressError, BlockCopy, Copy, FieldError, Fill, Pack, Unpack
 
 
 def _errors(build: Any) -> tuple[FieldError, ...]:
@@ -193,7 +193,7 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
         (
             lambda: BlockCopy("X016", "X021", "C1", "C6"),
             ("BlockCopy.source_end", "BlockCopy.source_start"),
-            "OBJ-035",
+            None,
         ),
         (
             lambda: BlockCopy("DS1", "DS4", "DS10", "DD13"),
@@ -208,7 +208,7 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
         (
             lambda: Pack("X016", "X021", "DH1", pack_type="bits"),
             ("Pack.source_end", "Pack.source_start"),
-            "OBJ-033",
+            None,
         ),
         (
             lambda: Pack("X1", "X16", "DS1", pack_type="bits"),
@@ -228,11 +228,11 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
     ],
 )
 def test_pair_refusals_name_both_fields_with_the_id(
-    build: Any, fields: tuple[str, str], click_id: str
+    build: Any, fields: tuple[str, str], click_id: str | None
 ) -> None:
     (error,) = _errors(build)
     assert (error.fields, error.reason, error.click_id) == (fields, "conflict", click_id)
-    assert str(error).endswith(f" ({click_id})")
+    assert str(error).endswith(f" ({click_id})") == (click_id is not None)
 
 
 def test_blockcopy_bank_and_ends() -> None:
@@ -276,8 +276,13 @@ def test_fill_reasons() -> None:
     assert (error.fields, error.reason, error.click_id) == (
         ("Fill.dest_end", "Fill.dest_start"),
         "conflict",
-        "OBJ-008",
+        None,
     )
+    # Neither a backwards range nor a one-address range has an id for Fill.
+    for end in ("DS5", "DS1"):
+        (error,) = _errors(lambda end=end: Fill("0", "DS5", end))
+        assert (error.reason, error.click_id) == ("conflict", None)
+        assert "OBJ-" not in str(error)
 
 
 def test_fill_into_txt_takes_one_character_with_no_id() -> None:
@@ -314,3 +319,32 @@ def test_pack_and_unpack_counts(build: Any, click_id: str) -> None:
     assert (error.reason, error.click_id) == ("range", click_id)
     assert len(error.fields) == 3
     assert error.field.endswith("_end")
+
+
+def test_pack_txt_refusals_stay_address_errors() -> None:
+    for build in (
+        lambda: Pack("TXT3", "TXT4", "CTD1", pack_type="bits"),
+        lambda: Pack("X21", "X31", "DH1", pack_type="text"),
+    ):
+        (error,) = _errors(build)
+        assert type(error) is AddressError
+        assert (error.fields, error.reason) == (("Pack.source_start", "Pack.pack_type"), "conflict")
+
+
+@pytest.mark.parametrize(
+    ("build", "field", "reason"),
+    [
+        (lambda: Pack("C1", "C0", "DS1"), "Pack.source_end", "address"),
+        (lambda: Pack("C1", "C4", "DS1x"), "Pack.destination", "address"),
+        (lambda: Pack("C1", "C4", "XD1"), "Pack.destination", "bank"),
+        (lambda: Pack("C1", "C4", "DS[DS1]"), "Pack.destination", "pointer"),
+        (lambda: Pack("C[DS1]", "C4", "DS1"), "Pack.source_start", "pointer"),
+        (lambda: Unpack("DS1", "C1", "C0"), "Unpack.dest_end", "address"),
+        (lambda: Unpack("X1", "C1", "C16"), "Unpack.source", "bank"),
+        (lambda: Unpack("DS[DS1]", "C1", "C16"), "Unpack.source", "pointer"),
+        (lambda: Unpack("DS1", "C[DS1]", "C16"), "Unpack.dest_start", "pointer"),
+    ],
+)
+def test_pack_and_unpack_shared_refusals(build: Any, field: str, reason: str) -> None:
+    error = _errors(build)[0]
+    assert (error.field, error.reason) == (field, reason)
