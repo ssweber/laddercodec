@@ -189,11 +189,15 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
     constant.  The family keeps the pairing, in its own class (AddressError): text and
     ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
     number constant goes to every register, TXT included.  The pairing comes before a
-    constant's limits (``constant_shape``), except that a ``$hh`` code is read first.
+    constant's limits (``constant_shape``), except that a ``$hh`` code is read first.  The
+    family writes ``$`` and one hex digit with two first (``$1`` is ``$01``), as CLICK
+    stores it.
     """
 
     def rule(ns: Any, value: str) -> None:
         text = ns.normalize(value)
+        if len(text) == 2 and text[0] == "$" and text[1] in "0123456789ABCDEFabcdef":
+            text = f"$0{text[1]}"
         constants = ns.constants(hex_sign=True)
         shape = ns.checks.constant_shape(text, constants)
         if shape == ns.Kind.CHAR:
