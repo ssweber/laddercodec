@@ -30,6 +30,11 @@ def calls_without_field(source: str, filename: str = "<src>") -> list[str]:
         if isinstance(node, ast.Call) and _called_name(node) in _NAMES:
             if not any(kw.arg == "field" for kw in node.keywords):
                 missing.append(f"{filename}:{node.lineno}")
+        elif isinstance(node, ast.Raise) and isinstance(node.exc, (ast.Name, ast.Attribute)):
+            # A bare ``raise FieldError``: no call, so no field.
+            exc = node.exc
+            if (exc.id if isinstance(exc, ast.Name) else exc.attr) in _NAMES:
+                missing.append(f"{filename}:{node.lineno}")
     return missing
 
 
@@ -47,5 +52,7 @@ def test_every_field_error_passes_field() -> None:
 def test_guard_fails_on_a_call_without_field() -> None:
     bad = "raise FieldError('Coil.x: no')\nraise AddressError('no')\nraise m.FieldError('no')\n"
     good = "raise FieldError('x', field='Coil.x')\nraise AddressError('x', field=None)\n"
+    bare = "raise FieldError\nraise errors.AddressError\n"
     assert len(calls_without_field(bad)) == 3
+    assert len(calls_without_field(bare)) == 2
     assert calls_without_field(good) == []

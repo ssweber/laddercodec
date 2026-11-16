@@ -522,7 +522,7 @@ class RawInstruction(AfInstruction):
 
         # Legacy hex format.
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
-        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts)
+        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
         if pins is not None:
             raise FieldError(
                 f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
@@ -556,7 +556,9 @@ class RawInstruction(AfInstruction):
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
-        visual_rows, sub_rows, pins, field_specs = _take_box_rows(class_name, parts[2:])
+        visual_rows, sub_rows, pins, field_specs = _take_box_rows(
+            class_name, parts[2:], raw_token=True
+        )
         extra_bytes = _pin_rows(class_name, part_count, pins)
         if extra_bytes and visual_rows is not None and visual_rows != extra_bytes[-1] + 1:
             stated = "pins=" + pins if pins is not None else "no pins= (rows 1, 2, ...)"
@@ -577,7 +579,7 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
     Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
     A ``pins=`` among the parts raises FieldError (see :func:`_take_box_rows`).
     """
-    rows, sub, pins, rest = _take_box_rows(class_name, parts)
+    rows, sub, pins, rest = _take_box_rows(class_name, parts, raw_token=False)
     if pins is not None:
         raise FieldError(
             f"raw({class_name},...): pins= is only for a box of 2 or more parts",
@@ -587,13 +589,16 @@ def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int 
 
 
 def _take_box_rows(
-    class_name: str, parts: list[str]
+    class_name: str, parts: list[str], *, raw_token: bool
 ) -> tuple[int | None, int | None, str | None, list[str]]:
     """Read the leading ``rows=``, ``sub=`` and ``pins=`` of a raw token's *parts*.
 
     Returns ``(visual_rows, sub_rows, pins text, remaining parts)``; an absent
     field is None.  A box spans at most a rung's rows; its sub-rows byte may
     exceed its span (a native Drum stores ``04 05``).
+
+    A refused ``rows=`` or ``sub=`` names the RawInstruction field only when the token is a
+    ``raw(...)`` token (*raw_token*); a typed class's token has no such field.
     """
     from ..encode import MAX_ROWS
 
@@ -607,9 +612,15 @@ def _take_box_rows(
                 raise FieldError(
                     f"raw({class_name},...): {key}={text!r} is not a whole number "
                     f"from 1 to {limits[key]}",
-                    field="RawInstruction.visual_rows"
-                    if key == "rows"
-                    else "RawInstruction.sub_rows",
+                    field=(
+                        (
+                            "RawInstruction.visual_rows"
+                            if key == "rows"
+                            else "RawInstruction.sub_rows"
+                        )
+                        if raw_token
+                        else None
+                    ),
                 )
             values[key] = int(text)
             i += 1
