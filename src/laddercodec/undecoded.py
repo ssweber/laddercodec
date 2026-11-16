@@ -236,13 +236,11 @@ def recover_text(payload: bytes) -> str:
     Best effort, and it never raises.  Control words, control symbols and destination
     groups (the font and colour tables, ``\\*`` groups) are dropped; text runs are kept,
     paragraph breaks become line breaks, and well-formed ``\\'hh`` and ``\\uN`` escapes are
-    read.  The text is reduced to ASCII as ``encode()`` writes it, so it comes back
-    unchanged after an encode and a decode.  It is ``""`` when nothing is left.
+    read.  Non-ASCII characters are kept, as in a comment that decodes; ``encode()`` reduces
+    them to ASCII when it writes.  It is ``""`` when nothing is left.
     """
-    from .encode import _sanitize_to_ascii
-
     try:
-        text = _sanitize_to_ascii(_rtf_text(payload))
+        text = _rtf_text(payload)
     except Exception:  # best effort: whatever went wrong, there is no text to give
         return ""
     return "\n".join(line.rstrip() for line in text.strip().split("\n"))

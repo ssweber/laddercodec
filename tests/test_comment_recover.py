@@ -34,14 +34,14 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"a{\\*\\generator Foo {bar}; 1}b"), "ab"),
         (_rtf(b"{\\colortbl ;\\red255;}x"), "x"),
         # escapes
-        (_rtf(b"caf\\'e9"), "cafe"),
+        (_rtf(b"caf\\'e9"), "caf\u00e9"),
         (_rtf(b"A\\'4"), "A4"),
         (_rtf(b"A\\'zzB"), "Azz" + "B"),
-        (_rtf(b"\\u8364?x"), "?x"),
+        (_rtf(b"\\u8364?x"), "\u20acx"),
         (_rtf(b"\\uc0\\u65 x"), "Ax"),
         (_rtf(b"\\u65\\'41B"), "AB"),
         (_rtf(b"\\u"), ""),
-        (_rtf(b"\\u-3913\\u-8704?"), "?"),
+        (_rtf(b"\\u-3913\\u-8704?"), "\uf0b7"),
         (_rtf(b"lone \\u-10179?end"), "lone end"),
         (_rtf(b"a\\\\b\\{c\\}"), "a\\b{c}"),
         (_rtf(b"a\\~b\\_c"), "a b-c"),
@@ -60,7 +60,7 @@ def test_recover_text(payload: bytes, want: str) -> None:
 
 def test_recover_text_follows_the_declared_code_page() -> None:
     payload = _rtf(b"caf\xe9").replace(b"ansicpg1252", b"ansicpg1250")
-    assert recover_text(payload) == "cafe"
+    assert recover_text(payload) == "café"
     # a code page Python does not know is read as 1252
     assert recover_text(_rtf(b"ok").replace(b"ansicpg1252", b"ansicpg99999")) == "ok"
 
@@ -142,7 +142,11 @@ def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
 
     again = decode(encode(broken))
     assert isinstance(again, Rung)
-    assert again.comment == broken.comment
+    # the text after the note is what a normal comment with the same characters gives
+    text = broken.comment[len(note) + 1 :]
+    plain = decode(encode(_rung(text)))
+    assert isinstance(plain, Rung)
+    assert again.comment == f"{note}\n{plain.comment}"
 
 
 def test_scr_comment_text_is_recovered() -> None:
