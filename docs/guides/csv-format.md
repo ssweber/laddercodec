@@ -474,6 +474,18 @@ Positional args stay positional. Keyword-only args use `key=value` syntax.
 Conditional kwargs (marked with "if !=0") are omitted when the value is the
 default (`0`).
 
+A blank argument is its field left blank: `out()`, `on_delay(T1,TD1,preset=,unit=Tms)`
+and `blockcopy(,DS10..DS13)` are refused with a `FieldError` whose `reason` is
+`missing` and whose `field` is the blank one (`Coil.operand`, `Timer.setpoint`; both
+ends of a range), as building the instruction with that field blank is. A range
+with a blank end is read so too: `..` where a range goes, and `..DS4` or `DS1..`,
+are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere `..`
+is the value written (`copy(..,DS1)` is refused as an address). These blanks are
+still syntax errors, with no `field`: a Timer or time drum `unit=`, a Math `mode=`,
+a time-event drum `accumulator=`, a drum list, a whole Modbus `target=`, a search
+expression, a blank flag in `out` or `for` (`oneshot=`), and a blank argument the
+token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way.
+
 Producer may emit:
 
 - `out(target)` or `out(target,oneshot=1)`
@@ -807,9 +819,12 @@ Rules:
 as it is held ([Decoding](decoding.md#values-clicks-dialog-refuses)). `read_csv`
 refuses such a token, as it refuses any; `read_csv(path, unchecked=True)` reads it
 as written and emits a `RefusedFieldWarning` for it, whose `rung` counts the rungs
-`read_csv` returns, from 0. A value no stored instruction holds (a timer unit that is
-none of CLICK's, a flag that is not 0 or 1, pin rows the box can't take) still
-raises. A CSV holds no stored bytes, so `encode()` refuses the instruction.
+`read_csv` returns, from 0. Each refusal in the warning's `errors` carries the
+`location` the default read raises it with ([Where a read error is](#where-a-read-error-is)),
+and the warning's message ends with the first one's. A value no stored instruction
+holds (a timer unit that is none of CLICK's, a flag that is not 0 or 1, pin rows the
+box can't take) still raises. A CSV holds no stored bytes, so `encode()` refuses the
+instruction.
 
 ## Where a read error is
 

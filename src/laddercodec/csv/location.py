@@ -1,14 +1,15 @@
-"""Where in a CSV ``read_csv`` found the value it raised about."""
+"""Where in a CSV ``read_csv`` found the value it raised about, or a refusal it kept."""
 
 from __future__ import annotations
 
 import csv
-from collections.abc import Generator
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import TypeVar
 
+from ..operands.unchecked import refusals
 from .contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 
 _E = TypeVar("_E", bound=BaseException)
@@ -20,7 +21,7 @@ AF_COLUMN = len(CONDITION_COLUMNS)
 
 @dataclass(frozen=True)
 class CsvLocation:
-    """Where in a CSV an error ``read_csv`` raised was found.
+    """Where in a CSV an error ``read_csv`` raised, or a refusal it kept, was found.
 
     Every exception ``read_csv`` raises for a bad CSV carries one as its ``location``
     attribute, whatever its class: ``ValueError``, ``FieldError``, ``AddressError``,
@@ -32,6 +33,10 @@ class CsvLocation:
     ``ConvertError`` it always was, with the refusal's data.  Each refusal in a
     ``FieldError``'s ``errors`` carries its own location.  Each field is ``None``
     where it is not known or does not apply.
+
+    Read with ``unchecked=True``, each refusal an instruction keeps (each in a
+    :class:`~laddercodec.RefusedFieldWarning`'s ``errors``) carries the location the
+    default read gives it when it raises; its message is unchanged.
 
     Attributes
     ----------
@@ -106,6 +111,20 @@ def add_location(exc: BaseException, **known: object) -> None:
     for nested in getattr(exc, "errors", ()):
         if nested is not exc and isinstance(nested, BaseException):
             add_location(nested, **known)
+
+
+def locate_held(tokens: Iterable[object], **known: object) -> None:
+    """Give every refusal each instruction in *tokens* holds the fields of *known* its
+    location does not have yet, as :func:`add_location` gives a raised one.
+
+    ``read_csv(..., unchecked=True)`` builds an instruction its checks refuse and keeps the
+    refusals on it (:func:`~laddercodec.operands.unchecked.refusals`).
+    """
+    if all(value is None for value in known.values()):
+        return
+    for token in tokens:
+        for refusal in refusals(token):
+            add_location(refusal, **known)
 
 
 def at(exc: _E, **known: object) -> _E:

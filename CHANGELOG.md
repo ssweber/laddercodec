@@ -21,6 +21,7 @@
 - **`read_csv(..., unchecked=True)`**: reads an instruction whose values its checks refuse as written, as the decoders read a stored one, with a `RefusedFieldWarning`, so the CSV `write_csv` writes for such an instruction reads back.
 
 ### Fixed
+- **Refusals read unchecked say where**: each refusal `read_csv(..., unchecked=True)` keeps carries the `CsvLocation` the default read raises it with (file, line, rung, row and column, a pin row's value at that pin's row), and the `RefusedFieldWarning` message ends with the first one's, where they carried no location.
 - **Long MODBUS address and compare operator**: a Send or Receive `ModbusAddress` of more than 4300 digits is refused with a `FieldError` on `ModbusAddress.address`, where it crashed with `ValueError`, and a `CompareContact` operator outside `==`, `!=`, `<`, `>`, `<=` and `>=` is refused on `CompareContact.op`, where `build_blob` crashed with `KeyError`.
 - **Unpack destination bank**: an Unpack destination whose bank the source can't unpack to, such as `DS1` into `DS1..DS2`, is refused with CLICK's `OBJ-004`, where it carried `OBJ-024`; the refusal itself is the same.
 - **Copy, Pack and Unpack bank ids**: a bank the field does not take carries CLICK's id, where it had none: `OBJ-004` for a Pack destination and an Unpack source or destination, and for a single Copy into a bit bank it does not write, `OBJ-004` from a bit source and `OBJ-024` from any other; the refusal itself is the same.
@@ -61,6 +62,8 @@
   - A DD, DF, TD, CTD, SD or TXT register in a hex formula, and a DH, XD, YD or TXT register in a decimal one, is now refused, where it was accepted.
   - A `SUM` over CT, in either mode, now carries `OBJ-1002`, where it had no id.
   - Do: for a hex formula, copy a register into a DH first or pack bits into a DH, or use a decimal `Math` for a DS, DD, DF, TD, CTD or SD value; for a decimal formula, copy a DH, XD, YD or TXT register into a DS first, or use a hex `Math` for a DH, XD or YD value, and pack CT bits into a DH, then copy the DH into a DS or use it in a hex `Math`.
+- **A blank CSV token argument is `missing`**: in `read_csv`, a blank argument or keyword value, such as `out()`, `on_delay(T1,TD1,preset=,unit=Tms)` or `blockcopy(,DS10..DS13)` (`blockcopy(..,DS10..DS13)` as `write_csv` writes a blank range), is refused with a `FieldError` whose `reason` is `missing` and whose `field` is the blank one, as building the instruction with that field blank is. It was a token syntax error with no `field` (for `out(,oneshot=1)`, an `address` refusal of `oneshot=1`). `read_csv(..., unchecked=True)` keeps it as it keeps any refusal. A Timer or time drum `unit=`, a Math `mode=`, a drum list, a search expression and a blank flag in `out` or `for` are still syntax errors, and `out(,oneshot=)` is still an `address` refusal of `oneshot=`.
+  - Do: where you told a syntax error from a field refusal by `field is None`, expect `field` and `Reason.MISSING` for a blank argument.
 
 ## 0.4.0 (2026-11-14)
 

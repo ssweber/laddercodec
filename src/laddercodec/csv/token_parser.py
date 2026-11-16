@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Literal, cast
 
 from ..instructions.comparison import split_comparison
@@ -296,3 +297,39 @@ def parse_af_token(token: str) -> AfNode:
         kwargs=kwargs,
         raw=text,
     )
+
+
+def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = False) -> str | None:
+    """*token*, an AF call, with each blank argument replaced by ``fill(i)``, or None when no
+    argument is blank.
+
+    ``i`` counts the top-level arguments from 0.  A blank positional argument becomes
+    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument.
+    With *ranges*, each is read as a range: a blank argument becomes ``fill(i)..fill(i)``,
+    and a range with a blank end (``..``, ``..DS4``, ``DS1..``, as ``write_csv`` writes a
+    range whose start or end is blank) is a blank argument too, each blank end ``fill(i)``.
+    A ``raw(...)`` token has none: its arguments are its own field specs.
+    """
+    m = _CALL_RE.fullmatch(token.strip())
+    if not m or m.group(1) == "raw":
+        return None
+    segments = list(_split_top_level_csv_like(m.group(2).strip())) or [""]
+    filled = []
+    for i, seg in enumerate(segments):
+        eq_idx = _kwarg_eq_index(seg)
+        key, value = (seg[: eq_idx + 1], seg[eq_idx + 1 :]) if eq_idx >= 0 else ("", seg)
+        blank = _filled(value.strip(), i, fill, ranges=ranges)
+        filled.append(seg if blank is None else f"{key}{blank}")
+    if filled == segments:
+        return None
+    return f"{m.group(1)}({','.join(filled)})"
+
+
+def _filled(value: str, i: int, fill: Callable[[int], str], *, ranges: bool) -> str | None:
+    """*value*, argument *i*, with its blanks ``fill(i)``, or None when it has none."""
+    if not ranges:
+        return fill(i) if not value else None
+    start, dots, end = value.partition("..")
+    if value and (not dots or (start and end)):
+        return None
+    return f"{start or fill(i)}..{end or fill(i)}"

@@ -102,8 +102,9 @@ the change fixed it, encodes it as building it from its fields would (`ds2` is
 written `DS2`). Fix the field the error names, then encode.
 
 `write_csv()` writes the instruction as it is held, and
-`read_csv(path, unchecked=True)` reads it back with the same warning; by default
-`read_csv` refuses it. A CSV holds no blob, so the instruction it reads compares
+`read_csv(path, unchecked=True)` reads it back with the same warning, each refusal
+located in the CSV ([Where a read error is](csv-format.md#where-a-read-error-is)); by
+default `read_csv` refuses it. A CSV holds no blob, so the instruction it reads compares
 equal to the decoded one but `encode()` raises its `error`.
 
 A value no stored instruction holds still decodes as `RawInstruction` (or an

@@ -37,7 +37,7 @@ from laddercodec import (
     read_csv,
     write_csv,
 )
-from laddercodec.csv import CSV_HEADER
+from laddercodec.csv import CSV_HEADER, CsvLocation
 from laddercodec.csv.writer import WriterError
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.call import Call
@@ -163,6 +163,29 @@ def test_read_csv_unchecked_reads_it_as_written(tmp_path, golden, old, new, cls,
     assert warning.instruction is held
     assert warning.errors == refusals(held) and warning.error is refusals(held)[0]
     assert (warning.rung, warning.program) == (index, None)
+
+
+@pytest.mark.parametrize(("golden", "old", "new", "cls", "fields"), CASES, ids=_IDS)
+def test_read_csv_unchecked_locates_each_refusal_as_raised(
+    tmp_path, golden, old, new, cls, fields
+) -> None:
+    """Each refusal kept carries the location the default read raises it with."""
+    path = _edited(tmp_path, golden, old, new)
+    with pytest.raises(FieldError) as raised:
+        read_csv(path)
+    rungs, [warning] = _read_unchecked(path)
+    _, held = _held(rungs)
+
+    def where(errors: tuple[FieldError, ...]) -> list[tuple[object, ...]]:
+        return [(e.fields, e.reason, CsvLocation.of(e)) for e in errors]
+
+    assert where(refusals(held)) == where(raised.value.errors)
+    for refusal in refusals(held):
+        location = CsvLocation.of(refusal)
+        assert location is not None
+        assert location.file == path
+        assert None not in (location.line, location.rung_line, location.row, location.column)
+    assert str(warning).endswith(f" (at {CsvLocation.of(warning.error)})")
 
 
 @pytest.mark.parametrize(("golden", "old", "new", "cls", "fields"), CASES, ids=_IDS)
@@ -318,7 +341,8 @@ def test_warning_names_the_rung_and_every_refusal(tmp_path) -> None:
     _, [warning] = _read_unchecked(path)
     assert str(warning) == (
         "rung 0: BlockCopy holds a value CLICK's dialog refuses, and decodes as it is "
-        f"stored: {warning.error} (and 1 more)"
+        f"stored: {warning.error} (and 1 more) "
+        f"(at {path}, line 3, rung at line 3, row 0 from 0, column AF)"
     )
     assert len(warning.errors) == 2
 

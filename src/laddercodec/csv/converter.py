@@ -57,8 +57,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass, field
-from typing import cast
+from dataclasses import dataclass, field, fields, is_dataclass, replace
+from typing import Any, cast
 
 from .._layout import canonical
 from ..decode import Rung
@@ -80,7 +80,7 @@ from ..model import (
     check_address,
 )
 from ..operands.errors import Reason
-from ..operands.unchecked import checked, unchecked
+from ..operands.unchecked import checked, refusals, unchecked
 from .ast import (
     AfBlank,
     AfCall,
@@ -96,8 +96,8 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
-from .location import AF_COLUMN, add_location, add_own_location, at, located
-from .token_parser import parse_af_token, parse_condition_token
+from .location import AF_COLUMN, add_location, add_own_location, at, locate_held, located
+from .token_parser import fill_blank_args, parse_af_token, parse_condition_token
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -212,6 +212,8 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     except Exception as exc:
         add_location(exc, column=len(conds))  # the cell that failed
         raise
+    for column, cond in enumerate(conds):
+        locate_held([cond], column=column)
     af_node = row.af_node
 
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
@@ -230,6 +232,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     except Exception as exc:
         add_location(exc, column=AF_COLUMN)
         raise
+    locate_held([token], column=AF_COLUMN)
     if token == "":
         return _ParsedRow(conditions=conds, kind="blank")
     if token == "NOP":
@@ -387,25 +390,40 @@ def _finalize_pinned_block(
     while len(rows) < height:
         rows.append(_blank_condition_row())
 
+    slots = tuple(slot_rows)
     try:
-        token = token.with_pins(pins, tuple(slot_rows))
+        boxed = token.with_pins(pins, slots)
     except ValueError as exc:
         error = ConvertError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
         if isinstance(exc, FieldError):
             # A value a pin row sets is refused: locate it at that pin's row.
-            slots = tuple(slot_rows)
             culprit = _refused_pin(token, pins, slots)
             if culprit is not None:
                 add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
-            for refusal in exc.errors:
-                owner = _refusing_pin(token, pins, slots, refusal)
-                if owner is not None:
-                    add_own_location(refusal, **pin_places[owner], column=AF_COLUMN)
+            _locate_at_pins(token, pins, slots, exc.errors, pin_places)
         raise error from exc
-    af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
+    # Read with ``unchecked=True``, the box keeps the refusals ``with_pins`` raises otherwise:
+    # each is located where it would be raised.
+    _locate_at_pins(token, pins, slots, refusals(boxed), pin_places)
+    locate_held([boxed], **block.place, column=AF_COLUMN)
+    af_tokens: list[AfToken] = [boxed, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _locate_at_pins(
+    token: PinnedInstruction,
+    pins: dict[str, tuple[str, ...]],
+    slot_rows: tuple[int, ...],
+    found: Sequence[FieldError],
+    pin_places: dict[str, dict[str, int | None]],
+) -> None:
+    """Locate each refusal in *found* that a pin row's value causes at that pin's row."""
+    for refusal in found:
+        owner = _refusing_pin(token, pins, slot_rows, refusal)
+        if owner is not None:
+            add_own_location(refusal, **pin_places[owner], column=AF_COLUMN)
 
 
 def _refusing_pin(
@@ -521,13 +539,109 @@ def condition_node_to_token(node: object) -> ConditionToken:
 
 
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
-    """Convert a parsed AF call node to an encode-ready token."""
-    token = parse_af_call(call)
-    if token is not None:
-        return token
-    if strict:
-        raise ValueError(f"Unsupported AF instruction: {call.name!r}")
-    return ""
+    """Convert a parsed AF call node to an encode-ready token.
+
+    A token that holds a blank argument and that its family's parser refuses (raises, or
+    inside ``read_csv(..., unchecked=True)`` builds holding refusals) is read with the
+    field that argument fills left blank (:func:`_with_blank_fields`): it is refused, or
+    kept, as building the instruction with that field blank refuses it (``missing``).  A
+    token the parser accepts is read as before.
+    """
+    refused: ValueError | None = None
+    try:
+        token = parse_af_call(call)
+    except ValueError as exc:
+        refused, token = exc, None
+    if refused is None:
+        if token is None:
+            if strict:
+                raise ValueError(f"Unsupported AF instruction: {call.name!r}")
+            return ""
+        if not refusals(token):
+            return token
+    blanked = _with_blank_fields(call)
+    if blanked is not None:
+        return blanked
+    if refused is not None:
+        raise refused
+    return cast(AfInstruction, token)
+
+
+def _with_blank_fields(call: AfCall) -> AfInstruction | None:
+    """The instruction *call* reads to with each blank argument's field blank, or None.
+
+    Each blank argument is read as a marker, in each of :data:`_MARKER_FORMS` until the
+    token parses: bare, quoted (a name), and as a range (``M..M``, two fields), where a
+    range with a blank end (``..``, ``..DS4``) is blank too.  The fields the marker lands
+    in are the argument's.  The instruction is then built again
+    from its fields, each marker blank, with the checks construction runs: inside
+    ``read_csv(..., unchecked=True)`` it keeps the refusals, else it raises them.  None
+    when the token holds no blank argument, does not parse with the markers, or a marker
+    lands in no field.
+    """
+    text = call.raw or call.to_token()
+    for form, ranges in _MARKER_FORMS:
+        found = _marked(text, form, ranges=ranges)
+        if found is None:
+            continue
+        marked, marks = found
+        try:
+            with unchecked():
+                probe = parse_af_call(cast(AfCall, parse_af_token(marked)))
+        except ValueError:
+            continue
+        if probe is None:
+            return None
+        if all(_holds_text(probe, m) for m in marks):
+            return cast(AfInstruction, _built_with_blanks(probe, marks))
+    return None
+
+
+#: How a blank argument is written while its fields are found (``@`` stands for the
+#: marker), and whether it is read as a range (:func:`fill_blank_args`).
+_MARKER_FORMS = (("@", False), ('"@"', False), ("@", True))
+
+
+def _marked(text: str, form: str, *, ranges: bool) -> tuple[str, set[str]] | None:
+    """*text* with each blank argument a marker written in *form*, read as a range when
+    *ranges*, and the markers; None when no argument is blank."""
+    marks: set[str] = set()
+
+    def mark(i: int) -> str:
+        found = f"BLANK{i}Q"  # no address, constant or name
+        while found in text:
+            found += "Q"
+        marks.add(found)
+        return form.replace("@", found)
+
+    marked = fill_blank_args(text, mark, ranges=ranges)
+    return None if marked is None else (marked, marks)
+
+
+def _holds_text(value: object, text: str) -> bool:
+    """Whether *value*, a field or one of its items, a dataclass's fields included, is *text*."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return any(_holds_text(getattr(value, f.name), text) for f in fields(value))
+    if isinstance(value, (list, tuple)):
+        return any(_holds_text(item, text) for item in value)
+    return value == text
+
+
+def _built_with_blanks(value: object, marks: set[str]) -> object:
+    """*value* with each field or item that is a marker in *marks* blank; each dataclass it
+    holds, and *value* itself, built again with its checks."""
+    if is_dataclass(value) and not isinstance(value, type):
+        changes = {
+            f.name: _built_with_blanks(getattr(value, f.name), marks)
+            for f in fields(value)
+            if f.init
+        }
+        return replace(cast(Any, value), **changes)
+    if type(value) in (list, tuple):
+        return type(value)(_built_with_blanks(item, marks) for item in cast(Any, value))
+    if isinstance(value, str) and value in marks:
+        return ""
+    return value
 
 
 def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
@@ -628,9 +742,22 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
     ConvertError
         If the rung contains unsupported constructs.
     """
-    with located(rung_line=rung.rows[0].line if rung.rows else None):
+    rung_line = rung.rows[0].line if rung.rows else None
+    with located(rung_line=rung_line):
         literal = convert_literal(rung, strict=strict)
-        return canonical(literal) or [literal]
+        rungs = canonical(literal) or [literal]
+    for laid_out in rungs:
+        locate_held(rung_tokens(laid_out), rung_line=rung_line)
+    return rungs
+
+
+def rung_tokens(rung: Rung) -> list[object]:
+    """Every cell token of *rung*, row by row, the AF cell last in each row."""
+    return [
+        token
+        for conditions, af in zip(rung.conditions, rung.instructions, strict=False)
+        for token in (*conditions, af)
+    ]
 
 
 def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
@@ -660,6 +787,7 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
         try:
             parsed = _parse_rung_row(row, strict=strict)
             parsed.place = place
+            locate_held([*parsed.conditions, parsed.token], **place)
 
             if active_block is not None:
                 try:
