@@ -592,12 +592,12 @@ def copy_grid() -> Grid:
     for src in BANKS:
         for dst in BANKS:
             block("pairs.banks", low(src), run_to(src, 2), low(dst))
+        for other in PARTNERS:
+            block("source.mixed-banks", low(src), low(other), "DS11")
     for dst in BANKS:
         for bank in XY:
             for end in (addr(bank, 16), addr(bank, 36)):
                 block("pairs.xy-spans", low(bank), end, low(dst))
-        for other in PARTNERS:
-            block("source.mixed-banks", low(src), low(other), "DS11")
     for text in FORMS_SHORT:
         block("source.forms", text, "DS2", "DS11")
         block("source-end.forms", "DS1", text, "DS11")
@@ -773,7 +773,7 @@ def _whole(name: str) -> Grid:
 
 
 def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
-    """The safe cases of a dialog's grid, in one mode."""
+    """The safe cases (not risky) of a dialog's grid, in one mode."""
 
     def part() -> Grid:
         whole = _whole(name)
@@ -819,7 +819,8 @@ def preflight_grid() -> Grid:
     return grid
 
 
-#: One file per dialog and mode: Math and Copy have modes whose lists are long.
+#: The preflight and risky files, then one file per dialog and mode (Math and Copy have modes whose
+#: lists are long) and the SD and SC sweeps.
 GRIDS: dict[str, Callable[[], Grid]] = {
     "preflight": preflight_grid,
     "risky": risky_grid,
