@@ -4,7 +4,7 @@
 and ``tests/fixtures/field_sweep/outcomes.json`` records, per rebuild, whether it was
 accepted (``a``), refused with ``FieldError`` (``F``) or ``AddressError`` (``A``), or failed
 with another exception (``X``), as the code gave it before any instruction collected its
-refusals.  Now each rebuild must give the same outcome, except that a crash may become a
+refusals (a golden added later is recorded from the code of its day).  Now each rebuild must give the same outcome, except that a crash may become a
 refusal: what was accepted stays accepted, what was refused stays refused with the same
 class, and a refusal never becomes a crash.
 

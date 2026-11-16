@@ -109,8 +109,8 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
   OBJ-003 for it.
 - **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
-  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends. Math result bank
-  refusal is OBJ-004: the math grids' result rows confirm it.
+  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends.
+- **Math result bank refusal:** the code gives OBJ-004; the math grids' result rows are to confirm it.
 - **OBJ-023 on a Fill into TXT** (one character) is unverified for Fill's dialog.
 - **OBJ-002 and OBJ-003:** which dialogs give them for an address that is not one and for a number outside its
   bank. `click_id` is set only where the code records a field's dialog: OBJ-004, and OBJ-003 for a coil's SC
@@ -129,8 +129,8 @@ Modbus hex addresses are already canonical.
 - Hex Math reads a constant without `h` as hex: `005` and `5` are stored `5h`, `FF` is `FFh`, `1e3` is `1E3h`
   (483), and `1Eh` is refused. laddercodec refuses `005` and `FF`.
 - A real is stored as CLICK prints it back, in Math (display and internal) and in a Copy source: `1.50` is
-  `1.5`, `1e3` is `1000.0`, `.5` is `0.5`, `1E5` is `100000.0`; `1.5E+10` stays as typed. laddercodec writes
-  the typed text.
+  `1.5`, `1e3` is `1000.0`, `.5` is `0.5`; in a Copy, `1E5` is `100000.0`; in a Math, `1.5E+10` stays as typed
+  (not asked in a Copy). laddercodec writes the typed text.
 - A Copy source is stored as CLICK reads it: a decimal integer without leading zeros but with a typed `+`
   (`005` is `5`, `+5` stays `+5`); hex with its digits uppercased, leading zeros kept, then a lowercase `h`
   (`0ffh` is `0FFh`, `ffh` is `FFh`, `ABCH` is `ABCh`, `DH` is `Dh`).
