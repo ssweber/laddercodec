@@ -102,7 +102,8 @@ _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 def _normalize_device_id(target: ModbusRtuTarget | ModbusTcpTarget) -> None:
     """Write a Slave ID address in display form."""
-    normalize_fields(target, "device_id")
+    if isinstance(target.device_id, str):
+        normalize_fields(target, "device_id")
 
 
 def _check_device_id(device_id: int | str, cls: str, high: int = 255) -> None:
@@ -425,7 +426,7 @@ def _check_slave_id(who: str, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low
 
 def _normalize_operands(inst: Send | Receive, names: tuple[str, ...]) -> None:
     """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
-    normalize_fields(inst, "remote_start", *names)
+    normalize_fields(inst, *(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str)))
 
 
 def _check_status(who: str, name: str, value: str, banks: frozenset[str]) -> Address | None:

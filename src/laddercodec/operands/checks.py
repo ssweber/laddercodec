@@ -14,8 +14,8 @@
 Every refusal is a :class:`~laddercodec.operands.errors.FieldError` (an
 :class:`~laddercodec.operands.errors.AddressError` for an address or a pointer) whose
 ``field`` is the ``field`` the caller gave, as ``Class.attr``, and whose ``reason`` is a
-:class:`~laddercodec.operands.errors.Reason`.  The message names ``label``, the field
-unless given.  The constant checks build on
+:class:`~laddercodec.operands.errors.Reason`.  The message names ``label``, or the field
+when no label is given.  The constant checks build on
 :func:`~laddercodec.operands.constants.classify`.
 
 Not public API.
@@ -131,12 +131,15 @@ class _At(NamedTuple):
         reason: Reason,
         click_id: str | None = None,
         cls: type[FieldError] = FieldError,
+        *,
+        also: str | None = None,
     ) -> FieldError:
-        """``label: 'value' rule``, with CLICK's id at the end."""
+        """``label: 'value' rule``, with CLICK's id at the end; ``also`` is the other field
+        of a refused pair."""
         tail = f" ({click_id})" if click_id else ""
         return cls(
             f"{self.label}: {value!r} {rule}{tail}",
-            field=self.field,
+            field=self.field if also is None else (self.field, also),
             reason=reason,
             click_id=click_id,
         )
@@ -402,6 +405,7 @@ def check_operand(
     pointer: bool = False,
     letter_first: bool = False,
     label: str | None = None,
+    bank_id: str | None = None,
 ) -> Operand:
     """Check one operand; raise :class:`FieldError` naming ``field`` if it is refused.
 
@@ -409,7 +413,8 @@ def check_operand(
     bank).  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` is in ``banks`` and in
     :data:`POINTER_BANKS`, and the index is a DS address.  With ``constants``, a constant
     goes through :func:`check_constant`.  Every refusal of a pointer, its index's included,
-    has the reason ``pointer``.
+    has the reason ``pointer``.  ``bank_id`` is CLICK's id for an address in a bank the
+    field does not take, as for :func:`check_address`.
 
     Which of the two checks reads the text:
 
@@ -448,7 +453,7 @@ def check_operand(
             exc.reason = Reason.POINTER
             raise
         return Operand(bank=bank, index=index)
-    address = check_address(value, field, banks, label=label)
+    address = check_address(value, field, banks, label=label, bank_id=bank_id)
     return Operand(bank=address.bank, address=address)
 
 
@@ -473,17 +478,24 @@ def check_out_target(
     immediate: bool = False,
     banks: Collection[str] = OUT_BANKS,
     label: str | None = None,
+    bank_id: str | None = None,
 ) -> Address:
     """Check an address a coil writes; return it.
 
     The bank is one of ``banks`` (Y, C and SC for Out, Set, Reset and the Out variants),
-    an immediate target is Y, and an SC bit is one of :data:`WRITABLE_SC`.
+    an immediate target is Y, and an SC bit is one of :data:`WRITABLE_SC`.  A target the
+    immediate box refuses is a conflict of ``field`` with the instruction's ``immediate``.
     """
     at = _at(field, label)
-    address = check_address(value, field, banks, label=label)
+    address = check_address(value, field, banks, label=label, bank_id=bank_id)
     # Immediate first: an immediate SC target is refused whatever its number.
     if immediate and address.bank != "Y":
-        raise at.error(value, "is not allowed; an immediate coil takes Y only", Reason.BANK)
+        raise at.error(
+            value,
+            "is not allowed; an immediate coil takes Y only",
+            Reason.CONFLICT,
+            also=f"{field.rsplit('.', 1)[0]}.immediate",
+        )
     if address.bank == "SC" and address.number not in WRITABLE_SC:
         writable = ", ".join(f"SC{n}" for n in sorted(WRITABLE_SC))
         raise at.error(
@@ -528,8 +540,13 @@ class Refusals:
 
     A field is named by its attribute (``"outputs[2]"`` for an item); the error names
     ``Class.attr``.  Once a field is refused, a later check or refusal that names it is
-    skipped: what depends on a refused value is not checked.  A :class:`FieldError` raised
-    straight out of the block ends it and joins the refusals.
+    skipped: what depends on a refused value is not checked.  A refusal of a list field
+    counts for each of its items, and a refusal of an item for the list.  A
+    :class:`FieldError` raised straight out of the block ends it and joins the refusals the
+    same way, each of its :attr:`~FieldError.errors` (an instruction built inside the block
+    brings all of its own).  Any other exception ends the block too; with refusals already
+    kept, the first is raised from it, so a value that crashes a later check (None where
+    text belongs) does not hide them.
     """
 
     def __init__(self, inst: object) -> None:
@@ -546,16 +563,18 @@ class Refusals:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> bool:
-        if exc is not None and not isinstance(exc, FieldError):
-            return False
-        if isinstance(exc, FieldError) and exc not in self._errors:
-            self._errors.append(exc)
+        if exc is not None and not isinstance(exc, Exception):
+            return False  # KeyboardInterrupt, SystemExit: not ours to replace
+        if isinstance(exc, FieldError):
+            self.add(exc)
         if not self._errors:
             return False
         first = self._errors[0]
         first.errors = tuple(self._errors)
         if first is exc:
             return False
+        if exc is not None and not isinstance(exc, FieldError):
+            raise first from exc
         raise first
 
     def field(self, attr: str) -> str:
@@ -563,14 +582,21 @@ class Refusals:
         return f"{self._cls}.{attr}"
 
     def refused(self, *attrs: str) -> bool:
-        """Whether any of ``attrs`` was refused."""
-        fields = {self.field(attr) for attr in attrs}
-        return any(fields.intersection(error.fields) for error in self._errors)
+        """Whether any of ``attrs`` was refused, or an item of it, or the list it is in."""
+        return self._names_refused(tuple(self.field(attr) for attr in attrs))
+
+    def _names_refused(self, fields: tuple[str, ...]) -> bool:
+        def overlap(a: str, b: str) -> bool:
+            return a == b or a.startswith(f"{b}[") or b.startswith(f"{a}[")
+
+        return any(overlap(f, g) for e in self._errors for g in e.fields for f in fields)
 
     def add(self, error: FieldError) -> None:
-        """Keep ``error``, unless it names a field already refused."""
-        if not any(set(error.fields).intersection(e.fields) for e in self._errors):
-            self._errors.append(error)
+        """Keep each of ``error``'s :attr:`~FieldError.errors`, unless it names a field
+        already refused."""
+        for each in error.errors:
+            if not self._names_refused(each.fields):
+                self._errors.append(each)
 
     def run(self, check: Callable[..., _T], *args: Any, **kwargs: Any) -> _T | None:
         """``check(*args, **kwargs)``; None when it raises :class:`FieldError`, kept."""

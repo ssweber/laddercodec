@@ -22,6 +22,7 @@ from ..model import (
     FieldError,
     InstructionType,
     PinnedInstruction,
+    Reason,
     check_address,
     normalize_fields,
 )
@@ -59,8 +60,10 @@ class Shift(PinnedInstruction):
         normalize_fields(self, "start_bit", "end_bit")
         # Both ends are C; another bank, or an end in another bank than the start, is
         # OBJ-004.
-        start = check_address(self.start_bit, "Shift.start_bit", banks=SHIFT_BANKS)
-        end = check_address(self.end_bit, "Shift.end_bit", banks=SHIFT_BANKS)
+        start = check_address(
+            self.start_bit, "Shift.start_bit", SHIFT_BANKS, bank_id="OBJ-004"
+        )
+        end = check_address(self.end_bit, "Shift.end_bit", SHIFT_BANKS, bank_id="OBJ-004")
         # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
         # address as it is typed (C001 becomes C1), so the
         # parsed addresses are compared.  Start > end stays allowed: it reverses the shift.
@@ -68,7 +71,9 @@ class Shift(PinnedInstruction):
             raise FieldError(
                 f"Shift.end_bit: {self.end_bit!r} is the same address as Shift.start_bit "
                 f"{self.start_bit!r}; a shift register needs two different ends (OBJ-012)",
-                field="Shift.end_bit",
+                field=("Shift.end_bit", "Shift.start_bit"),
+                reason=Reason.CONFLICT,
+                click_id="OBJ-012",
             )
         self._check_pin_rows()
 

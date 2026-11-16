@@ -115,7 +115,12 @@ class Counter(PinnedInstruction):
                 field="Counter.current",
             )
         check_operand(
-            self.preset, "Counter.preset", COUNTER_PRESET_BANKS, _PRESET, letter_first=True
+            self.preset,
+            "Counter.preset",
+            COUNTER_PRESET_BANKS,
+            _PRESET,
+            letter_first=True,
+            bank_id="OBJ-004",
         )
 
     @property

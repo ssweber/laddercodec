@@ -201,7 +201,7 @@ class Math(AfInstruction):
                 field="Math.expression",
             )
         normalize_fields(self, "result")
-        check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
+        check_address(self.result, "Math.result", RESULT_BANKS[self.mode], bank_id="OBJ-004")
         self.expression = parse(self.expression, self.mode).display
         self.oneshot = check_flag(self.oneshot, "Math.oneshot")
 

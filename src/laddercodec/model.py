@@ -5,8 +5,8 @@ containers.  It re-exports:
 
 - the field errors and :class:`Reason`, from :mod:`laddercodec.operands.errors`;
 - the CLICK address check (:func:`check_address`), its display form
-  (:func:`normalize_address`, :func:`normalize_fields`) and the ``OPERAND_RE`` shape pattern, from
-  :mod:`laddercodec.operands.address`;
+  (:func:`normalize_address`, :func:`normalize_fields`, :func:`normalize_items`) and the
+  ``OPERAND_RE`` shape pattern, from :mod:`laddercodec.operands.address`;
 - the flag check :func:`check_flag`, from :mod:`laddercodec.operands.checks`.
 
 These are the foundation types imported by every ``instructions/`` module — no reverse
@@ -32,6 +32,7 @@ from .operands.address import check_address as check_address
 from .operands.address import display_form_only as display_form_only
 from .operands.address import normalize_address as normalize_address
 from .operands.address import normalize_fields as normalize_fields
+from .operands.address import normalize_items as normalize_items
 from .operands.address import to_display as to_display
 from .operands.address import xy_slot as xy_slot
 from .operands.checks import check_flag as check_flag

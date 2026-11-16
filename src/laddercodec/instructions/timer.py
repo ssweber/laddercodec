@@ -93,7 +93,7 @@ class Timer(PinnedInstruction):
                     Reason.CONFLICT,
                 )
             # An address set point is DS only, OBJ-004.
-            check("setpoint", check_operand, {"DS"}, _SETPOINT)
+            check("setpoint", check_operand, {"DS"}, _SETPOINT, bank_id="OBJ-004")
             if self.timer_type == "off_delay" and self.retained:
                 check.refuse(
                     ("retained", "timer_type"),

@@ -12,28 +12,31 @@ class Reason(StrEnum):
     The set is fixed.  Each value compares equal to its text (``Reason.BANK == "bank"``).
     """
 
-    #: Not a CLICK address: no bank of that name, or not an address at all.
     ADDRESS = "address"
-    #: An address in a bank the field does not take.
+    """Not a CLICK address: not an address at all, no bank of that name, or a number
+    outside its bank (``DS5000``)."""
     BANK = "bank"
-    #: A number, an address or a length outside the field's limits.
+    """A CLICK address in a bank the field does not take."""
     RANGE = "range"
-    #: A pointer the field does not take: any pointer, one to this bank, or this index.
+    """A number, a constant or a length over the field's limit."""
     POINTER = "pointer"
-    #: A constant of a kind the field does not take, or text that is no constant.
+    """A pointer the field does not take: any pointer, one to this bank, or this index."""
     KIND = "kind"
-    #: Written in a form the field does not take: a sign, a quote, a character, a shape.
+    """A constant of a kind the field does not take, or text that is no constant."""
     FORM = "form"
-    #: An address the instruction can't write: a read-only SC bit.
+    """Written in a form the field does not take: a sign, a quote, a character, a shape,
+    ``XD0u`` where the field takes no upper byte, or an address not in display form."""
     NOT_WRITABLE = "not_writable"
-    #: Not True, False, 1 or 0.
+    """An address the instruction can't write: a read-only SC bit."""
     FLAG = "flag"
-    #: Not one of the field's named values, such as a timer unit.
+    """Not True, False, 1 or 0."""
     CHOICE = "choice"
-    #: A value the field takes, but not with another field's value.
+    """Not one of the field's named values, such as a timer unit."""
     CONFLICT = "conflict"
-    #: Blank where the field needs a value.
+    """A value the field takes, but not with another field's value; the refusal names both
+    fields (``Coil.operand`` with ``Coil.immediate`` for an immediate C bit)."""
     MISSING = "missing"
+    """Blank where the field needs a value."""
 
 
 class FieldError(ValueError):

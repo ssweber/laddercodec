@@ -26,6 +26,7 @@ from ..model import (
     check_flag,
     normalize_address,
     normalize_fields,
+    normalize_items,
 )
 from ..operands.checks import BIT_BANKS, Constants, check_operand
 from ..operands.constants import Kind
@@ -250,11 +251,8 @@ class Drum(PinnedInstruction):
         self.jog_enabled = check_flag(self.jog_enabled, "Drum.jog_enabled")
         self.jump_enabled = check_flag(self.jump_enabled, "Drum.jump_enabled")
         self._check_pin_rows()
-        normalize_fields(
-            self,
-            *("outputs", "events_or_presets", "events"),
-            *("current_step", "completion_flag", "accumulator", "jump_target"),
-        )
+        normalize_items(self, "outputs", "events_or_presets", "events")
+        normalize_fields(self, "current_step", "completion_flag", "accumulator", "jump_target")
         kind = self.drum_kind
         if kind not in ("event", "time", "time_event"):
             raise FieldError(
@@ -308,6 +306,7 @@ class Drum(PinnedInstruction):
                         _DURATION,
                         letter_first=True,
                         label=f"Drum.presets[{i}]",
+                        bank_id="OBJ-004",
                     )
         if self.jump_enabled:
             check_address(self.jump_target, "Drum.jump_target", banks={"DS"})

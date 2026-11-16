@@ -95,18 +95,22 @@ class Coil(AfInstruction):
                     f"{COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; only out() does",
                     Reason.CONFLICT,
                 )
-            check.normalize("operand", "range_end")
+            check.normalize("operand")
+            if self.range_end is not None:
+                check.normalize("range_end")
             # A refused immediate flag is not read: the bank checks still run.
             immediate = self.immediate is True
-            # Out, Set and Reset follow the same target and range rules.
-            start = check("operand", check_out_target, immediate=immediate)
+            out = self.type == InstructionType.COIL_OUT
+            # Out, Set and Reset follow the same target and range rules; Out's id for a bank
+            # it does not take is OBJ-004.
+            bank_id = "OBJ-004" if out else None
+            start = check("operand", check_out_target, immediate=immediate, bank_id=bank_id)
             if self.range_end is None:
                 return
             # An SC range needs both ends writable; the bits between are not checked.
-            end = check("range_end", check_out_target, immediate=immediate)
+            end = check("range_end", check_out_target, immediate=immediate, bank_id=bank_id)
             if start is None or end is None:
                 return
-            out = self.type == InstructionType.COIL_OUT
             if end.bank != start.bank:
                 # Set and Reset refuse C5..Y5 the same way.
                 check.refuse(

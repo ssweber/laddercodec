@@ -20,10 +20,13 @@ from laddercodec import (
     Counter,
     Drum,
     FieldError,
+    ForLoop,
+    Math,
     ModbusRtuTarget,
     Reason,
     Receive,
     Send,
+    Shift,
     Timer,
 )
 from laddercodec.model import AfInstruction, InstructionType
@@ -135,7 +138,10 @@ def test_timer_current_against_done_bit() -> None:
 
 def test_timer_checks_current_alone_when_done_bit_is_refused() -> None:
     errors = _refusals(lambda: _timer(done_bit="T0", current="DS1"))
-    assert _shape(errors) == [("Timer.done_bit", "range", None), ("Timer.current", "bank", None)]
+    assert _shape(errors) == [
+        ("Timer.done_bit", "address", None),
+        ("Timer.current", "bank", None),
+    ]
 
 
 def test_timer_reasons() -> None:
@@ -205,15 +211,124 @@ def test_coil_skips_what_depends_on_a_refused_field() -> None:
         ("Coil.immediate", "flag", None)
     ]
     # A refused range start: the range pairing is not checked.
-    assert _shape(_refusals(lambda: Coil(OUT, "C0", "Y5"))) == [("Coil.operand", "range", None)]
+    assert _shape(_refusals(lambda: Coil(OUT, "C0", "Y5"))) == [
+        ("Coil.operand", "address", None)
+    ]
 
 
 def test_coil_typed_text_is_named_in_each_refusal() -> None:
     errors = _refusals(lambda: Coil(OUT, "x1", "c0"))
     assert [str(e) for e in errors] == [
-        "Coil.operand: 'x1' (X001) is not allowed; Coil.operand takes Y, C, SC",
+        "Coil.operand: 'x1' (X001) is not allowed; Coil.operand takes Y, C, SC (OBJ-004)",
         "Coil.range_end: 'c0' (C0) is outside C1-C2000",
     ]
+
+
+def test_coil_immediate_target_is_a_conflict_with_immediate() -> None:
+    (error,) = _refusals(lambda: Coil(OUT, "C1", immediate=True))
+    assert error.fields == ("Coil.operand", "Coil.immediate")
+    assert error.reason == Reason.CONFLICT
+    # The range end's own immediate refusal names a field already refused: not kept.
+    (error,) = _refusals(lambda: Coil(OUT, "C1", "C5", immediate=True))
+    assert error.fields == ("Coil.operand", "Coil.immediate")
+
+
+@pytest.mark.parametrize(("kind", "click_id"), [(OUT, "OBJ-004"), (LATCH, None)])
+def test_coil_bank_id(kind: InstructionType, click_id: str | None) -> None:
+    (error,) = _refusals(lambda: Coil(kind, "DS1"))
+    assert (error.reason, error.click_id) == (Reason.BANK, click_id)
+
+
+# ---------------------------------------------------------------------------
+# A crash after a refusal still raises the refusal
+# ---------------------------------------------------------------------------
+
+
+def test_timer_refusal_survives_a_later_crash() -> None:
+    with pytest.raises(FieldError) as caught:
+        Timer("on_delay", "T1", "TD1", None, unit="bogus")  # type: ignore[arg-type]
+    assert caught.value.field == "Timer.unit"
+    assert isinstance(caught.value.__cause__, TypeError)
+
+
+def test_coil_refusal_survives_a_later_crash() -> None:
+    with pytest.raises(FieldError) as caught:
+        Coil(OUT, 5, immediate=2)  # type: ignore[arg-type]
+    assert caught.value.field == "Coil.immediate"
+    assert isinstance(caught.value.__cause__, TypeError)
+
+
+def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
+    with pytest.raises(TypeError):
+        _timer(setpoint=None)
+
+
+# ---------------------------------------------------------------------------
+# Refusals: items, nested constructions, errors raised out of the block
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class _Inner(AfInstruction):
+    a: str = ""
+    b: str = ""
+
+    def __post_init__(self) -> None:
+        with Refusals(self) as check:
+            check.refuse("a", "is refused", Reason.KIND)
+            check.refuse("b", "is refused", Reason.FORM)
+
+
+@dataclasses.dataclass
+class _Outer(AfInstruction):
+    items: tuple[str, ...] = ()
+    other: str = ""
+    mode: str = ""
+
+    def __post_init__(self) -> None:
+        with Refusals(self) as check:
+            if self.mode == "item":
+                check.refuse("items[1]", "is refused", Reason.BANK)
+                check.refuse("items", "is refused too", Reason.RANGE)  # its item was refused
+                check.refuse("other", "is refused", Reason.KIND)
+            elif self.mode == "list":
+                check.refuse("items", "is refused", Reason.RANGE)
+                assert check.refused("items[0]")
+                check.refuse("items[2]", "is refused too", Reason.BANK)
+            elif self.mode == "nested":
+                check.refuse("other", "is refused", Reason.KIND)
+                check.run(_Inner)
+            elif self.mode == "raised":
+                check.refuse("other", "is refused", Reason.KIND)
+                raise FieldError("_Outer.other: again", field="_Outer.other")
+            elif self.mode == "raised nested":
+                _Inner()
+
+
+def test_an_item_refused_covers_its_list() -> None:
+    errors = _refusals(lambda: _Outer(mode="item"))
+    assert [e.field for e in errors] == ["_Outer.items[1]", "_Outer.other"]
+
+
+def test_a_list_refused_covers_its_items() -> None:
+    errors = _refusals(lambda: _Outer(mode="list"))
+    assert [e.field for e in errors] == ["_Outer.items"]
+
+
+def test_a_nested_construction_keeps_every_inner_refusal() -> None:
+    errors = _refusals(lambda: _Outer(mode="nested"))
+    assert [e.field for e in errors] == ["_Outer.other", "_Inner.a", "_Inner.b"]
+    assert [type(e.obj) for e in errors] == [_Outer, _Inner, _Inner]
+
+
+def test_a_nested_construction_raised_out_of_the_block() -> None:
+    errors = _refusals(lambda: _Outer(mode="raised nested"))
+    assert [e.field for e in errors] == ["_Inner.a", "_Inner.b"]
+
+
+def test_an_error_raised_out_of_the_block_is_checked_as_a_refusal() -> None:
+    errors = _refusals(lambda: _Outer(mode="raised"))
+    assert [str(e) for e in errors] == ["_Outer.other: is refused"]
 
 
 # ---------------------------------------------------------------------------
@@ -293,8 +408,11 @@ _TEXT1 = Constants(frozenset({Kind.TEXT}), text_max=1)
         (lambda: check_address("1X", "X.f"), "address", None),
         (lambda: check_address("QQ1", "X.f"), "address", None),
         (lambda: check_address("C1", "X.f", {"DS"}), "bank", None),
-        (lambda: check_address("C0", "X.f"), "range", None),
-        (lambda: check_address("XD0u", "X.f"), "range", None),
+        (lambda: check_address("C1", "X.f", {"DS"}, bank_id="OBJ-004"), "bank", "OBJ-004"),
+        (lambda: check_address("C0", "X.f"), "address", None),
+        (lambda: check_address("DS5000", "X.f"), "address", None),
+        (lambda: check_address("DS0u", "X.f"), "address", None),
+        (lambda: check_address("XD0u", "X.f"), "form", None),
         (lambda: check_constant("1.5", "X.f", _INT), "kind", None),
         (lambda: check_constant("abc", "X.f", _INT), "kind", None),
         (lambda: check_constant("101", "X.f", _INT), "range", "OBJ-005"),
@@ -320,7 +438,7 @@ _TEXT1 = Constants(frozenset({Kind.TEXT}), text_max=1)
         (lambda: check_operand("DS[DS1]", "X.f"), "pointer", None),
         (lambda: check_operand("X[DS1]", "X.f", pointer=True), "pointer", None),
         (lambda: check_operand("DS[DS0]", "X.f", pointer=True), "pointer", None),
-        (lambda: check_out_target("C1", "X.f", immediate=True), "bank", None),
+        (lambda: check_out_target("C1", "X.f", immediate=True), "conflict", None),
         (lambda: check_out_target("SC1", "X.f"), "not_writable", None),
         (lambda: check_flag(2, "X.f"), "flag", None),
         (lambda: check_quoted_text('""', "X.f"), "range", None),
@@ -334,6 +452,57 @@ def test_shared_check_reason(call: Any, reason: str, click_id: str | None) -> No
     exc = caught.value
     assert (exc.field, exc.reason, exc.click_id) == ("X.f", reason, click_id)
     assert str(exc).endswith(f"({click_id})") == (click_id is not None)
+
+
+def test_immediate_names_the_immediate_field() -> None:
+    with pytest.raises(FieldError) as caught:
+        check_out_target("C1", "OutVariant.operand", immediate=True)
+    assert caught.value.fields == ("OutVariant.operand", "OutVariant.immediate")
+
+
+@pytest.mark.parametrize(
+    ("build", "field", "click_id"),
+    [
+        (lambda: _timer(setpoint="DD1"), "Timer.setpoint", "OBJ-004"),
+        (lambda: Shift("DS1", "C2"), "Shift.start_bit", "OBJ-004"),
+        (lambda: Shift("C1", "C1"), "Shift.end_bit", "OBJ-012"),
+        (lambda: Counter("count_up", "CT1", "CTD1", "DH1"), "Counter.preset", "OBJ-004"),
+        (lambda: ForLoop("DH1"), "ForLoop.limit", "OBJ-004"),
+        (lambda: Math("1", "C1"), "Math.result", "OBJ-004"),
+    ],
+)
+def test_click_id_where_the_dialog_is_known(build: Any, field: str, click_id: str) -> None:
+    (error,) = _refusals(build)
+    assert (error.field, error.click_id) == (field, click_id)
+    assert str(error).endswith(f"({click_id})")
+
+
+def test_shift_same_ends_is_a_conflict() -> None:
+    (error,) = _refusals(lambda: Shift("C1", "C1"))
+    assert error.fields == ("Shift.end_bit", "Shift.start_bit")
+    assert error.reason == Reason.CONFLICT
+
+
+def test_every_reason_has_a_docstring() -> None:
+    """A string after each member, which the API reference shows."""
+    import ast
+    import inspect
+
+    from laddercodec.operands import errors
+
+    (cls,) = [
+        n for n in ast.parse(inspect.getsource(errors)).body
+        if isinstance(n, ast.ClassDef) and n.name == "Reason"
+    ]  # fmt: skip
+    body = cls.body
+    documented = {
+        node.targets[0].id
+        for node, after in zip(body, body[1:], strict=False)
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+        and isinstance(after, ast.Expr) and isinstance(after.value, ast.Constant)
+        and isinstance(after.value.value, str)
+    }  # fmt: skip
+    assert documented == set(Reason.__members__)
 
 
 def test_label_names_the_message_only() -> None:

@@ -110,25 +110,30 @@ def to_display(value: str, display: str, field: str | None) -> str:
 
 
 def normalize_fields(inst: object, *names: str) -> None:
-    """Write each named field of ``inst`` in display form with :func:`normalize_address`.
+    """Write each named text field of ``inst`` in display form with :func:`normalize_address`.
 
-    A field holds a text or a list of texts (a tuple becomes a list); any other value (None, a
-    ``ModbusAddress``) stays as it is.  A refusal names ``Class.name``, or
-    ``Class.name[i]`` for an item of a list.
+    Every value goes to :func:`normalize_address`, so a value that is not text raises
+    ``TypeError``; a caller that lets a field be None or a ``ModbusAddress`` leaves it out.
+    A refusal names ``Class.name``.
     """
     cls = type(inst).__name__
     for name in names:
-        value = getattr(inst, name)
-        if isinstance(value, str):
-            value = normalize_address(value, f"{cls}.{name}")
-        elif isinstance(value, (list, tuple)):
-            value = [
-                normalize_address(v, f"{cls}.{name}[{i}]") if isinstance(v, str) else v
-                for i, v in enumerate(value)
-            ]
-        else:
-            continue
+        value = normalize_address(getattr(inst, name), f"{cls}.{name}")
         object.__setattr__(inst, name, value)  # a Modbus target is frozen
+
+
+def normalize_items(inst: object, *names: str) -> None:
+    """Write each item of each named list field of ``inst`` in display form.
+
+    The field becomes the list of its items, each through :func:`normalize_address`, so a
+    value that can't be iterated, or an item that is not text, raises ``TypeError``.  A
+    refusal names ``Class.name[i]``.
+    """
+    cls = type(inst).__name__
+    for name in names:
+        items = getattr(inst, name)
+        value = [normalize_address(v, f"{cls}.{name}[{i}]") for i, v in enumerate(items)]
+        object.__setattr__(inst, name, value)
 
 
 def normalize_address(value: str, field: str | None = None) -> str:
@@ -192,7 +197,12 @@ def xy_slot(number: int) -> int | None:
 
 
 def check_address(
-    value: str, field: str, banks: Collection[str] | None = None, *, label: str | None = None
+    value: str,
+    field: str,
+    banks: Collection[str] | None = None,
+    *,
+    label: str | None = None,
+    bank_id: str | None = None,
 ) -> Address:
     """Parse a CLICK address; raise :class:`AddressError` naming ``field`` if refused.
 
@@ -204,7 +214,9 @@ def check_address(
     instruction passes each field through :func:`normalize_address` first and keeps the
     display form.
     ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
-    YD.  The message names ``label``, ``field`` unless given.
+    YD.  The message names ``label``, or the field when no label is given.  ``bank_id`` is
+    the error id CLICK's dialog gives for a bank the field does not take (``"OBJ-004"``),
+    where it is known; it becomes the refusal's ``click_id``.
     """
     name = label or field
     match = _ADDRESS_RE.fullmatch(value)
@@ -221,22 +233,25 @@ def check_address(
         )
     if banks is not None and bank not in banks:
         allowed = ", ".join(b for b in ADDRESS_BANKS if b in banks)
+        tail = f" ({bank_id})" if bank_id else ""
         raise AddressError(
-            f"{name}: {value!r} is not allowed; {name} takes {allowed}",
+            f"{name}: {value!r} is not allowed; {name} takes {allowed}{tail}",
             field=field,
             reason=Reason.BANK,
+            click_id=bank_id,
         )
     if not _in_range(bank, digits, upper):
+        # No such address: the number is outside its bank.
         raise AddressError(
             f"{name}: {value!r} is outside {_bank_range_text(bank)}",
             field=field,
-            reason=Reason.RANGE,
+            reason=Reason.ADDRESS,
         )
     if upper and banks is None:
         raise AddressError(
             f"{name}: {value!r} is not allowed; {name} does not take {bank}0u",
             field=field,
-            reason=Reason.RANGE,
+            reason=Reason.FORM,
         )
     return Address(bank, int(digits), upper)
 
@@ -301,11 +316,13 @@ def _name_typed_text(cls: Any) -> None:
 
 
 def _refused(inst: object, exc: FieldError, before: dict[str, Any] | None) -> None:
-    """Complete each refusal in ``exc.errors``: its ``obj`` is ``inst``, and given
-    ``before`` (the text fields as typed) its message names the typed text."""
+    """Complete each refusal of ``inst`` in ``exc.errors``: its ``obj`` is ``inst``, and
+    given ``before`` (the text fields as typed) its message names the typed text.  A refusal
+    of an instruction built inside ``inst``'s checks was completed by its own wrapper."""
     after = None if before is None else _text_fields(inst)
     for error in exc.errors:
-        if error.obj is None:
-            error.obj = inst
+        if error.obj is not None and error.obj is not inst:
+            continue
+        error.obj = inst
         if before is not None and after is not None:
             error.args = (_typed_text(str(error), before, after),)
