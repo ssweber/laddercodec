@@ -24,6 +24,7 @@ from ..model import (
     AfInstruction,
     FieldError,
     check_address,
+    check_flag,
     normalize_address,
     to_display,
 )
@@ -896,6 +897,7 @@ class Receive(AfInstruction):
         _normalize_operands(self, ("dest", "receiving", "success", "error", "exception_response"))
         fc, default_fc = _validate_receive(self)
         self.function_code = None if fc == default_fc else fc
+        self.word_swap = check_flag(self.word_swap, "Receive.word_swap")
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -994,6 +996,7 @@ class Send(AfInstruction):
         _normalize_operands(self, ("source", "sending", "success", "error", "exception_response"))
         fc, default_fc = _validate_send(self)
         self.function_code = None if fc == default_fc else fc
+        self.word_swap = check_flag(self.word_swap, "Send.word_swap")
 
     def to_csv(self) -> str:
         parts: list[str] = []

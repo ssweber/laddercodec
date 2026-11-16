@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, FieldError, InstructionType, normalize_address
+from ..model import AfInstruction, FieldError, InstructionType, check_flag, normalize_address
 from ..operands.checks import Constants, check_operand
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
@@ -73,6 +73,7 @@ class ForLoop(AfInstruction):
 
     def __post_init__(self) -> None:
         self.limit = _validate_for_limit(self.limit)
+        self.oneshot = check_flag(self.oneshot, "ForLoop.oneshot")
 
     @classmethod
     def from_csv_token(cls, token: str) -> ForLoop:

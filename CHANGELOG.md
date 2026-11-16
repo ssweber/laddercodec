@@ -33,6 +33,8 @@
 - **Comments that don't decode**: the rung keeps its logic, its comment becomes `UNDECODED comment: <error>`, and `decode()` and `decode_program()` emit an `UndecodedCommentWarning`, where `decode()` raised `DecodeError` and `decode_program()` kept the rung with no comment.
 - **`write_csv` writes a marker for a rung it can't write**: a rung holding an unknown condition or instruction is written as an undecoded marker, with an `UndecodedRungWarning`, where `write_csv` raised `WriterError`; its new `stop` argument gives the marker's `stop`.
   - Do: pass `stop="return"` when writing a subroutine.
+- **Flags refuse a non-flag value**: the flags of `Copy`, `BlockCopy`, `Fill`, `Pack` (`allow_whitespace`, `oneshot`), `Unpack`, `Search` (`continuous`, `oneshot`), `Math`, `ForLoop`, `OutVariant` (`immediate`, `maintained`), `Send` and `Receive` (`word_swap`) now raise `FieldError` for a value other than True, False, 1 or 0, where they accepted it; `oneshot=2` was written as `oneshot=1`.
+  - Do: pass True, False, 1 or 0.
 
 ## 0.4.0 (2026-11-14)
 

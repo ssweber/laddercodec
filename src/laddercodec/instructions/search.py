@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..model import AfInstruction, FieldError, normalize_address
+from ..model import AfInstruction, FieldError, check_flag, normalize_address
 from ..operands.checks import (
     ALL_KINDS,
     REGISTER_BANKS,
@@ -185,6 +185,8 @@ class Search(AfInstruction):
                 f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
                 field="Search.source",
             )
+        self.continuous = check_flag(self.continuous, "Search.continuous")
+        self.oneshot = check_flag(self.oneshot, "Search.oneshot")
 
     @property
     def func_code(self) -> str:

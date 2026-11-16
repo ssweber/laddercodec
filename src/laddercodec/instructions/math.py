@@ -36,6 +36,7 @@ from ..model import (
     AfInstruction,
     FieldError,
     check_address,
+    check_flag,
     normalize_address,
 )
 from ..operands.constants import INT16_MAX, INT16_MIN
@@ -202,6 +203,7 @@ class Math(AfInstruction):
         self.result = normalize_address(self.result)
         check_address(self.result, "Math.result", RESULT_BANKS[self.mode])
         self.expression = parse(self.expression, self.mode).display
+        self.oneshot = check_flag(self.oneshot, "Math.oneshot")
 
     def to_csv(self) -> str:
         parts = [self.expression, self.result]
