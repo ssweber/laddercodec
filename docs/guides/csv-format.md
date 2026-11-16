@@ -699,9 +699,9 @@ currently emit:
   constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
   writes it (`7H` becomes `7h`). A hex `math` formula takes no DS register
   (`DS1 + 1h`) and no bit, not even in a `SUM` (`SUM ( X001 : X002 )`).
-  `SUM` takes no CT range, and the formula is at
-  most 270 characters as CLICK stores it: a sum of 68 addresses fits, 69 does
-  not; constants, functions and parentheses count too.
+  `SUM` takes no CT range, and the formula is at most 270 characters as CLICK
+  stores it: a sum of 68 addresses fits, 69 does not; constants, functions and
+  parentheses count too.
 - A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
   refuse raises `FieldError` (`AddressError` for an address):
   - It holds addresses, constants, function names, operators and parentheses,

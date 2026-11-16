@@ -26,8 +26,8 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
 A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
 and a token out of order each end the reading there.  Every other refusal is one of many:
 each word refused, each constant's value, each key of the other mode, each bit, each DS in a
-hex formula and each range, and the reading goes on past it, taking a refused word as what it looks like (an
-address, a constant, a function name).  After a word that looks like none of those, the
+hex formula and each range, and the reading goes on past it, taking a refused word as what
+it looks like (an address, a constant, a function name).  After a word that looks like none of those, the
 order is not checked, nor are the bits and ranges.  The length is not checked after a
 refused constant or such a word, which have no internal form to count.
 
