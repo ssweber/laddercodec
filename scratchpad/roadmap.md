@@ -96,7 +96,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 - **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
   with laddercodec's verdict beside each case. CLICK answered `preflight` and `risky` (159 cases), Receive
   (18) and the picker checks (28); `tests/test_editor_answers.py` compares them and lists each difference.
-  Left: the grids' other rows (Math, Copy, Out files), then Receive, Compare, Search, Fill, timers, counters
+  Left: the full Math, Copy and Out grids, then Receive, Compare, Search, Fill, timers, counters
   and For. What the answers showed:
   - Hex Math `DH1 + 0`, `DH1 = 0` and `RAND(5,Ah)` are accepted, laddercodec refuses on purpose (item 4).
   - Hex Math `SUM(X001:X002)` and a DS in a hex formula (`DS1 + 1h`) are refused (OBJ-1002), laddercodec
@@ -105,7 +105,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     Pack destination and an Unpack source, laddercodec refuses: decide the rule here (the saves trim it except
     a single Copy's and a Pack's destination; see item 2).
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec says OBJ-024: align the id.
-  - Receive accepts TXT as the master address under function code 03, laddercodec refuses: loosen.
+  - Receive accepts a TXT master at the dialog's default count (the runner does not set it; the test takes
+    1); laddercodec needs an even TXT count of 2 or more. Ask CLICK: what is the default count, and does
+    it accept 1 TXT?
 - **The writable-SD list has arrived:** `sc_sd_writable.answers.json` (29 SD for a single Copy, a Block Copy
   and a decimal Math result, none for Out; 25 SC for Out, none elsewhere), and the 28 picker checks agree
   with it. laddercodec's `WRITABLE_SC` is the same 25; its rules accept all 1,000 SD in each of the three

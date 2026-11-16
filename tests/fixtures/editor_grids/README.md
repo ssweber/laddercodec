@@ -81,7 +81,8 @@ connected to CLICK v4.00". Every case and every answer is as the runner wrote it
 
 `tests/test_editor_answers.py` compares them with laddercodec's rules: each case is rebuilt with
 the generator's builders (Receive with its own) and its outcome compared with CLICK's, then the
-refusal's `click_id` with CLICK's code, then the saved rows of an accepted case with what
+refusal's `click_id` with CLICK's code (only where the rules give a `click_id`; most refusals have
+none yet, and the test records how many codes it compared), then the saved rows of an accepted case with what
 `read_csv` makes of them (a `raw(...)` is a difference), then the writable lists with the SC and
 SD addresses the rules accept. A case with more text than its field's `limits` is skipped: the
 runner sets text by WM_SETTEXT, which ignores the limit, so no user can type it. Each difference

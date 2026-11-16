@@ -6,7 +6,9 @@ rebuilt here with the builders ``devtools/editor_grids.py`` uses and compared th
 
 - the outcome: CLICK accepted or refused, and so do the rules;
 - the code: where both refuse and CLICK gave an ``OBJ-nnn``, the refusal's ``click_id`` is the
-  same (a ``click_id`` of None is not a disagreement);
+  same (a ``click_id`` of None is not a disagreement, and most refusals have none yet, so
+  only some codes are compared: ``MIN_CODES_COMPARED`` is today's number, and a change that
+  drops ids lowers it and fails);
 - the save: an accepted case's ``stored`` rows read back with ``read_csv`` as an instruction
   that is not ``raw(...)``.
 
@@ -46,10 +48,9 @@ ANSWER_FILES = ("preflight", "risky", "receive", "pickcheck")
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
 
-HEX_BARE = "deliberate: hex Math constant needs h (Sam, item 4)"
+HEX_BARE = "deliberate: a hex Math constant needs h (roadmap item 4)"
 HEX_BARE_MIXED = (
-    "deliberate: CLICK accepting a bare constant beside an h constant is taken as its "
-    "oversight; a hex Math constant needs h (Sam, item 4)"
+    "deliberate: a hex Math constant needs h, even beside an h constant (roadmap item 4)"
 )
 HEX_REFUSED = "CLICK refuses (OBJ-1002), the rules accept: tighten the rule (item 3)"
 EDGE_SPACE = "CLICK accepts an edge space and the save trims it, the rules refuse: item 3 decides"
@@ -64,6 +65,9 @@ SD_LIST = (
 #: Every difference between CLICK's answers and the rules.  Kinds: ``outcome`` (accepted or
 #: refused), ``code`` (the OBJ id), ``stored`` (the save reads back as raw), ``list`` (the
 #: writable SC or SD addresses).
+#: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
+MIN_CODES_COMPARED = 50
+
 DISAGREEMENTS: dict[Key, str] = {
     ("preflight", "hex DH1 = DH1 + 0", "outcome"): HEX_BARE,
     ("preflight", "hex DH1 = 0", "outcome"): HEX_BARE,
@@ -74,7 +78,9 @@ DISAGREEMENTS: dict[Key, str] = {
         "CLICK refuses Unpack into DS with OBJ-004 (a bank), the rules say OBJ-024: item 3"
     ),
     ("receive", "03 -> TXT1", "outcome"): (
-        "CLICK accepts TXT as a Receive's master address under FC 03, the rules refuse: item 3"
+        "CLICK accepts TXT1 at the dialog's default count, which the runner does not set and "
+        "this test takes as 1; the rules need an even TXT count of 2 or more: item 3 (what is "
+        "the default count, and does CLICK accept 1 TXT?)"
     ),
     ("risky", "dec  DS1 = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
     ("risky", "dec DS1  = DS2 + 1", "outcome"): EDGE_SPACE + " (Math formula)",
@@ -121,6 +127,8 @@ def too_long(case: dict[str, Any]) -> bool:
 
 
 def _receive(case: dict[str, Any]) -> object:
+    """A Receive from a case.  Every Receive case is compared at quantity 1: the runner leaves
+    the dialog's count at its default and the answers have no count field."""
     f = case["fields"]
     code = int(case["choices"]["function"].split(" ")[0])
     return Receive(
@@ -147,7 +155,7 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
             def record(build: Any) -> dict[str, Any]:
                 try:
                     build()
-                except Exception as exc:
+                except ValueError as exc:
                     seen.append(exc)
                     raise
                 return {"verdict": "accepted"}
@@ -158,7 +166,7 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
                 generator.check_case(case)
             finally:
                 generator.verdict_of = original
-    except Exception as exc:
+    except ValueError as exc:  # FieldError is one; any other exception fails the test
         return False, getattr(exc, "click_id", None)
     return True, None
 
@@ -184,7 +192,7 @@ def _columns() -> list[str]:
 def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
     """Each difference found, by key, and the counts."""
     found: dict[Key, str] = {}
-    counts = {"compared": 0, "skipped": 0}
+    counts = {"compared": 0, "skipped": 0, "codes": 0}
     for grid in ANSWER_FILES:
         for case in _answers(grid):
             if too_long(case):
@@ -199,8 +207,10 @@ def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
                 found[(grid, label, "outcome")] = (
                     f"CLICK {case['outcome']}, rules accepted={accepted}"
                 )
-            elif not clicks and click_id is not None and case["code"] != click_id:
-                found[(grid, label, "code")] = f"CLICK {case['code']}, rules {click_id}"
+            elif not clicks and click_id is not None and case["code"].startswith("OBJ-"):
+                counts["codes"] += 1
+                if case["code"] != click_id:
+                    found[(grid, label, "code")] = f"CLICK {case['code']}, rules {click_id}"
             if clicks and case.get("stored") and reads_as_raw(case["stored"]):
                 found[(grid, label, "stored")] = f"saved as {case['stored']}"
     return found, counts
@@ -303,3 +313,18 @@ def test_every_case_was_answered() -> None:
         for case in _answers(grid):
             assert case["outcome"] in ("accepted", "refused"), (grid, case["case"])
             assert case["read_back"] == case["fields"], (grid, case["case"])
+
+
+def test_codes_compared_do_not_drop(generator: Any) -> None:
+    _, counts = compare(generator)
+    assert counts["codes"] >= MIN_CODES_COMPARED, counts
+
+
+def test_answers_are_the_grids_cases() -> None:
+    """The answered cases are the grid file's, label for label, with the same fields."""
+    for grid in ("preflight", "risky"):
+        cases = json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
+        answered = _answers(grid)
+        assert [c["case"] for c in answered] == [c["case"] for c in cases], grid
+        for case, answer in zip(cases, answered, strict=True):
+            assert answer["fields"] == case["fields"], (grid, case["case"])
