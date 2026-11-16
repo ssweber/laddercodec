@@ -33,12 +33,14 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Order
 
-Done: the cruft sweep, the undecoded marker (#38) and the field-rule restructure (#43-#51).
+Done: the cruft sweep, the undecoded marker (#38), the field-rule restructure (#43-#51) and the field error
+pyrung reads (#55-#60: every instruction reports every refusal, with its fields, reason, CLICK id and, through
+`read_csv`, a location on each). The next release, Sam's, carries it.
 
 Sam's direction of 2026-11-16: pyrung's CLICK validation moves onto laddercodec first, ahead of its export and
 import. pyrung builds laddercodec's objects and turns each refusal into a finding; its own bank tables go.
 
-1. The field error pyrung reads. pyrung's validation waits on it and on a release with it.
+1. The field error's follow-ups. pyrung's validation waits only on a release with the error.
 2. Decoding that does not depend on the checks.
 3. Field rules tightened to the CLICK grids, as the grids arrive.
 4. Canonical constants, once CLICK has answered (the runner is asking now). It can run beside 1-3.
@@ -49,32 +51,24 @@ later (below).
 laddercodec refuses what CLICK's editor refuses, plus what breaks the encoding or crashes CLICK on a paste. A
 rule that rests on what a PLC does stays in pyrung.
 
-## 1. The field error pyrung reads (nothing; Sam releases, then pyrung follows)
+## 1. The field error's follow-ups (nothing, except where marked Sam)
 
-pyrung learns what a field takes by building the object and reading the error. Accepted by Sam 2026-11-16.
-Not built: a rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction
-without its checks (pyrung's conformance probes use `raw(...)`).
+pyrung learns what a field takes by building the object and reading the error; that is on `main`. Not built: a
+rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction without its
+checks (pyrung's conformance probes use `raw(...)`).
 
-- **Every refusal.** The constructor raises one `FieldError` whose `.errors` holds every refusal, itself first,
-  so `except FieldError` in the decoders is unchanged. A check that depends on an earlier field
-  (`Timer.current`'s number against `Timer.done_bit`) is skipped when that field was refused. A Timer with a
-  wrong done bit and a preset of 40000 gives two.
-- **The Math formula parser** stops at its first error; collecting more there is the costly part. If a first
-  version leaves it out, tell Sam what that loses (pyrung reports up to six findings on one Math) and let him
-  choose.
-- **Uniform `.field`.** Always `Class.attr`, with `[i]` for an element. Today the shared checks take one `name`
-  for both the message and `.field`, which gives `Receive dest`, `Copy.source pointer` and `Math.expression`
-  for every formula error: split the label from the field. A refusal about a pair (bare `CompareContact`)
-  names both in `.fields`. `to_display`'s refusals, whose field is None today, take the caller's field.
-- **A stable `.reason`** from a small fixed set the shared checks own (`bank`, `pointer`, `kind`, `range`,
-  `not_writable`, `flag`, ...), plus `.click_id` (`OBJ-005`) where CLICK has one. pyrung's finding codes
-  separate reasons on one field (`Timer.setpoint`: wrong bank, too large, a pointer). Messages stay free text
-  and are not API.
-- **read_csv keeps only the first refusal:** `ConvertError` and `add_location` carry the raised error's
-  `.field` and message only; carry `.errors`, `.reason` and `.click_id` through.
-- **Every class.** Then tell Sam it is on `main`. The next release waits for it and carries it with everything
-  since v0.4.0, the undecoded marker included; the release is Sam's. pyrung's validation follows straight
-  after its `Rung` to `rung` rename.
+- **A blank is `missing`.** The shared checks give a blank field the reason of a bad value (a blank Out
+  variant `on_acc` is `address`, a blank `on_preset` is `kind`), so pyrung can't tell a blank from a bad value.
+  Changing it changes first-refusal reasons, so it is its own branch.
+- **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
+  proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
+  where no single stretch is at fault (empty, the length, a `(` left open, the mode conflict); a range refusal
+  spans its `A : B`, SUM's CT and X/Y refusals the range argument. It is new public API.
+- **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
+  int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
+  range-shape refusal with no id while a comment records OBJ-037 for it.
+- **Copy termination code:** a non-`$` code gets OBJ-036; `$ZZ` and `$D`, refused by the shared check, get
+  none.
 
 ## 2. Decoding that does not depend on the checks (nothing)
 
@@ -98,8 +92,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   with laddercodec's verdict beside each case. Waiting on: click's run, then its answers committed as
   `<grid>.answers.json` and a test comparing them with the verdicts. Next grids, once the runner drives their
   dialogs: Receive, Compare, Search, Fill, timers, counters, For.
-- **A writable-SD list,** taken once from CLICK's DLLs, help or a grid, not copied from pyrung or pyclickplc.
-  The sampled rows: the editor refuses a single Copy into SD1, a Math result into SD1, and a Block Copy into
+- **A writable-SD list,** taken once from CLICK, not copied from pyrung or pyclickplc. The SC/SD sweep grids
+  (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) won't run as cases (Sam, 2026-11-16): the runner
+  reads the SC and SD addresses each output field's Address Picker lists, into `sc_sd_writable.json` per
+  instruction, field and bank, checked against the answers in hand. Commit it as test data, compare it with
+  those grids' verdicts, then decide whether the sweep grids stay. The sampled rows: the editor refuses a single Copy into SD1, a Math result into SD1, and a Block Copy into
   SD1 or into SD29..SD30 (every address in the destination range must be writable); it accepts SD29 and
   SD31..SD32.
 - **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a DH in a decimal
@@ -110,11 +107,17 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   OBJ-003 for it.
 - **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
   banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends.
-- **Math result bank refusal:** the code gives OBJ-004; the math grids' result rows are to confirm it.
-- **OBJ-023 on a Fill into TXT** (one character) is unverified for Fill's dialog.
-- **OBJ-002 and OBJ-003:** which dialogs give them for an address that is not one and for a number outside its
-  bank. `click_id` is set only where the code records a field's dialog: OBJ-004, and OBJ-003 for a coil's SC
-  bit.
+- **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog; an
+  id that can't be backed stays None. Open:
+  - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
+    than one character (OBJ-023?).
+  - Pack and Block Copy, a source range spanning two X/Y modules: OBJ-033 or OBJ-035, which is whose?
+  - Receive, one C bit for two status fields (Send's is OBJ-014); the Modbus remote start past its hex limit.
+  - The Out variant's bank and not-writable SC refusals.
+  - OBJ-002 and OBJ-003: which dialogs give them for an address that is not one and for a number outside its
+    bank.
+  - The Math ids read from CLICK's own code (OBJ-1001, 1004, 1005, 1006, 1014, and 1009 for float32 and more
+    than four hex digits) are to be confirmed by the math grids, with the result's OBJ-004.
 
 ## 4. Canonical constants (CLICK)
 
@@ -202,7 +205,8 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 - An entry that takes a series-parallel tree and returns rows. The private `_layout.render.render` does this,
   but takes a `Network` beside the `RungTree`.
 - The rows in memory, with the number of CLICK rungs each source rung became (`write_csv` only writes a file).
-- A writer for `main.csv` plus `subroutines/` (`csv/bundle.py` only reads).
+- A writer for `main.csv` plus `subroutines/`, and a reader that builds their rungs: `csv/bundle.py` only
+  parses them, so a refusal in a subroutine file reaches no one yet.
 - A check on a whole program, approved by Sam 2026-11-16, moving from pyrung: for-loop nesting depth, a One Shot
   or a Return inside a loop, nested calls, the 8,000-step limit, and pyrung's estimate of program steps (its
   `click/ladder/steps.py`). It comes after pyrung's export goes through laddercodec, since only then does pyrung
