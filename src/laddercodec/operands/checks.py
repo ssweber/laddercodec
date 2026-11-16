@@ -208,12 +208,9 @@ def _unread(value: str, name: str, constants: Constants) -> FieldError:
             field=name,
         )
     if _INTEGER_SHAPE.fullmatch(upper):
-        if Kind.INTEGER not in kinds:
-            return _kind_refusal(value, name, Kind.INTEGER, constants)
-        return FieldError(
-            f"{name}: {value!r} is refused; an integer constant is {INT32_MIN} to {INT32_MAX}",
-            field=name,
-        )
+        # check_constant words an integer for a field that takes integers, so only a field
+        # that does not take them gets here.
+        return _kind_refusal(value, name, Kind.INTEGER, constants)
     if _FLOAT_SHAPE.fullmatch(upper):
         if Kind.FLOAT not in kinds:
             return _kind_refusal(value, name, Kind.FLOAT, constants)

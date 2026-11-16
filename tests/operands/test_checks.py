@@ -147,6 +147,9 @@ REFUSED_EXACT: list[tuple[str, Constants, str]] = [
     ("123456789h", DIGITS, "X.f: '123456789h' is a hex value; X.f takes a decimal integer"),
     ("$G1", DIGITS, "X.f: '$G1' is refused; X.f takes a decimal integer"),
     ('"A"b"', DIGITS, "X.f: '\"A\"b\"' is quoted text; X.f takes a decimal integer"),
+    ("$G1", COUNTER, "X.f: '$G1' is refused; X.f takes a decimal integer"),
+    ("$G1", HEX_REMOTE, "X.f: '$G1' is refused; X.f takes a hex value"),
+    ("100000000h", COMPARE, "X.f: '100000000h' is above FFFFh; a hex constant here is 0h to FFFFh (OBJ-005)"),
     ("1 2", DIGITS, "X.f: '1 2' is refused; X.f takes a decimal integer"),
     # a hex field: no padding limit below the field's highest, no sign, hex digits then h
     ("h", HEX_REMOTE, "X.f: 'h' is refused; X.f takes a hex value: hex digits then h"),

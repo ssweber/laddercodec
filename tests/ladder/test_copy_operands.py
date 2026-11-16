@@ -259,9 +259,9 @@ def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
 
 _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
-_HEX_SIGN = "a hex constant has no sign"
+_HEX_SIGN = "a hex constant has no sign$"
 _HEX_ABOVE = r"is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh \(OBJ-005\)"
-_HEX_PADDED = "a hex constant above FFFFh has at most 8 digits"
+_HEX_PADDED = "a hex constant above FFFFh has at most 8 digits$"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _TEXT_ONE = "a text constant is one character in quotes, with no quote inside"
 _INT32 = INT_RULE
