@@ -33,23 +33,16 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 ## Order
 
-1. Cruft sweep.
+1. Cruft sweep (done).
 2. The undecoded marker (done).
 3. The field-rule restructure (done in #43-#51).
 4. Canonical constants, once CLICK has answered.
 
 The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
-## 1. Cruft sweep (nothing)
-
-- **Arc folders.** The closed arc folders under `laddercodec-wt/buildbot/jobs/` can all be deleted: the hold on
-  `dllqa/`, `validation-arc/`, `validation/`, `rs2/` and `postrelease/` ended once the expected-diff entries
-  were sorted.
-
 ## 2. The undecoded marker (done in #38; ClickNick and pyrung follow)
 
-ClickNick drops its stand-in rung for `write_csv`'s marker; pyrung reads the `undecoded(...)` token. The
-comment note and `encode()` is under "Later".
+ClickNick drops its stand-in rung for `write_csv`'s marker; pyrung reads the `undecoded(...)` token.
 
 ## 4. Canonical constants (CLICK)
 
@@ -162,6 +155,8 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Read-only description of each field's rule (Sam, another repo):** banks, constant kinds and limits, for
   callers such as pyrung. Under discussion in the ecosystem plan (`ssweber.github.io/plan/README.md`); not
   repeated here.
+- **Operand probe recheck:** recheck, against the operand probe, every operand field it finds surprising, and fix
+  or delete.
 - **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
   blob stores it; the encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):
@@ -179,9 +174,6 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   and `_decode_single`'s slice).
 - **Arguments on a pin that takes none:** `.reset(DS9)` reads as `.reset()`, and the argument is silently
   ignored. Under CSV-as-intent the reader should refuse it.
-- **Comment note and encode():** a rung whose comment did not decode has the comment `UNDECODED comment: ...`
-  and keeps the original bytes in `comment_rtf`, but encode() writes the note into CLICK. Decide whether
-  encode() writes `comment_rtf` back while the comment is still the note, or refuses the rung.
 - **Captures (CLICK):**
   - an unpowered real box (coil, timer);
   - a reset wired from the rail;
