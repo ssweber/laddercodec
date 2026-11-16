@@ -178,7 +178,7 @@ def real_display(text: str) -> str:
 _FLOAT32_DIGITS = 9
 
 
-def constant_text(value: int | float | str, *, hex: bool = False) -> str:  # noqa: A002
+def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     """Write a Python value as the constant text a Math or a Copy source takes, in CLICK's form.
 
     - an ``int`` is a decimal integer (``-7``), or with ``hex=True`` hex digits then ``h``
@@ -231,8 +231,6 @@ def _text_constant(value: str) -> str:
             "($22 spells one)"
         )
     return f'"{value}"'
-
-
 
 
 def _text(inner: str) -> Constant | None:

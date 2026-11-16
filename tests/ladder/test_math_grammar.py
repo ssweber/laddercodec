@@ -55,7 +55,12 @@ def test_hex_constant_with_digits_then_e_is_refused(constant: str) -> None:
 
 @pytest.mark.parametrize(
     ("typed", "display", "value"),
-    [("1E3h", "1E3h", 0x1E3), ("1e3H", "1E3h", 0x1E3), ("01E3h", "1E3h", 0x1E3), ("2E5h", "2E5h", 0x2E5)],
+    [
+        ("1E3h", "1E3h", 0x1E3),
+        ("1e3H", "1E3h", 0x1E3),
+        ("01E3h", "1E3h", 0x1E3),
+        ("2E5h", "2E5h", 0x2E5),
+    ],
 )
 def test_hex_constant_click_stores_with_digits_e_digits_is_read(
     typed: str, display: str, value: int

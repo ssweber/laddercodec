@@ -146,7 +146,11 @@ _SAVED = [
     ("math_dec_1_50", "math(1.50,DF1,mode=decimal)", "math(1.5,DF1,mode=decimal)"),
     ("math_dec_1e3", "math(1e3,DF1,mode=decimal)", "math(1000.0,DF1,mode=decimal)"),
     ("math_dec_point_5", "math(.5,DF1,mode=decimal)", "math(0.5,DF1,mode=decimal)"),
-    ("math_dec_6000000000", "math(6000000000,DF1,mode=decimal)", "math(6000000000,DF1,mode=decimal)"),
+    (
+        "math_dec_6000000000",
+        "math(6000000000,DF1,mode=decimal)",
+        "math(6000000000,DF1,mode=decimal)",
+    ),
     ("math_dec_1_5E10", "math(1.5E+10,DF1,mode=decimal)", "math(1.5E+10,DF1,mode=decimal)"),
     ("copy_005", "copy(005,DS1)", "copy(5,DS1)"),
     ("copy_plus_5", "copy(+5,DS1)", "copy(+5,DS1)"),

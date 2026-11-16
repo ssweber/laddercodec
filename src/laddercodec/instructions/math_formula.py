@@ -499,7 +499,9 @@ def _decimal_internal(text: str) -> str | FieldError:
                 # Its leading zeros are refused: the value without them is taken.
                 rule = f"{text} is refused; an integer constant has no leading zeros"
             else:
-                rule = f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
+                rule = (
+                    f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
+                )
             return _error(rule, reason, "OBJ-1009")
         return _error(
             f"{text} is refused; CLICK reads it back as {printed}, which is not what was typed",
