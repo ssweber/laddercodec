@@ -27,7 +27,7 @@ import re
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, NamedTuple, TypeVar
+from typing import Any, NamedTuple, TypedDict, TypeVar
 
 from .address import ADDRESS_BANKS, Address, check_address, normalize_fields
 from .constants import (
@@ -111,7 +111,15 @@ class Constants:
 #: The ids and wording CLICK gives a hex Math result outside its range: an SD, or a YD past
 #: YD8, is outside the range (OBJ-003); another bank it does not take is OBJ-004.  Pass as
 #: keyword arguments to :func:`check_address`.
-HEX_MATH_RESULT: dict[str, Any] = {
+class _ResultIds(TypedDict):
+    """The keyword arguments of :func:`check_address` that carry a field's error ids."""
+
+    bank_ids: dict[str, str]
+    range_ids: dict[str, str]
+    outside_range_of: str
+
+
+HEX_MATH_RESULT: _ResultIds = {
     "bank_ids": {"SD": "OBJ-003"},
     "range_ids": {"YD": "OBJ-003"},
     "outside_range_of": "a hex Math result",
@@ -281,10 +289,16 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
 
 
 def check_constant(
-    value: str, field: str, constants: Constants, *, label: str | None = None
+    value: str,
+    field: str,
+    constants: Constants,
+    *,
+    label: str | None = None,
+    char_id: str | None = None,
 ) -> Constant:
     """Return the constant ``value`` spells; raise :class:`FieldError` naming ``field``
-    unless it is one ``constants`` takes.
+    unless it is one ``constants`` takes.  ``char_id`` is CLICK's id for a ``$`` text that
+    is no character code, where the field's dialog gives one.
 
     :func:`~laddercodec.operands.constants.classify` reads the text; ``constants`` then
     applies the field's kinds and limits.  A real beyond float32 is read only when
@@ -295,7 +309,7 @@ def check_constant(
         const = classify(value)
         if const is None or const.kind is not Kind.CHAR:
             if Kind.CHAR in constants.kinds:
-                raise at.error(value, f"is refused; {CHAR_CODE_RULE}", Reason.FORM)
+                raise at.error(value, f"is refused; {CHAR_CODE_RULE}", Reason.FORM, char_id)
             rule = f"{at.label} takes {_kinds_text(constants.kinds)}"
             raise at.error(value, f"is refused; {rule}", Reason.KIND)
     else:

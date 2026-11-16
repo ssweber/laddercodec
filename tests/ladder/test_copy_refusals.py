@@ -137,8 +137,17 @@ def test_copy_termination_code() -> None:
         "form",
         "OBJ-036",
     )
-    (error,) = _errors(lambda: Copy("DS1", "TXT1", format="text", termination_code="$D"))
-    assert (error.field, error.reason) == ("Copy.termination_code", "form")
+
+
+@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("code", ["$D", "$ZZ", "$", "$0", "$100", "$-1", "$0D0D", "$0d "])
+def test_copy_termination_code_not_a_character_code_is_obj_036(fmt: str, code: str) -> None:
+    (error,) = _errors(lambda: Copy("DS1", "TXT1", format=fmt, termination_code=code))
+    assert (error.field, error.reason, error.click_id) == (
+        "Copy.termination_code",
+        "form",
+        "OBJ-036",
+    )
 
 
 def test_copy_text_past_the_last_txt_conflicts_with_its_destination() -> None:

@@ -352,9 +352,11 @@ def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: s
     with pytest.raises(FieldError) as caught:
         build(code)
     assert type(caught.value) is FieldError
+    # A termination code carries CLICK's id for it; the wording is the same.
+    click_id = " (OBJ-036)" if field == "Copy.termination_code" else ""
     assert str(caught.value) == (
         f"{field}: {code!r} is refused; a character code is $ and two hex digits, $00 to $FF, "
-        "such as $41"
+        f"such as $41{click_id}"
     )
 
 
