@@ -57,8 +57,10 @@
   - Do: nothing to decode and encode a rung unchanged. Catch `RefusedFieldWarning` to find these instructions; fix the field each names before you encode one you read from CSV.
 - **Hex Math formula and SD writes follow CLICK**: a hex `Math` formula holding a DS register (`DS1 + 1h`) or a bit in a `SUM` (`SUM ( X001 : X002 )`) is refused with `OBJ-1002`, where both were accepted; an SD register other than the 29 a program writes (SD29, SD31, SD32, SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114, SD140-SD147, SD214, SD215) is refused as a `Copy` destination (`OBJ-004`), anywhere in a `BlockCopy` destination range (`OBJ-018` for a read-only SD after a writable start, `OBJ-004` past SD215) and as a decimal `Math` result (`OBJ-003`), each with reason `not_writable`, where it was accepted.
   - Do: change such a value before you build or read the instruction; a decoded program that holds one decodes it with a `RefusedFieldWarning` and encodes it unchanged.
-- **A hex Math formula takes only hex values**: hex constants and the DH, XD and YD registers. A DD, DF, TD, CTD, SD or TXT register in a hex `Math` formula, in a `SUM` too, is now refused with `OBJ-1002` and reason `bank`, where it was accepted; a hex `SUM` over CT now carries `OBJ-1002`, where it had no id; and each such refusal, of a bit or a DS too, states the one rule.
-  - Do: copy the value into a DH register and use the DH in the formula, or use a decimal `Math`.
+- **Each Math mode takes its own banks**: a hex `Math` formula takes hex constants and the DH, XD and YD registers only, and a decimal one decimal constants, the DS, DD, DF, TD, CTD and SD registers, and X, Y, C, T and SC bits only as the range of a `SUM`. Every other address, in a `SUM` too, is refused with `OBJ-1002` and reason `bank`, and each refusal states its mode's rule.
+  - A DD, DF, TD, CTD, SD or TXT register in a hex formula, and a DH, XD, YD or TXT register in a decimal one, is now refused, where it was accepted.
+  - A `SUM` over CT, in either mode, now carries `OBJ-1002`, where it had no id.
+  - Do: in a hex formula, copy the value into a DH register first, or use a decimal `Math`; in a decimal formula, copy a DH, XD, YD or TXT value into a DS first, or use a hex `Math`.
 
 ## 0.4.0 (2026-11-14)
 
