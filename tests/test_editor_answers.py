@@ -102,7 +102,7 @@ DISAGREEMENTS: dict[Key, str] = {
 }
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-MIN_CODES_COMPARED = 52
+MIN_CODES_COMPARED = 53
 
 
 @pytest.fixture(scope="module")

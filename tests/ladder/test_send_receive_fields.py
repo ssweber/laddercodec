@@ -880,17 +880,32 @@ def test_receive_text_count_is_even(quantity, click_id) -> None:
     assert len(caught.value.errors) == 1
 
 
-@pytest.mark.parametrize("quantity", [250, 251, 252])
-def test_receive_text_count_past_the_register_cap(quantity) -> None:
-    """CLICK's range message for a TXT count is 2 to 250.  The rules cap a count at 125, the
-    register cap, so they refuse 250 (and 252, even) and 126 on; 124 is the largest even
-    count they accept.  Recorded, not changed: the roadmap lists it."""
-    with pytest.raises(FieldError, match="outside 1-125"):
+@pytest.mark.parametrize("quantity", [124, 126, 250])
+def test_receive_text_count_up_to_250_characters(quantity) -> None:
+    """CLICK accepts a TXT count of 2 to 250 characters, even: past the register cap of 125."""
+    receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+
+
+@pytest.mark.parametrize("quantity", [251, 252, 400])
+def test_receive_text_count_past_250_is_the_range(quantity) -> None:
+    """Past 250 CLICK says OBJ-010 (range before evenness: 251 too), naming characters."""
+    with pytest.raises(FieldError, match="outside 1-250 characters") as caught:
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+    assert caught.value.click_id == "OBJ-010"
+    assert len(caught.value.errors) == 1
+
+
+def test_receive_text_count_250_blob_round_trips() -> None:
+    """The count field of the blob holds 250 and the blob decodes as Receive, not raw."""
+    instr = receive(remote_start="TXT1", dest="TXT1", quantity=250)
+    fields = _fields(instr)
+    assert fields[0x3210] == "250"
+    assert from_tags_af("RD", 0x2728, fields) == instr
+    assert parse_af_blob(instr.build_blob()) == instr
 
 
 def test_receive_text_even_counts() -> None:
-    for quantity in (2, 4, 124):
+    for quantity in (2, 4, 124, 250):
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
 
 

@@ -519,7 +519,7 @@ Producer may emit:
   - A Receive into registers takes DS, DD, DH, DF, YD or TXT. A CLICK `remote_start` matches
     the destination's type: DS from DS, TD or SD; DD from DD or CTD; DF from DF; DH or YD
     from DH, XD or YD; TXT from TXT. A YD destination, or DH read from XD or YD, takes one
-    element; TXT takes an even count of at least 2.
+    element; TXT takes an even count of 2 to 250 characters.
   - `word_swap=1` is refused where CLICK turns Word Swap off: a bit Receive, a YD or TXT
     destination, one DS or DH element, DH read from XD or YD, and DD or DF read from a CLICK
     address.

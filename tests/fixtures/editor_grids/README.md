@@ -71,7 +71,7 @@ The answers sit beside the grids:
 | --- | --- |
 | `preflight.answers.json`, `risky.answers.json` | the answers to the files of those names (92 and 67 cases) |
 | `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file; the runner's own case file is not kept) |
-| `receive_count.answers.json` | 7 Receive cases that set the count: a TXT master at count unset, 1, 2, 3 and 4, and a DS master at 1 and 2 (function code 03). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
+| `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs, `rxc1` and `rxc2`). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open |
 
