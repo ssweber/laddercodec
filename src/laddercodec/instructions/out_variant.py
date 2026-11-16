@@ -141,7 +141,7 @@ class OutVariant(AfInstruction):
 
     def __post_init__(self) -> None:
         self._check_fields()
-        # After every other refusal: the flags above are read as they came in.
+        # Last, so a junk flag value changes no earlier refusal.
         self.immediate = check_flag(self.immediate, "OutVariant.immediate")
         self.maintained = check_flag(self.maintained, "OutVariant.maintained")
 

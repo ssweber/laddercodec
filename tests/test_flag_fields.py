@@ -11,6 +11,7 @@ import ast
 import dataclasses
 import importlib
 import inspect
+import pkgutil
 import textwrap
 import types
 import typing
@@ -48,12 +49,9 @@ def _all_subclasses(base: type) -> set[type]:
 
 def instruction_classes() -> list[type]:
     """Every dataclass in laddercodec that is a condition or AF instruction."""
-    for name in (
-        "contact", "comparison", "coil", "out_variant", "timer", "counter", "shift", "drum",
-        "forloop", "copy", "search", "math", "call", "return_", "end", "send_receive", "email",
-        "home", "position", "velocity", "raw", "undecoded",
-    ):  # fmt: skip
-        importlib.import_module(f"{_PACKAGE}.{name}")
+    package = importlib.import_module(_PACKAGE)
+    for info in pkgutil.iter_modules(package.__path__):
+        importlib.import_module(f"{_PACKAGE}.{info.name}")
     classes = _all_subclasses(ConditionInstruction) | _all_subclasses(AfInstruction)
     return sorted(
         (
@@ -76,30 +74,79 @@ def bool_fields(cls: type) -> list[str]:
     return [f.name for f in dataclasses.fields(cls) if _is_flag_hint(hints.get(f.name))]
 
 
-def flag_checked_fields(source: str) -> set[str]:
-    """Names ``x`` in ``self.x = check_flag(self.x, ...)`` or ``check_flag(self.x, ...)`` calls."""
+def _post_init_tree(source: str) -> ast.AST:
+    return ast.parse(textwrap.dedent(source))
+
+
+def flag_checked_fields(source: str, class_name: str) -> set[str]:
+    """Names ``x`` assigned as ``self.x = check_flag(self.x, "<class_name>.x")``.
+
+    A bare call, a discarded result, a different target or a label that is not
+    ``<class_name>.x`` does not count.
+    """
     names: set[str] = set()
-    for node in ast.walk(ast.parse(textwrap.dedent(source))):
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "check_flag"
-            and node.args
-            and isinstance(node.args[0], ast.Attribute)
-            and isinstance(node.args[0].value, ast.Name)
-            and node.args[0].value.id == "self"
+    for node in ast.walk(_post_init_tree(source)):
+        if not (isinstance(node, ast.Assign) and len(node.targets) == 1):
+            continue
+        target, call = node.targets[0], node.value
+        if not (
+            isinstance(target, ast.Attribute)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "self"
+            and isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and call.func.id == "check_flag"
+            and len(call.args) == 2
         ):
-            names.add(node.args[0].attr)
+            continue
+        value, label = call.args
+        if (
+            isinstance(value, ast.Attribute)
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "self"
+            and value.attr == target.attr
+            and isinstance(label, ast.Constant)
+            and label.value == f"{class_name}.{target.attr}"
+        ):
+            names.add(target.attr)
     return names
 
 
+def calls_super_post_init(source: str) -> bool:
+    for node in ast.walk(_post_init_tree(source)):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "__post_init__"
+            and isinstance(node.func.value, ast.Call)
+            and isinstance(node.func.value.func, ast.Name)
+            and node.func.value.func.id == "super"
+        ):
+            return True
+    return False
+
+
+def is_flag_checked(cls: type, name: str) -> bool:
+    """Whether building ``cls`` runs a check of field ``name``.
+
+    Walk the MRO: a class without its own ``__post_init__`` passes to its parent; one with
+    its own counts when it assigns the check, and passes on only if it calls
+    ``super().__post_init__()``.
+    """
+    for klass in cls.__mro__:
+        post_init = klass.__dict__.get("__post_init__")
+        if post_init is None:
+            continue
+        source = inspect.getsource(post_init)
+        if name in flag_checked_fields(source, klass.__name__):
+            return True
+        if not calls_super_post_init(source):
+            return False
+    return False
+
+
 def unchecked_flags(cls: type) -> list[str]:
-    fields = bool_fields(cls)
-    if not fields:
-        return []
-    post_init = cls.__dict__.get("__post_init__")
-    checked = flag_checked_fields(inspect.getsource(post_init)) if post_init else set()
-    return [name for name in fields if name not in checked]
+    return [name for name in bool_fields(cls) if not is_flag_checked(cls, name)]
 
 
 def test_every_bool_field_is_checked() -> None:
@@ -138,12 +185,58 @@ def test_guard_self_test() -> None:
         count: int = 0
 
     assert bool_fields(Unchecked) == ["flag", "maybe"]
-    # The call is found by name; ``maybe`` has none.
-    assert flag_checked_fields(inspect.getsource(Unchecked.__post_init__)) == {"flag"}
     assert unchecked_flags(Unchecked) == ["maybe"]
     assert unchecked_flags(Plain) == []
     # Classes made here live in this module, so the real guard never sees them.
     assert Unchecked not in instruction_classes()
+
+
+def test_guard_counts_only_an_assignment_with_the_class_label() -> None:
+    def found(body: str, name: str = "C") -> set[str]:
+        source = "def __post_init__(self):\n    " + body + "\n"
+        return flag_checked_fields(source, name)
+
+    assert found('self.x = check_flag(self.x, "C.x")') == {"x"}
+    assert found('check_flag(self.x, "C.x")') == set()  # result discarded
+    assert found('y = check_flag(self.x, "C.x")') == set()  # not stored back
+    assert found('self.x = check_flag(self.y, "C.x")') == set()  # another field's value
+    assert found('self.x = check_flag(self.x, "C.y")') == set()  # label of another field
+    assert found('self.x = check_flag(self.x, "D.x")') == set()  # label of another class
+    assert found('self.x = check_flag(self.x, f"C.x")') == set()  # not a plain string
+
+
+def test_guard_resolves_inherited_checks() -> None:
+    @dataclasses.dataclass
+    class Base(AfInstruction):
+        flag: bool = False
+
+        def __post_init__(self) -> None:
+            self.flag = check_flag(self.flag, "Base.flag")
+
+    @dataclasses.dataclass
+    class Inherits(Base):
+        pass
+
+    @dataclasses.dataclass
+    class Calls(Base):
+        def __post_init__(self) -> None:
+            super().__post_init__()
+
+    @dataclasses.dataclass
+    class Skips(Base):
+        def __post_init__(self) -> None:
+            pass
+
+    @dataclasses.dataclass
+    class OwnLabel(Base):
+        def __post_init__(self) -> None:
+            self.flag = check_flag(self.flag, "OwnLabel.flag")
+
+    assert unchecked_flags(Base) == []
+    assert unchecked_flags(Inherits) == []  # no __post_init__ of its own: the parent's runs
+    assert unchecked_flags(Calls) == []  # super().__post_init__() runs the parent's
+    assert unchecked_flags(Skips) == ["flag"]  # replaces the parent's and never runs it
+    assert unchecked_flags(OwnLabel) == []  # its own check, with its own label
 
 
 def _tcp() -> ModbusRtuTarget:
