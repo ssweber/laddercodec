@@ -181,8 +181,10 @@ the rung.
 
 The note is followed on the next line by the plain text that can be read from the
 comment's bytes: styling is dropped, paragraph breaks become line breaks, and
-non-ASCII characters are kept, as in a comment that decodes. Text that would make the comment too long to encode is cut and
-ends with `...`. When no text can be read, the comment is the note alone.
+non-ASCII characters are kept, as in a comment that decodes. Text that would
+make the comment too long to encode is cut and ends with `...`; so is an error
+message too long to leave room for it. When no text can be read, the comment is
+the note alone.
 `encode()` writes the note and the text like any comment. A `*` or `_` pair in
 the text reads as styling when it is encoded, as it does in any comment.
 

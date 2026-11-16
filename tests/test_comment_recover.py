@@ -45,8 +45,15 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"lone \\u-10179?end"), "lone end"),
         (_rtf(b"a\\\\b\\{c\\}"), "a\\b{c}"),
         (_rtf(b"a\\~b\\_c"), "a b-c"),
-        # stray closers, and a lone backslash at the end
-        (_rtf(b"a}}b\\"), "ab"),
+        # a stray closer ends the outermost group, and nothing after it is text
+        (_rtf(b"a}b\\"), "a"),
+        (_rtf(b"hi") + b"garbage after", "hi"),
+        # a lone backslash at the end
+        (_rtf(b"ab\\"), "ab"),
+        # numbers too long to read are skipped, and the text goes on
+        (_rtf(b"\\u" + b"9" * 5000 + b" abc \\uc" + b"9" * 5000 + b" hello"), "abc hello"),
+        # a value outside the 16-bit range is dropped
+        (_rtf(b"a\\u70000?b\\u-40000?c"), "abc"),
         # nothing usable
         (_rtf(b""), ""),
         (_rtf(b"{\\b }\\par \\par "), ""),
@@ -91,9 +98,29 @@ def test_recovered_comment_is_cut_where_line_breaks_and_braces_cost_more() -> No
     assert len(_build_rtf_body(comment).encode("cp1252")) <= COMMENT_MAX_BYTES
 
 
-def test_recovered_comment_with_no_room_is_the_note() -> None:
-    error = "x" * COMMENT_MAX_BYTES
-    assert recovered_comment(error, _rtf(b"text")) == comment_note(error)
+def test_recovered_comment_cuts_an_error_too_long_to_encode() -> None:
+    error = "x" * (2 * COMMENT_MAX_BYTES)
+    comment = recovered_comment(error, _rtf(b"text"))
+    assert comment.startswith("UNDECODED comment: xxx")
+    assert comment.endswith("...")
+    assert len(_build_rtf_body(comment).encode("cp1252")) <= COMMENT_MAX_BYTES
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        b"a\\par " * 800,
+        b"{\\\\}\\par " * 5000,
+        b"\\u8230?\\'e9\\u8364?" * 3000,
+        b"*a*_b_**c**__d__ " * 300,
+    ],
+    ids=["newlines", "braces", "non-ascii", "styling"],
+)
+def test_recovered_comment_keeps_the_longest_text_that_fits(body: bytes) -> None:
+    comment = recovered_comment("why", _rtf(body))
+    size = len(_build_rtf_body(comment).encode("cp1252"))
+    assert COMMENT_MAX_BYTES - 12 <= size <= COMMENT_MAX_BYTES
+    assert comment.endswith("...")
 
 
 def _wrong_code_page(data: bytes, index: int = 0) -> bytes:
@@ -156,3 +183,10 @@ def test_scr_comment_text_is_recovered() -> None:
     (warning,) = [w.message for w in caught]
     assert isinstance(warning, UndecodedCommentWarning)
     assert program.rungs[1].comment == f"UNDECODED comment: {warning.error}\nsecond line"
+
+
+def test_recovered_comment_of_zero_byte_characters_fits_whole() -> None:
+    """Combining marks cost no bytes once encoded, so none of them is cut."""
+    comment = recovered_comment("why", _rtf(b"\u768 " * 100000))
+    assert not comment.endswith("...")
+    assert len(_build_rtf_body(comment).encode("cp1252")) <= COMMENT_MAX_BYTES

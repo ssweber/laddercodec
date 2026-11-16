@@ -14,7 +14,7 @@ import codecs
 import re
 import struct
 import warnings
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from .instructions.undecoded import Stop, Undecoded
@@ -144,6 +144,8 @@ _RTF_CHARS = {
 
 _RTF_CODE_PAGE = re.compile(rb"\\ansicpg(\d+)")
 _RTF_WORD = re.compile(r"\\([A-Za-z]+)(-?\d+)? ?")
+#: A control word's number longer than this is not read.
+_MAX_ARG_DIGITS = 6
 _HEX_PAIR = re.compile(r"[0-9A-Fa-f]{2}")
 
 
@@ -172,8 +174,12 @@ def _rtf_text(payload: bytes) -> str:
             i += 1
             continue
         if ch == "}":
-            if stack:
-                skip, uc = stack.pop()
+            if not stack:
+                i += 1
+                continue
+            skip, uc = stack.pop()
+            if not stack:
+                break  # the outermost group is closed: nothing after it is comment text
             first = False
             i += 1
             continue
@@ -204,10 +210,12 @@ def _rtf_text(payload: bytes) -> str:
             if name in _RTF_DESTINATIONS and was_first:
                 skip = True
             elif name == "uc" and arg is not None:
-                uc = int(arg) if int(arg) > 0 else 0
-            elif name == "u" and arg is not None:
-                if not skip:
-                    out.append(chr(int(arg) % 0x10000))
+                if len(arg) <= _MAX_ARG_DIGITS:
+                    uc = max(int(arg), 0)
+            elif name == "u" and arg is not None and len(arg) <= _MAX_ARG_DIGITS:
+                value = int(arg)
+                if not skip and -0x8000 <= value <= 0xFFFF:
+                    out.append(chr(value % 0x10000))
                 fallback = uc
             elif name in _RTF_CHARS and not skip:
                 out.append(_RTF_CHARS[name])
@@ -257,22 +265,39 @@ def recovered_comment(error: str, payload: bytes) -> str:
     """
     from .encode import COMMENT_MAX_BYTES, _build_rtf_body
 
-    note = comment_note(error)
-    text = recover_text(payload)
-    if not text:
-        return note
-
     def size(comment: str) -> int:
         return len(_build_rtf_body(comment).encode("cp1252"))
 
+    def longest(fits: Callable[[int], bool], high: int) -> int:
+        """The largest k in 0..high for which *fits* holds, by bisection; 0 if none."""
+        low = 0
+        while low < high:
+            mid = (low + high + 1) // 2
+            if fits(mid):
+                low = mid
+            else:
+                high = mid - 1
+        return low
+
+    note = comment_note(error)
+    if size(note) > COMMENT_MAX_BYTES:
+        keep = longest(
+            lambda k: size(comment_note(error[:k].rstrip() + "...")) <= COMMENT_MAX_BYTES,
+            len(error),
+        )
+        note = comment_note(error[:keep].rstrip() + "...")
+    text = recover_text(payload)
+    if not text:
+        return note
     comment = f"{note}\n{text}"
-    cut = len(text)
-    while size(comment) > COMMENT_MAX_BYTES:
-        if cut == 0:
-            return note
-        cut = max(min(cut - 1, cut - (size(comment) - COMMENT_MAX_BYTES)), 0)
-        comment = f"{note}\n{text[:cut].rstrip()}..."
-    return comment
+    if size(comment) <= COMMENT_MAX_BYTES:
+        return comment
+
+    def cut(k: int) -> str:
+        return f"{note}\n{text[:k].rstrip()}..."
+
+    keep = longest(lambda k: size(cut(k)) <= COMMENT_MAX_BYTES, len(text))
+    return cut(keep) if keep else note
 
 
 def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
