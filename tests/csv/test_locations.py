@@ -480,6 +480,26 @@ class TestOwnLocations:
         assert owner == "p"
         assert converter._refusing_pin(Box(), {"p": ()}, (), box_error) is None
 
+    def test_pins_are_probed_with_their_checks_when_reading_unchecked(self) -> None:
+        """Read with ``unchecked=True``, a box would hold the refusal a pin's value raises;
+        each probe still raises it, so the pin that sets the value is the one named."""
+        from laddercodec.csv import converter
+        from laddercodec.operands import unchecked as unchecked_mod
+
+        refusal = FieldError("q", field="Box.q")
+
+        class Box:
+            def with_pins(self, pins: dict, slots: tuple) -> object:
+                if "q" in pins and unchecked_mod._KEPT.get() is None:
+                    raise FieldError("q", field="Box.q")
+                return self
+
+        box = Box()
+        pins: dict = {"p": (), "q": ()}
+        with unchecked_mod.unchecked():
+            assert converter._refusing_pin(box, pins, (), refusal) == "q"  # type: ignore[arg-type]
+            assert converter._refused_pin(box, pins, ()) == "q"  # type: ignore[arg-type]
+
     def test_condition_cell_refusals_are_each_located(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("X9999"), "out(Y001)")])
         with pytest.raises(FieldError) as info:

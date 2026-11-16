@@ -33,6 +33,7 @@ from laddercodec.csv import read_csv
 from laddercodec.instructions import from_tags_af, from_tags_condition
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
 from laddercodec.model import AfInstruction, ConditionInstruction
+from laddercodec.operands.unchecked import refusals
 from tests.scr_defaults import fixture_pairs, mismatches, read_clipboard, survey
 from tests.undecoded_captures import without_marker
 
@@ -61,6 +62,9 @@ def _corpus() -> dict[str, Instruction]:
         for token in [t for row in rung.conditions for t in row] + list(rung.instructions):
             if not isinstance(token, Instruction) or isinstance(token, RawInstruction):
                 continue
+            if refusals(token):
+                continue  # a stored value its checks refuse: it builds no blob to compare
+
             # The wire-down flag is grid topology, not blob content.
             if getattr(token, "wire_down", False):
                 token = dataclasses.replace(token, wire_down=False)

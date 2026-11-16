@@ -15,10 +15,11 @@ ends on its last slot's row.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any, cast
 
 from ..model import AfInstruction, PinnedInstruction
+from ..operands.unchecked import rebuilt
 from .network import COLUMNS, Network
 from .tree import BoxItem, Branch, LayoutError, Leaf, Node, Parallel, PinCircuit, RungTree, Series
 
@@ -236,7 +237,7 @@ class _Painter:
 
 def _with_down(contact: object, down: bool) -> object:
     if hasattr(contact, "wire_down"):
-        return replace(cast(Any, contact), wire_down=down)
+        return rebuilt(cast(Any, contact), wire_down=down)
     if down:
         raise LayoutError("a contact this layout cannot mark with a down wire")
     return contact

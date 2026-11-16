@@ -70,6 +70,7 @@ from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
+from laddercodec.operands.unchecked import refusals
 from laddercodec.undecoded import UndecodedRungWarning
 from tests.undecoded_captures import without_marker
 
@@ -470,21 +471,31 @@ def test_math_xy_range_lists_in_capture(
 def test_math_xy_range_refused_unless_its_list_holds_the_points_between(
     file: str, index: int, formula: str
 ) -> None:
-    """A refused range's rung decodes as raw and keeps CLICK's bytes; the others are Math."""
+    """A refused range's rung decodes as that Math, keeping the refusal, and writes the
+    blob CLICK stored until a field changes, when encode() refuses it; the others are Math."""
     path = CAPTURE_DIR / file
     rung = _decode_file(path)[index]
     af = rung.instructions[0]
     if formula not in REFUSED_XY_RANGES:
         assert af == Math(formula, "DS1")
+        assert not refusals(af)
         return
-    with pytest.raises(FieldError, match=f"wrong member list.*{REFUSED_XY_RANGES[formula]}"):
+    match = f"wrong member list.*{REFUSED_XY_RANGES[formula]}"
+    with pytest.raises(FieldError, match=match):
         Math(formula, "DS1")
-    assert isinstance(af, RawInstruction)
+    assert isinstance(af, Math)
+    assert (af.expression, af.result) == (formula, "DS1")
+    (error,) = refusals(af)
+    assert re.search(match, str(error))
+    blob = af.build_blob()
     native = _native_math_blobs(path)[index]
     # The whole blob: 5510 fields, terminator included.
-    assert af.blob == native[: len(af.blob)]
-    assert _blob_fields(af.blob) == _blob_fields(native)
-    assert af.blob in encode(rung)
+    assert blob == native[: len(blob)]
+    assert _blob_fields(blob) == _blob_fields(native)
+    assert blob in encode(rung)
+    af.oneshot = not af.oneshot
+    with pytest.raises(FieldError, match=match):
+        encode(rung)
 
 
 @pytest.mark.parametrize("index", range(17, 21))

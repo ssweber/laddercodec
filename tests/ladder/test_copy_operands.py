@@ -19,6 +19,7 @@ from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.search import Search
+from tests.kept_refusals import kept
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -380,9 +381,10 @@ def test_fill_value_other_dollar_forms_refused(tmp_path: Path, value: str) -> No
 @pytest.mark.parametrize(
     "tags", [{0x6076: "TXT2"}, {0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"}], ids=["copy", "fill"]
 )
-def test_other_dollar_form_blob_is_left_unparsed(tags: dict[int, str], value: str) -> None:
-    assert from_tags_af("Copy", 0x2721, tags | {0x6074: "$41"}) is not None
-    assert from_tags_af("Copy", 0x2721, tags | {0x6074: value}) is None
+def test_other_dollar_form_blob_keeps_its_refusal(tags: dict[int, str], value: str) -> None:
+    assert kept(from_tags_af("Copy", 0x2721, tags | {0x6074: "$41"})) is not None
+    field = "Fill.value" if 0x6077 in tags else "Copy.source"
+    kept(from_tags_af("Copy", 0x2721, tags | {0x6074: value}), field)
 
 
 _FILL_VALUE_REFUSED = [
@@ -473,18 +475,22 @@ def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> No
 
 
 @pytest.mark.parametrize(
-    "tags",
+    ("tags", "field"),
     [
-        {0x6074: "+1h", 0x6076: "DS9"},
-        {0x6074: "100000000h", 0x6076: "DD1"},
-        {0x6074: '""', 0x6076: "TXT2"},
-        {0x6074: '"""', 0x6076: "TXT2"},
-        {0x6074: "3000000000", 0x6076: "DS52", 0x6077: "DS55", 0x2223: "2"},
-        {0x6074: '""', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},
+        ({0x6074: "+1h", 0x6076: "DS9"}, "Copy.source"),
+        ({0x6074: "100000000h", 0x6076: "DD1"}, "Copy.source"),
+        ({0x6074: '""', 0x6076: "TXT2"}, "Copy.source"),
+        ({0x6074: "3000000000", 0x6076: "DS52", 0x6077: "DS55", 0x2223: "2"}, "Fill.value"),
+        ({0x6074: '""', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"}, "Fill.value"),
     ],
 )
-def test_refused_constant_blob_is_left_unparsed(tags: dict[int, str]) -> None:
-    assert from_tags_af("Copy", 0x2721, tags) is None
+def test_refused_constant_blob_keeps_its_refusal(tags: dict[int, str], field: str) -> None:
+    kept(from_tags_af("Copy", 0x2721, tags), field)
+
+
+def test_quote_character_blob_is_left_unparsed() -> None:
+    # The CSV token copy(""",TXT2) does not read back, so the blob stays raw.
+    assert from_tags_af("Copy", 0x2721, {0x6074: '"""', 0x6076: "TXT2"}) is None
 
 
 # A single Copy of text into TXT stores the last TXT the text fills as the destination end
@@ -569,8 +575,9 @@ def test_text_is_printable_ascii(tmp_path: Path, text: str) -> None:
     if len(text) == 3:  # one character: a Fill takes it, and a Copy stores no end
         with pytest.raises(FieldError, match=rf"^Fill.value: .* {_PRINTABLE_RULE}"):
             Fill(text, "TXT2", "TXT5")
-        assert from_tags_af("Copy", 0x2721, {0x6074: '"A"', 0x6076: "TXT2"}) is not None
-        assert from_tags_af("Copy", 0x2721, {0x6074: text, 0x6076: "TXT2"}) is None
+        assert kept(from_tags_af("Copy", 0x2721, {0x6074: '"A"', 0x6076: "TXT2"})) is not None
+        stored = kept(from_tags_af("Copy", 0x2721, {0x6074: text, 0x6076: "TXT2"}), "Copy.source")
+        assert stored.source == text
 
 
 @pytest.mark.parametrize(
@@ -655,29 +662,90 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
 
 
 @pytest.mark.parametrize(
-    "tags",
+    ("tags", "family", "fields"),
     [
-        {0x6074: "X001", 0x6076: "DS1"},  # a bit into a register
-        {0x6074: "DS1", 0x6076: "TXT1", 0x2227: "1", 0x1221: "-1", 0x3216: "-1"},  # bad char
-        {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DS[DS9]", 0x6077: "DS13", 0x2223: "1"},
-        {0x6074: "C1", 0x6075: "C17", 0x6076: "DS1", 0x2223: "3"},  # 17 bits into DS
-        {0x6074: "X016", 0x6075: "X021", 0x6076: "DD1", 0x2223: "3"},  # two X slots
-        {0x6074: "X001", 0x6075: "X036", 0x6076: "DD1", 0x2223: "3"},  # two X slots
-        {0x6074: "X001", 0x6075: "X016", 0x6076: "DS1", 0x2223: "3"},  # X packs into DH only
-        {0x6074: "DS5", 0x6076: "Y001", 0x6077: "Y016", 0x2223: "4"},  # DS unpacks to C only
-        {0x6074: "DS1", 0x6075: "DS3", 0x6076: "YD1", 0x6077: "YD3", 0x2223: "1"},  # YD dest
-        {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DD1", 0x6077: "DD2", 0x2223: "1"},  # end
-        {0x6074: "DS1", 0x6075: "DS1", 0x6076: "DS5", 0x6077: "DS5", 0x2223: "1"},  # one
-        {0x6074: "0", 0x6076: "DS5", 0x6077: "DS1", 0x2223: "2"},  # fill runs backwards
-        {0x6074: "C1", 0x6075: "C16", 0x6076: "Y010", 0x6077: "Y025", 0x2223: "1"},  # Y slot
-        {0x6074: "10000h", 0x6076: "DH1"},  # hex above FFFFh into DH
-        {0x6074: "DS1", 0x6075: "DS2", 0x6076: "DD1", 0x2223: "3", 0x2227: "9"},  # text, no TXT
-        {0x6074: "TXT1", 0x6075: "TXT2", 0x6076: "DS1", 0x2223: "3", 0x2227: "0"},  # words, TXT
-        {0x6074: '"AB"', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},  # Fill: one character
-        {0x6074: "5000000000", 0x6076: "DD1"},  # outside int32
+        ({0x6074: "X001", 0x6076: "DS1"}, Copy, ["destination"]),  # a bit into a register
+        (
+            {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DS[DS9]", 0x6077: "DS13", 0x2223: "1"},
+            BlockCopy,
+            ["dest_start"],
+        ),
+        ({0x6074: "C1", 0x6075: "C17", 0x6076: "DS1", 0x2223: "3"}, Pack, ["source_end"]),
+        (
+            {0x6074: "X016", 0x6075: "X021", 0x6076: "DD1", 0x2223: "3"},  # two X slots
+            Pack,
+            ["source_end", "destination"],
+        ),
+        (
+            {0x6074: "X001", 0x6075: "X036", 0x6076: "DD1", 0x2223: "3"},  # two X slots
+            Pack,
+            ["source_end", "destination"],
+        ),
+        (
+            {0x6074: "X001", 0x6075: "X016", 0x6076: "DS1", 0x2223: "3"},  # X packs into DH only
+            Pack,
+            ["destination"],
+        ),
+        (
+            {0x6074: "DS5", 0x6076: "Y001", 0x6077: "Y016", 0x2223: "4"},  # DS unpacks to C only
+            Unpack,
+            ["dest_start"],
+        ),
+        (
+            {0x6074: "DS1", 0x6075: "DS3", 0x6076: "YD1", 0x6077: "YD3", 0x2223: "1"},  # YD dest
+            BlockCopy,
+            ["dest_start", "dest_end"],
+        ),
+        (
+            {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DD1", 0x6077: "DD2", 0x2223: "1"},  # end
+            BlockCopy,
+            ["dest_end"],
+        ),
+        (
+            {0x6074: "DS1", 0x6075: "DS1", 0x6076: "DS5", 0x6077: "DS5", 0x2223: "1"},  # one
+            BlockCopy,
+            ["source_end"],
+        ),
+        (
+            {0x6074: "0", 0x6076: "DS5", 0x6077: "DS1", 0x2223: "2"},  # fill runs backwards
+            Fill,
+            ["dest_end"],
+        ),
+        (
+            {0x6074: "C1", 0x6075: "C16", 0x6076: "Y010", 0x6077: "Y025", 0x2223: "1"},  # Y slot
+            BlockCopy,
+            ["dest_start"],
+        ),
+        ({0x6074: "10000h", 0x6076: "DH1"}, Copy, ["destination"]),  # hex above FFFFh into DH
+        (
+            {0x6074: "DS1", 0x6075: "DS2", 0x6076: "DD1", 0x2223: "3", 0x2227: "9"},  # text, no TXT
+            Pack,
+            ["source_start"],
+        ),
+        (
+            {0x6074: "TXT1", 0x6075: "TXT2", 0x6076: "DS1", 0x2223: "3", 0x2227: "0"},  # words, TXT
+            Pack,
+            ["source_start"],
+        ),
+        (
+            {0x6074: '"AB"', 0x6076: "TXT2", 0x6077: "TXT5", 0x2223: "2"},  # Fill: one character
+            Fill,
+            ["value"],
+        ),
+        ({0x6074: "5000000000", 0x6076: "DD1"}, Copy, ["source"]),  # outside int32
     ],
 )
-def test_refused_blob_is_left_unparsed(tags: dict[int, str]) -> None:
+def test_refused_blob_keeps_its_refusal(
+    tags: dict[int, str], family: type, fields: list[str]
+) -> None:
+    built = kept(
+        from_tags_af("Copy", 0x2721, tags), *(f"{family.__name__}.{name}" for name in fields)
+    )
+    assert type(built) is family
+
+
+def test_blob_with_an_unknown_option_is_left_unparsed() -> None:
+    tags = {0x6074: "DS1", 0x6076: "TXT1", 0x2227: "1", 0x1221: "-1", 0x3216: "-1"}  # bad char
     assert from_tags_af("Copy", 0x2721, tags) is None
 
 

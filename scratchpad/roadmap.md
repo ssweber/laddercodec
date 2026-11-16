@@ -35,13 +35,14 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 Done: the cruft sweep, the undecoded marker (#38), the field-rule restructure (#43-#51) and the field error
 pyrung reads (#55-#60: every instruction reports every refusal, with its fields, reason, CLICK id and, through
-`read_csv`, a location on each). The next release, Sam's, carries it.
+`read_csv`, a location on each). The next release, Sam's, carries it. Item 2, decoding that does not depend on
+the checks, is done too: a stored instruction that breaks a dialog rule decodes as that instruction with a
+`RefusedFieldWarning`, and `read_csv(..., unchecked=True)` reads what `write_csv` writes for it.
 
 Sam's direction of 2026-11-16: pyrung's CLICK validation moves onto laddercodec first, ahead of its export and
 import. pyrung builds laddercodec's objects and turns each refusal into a finding; its own bank tables go.
 
 1. The field error's follow-ups. pyrung's validation waits only on a release with the error.
-2. Decoding that does not depend on the checks.
 3. Field rules tightened to the CLICK grids, as the grids arrive.
 4. Canonical constants, once CLICK has answered (the runner is asking now). It can run beside 1-3.
 
@@ -55,7 +56,16 @@ rule that rests on what a PLC does stays in pyrung.
 
 pyrung learns what a field takes by building the object and reading the error; that is on `main`. Not built: a
 rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction without its
-checks (pyrung's conformance probes use `raw(...)`).
+checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
+`laddercodec.operands.unchecked.unchecked()`, which a public API could expose).
+
+- **Where a held refusal is in a CSV.** `read_csv(..., unchecked=True)` warns with the rung index of the rungs it
+  returns; the refusals it keeps carry no `CsvLocation`, as a raised one does.
+- **A strict numeric tag.** `tag_int` reads a tag through `int()`, so it accepts `" 1"`, `"+1"`, `"1_0"` and
+  non-ASCII digits, as it did before. Reading only ASCII digits would leave those blobs raw.
+- **A held condition from a program file.** A contact `decode_program()` builds with a refusal has no blob to
+  write, so `encode()` raises its error (the unknown condition it decoded as before did not encode either). An
+  output box writes the blob composed from its tags, as its raw box did. Decide whether a condition should too.
 
 - **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
   proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
@@ -67,16 +77,6 @@ checks (pyrung's conformance probes use `raw(...)`).
 - **A blank in a CSV token:** in `read_csv`, a blank argument that breaks a token's syntax
   (`on_delay(,TD1)`, `count_up(CT1,)`, `toggle(C1,on_acc=)`) is a token-syntax error with no field and no
   reason, where a blank field built in Python is `missing`.
-
-## 2. Decoding that does not depend on the checks (nothing)
-
-A stored instruction that breaks a dialog rule (such as an older paste of `DH70 == DS3920`) decodes as raw or an
-unknown condition today. Before any rule is tightened, `decode` builds the object from what is stored and
-attaches a finding; otherwise every tightened rule turns instructions in real projects into raw. `read_csv`
-takes an opt-in flag for the writer's self-check. Construction, plain `read_csv` and `encode()` stay strict.
-
-CLICK saves a single Copy's destination and a Pack's destination with an edge space kept (`DS1 `, ` DS1`);
-decode reads that save as raw today, and must read it.
 
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 
@@ -99,7 +99,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     accepts: tighten.
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
     Pack destination and an Unpack source, laddercodec refuses: decide the rule here (the saves trim it except
-    a single Copy's and a Pack's destination; see item 2).
+    a single Copy's and a Pack's destination, which keep it and decode as the address without it).
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec says OBJ-024: align the id.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when

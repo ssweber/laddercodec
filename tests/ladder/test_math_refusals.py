@@ -15,6 +15,7 @@ from laddercodec import AddressError, FieldError, Math, Reason
 from laddercodec.instructions import parse_af_blob
 from laddercodec.instructions.math_formula import parse
 from laddercodec.operands.address import display_form_only
+from laddercodec.operands.unchecked import refusals
 
 _EXPR, _MODE = "Math.expression", "Math.mode"
 #: A sum of 69 addresses: 276 characters in CLICK's internal template.
@@ -312,13 +313,17 @@ def test_formula_long_digit_run_is_refused(expression: str) -> None:
 
 
 @pytest.mark.parametrize("expression", _LONG_DIGITS)
-def test_formula_long_digit_run_decodes_as_raw(expression: str) -> None:
-    """A stored formula with such a constant keeps the blob raw."""
+def test_formula_long_digit_run_keeps_its_refusal(expression: str) -> None:
+    """A stored formula with such a constant decodes as that Math, keeping the refusals."""
     blob = Math("DS1 + 12345", "DS1").build_blob()
     assert parse_af_blob(blob) == Math("DS1 + 12345", "DS1")
     text = expression.removeprefix("DS1 + ")
     stored = blob.replace("12345".encode("utf-16-le"), text.encode("utf-16-le"))
-    assert parse_af_blob(stored) is None
+    parsed = parse_af_blob(stored)
+    assert isinstance(parsed, Math) and parsed.expression == f"DS1 + {text}"
+    found = refusals(parsed)
+    assert found and all(e.field == _EXPR for e in found)
+    assert any(e.click_id == "OBJ-1009" for e in found)
 
 
 @pytest.mark.parametrize("expression", ["sin ( DS1 )", "ds1 + 1", "DH1 + ffh"])

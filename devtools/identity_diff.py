@@ -53,10 +53,11 @@ An entry is judged only on a case whose key it matches and whose first tier diff
   case but this does not hold, the entry is misused: the run reports it and exits 2;
 - with ``new``, the whole branch record is the pinned verdict.  For ``ok``: it has no
   ``errors``, ``read`` and ``dec`` are ``=``, and ``tag``, when it has one, does not end in
-  `` None`` or ``!<Class>``.  For ``!X``: ``new`` and ``read`` are ``!X``, every class in
-  ``errors`` is X, ``dec`` is ``None`` and ``tag``, when it has one, ends in `` None`` (the
-  blob decoder refuses the value).  The dry run's records hold only ``new``, so there the
-  pin binds that alone;
+  `` None``, ``!<Class>`` or `` refused[<fields>]``.  For ``!X``: ``new`` and ``read`` are ``!X``, every class in
+  ``errors`` is X, ``dec`` is ``= refused[<fields>]`` or ``None``, and ``tag``, when it has
+  one, ends in `` refused[<fields>]`` or `` None`` (the blob decoder builds the instruction,
+  holding the refusal, or leaves a value no decoded instruction holds unparsed).  The dry
+  run's records hold only ``new``, so there the pin binds that alone;
 - with ``keys``, both sides have the case and the differing keys are among them.
 
 An entry that allows no case is listed as matching no difference, which is never an error.
@@ -364,14 +365,23 @@ def _pinned(branch: Any, pin: str, verdict_only: bool = False) -> bool:
     classes = {error[0] if isinstance(error, list) and error else None for error in errors}
     tag = branch.get("tag")
     if pin == "ok":
-        refused = isinstance(tag, str) and re.search(r"(?: None|!\w+)\Z", tag) is not None
+        refused = isinstance(tag, str) and re.search(_REFUSED_TAG, tag) is not None
         return not classes and not refused and branch.get("read") == branch.get("dec") == "="
+    dec = branch.get("dec")
     return (
         classes <= {pin[1:]}
-        and (tag is None or (isinstance(tag, str) and tag.endswith(" None")))
+        and (tag is None or (isinstance(tag, str) and re.search(_HELD_OR_NONE, tag) is not None))
         and branch.get("read") == pin
-        and branch.get("dec") == "None"
+        and (dec == "None" or (isinstance(dec, str) and re.fullmatch(_HELD_SAME, dec) is not None))
     )
+
+
+#: A value's blob, decoded, refused: left unparsed, crashed on, or holding a refusal.
+_REFUSED_TAG = r"(?: None|!\w+| refused\[[^\]]+\])\Z"
+#: A refused value's blob, decoded: the instruction holding the refusal, or left unparsed.
+_HELD_OR_NONE = r"(?: None| refused\[[^\]]+\])\Z"
+#: The same, for the case's own blob: the instruction as written, holding the refusal.
+_HELD_SAME = r"= refused\[[^\]]+\]"
 
 
 def read_expected(path: str | Path) -> list[Expected]:

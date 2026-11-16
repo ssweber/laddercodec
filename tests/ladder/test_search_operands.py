@@ -14,6 +14,7 @@ from laddercodec import FieldError, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.search import Search
+from tests.kept_refusals import kept
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -160,22 +161,27 @@ def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "fields",
+    ("fields", "refused"),
     [
-        {0x6066: "C1", 0x6067: "C10"},  # a bit table
-        {0x607A: "Y001"},  # the Result Flag is a C bit
-        {0x6066: "DS10", 0x6067: "DS1"},  # backwards
-        {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
-        {0x6065: "TXT20", 0x21F7: "2"},  # > on a TXT register
-        {0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"},  # a 32-bit hex value
-        {0x6065: "3000000000"},  # outside int32
-        {0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"},  # a signed hex value
+        ({0x6066: "C1", 0x6067: "C10"}, ["table_start", "table_end"]),  # a bit table
+        ({0x607A: "Y001"}, ["found"]),  # the Result Flag is a C bit
+        ({0x6066: "DS10", 0x6067: "DS1"}, ["table_end"]),  # backwards
+        (
+            {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
+            ["comparison"],
+        ),
+        ({0x6065: "TXT20", 0x21F7: "2"}, ["comparison"]),  # > on a TXT register
+        ({0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"}, ["source"]),  # a 32-bit hex value
+        ({0x6065: "3000000000"}, ["source"]),  # outside int32
+        ({0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"}, ["source"]),  # a signed hex value
     ],
 )
-def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
+def test_refused_blob_keeps_its_refusal(fields: dict[int, str], refused: list[str]) -> None:
     tags = {0x6065: "DS1", 0x6066: "DS1", 0x6067: "DS10", 0x6079: "DS20", 0x607A: "C1"}
-    assert from_tags_af("Search", 0x2722, tags) is not None
-    assert from_tags_af("Search", 0x2722, tags | fields) is None
+    assert kept(from_tags_af("Search", 0x2722, tags)) is not None
+    search = from_tags_af("Search", 0x2722, tags | fields)
+    assert isinstance(search, Search)
+    kept(search, *(f"Search.{name}" for name in refused))
 
 
 @pytest.mark.parametrize(

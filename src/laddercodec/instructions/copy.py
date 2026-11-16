@@ -44,6 +44,7 @@ from ..operands.checks import (
     constant_shape,
 )
 from ..operands.constants import TEXT_MAX, Kind
+from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -1481,6 +1482,26 @@ def from_tags(
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
     """Construct a Copy-family instruction from tag data (shared by both decoders)."""
+    built = _from_tags(class_name, type_code, tags)
+    destination = tag_value(tags, 0x6076)
+    if built is not None and _edge_trimmed(tags) and destination != destination.strip(" "):
+        # Decoded from a clipboard, it writes the bytes CLICK stored, space and all.
+        read_in_another_form(built)
+    return built
+
+
+def _edge_trimmed(tags: dict[int, str]) -> bool:
+    """Whether the blob is a single Copy or a Pack, whose destination is read trimmed.
+
+    CLICK saves a single Copy's and a Pack's destination with a space typed at its edge
+    kept (" DS1", "DS1 "), and every other field trimmed: the address is read without it.
+    """
+    return tag_int(tags, 0x2223) in (0, 3)
+
+
+def _from_tags(
+    class_name: str, type_code: int, tags: dict[int, str]
+) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
     if class_name != "Copy" or type_code != _COPY_TYPE_CODE:
         return None
 
@@ -1491,6 +1512,8 @@ def from_tags(
     oneshot = tag_flag(tags, 0x11F8)
     copy_type = tag_int(tags, 0x2223)
     conv_type = tag_int(tags, 0x2227)
+    if _edge_trimmed(tags):
+        destination = destination.strip(" ")
 
     if copy_type == 0:
         if not source or not destination:

@@ -31,6 +31,7 @@ from ..model import (
 )
 from ..operands.checks import BIT_BANKS, Constants, Refusals, check_constant
 from ..operands.constants import Kind, hex_display
+from ..operands.unchecked import holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ _CELL_PARAMS: dict = {"visual_rows": 3}
 # ---------------------------------------------------------------------------
 
 
+@holds_refusals
 @dataclass(frozen=True)
 class ModbusRtuTarget:
     """RTU serial target."""
@@ -64,6 +66,7 @@ class ModbusRtuTarget:
             _check_device_id(check, self, 247)
 
 
+@holds_refusals
 @dataclass(frozen=True)
 class ModbusTcpTarget:
     """TCP/IP target."""
@@ -151,6 +154,7 @@ def _check_ip(check: Refusals, ip: str) -> None:
 _MAX_INT_DIGITS = 4300
 
 
+@holds_refusals
 @dataclass(frozen=True)
 class ModbusAddress:
     """Non-CLICK remote address (MODBUS 984 or hex)."""

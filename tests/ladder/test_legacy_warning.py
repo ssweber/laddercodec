@@ -12,6 +12,7 @@ import pytest
 from laddercodec import LegacyEncodingWarning, Math, Rung, decode, decode_program, encode
 from laddercodec.instructions import from_tags_af
 from laddercodec.instructions.raw import _decompose_blob
+from tests.kept_refusals import kept
 from tests.undecoded_captures import decode_capture
 
 _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -110,9 +111,9 @@ def test_no_fixture_warns():
     assert decoded >= 200
 
 
-def test_hex_mode_legacy_h_stays_raw():
-    """A hex Math takes no decimal constant, so an older ``H70000`` in one
-    leaves the blob raw, with no warning."""
+def test_hex_mode_legacy_h_is_a_refusal_not_a_legacy_finding():
+    """A hex Math takes no decimal constant, so an older ``H70000`` in one decodes keeping
+    that refusal, with no legacy finding: older laddercodec wrote H in a decimal Math only."""
     class_name, type_code, _, _, fields = _decompose_blob(
         Math(expression="1h + DH1", result="DH2", mode="hex").build_blob()
     )
@@ -122,10 +123,9 @@ def test_hex_mode_legacy_h_stays_raw():
         tag: value.replace("UH1", "H70000").replace("1h", "70000") for tag, value in tags.items()
     }
     assert legacy[0x61FD] == "H70000#+#DH1"
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always", LegacyEncodingWarning)
-        assert from_tags_af(class_name, type_code, legacy) is None
-    assert caught == []
+    math = kept(from_tags_af(class_name, type_code, legacy), "Math.expression")
+    assert (math.expression, math.mode) == ("70000 + DH1", "hex")
+    assert not math._legacy_findings  # warn_legacy() reads these
 
 
 def test_warning_survives_pickle_and_copy():

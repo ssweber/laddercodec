@@ -7,7 +7,7 @@ If you write a CSV by hand, start at [Layout](#layout).
 
 Relevant entry points:
 
-- `laddercodec.read_csv(path)`
+- `laddercodec.read_csv(path, *, strict=True, unchecked=False)`
 - `laddercodec.write_csv(path, rungs, *, index=False)`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
 - `pyrung.click.to_ladder(program, tag_map)`
@@ -781,6 +781,16 @@ Rules:
 - pyrung's exporter writes an immediate range in `BANKstart..BANKend` form only when
   its tags map to one contiguous address span; a mapping that does not fails
   pyrung's export check with a diagnostic.
+
+## Values CLICK's dialog refuses
+
+`write_csv` writes a decoded instruction that holds a value CLICK's dialog refuses
+as it is held ([Decoding](decoding.md#values-clicks-dialog-refuses)). `read_csv`
+refuses such a token, as it refuses any; `read_csv(path, unchecked=True)` reads it
+as written and emits a `RefusedFieldWarning` for it, whose `rung` counts the rungs
+`read_csv` returns, from 0. A value no stored instruction holds (a timer unit that is
+none of CLICK's, a flag that is not 0 or 1, pin rows the box can't take) still
+raises. A CSV holds no stored bytes, so `encode()` refuses the instruction.
 
 ## Where a read error is
 

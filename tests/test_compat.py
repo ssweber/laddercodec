@@ -9,6 +9,7 @@ import pytest
 from laddercodec import Break, Continue, Math, find_v4_only, is_v4_only
 from laddercodec.decode import Rung, decode
 from laddercodec.instructions.raw import RawInstruction
+from laddercodec.operands.unchecked import refusals
 
 FIXTURES = Path(__file__).parent / "fixtures"
 V3_BINS = sorted(
@@ -79,11 +80,12 @@ def test_math_v4_functions(expression: str, v4_only: bool) -> None:
         ("math_ranges_x25_x101.bin", [0]),
     ],
 )
-def test_math_decoded_as_raw_is_still_checked(file: str, flagged: list[int]) -> None:
-    """SUM over bits is v4-only, in the X/Y ranges that decode as raw Math too."""
+def test_math_with_a_refused_range_is_still_checked(file: str, flagged: list[int]) -> None:
+    """SUM over bits is v4-only, in the X/Y ranges that decode keeping a refusal too."""
     rungs = _rungs(FIXTURES / "v4_captures" / file)
     assert [index for index, _ in find_v4_only(rungs)] == flagged
-    assert any(isinstance(rung.instructions[0], RawInstruction) for rung in rungs)
+    assert not any(isinstance(rung.instructions[0], RawInstruction) for rung in rungs)
+    assert any(refusals(rung.instructions[0]) for rung in rungs)
 
 
 def test_raw_math_past_500_interiors_or_with_rand_is_v4_only() -> None:

@@ -39,6 +39,7 @@ from __future__ import annotations
 import csv as csv_mod
 import warnings
 from collections.abc import Sequence
+from contextlib import nullcontext
 from pathlib import Path
 from typing import get_args
 
@@ -52,6 +53,7 @@ from ..instructions import (
     UnknownInstruction,
 )
 from ..model import PinnedInstruction
+from ..operands.unchecked import refusals, unchecked
 from ..undecoded import Stop, Undecoded, UndecodedRungWarning, marker_rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import _is_blank_row, convert_rung, pinned_gap_height
@@ -313,10 +315,20 @@ def _af_tokens_match(expected: object, actual: object) -> bool:
     )
 
 
-def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]]) -> Rung:
-    """Read one rung's emitted CSV rows back, as ``read_csv`` reads them."""
+def _same_refusals(expected: object, actual: object) -> bool:
+    """Whether a token read back holds refusals of the same fields as the one written."""
+    return [e.field for e in refusals(expected)] == [e.field for e in refusals(actual)]
+
+
+def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]], *, held: bool = False) -> Rung:
+    """Read one rung's emitted CSV rows back, as ``read_csv`` reads them.
+
+    With *held* (the rung holds a refusal), as ``read_csv(..., unchecked=True)`` reads
+    them: a decoded instruction that holds refusals reads back to one that holds the same.
+    """
     try:
-        rebuilt = convert_rung(_parse_single_rung_rows(rows))
+        with unchecked() if held else nullcontext():
+            rebuilt = convert_rung(_parse_single_rung_rows(rows))
     except (TypeError, ValueError) as exc:
         raise WriterError(
             f"CSV round-trip validation failed: emitted rows do not reparse: {exc}"
@@ -334,7 +346,8 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
     With ``exact`` (a rung in CLICK's layout), the rows must read back to the rung itself.
     Without it, trailing blank rows the read-back drops only raise a warning.
     """
-    rebuilt = _rebuild_rung_from_rows(rows)
+    tokens = [*(t for row in rung.conditions for t in row), *rung.instructions]
+    rebuilt = _rebuild_rung_from_rows(rows, held=any(refusals(t) for t in tokens))
 
     if rebuilt.logical_rows != rung.logical_rows:
         # Trailing blank rows (no conditions, no AF) can be lost when
@@ -373,7 +386,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
         start=1,
     ):
         for col_idx, (expected, actual) in enumerate(zip(expected_row, actual_row, strict=True)):
-            if expected != actual:
+            if expected != actual or not _same_refusals(expected, actual):
                 raise WriterError(
                     "CSV round-trip validation failed: "
                     f"condition mismatch at row {row_idx} col {CONDITION_COLUMNS[col_idx]}: "
@@ -384,7 +397,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
         zip(rung.instructions[: rebuilt.logical_rows], rebuilt.instructions, strict=True),
         start=1,
     ):
-        if not _af_tokens_match(expected, actual):
+        if not _af_tokens_match(expected, actual) or not _same_refusals(expected, actual):
             if (
                 isinstance(expected, PinnedInstruction)
                 and isinstance(actual, PinnedInstruction)

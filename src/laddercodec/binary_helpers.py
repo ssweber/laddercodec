@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import struct
 
+from .operands.errors import FieldError, Reason
+
 # ---------------------------------------------------------------------------
 # Encoding helpers
 # ---------------------------------------------------------------------------
@@ -196,12 +198,23 @@ def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
     return value
 
 
+class NotANumber(FieldError):
+    """Text that is no number in a numeric tag: the blob stays unparsed."""
+
+
 def tag_int(tags: dict[int, str], tag: int, class_name: str = "") -> int:
-    """Read a numeric tag as an int; absent, blank or non-numeric reads as its default."""
-    try:
-        return int(tag_value(tags, tag, class_name))
-    except ValueError:
+    """Read a numeric tag as an int; absent or blank reads as its default.
+
+    Raises :class:`NotANumber` for text that is no number, which the ``from_tags``
+    dispatchers read as a blob they leave raw.
+    """
+    value = tag_value(tags, tag, class_name)
+    if not value:
         return int(tag_default(tag, class_name) or "0")
+    try:
+        return int(value)
+    except ValueError:
+        raise NotANumber(f"tag 0x{tag:04X}: {value!r} is no number", reason=Reason.KIND) from None
 
 
 def tag_flag(tags: dict[int, str], tag: int) -> bool:

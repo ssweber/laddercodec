@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from ..model import (
     AfInstruction,
@@ -12,6 +13,7 @@ from ..model import (
     PinnedInstruction,
     display_form_only,
 )
+from ..operands.unchecked import keep_stored_blob, needs_stored_blob, refusals, unchecked
 from . import call as call_mod
 from . import coil as coil_mod
 from . import comparison as comparison_mod
@@ -61,6 +63,7 @@ from .velocity import Velocity
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
+_Parsed = TypeVar("_Parsed", bound=ConditionInstruction | AfInstruction)
 
 # ---------------------------------------------------------------------------
 # Decode-side fallback types and token aliases
@@ -202,7 +205,7 @@ def parse_condition_blob(raw: bytes) -> Contact | CompareContact | None:
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
     result = from_tags_condition(class_name, type_marker, tags, variant_u16, variant_string)
     if isinstance(result, (Contact, CompareContact)):
-        return result
+        return _keeping_blob(result, raw)
     return None
 
 
@@ -218,7 +221,26 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
         return None
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
     parsed = from_tags_af(class_name, type_marker, tags, variant_u16, variant_string)
-    return _with_pin_rows(parsed, extra)
+    parsed = _with_pin_rows(parsed, extra)
+    return None if parsed is None else _keeping_blob(parsed, raw)
+
+
+def _keeping_blob(parsed: _Parsed, raw: bytes) -> _Parsed:
+    """*parsed*, keeping the blob at the start of *raw* when it keeps refusals or was read
+    in another form (see :func:`~laddercodec.operands.unchecked.keep_stored_blob`)."""
+    import struct
+
+    from .raw import find_blob_boundary
+
+    if not needs_stored_blob(parsed):
+        return parsed
+    try:
+        _class_name, end, _part_count = find_blob_boundary(raw)
+    except (ValueError, struct.error):
+        # Without a blob it can write, encode() refuses it as one read from CSV.
+        return parsed
+    keep_stored_blob(parsed, raw[:end])
+    return parsed
 
 
 def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
@@ -238,22 +260,19 @@ def from_tags_condition(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> ConditionInstruction | None:
-    """Dispatch condition instruction construction through registered specs."""
-    for spec in CONDITION_FAMILY_SPECS:
-        if spec.from_tags is not None:
-            try:
-                with display_form_only():
-                    result = spec.from_tags(
-                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
-                    )
-            except FieldError:
-                # The blob's own family refused a field value CLICK refuses, or text
-                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
-                # try another family.
-                return None
-            if result is not None:
-                return result
-    return None
+    """Build a condition instruction from tag data through the registered specs.
+
+    See :func:`_from_tags`.
+    """
+    built = _from_tags(
+        CONDITION_FAMILY_SPECS,
+        class_name,
+        type_code,
+        tags,
+        variant_u16_tags,
+        variant_string_tags,
+    )
+    return cast(ConditionInstruction | None, built)
 
 
 def from_tags_af(
@@ -263,22 +282,64 @@ def from_tags_af(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> AfInstruction | None:
-    """Dispatch AF instruction construction through registered specs."""
-    for spec in AF_FAMILY_SPECS:
-        if spec.from_tags is not None:
+    """Build an AF instruction from tag data through the registered specs.
+
+    See :func:`_from_tags`.
+    """
+    built = _from_tags(
+        AF_FAMILY_SPECS, class_name, type_code, tags, variant_u16_tags, variant_string_tags
+    )
+    return cast(AfInstruction | None, built)
+
+
+def _from_tags(
+    specs: Sequence[ConditionInstructionFamilySpec | AfInstructionFamilySpec],
+    class_name: str,
+    type_code: int,
+    tags: dict[int, str],
+    variant_u16_tags: dict[int, dict[int, int]] | None,
+    variant_string_tags: dict[int, dict[int, str]] | None,
+) -> object | None:
+    """The instruction the first spec that knows the blob builds from what is stored, or None.
+
+    Both decoders build every instruction here.  The instruction is built from the stored
+    values, unchecked: one whose values its checks refuse keeps the refusals
+    (:func:`~laddercodec.operands.unchecked.refusals`), so a stored instruction that
+    breaks a dialog rule still decodes as that instruction.  It stays unparsed (None,
+    and the caller keeps the blob raw) when the refusal is one no instruction keeps (text
+    CLICK never writes, such as ``x1`` or ``C001``; see :mod:`laddercodec.operands.unchecked`),
+    when the parser fails on a refused value, or when the instruction's CSV token does not
+    read back to it.
+    """
+    for spec in specs:
+        if spec.from_tags is None:
+            continue
+        with display_form_only(), unchecked() as kept:
             try:
-                with display_form_only():
-                    result = spec.from_tags(
-                        class_name, type_code, tags, variant_u16_tags, variant_string_tags
-                    )
+                result = spec.from_tags(
+                    class_name, type_code, tags, variant_u16_tags, variant_string_tags
+                )
             except FieldError:
-                # The blob's own family refused a field value CLICK refuses, or text
-                # CLICK never writes (``x1``, ``C001``): keep it unparsed rather than
-                # try another family.
+                # The blob's own family refused it: keep it unparsed rather than try
+                # another family.
                 return None
-            if result is not None:
-                return result
+            except Exception:
+                if kept:
+                    return None  # the parser failed on a value the checks refused
+                raise
+            if result is None:
+                continue
+            if refusals(result) and not _reads_back(result):
+                return None
+            return result
     return None
+
+
+def _reads_back(token: object) -> bool:
+    """Whether *token*'s CSV token reads back to it, as ``write_csv`` checks it does."""
+    from ..csv.converter import reads_back  # the CSV reader imports this package
+
+    return reads_back(token)
 
 
 __all__ = [

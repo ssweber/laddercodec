@@ -57,6 +57,7 @@ EXPECTED_ROOT_EXPORTS = (
     "AddressError",
     "Reason",
     "LegacyEncodingWarning",
+    "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
     "BlockCopy",

@@ -272,6 +272,8 @@ def test_an_entry_with_new_allows_that_verdict_only(tmp_path: Path, pin: str, st
         ("ok", "!FieldError", "=", 1),
         ("ok", "=", "None", 1),
         ("!FieldError", "!FieldError", "None", 0),
+        ("!FieldError", "!FieldError", "= refused[X.f]", 0),
+        ("!FieldError", "!FieldError", "=", 1),
         ("!FieldError", "!ValueError", "None", 1),
         ("!FieldError", "!FieldError", "!ValueError", 1),
         ("ok", None, "=", 1),
@@ -335,8 +337,18 @@ _REFUSED = {
         ("ok", {**_ACCEPTED, "tag": "6066 None"}, 1),
         ("ok", {**_ACCEPTED, "tag": "6066 !AddressError"}, 1),
         ("ok", {**_ACCEPTED, "tag": "6066 compose!ValueError"}, 1),
-        # The constructor refuses, but the blob parser accepts the value.
-        ("!FieldError", {**_REFUSED, "tag": "6066 X:1"}, 1),
+        # The constructor refuses; the blob parser builds the instruction, keeping the
+        # refusal, but not when it crashes.
+        (
+            "!FieldError",
+            {**_REFUSED, "tag": "6066 X:1 refused[X.f]", "dec": "= refused[X.f]"},
+            0,
+        ),
+        ("!FieldError", {**_REFUSED, "tag": "6066 X:1", "dec": "= refused[X.f]"}, 1),
+        ("!FieldError", {**_REFUSED, "tag": "6066 X:1 refused[X.f]", "dec": "="}, 1),
+        ("!FieldError", {**_REFUSED, "tag": "6066 !ValueError"}, 1),
+        ("ok", {**_ACCEPTED, "tag": "6066 X:1 refused[X.f]"}, 1),
+        ("ok", {**_ACCEPTED, "tag": "6066 T:t @pins=[1] ['x']"}, 0),
         ("!FieldError", {**_REFUSED, "errors": [["FieldError", "m"], ["ValueError", "m"]]}, 1),
         # A branch without read or dec does not state the verdict whole.
         ("!FieldError", {"new": "!FieldError", "text": "X:1", "errors": [["FieldError", "m"]]}, 1),

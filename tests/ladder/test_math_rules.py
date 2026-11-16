@@ -12,11 +12,13 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import FieldError, decode, read_csv
+from laddercodec import FieldError, RefusedFieldWarning, decode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import RawInstruction, _decompose_blob
+from laddercodec.instructions.raw import _decompose_blob
+from laddercodec.operands.unchecked import refusals
+from tests.kept_refusals import kept
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
@@ -196,23 +198,28 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
 
 
 @pytest.mark.parametrize(
-    "fields",
+    ("fields", "field"),
     [
-        {0x6065: "C1"},  # a bit result
-        {0x11FE: "-1"},  # a hex Math into DS9
-        {0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"},  # SUM over CT
-        {0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"},  # outside int32
-        {0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"},  # reads back as 7
-        {0x61FF: "@ + 1Fh", 0x61FD: "DS1#+#1Fh"},  # hex constant in a decimal Math
-        {0x61FF: "@ + 1FH", 0x61FD: "DS1#+#1FH"},
-        {0x61FF: '@ + "A"', 0x61FD: 'DS1#+#"A"'},  # text in a formula
-        {0x61FF: " + ".join(["@"] * 69), 0x61FD: "#+#".join(f"DS{i}" for i in range(1, 70))},
+        ({0x6065: "C1"}, "Math.result"),  # a bit result
+        ({0x11FE: "-1"}, "Math.result"),  # a hex Math into DS9
+        ({0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"}, "Math.expression"),  # CT
+        ({0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"}, "Math.expression"),  # int32
+        ({0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"}, "Math.expression"),  # reads back as 7
+        ({0x61FF: "@ + 1Fh", 0x61FD: "DS1#+#1Fh"}, "Math.expression"),  # hex in a decimal Math
+        ({0x61FF: "@ + 1FH", 0x61FD: "DS1#+#1FH"}, "Math.expression"),
+        ({0x61FF: '@ + "A"', 0x61FD: 'DS1#+#"A"'}, "Math.expression"),  # text in a formula
+        (
+            {0x61FF: " + ".join(["@"] * 69), 0x61FD: "#+#".join(f"DS{i}" for i in range(1, 70))},
+            "Math.expression",
+        ),
     ],
 )
-def test_refused_blob_is_left_unparsed(fields: dict[int, str]) -> None:
+def test_refused_blob_keeps_its_refusal(fields: dict[int, str], field: str) -> None:
     tags = {0x6065: "DS9", 0x61FF: "@ + @", 0x61FD: "DS1#+#DS2", 0x3218: "8451"}
-    assert from_tags_af("Math", 0x271A, tags) is not None
-    assert from_tags_af("Math", 0x271A, tags | fields) is None
+    assert kept(from_tags_af("Math", 0x271A, tags)) is not None
+    math = from_tags_af("Math", 0x271A, tags | fields)
+    assert isinstance(math, Math)
+    assert [error.field for error in refusals(math)] == [field]
 
 
 @pytest.mark.parametrize(
@@ -251,11 +258,16 @@ def test_math_keeps_its_words(expression: str, result: str, mode: str) -> None:
     Math(expression, result, mode)
 
 
-def test_pasted_formula_over_the_cap_decodes_as_raw() -> None:
+def test_pasted_formula_over_the_cap_keeps_its_refusal() -> None:
     """CLICK keeps a pasted 69-operand sum (273 characters) that its dialog refuses."""
     path = Path(__file__).parents[1] / "fixtures/v4_captures/retyped/math_wide.bin"
-    rungs = decode(path.read_bytes())
+    with pytest.warns(RefusedFieldWarning, match="CLICK allows 270"):
+        rungs = decode(path.read_bytes())
     assert isinstance(rungs, list)
     by_name = {r.comment.split("\n")[0]: r for r in rungs if r.comment}
-    assert isinstance(by_name["math_operands__ops_69"].instructions[0], RawInstruction)
+    wide = by_name["math_operands__ops_69"].instructions[0]
+    assert isinstance(wide, Math) and wide.expression == " + ".join(
+        f"DS{i}" for i in range(401, 470)
+    )
+    kept(wide, "Math.expression")
     assert isinstance(by_name["math_operands__spacing_add"].instructions[0], Math)

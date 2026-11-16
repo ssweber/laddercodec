@@ -32,6 +32,7 @@ from laddercodec.instructions.send_receive import ModbusAddress
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
 from laddercodec.model import AddressError, InstructionType, check_address
+from tests.kept_refusals import kept
 
 ASCII = "3"
 UNICODE = "٣"
@@ -193,13 +194,12 @@ class TestSearchEmptyText:
         assert isinstance(parsed, Search) and parsed.source == '"$41"'
         assert parsed.to_csv() == search.to_csv()
 
-    def test_native_blob_with_empty_text_is_not_parsed(self) -> None:
-        # decode() keeps a blob that parse_af_blob does not parse as a RawInstruction.
+    def test_native_blob_with_empty_text_keeps_its_refusal(self) -> None:
         blob = Search("TXT1", "TXT10", '"A"', "DS20", "C20", "==").build_blob()
         needle = '"A"'.encode("utf-16-le")
         assert blob.count(needle) == 1
         empty = blob.replace(needle, '""'.encode("utf-16-le"))
-        assert parse_af_blob(empty) is None
+        assert kept(parse_af_blob(empty), "Search.source").source == '""'
 
 
 @pytest.mark.parametrize("code", ["$\u0663", "$0x1", "$1_0", "$ 1", "$+1", "$", "$123", "$G1"])

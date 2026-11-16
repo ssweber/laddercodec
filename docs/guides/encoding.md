@@ -196,6 +196,12 @@ the field takes; a field that may be blank is accepted, and its blank is no refu
 a Timer whose done bit is refused is not checked for a current value that
 matches it.
 
+A decoded instruction can hold a refused value, with a `RefusedFieldWarning`
+([Decoding](decoding.md#values-clicks-dialog-refuses)). Unchanged, it encodes as
+the bytes it was decoded from; changed, it is checked again, and `encode()` raises
+the `FieldError` building it raises. Read from CSV, it has no bytes to write, and
+`encode()` raises that error.
+
 ## Comments
 
 Comments are plain text with optional markdown-style inline formatting:
