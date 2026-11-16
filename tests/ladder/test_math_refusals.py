@@ -79,8 +79,13 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
     for result, reason, click_id in cases:
         (error,) = _refusals(lambda result=result: Math("DH1", result, "hex"))
         assert (error.field, error.reason, error.click_id) == ("Math.result", reason, click_id)
-    assert str(error) != "" and "outside the range of a hex Math result" in str(
-        _refusals(lambda: Math("DH1", "SD29", "hex"))[0]
+    assert str(_refusals(lambda: Math("DH1", "SD29", "hex"))[0]) == (
+        "Math.result: 'SD29' is outside the range of a hex Math result (OBJ-003); "
+        "it takes DH and YD"
+    )
+    assert str(_refusals(lambda: Math("DH1", "YD9", "hex"))[0]) == (
+        "Math.result: 'YD9' is outside the range of a hex Math result (OBJ-003); "
+        "it takes DH1-DH500, YD0, YD0u, YD1-YD8"
     )
     for result in ("YD0", "YD0u", "YD8"):
         Math("DH1", result, "hex")

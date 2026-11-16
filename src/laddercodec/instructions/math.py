@@ -32,8 +32,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import Address, AddressError, AfInstruction, FieldError, Reason, check_address
-from ..operands.checks import Refusals
+from ..model import AfInstruction, FieldError, Reason, check_address
+from ..operands.checks import HEX_MATH_RESULT, Refusals
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse
@@ -93,26 +93,6 @@ RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
 }
-
-
-def _check_hex_result(value: str, field: str, banks: frozenset[str]) -> Address:
-    """A hex result's address.  CLICK answers an SD, or a YD past YD8, with OBJ-003 (outside
-    the range); another bank it does not take is OBJ-004."""
-    try:
-        return check_address(value, field, banks, bank_id="OBJ-004")
-    except AddressError as error:
-        sd = error.reason == Reason.BANK and value.startswith("SD")
-        yd = (
-            error.reason == Reason.ADDRESS and value.startswith("YD") and "is outside" in str(error)
-        )
-        if not (sd or yd):
-            raise
-        raise AddressError(
-            f"{field}: {value!r} is outside the range of a hex Math result (OBJ-003)",
-            field=field,
-            reason=error.reason,
-            click_id="OBJ-003",
-        ) from None
 
 
 def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
@@ -218,10 +198,9 @@ class Math(AfInstruction):
             check.normalize("result")
             # The result's banks and the formula's reading depend on the mode.
             if not check.refused("mode"):
-                if self.mode == "hex":
-                    check("result", _check_hex_result, RESULT_BANKS["hex"])
-                else:
-                    check("result", check_address, RESULT_BANKS["decimal"], bank_id="OBJ-004")
+                extra = HEX_MATH_RESULT if self.mode == "hex" else {}
+                banks = RESULT_BANKS[self.mode]
+                check("result", check_address, banks, bank_id="OBJ-004", **extra)
                 if not check.refused("expression"):
                     # Every refusal of the formula, each on Math.expression.
                     formula = check.run(parse, self.expression, self.mode)
