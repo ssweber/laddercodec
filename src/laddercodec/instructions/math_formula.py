@@ -27,8 +27,8 @@ A refusal of the text's characters, a bracket, unbalanced or too deeply nested p
 and a token out of order each end the reading there.  Every other refusal is one of many:
 each word refused, each constant's value, each key of the other mode, each bit, each DS in a
 hex formula and each range, and the reading goes on past it, taking a refused word as what
-it looks like (an address, a constant, a function name).  After a word that looks like none of those, the
-order is not checked, nor are the bits and ranges.  The length is not checked after a
+it looks like (an address, a constant, a function name).  After a word that looks like none
+of those, the order is not checked, nor are the bits and ranges.  The length is not checked after a
 refused constant or such a word, which have no internal form to count.
 
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
@@ -634,18 +634,19 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high.
 
     A hex formula takes no bit, not even in a SUM, and no DS.  An X or Y range CLICK would
-    store a wrong member list for is refused too.  One refusal for each bit or DS, and at
-    most one for each range; a refused address is not checked again.
+    store a wrong member list for is refused too.  One refusal for each bit or DS outside a
+    SUM, one for each SUM refused, and at most one for each range; a refused address is not
+    checked again.
     """
     texts = [t.text for t in tokens]
     found: list[FieldError] = []
-    # SUM ( a : b ) is the one place a bit may stand, and not a CT bit
+    # SUM ( a : b ) is the one place a bit may stand, in a decimal formula, and not a CT bit
     # (OBJ-1002; an older CPU's refusal of every bit is a project rule).
     sum_at: dict[int, int] = {}  # each end of a SUM range: where its SUM stands
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
-    ct_refused: set[int] = set()  # the SUMs refused for a CT range, once each
+    sum_refused: set[int] = set()  # the SUMs refused for a bit range, once each
     outside_sum: set[int] = set()  # the bits refused, outside a SUM or in a hex formula
     for i, token in enumerate(tokens):
         parts = address_parts(token.text)
@@ -657,19 +658,28 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
             continue
         if parts[0] not in BIT_BANKS:
             continue
+        if i not in sum_at:
+            outside_sum.add(i)
+            rule = (
+                "a hex Math takes no bit"
+                if mode == "hex"
+                else "a bit stands only in SUM over a bit range"
+            )
+            found.append(_error(f"{token.text} is a bit; {rule}", Reason.BANK, "OBJ-1002"))
+            continue
         if mode == "hex":
             outside_sum.add(i)
-            rule = f"{token.text} is a bit; a hex Math takes no bit, not even in SUM"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
-        elif i not in sum_at:
-            outside_sum.add(i)
-            rule = f"{token.text} is a bit; a bit stands only in SUM over a bit range"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
-        elif parts[0] in _SUM_REFUSED_BANKS and sum_at[i] not in ct_refused:
-            ct_refused.add(sum_at[i])
+        if sum_at[i] in sum_refused:
+            continue
+        if parts[0] in _SUM_REFUSED_BANKS:
+            sum_refused.add(sum_at[i])
             found.append(
                 _error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK)
             )
+        elif mode == "hex":
+            sum_refused.add(sum_at[i])
+            rule = f"SUM over {token.text} is refused; a hex Math takes no bit, not even in SUM"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
             continue

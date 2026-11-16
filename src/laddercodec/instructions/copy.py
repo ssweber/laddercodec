@@ -600,7 +600,8 @@ def _destinations(rows: _Rows) -> frozenset[str]:
 
 
 #: CLICK's id for a destination bank the source's row leaves out: an Unpack's destination
-#: field refuses it as a bank it can't use (OBJ-004), the others as a pairing (OBJ-024).
+#: field gives OBJ-004 for every bank its source greys out; Block Copy and Pack give OBJ-024
+#: for a pairing.
 _ROW_IDS = {"BlockCopy": "OBJ-024", "Pack": "OBJ-024", "Unpack": "OBJ-004"}
 
 
@@ -637,8 +638,8 @@ def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
     """Refuse a Block Copy into SD whose range, after its writable start, holds an SD that
     is not writable: a refusal of the destination with the source, whose length sets the end.
 
-    CLICK's id: OBJ-004 for a range that runs past the last writable SD, OBJ-018 for one with
-    a read-only SD before it.  A range with both gets no id.
+    CLICK's id: OBJ-018 when every unwritable SD in the range lies below SD215, OBJ-004 when
+    every one lies past it, no id when it has both.
     """
     unwritable = [n for n in range(dest.number, end + 1) if n not in WRITABLE_SD]
     if not unwritable:

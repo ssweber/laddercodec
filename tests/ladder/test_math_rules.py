@@ -95,8 +95,9 @@ _REFUSED = [
     ("X001 + 1", "DS9", "decimal", "X001 is a bit"),
     ("MAX ( C1 : C5 )", "DS9", "decimal", "C1 is a bit"),
     # a hex formula takes no bit, not even in SUM, and no DS (OBJ-1002)
-    ("SUM ( X001 : X002 )", "DH9", "hex", "X001 is a bit; a hex Math takes no bit"),
-    ("SUM ( C1 : C16 )", "DH9", "hex", "C1 is a bit; a hex Math takes no bit"),
+    ("SUM ( X001 : X002 )", "DH9", "hex", "SUM over X001 is refused; a hex Math takes no bit"),
+    ("SUM ( C1 : C16 )", "DH9", "hex", "SUM over C1 is refused; a hex Math takes no bit"),
+    ("SUM ( CT1 : CT3 )", "DH9", "hex", "SUM over CT1 is refused; SUM takes no CT range"),
     ("DH1 + C1", "DH9", "hex", "C1 is a bit; a hex Math takes no bit"),
     ("DS1 + 1h", "DH9", "hex", "DS1 is a DS register; a hex Math takes no DS"),
     ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is a DS register"),
