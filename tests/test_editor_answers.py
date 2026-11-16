@@ -33,7 +33,7 @@ import pytest
 
 from laddercodec.csv import read_csv
 from laddercodec.instructions.coil import Coil
-from laddercodec.instructions.copy import BlockCopy, Copy
+from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.send_receive import ModbusAddress, ModbusRtuTarget, Receive
@@ -44,7 +44,15 @@ ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
 
 #: The files of cases CLICK answered, in the order they are compared.
-ANSWER_FILES = ("preflight", "risky", "receive", "receive_count", "pickcheck")
+ANSWER_FILES = (
+    "preflight",
+    "risky",
+    "receive",
+    "receive_count",
+    "pickcheck",
+    "picker_lists",
+    "rule_rows",
+)
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
 
@@ -102,7 +110,7 @@ DISAGREEMENTS: dict[Key, str] = {
 }
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-MIN_CODES_COMPARED = 53
+MIN_CODES_COMPARED = 57
 
 
 @pytest.fixture(scope="module")
@@ -223,15 +231,28 @@ def _writable() -> list[dict[str, Any]]:
 
 
 def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
-    """Whether the rules accept ``bank``\\ ``number`` in the picker's field."""
+    """Whether the rules accept the address ``bank`` + ``number`` in the picker's field, with the other
+    fields as the picker had them (``filled``; a field left empty is tried with each source
+    that could be there)."""
     address = f"{bank}{number}"
+    filled = field.get("filled") or {}
+    kind, mode = field["instruction"], field.get("mode")
     try:
-        if field["instruction"] == "out":
+        if kind == "out":
             Coil(InstructionType.COIL_OUT, address, None)
-        elif field["mode"] == "single":
+        elif mode == "single":
             Copy("DS1", address)
-        elif field["mode"] == "block":
+        elif mode == "block":
             BlockCopy("DS1", "DS2", address, f"{bank}{number + 1}")
+        elif mode == "pack":
+            sources = [(filled["source"], filled["source_end"])] if filled else PACK_SOURCES
+            return any(_builds(_pack, s, e, address) for s, e in sources)
+        elif mode == "unpack":
+            sources = [filled["source"]] if filled else UNPACK_SOURCES
+            as_end = field["field"] == "destination_end"
+            return any(_builds(_unpack, s, bank, number, as_end) for s in sources)
+        elif mode == "hex":
+            Math("DH1", address, "hex")
         else:
             Math("DS2 + 1", address, "decimal")
     except Exception:
@@ -239,25 +260,67 @@ def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
     return True
 
 
+#: Sources a Pack or Unpack field may have when the picker was opened with nothing filled.
+PACK_SOURCES = [("C1", "C16"), ("DS1", "DS2"), ("DD1", "DD2"), ("DH1", "DH2"), ("DF1", "DF2")]
+UNPACK_SOURCES = ["DS1", "DD1", "DH1", "DF1"]
+
+
+def _builds(build: Any, *args: Any) -> bool:
+    try:
+        build(*args)
+    except Exception:
+        return False
+    return True
+
+
+def _pack(source: str, end: str, address: str) -> object:
+    bank = source.rstrip("0123456789")
+    return Pack(source, end, address, "bits" if bank == "C" else "words")
+
+
+def _unpack(source: str, bank: str, number: int, as_end: bool) -> object:
+    """An Unpack whose destination range holds ``number`` as its start, or as its end."""
+    if bank in ("C", "Y", "SC", "X"):
+        length = 16
+        kind = "bits"
+    else:
+        length = 2
+        kind = "words"
+    first = number - length + 1 if as_end else number
+    last = number if as_end else number + length - 1
+    if bank == "Y":
+        return Unpack(source, f"Y{first:03d}", f"Y{last:03d}", kind)
+    return Unpack(source, f"{bank}{first}", f"{bank}{last}", kind)
+
+
 def compare_lists() -> dict[Key, str]:
-    """Each field whose writable list differs from the addresses the rules accept."""
+    """Each field and bank whose writable list differs from the addresses the rules accept.
+    A bank with no list (null: its tab is greyed) is an empty list, which the rules must match
+    by accepting no address of that bank."""
     found: dict[Key, str] = {}
     for field in _writable():
-        bank = "SC" if field["instruction"] == "out" else "SD"
-        listed = set(field[bank])
-        lo, hi = ADDRESS_BANKS[bank]
-        # A Block Copy needs the second address as well: the picker lists the start of a pair.
-        accepted = {n for n in range(lo, hi + 1) if _accepts_address(field, bank, n)}
-        wanted = listed
-        if field.get("mode") == "block":
-            numbers = {int(a[2:]) for a in listed}
-            wanted = {f"{bank}{n}" for n in numbers if n + 1 in numbers}
-        if {f"{bank}{n}" for n in accepted} != wanted:
-            name = ".".join(str(field[k]) for k in ("instruction", "mode", "field") if field.get(k))
-            found[("sc_sd_writable", f"{name}.{bank}", "list")] = (
-                f"{len(accepted)} accepted, {len(wanted)} listed"
-            )
+        for bank in ("SC", "SD"):
+            listed = set(field[bank] or [])
+            lo, hi = ADDRESS_BANKS[bank]
+            # A Block Copy needs the second address as well: the picker lists the start of a pair.
+            accepted = {n for n in range(lo, hi + 1) if _accepts_address(field, bank, n)}
+            wanted = listed
+            if field.get("mode") == "block":
+                numbers = {int(a[2:]) for a in listed}
+                wanted = {f"{bank}{n}" for n in numbers if n + 1 in numbers}
+            if {f"{bank}{n}" for n in accepted} != wanted:
+                parts = [str(field[k]) for k in ("instruction", "mode", "field") if field.get(k)]
+                name = ".".join(parts)
+                if field.get("filled"):
+                    name += " (after " + " ".join(field["filled"].values()) + ")"
+                found[("sc_sd_writable", f"{name}.{bank}", "list")] = (
+                    f"{len(accepted)} accepted, {len(wanted)} listed"
+                )
     return found
+
+
+#: The fields whose picker-check answers (the ``pickcheck`` file) follow the lists.
+PICKER_CHECKED = {("out", None), ("copy", "single"), ("copy", "block"), ("math", "decimal")}
 
 
 def compare_picker_checks() -> list[str]:
@@ -268,6 +331,7 @@ def compare_picker_checks() -> list[str]:
             int(a[2:]) for a in f["SC" if f["instruction"] == "out" else "SD"]
         }
         for f in _writable()
+        if (f["instruction"], f.get("mode")) in PICKER_CHECKED
     }
     wrong: list[str] = []
     for case in _answers("pickcheck"):

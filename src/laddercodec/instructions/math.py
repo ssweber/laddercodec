@@ -88,7 +88,7 @@ _EMPTY_RESERVED_BYTES = b"".join(
     struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
-#: Result banks per mode (another bank is OBJ-004).
+#: Result banks per mode (another bank is OBJ-004, and an SD in hex mode OBJ-003).
 RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
@@ -198,7 +198,10 @@ class Math(AfInstruction):
             check.normalize("result")
             # The result's banks and the formula's reading depend on the mode.
             if not check.refused("mode"):
-                check("result", check_address, RESULT_BANKS[self.mode], bank_id="OBJ-004")
+                # CLICK answers an SD hex result with OBJ-003, outside the range.
+                sd_hex = self.mode == "hex" and self.result.startswith("SD")
+                bank_id = "OBJ-003" if sd_hex else "OBJ-004"
+                check("result", check_address, RESULT_BANKS[self.mode], bank_id=bank_id)
                 if not check.refused("expression"):
                     # Every refusal of the formula, each on Math.expression.
                     formula = check.run(parse, self.expression, self.mode)

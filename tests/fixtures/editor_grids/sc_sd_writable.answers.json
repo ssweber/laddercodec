@@ -1,7 +1,7 @@
 {
- "what": "The SC and SD addresses the Address Picker lists when a field's '...' button opens it ('Address Picker : Pickup Mode', owned by the dialog), with the bank tabs it leaves open. A bank whose tab is greyed has no row in the picker's All list (null here: the field takes no address of that bank); a list is the bank's rows in the All list.",
- "click": "CLICK Programming Software v4.00, the runner's own new project, connected to a PLC",
- "probe": "Address Picker run pk6 (2026-11-16)",
+ "what": "The SC and SD addresses the Address Picker lists when a field's '...' button opens it ('Address Picker : Pickup Mode', owned by the dialog), with the bank tabs it leaves open. A bank whose tab is greyed has no row in the picker's All list (null here: the field takes no address of that bank); a list is the bank's rows in the All list. 'filled' is what was typed into the dialog's other fields before the '...' was pressed ({}: nothing); the picker's lists follow it.",
+ "click": "CLICK Programming Software v4.00, the runner's own new project, connected to the conformance PLC",
+ "probe": "Address Picker runs pk6 and pk1 (2026-11-16): pk6 for the first four fields, pk1 (able to fill other fields first) for the rest",
  "fields": [
   {
    "instruction": "copy",
@@ -9,6 +9,7 @@
    "field": "destination",
    "control": 5014,
    "button": 5015,
+   "filled": {},
    "tabs_open": [
     "Y",
     "C",
@@ -69,6 +70,7 @@
    "field": "destination",
    "control": 5014,
    "button": 5015,
+   "filled": {},
    "tabs_open": [
     "Y",
     "C",
@@ -129,6 +131,7 @@
    "field": "result",
    "control": 2001,
    "button": 2002,
+   "filled": {},
    "tabs_open": [
     "DS",
     "DD",
@@ -189,6 +192,7 @@
    "field": "address",
    "control": 5002,
    "button": 5004,
+   "filled": {},
    "tabs_open": [
     "Y",
     "C",
@@ -238,6 +242,264 @@
    ],
    "SD": null,
    "read": "SC: the list's last page (C2000, SC50 .. SC326, the end); the list is Y, C, SC, 74 pages from Y001"
+  },
+  {
+   "instruction": "copy",
+   "mode": "pack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {},
+   "tabs_open": [
+    "DS",
+    "DD",
+    "DH",
+    "DF",
+    "TD",
+    "CTD"
+   ],
+   "tabs_greyed": [
+    "X",
+    "Y",
+    "C",
+    "T",
+    "CT",
+    "SC",
+    "XD",
+    "YD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "the list's first page (DS1, nothing before it) and last page (CTD250, the end)"
+  },
+  {
+   "instruction": "copy",
+   "mode": "pack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {
+    "source": "X001",
+    "source_end": "X016"
+   },
+   "tabs_open": [
+    "DH"
+   ],
+   "tabs_greyed": [
+    "X",
+    "Y",
+    "C",
+    "T",
+    "CT",
+    "SC",
+    "DS",
+    "DD",
+    "DF",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "the list's first page (DH1) and last page (DH500, the end); 18 pages"
+  },
+  {
+   "instruction": "copy",
+   "mode": "pack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {
+    "source": "C1",
+    "source_end": "C16"
+   },
+   "tabs_open": [
+    "DS",
+    "DD",
+    "DH",
+    "DF"
+   ],
+   "tabs_greyed": [
+    "X",
+    "Y",
+    "C",
+    "T",
+    "CT",
+    "SC",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "the list's first page (DS1) and last page (DF500, the end)"
+  },
+  {
+   "instruction": "copy",
+   "mode": "unpack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {},
+   "tabs_open": [
+    "Y",
+    "C",
+    "DS",
+    "DH"
+   ],
+   "tabs_greyed": [
+    "X",
+    "T",
+    "CT",
+    "SC",
+    "DD",
+    "DF",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "the list's first page (Y001) and last page (DH500, the end); SC by its greyed tab only (the pages between C2000 and DS1 were not reached)"
+  },
+  {
+   "instruction": "copy",
+   "mode": "unpack",
+   "field": "destination_end",
+   "control": 5017,
+   "button": 5018,
+   "filled": {},
+   "tabs_open": [
+    "Y",
+    "C",
+    "DS",
+    "DH"
+   ],
+   "tabs_greyed": [
+    "X",
+    "T",
+    "CT",
+    "SC",
+    "DD",
+    "DF",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "the list's first page (Y001) and last page (DH500, the end); SC by its greyed tab only, as for the destination"
+  },
+  {
+   "instruction": "copy",
+   "mode": "unpack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {
+    "source": "DH1"
+   },
+   "tabs_open": [
+    "Y",
+    "C"
+   ],
+   "tabs_greyed": [
+    "X",
+    "T",
+    "CT",
+    "SC",
+    "DS",
+    "DD",
+    "DH",
+    "DF",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "every page: Y001 .. C2000, the end; 74 pages"
+  },
+  {
+   "instruction": "copy",
+   "mode": "unpack",
+   "field": "destination",
+   "control": 5014,
+   "button": 5015,
+   "filled": {
+    "source": "DS1"
+   },
+   "tabs_open": [
+    "C"
+   ],
+   "tabs_greyed": [
+    "X",
+    "Y",
+    "T",
+    "CT",
+    "SC",
+    "DS",
+    "DD",
+    "DH",
+    "DF",
+    "XD",
+    "YD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "every page: C1 .. C2000, the end; 68 pages"
+  },
+  {
+   "instruction": "math",
+   "mode": "hex",
+   "field": "result",
+   "control": 2001,
+   "button": 2002,
+   "filled": {},
+   "tabs_open": [
+    "DH",
+    "YD"
+   ],
+   "tabs_greyed": [
+    "X",
+    "Y",
+    "C",
+    "T",
+    "CT",
+    "SC",
+    "DS",
+    "DD",
+    "DF",
+    "XD",
+    "TD",
+    "CTD",
+    "SD",
+    "TXT"
+   ],
+   "SC": null,
+   "SD": null,
+   "read": "every page: DH1 .. DH500, YD0, YD0u, YD1 .. YD8, the end; 18 pages"
   }
  ]
 }

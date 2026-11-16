@@ -73,7 +73,9 @@ The answers sit beside the grids:
 | `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file; the runner's own case file is not kept) |
 | `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs, `rxc1` and `rxc2`). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
-| `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open |
+| `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused (run `pc1`, with its saves kept) |
+| `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`); run `k1`, with its saves kept |
+| `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
 rule changes. Only the run metadata was changed when they were committed: the absolute paths in
@@ -86,7 +88,8 @@ records one, else 1) and its outcome compared with CLICK's, then the
 refusal's `click_id` with CLICK's code (only where the rules give a `click_id`; most refusals have
 none yet, and the test records how many codes it compared), then the saved rows of an accepted case
 with what `read_csv` makes of them (a `raw(...)` is a difference), then the writable lists with the SC and
-SD addresses the rules accept. A case with more text than its field's `limits` is skipped: the
+SD addresses the rules accept (a field's list holds with the other fields as `filled` gives them; a bank with
+no list means the rules accept no address of it). A case with more text than its field's `limits` is skipped: the
 runner sets text by WM_SETTEXT, which ignores the limit, so no user can type it. Each difference
 is listed in the test with its reason and its roadmap item; the test fails on one that is not
 listed and on a listed one that is gone.

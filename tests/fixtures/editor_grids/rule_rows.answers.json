@@ -1,0 +1,109 @@
+{
+ "grid": "cases.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "k1"
+ ],
+ "cases": [
+  {
+   "row": "A8",
+   "case": "block TXT1..TXT2 to TXT11",
+   "instruction": "copy",
+   "mode": "block",
+   "fields": {
+    "source": "TXT1",
+    "source_end": "TXT2",
+    "destination": "TXT11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.753,
+   "read_back": {
+    "source": "TXT1",
+    "source_end": "TXT2",
+    "destination": "TXT11"
+   },
+   "limits": {
+    "source": 130,
+    "source_end": 16,
+    "destination": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"blockcopy(TXT1..TXT2,TXT11..TXT12)\""
+   ]
+  },
+  {
+   "row": "A10",
+   "case": "YD0 = DH1 + DH2 (hex)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "YD0",
+    "formula": "DH1 + DH2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.907,
+   "read_back": {
+    "result": "YD0",
+    "formula": "DH1 + DH2"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1 + DH2,YD0,mode=hex)\""
+   ]
+  },
+  {
+   "row": "A10",
+   "case": "YD1 = DH1 + DH2 (hex)",
+   "instruction": "math",
+   "mode": "hex",
+   "fields": {
+    "result": "YD1",
+    "formula": "DH1 + DH2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.39,
+   "read_back": {
+    "result": "YD1",
+    "formula": "DH1 + DH2"
+   },
+   "limits": {
+    "result": 26,
+    "formula": 500
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"math(DH1 + DH2,YD1,mode=hex)\""
+   ]
+  }
+ ]
+}

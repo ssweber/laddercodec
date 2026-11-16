@@ -67,6 +67,17 @@ def test_math_nickname_is_not_read_as_a_formula() -> None:
     assert "holds a <nickname>" in str(error)
 
 
+def test_hex_result_in_sd_is_outside_the_range() -> None:
+    """CLICK answers an SD as a hex result with OBJ-003; any other bank not taken is OBJ-004."""
+    for result, click_id in (("SD29", "OBJ-003"), ("SD31", "OBJ-003"), ("DS1", "OBJ-004")):
+        (error,) = _refusals(lambda result=result: Math("DH1", result, "hex"))
+        assert (error.field, error.reason, error.click_id) == ("Math.result", "bank", click_id)
+    # The decimal result takes SD, and a bank it does not take keeps OBJ-004.
+    Math("DS1", "SD29")
+    (error,) = _refusals(lambda: Math("DS1", "DH1"))
+    assert error.click_id == "OBJ-004"
+
+
 def test_math_result_and_formula_both_reported() -> None:
     errors = _refusals(lambda: Math("DS1 + FOO", "DH1"))
     assert _shape(errors) == [("Math.result", "bank", "OBJ-004"), (_EXPR, "kind", "OBJ-1001")]
