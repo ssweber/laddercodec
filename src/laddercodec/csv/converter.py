@@ -78,6 +78,7 @@ from ..model import (
     PinnedInstruction,
     check_address,
 )
+from ..operands.errors import Reason
 from .ast import (
     AfBlank,
     AfCall,
@@ -93,7 +94,7 @@ from .ast import (
     RungAst,
     VerticalPassThroughWire,
 )
-from .location import AF_COLUMN, add_location, at, located
+from .location import AF_COLUMN, add_location, add_own_location, at, located
 
 # ---------------------------------------------------------------------------
 # Condition / AF token conversion helpers
@@ -386,18 +387,41 @@ def _finalize_pinned_block(
     try:
         token = token.with_pins(pins, tuple(slot_rows))
     except ValueError as exc:
-        field_name = exc.field if isinstance(exc, FieldError) else None
-        error = ConvertError(str(exc), field=field_name)
+        error = ConvertError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
         if isinstance(exc, FieldError):
             # A value a pin row sets is refused: locate it at that pin's row.
-            culprit = _refused_pin(token, pins, tuple(slot_rows))
+            slots = tuple(slot_rows)
+            culprit = _refused_pin(token, pins, slots)
             if culprit is not None:
-                add_location(error, **pin_places[culprit], column=AF_COLUMN)
+                add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
+            for refusal in exc.errors:
+                owner = _refusing_pin(token, pins, slots, refusal)
+                if owner is not None:
+                    add_own_location(refusal, **pin_places[owner], column=AF_COLUMN)
         raise error from exc
     af_tokens: list[AfToken] = [token, *([""] * (len(rows) - 1))]
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _refusing_pin(
+    token: PinnedInstruction,
+    pins: dict[str, tuple[str, ...]],
+    slot_rows: tuple[int, ...],
+    refusal: FieldError,
+) -> str | None:
+    """The first used pin without which *refusal* is no longer raised, or None."""
+    for name in pins:
+        try:
+            token.with_pins({k: v for k, v in pins.items() if k != name}, slot_rows)
+        except FieldError as other:
+            if any(str(e) == str(refusal) for e in other.errors):
+                continue
+        except ValueError:
+            continue
+        return name
+    return None
 
 
 def _refused_pin(
@@ -515,13 +539,42 @@ def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
 class ConvertError(ValueError):
     """Raised when a RungAst cannot be converted to encode arguments.
 
-    ``field`` names the instruction field whose value was refused, as ``FieldError.field``
-    does, or is ``None``.
+    A ``FieldError`` refused while a box takes its pin rows is still wrapped: it arrives as
+    a ``ConvertError`` (not a ``FieldError``, so ``except FieldError`` does not catch it),
+    now carrying the refusal's data.  ``field``, ``fields``, ``reason`` and ``click_id``
+    are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
+    refusal of the box, each a ``FieldError`` with its own ``location``; ``errors[0]`` is the
+    wrapped ``FieldError`` (also ``__cause__``), not this exception.  A refusal a pin row's
+    value causes is located at that pin's row, any other at the box's own row.  An error that is
+    no field refusal (a pin token that does not parse, a rung with no rows) has ``field``,
+    ``reason`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
     """
 
-    def __init__(self, *args: object, field: str | None = None) -> None:
+    field: str | None
+    fields: tuple[str, ...]
+    reason: Reason | None
+    click_id: str | None
+    errors: tuple[FieldError, ...] | tuple[ConvertError]
+
+    def __init__(
+        self,
+        *args: object,
+        field: str | None = None,
+        refusal: FieldError | None = None,
+    ) -> None:
         super().__init__(*args)
-        self.field = field
+        if refusal is None:
+            self.field = field
+            self.fields = () if field is None else (field,)
+            self.reason = None
+            self.click_id = None
+            self.errors = (self,)
+        else:
+            self.field = refusal.field
+            self.fields = refusal.fields
+            self.reason = refusal.reason
+            self.click_id = refusal.click_id
+            self.errors = refusal.errors
 
 
 def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:

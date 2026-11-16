@@ -399,3 +399,92 @@ class TestBundle:
             parse_bundle(tmp_path)
         assert CsvLocation.of(info.value) == CsvLocation(file=sub, line=3, rung_line=3, row=0)
         assert str(info.value).endswith(f"(at {sub}, line 3, rung at line 3, row 0 from 0)")
+
+
+BAD_TIMER = "on_delay(T1,TD2,preset=40000,unit=Tms)"
+
+
+def _assert_every_refusal_located(exc: BaseException, path: Path) -> None:
+    assert isinstance(exc, (FieldError, ConvertError))
+    assert len(exc.errors) >= 2
+    for refusal in exc.errors:
+        assert isinstance(refusal, FieldError)
+        assert refusal.reason is not None
+        found = CsvLocation.of(refusal)
+        assert found is not None
+        assert found.file == path
+        assert found.line == 3
+        assert found.column == AF
+
+
+class TestEveryRefusal:
+    def test_two_bad_fields_both_arrive_located(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [GOOD, ("R", _wired("X1"), BAD_TIMER)])
+        with pytest.raises(FieldError) as info:
+            read_csv(path)
+        _assert_every_refusal_located(info.value, path)
+        by_field = {e.field: e for e in info.value.errors}
+        assert len(by_field) == len(info.value.errors)
+        assert by_field["Timer.setpoint"].click_id == "OBJ-005"
+        assert "Timer.current" in by_field  # a refusal CLICK has no id for
+
+    def test_refused_pin_row_keeps_its_row_and_reason(self, tmp_path: Path) -> None:
+        rows: list[Row | list[str]] = [
+            ("R", _wired("X1"), "off_delay(T1,TD1,preset=1000,unit=Tms)"),
+            ("", _wired("X2"), ".reset()"),
+        ]
+        path = _write(tmp_path / "main.csv", rows)
+        with pytest.raises(ConvertError) as info:
+            read_csv(path)
+        exc = info.value
+        assert exc.field == "Timer.retained"
+        assert exc.reason is not None
+        assert exc.errors and all(isinstance(e, FieldError) for e in exc.errors)
+        for refusal in exc.errors:
+            assert CsvLocation.of(refusal) == CsvLocation(
+                file=path, line=3, rung_line=2, row=1, column=AF
+            )
+        assert exc.errors[0].reason == exc.reason
+        assert exc.errors[0].click_id == exc.click_id
+
+    def test_other_convert_errors_hold_themselves(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [("R", _wired("X1"), ".bogus()")])
+        with pytest.raises(ConvertError) as info:
+            read_csv(path)
+        assert info.value.errors == (info.value,)
+        assert info.value.reason is None
+
+
+class TestOwnLocations:
+    def test_pin_and_box_refusals_each_have_their_own_row(self) -> None:
+        """``with_pins`` refusing a pin's value and an unrelated field: each is at its own row.
+
+        No CSV reaches this (a box's own fields are refused when it is built, before its
+        pins), so a stub box stands in for one.
+        """
+        from laddercodec.csv import converter
+
+        pin_error = FieldError("pin", field="Box.pin")
+        box_error = FieldError("box", field="Box.other")
+        both = FieldError("pin", field="Box.pin")
+        both.errors = (both, box_error)
+
+        class Box:
+            def with_pins(self, pins: dict, slots: tuple) -> object:
+                if pins:
+                    raise both
+                if True:
+                    raise FieldError("box", field="Box.other")
+
+        owner = converter._refusing_pin(Box(), {"p": ()}, (), pin_error)  # type: ignore[arg-type]
+        assert owner == "p"
+        assert converter._refusing_pin(Box(), {"p": ()}, (), box_error) is None
+
+    def test_condition_cell_refusals_are_each_located(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [("R", _wired("X9999"), "out(Y001)")])
+        with pytest.raises(FieldError) as info:
+            read_csv(path)
+        for refusal in info.value.errors:
+            found = CsvLocation.of(refusal)
+            assert found is not None
+            assert (found.file, found.line, found.column) == (path, 2, 0)
