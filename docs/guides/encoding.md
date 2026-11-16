@@ -152,6 +152,39 @@ and raise `FieldError` for `""`, a longer text and a quote inside the text.
 longer or non-ASCII text and a quote inside the text. Each refuses when built or
 read from CSV. A quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
 
+## Refused Values
+
+```python
+from laddercodec import FieldError, Timer
+
+try:
+    Timer(timer_type="on_delay", done_bit="C1", current="TD1", setpoint="40000", unit="Tms")
+except FieldError as exc:
+    for error in exc.errors:
+        print(error.field, error.reason, error.click_id)
+# Timer.done_bit bank None
+# Timer.setpoint range OBJ-005
+```
+
+A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
+address) when the instruction is built. `errors` holds every refusal of that
+instruction, the raised one first; `Timer` and `Coil` report each field they
+refuse, the other instructions the first one. Each refusal has:
+
+| Attribute  | Holds                                                                                  |
+|------------|----------------------------------------------------------------------------------------|
+| `field`    | the field refused, `Class.attr`, or `Class.attr[i]` for an item of a list              |
+| `fields`   | `(field,)`, or both fields for a refused pair (`Timer.current`, `Timer.done_bit`)       |
+| `reason`   | a `Reason`, listed below                                                               |
+| `click_id` | CLICK's id for the error where it has one (`OBJ-005`), or `None`                       |
+| `obj`      | the instruction being built                                                            |
+
+`reason` is one of `address`, `bank`, `range`, `pointer`, `kind`, `form`,
+`not_writable`, `flag`, `choice`, `conflict` and `missing`, or `None` for a
+refusal not given one yet. A field that depends on a refused one is not checked:
+a Timer whose done bit is refused is not checked for a current value that
+matches it.
+
 ## Comments
 
 Comments are plain text with optional markdown-style inline formatting:

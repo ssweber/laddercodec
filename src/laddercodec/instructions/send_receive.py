@@ -576,9 +576,7 @@ def _validate_send(send: Send) -> tuple[int, int]:
     if not bit:
         fc06 = fc == 6
         local_banks = _SEND_LOCAL_REGS_FC06 if fc06 else _SEND_LOCAL_REGS_FC16
-        check_address(
-            send.source, f"{who}.source", local_banks, label=f"{who} source (FC{fc:02d})"
-        )
+        check_address(send.source, f"{who}.source", local_banks, label=f"{who} source (FC{fc:02d})")
         if isinstance(remote, str):
             remote_banks = _SEND_REMOTE_REGS_FC06 if fc06 else _SEND_REMOTE_REGS_FC16
             label = f"{who} remote_start (FC{fc:02d})"

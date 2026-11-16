@@ -59,10 +59,11 @@ src/laddercodec/
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
 │   ├── checks.py         # Shared field checks (not wired in yet): check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
-│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS
+│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS;
+│   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet);
 │   │                     #   fits_float32() (Math), hex_display() (Math, Send/Receive)
-│   └── errors.py         # FieldError (ValueError), AddressError (.field, .obj)
+│   └── errors.py         # FieldError (ValueError), AddressError; .errors, .field(s), .reason (Reason), .click_id, .obj
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
 │   ├── family.py         # Family SPEC (csv names, parse_csv_call) used by the registry and CSV dispatch

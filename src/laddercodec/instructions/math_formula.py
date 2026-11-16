@@ -288,7 +288,9 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
                 f"{_NAME}: {hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits",
                 field=_NAME,
             )
-        return Token("const", to_display(word, hex_display(hex_digits), _NAME), f"UH{int(hex_digits, 16)}")
+        return Token(
+            "const", to_display(word, hex_display(hex_digits), _NAME), f"UH{int(hex_digits, 16)}"
+        )
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             raise FieldError(

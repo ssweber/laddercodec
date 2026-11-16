@@ -15,6 +15,7 @@
 - **`Program.undecoded`**: lists a program's undecoded markers, empty when every rung decoded.
 - **`undecoded(...)` CSV token**: `write_csv` writes a marker and `read_csv` reads it back; `encode()` refuses it, so it never reaches CLICK, and `check()` reports it as an `undecoded` finding.
 - **Read errors say where**: an error `read_csv` raises for a bad CSV keeps its class and carries a `CsvLocation` (file, line, rung, row and column) as its `location`; a `ValueError` or `csv.Error` message ends with that location, a `UnicodeDecodeError` keeps its message and names the file only, and a `FieldError` refused while a box takes its pin rows still arrives as `ConvertError`, now with the refused field in `.field`.
+- **Field errors say why**: a `FieldError` carries `reason`, a `Reason` such as `bank`, `range` or `conflict`, `click_id`, CLICK's own error id where it has one (`OBJ-005`), `fields`, the one field or the pair it names, and `errors`, every refusal of the construction with the raised one first; `Timer` and `Coil` report every field they refuse, the other instructions the first one.
 
 ### Fixed
 - **Long digit runs in Compare and Out variants**: a constant of more than 4300 digits, such as a long run of leading zeros, no longer raises a bare `ValueError`; it reads as its value, or is refused with `FieldError` where its pairing or limit refuses it.
@@ -24,7 +25,7 @@
 
 ### Changed
 - **Reworded refusals**: the messages for Compare, Out variant, Timer set point, Counter preset, Drum preset, Modbus hex address, Copy, Fill and Search value fields are reworded; the refusals themselves are the same.
-- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`, and for a bad Copy or BlockCopy format, Copy `exponential` or termination code, Pack or Unpack type, `rows=` or `sub=` in a `raw(...)` token, and an `undecoded(...)` token of the wrong shape (`Undecoded`).
+- **Field errors name the field**: `FieldError.field` now names the field for a Compare pairing refusal, for Drum step counts, output counts and steps with neither a duration nor an event, for Send, Receive and Modbus target refusals, such as `Send.quantity` or `ModbusTcpTarget.port`, and for a bad Copy or BlockCopy format, Copy `exponential` or termination code, Pack or Unpack type, and `rows=` or `sub=` in a `raw(...)` token; `field` is always `Class.attr` of the instruction refused, so an event drum's event is `Drum.events_or_presets[i]`, where it was `Drum.events[i]`, a drum preset is `Drum.events_or_presets[i]`, where it was `Drum.presets[i]`, a refusal under `display_form_only()` names its field, and a refusal of `undecoded(...)` token syntax names none.
 - **Undecoded comments keep their text**: a comment that doesn't decode now reads `UNDECODED comment: <error>` followed on the next line by the plain text that could be read from its bytes, cut and ended with `...` where it would be too long to encode, so `encode()` writes the text back into CLICK.
 - **Docs site follows releases**: the published docs update when a release is published, not on every change to `main`.
 
