@@ -13,12 +13,14 @@ from laddercodec.operands.checks import (
     ALL_KINDS,
     POINTER_BANKS,
     WRITABLE_SC,
+    WRITABLE_SD,
     Constants,
     Operand,
     check_constant,
     check_flag,
     check_operand,
     check_out_target,
+    check_writable_sd,
 )
 from laddercodec.operands.constants import Constant, Kind
 from laddercodec.operands.errors import AddressError, FieldError
@@ -317,6 +319,29 @@ def test_check_out_target_refuses(
 def test_writable_sc_bits() -> None:
     assert len(WRITABLE_SC) == 25
     assert min(WRITABLE_SC) == 50 and max(WRITABLE_SC) == 326
+
+
+def test_writable_sd_registers() -> None:
+    assert len(WRITABLE_SD) == 29
+    assert min(WRITABLE_SD) == 29 and max(WRITABLE_SD) == 215
+
+
+@pytest.mark.parametrize("address", [Address("SD", 29), Address("SD", 215), Address("DS", 1)])
+def test_check_writable_sd_passes(address: Address) -> None:
+    check_writable_sd(address, "X.f")
+
+
+def test_check_writable_sd_refuses() -> None:
+    with pytest.raises(
+        AddressError, match=r"^X.f: 'SD43' is not a writable SD register; "
+    ) as caught:
+        check_writable_sd(Address("SD", 43), "X.f", click_id="OBJ-004")
+    assert (caught.value.field, caught.value.reason, caught.value.click_id) == (
+        "X.f",
+        "not_writable",
+        "OBJ-004",
+    )
+    assert str(caught.value).endswith("SD214, SD215 (OBJ-004)")
 
 
 # ---------------------------------------------------------------------------

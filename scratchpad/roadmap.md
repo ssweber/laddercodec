@@ -95,22 +95,33 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   Left: the full Math, Copy and Out grids, then Receive, Compare, Search, Fill, timers, counters
   and For. What the answers showed:
   - Hex Math `DH1 + 0`, `DH1 = 0` and `RAND(5,Ah)` are accepted, laddercodec refuses on purpose (item 4).
-  - Hex Math `SUM(X001:X002)` and a DS in a hex formula (`DS1 + 1h`) are refused (OBJ-1002), laddercodec
-    accepts: tighten.
+  - Hex Math `SUM(X001:X002)` and a DS in a hex formula (`DS1 + 1h`) are refused (OBJ-1002). Closed: a hex
+    formula now refuses a DS register and any bit, in a `SUM` too, with OBJ-1002. Open: the answers hold DH
+    only among the other banks, so a hex formula still takes DD, DF, TD, CTD, SD, XD, YD and TXT; the full
+    `math_hex` grid answers them.
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
-    Pack destination and an Unpack source, laddercodec refuses: decide the rule here (the saves trim it except
-    a single Copy's and a Pack's destination, which keep it and decode as the address without it).
-  - Unpack of a DS into DS is refused with OBJ-004, laddercodec says OBJ-024: align the id.
+    Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
+    instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and
+    a Pack's destination keep the space, and decode as the address without it). The ratchet keeps these
+    entries with that reason. Both `dec  DS1 = ...` and `dec DS1  = ...` put the space in the Math result.
+  - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
+    destination bank its source can't unpack to now carries OBJ-004. Open: only DS into DS is answered; ask
+    CLICK for a DH source into DS and a DD source into Y.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
     the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its
     `03 -> TXT1` stays in the ratchet at count 1.
   - Open: is Send's TXT count in characters too, and what are its limits? Send has no TXT rule today.
-- **The writable-SD list has arrived:** `sc_sd_writable.answers.json` (29 SD for a single Copy, a Block Copy
-  and a decimal Math result, none for Out; 25 SC for Out, none elsewhere), and the 28 picker checks agree
-  with it. laddercodec's `WRITABLE_SC` is the same 25; its rules accept all 1,000 SD in each of the three
-  fields, so each tightens to the list (a Block Copy needs every address of its destination range listed).
-  Then decide whether the sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) stay.
+- **The writable-SD list (closed):** `sc_sd_writable.answers.json` lists 29 SD for a single Copy, a Block Copy
+  and a decimal Math result, none for Out, and 25 SC for Out, none elsewhere. `WRITABLE_SD` holds the 29, and
+  the three fields refuse any other SD with reason `not_writable`: a single Copy with OBJ-004 (answered for
+  SD43, SD105, SD216 and SD1000), a decimal Math result with OBJ-003 (SD62, SD148 and SD999), and a Block
+  Copy when any address of its destination range is not listed. A Block Copy from `DS1..DS2` gives OBJ-018
+  ("read only addresses between") into SD42 and SD147, and OBJ-004 into SD215; the rule fitted to these three
+  is OBJ-018 for an unlisted SD before SD215 and OBJ-004 for one past it, no id for a range with both, and no
+  id for an unlisted start. The sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) are
+  removed: the picker list answers them. Open: a Block Copy whose start is not listed, and an unlisted SD
+  below SD29 in each field; a Fill into SD still takes every SD (no answer covers it).
 - **The picker's lists for 8 more fields are in:** Pack's destination (with nothing, an X source and a C
   source filled first), Unpack's destination and destination end (with nothing, a DH source and a DS source),
   and a hex Math result. None lists an SC or SD address, and the rules accept none. The 15 `try` cases from

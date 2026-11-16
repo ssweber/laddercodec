@@ -668,6 +668,11 @@ currently emit:
   16-point slot, a pack or unpack range fits its register (`pack_bits` takes
   bits, `pack_words` registers), and a Math result is DS, DD, DF, TD, CTD or SD
   in decimal mode, DH or YD in hex mode.
+- A single `copy` destination, every address a `blockcopy` fills and a decimal
+  `math` result take only the SD registers a program writes: SD29, SD31, SD32,
+  SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114,
+  SD140-SD147, SD214 and SD215. Any other SD raises `AddressError`
+  (`copy(DS1,SD43)`, `blockcopy(DS1..DS2,SD42..SD43)`).
 - Block Copy, Pack and Unpack pair banks as CLICK's dialog does:
   - `blockcopy`: bits go to Y or C; DS, DD, DH, DF and SD to DS, DD, DH, DF,
     TD, CTD or SD; TXT to DS, DD, DH or TXT. The destination end is the start
@@ -692,7 +697,9 @@ currently emit:
   (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
   constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`7`, `1.5`); a hex
   constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
-  writes it (`7H` becomes `7h`). `SUM` takes no CT range, and the formula is at
+  writes it (`7H` becomes `7h`). A hex `math` formula takes no DS register
+  (`DS1 + 1h`) and no bit, not even in a `SUM` (`SUM ( X001 : X002 )`).
+  `SUM` takes no CT range, and the formula is at
   most 270 characters as CLICK stores it: a sum of 68 addresses fits, 69 does
   not; constants, functions and parentheses count too.
 - A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
