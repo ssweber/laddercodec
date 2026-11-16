@@ -32,13 +32,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import (
-    AfInstruction,
-    FieldError,
-    check_address,
-    check_flag,
-    normalize_fields,
-)
+from ..model import AfInstruction, FieldError, Reason, check_address
+from ..operands.checks import Refusals
 from ..operands.constants import INT16_MAX, INT16_MIN
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse
@@ -190,20 +185,26 @@ class Math(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        if self.mode not in RESULT_BANKS:
-            raise FieldError(
-                f"Math.mode: {self.mode!r} is not 'decimal' or 'hex'", field="Math.mode"
-            )
-        if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
-            raise FieldError(
-                f"Math.expression: {self.expression!r} holds a <nickname>; Math takes "
-                "addresses, not nicknames (laddercodec cannot resolve a nickname to its address)",
-                field="Math.expression",
-            )
-        normalize_fields(self, "result")
-        check_address(self.result, "Math.result", RESULT_BANKS[self.mode], bank_id="OBJ-004")
-        self.expression = parse(self.expression, self.mode).display
-        self.oneshot = check_flag(self.oneshot, "Math.oneshot")
+        with Refusals(self) as check:
+            if self.mode not in RESULT_BANKS:
+                check.refuse("mode", f"{self.mode!r} is not 'decimal' or 'hex'", Reason.CHOICE)
+            if "<" in self.expression and ">" in self.expression.split("<", 1)[1]:
+                check.refuse(
+                    "expression",
+                    f"{self.expression!r} holds a <nickname>; Math takes addresses, not "
+                    "nicknames (laddercodec cannot resolve a nickname to its address)",
+                    Reason.ADDRESS,
+                )
+            check.normalize("result")
+            # The result's banks and the formula's reading depend on the mode.
+            if not check.refused("mode"):
+                check("result", check_address, RESULT_BANKS[self.mode], bank_id="OBJ-004")
+                if not check.refused("expression"):
+                    # Every refusal of the formula, each on Math.expression.
+                    formula = check.run(parse, self.expression, self.mode)
+                    if formula is not None:
+                        self.expression = formula.display
+            check.flag("oneshot")
 
     def to_csv(self) -> str:
         parts = [self.expression, self.result]

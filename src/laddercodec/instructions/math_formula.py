@@ -3,7 +3,8 @@
 The reader follows the check CLICK v4's Math dialog runs on OK.  Its steps and rules are
 documented in ``docs/internals/instruction-blobs.md``, "Math formula grammar"; the step
 numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
-``Math.expression`` at the first refusal, naming the token and the rule:
+``Math.expression``, naming the token and the rule, with every refusal it found in
+:attr:`~FieldError.errors`:
 
 1. :func:`_lex` splits the text as the dialog's tokenizer does (step 1): on spaces and
    tabs, on ``+ - * / ^ ( ) , :`` and on ``[ ]``.  A run of digits followed by ``.``,
@@ -21,6 +22,14 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
    starts and ends (step 9).
 7. Bits, ranges and the 270-character cap of the internal template.
 
+A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
+and a token out of order each end the reading there.  Every other refusal is one of many:
+each word refused, each constant's value, each key of the other mode, each bit and each
+range, and the reading goes on past it, taking a refused word as what it looks like (an
+address, a constant, a function name).  After a word that looks like none of those, the
+order is not checked, nor are the bits and ranges.  The length is checked only when no
+word or constant was refused.
+
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
 the nickname display and the two internal ``#`` forms.
 """
@@ -29,6 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import NoReturn
 
 from ..model import (
     ADDRESS_BANKS,
@@ -42,8 +52,22 @@ from ..model import (
 from ..operands.banks import Bank, banks
 from ..operands.checks import BIT_BANKS
 from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display
+from ..operands.errors import Reason
 
 _NAME = "Math.expression"
+
+
+def _error(rule: str, reason: Reason, click_id: str | None = None) -> FieldError:
+    """A refusal of the formula: ``Math.expression: rule``, ending with CLICK's id if known."""
+    tail = f" ({click_id})" if click_id else ""
+    return FieldError(f"{_NAME}: {rule}{tail}", field=_NAME, reason=reason, click_id=click_id)
+
+
+def _raise(found: Sequence[FieldError]) -> NoReturn:
+    """Raise the first refusal found, with :attr:`~FieldError.errors` holding them all."""
+    first = found[0]
+    first.errors = tuple(found)
+    raise first
 
 # ---------------------------------------------------------------------------
 # Names (the keyword map of grammar step 2)
@@ -106,12 +130,14 @@ class Token:
     ``kind`` is ``(``, ``)``, ``,``, ``:``, ``op`` (``+ - * / ^`` and the word operators),
     ``func``, ``pi``, ``const`` or ``addr``.  ``text`` is the token as the display formula
     shows it; ``internal`` is a constant as the internal formula stores it (``H5``,
-    ``F1.5``, ``UH10``).
+    ``F1.5``, ``UH10``).  ``refused`` marks a word or constant already refused, read on as
+    the ``kind`` it looks like.
     """
 
     kind: str
     text: str
     internal: str = ""
+    refused: bool = False
 
 
 def address_parts(text: str) -> tuple[str, str] | None:
@@ -199,14 +225,11 @@ def _lex(text: str) -> list[_Raw]:
             i += 1
             continue
         if ch in '"$':
-            raise FieldError(
-                f"{_NAME}: {text!r} holds a text constant; a Math formula takes numbers only",
-                field=_NAME,
+            raise _error(
+                f"{text!r} holds a text constant; a Math formula takes numbers only", Reason.KIND
             )
         if not _is_word_char(ch):
-            raise FieldError(
-                f"{_NAME}: {ch!r} in {text!r} is no part of a Math formula", field=_NAME
-            )
+            raise _error(f"{ch!r} in {text!r} is no part of a Math formula", Reason.FORM)
         end = i
         while end < n and _is_word_char(text[end]):
             end += 1
@@ -240,70 +263,96 @@ def _signed(raws: Sequence[_Raw], i: int, word: str) -> str:
     return word
 
 
-def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
-    """The token a raw word or symbol is (grammar steps 2 and 6), or a refusal (step 7)."""
+def _word_refusal(word: str) -> FieldError:
+    return _error(
+        f"{word!r} is not an address, a function name or a constant; "
+        "a Math formula takes only those",
+        Reason.KIND,
+        "OBJ-1001",
+    )
+
+
+def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) -> Token | None:
+    """The token a raw word or symbol is (grammar steps 2 and 6), or a refusal (step 7).
+
+    A refused word is added to ``found`` and comes back as the token it looks like, marked
+    refused, or as ``None`` when it looks like no token.
+    """
     raw = raws[i]
     word = raw.text
+
+    def refuse(error: FieldError, kind: str | None, text: str = word) -> Token | None:
+        found.append(error)
+        return None if kind is None else Token(kind, text, refused=True)
+
     if raw.symbol:
         kind = "op" if word in "+-*/^" else word
         return Token(kind, word)
     if any(c.isdecimal() and not c.isascii() for c in word):
-        raise FieldError(f"{_NAME}: {word!r} has a digit outside 0-9", field=_NAME)
+        return refuse(_error(f"{word!r} has a digit outside 0-9", Reason.FORM), None)
     hex_digits = _hex_digits(word)
     if raw.cut:
         if hex_digits is not None and mode == "hex":
             first, rest = word[: raw.cut], word[raw.cut :]
-            raise FieldError(
-                f"{_NAME}: {word} is refused; CLICK reads the digits before E as a real "
-                f"number, so it reads {word} as {first} then {rest}",
-                field=_NAME,
+            error = _error(
+                f"{word} is refused; CLICK reads the digits before E as a real number, so it "
+                f"reads {word} as {first} then {rest}",
+                Reason.FORM,
             )
+            return refuse(error, "const")
         if hex_digits is None:
-            raise FieldError(
-                f"{_NAME}: {word!r} is not an address, a function name or a constant; "
-                "a Math formula takes only those",
-                field=_NAME,
-            )
+            return refuse(_word_refusal(word), None)
     upper = word.upper()
     if not raw.number and not raw.cut:
         if upper in NAMES:
-            text = to_display(word, upper, _NAME)
-            if upper in WORD_OPERATORS:
-                return Token("op", text)
-            return Token("pi" if upper == "PI" else "func", text)
-        address = normalize_address(word, _NAME)
+            kind = "op" if upper in WORD_OPERATORS else "pi" if upper == "PI" else "func"
+            try:
+                return Token(kind, to_display(word, upper, _NAME))
+            except FieldError as exc:
+                return refuse(exc, kind, upper)
+        try:
+            address = normalize_address(word, _NAME)
+        except FieldError as exc:
+            # Only an address not in display form is refused here.
+            return refuse(exc, "addr")
         if address_parts(address) is not None:
-            check_address(address, _NAME, ADDRESS_BANKS)
+            try:
+                check_address(address, _NAME, ADDRESS_BANKS)
+            except FieldError as exc:
+                return refuse(exc, "addr", address)
             return Token("addr", address)
     if hex_digits is not None:
         if mode == "decimal":
-            raise FieldError(
-                f"{_NAME}: {hex_display(hex_digits)} is a hex constant; a decimal Math "
-                "takes decimal constants such as 7",
-                field=_NAME,
+            error = _error(
+                f"{hex_display(hex_digits)} is a hex constant; a decimal Math takes decimal "
+                "constants such as 7",
+                Reason.KIND,
+                "OBJ-1001",
             )
+            return refuse(error, "const")
         if len(hex_digits) > 4:
             # CLICK counts the digits as typed, leading zeros too (0FFFEh is refused).
-            raise FieldError(
-                f"{_NAME}: {hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits",
-                field=_NAME,
+            error = _error(
+                f"{hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits",
+                Reason.RANGE,
+                "OBJ-1009",
             )
-        return Token(
-            "const", to_display(word, hex_display(hex_digits), _NAME), f"UH{int(hex_digits, 16)}"
-        )
+            return refuse(error, "const")
+        try:
+            text = to_display(word, hex_display(hex_digits), _NAME)
+        except FieldError as exc:
+            return refuse(exc, "const")
+        return Token("const", text, f"UH{int(hex_digits, 16)}")
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
-            raise FieldError(
-                f"{_NAME}: {_signed(raws, i, word)} is a decimal constant; a hex Math takes "
-                "hex constants such as 7h",
-                field=_NAME,
+            error = _error(
+                f"{_signed(raws, i, word)} is a decimal constant; a hex Math takes hex "
+                "constants such as 7h",
+                Reason.KIND,
             )
+            return refuse(error, "const")
         return Token("const", word)
-    raise FieldError(
-        f"{_NAME}: {word!r} is not an address, a function name or a constant; "
-        "a Math formula takes only those",
-        field=_NAME,
-    )
+    return refuse(_word_refusal(word), None)
 
 
 # ---------------------------------------------------------------------------
@@ -311,22 +360,25 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str) -> Token:
 # ---------------------------------------------------------------------------
 
 
-def _check_parentheses(tokens: Sequence[Token], shown: str) -> None:
+def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None:
+    """The first refusal of the parentheses (grammar step 3), or ``None``."""
     depth = 0
     for token in tokens:
         if token.kind == "(":
             depth += 1
             if depth > MAX_NESTING:
-                raise FieldError(
-                    f"{_NAME}: {shown!r} nests parentheses {depth} deep; CLICK allows {MAX_NESTING}",
-                    field=_NAME,
+                return _error(
+                    f"{shown!r} nests parentheses {depth} deep; CLICK allows {MAX_NESTING}",
+                    Reason.RANGE,
+                    "OBJ-1010",
                 )
         elif token.kind == ")":
             depth -= 1
             if depth < 0:
-                raise FieldError(f"{_NAME}: {shown!r} has a ')' with no '('", field=_NAME)
+                return _error(f"{shown!r} has a ')' with no '('", Reason.FORM, "OBJ-1004")
     if depth > 0:
-        raise FieldError(f"{_NAME}: {shown!r} has a '(' with no ')'", field=_NAME)
+        return _error(f"{shown!r} has a '(' with no ')'", Reason.FORM, "OBJ-1005")
+    return None
 
 
 def _merge_signs(tokens: list[Token]) -> list[Token]:
@@ -346,7 +398,8 @@ def _merge_signs(tokens: list[Token]) -> list[Token]:
             and nxt.kind == "const"
             and not nxt.internal
         ):
-            out.append(Token("const", f"{token.text}{nxt.text}"))
+            # A refused constant joins its sign too, so the order reads as it would for 5.
+            out.append(Token("const", f"{token.text}{nxt.text}", refused=nxt.refused))
             i += 2
             continue
         out.append(token)
@@ -354,8 +407,8 @@ def _merge_signs(tokens: list[Token]) -> list[Token]:
     return out
 
 
-def _decimal_internal(text: str) -> str:
-    """The internal form of a decimal constant, or a refusal of its value (OBJ-1009).
+def _decimal_internal(text: str) -> str | FieldError:
+    """The internal form of a decimal constant, or the refusal of its value (OBJ-1009).
 
     CLICK reads an integer with ``_wtoi64``, keeps the low 32 bits, prints them with ``%d``
     and refuses the token when the printed length differs from the typed one, so
@@ -368,46 +421,60 @@ def _decimal_internal(text: str) -> str:
     body = text[1:] if text[:1] in _SIGNS else text
     if not all(c in _DIGITS for c in body):
         if not fits_float32(float(text)):
-            raise FieldError(
-                f"{_NAME}: {text} is outside the float32 range; a real constant fits 32 bits",
-                field=_NAME,
+            return _error(
+                f"{text} is outside the float32 range; a real constant fits 32 bits",
+                Reason.RANGE,
+                "OBJ-1009",
             )
         return f"F{text}"
     if len(text) > _MAX_PRINTED:
-        # %d of a 32-bit value, with a typed '+', prints at most 11 characters.
-        raise FieldError(
-            f"{_NAME}: {text} is refused; CLICK prints an integer back in at most "
-            f"{_MAX_PRINTED} characters, which is not what was typed",
-            field=_NAME,
+        # %d of a 32-bit value, with a typed '+', prints at most 11 characters.  Too many
+        # digits is a value out of range; leading zeros are a form.
+        digits = body.lstrip("0")
+        outside = len(digits) > _MAX_PRINTED - 1 or not _INT32_MIN <= int(text) <= _INT32_MAX
+        return _error(
+            f"{text} is refused; CLICK prints an integer back in at most {_MAX_PRINTED} "
+            "characters, which is not what was typed",
+            Reason.RANGE if outside else Reason.FORM,
+            "OBJ-1009",
         )
     value = int(text)
+    outside = not _INT32_MIN <= value <= _INT32_MAX
     # _wtoi64 saturates at the int64 limits.
     low = (max(-(2**63), min(2**63 - 1, value)) + 2**31) % 2**32 - 2**31
     printed = f"+{low}" if text.startswith("+") else str(low)
     if len(printed) != len(text):
-        if not _INT32_MIN <= value <= _INT32_MAX:
-            raise FieldError(
-                f"{_NAME}: {text} is outside {_INT32_MIN}..{_INT32_MAX}; "
-                "an integer constant is 32-bit",
-                field=_NAME,
+        if outside:
+            return _error(
+                f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit",
+                Reason.RANGE,
+                "OBJ-1009",
             )
-        raise FieldError(
-            f"{_NAME}: {text} is refused; CLICK reads it back as {printed}, which is not what was "
-            "typed",
-            field=_NAME,
+        return _error(
+            f"{text} is refused; CLICK reads it back as {printed}, which is not what was typed",
+            Reason.FORM,
+            "OBJ-1009",
         )
     return f"{'H' if INT16_MIN <= value <= INT16_MAX else 'W'}{text}"
 
 
-def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> None:
+def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldError]:
+    """A refusal for each key of the other mode's keypad (grammar step 8).
+
+    Each names ``Math.mode`` too: the key is taken in a Math of the other mode.
+    """
     other = HEX_ONLY if mode == "decimal" else DECIMAL_ONLY
-    for token in tokens:
-        if token.kind in ("op", "func", "pi") and token.text in other:
-            other_mode = "hex" if mode == "decimal" else "decimal"
-            raise FieldError(
-                f"{_NAME}: {token.text} is {other_mode} only; {shown!r} is a {mode} Math",
-                field=_NAME,
-            )
+    other_mode = "hex" if mode == "decimal" else "decimal"
+    return [
+        FieldError(
+            f"{_NAME}: {token.text} is {other_mode} only; {shown!r} is a {mode} Math (OBJ-1006)",
+            field=(_NAME, "Math.mode"),
+            reason=Reason.CONFLICT,
+            click_id="OBJ-1006",
+        )
+        for token in tokens
+        if token.kind in ("op", "func", "pi") and token.text in other
+    ]
 
 
 _VALUES = ("func", "pi", "const", "addr")
@@ -458,32 +525,35 @@ def _closing(tokens: Sequence[Token], i: int) -> int:
     return len(tokens) - 1
 
 
-def _check_order(tokens: Sequence[Token]) -> None:
-    """The grammar checker (step 9), token by token, each call form at its name."""
+def _check_order(tokens: Sequence[Token]) -> FieldError | None:
+    """The first refusal of the grammar checker (step 9), or ``None``.
+
+    It reads token by token, each call form at its name.
+    """
     call_separators: set[int] = set()
     for i, token in enumerate(tokens):
         nxt = tokens[i + 1] if i + 1 < len(tokens) else None
         if nxt is not None:
             reason = _follow_refusal(token, nxt)
             if reason:
-                raise FieldError(
-                    f"{_NAME}: {nxt.text!r} after {token.text!r}: {reason}", field=_NAME
-                )
+                rule = f"{nxt.text!r} after {token.text!r}: {reason}"
+                return _error(rule, Reason.FORM, "OBJ-1001")
         if token.kind == "," and i not in call_separators:
             # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
             # (OBJ-037: DS1 , DS2 and MAX ( DS1 , DS2 )
             # are refused).
-            raise FieldError(
-                f"{_NAME}: ',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); "
-                "CLICK reads it as a decimal comma: use a period (.) as the decimal point",
-                field=_NAME,
+            return _error(
+                "',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); CLICK reads it as a "
+                "decimal comma: use a period (.) as the decimal point",
+                Reason.FORM,
+                "OBJ-037",
             )
         if token.kind == ":" and i not in call_separators:
             # A ':' outside SUM..AVG ( a : b ) is refused.
-            raise FieldError(
-                f"{_NAME}: ':' stands outside SUM, MAX, MIN, MDN or AVG ( a : b ); "
-                "a range is written in one of those",
-                field=_NAME,
+            return _error(
+                "':' stands outside SUM, MAX, MIN, MDN or AVG ( a : b ); a range is written in "
+                "one of those",
+                Reason.FORM,
             )
         if token.kind != "func":
             continue
@@ -498,10 +568,11 @@ def _check_order(tokens: Sequence[Token]) -> None:
                 and shape[3].kind in ("addr", "const")
             ):
                 what = "an address" if token.text in SHIFT else "an address or a constant"
-                raise FieldError(
-                    f"{_NAME}: {token.text} takes {token.text} ( a , b ): a is {what}, "
-                    "b an address or a constant, one each",
-                    field=_NAME,
+                return _error(
+                    f"{token.text} takes {token.text} ( a , b ): a is {what}, b an address or a "
+                    "constant, one each",
+                    Reason.FORM,
+                    "OBJ-1001",
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
@@ -509,10 +580,10 @@ def _check_order(tokens: Sequence[Token]) -> None:
             # is refused).
             shape = [t.kind for t in tokens[i + 1 : i + 6]]
             if shape != ["(", "addr", ":", "addr", ")"]:
-                raise FieldError(
-                    f"{_NAME}: {token.text} takes {token.text} ( a : b ), a range from "
-                    "address a to address b",
-                    field=_NAME,
+                return _error(
+                    f"{token.text} takes {token.text} ( a : b ), a range from address a to "
+                    "address b",
+                    Reason.FORM,
                 )
             call_separators.add(i + 3)
         elif token.text in TRIG:
@@ -520,16 +591,18 @@ def _check_order(tokens: Sequence[Token]) -> None:
             body = tokens[i + 1 : _closing(tokens, i + 1) + 1]
             balance = sum(t.kind in (",", ":") for t in body) - sum(t.text == "SUM" for t in body)
             if balance:
-                raise FieldError(
-                    f"{_NAME}: {token.text} ( ... ) holds a ',' or ':' that is not a SUM range; "
-                    "CLICK refuses it",
-                    field=_NAME,
+                return _error(
+                    f"{token.text} ( ... ) holds a ',' or ':' that is not a SUM range; CLICK "
+                    "refuses it",
+                    Reason.FORM,
+                    "OBJ-1001",
                 )
     first, last = tokens[0], tokens[-1]
     if first.kind in (")", ",", ":") or (first.kind == "op" and first.text not in _SIGNS):
-        raise FieldError(f"{_NAME}: the formula starts with {first.text!r}", field=_NAME)
+        return _error(f"the formula starts with {first.text!r}", Reason.FORM, "OBJ-1001")
     if last.kind not in (")", "pi", "const", "addr"):
-        raise FieldError(f"{_NAME}: the formula ends with {last.text!r}", field=_NAME)
+        return _error(f"the formula ends with {last.text!r}", Reason.FORM, "OBJ-1001")
+    return None
 
 
 def _range_position(bank: str, number: str) -> int:
@@ -538,58 +611,71 @@ def _range_position(bank: str, number: str) -> int:
     return int(number.rstrip("u"))
 
 
-def _check_operands(texts: Sequence[str]) -> None:
+def _check_operands(tokens: Sequence[Token]) -> list[FieldError]:
     """Bits stand only in SUM over a bit range; a range stays in one bank and runs low : high.
 
-    An X or Y range CLICK would store a wrong member list for is refused too.
+    An X or Y range CLICK would store a wrong member list for is refused too.  One refusal
+    for each bit, and at most one for each range; a refused address is not checked again.
     """
+    texts = [t.text for t in tokens]
+    found: list[FieldError] = []
     # SUM ( a : b ) is the one place a bit may stand, and not a CT bit
     # (OBJ-1002; an older CPU's refusal of every bit is a project rule).
-    bit_ok: set[int] = set()
+    sum_at: dict[int, int] = {}  # each end of a SUM range: where its SUM stands
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
-            bit_ok.update((i + 2, i + 4))
-    for i, text in enumerate(texts):
-        parts = address_parts(text)
-        if parts is None or parts[0] not in BIT_BANKS:
+            sum_at.update({i + 2: i, i + 4: i})
+    ct_refused: set[int] = set()  # the SUMs refused for a CT range, once each
+    outside_sum: set[int] = set()  # the bits refused outside a SUM
+    for i, token in enumerate(tokens):
+        parts = address_parts(token.text)
+        if token.refused or parts is None or parts[0] not in BIT_BANKS:
             continue
-        if i not in bit_ok:
-            raise FieldError(
-                f"{_NAME}: {text} is a bit; a bit stands only in SUM over a bit range", field=_NAME
-            )
-        if parts[0] in _SUM_REFUSED_BANKS:
-            raise FieldError(
-                f"{_NAME}: SUM over {text} is refused; SUM takes no CT range", field=_NAME
-            )
+        if i not in sum_at:
+            outside_sum.add(i)
+            rule = f"{token.text} is a bit; a bit stands only in SUM over a bit range"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+        elif parts[0] in _SUM_REFUSED_BANKS and sum_at[i] not in ct_refused:
+            ct_refused.add(sum_at[i])
+            found.append(_error(f"SUM over {token.text} is refused; SUM takes no CT range", Reason.BANK))
     for i in range(1, len(texts) - 1):
-        if texts[i] != ":":
+        if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
             continue
         low, high = address_parts(texts[i - 1]), address_parts(texts[i + 1])
         if low is None or high is None:
             continue
         shown = f"{texts[i - 1]} : {texts[i + 1]}"
         if low[0] != high[0]:
-            raise FieldError(
-                f"{_NAME}: {shown} spans two banks; a range stays in one (OBJ-1015)", field=_NAME
+            found.append(
+                _error(f"{shown} spans two banks; a range stays in one", Reason.FORM, "OBJ-1015")
             )
+            continue
         count = _range_position(*high) - _range_position(*low) + 1
         if count < 1:
-            raise FieldError(
-                f"{_NAME}: {shown} runs high to low; a range runs low : high", field=_NAME
-            )
+            rule = f"{shown} runs high to low; a range runs low : high"
+            found.append(_error(rule, Reason.FORM, "OBJ-1014"))
+            continue
         width = 2 if low[0] in _TWO_BYTE_BANKS else 4 if low[0] in _FOUR_BYTE_BANKS else 0
         if texts[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
-            raise FieldError(
-                f"{_NAME}: MDN ( {shown} ) covers {count * width} bytes; "
-                f"a median covers at most {_MEDIAN_MAX_BYTES}",
-                field=_NAME,
+            found.append(
+                _error(
+                    f"MDN ( {shown} ) covers {count * width} bytes; a median covers at most "
+                    f"{_MEDIAN_MAX_BYTES}",
+                    Reason.RANGE,
+                    "OBJ-1013",
+                )
             )
-        if low[0] in _XY_BANKS:
-            _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
+            continue
+        # The member list matters only to a SUM: a bit range anywhere else is refused already.
+        if low[0] in _XY_BANKS and i - 1 not in outside_sum:
+            error = _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
+            if error is not None:
+                found.append(error)
+    return found
 
 
-def _check_xy_members(function: str, bank: str, start: int, end: int) -> None:
-    """Refuse an X/Y range whose stored member list is not the points between its ends.
+def _check_xy_members(function: str, bank: str, start: int, end: int) -> FieldError | None:
+    """The refusal of an X/Y range whose stored member list is not the points between its ends.
 
     CLICK v4 stores such a list for a range with an end in the option slot; the list is not
     what the range means, so laddercodec refuses the range.
@@ -597,19 +683,19 @@ def _check_xy_members(function: str, bank: str, start: int, end: int) -> None:
     listed = _xy_points_between(_xy_bound(start), _xy_bound(end))
     members = _xy_points_between(start, end)
     if listed == members:
-        return
+        return None
     changes = []
     if left_out := [n for n in members if n not in listed]:
         changes.append(f"leave out {_xy_runs(bank, left_out)}")
     if added := [n for n in listed if n not in members]:
         changes.append(f"add {_xy_runs(bank, added)}")
     first, last = _OPTION_SLOT
-    raise FieldError(
-        f"{_NAME}: {function} ( {Address(bank, start).display} : {Address(bank, end).display} ) "
-        f"is refused; CLICK v4 stores a wrong member list for a range with an end in "
+    return _error(
+        f"{function} ( {Address(bank, start).display} : {Address(bank, end).display} ) is "
+        f"refused; CLICK v4 stores a wrong member list for a range with an end in "
         f"{Address(bank, first).display}-{Address(bank, last).display} "
         f"(it would {' and '.join(changes)})",
-        field=_NAME,
+        Reason.RANGE,
     )
 
 
@@ -747,39 +833,62 @@ class Formula:
 def parse(text: str, mode: str) -> Formula:
     """Read a Math formula as CLICK's Math dialog does; raise :class:`FieldError` if it refuses.
 
-    ``mode`` is ``"decimal"`` or ``"hex"``.
+    ``mode`` is ``"decimal"`` or ``"hex"``.  The error raised is the first refusal; its
+    :attr:`~FieldError.errors` holds every refusal found (see the module docstring for
+    where the reading stops).
     """
     raws = _lex(text)
     if not raws:
         # A Math blob with no formula decodes as raw(), so none is encoded.
-        raise FieldError(f"{_NAME}: the formula is empty; a Math needs a formula", field=_NAME)
+        raise _error("the formula is empty; a Math needs a formula", Reason.MISSING)
     for raw in raws:
         if raw.symbol and raw.text in ("[", "]"):
             # A pointer such as DS[DS1]: refused before its bank name reads as a word.
-            raise FieldError(
-                f"{_NAME}: {raw.text!r} is part of a pointer; Math takes no pointer", field=_NAME
-            )
-    tokens = [_classify(raws, i, mode) for i in range(len(raws))]
+            raise _error(f"{raw.text!r} is part of a pointer; Math takes no pointer", Reason.POINTER)
+    found: list[FieldError] = []
+    tokens: list[Token] = []
+    known = True  # every word looks like a token
+    for i, raw in enumerate(raws):
+        token = _classify(raws, i, mode, found)
+        if token is None:
+            known = False
+            token = Token("word", raw.text, refused=True)
+        tokens.append(token)
     shown = " ".join(t.text for t in tokens)
-    _check_parentheses(tokens, shown)
+    if (error := _check_parentheses(tokens, shown)) is not None:
+        _raise([*found, error])
     if mode == "decimal":
         tokens = _merge_signs(tokens)
-        tokens = [
-            Token("const", t.text, _decimal_internal(t.text)) if t.kind == "const" else t
-            for t in tokens
-        ]
+        for k, t in enumerate(tokens):
+            if t.kind != "const" or t.refused:
+                continue
+            internal = _decimal_internal(t.text)
+            if isinstance(internal, FieldError):
+                found.append(internal)
+                tokens[k] = Token("const", t.text, refused=True)
+            else:
+                tokens[k] = Token("const", t.text, internal)
         shown = " ".join(t.text for t in tokens)
-    _check_mode(tokens, mode, shown)
-    _check_order(tokens)
-    _check_operands([t.text for t in tokens])
+    found += _check_mode(tokens, mode, shown)
+    if not known:
+        _raise(found)
+    if (error := _check_order(tokens)) is not None:
+        _raise([*found, error])
+    found += _check_operands(tokens)
     formula = Formula(tuple(tokens))
     # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At
     # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.
-    length = len(formula.internal(template=True))
-    if length > MAX_INTERNAL_LENGTH:
-        raise FieldError(
-            f"{_NAME}: the formula is {length} characters in CLICK's internal form; "
-            f"CLICK allows {MAX_INTERNAL_LENGTH}",
-            field=_NAME,
+    # A refused word or constant has no internal form to count.
+    refused = any(t.refused for t in tokens)
+    if not refused and (length := len(formula.internal(template=True))) > MAX_INTERNAL_LENGTH:
+        found.append(
+            _error(
+                f"the formula is {length} characters in CLICK's internal form; CLICK allows "
+                f"{MAX_INTERNAL_LENGTH}",
+                Reason.RANGE,
+                "OBJ-1008",
+            )
         )
+    if found:
+        _raise(found)
     return formula
