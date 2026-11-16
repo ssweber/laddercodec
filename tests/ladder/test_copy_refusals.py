@@ -314,6 +314,16 @@ def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
 
 
 @pytest.mark.parametrize(
+    "source", ["99999999999", "1e99", "FFFFFFFFFh", '"é"', '"' + "A" * 200 + '"']
+)
+def test_copy_destination_bank_has_no_id_for_a_refused_constant(source: str) -> None:
+    # The constant's own check runs after the destination's, and keeps that order.
+    dest, error = _errors(lambda: Copy(source, "X001"))
+    assert (dest.field, dest.reason, dest.click_id) == ("Copy.destination", "bank", None)
+    assert error.field == "Copy.source"
+
+
+@pytest.mark.parametrize(
     ("build", "field"),
     [
         (lambda: Pack("C1", "C16", "X001"), "Pack.destination"),

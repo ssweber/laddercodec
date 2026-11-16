@@ -513,7 +513,7 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 }
 
 
-def _copy_dest_bank_id(kind: str | None, dest_bank: str) -> str | None:
+def _copy_dest_bank_id(kind: str | None, source: str, dest_bank: str) -> str | None:
     """CLICK's id for a single Copy destination in a bank a Copy does not write, by the
     source's kind.
 
@@ -523,9 +523,18 @@ def _copy_dest_bank_id(kind: str | None, dest_bank: str) -> str | None:
     id of every other pairing a single Copy refuses.  T and CT take the X and SC answers,
     since a Copy writes no bit bank but Y and C.  XD, the one register bank a Copy does not
     write, has no answer and no id.
+
+    A source that is refused has no id here: an address ``_source_kind`` refuses (``kind``
+    None), and a constant the source's own check refuses later (out of range, or text it
+    can't hold); that refusal stays after the destination's.
     """
     if kind is None or dest_bank not in BIT_BANKS:
         return None
+    if kind in ("number", "text"):
+        try:
+            check_constant(source, "Copy.source", _CONSTANTS)
+        except FieldError:
+            return None
     return "OBJ-004" if kind == "bit" else "OBJ-024"
 
 
@@ -825,7 +834,7 @@ class Copy(AfInstruction):
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
             dst = check(
                 "destination", check_operand, _COPY_DEST_BANKS, pointer=True,
-                bank_id=_copy_dest_bank_id(kind, _bank_prefix(self.destination)),
+                bank_id=_copy_dest_bank_id(kind, self.source, _bank_prefix(self.destination)),
             )  # fmt: skip
             if dst is not None and dst.address is not None:
                 # A Copy writes only the writable SD registers (OBJ-004).
