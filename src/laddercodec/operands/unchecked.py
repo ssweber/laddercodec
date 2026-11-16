@@ -236,9 +236,12 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
 
     A copy of an instruction built from what is stored keeps its refusals; one that
     changes only ``wire_down`` keeps the blob and cell rows it was decoded from too.  Any
-    other copy runs its checks as construction does.
+    other copy runs its checks as construction does.  Each refusal the copy keeps takes the
+    ``location`` (where ``read_csv`` read it) of the one *inst* holds with the same field,
+    reason, id and message.
     """
-    if refusals(inst):
+    found = refusals(inst)
+    if found:
         with unchecked():
             copied = replace(cast("Any", inst), **changes)
     else:
@@ -249,7 +252,22 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
         own = getattr(inst, "_refusal", None)
         if own is not None:
             object.__setattr__(copied, "_refusal", own)
+    _carry_locations(found, refusals(copied))
     return cast("_T", copied)
+
+
+def _carry_locations(found: tuple[FieldError, ...], copies: tuple[FieldError, ...]) -> None:
+    """Give each refusal in *copies* without a ``location`` that of the refusal in *found*
+    with the same fields, reason, id and message."""
+    located = {_same(error): getattr(error, "location", None) for error in found}
+    for error in copies:
+        location = located.get(_same(error))
+        if location is not None and getattr(error, "location", None) is None:
+            object.__setattr__(error, "location", location)
+
+
+def _same(error: FieldError) -> tuple[object, ...]:
+    return (error.fields, error.reason, error.click_id, str(error))
 
 
 def read_in_another_form(inst: object) -> None:

@@ -32,7 +32,10 @@ class RefusedFieldWarning(UserWarning):
         first refusal.
     errors:
         Every refusal, :attr:`error` first; those of a Send's or Receive's Modbus target
-        and remote address come before its own.
+        and remote address come before its own.  Read by ``read_csv(...,
+        unchecked=True)``, each carries a :class:`~laddercodec.CsvLocation` as its
+        ``location``, the one the default read raises it with, and the message ends with
+        :attr:`error`'s.
     rung:
         0-based rung index in the decoded buffer, program or CSV, or ``None`` if unknown.
     program:
@@ -61,9 +64,11 @@ class RefusedFieldWarning(UserWarning):
             where.append(f"rung {rung}")
         prefix = ", ".join(where) + ": " if where else ""
         more = f" (and {len(errors) - 1} more)" if len(errors) > 1 else ""
+        location = str(getattr(self.error, "location", None) or "")
+        at = f" (at {location})" if location else ""
         super().__init__(
             f"{prefix}{type(instruction).__name__} holds a value CLICK's dialog refuses, and "
-            f"decodes as it is stored: {self.error}{more}"
+            f"decodes as it is stored: {self.error}{more}{at}"
         )
 
 

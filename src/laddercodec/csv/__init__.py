@@ -17,8 +17,8 @@ from ..decode import Rung
 from ..operands.unchecked import unchecked as _unchecked
 from ..refused import warn_refused
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import convert_rung
-from .location import CsvLocation, located_in_file
+from .converter import convert_rung, rung_tokens
+from .location import CsvLocation, locate_held, located_in_file
 from .parser import parse_csv_file
 
 
@@ -59,6 +59,8 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
     ``FieldError``, ``AddressError``, ...) and carries a :class:`CsvLocation`
     as its ``location``: the file, line, rung, row and column where they are
     known.  ``CsvLocation.of(exc)`` reads it, and the message ends with it.
+    Each refusal an instruction keeps when *unchecked* is ``True`` carries the
+    location it would raise with.
     """
     path = Path(path)
     ast = parse_csv_file(path, syntax="canonical")
@@ -67,6 +69,8 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
         for rung in ast.rungs:
             rungs.extend(convert_rung(rung, strict=strict))
     if unchecked:
+        for rung in rungs:
+            locate_held(rung_tokens(rung), file=path)
         warn_refused(rungs)
     return rungs
 

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, CsvLocation, FieldError, read_csv
+from laddercodec import AddressError, CsvLocation, FieldError, RefusedFieldWarning, read_csv
 from laddercodec.csv.bundle import parse_bundle
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import ConvertError
@@ -508,3 +508,55 @@ class TestOwnLocations:
             found = CsvLocation.of(refusal)
             assert found is not None
             assert (found.file, found.line, found.column) == (path, 2, 0)
+
+
+def _held_refusals(path: Path) -> list[FieldError]:
+    """Read *path* with ``unchecked=True``: every refusal its warnings carry, in order."""
+    with pytest.warns(RefusedFieldWarning) as record:
+        read_csv(path, unchecked=True)
+    return [
+        e for w in record if isinstance(w.message, RefusedFieldWarning) for e in w.message.errors
+    ]
+
+
+class TestHeldRefusals:
+    """``read_csv(..., unchecked=True)`` keeps each refusal located as the default read
+    raises it."""
+
+    def test_condition_cell(self, tmp_path: Path) -> None:
+        rows: list[Row | list[str]] = [GOOD, ("R", {0: "X1", 1: "DS2", **_wired("X1")}, "")]
+        rows[1] = ("R", {**_wired("X1"), 1: "DS2"}, "out(Y001)")
+        path = _write(tmp_path / "main.csv", rows)
+        [refusal] = _held_refusals(path)
+        want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=1)
+        assert CsvLocation.of(refusal) == want
+        with pytest.raises(FieldError) as raised:
+            read_csv(path)
+        assert CsvLocation.of(raised.value) == want
+
+    def test_a_pin_rows_value_is_at_its_row(self, tmp_path: Path) -> None:
+        """The box's own field is at the box's row and the ``.jump(...)`` target at the jump's
+        row, through the layout that moves the box's pin rows."""
+        rows: list[Row | list[str]] = [
+            ("R", _wired("C1"), DRUM.replace("current_step=DS1", "current_step=Y001")),
+            ("", _wired("C2"), ".reset()"),
+            ("", {0: "C4"}, ""),
+            ("", _wired("C5"), ".jump(C5)"),
+        ]
+        path = _write(tmp_path / "main.csv", rows)
+        located = {e.field: CsvLocation.of(e) for e in _held_refusals(path)}
+        assert located == {
+            "Drum.current_step": CsvLocation(file=path, line=2, rung_line=2, row=0, column=AF),
+            "Drum.jump_target": CsvLocation(file=path, line=5, rung_line=2, row=3, column=AF),
+        }
+
+    def test_the_warning_ends_with_the_first_refusals_location(self, tmp_path: Path) -> None:
+        path = _write(tmp_path / "main.csv", [GOOD, ("R", _wired("X1"), BAD_TIMER)])
+        with pytest.warns(RefusedFieldWarning) as record:
+            read_csv(path, unchecked=True)
+        [warning] = [w.message for w in record]
+        assert isinstance(warning, RefusedFieldWarning)
+        assert len(warning.errors) >= 2
+        assert str(warning).endswith(
+            f" (at {path}, line 3, rung at line 3, row 0 from 0, column AF)"
+        )
