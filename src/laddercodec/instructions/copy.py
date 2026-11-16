@@ -395,6 +395,8 @@ def _check_copy_constant(source: str, dest_field: str, destination: str, dest_ba
     can't take."""
     shape = constant_shape(source, _CONSTANTS)
     if shape is Kind.INTEGER:
+        # Not repeated by the full constant check at the end of __post_init__: this one runs
+        # first, so an integer outside 32 bits is refused before a format or termination code is.
         check_constant(source, "Copy.source", _CONSTANTS)
     if shape is Kind.HEX and int(source[:-1], 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise AddressError(
