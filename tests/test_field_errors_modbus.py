@@ -259,7 +259,7 @@ def test_receive_first_refusal_of_a_conflict_is_the_one_a_later_pair_skips() -> 
         (lambda: send(source="DS4500", quantity=2), "quantity", Reason.RANGE, "OBJ-010"),
         (lambda: send(source="X816", remote_start="C1", quantity=2), "quantity", Reason.RANGE, "OBJ-010"),
         (lambda: receive(dest="YD1", remote_start="DH1", quantity=2), "quantity", Reason.RANGE, "OBJ-010"),
-        (lambda: receive(dest="TXT1", remote_start="TXT1", quantity=3), "quantity", Reason.RANGE, None),
+        (lambda: receive(dest="TXT1", remote_start="TXT1", quantity=3), "quantity", Reason.RANGE, "OBJ-029"),
         (lambda: send(remote_start="XD1"), "remote_start", Reason.BANK, "OBJ-004"),
         (lambda: send(remote_start="DS5000"), "remote_start", Reason.ADDRESS, None),
         (lambda: send(remote_start=ModbusAddress("0h", "input")), "remote_start", Reason.CHOICE, None),

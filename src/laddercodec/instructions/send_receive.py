@@ -380,6 +380,7 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 
 _BANK_ID = "OBJ-004"
 _RANGE_ID = "OBJ-010"
+_ODD_ID = "OBJ-029"  # a Receive TXT count that is odd: "only an even number"
 
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
@@ -416,6 +417,8 @@ _WIDE_BANKS = frozenset({"DD", "DF", "CTD"})
 #: Count caps: (bits, registers, 32-bit registers).
 _SEND_CAPS = (1968, 123, 61)
 _RECEIVE_CAPS = (2000, 125, 62)
+#: A Receive TXT count is in characters, two to a register.
+_TXT_RECEIVE_MAX = 250
 
 #: MODBUS 984 start addresses by kind.
 _984_COIL = (1, 65535)
@@ -514,11 +517,14 @@ def _check_quantity(
     caps: tuple[int, int, int],
     bit: bool,
     xy_room: int | None = None,
+    unit: str | None = None,
 ) -> None:
     """The count cap per kind, then the room left from the local start.
 
     ``xy_room`` is the room from an X/Y start, which depends on the remote side.  None, for
     a Send to a MODBUS 984 or hex address, is the points left through the last slot.
+    ``unit`` names what the cap counts when it is not registers (a Receive TXT count is in
+    characters).
     """
     bits, regs, wide = caps
     if bit:
@@ -526,7 +532,7 @@ def _check_quantity(
     elif local.bank in _WIDE_BANKS:
         high, kind = wide, f"{local.bank} registers"
     else:
-        high, kind = regs, "registers"
+        high, kind = regs, unit or "registers"
     if not 1 <= quantity <= high:
         check.refuse("quantity", f"{quantity} is outside 1-{high} {kind}", Reason.RANGE, _RANGE_ID)
         return
@@ -809,7 +815,12 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         hex_pair = remote_addr.bank in ("XD", "YD")
     if bit is not None and local is not None and counted:
         xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
-        _check_quantity(check, quantity, local, _RECEIVE_CAPS, bit, xy_room)
+        if local.bank == "TXT":
+            # Receive: a TXT count is in characters, two to a register: 2 to 250, even.
+            caps, unit = (_RECEIVE_CAPS[0], _TXT_RECEIVE_MAX, _RECEIVE_CAPS[2]), "characters"
+        else:
+            caps, unit = _RECEIVE_CAPS, None
+        _check_quantity(check, quantity, local, caps, bit, xy_room, unit)
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
         if (local.bank == "YD" or hex_pair) and quantity != 1:
@@ -820,12 +831,21 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 Reason.RANGE,
                 _RANGE_ID,
             )
-        if local.bank == "TXT" and (quantity < 2 or quantity % 2):
-            # Receive: text arrives two characters per register.
+        if local.bank == "TXT" and quantity < 2:
+            # Receive: the count is in characters, two to a register; below 2 is the range
+            # message, even for 1, which is also odd.
             check.refuse(
                 "quantity",
-                f"{quantity} TXT characters must be an even count of 2+",
+                f"{quantity} TXT characters must be an even count of 2 to 250",
                 Reason.RANGE,
+                _RANGE_ID,
+            )
+        elif local.bank == "TXT" and quantity % 2:
+            check.refuse(
+                "quantity",
+                f"{quantity} TXT characters must be an even count of 2 to 250",
+                Reason.RANGE,
+                _ODD_ID,
             )
     elif counted:
         _check_quantity_bounds(check, quantity, _RECEIVE_CAPS, bit)

@@ -25,6 +25,7 @@ from laddercodec.instructions.send_receive import (
     from_tags,
     parse_af_call,
 )
+from laddercodec.model import Reason
 
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
@@ -865,15 +866,46 @@ def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
             receive(remote_start=remote, dest="DH1", quantity=2)
 
 
-@pytest.mark.parametrize("quantity", [1, 3, 125])
-def test_receive_text_count_is_even(quantity) -> None:
-    """Receive: at least 2 TXT characters, and an even count."""
-    with pytest.raises(FieldError, match="even count"):
+@pytest.mark.parametrize(
+    ("quantity", "click_id"), [(1, "OBJ-010"), (3, "OBJ-029"), (125, "OBJ-029")]
+)
+def test_receive_text_count_is_even(quantity, click_id) -> None:
+    """Receive: at least 2 TXT characters, and an even count: below 2 is OBJ-010 (the range
+    message, once, for 1 too) and an odd count OBJ-029."""
+    with pytest.raises(FieldError, match="even count") as caught:
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+    assert caught.value.click_id == click_id
+    assert caught.value.reason is Reason.RANGE
+    assert caught.value.field == "Receive.quantity"
+    assert len(caught.value.errors) == 1
+
+
+@pytest.mark.parametrize("quantity", [124, 126, 250])
+def test_receive_text_count_up_to_250_characters(quantity) -> None:
+    """CLICK accepts a TXT count of 2 to 250 characters, even: past the register cap of 125."""
+    receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+
+
+@pytest.mark.parametrize("quantity", [251, 252, 400])
+def test_receive_text_count_past_250_is_the_range(quantity) -> None:
+    """Past 250 CLICK says OBJ-010 (range before evenness: 251 too), naming characters."""
+    with pytest.raises(FieldError, match="outside 1-250 characters") as caught:
+        receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
+    assert caught.value.click_id == "OBJ-010"
+    assert len(caught.value.errors) == 1
+
+
+def test_receive_text_count_250_blob_round_trips() -> None:
+    """The count field of the blob holds 250 and the blob decodes as Receive, not raw."""
+    instr = receive(remote_start="TXT1", dest="TXT1", quantity=250)
+    fields = _fields(instr)
+    assert fields[0x3210] == "250"
+    assert from_tags_af("RD", 0x2728, fields) == instr
+    assert parse_af_blob(instr.build_blob()) == instr
 
 
 def test_receive_text_even_counts() -> None:
-    for quantity in (2, 4, 124):
+    for quantity in (2, 4, 124, 250):
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
 
 

@@ -105,9 +105,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     Pack destination and an Unpack source, laddercodec refuses: decide the rule here (the saves trim it except
     a single Copy's and a Pack's destination; see item 2).
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec says OBJ-024: align the id.
-  - Receive accepts a TXT master at the dialog's default count (the runner does not set it; the test takes
-    1); laddercodec needs an even TXT count of 2 or more. Ask CLICK: what is the default count, and does
-    it accept 1 TXT?
+  - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
+    included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
+    the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its
+    `03 -> TXT1` stays in the ratchet at count 1.
+  - Open: is Send's TXT count in characters too, and what are its limits? Send has no TXT rule today.
 - **The writable-SD list has arrived:** `sc_sd_writable.answers.json` (29 SD for a single Copy, a Block Copy
   and a decimal Math result, none for Out; 25 SC for Out, none elsewhere), and the 28 picker checks agree
   with it. laddercodec's `WRITABLE_SC` is the same 25; its rules accept all 1,000 SD in each of the three
