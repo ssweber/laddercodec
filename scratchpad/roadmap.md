@@ -326,9 +326,21 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
   - an unpowered real box (coil, timer);
   - a reset wired from the rail;
   - shared pins;
-  - C000A through a branch;
-  - a NOP split;
+  - C000A through a branch (an output behind a contact of its own above a pinned box on one net);
+  - a box on the net of a reset with no contact of its own (`instr-copy-multirow-2af-T`): C000A alone, as
+    `check()` reports with `captured=False`, C0212 too, or accepted;
+  - a bridge whose timer reset tees off its own main input: C0001 alone, as `check()` reports, or C0205 too;
+  - a `NOP`, or a box with a used pin, above a pinned box on its main input's net: C000A, as for an output;
+  - a pin's net shared with another pin, or with a main input above the pin: C000A, as `check()` reports;
+  - an unwired shift clock, drum jog or counter down: C0202, as for a reset;
+  - a pin row of wires that no rail or contact reaches: C0202 at AF, as for an empty row, or elsewhere;
+  - two groups of boxes that share nets in one rung: one C000A line or two;
   - C0206-C0214.
+- **`read_csv` and CLICK's check rewrites (Sam):** CLICK's check drops a `NOP` on a row of its own beside a
+  coil's rung (`C1 -> out(Y1)`, `- -> NOP`; one row left), and wires a rung of only wires through AF, which
+  decodes as wires into a `NOP` (`tests/test_check_shapes.py`, rungs 13 and 14). `read_csv` keeps both as
+  drawn. Should it give the post-check form? Dropping that `NOP` is like the unpowered `NOP` it drops already;
+  a `NOP` in a rung of wires is a token the CSV does not hold.
 - The Home `11f5` flag doesn't round-trip.
 - RawInstruction's hex fallback breaks when the hex holds `,` or `)`.
 - A guard that a REFUSED entry has gone stale.

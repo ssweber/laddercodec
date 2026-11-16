@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
-from ._layout.network import AF_X, Edge, Network, cell_of, network
+from ._layout.network import AF_X, Box, Edge, GridCell, Network, Sink, cell_of, network
 from ._layout.tree import (
     Arc,
     Circuits,
@@ -23,6 +23,7 @@ from ._layout.tree import (
     reduce,
 )
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
+from .instructions.counter import Counter
 from .instructions.drum import Drum
 from .instructions.timer import Timer
 from .instructions.undecoded import Undecoded
@@ -36,7 +37,9 @@ FindingKind = Literal[
     "no_rail",
     "feeds_no_box",
     "no_coil",
+    "unwired_pin",
     "output_above_pinned_box",
+    "shared_input_net",
     "pin_without_contact",
     "pin_shares_main",
     "pin_shares_pin",
@@ -64,11 +67,18 @@ class Finding:
         CLICK's syntax check error code for the shape, or ``None`` where no code is known.
     captured:
         Whether CLICK's syntax check is known to report this shape with ``code``.
-        ``False`` for every kind with no code, and for two shapes that have one:
-        ``"not_series_parallel"`` on a pin input (C0001, as for a main input), and
+        ``False`` for every kind with no code, and for these shapes that have one:
+        ``"not_series_parallel"`` on a pin input (C0001, as for a main input);
         ``"pin_without_contact"`` on a reset wired straight from the rail or whose contacts
         are all another pin's (C0205 or C0212, as for a reset whose contacts are all the main
-        input's).  A ``"no_rail"`` or
+        input's); ``"unwired_pin"`` on a pin other than a timer's or counter's reset, on a pin
+        whose row holds a contact or a wire, or in a rung whose rail reaches no box (C0202, as
+        for a reset whose row holds nothing, in a rung whose rail reaches a box);
+        ``"output_above_pinned_box"`` with a ``NOP`` or a box with a used pin above
+        (C000A, as for an output); and ``"shared_input_net"`` on a pin's net shared with a
+        pin, with a ``NOP``, with a main input above the pin, or with the pinned box's own
+        main input (C000A, as for a box's main input below the pin, on a net of the pin's
+        own).  A ``"no_rail"`` or
         ``"feeds_no_box"`` finding on a loop of contacts, and a ``"no_coil"`` finding whose
         paths all end in such a loop, are not captured either.  The findings with
         ``captured`` ``False`` are provisional: their kinds may be renamed or dropped once
@@ -102,11 +112,14 @@ class Finding:
 def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     """Every shape in *rungs* that CLICK's syntax check refuses for its lines, in rung order.
 
-    Empty means every rung has a series-parallel circuit from the rail into each box, with
-    no box above a pinned box on its net and contacts of its own on every pin input.
-    Findings never stop ``write_csv()``, and only an ``"undecoded"`` finding stops
-    ``encode()``: the other rungs encode as drawn.  A finding with ``captured`` ``False`` may
-    be a shape CLICK accepts, such as a reset wired straight from the rail.
+    Empty means every rung has a series-parallel circuit from the rail into each box input,
+    pins included, no box above a box with a used pin on its main input's net, no other box's
+    input on a pin's net (the rail aside), and contacts of its own on every pin input.  On a
+    rung whose circuit is not series-parallel, C0001 is the last finding: no C000A finding or
+    finding about a pin's contacts follows it.  Findings never stop ``write_csv()``, and only
+    an ``"undecoded"`` finding stops ``encode()``: the other rungs encode as drawn.  A finding
+    with ``captured`` ``False`` may be a shape CLICK accepts, such as a reset wired straight
+    from the rail.
 
     A rung that holds an undecoded marker gets one ``"undecoded"`` finding per marker, at its
     AF cell, before its other findings.  A marker rung as the decoders make it (one row of
@@ -137,7 +150,21 @@ _FEEDS_NO_BOX = _Rule("feeds_no_box", "C0202", True)
 _FEEDS_NO_BOX_LOOP = _Rule("feeds_no_box", "C0202", False, "a contact no contact continues")
 _NO_COIL = _Rule("no_coil", "C0003", True)
 _NO_COIL_LOOP = _Rule("no_coil", "C0003", False, "a path that ends at a contact")
+_UNWIRED_PIN = _Rule("unwired_pin", "C0202", True)
+_UNWIRED_PIN_LIKE = _Rule("unwired_pin", "C0202", False, "a timer's or counter's reset")
+_UNWIRED_PIN_NO_BOX = _Rule("unwired_pin", "C0202", False, "a rung whose rail reaches a box")
+_UNWIRED_PIN_WIRED = _Rule("unwired_pin", "C0202", False, "a pin whose row holds nothing")
 _ABOVE_PINNED = _Rule("output_above_pinned_box", "C000A", True)
+_ABOVE_PINNED_LIKE = _Rule(
+    "output_above_pinned_box", "C000A", False, "an output above the box on its main input's net"
+)
+_SHARED_NET = _Rule("shared_input_net", "C000A", True)
+_SHARED_NET_LIKE = _Rule(
+    "shared_input_net",
+    "C000A",
+    False,
+    "a box's main input below the pin, on a net of the pin's own",
+)
 _PIN_SHARES = _Rule("pin_shares_main", None, False)
 _PIN_SHARES_PIN = _Rule("pin_shares_pin", None, False)
 _UNPOWERED = _Rule("unpowered_box", None, False)
@@ -165,6 +192,20 @@ def _pin_rule(token: object, slot: int, lead: int, *, as_captured: bool) -> _Rul
                     return _Rule("pin_without_contact", code, False, like)
                 return _Rule("pin_without_contact", code, True)
     return _Rule("pin_without_contact", None, False)
+
+
+def _unwired_rule(box: Box, slot: int, *, holds: bool, rail_feeds_a_box: bool) -> _Rule:
+    """The rule for a pin of ``box`` at ``slot`` that no rail or contact reaches.
+
+    ``holds``: the pin's row holds a contact or a wire.
+    """
+    token = cast(PinnedInstruction, box.token)
+    name = token.pin_names()[slot - box.main - 1]
+    if holds:
+        return _UNWIRED_PIN_WIRED
+    if not isinstance(token, (Timer, Counter)) or name != ".reset":
+        return _UNWIRED_PIN_LIKE
+    return _UNWIRED_PIN if rail_feeds_a_box else _UNWIRED_PIN_NO_BOX
 
 
 def _finding(
@@ -253,18 +294,33 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     def add(rule: _Rule, cell: tuple[int, int] | None, what: str) -> None:
         out.append(_finding(index, rule, cell, what, blank))
 
-    # C0202 at the broken end of each path, in row and column order, then C0003.
-    no_rail = [
-        (e, _NO_RAIL_LOOP if loop else _NO_RAIL, "the contact's input has no line connection")
+    # C0202 at the broken end of each path and at each pin nothing reaches, in row and column
+    # order, then C0003.
+    broken: list[tuple[tuple[int, int], _Rule, str]] = [
+        (
+            (e.row, e.col),
+            _NO_RAIL_LOOP if loop else _NO_RAIL,
+            "the contact's input has no line connection",
+        )
         for e, loop in _no_rail(c)
     ]
     dead_ends = _dead_ends(c, net.edges)
-    lost = [
-        (e, _FEEDS_NO_BOX_LOOP if loop else _FEEDS_NO_BOX, "the contact's output reaches no box")
+    broken += [
+        (
+            (e.row, e.col),
+            _FEEDS_NO_BOX_LOOP if loop else _FEEDS_NO_BOX,
+            "the contact's output reaches no box",
+        )
         for e, loop in dead_ends
     ]
-    for e, rule, what in sorted(no_rail + lost, key=lambda b: (b[0].row, b[0].col)):
-        add(rule, (e.row, e.col), what)
+    rail_feeds_a_box = any(net.sinks[i].net in c.fwd for i in c.main)
+    for i, holds in _unwired_pins(net, c, cells):
+        s = net.sinks[i]
+        box = net.boxes[s.box]
+        rule = _unwired_rule(box, s.slot, holds=holds, rail_feeds_a_box=rail_feeds_a_box)
+        broken.append(((s.row, AF_X), rule, "the pin's input has no line connection"))
+    for cell, rule, what in sorted(broken, key=lambda b: b[0]):
+        add(rule, cell, what)
     if dead_ends:
         rule = _NO_COIL_LOOP if all(loop for _, loop in dead_ends) else _NO_COIL
         what = "a path from the rail reaches no box (CLICK's text: no Coil instruction in the rung)"
@@ -277,17 +333,40 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     }
     for i in sorted(unpowered, key=lambda i: net.sinks[i].row):
         add(_UNPOWERED, (net.sinks[i].row, AF_X), "no rail or contact reaches the box")
-    for row in _below_a_box(net, c):
-        add(_ABOVE_PINNED, (row, AF_X), "a box above this one hangs off its main input's net")
+
+    # A box input fed by nothing is reported above; its arc into ``top`` would only stop the
+    # reduction, and CLICK's response to it is not captured.
+    dead = {net.sinks[i].net for i in unpowered}
+    main_arcs = [a for a in c.main_arcs if not (a.dst is c.top and a.src in dead)]
+    not_sp = bool(main_arcs) and rail_feeds_a_box and not _reduces(rail, c.top, main_arcs)
+    if not_sp:
+        # CLICK reports no C000A or C0205 on a bridge with an output above a retentive timer
+        # on its net; check() drops every C000A finding and finding about a pin's contacts.
+        add(_C0001, None, "the circuit is not series-parallel")
+        return out
+
+    in_shared: set[int] = set()
+    for b, rule, group in _c000a(net, c):
+        in_shared |= group
+        if rule.kind == "output_above_pinned_box":
+            what = "a box above this one hangs off its main input's net"
+        else:
+            what = "a pin of this box shares its net with another box's input"
+        add(rule, (net.boxes[b].row, AF_X), what)
 
     # A contact on two pins' circuits counts as the earlier pin's.  CLICK's check on such a
-    # pair is not known; a pin whose contacts are all another's has none of its own.
+    # pair is not known; a pin whose contacts are all another's has none of its own.  A box
+    # reported for C000A gets no finding for its pins: CLICK reports C000A alone where a
+    # timer's reset is on an output's net, and check() drops every pin finding of the group.
     main_used = {id(a) for a in c.main_arcs}
     pin_used: set[int] = set()
     for i in c.pins:
         if i in unpowered:
             continue
         s = net.sinks[i]
+        if s.box in in_shared:
+            pin_used.update(id(a) for a in c.pin_arcs[i])
+            continue
         box = net.boxes[s.box]
         mine = c.pin_arcs[i]
         shared = [a for a in mine if id(a) in main_used]
@@ -305,14 +384,6 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
             )
         elif s.net in c.fwd and not _reduces(rail, s.net, mine):
             add(_C0001_PIN, (s.row, AF_X), "the pin's circuit is not series-parallel")
-
-    # A box input fed by nothing is reported above; its arc into ``top`` would only stop the
-    # reduction, and CLICK's response to it is not captured.
-    dead = {net.sinks[i].net for i in unpowered}
-    main_arcs = [a for a in c.main_arcs if not (a.dst is c.top and a.src in dead)]
-    rail_feeds_a_box = any(net.sinks[i].net in c.fwd for i in c.main)
-    if main_arcs and rail_feeds_a_box and not _reduces(rail, c.top, main_arcs):
-        add(_C0001, None, "the circuit is not series-parallel")
     return out
 
 
@@ -364,29 +435,98 @@ def _edge(a: Arc) -> Edge:
     return cast(Leaf, a.node).edge
 
 
-def _below_a_box(net: Network, c: Circuits) -> list[int]:
-    """The first row of each box with a used pin that another box sits above on one net.
+def _unwired_pins(net: Network, c: Circuits, cells: list[list[GridCell]]) -> list[tuple[int, bool]]:
+    """Each used pin no rail or contact reaches, and whether its row holds a contact or a wire.
 
-    The net is the one both main inputs hang off, and is not the rail (C000A).
-    CLICK accepts a box below the pinned box on that net, and splits boxes
-    hanging off the rail into rungs of their own.
+    ``circuits`` leaves such a pin out of ``c.pins``, so the layout draws its row blank.  A
+    row holds something when one of its cells holds a contact or a wire, or a vertical comes
+    down into it.  A raw box is left out: which of its parts take an input is not known.
     """
-    rows: list[int] = []
-    for b, box in enumerate(net.boxes):
-        if not isinstance(box.token, PinnedInstruction) or not any(box.used[box.main + 1 :]):
+    pins = set(c.pins)
+    found: list[tuple[int, bool]] = []
+    for i, s in enumerate(net.sinks):
+        box = net.boxes[s.box]
+        if s.slot == box.main or i in pins or not isinstance(box.token, PinnedInstruction):
             continue
-        mains = [i for i in c.main if net.sinks[i].box == b]
-        if not mains:
-            continue
-        n = net.sinks[mains[0]].net
-        if n == net.rail or n not in c.fwd:
-            continue
-        if any(
-            net.sinks[j].net == n and net.sinks[j].box != b and net.sinks[j].row < box.row
-            for j in c.main
-        ):
-            rows.append(box.row)
-    return rows
+        above = cells[s.row - 1] if s.row else []
+        holds = any(x.contact is not None or x.right or x.down for x in cells[s.row])
+        found.append((i, holds or any(x.down for x in above)))
+    return found
+
+
+def _pinned(net: Network) -> set[int]:
+    """The boxes with a used pin: a retentive timer, a counter, a shift, a drum."""
+    return {
+        b
+        for b, box in enumerate(net.boxes)
+        if isinstance(box.token, PinnedInstruction) and any(box.used[box.main + 1 :])
+    }
+
+
+def _c000a(net: Network, c: Circuits) -> list[tuple[int, _Rule, set[int]]]:
+    """One C000A finding per group of boxes that share a net: its box, its rule, the group.
+
+    The net is one the rail reaches through a contact, not the rail itself: CLICK splits boxes
+    that meet only at the rail into rungs of their own.  A box with a used pin is paired with
+    another box when:
+
+    - the other box's main input is on the pinned box's main input's net, above it
+      (``"output_above_pinned_box"``), or
+    - an input of the other box is on the net of one of its pins (``"shared_input_net"``).
+
+    A box below the pinned box on its main input's net is not paired, nor are a box's own
+    inputs on one net (a reset teed off the main input).  Paired boxes are one group, and each
+    group is one finding, at its first pinned box with a captured pairing, else at its first
+    pinned box.  The captured pairings are an output above the pinned box, and a box's main
+    input below a pin on a net of the pin's own.  The others are not captured: a ``NOP`` as
+    the other box, a pinned box above, a pin's net shared with another pin or with a main
+    input above the pin, and a pin on its box's main input's net.
+    """
+    # In CLICK's words: all inputs of the box instruction must originate from the same branch.
+    pinned = _pinned(net)
+    mains = {s.box: s.net for s in net.sinks if s.slot == net.boxes[s.box].main}
+    on: dict[int, list[Sink]] = {}
+    for s in net.sinks:
+        if s.net != net.rail and s.net in c.fwd:
+            on.setdefault(s.net, []).append(s)
+    pairs: list[tuple[int, int, _Rule]] = []
+    for s in (s for sinks in on.values() for s in sinks if s.box in pinned):
+        is_main = s.slot == net.boxes[s.box].main
+        for t in on[s.net]:
+            other = net.boxes[t.box]
+            if t.box == s.box:
+                continue
+            plain = other.token != "NOP"
+            t_main = t.slot == other.main
+            if is_main:
+                if not t_main or t.row > s.row:
+                    continue  # a box below is not paired; a pin is paired from its own box
+                rule = _ABOVE_PINNED if plain and t.box not in pinned else _ABOVE_PINNED_LIKE
+            else:
+                own = s.net != mains.get(s.box)
+                rule = (
+                    _SHARED_NET if plain and t_main and t.row > s.row and own else _SHARED_NET_LIKE
+                )
+            pairs.append((s.box, t.box, rule))
+
+    parent = list(range(len(net.boxes)))
+
+    def find(b: int) -> int:
+        while parent[b] != b:
+            parent[b] = parent[parent[b]]
+            b = parent[b]
+        return b
+
+    for p, q, _ in pairs:
+        parent[find(p)] = find(q)
+    found: list[tuple[int, _Rule, set[int]]] = []
+    seen: set[int] = set()
+    for p, _, rule in sorted(pairs, key=lambda x: (not x[2].captured, net.boxes[x[0]].row)):
+        root = find(p)
+        if root not in seen:
+            seen.add(root)
+            found.append((p, rule, {b for b in range(len(net.boxes)) if find(b) == root}))
+    return sorted(found, key=lambda f: net.boxes[f[0]].row)
 
 
 def _reduces(source: object, sink: object, arcs: list[Arc]) -> bool:

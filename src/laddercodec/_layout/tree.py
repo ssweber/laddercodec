@@ -260,7 +260,8 @@ def circuits(net: Network) -> Circuits:
     arcs = [Arc(e.src, e.dst, Leaf(e)) for e in net.edges]
     main = [i for i, s in enumerate(net.sinks) if s.slot == net.boxes[s.box].main]
     # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box,
-    # and the pin's row stays blank.
+    # and the pin's row stays blank.  Its syntax check reports C0202 at the AF cell of a pin
+    # whose row holds nothing.
     touched = {e.src for e in net.edges} | {e.dst for e in net.edges}
     pins = [
         i

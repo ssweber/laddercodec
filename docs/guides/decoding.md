@@ -242,11 +242,26 @@ shape with that code:
 | `no_rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
 | `feeds_no_box` | a path from the rail that reaches no box input, at its last contact (the cell CLICK named in three captured rungs) | `C0202` |
 | `no_coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
-| `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off one net | `C000A` |
+| `unwired_pin` | a timer's or counter's reset whose row holds nothing (no contact, no wire, no vertical into it), at its AF cell | `C0202` |
+| `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off the pinned box's main input's net, once per group of boxes that share nets | `C000A` |
+| `shared_input_net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
 | `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 | `undecoded` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 
-A rung whose rail reaches no box gets only its `no_rail` findings, as in CLICK.
+The net of a C000A finding is one the rail reaches through a contact, not the rail.
+A rung whose rail reaches no box gets no `not_series_parallel` finding, as in CLICK.
+A rung whose circuit is not series-parallel gets no C000A finding and no finding
+about a pin's contacts, and the boxes of a C000A finding get no finding about their
+pins' contacts. CLICK does the same on the two shapes captured: a bridge with an
+output above a retentive timer on its net, and a timer's reset on an output's net.
+Whether CLICK does so on other shapes, such as a reset teed off its box's main input
+with another box below on that net, is not captured.
+C000A has `captured=False` for a `NOP` as the other box, for a box with a used pin
+as the box above, for a pin's net shared with another pin or with a main input
+above the pin, and for a box below the pinned box on a reset teed off its main input.
+`unwired_pin` on other pins (a shift's clock, a drum's jog, a counter's down), or in
+a rung whose rail reaches no box, has `C0202` with `captured=False`, and so does a pin
+whose row holds a wire or a contact but that no rail or contact reaches.
 A rung that holds an undecoded marker gets an `undecoded` finding for each marker,
 then its other findings; a marker rung as the decoders make it (one row of wires
 into the marker) gets only its `undecoded` finding.

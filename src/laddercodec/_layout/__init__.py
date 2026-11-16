@@ -83,11 +83,12 @@ def canonical(rung: Any) -> list[Any] | None:
     ``None`` when the rung has no layout: it holds wires and unwired NOPs at most, or
     ``laddercodec.check()`` reports it (its circuit is not series-parallel, a contact or box
     no rail reaches, a shape CLICK's check refuses), or the layout cannot draw it.  Such a
-    rung stays as drawn.
+    rung stays as drawn.  A pin no rail or contact reaches is the one finding that keeps a
+    layout: the layout draws its row blank, as CLICK saves a pin whose row holds nothing.
     """
     from ..layout_check import check
 
-    if check(rung):
+    if any(f.kind != "unwired_pin" for f in check(rung)):
         return None
     try:
         net = network_of_rung(rung)
