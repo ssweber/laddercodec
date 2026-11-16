@@ -34,7 +34,7 @@ CASE_KEYS = {"row", "case", "instruction", "mode", "fields"}
 #: count here, which the match with the generator cannot see; a deliberate change moves it too.
 ROW_COUNTS = {
     "copy.block.control": 1,
-    "copy.block.destination.banks": 86,
+    "copy.block.destination.banks": 95,
     "copy.block.destination.constants": 9,
     "copy.block.destination.forms": 5,
     "copy.block.pairs.banks": 226,

@@ -661,6 +661,20 @@ def copy_grid() -> Grid:
         unpack("source.constants", text, "C1", "C16")
         unpack("destination.constants", "DS1", text, "C16")
         unpack("destination-end.constants", "DS1", "C1", text)
+
+    # --- block into SD: ranges that mix writable and read-only SD (appended to an existing row) ---
+    for end, destination in (
+        ("DS8", "SD140"),  # SD140..SD147, all writable
+        ("DS3", "SD40"),  # SD40..SD42, all writable
+        ("DS10", "SD29"),  # starts writable, reaches read-only SD below SD215
+        ("DS10", "SD140"),  # SD148 and SD149 are read-only
+        ("DS10", "SD214"),  # SD216 on is read-only, past the last writable SD
+        ("DS120", "SD106"),  # read-only SD on both sides of SD215
+        ("DS10", "SD205"),  # starts read-only, ends writable (SD214)
+        ("DS3", "SD212"),  # starts read-only, ends writable (SD214)
+        ("DS4", "SD212"),  # starts read-only, ends at SD215
+    ):
+        block("destination.banks", "DS1", end, destination)
     return grid
 
 

@@ -651,6 +651,15 @@
   {"row": "copy.block.destination.constants", "case": "block DS1..DS2 -> \"AB\"", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS2", "destination": "\"AB\""}},
   {"row": "copy.block.source.constants", "case": "block $41..DS2 -> DS11", "instruction": "copy", "mode": "block", "fields": {"source": "$41", "source_end": "DS2", "destination": "DS11"}},
   {"row": "copy.block.source-end.constants", "case": "block DS1..$41 -> DS11", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "$41", "destination": "DS11"}},
-  {"row": "copy.block.destination.constants", "case": "block DS1..DS2 -> $41", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS2", "destination": "$41"}}
+  {"row": "copy.block.destination.constants", "case": "block DS1..DS2 -> $41", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS2", "destination": "$41"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS8 -> SD140", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS8", "destination": "SD140"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS3 -> SD40", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS3", "destination": "SD40"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS10 -> SD29", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS10", "destination": "SD29"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS10 -> SD140", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS10", "destination": "SD140"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS10 -> SD214", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS10", "destination": "SD214"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS120 -> SD106", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS120", "destination": "SD106"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS10 -> SD205", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS10", "destination": "SD205"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS3 -> SD212", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS3", "destination": "SD212"}},
+  {"row": "copy.block.destination.banks", "case": "block DS1..DS4 -> SD212", "instruction": "copy", "mode": "block", "fields": {"source": "DS1", "source_end": "DS4", "destination": "SD212"}}
  ]
 }
