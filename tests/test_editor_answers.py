@@ -7,8 +7,8 @@ rebuilt here with the builders ``devtools/editor_grids.py`` uses and compared th
 - the outcome: CLICK accepted or refused, and so do the rules;
 - the code: where both refuse and CLICK gave an ``OBJ-nnn``, the refusal's ``click_id`` is the
   same (a ``click_id`` of None is not a disagreement, and most refusals have none yet, so
-  only some codes are compared: ``MIN_CODES_COMPARED`` is today's number, and a change that
-  drops ids lowers it and fails);
+  only some codes are compared: ``CODES_COMPARED`` is today's number, and a change that
+  adds or drops ids changes it and fails);
 - the save: an accepted case's ``stored`` rows read back with ``read_csv`` as an instruction
   that is not ``raw(...)``.
 
@@ -110,7 +110,7 @@ DISAGREEMENTS: dict[Key, str] = {
 }
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-MIN_CODES_COMPARED = 57
+CODES_COMPARED = 58
 
 
 @pytest.fixture(scope="module")
@@ -386,9 +386,9 @@ def test_every_case_was_answered() -> None:
                 assert read_back == case["fields"], (grid, case["case"])
 
 
-def test_codes_compared_do_not_drop(generator: Any) -> None:
+def test_codes_compared_are_the_count(generator: Any) -> None:
     _, counts = compare(generator)
-    assert counts["codes"] >= MIN_CODES_COMPARED, counts
+    assert counts["codes"] == CODES_COMPARED, counts
 
 
 def test_answers_are_the_grids_cases() -> None:

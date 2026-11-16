@@ -68,10 +68,22 @@ def test_math_nickname_is_not_read_as_a_formula() -> None:
 
 
 def test_hex_result_in_sd_is_outside_the_range() -> None:
-    """CLICK answers an SD as a hex result with OBJ-003; any other bank not taken is OBJ-004."""
-    for result, click_id in (("SD29", "OBJ-003"), ("SD31", "OBJ-003"), ("DS1", "OBJ-004")):
+    """CLICK answers an SD, or a YD past YD8, as a hex result with OBJ-003; another bank is OBJ-004."""
+    cases = (
+        ("SD29", "bank", "OBJ-003"),
+        ("SD31", "bank", "OBJ-003"),
+        ("SD1000", "bank", "OBJ-003"),
+        ("YD9", "address", "OBJ-003"),
+        ("DS1", "bank", "OBJ-004"),
+    )
+    for result, reason, click_id in cases:
         (error,) = _refusals(lambda result=result: Math("DH1", result, "hex"))
-        assert (error.field, error.reason, error.click_id) == ("Math.result", "bank", click_id)
+        assert (error.field, error.reason, error.click_id) == ("Math.result", reason, click_id)
+    assert str(error) != "" and "outside the range of a hex Math result" in str(
+        _refusals(lambda: Math("DH1", "SD29", "hex"))[0]
+    )
+    for result in ("YD0", "YD0u", "YD8"):
+        Math("DH1", result, "hex")
     # The decimal result takes SD, and a bank it does not take keeps OBJ-004.
     Math("DS1", "SD29")
     (error,) = _refusals(lambda: Math("DS1", "DH1"))
