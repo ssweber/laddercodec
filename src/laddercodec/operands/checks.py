@@ -103,6 +103,9 @@ class Constants:
     printable: bool = True
     #: The most characters the typed constant may have, or ``None``.
     max_length: int | None = None
+    #: CLICK's id for a decimal or hex constant outside the field's limits, where the
+    #: field's dialog gives one.
+    range_id: str | None = "OBJ-005"
 
 
 class Operand(NamedTuple):
@@ -207,7 +210,10 @@ def _hex_above(value: str, at: _At, constants: Constants) -> FieldError:
     """The refusal of a hex constant above the field's highest."""
     high = f"{constants.hex_high:X}h"
     return at.error(
-        value, f"is above {high}; a hex constant here is 0h to {high}", Reason.RANGE, "OBJ-005"
+        value,
+        f"is above {high}; a hex constant here is 0h to {high}",
+        Reason.RANGE,
+        constants.range_id,
     )
 
 
@@ -306,7 +312,9 @@ def _outside(value: str, at: _At, constants: Constants) -> FieldError:
     """The refusal of a decimal integer outside the field's limits."""
     # Without a '-' the lowest value a field can take is 0.
     low = constants.low if "-" in constants.signs else max(constants.low, 0)
-    return at.error(value, f"is outside {low} to {constants.high}", Reason.RANGE, "OBJ-005")
+    return at.error(
+        value, f"is outside {low} to {constants.high}", Reason.RANGE, constants.range_id
+    )
 
 
 def _check_sign(value: str, at: _At, constants: Constants) -> None:

@@ -75,7 +75,8 @@ class Undecoded(AfInstruction):
                     "column", f"{self.column!r} must be None or 0 to 31", _index_reason(self.column)
                 )
             if self.stop not in _STOPS:
-                check.refuse("stop", f"{self.stop!r} must be 'end' or 'return'", Reason.CHOICE)
+                reason = Reason.CHOICE if isinstance(self.stop, str) else Reason.FORM
+                check.refuse("stop", f"{self.stop!r} must be 'end' or 'return'", reason)
 
     @property
     def where(self) -> str:

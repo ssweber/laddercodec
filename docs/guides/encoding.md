@@ -177,7 +177,8 @@ address, constant, key or range it refuses, each on `Math.expression`; an error 
 its parentheses or in the order of its tokens ends the list. After a word that is
 none of an address, a name or a constant, the order, bit and range checks are
 skipped. A target refused when it is built names its own field (`ModbusTcpTarget.port`)
-before any `Send` or `Receive` holds it. Each refusal has:
+before any `Send` or `Receive` holds it. The one check a `Receive` makes of its target, a serial Slave ID of 0
+(it starts at 1), names `Receive.target`. Each refusal has:
 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|

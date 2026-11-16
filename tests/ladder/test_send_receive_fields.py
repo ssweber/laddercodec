@@ -226,7 +226,7 @@ def test_hex_address_above_fffe_names_the_limit() -> None:
     with pytest.raises(FieldError) as caught:
         ModbusAddress(address="FFFFh")
     assert str(caught.value) == (
-        "ModbusAddress.address: 'FFFFh' is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)"
+        "ModbusAddress.address: 'FFFFh' is above FFFEh; a hex constant here is 0h to FFFEh"
     )
     assert caught.value.field == "ModbusAddress.address"
 

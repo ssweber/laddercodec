@@ -267,13 +267,25 @@ _FIELD_SPEC_RE = re.compile(
 )
 
 
+def _token_error(message: str) -> FieldError:
+    """A raw token that does not follow the token syntax: no field, the reason form."""
+    return FieldError(message, field=None, reason=Reason.FORM)
+
+
+def _fromhex(text: str) -> bytes:
+    try:
+        return bytes.fromhex(text)
+    except ValueError:
+        raise _token_error(f"{text!r} is not hex bytes") from None
+
+
 def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
     """Parse field-spec strings back to ``(tag, sentinel, value)`` tuples."""
     fields: list[tuple[int, bytes, str]] = []
     for spec in specs:
         m = _FIELD_SPEC_RE.fullmatch(spec)
         if not m:
-            raise ValueError(f"Invalid field spec: {spec!r}")
+            raise _token_error(f"Invalid field spec: {spec!r}")
         tag = int(m.group(1), 16)
         array_count = int(m.group(2)) if m.group(2) else None
         sentinel_hex = m.group(3)
@@ -285,7 +297,7 @@ def _parse_field_specs(specs: list[str]) -> list[tuple[int, bytes, str]]:
                 fields.append((tag, struct.pack("<I", idx), value))
         elif sentinel_hex is not None:
             # Explicit variant sentinel.
-            fields.append((tag, bytes.fromhex(sentinel_hex), value))
+            fields.append((tag, _fromhex(sentinel_hex), value))
         else:
             # Standard sentinel.
             fields.append((tag, _STANDARD_SENTINEL, value))
@@ -513,10 +525,12 @@ class RawInstruction(AfInstruction):
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise ValueError(f"Not a raw token: {token!r}")
+            raise _token_error(f"Not a raw token: {token!r}")
         inner = token[4:-1]
 
         # Split on first comma to get class name.
+        if "," not in inner:
+            raise _token_error(f"raw({inner}): a raw token is raw(ClassName,...)")
         first_comma = inner.index(",")
         class_name = inner[:first_comma].strip()
         rest = inner[first_comma + 1 :].strip()
@@ -542,7 +556,7 @@ class RawInstruction(AfInstruction):
                 field=None,  # token syntax, not a field value
                 reason=Reason.FORM,
             )
-        blob = bytes.fromhex(hex_blob)
+        blob = _fromhex(hex_blob)
         try:
             _, _, part_count = find_blob_boundary(blob)
         except (ValueError, IndexError):
@@ -558,7 +572,7 @@ class RawInstruction(AfInstruction):
             or not re.fullmatch(r"(?:0[xX])?[0-9A-Fa-f]+", parts[0])
             or not re.fullmatch(r"[0-9]+", parts[1])
         ):
-            raise ValueError(
+            raise _token_error(
                 f"raw({class_name},...): type marker is 0xTTTT and part count is digits"
             )
         type_marker = int(parts[0], 16)

@@ -51,8 +51,9 @@ class FieldError(ValueError):
     ----------
     field:
         The field refused, as ``Class.attr``, with ``[i]`` for an item of a list field:
-        ``Coil.range_end``, ``Drum.outputs[2]``.  ``Class`` is the instruction's class name
-        and ``attr`` one of its dataclass fields.  None only for a CSV token that does not
+        ``Coil.range_end``, ``Drum.outputs[2]``.  ``Class`` is the class whose checks refused
+        the value, an instruction or a Modbus target (``ModbusTcpTarget.port``), and ``attr``
+        one of its dataclass fields.  None only for a CSV token that does not
         follow its instruction's syntax.
     fields:
         Every field the refusal is about, :attr:`field` first: ``(field,)`` for one field,

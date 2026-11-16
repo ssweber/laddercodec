@@ -59,7 +59,7 @@ class ModbusRtuTarget:
                 check.refuse(
                     "com_port",
                     f"must be one of {', '.join(_RTU_PORT_MODE)}, got {self.com_port!r}",
-                    Reason.CHOICE,
+                    _choice_reason(self.com_port),
                 )
             _check_device_id(check, self, 247)
 
@@ -81,7 +81,7 @@ class ModbusTcpTarget:
                 check.refuse(
                     "com_port",
                     f"must be one of {', '.join(_TCP_PORT_MODE)}, got {self.com_port!r}",
-                    Reason.CHOICE,
+                    _choice_reason(self.com_port),
                 )
             _check_device_id(check, self, 255)
             _check_ip(check, self.ip)
@@ -89,6 +89,11 @@ class ModbusTcpTarget:
                 check.refuse("port", f"must be an integer, got {self.port!r}", Reason.FORM)
             elif not 1 <= self.port <= 65535:
                 check.refuse("port", f"must be 1-65535, got {self.port}", Reason.RANGE)
+
+
+def _choice_reason(value: object) -> Reason:
+    """Why text is not one of a field's named values: another member (a choice), or no text."""
+    return Reason.CHOICE if isinstance(value, str) else Reason.FORM
 
 
 _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
@@ -155,7 +160,7 @@ class ModbusAddress:
                 check.refuse(
                     "register_type",
                     f"must be one of {', '.join(REGISTER_TYPES)}, got {self.register_type!r}",
-                    Reason.CHOICE,
+                    _choice_reason(self.register_type),
                 )
             if self.address.endswith(("h", "H")):
                 if check("address", check_constant, _REMOTE_HEX) is not None:
@@ -185,7 +190,7 @@ class ModbusAddress:
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
 REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
 #: A hex remote address: 0h to FFFEh.
-_REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE)
+_REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE, range_id=None)
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +235,8 @@ def _check_function_code(check: Refusals, function_code: object, allowed: tuple[
         return
     if type(function_code) is not int or function_code not in allowed:
         listed = ", ".join(str(fc) for fc in allowed)
-        check.refuse("function_code", f"{function_code!r} is not one of {listed}", Reason.CHOICE)
+        reason = Reason.FORM if type(function_code) is not int else Reason.CHOICE
+        check.refuse("function_code", f"{function_code!r} is not one of {listed}", reason)
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +374,8 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 # ---------------------------------------------------------------------------
 # Field rules
 #
-# A bank outside a field's set raises OBJ-004, a number outside its limit OBJ-010.
+# A bank outside a field's set raises OBJ-004; a count past its cap or room, or a hex start
+# past FFFDh, OBJ-010.
 # ---------------------------------------------------------------------------
 
 _BANK_ID = "OBJ-004"
@@ -548,6 +555,16 @@ def _check_quantity(
         )
 
 
+def _check_quantity_bounds(
+    check: Refusals, quantity: int, caps: tuple[int, int, int], bit: bool | None
+) -> None:
+    """A count no start could take: below 1, or above the largest cap of the kinds the
+    remote and local fields leave possible.  Used when one of them is refused."""
+    high = caps[1] if bit is False else caps[0]
+    if not 1 <= quantity <= high:
+        check.refuse("quantity", f"{quantity} is outside 1-{high}", Reason.RANGE, _RANGE_ID)
+
+
 def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | None) -> int:
     """FC05/FC15 for bits, FC06/FC16 for registers; one element is FC05/FC06 unless a bank
     only FC16 carries (DD, DF, CTD) is on either side."""
@@ -667,6 +684,8 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
+    elif counted:
+        _check_quantity_bounds(check, quantity, _SEND_CAPS, bit)
 
     if (
         isinstance(remote, ModbusAddress)
@@ -808,6 +827,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 f"{quantity} TXT characters must be an even count of 2+",
                 Reason.RANGE,
             )
+    elif counted:
+        _check_quantity_bounds(check, quantity, _RECEIVE_CAPS, bit)
 
     # Receive: CLICK forces Word Swap off here.  A value that is no flag is refused as one.
     if receive.word_swap and bit is not None:
@@ -1413,7 +1434,11 @@ def _strip_quotes(s: str) -> str:
 def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     m = _CONSTRUCTOR_RE.fullmatch(raw.strip())
     if not m:
-        raise ValueError(f"Cannot parse target: {raw!r}")
+        raise FieldError(
+            f"Cannot parse target: {raw!r}",
+            field=None,  # token syntax, not a field value
+            reason=Reason.FORM,
+        )
     cls_name = m.group(1)
     kw = _parse_constructor_kwargs(m.group(2))
 
@@ -1438,7 +1463,11 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         port = int(raw_port)
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
-    raise ValueError(f"Unknown target type: {cls_name!r}")
+    raise FieldError(
+        f"Unknown target type: {cls_name!r}",
+        field=None,  # token syntax, not a field value
+        reason=Reason.FORM,
+    )
 
 
 def _parse_remote_start(raw: str) -> str | ModbusAddress:
@@ -1550,7 +1579,11 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             function_code=function_code,
         )
 
-    raise ValueError(f"Unsupported send_receive instruction: {call.name!r}")
+    raise FieldError(
+        f"Unsupported send_receive instruction: {call.name!r}",
+        field=None,  # token syntax, not a field value
+        reason=Reason.FORM,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -139,7 +139,7 @@ def test_modbus_address_hex_range_is_the_constant_check() -> None:
     assert (error.field, error.reason, error.click_id) == (
         "ModbusAddress.address",
         Reason.RANGE,
-        "OBJ-005",
+        None,  # the remote-start field has no id for it; Copy and Math keep OBJ-005
     )
 
 
@@ -250,7 +250,9 @@ def test_receive_first_refusal_of_a_conflict_is_the_one_a_later_pair_skips() -> 
     ("build", "field", "reason", "click_id"),
     [
         (lambda: send(function_code=7), "function_code", Reason.CHOICE, None),
-        (lambda: receive(function_code=True), "function_code", Reason.CHOICE, None),
+        (lambda: receive(function_code=True), "function_code", Reason.FORM, None),
+        (lambda: send(function_code="6"), "function_code", Reason.FORM, None),
+        (lambda: send(function_code=1.0), "function_code", Reason.FORM, None),
         (lambda: send(quantity=1.5), "quantity", Reason.FORM, None),
         (lambda: send(quantity=0), "quantity", Reason.RANGE, "OBJ-010"),
         (lambda: send(quantity=124), "quantity", Reason.RANGE, "OBJ-010"),
@@ -440,3 +442,79 @@ def test_every_refusal_written_in_the_module_has_a_reason(name: str) -> None:
             if not reason_given:
                 missing.append(call.lineno)
     assert not missing, f"{name}.py: a refusal without a reason at lines {missing}"
+
+
+# ---------------------------------------------------------------------------
+# A value of the wrong type is form; choice is a wrong member of the right type
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", [5, None])
+def test_a_port_that_is_no_text_is_form(bad: Any) -> None:
+    (error,) = _refusals(lambda: ModbusRtuTarget(name="r", com_port=bad, device_id=1))
+    assert (error.field, error.reason) == ("ModbusRtuTarget.com_port", Reason.FORM)
+    (error,) = _refusals(
+        lambda: ModbusTcpTarget(name="t", ip="1.2.3.4", port=1, device_id=1, com_port=bad)
+    )
+    assert (error.field, error.reason) == ("ModbusTcpTarget.com_port", Reason.FORM)
+
+
+def test_a_register_type_that_is_no_text_is_form() -> None:
+    (error,) = _refusals(lambda: ModbusAddress("0h", 3))  # type: ignore[arg-type]
+    assert (error.field, error.reason) == ("ModbusAddress.register_type", Reason.FORM)
+
+
+def test_an_undecoded_stop_that_is_no_text_is_form() -> None:
+    (error,) = _refusals(lambda: Undecoded("why", 0, stop=3))  # type: ignore[arg-type]
+    assert (error.field, error.reason) == ("Undecoded.stop", Reason.FORM)
+
+
+# ---------------------------------------------------------------------------
+# A refused start still has its count checked against every kind
+# ---------------------------------------------------------------------------
+
+
+def test_a_count_no_start_could_take_is_refused_beside_a_refused_address() -> None:
+    assert _shape(_refusals(lambda: send(remote_start="bad", quantity=0))) == [
+        ("Send.remote_start", Reason.ADDRESS, None),
+        ("Send.quantity", Reason.RANGE, "OBJ-010"),
+    ]
+    assert _shape(_refusals(lambda: receive(dest="bad", quantity=2001))) == [
+        ("Receive.dest", Reason.ADDRESS, None),
+        ("Receive.quantity", Reason.RANGE, "OBJ-010"),
+    ]
+    # Registers cap lower, and a count either kind takes is left to the start.
+    assert _shape(_refusals(lambda: send(source="bad", quantity=124))) == [
+        ("Send.source", Reason.ADDRESS, None),
+        ("Send.quantity", Reason.RANGE, "OBJ-010"),
+    ]
+    assert _shape(_refusals(lambda: send(remote_start="bad", quantity=124))) == [
+        ("Send.remote_start", Reason.ADDRESS, None)
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Token syntax: no field, the reason form
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["nope", "raw(Tmr)", "raw(Tmr,zz)", "raw(Tmr,0x2718,x)", "raw(Tmr,0x2718,2,zz)"],
+)
+def test_raw_token_that_does_not_parse_is_form(token: str) -> None:
+    with pytest.raises(FieldError) as caught:
+        RawInstruction.from_csv_token(token)
+    assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
+
+
+def test_send_receive_token_that_does_not_parse_is_form() -> None:
+    from laddercodec.instructions.send_receive import _parse_target
+
+    for text in ("nonsense", 'Unknown(name="x")'):
+        with pytest.raises(FieldError) as caught:
+            _parse_target(text)
+        assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
+    with pytest.raises(FieldError) as caught:
+        parse_af_call(_call("poll"))
+    assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
