@@ -589,24 +589,27 @@ class Refusals:
         """Whether any of ``attrs`` was refused, or an item of it, or the list it is in."""
         return self._names_refused(tuple(self.field(attr) for attr in attrs))
 
-    def _names_refused(self, fields: tuple[str, ...]) -> bool:
+    def _names_refused(self, fields: tuple[str, ...], kept: int | None = None) -> bool:
         """Whether one of ``fields`` leads a kept refusal (its list or an item of it too).
 
         Only the leading field counts: a refusal of a pair refuses its first field, and its
-        partner is still checked on its own."""
+        partner is still checked on its own.  Given ``kept``, only the first ``kept``
+        refusals count."""
 
         def overlap(a: str, b: str) -> bool:
             return a == b or a.startswith(f"{b}[") or b.startswith(f"{a}[")
 
         return any(
-            e.field is not None and overlap(f, e.field) for e in self._errors for f in fields
+            e.field is not None and overlap(f, e.field) for e in self._errors[:kept] for f in fields
         )
 
     def add(self, error: FieldError) -> None:
         """Keep each of ``error``'s :attr:`~FieldError.errors`, unless it names a field
-        already refused."""
+        refused before ``error`` came: the refusals of one check (every refusal of a Math
+        formula, all on ``Math.expression``) are kept together."""
+        before = len(self._errors)
         for each in error.errors:
-            if not self._names_refused(each.fields):
+            if not self._names_refused(each.fields, before):
                 self._errors.append(each)
 
     def run(self, check: Callable[..., _T], *args: Any, **kwargs: Any) -> _T | None:

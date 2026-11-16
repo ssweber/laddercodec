@@ -47,6 +47,7 @@ REASONED = frozenset(
         "Fill",
         "Pack",
         "Unpack",
+        "Math",
     }
 )
 

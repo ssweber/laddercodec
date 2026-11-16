@@ -323,6 +323,12 @@ class _Outer(AfInstruction):
                 raise FieldError("_Outer.other: again", field="_Outer.other")
             elif self.mode == "raised nested":
                 _Inner()
+            elif self.mode == "together":
+                # One check's refusals of one field, as a Math formula gives them.
+                error = FieldError("_Outer.other: one", field="_Outer.other")
+                error.errors = (error, FieldError("_Outer.other: two", field="_Outer.other"))
+                check.add(error)
+                check.refuse("other", "is skipped", Reason.KIND)
 
 
 def test_an_item_refused_covers_its_list() -> None:
@@ -352,6 +358,11 @@ def test_a_nested_construction_keeps_every_inner_refusal() -> None:
 def test_a_nested_construction_raised_out_of_the_block() -> None:
     errors = _refusals(lambda: _Outer(mode="raised nested"))
     assert [e.field for e in errors] == ["_Inner.a", "_Inner.b"]
+
+
+def test_refusals_of_one_field_that_come_together_are_all_kept() -> None:
+    errors = _refusals(lambda: _Outer(mode="together"))
+    assert [str(e) for e in errors] == ["_Outer.other: one", "_Outer.other: two"]
 
 
 def test_an_error_raised_out_of_the_block_is_checked_as_a_refusal() -> None:

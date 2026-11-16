@@ -23,12 +23,12 @@ def _called_name(node: ast.Call) -> str | None:
     return None
 
 
-def calls_without_field(source: str, filename: str = "<src>") -> list[str]:
-    """``file:line`` of each FieldError or AddressError call without a ``field=`` keyword."""
+def calls_without_field(source: str, filename: str = "<src>", keyword: str = "field") -> list[str]:
+    """``file:line`` of each FieldError or AddressError call without a ``keyword=`` keyword."""
     missing = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Call) and _called_name(node) in _NAMES:
-            if not any(kw.arg == "field" for kw in node.keywords):
+            if not any(kw.arg == keyword for kw in node.keywords):
                 missing.append(f"{filename}:{node.lineno}")
         elif isinstance(node, ast.Raise) and isinstance(node.exc, (ast.Name, ast.Attribute)):
             # A bare ``raise FieldError``: no call, so no field.
@@ -47,6 +47,19 @@ def test_every_field_error_passes_field() -> None:
         "pass field=<Class>.<field> (or field=None for a refusal about no single field) at: "
         + ", ".join(missing)
     )
+
+
+#: Modules every refusal of which has a reason: each FieldError they build passes ``reason=``.
+#: The conftest sweep checks the refusals the suite builds for their classes too.
+REASONED_MODULES = ("instructions/math.py", "instructions/math_formula.py")
+
+
+def test_every_field_error_in_a_reasoned_module_passes_reason() -> None:
+    missing: list[str] = []
+    for rel in REASONED_MODULES:
+        source = (SRC / rel).read_text(encoding="utf-8")
+        missing += calls_without_field(source, rel, keyword="reason")
+    assert not missing, "pass reason=Reason.<member> at: " + ", ".join(missing)
 
 
 def test_guard_fails_on_a_call_without_field() -> None:
