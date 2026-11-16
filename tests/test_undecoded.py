@@ -291,7 +291,7 @@ def test_a_comment_that_does_not_decode_keeps_the_rung(index: int) -> None:
     assert isinstance(warning, UndecodedCommentWarning)
     assert (warning.rung, warning.program) == (index, None)
     assert str(warning).startswith(f"the comment of rung {index} is not decoded")
-    note = f"UNDECODED comment: {warning.error}"
+    note = f"UNDECODED comment: {warning.error}\n{DECODED[index].comment}"
     for i, rung in enumerate(rungs):
         want = DECODED[i]
         if i == index:
@@ -312,7 +312,7 @@ def test_a_comment_that_does_not_decode_on_a_marker_rung() -> None:
     (marker,) = rungs[1].instructions
     assert isinstance(marker, Undecoded)
     error = caught[0].message.error  # type: ignore[union-attr]
-    assert rungs[1].comment == f"{marker.headline}\nUNDECODED comment: {error}"
+    assert rungs[1].comment == f"{marker.headline}\nUNDECODED comment: {error}\nsecond"
 
 
 @pytest.mark.parametrize("cut", [False, True], ids=["zeroed", "cut"])
@@ -369,7 +369,7 @@ def test_scr_comment_that_does_not_decode_keeps_the_rung() -> None:
     assert program.undecoded == []
     assert [r.comment for r in program.rungs] == [
         "first",
-        f"UNDECODED comment: {warning.error}",
+        f"UNDECODED comment: {warning.error}\nsecond",
         "third",
     ]
     assert [(r.conditions, r.instructions) for r in program.rungs] == [

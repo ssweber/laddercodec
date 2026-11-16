@@ -157,6 +157,9 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   repeated here.
 - **Operand probe recheck:** recheck, against the operand probe, every operand field it finds surprising, and fix
   or delete.
+- **Comment styling characters (Sam):** comment text with a literal `_x_` pair (or other styling characters)
+  comes back as `*x*`, because neither the comment writer nor the reader escapes styling characters; decide on
+  an escape such as `\*` and `\_`.
 - **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
   blob stores it; the encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):

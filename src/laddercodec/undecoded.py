@@ -3,15 +3,18 @@
 The unit is the rung, because its rows share wires.  A rung that fails becomes one marker
 rung (:func:`marker_rung`), and the decoder warns with :class:`UndecodedRungWarning`.  A
 comment that fails, on a rung whose logic decodes, is not a marker: the rung keeps its
-logic, its comment becomes :func:`comment_note`, and the decoder warns with
+logic, its comment becomes :func:`comment_note` followed by the text
+:func:`recover_text` finds in the comment's bytes, and the decoder warns with
 :class:`UndecodedCommentWarning`.
 """
 
 from __future__ import annotations
 
+import codecs
+import re
 import struct
 import warnings
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
 from .instructions.undecoded import Stop, Undecoded
@@ -48,8 +51,11 @@ class UndecodedRungWarning(UserWarning):
 class UndecodedCommentWarning(UserWarning):
     """A rung's comment could not be decoded; the rung keeps its logic.
 
-    The rung's comment is ``UNDECODED comment: <error>``, and its ``comment_rtf`` keeps the
-    comment's bytes.  The rung is not a marker, so ``Program.undecoded`` does not list it.
+    The rung's comment is ``UNDECODED comment: <error>``, then on a new line the plain text
+    that can be read out of the comment's bytes (nothing, when none can be; cut short and
+    ended with ``...`` when it would make the comment too long to encode).  Its
+    ``comment_rtf`` keeps the comment's bytes.  The rung is not a marker, so
+    ``Program.undecoded`` does not list it.
 
     Attributes
     ----------
@@ -99,8 +105,203 @@ def comment_note(error: str) -> str:
     return f"UNDECODED comment: {error}"
 
 
+#: RTF destinations whose group holds no comment text.
+_RTF_DESTINATIONS = frozenset(
+    {
+        "fonttbl",
+        "colortbl",
+        "stylesheet",
+        "info",
+        "pict",
+        "object",
+        "header",
+        "footer",
+        "footnote",
+        "fldinst",
+        "listtable",
+        "listoverridetable",
+        "generator",
+        "rsidtbl",
+        "themedata",
+        "datastore",
+        "latentstyles",
+    }
+)
+
+#: RTF control words that stand for one character.
+_RTF_CHARS = {
+    "par": "\n",
+    "line": "\n",
+    "tab": " ",
+    "emdash": "-",
+    "endash": "-",
+    "lquote": "'",
+    "rquote": "'",
+    "ldblquote": '"',
+    "rdblquote": '"',
+    "bullet": "*",
+}
+
+_RTF_CODE_PAGE = re.compile(rb"\\ansicpg(\d+)")
+_RTF_WORD = re.compile(r"\\([A-Za-z]+)(-?\d+)? ?")
+#: A control word's number longer than this is not read.
+_MAX_ARG_DIGITS = 6
+_HEX_PAIR = re.compile(r"[0-9A-Fa-f]{2}")
+
+
+def _rtf_text(payload: bytes) -> str:
+    """The text runs of RTF *payload*, with no styling."""
+    encoding = "cp1252"
+    match = _RTF_CODE_PAGE.search(payload)
+    if match is not None:
+        try:
+            encoding = codecs.lookup(f"cp{match.group(1).decode('ascii')}").name
+        except LookupError:
+            pass
+    body = payload.decode(encoding, errors="replace")
+
+    out: list[str] = []
+    stack: list[tuple[bool, int]] = []  # per open group: skipping it, and its \uc count
+    skip, uc = False, 1
+    first = False  # just after an opening brace
+    fallback = 0  # characters left to drop after a \u
+    i, n = 0, len(body)
+    while i < n:
+        ch = body[i]
+        if ch == "{":
+            stack.append((skip, uc))
+            first = True
+            i += 1
+            continue
+        if ch == "}":
+            if not stack or (len(stack) == 1 and body[i + 1 :].strip(" \t\r\n\x00")):
+                i += 1  # stray, or closing the outermost group with text still to come
+                continue
+            skip, uc = stack.pop()
+            if not stack:
+                break  # the outermost group is closed, with only whitespace after it
+            first = False
+            i += 1
+            continue
+        was_first, first = first, False
+        if ch != "\\":
+            if fallback:
+                fallback -= 1
+            elif not skip and ch >= " " and ch != "\x7f":
+                out.append(ch)
+            i += 1
+            continue
+        nxt = body[i + 1] if i + 1 < n else ""
+        if nxt == "'":
+            digits = body[i + 2 : i + 4]
+            if _HEX_PAIR.fullmatch(digits):
+                if fallback:
+                    fallback -= 1
+                elif not skip:
+                    out.append(bytes([int(digits, 16)]).decode(encoding, errors="replace"))
+                i += 4
+            else:
+                i += 2
+        elif nxt.isalpha():
+            word = _RTF_WORD.match(body, i)
+            assert word is not None
+            name, arg = word.group(1), word.group(2)
+            i = word.end()
+            if name in _RTF_DESTINATIONS and was_first:
+                skip = True
+            elif name == "uc" and arg is not None:
+                if len(arg) <= _MAX_ARG_DIGITS:
+                    uc = max(int(arg), 0)
+            elif name == "u" and arg is not None and len(arg) <= _MAX_ARG_DIGITS:
+                value = int(arg)
+                if not skip and -0x8000 <= value <= 0xFFFF:
+                    out.append(chr(value % 0x10000))
+                fallback = uc
+            elif name in _RTF_CHARS and not skip:
+                out.append(_RTF_CHARS[name])
+        else:
+            if nxt == "*":
+                skip = skip or was_first
+            elif skip or not nxt:
+                pass
+            elif nxt in "\\{}":
+                out.append(nxt)
+            elif nxt in "\r\n":
+                out.append("\n")
+            elif nxt == "~":
+                out.append(" ")
+            elif nxt == "_":
+                out.append("-")
+            i += 2
+    # Join \u surrogate pairs; a lone half is dropped.
+    text = "".join(out).encode("utf-16-le", "surrogatepass").decode("utf-16-le", "replace")
+    return text.replace("\ufffd", "")
+
+
+def recover_text(payload: bytes) -> str:
+    """The plain text that can be read out of the comment bytes *payload*.
+
+    Best effort, and it never raises.  Control words, control symbols and destination
+    groups (the font and colour tables, ``\\*`` groups) are dropped; text runs are kept,
+    paragraph breaks become line breaks, and well-formed ``\\'hh`` and ``\\uN`` escapes are
+    read.  Non-ASCII characters are kept, as in a comment that decodes; ``encode()`` reduces
+    them to ASCII when it writes.  It is ``""`` when nothing is left.
+    """
+    try:
+        text = _rtf_text(payload)
+    except Exception:  # best effort: whatever went wrong, there is no text to give
+        return ""
+    return "\n".join(line.rstrip() for line in text.strip().split("\n"))
+
+
+def recovered_comment(error: str, payload: bytes) -> str:
+    """:func:`comment_note` for *error*, then the text :func:`recover_text` finds in *payload*.
+
+    The text starts on its own line, so the note's error does not run into it.  It is cut,
+    and ended with ``...``, where the whole comment would be too long for ``encode()``,
+    which refuses an RTF body over ``COMMENT_MAX_BYTES`` bytes whatever the rung's rows.
+    The styling characters ``*`` and ``_`` in the text are not escaped, since the encoder
+    has no escape for them.
+    """
+    from .encode import COMMENT_MAX_BYTES, _build_rtf_body
+
+    def size(comment: str) -> int:
+        return len(_build_rtf_body(comment).encode("cp1252"))
+
+    def longest(fits: Callable[[int], bool], high: int) -> int:
+        """The largest k in 0..high for which *fits* holds, by bisection; 0 if none."""
+        low = 0
+        while low < high:
+            mid = (low + high + 1) // 2
+            if fits(mid):
+                low = mid
+            else:
+                high = mid - 1
+        return low
+
+    note = comment_note(error)
+    if size(note) > COMMENT_MAX_BYTES:
+        keep = longest(
+            lambda k: size(comment_note(error[:k].rstrip() + "...")) <= COMMENT_MAX_BYTES,
+            len(error),
+        )
+        note = comment_note(error[:keep].rstrip() + "...")
+    text = recover_text(payload)
+    if not text:
+        return note
+    comment = f"{note}\n{text}"
+    if size(comment) <= COMMENT_MAX_BYTES:
+        return comment
+
+    def cut(k: int) -> str:
+        return f"{note}\n{text[:k].rstrip()}..."
+
+    keep = longest(lambda k: size(cut(k)) <= COMMENT_MAX_BYTES, len(text))
+    return cut(keep) if keep else note
+
+
 def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
-    """Rung *rung*'s comment from *rtf*, or :func:`comment_note` when it can't be decoded.
+    """Rung *rung*'s comment from *rtf*, or :func:`recovered_comment` when it can't be decoded.
 
     A failure is added to *failed* as ``(rung, error)`` for :func:`warn_comments`.
     """
@@ -113,7 +314,7 @@ def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) ->
     except BAD_BYTES as exc:
         error = reason(exc)
         failed.append((rung, error))
-        return comment_note(error)
+        return recovered_comment(error, rtf)
 
 
 def warn_comments(failed: Iterable[tuple[int, str]], *, program: str | None = None) -> None:
@@ -162,6 +363,8 @@ __all__ = [
     "one_line",
     "read_comment",
     "reason",
+    "recover_text",
+    "recovered_comment",
     "to_the_end",
     "warn_comments",
     "warn_undecoded",
