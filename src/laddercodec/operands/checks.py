@@ -305,6 +305,8 @@ def check_constant(
     :attr:`Constants.float32` is off.
     """
     at = _at(field, label)
+    if value == "":
+        raise _blank(at)
     if value.startswith("$"):
         const = classify(value)
         if const is None or const.kind is not Kind.CHAR:
@@ -330,6 +332,11 @@ def check_constant(
         raise _kind_refusal(value, at, const.kind, constants)
     _check_limits(value, at, constants, const)
     return const
+
+
+def _blank(at: _At, cls: type[FieldError] = FieldError) -> FieldError:
+    """The refusal of a blank field: reason ``missing``, and no CLICK id."""
+    return cls(f"{at.label}: is blank; it needs a value", field=at.field, reason=Reason.MISSING)
 
 
 def _outside(value: str, at: _At, constants: Constants) -> FieldError:
@@ -404,6 +411,8 @@ def check_quoted_text(value: str, field: str, *, label: str | None = None) -> No
     named one.
     """
     at = _at(field, label)
+    if value == "":
+        raise _blank(at)
     inner = value[1:-1]
     long = not 1 <= len(inner) <= TEXT_MAX
     if long or any(ord(c) not in _TEXT_CHARS for c in inner):
@@ -455,6 +464,8 @@ def check_operand(
       text is a constant (refused with :class:`FieldError`).
     """
     at = _at(field, label)
+    if value == "":
+        raise _blank(at, FieldError if constants is not None and letter_first else AddressError)
     if constants is not None:
         if letter_first:
             is_constant = not value[:1].isalpha()
@@ -642,7 +653,32 @@ class Refusals:
         before = len(self._errors)
         for each in error.errors:
             if not self._names_refused(each.fields, before):
+                self._mark_blank(each)
                 self._errors.append(each)
+
+    def _mark_blank(self, error: FieldError) -> None:
+        """Give a refusal of a blank field of this instruction the reason ``missing``.
+
+        A check of a field's own (a choice, a number) words a blank as a bad value; whatever
+        refused it, the caller reads a blank as :attr:`Reason.MISSING`.  Only a refusal,
+        never an accepted blank, gets here.  Its CLICK id stays.
+        """
+        field = error.field
+        prefix = f"{self._cls}."
+        if error.reason is Reason.MISSING or field is None or not field.startswith(prefix):
+            return
+        name, _, index = field[len(prefix) :].partition("[")
+        try:
+            value = getattr(self._inst, name)
+            if index:
+                value = value[int(index[:-1])]
+        except (AttributeError, IndexError, ValueError):
+            return
+        if isinstance(value, str) and value == "":
+            error.reason = Reason.MISSING
+            # The message says what is wrong with the value; a blank is wrong the same way
+            # wherever it is refused.  CLICK's id, if any, stays on the error.
+            error.args = (f"{field}: is blank; it needs a value",)
 
     def run(self, check: Callable[..., _T], *args: Any, **kwargs: Any) -> _T | None:
         """``check(*args, **kwargs)``; None when it raises :class:`FieldError`, kept."""

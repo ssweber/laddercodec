@@ -286,8 +286,8 @@ def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
 
 @dataclasses.dataclass
 class _Inner(AfInstruction):
-    a: str = ""
-    b: str = ""
+    a: str = "x"  # not blank: a blank is refused as missing
+    b: str = "x"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -298,7 +298,7 @@ class _Inner(AfInstruction):
 @dataclasses.dataclass
 class _Outer(AfInstruction):
     items: tuple[str, ...] = ()
-    other: str = ""
+    other: str = "x"
     mode: str = ""
 
     def __post_init__(self) -> None:

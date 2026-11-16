@@ -53,7 +53,9 @@ def _validate_for_limit(value: str) -> str:
     text = value.strip()
     if not text:
         raise FieldError(
-            "ForLoop.limit cannot be blank", field="ForLoop.limit", reason=Reason.MISSING
+            "ForLoop.limit: is blank; it needs a count",
+            field="ForLoop.limit",
+            reason=Reason.MISSING,
         )
     if _FOR_SPACED_RE.fullmatch(text):
         # The dialog lets ``1 0`` through; it is not a number, so it is refused.

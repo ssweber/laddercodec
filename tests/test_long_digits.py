@@ -189,7 +189,7 @@ def test_long_modbus_address_is_refused_through_read_csv(
         read_csv(path)
 
 
-@pytest.mark.parametrize("op", ["=", "<>", "", "7" * 4400, "DS1", None, ["=="]])
+@pytest.mark.parametrize("op", ["=", "<>", "7" * 4400, "DS1", None, ["=="]])
 def test_compare_op_outside_the_six_is_refused(op: Any) -> None:
     from laddercodec.instructions import CompareContact
 
@@ -197,6 +197,15 @@ def test_compare_op_outside_the_six_is_refused(op: Any) -> None:
         CompareContact(op, "DS1", "5")
     error = caught.value
     assert (error.field, error.reason, error.click_id) == ("CompareContact.op", "choice", None)
+
+
+def test_a_blank_compare_op_is_missing() -> None:
+    from laddercodec.instructions import CompareContact
+
+    with pytest.raises(FieldError) as caught:
+        CompareContact("", "DS1", "5")
+    error = caught.value
+    assert (error.field, error.reason, error.click_id) == ("CompareContact.op", "missing", None)
 
 
 @pytest.mark.parametrize("op", ["==", "!=", "<", ">", "<=", ">="])

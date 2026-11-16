@@ -139,7 +139,7 @@ class TestCheckAddress:
             check_address(value, "f")
 
     @pytest.mark.parametrize(
-        "value", ["", "X", "1", "x1", "ds1", " X1", "X1 ", "DS[DS1]", "C123456", "TXTA1", "C-1"]
+        "value", ["X", "1", "x1", "ds1", " X1", "X1 ", "DS[DS1]", "C123456", "TXTA1", "C-1"]
     )
     def test_not_an_address(self, value: str) -> None:
         with pytest.raises(ValueError, match="is not a CLICK address$"):

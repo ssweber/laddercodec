@@ -857,7 +857,7 @@ def parse(text: str, mode: str) -> Formula:
     raws = _lex(text)
     if not raws:
         # A Math blob with no formula decodes as raw(), so none is encoded.
-        raise _error("the formula is empty; a Math needs a formula", Reason.MISSING)
+        raise _error("is blank; a Math needs a formula", Reason.MISSING)
     for raw in raws:
         if raw.symbol and raw.text in ("[", "]"):
             # A pointer such as DS[DS1]: refused before its bank name reads as a word.

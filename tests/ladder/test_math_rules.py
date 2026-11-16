@@ -109,9 +109,9 @@ _REFUSED = [
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
     ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
     # a formula is required: a Math blob with none decodes as raw
-    ("", "DS9", "decimal", "Math.expression: the formula is empty"),
-    ("   ", "DS9", "decimal", "Math.expression: the formula is empty"),
-    ("", "DH9", "hex", "Math.expression: the formula is empty"),
+    ("", "DS9", "decimal", "Math.expression: is blank"),
+    ("   ", "DS9", "decimal", "Math.expression: is blank"),
+    ("", "DH9", "hex", "Math.expression: is blank"),
 ]
 
 

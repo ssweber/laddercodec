@@ -191,7 +191,8 @@ before any `Send` or `Receive` holds it. The one check a `Receive` makes of its 
 `reason` is one of `address`, `bank`, `range`, `pointer`, `kind`, `form`,
 `not_writable`, `flag`, `choice`, `conflict` and `missing` (each is described under
 `Reason` in the [Codec API](../reference/api/codec.md)), or `None` for a refusal not
-given one yet. A field that depends on a refused one is not checked:
+given one yet. A blank in a field that requires a value is `missing`, whatever
+the field takes; a field that may be blank is accepted, and its blank is no refusal. A field that depends on a refused one is not checked:
 a Timer whose done bit is refused is not checked for a current value that
 matches it.
 

@@ -55,7 +55,7 @@ class Undecoded(AfInstruction):
             if not isinstance(self.error, str):
                 check.refuse("error", f"{self.error!r} must be text that says why", Reason.FORM)
             elif not self.error.strip():
-                check.refuse("error", f"{self.error!r} must be text that says why", Reason.MISSING)
+                check.refuse("error", "is blank; it must be text that says why", Reason.MISSING)
             elif "\n" in self.error or "\r" in self.error:
                 check.refuse("error", f"{self.error!r} must be one line", Reason.FORM)
             if not _is_index(self.rung):

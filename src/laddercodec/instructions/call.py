@@ -35,7 +35,7 @@ class Call(AfInstruction):
             if not self.subroutine:
                 check.refuse(
                     "subroutine",
-                    "cannot be empty: CLICK requires a subroutine name",
+                    "is blank; CLICK requires a subroutine name",
                     Reason.MISSING,
                 )
             # A Call names a subroutine, so the name follows the Add New Subroutine rules.

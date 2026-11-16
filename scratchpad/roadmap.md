@@ -57,9 +57,6 @@ pyrung learns what a field takes by building the object and reading the error; t
 rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction without its
 checks (pyrung's conformance probes use `raw(...)`).
 
-- **A blank is `missing`.** The shared checks give a blank field the reason of a bad value (a blank Out
-  variant `on_acc` is `address`, a blank `on_preset` is `kind`), so pyrung can't tell a blank from a bad value.
-  Changing it changes first-refusal reasons, so it is its own branch.
 - **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
   proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
   where no single stretch is at fault (empty, the length, a `(` left open, the mode conflict); a range refusal
@@ -67,6 +64,9 @@ checks (pyrung's conformance probes use `raw(...)`).
 - **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
   int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
   range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
+- **A blank in a CSV token:** in `read_csv`, a blank argument that breaks a token's syntax
+  (`on_delay(,TD1)`, `count_up(CT1,)`, `toggle(C1,on_acc=)`) is a token-syntax error with no field and no
+  reason, where a blank field built in Python is `missing`.
 
 ## 2. Decoding that does not depend on the checks (nothing)
 
@@ -137,6 +137,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     refused while the address is read (a hex start past FFFDh in a Send has OBJ-010). Whether OBJ-010 is
     also CLICK's id for a Send or Receive that runs past C2000, and for the room left in a DD hex start.
   - The Out variant's bank and not-writable SC refusals.
+  - A blank field's refusal carries no id yet. CLICK's recorded answers give OBJ-001 for a blank address,
+    OBJ-006 for a blank Copy source and OBJ-1001 for a blank Math formula; each field needs its own answer
+    before it carries one.
   - OBJ-002 and OBJ-003: which dialogs give them for an address that is not one and for a number outside its
     bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
