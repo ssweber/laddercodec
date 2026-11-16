@@ -518,3 +518,10 @@ def test_send_receive_token_that_does_not_parse_is_form() -> None:
     with pytest.raises(FieldError) as caught:
         parse_af_call(_call("poll"))
     assert (caught.value.field, caught.value.reason) == (None, Reason.FORM)
+
+
+@pytest.mark.parametrize("token", ["raw(Foo,0x1234,70000)", "raw(Foo,0x1234,300)"])
+def test_raw_token_with_too_many_parts_is_a_range_refusal(token: str) -> None:
+    with pytest.raises(FieldError) as caught:
+        RawInstruction.from_csv_token(token)
+    assert (caught.value.field, caught.value.reason) == (None, Reason.RANGE)

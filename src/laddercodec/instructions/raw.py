@@ -577,6 +577,12 @@ class RawInstruction(AfInstruction):
             )
         type_marker = int(parts[0], 16)
         part_count = int(parts[1])
+        if part_count > 0xFFFF:
+            raise FieldError(
+                f"raw({class_name},...): part count {part_count} is not a whole number from 0 to 65535",
+                field=None,  # token syntax, not a field value
+                reason=Reason.RANGE,
+            )
         visual_rows, sub_rows, pins, field_specs = _take_box_rows(
             class_name, parts[2:], raw_token=True
         )
@@ -673,6 +679,12 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
     """
     want = max(0, part_count - 1)
     if text is None:
+        if want > 0xFF:  # a part byte is one byte
+            raise FieldError(
+                f"raw({class_name},...): {part_count} parts need pins=, each row 1 to 31",
+                field=None,  # token syntax, not a field value
+                reason=Reason.RANGE,
+            )
         return bytes(range(1, want + 1))
     if want == 0:
         raise FieldError(
