@@ -12,12 +12,10 @@ from typing import Literal, cast
 from ..binary_helpers import tag_int, tag_value
 from ..model import (
     ConditionInstruction,
-    FieldError,
     InstructionType,
-    check_flag,
-    normalize_fields,
+    Reason,
 )
-from ..operands.checks import ALL_KINDS, Constants, check_operand
+from ..operands.checks import ALL_KINDS, Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from .family import ConditionInstructionFamilySpec
 
@@ -139,23 +137,26 @@ class CompareContact(ConditionInstruction):
     wire_down: bool = False
 
     def __post_init__(self) -> None:
-        self.wire_down = check_flag(self.wire_down, "CompareContact.wire_down")
-        # A constant comes back from normalize_address as written.
-        normalize_fields(self, "left", "right")
-        left = _operand_group(self.left, "CompareContact.left")
-        right = _operand_group(self.right, "CompareContact.right")
-        if left != right:
-            raise FieldError(
-                f"CompareContact: {self.left!r} ({left}) and {self.right!r} ({right}) "
-                "are not in one compare group; hex, numeric and text operands do not mix",
-                field=("CompareContact.left", "CompareContact.right"),
-            )
-        if left == "text" and self.op not in _TEXT_OPS:
-            raise FieldError(
-                f"CompareContact.op: {self.op!r} is not offered when Data A is text "
-                f"({self.left!r}); a text compare takes == or !=",
-                field="CompareContact.op",
-            )
+        with Refusals(self) as check:
+            check.flag("wire_down")
+            # A constant comes back from normalize_address as written.
+            check.normalize("left", "right")
+            left = check("left", _operand_group)
+            right = check("right", _operand_group)
+            if left is not None and right is not None and left != right:
+                check.refuse(
+                    ("left", "right"),
+                    f"{self.left!r} ({left}) and {self.right!r} ({right}) "
+                    "are not in one compare group; hex, numeric and text operands do not mix",
+                    Reason.CONFLICT,
+                )
+            if left == "text" and self.op not in _TEXT_OPS:
+                check.refuse(
+                    ("op", "left"),
+                    f"{self.op!r} is not offered when Data A is text "
+                    f"({self.left!r}); a text compare takes == or !=",
+                    Reason.CONFLICT,
+                )
 
     @classmethod
     def from_csv_token(cls, token: str) -> CompareContact:

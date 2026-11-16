@@ -24,8 +24,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
-from ..model import AfInstruction, FieldError, check_address, check_flag, normalize_fields
-from ..operands.checks import Constants, check_operand, check_out_target
+from ..model import AfInstruction, Reason, check_address
+from ..operands.checks import Constants, Refusals, check_operand, check_out_target
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
@@ -140,43 +140,52 @@ class OutVariant(AfInstruction):
     maintained: bool = False  # timed only
 
     def __post_init__(self) -> None:
-        self._check_fields()
-        # Last, so a junk flag value changes no earlier refusal.
-        self.immediate = check_flag(self.immediate, "OutVariant.immediate")
-        self.maintained = check_flag(self.maintained, "OutVariant.maintained")
+        with Refusals(self) as check:
+            check.normalize("operand", "on_acc", "on_preset", "off_acc", "off_preset")
+            # The target follows Out's rule, writable SC list included.  A junk flag value
+            # is read as it stands here, and refused last, so it changes no earlier refusal.
+            check("operand", check_out_target, immediate=self.immediate)
+            if self.kind not in _KIND_INDEX:
+                check.refuse(
+                    "kind", f"{self.kind!r} is not one of {', '.join(_KIND_INDEX)}", Reason.CHOICE
+                )
+            else:
+                self._check_kind_rules(check)
+            check.flag("immediate", "maintained")
 
-    def _check_fields(self) -> None:
-        normalize_fields(self, "operand", "on_acc", "on_preset", "off_acc", "off_preset")
-        # The target follows Out's rule, writable SC list included.
-        check_out_target(self.operand, "OutVariant.operand", immediate=self.immediate)
-        if self.kind not in _KIND_INDEX:
-            raise FieldError(
-                f"OutVariant.kind: {self.kind!r} is not one of {', '.join(_KIND_INDEX)}",
-                field="OutVariant.kind",
-            )
+    def _check_kind_rules(self, check: Refusals) -> None:
+        """The checks that depend on a valid ``kind``."""
         used = _USED_FIELDS[self.kind]
         for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
             if name not in used and getattr(self, name):
-                raise FieldError(
-                    f"OutVariant.{name}: {getattr(self, name)!r} is not used by {self.kind}",
-                    field=f"OutVariant.{name}",
+                check.refuse(
+                    (name, "kind"),
+                    f"{getattr(self, name)!r} is not used by {self.kind}",
+                    Reason.CONFLICT,
                 )
         if self.kind != "toggle" and self.immediate:
-            raise FieldError(
-                f"OutVariant.immediate: {self.kind} has no immediate form",
-                field="OutVariant.immediate",
+            check.refuse(
+                ("immediate", "kind"), f"{self.kind} has no immediate form", Reason.CONFLICT
             )
         if self.kind != "timed" and self.maintained:
-            raise FieldError(
-                "OutVariant.maintained: only timed has an Output Maintained box",
-                field="OutVariant.maintained",
+            check.refuse(
+                ("maintained", "kind"),
+                "only timed has an Output Maintained box",
+                Reason.CONFLICT,
             )
         if self.kind == "toggle":
             return
-        if (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES:
-            raise FieldError(
-                f"OutVariant.unit: {self.kind} does not support unit={self.unit!r}",
-                field="OutVariant.unit",
+        # The func code is looked up with the flag as given, so a junk ``maintained`` can
+        # refuse ``unit`` first; the flag itself is refused last.  A ``maintained`` refused
+        # above (a kind that has none) already explains the failed lookup.
+        if (
+            not check.refused("maintained")
+            and (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES
+        ):
+            check.refuse(
+                ("unit", "kind"),
+                f"{self.kind} does not support unit={self.unit!r}",
+                Reason.CHOICE,
             )
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
@@ -185,25 +194,29 @@ class OutVariant(AfInstruction):
             # preset is refused, OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
             filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
             if not filled:
-                raise FieldError(
-                    "OutVariant.on_preset: debounce needs an on phase or an off phase "
+                check.refuse(
+                    "on_preset",
+                    "debounce needs an on phase or an off phase "
                     "(on_acc and on_preset, or off_acc and off_preset)",
-                    field="OutVariant.on_preset",
+                    Reason.MISSING,
+                    "OBJ-006",
                 )
+                return
             phases = filled
         accs = []
         for ph in phases:
-            accs.append(
-                check_address(getattr(self, f"{ph}_acc"), f"OutVariant.{ph}_acc", _ACC_BANKS)
-            )
-            _check_preset(getattr(self, f"{ph}_preset"), f"OutVariant.{ph}_preset", floor)
+            accs.append(check(f"{ph}_acc", check_address, _ACC_BANKS))
+            check(f"{ph}_preset", _check_preset, floor)
         # One register for both phases is OBJ-012.
-        if len(accs) == 2 and (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
-            raise FieldError(
-                f"OutVariant.off_acc: {self.off_acc!r} is the on accumulator too; "
-                f"{self.kind} needs two different TD registers",
-                field="OutVariant.off_acc",
-            )
+        if len(accs) == 2 and accs[0] is not None and accs[1] is not None:
+            if (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
+                check.refuse(
+                    ("off_acc", "on_acc"),
+                    f"{self.off_acc!r} is the on accumulator too; "
+                    f"{self.kind} needs two different TD registers",
+                    Reason.CONFLICT,
+                    "OBJ-012",
+                )
 
     def _phase_fields(self, phase: str) -> tuple[str, str]:
         """Return ``(accumulator, preset)`` of the on or off phase."""

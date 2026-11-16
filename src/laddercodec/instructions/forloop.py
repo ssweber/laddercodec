@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
-from ..model import AfInstruction, FieldError, InstructionType, check_flag, normalize_address
-from ..operands.checks import Constants, check_operand
+from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
+from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
 from .family import AfInstructionFamilySpec
 
@@ -52,12 +52,15 @@ _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 def _validate_for_limit(value: str) -> str:
     text = value.strip()
     if not text:
-        raise FieldError("ForLoop.limit cannot be blank", field="ForLoop.limit")
+        raise FieldError(
+            "ForLoop.limit cannot be blank", field="ForLoop.limit", reason=Reason.MISSING
+        )
     if _FOR_SPACED_RE.fullmatch(text):
         # The dialog lets ``1 0`` through; it is not a number, so it is refused.
         raise FieldError(
             f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only",
             field="ForLoop.limit",
+            reason=Reason.FORM,
         )
     text = normalize_address(text, "ForLoop.limit")
     check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
@@ -72,8 +75,11 @@ class ForLoop(AfInstruction):
     oneshot: bool = False
 
     def __post_init__(self) -> None:
-        self.limit = _validate_for_limit(self.limit)
-        self.oneshot = check_flag(self.oneshot, "ForLoop.oneshot")
+        with Refusals(self) as check:
+            limit = check.run(_validate_for_limit, self.limit)
+            if limit is not None:
+                self.limit = limit
+            check.flag("oneshot")
 
     @classmethod
     def from_csv_token(cls, token: str) -> ForLoop:
