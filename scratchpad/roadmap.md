@@ -28,14 +28,14 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 - **No provenance.** Code, tests and user docs say what a rule is, not where it came from. CLICK's own error ids
   in messages, such as "(OBJ-023)", stay: that is what CLICK shows the user. What is still in doubt is written
   here as a question.
-- **Less code first.** Deletion and consolidation come before new features. A shared mechanism stays only if it
-  removes more lines than it adds.
+- **Less code first.** Deletion and consolidation come before new features. Line count is not a target; do what
+  is prudent.
 
 ## Order
 
 1. Cruft sweep.
 2. The undecoded marker (done).
-3. The field-rule restructure.
+3. The field-rule restructure (done in #43-#51).
 4. Canonical constants, once CLICK has answered.
 
 The stable public API and the SCR blob dataclass fit in wherever they are ready.
@@ -44,67 +44,14 @@ The stable public API and the SCR blob dataclass fit in wherever they are ready.
 
 - **Arc folders.** The closed arc folders under `laddercodec-wt/buildbot/jobs/` can all be deleted: the hold on
   `dllqa/`, `validation-arc/`, `validation/`, `rs2/` and `postrelease/` ended once the expected-diff entries
-  (item 3) were sorted.
+  were sorted.
 
 ## 2. The undecoded marker (done in #38; ClickNick and pyrung follow)
 
 ClickNick drops its stand-in rung for `write_csv`'s marker; pyrung reads the `undecoded(...)` token. The
 comment note and `encode()` is under "Later".
 
-## 3. Field-rule restructure (nothing)
-
-Ruled in the plan, "Who owns what". Steps 0-2 landed before 0.4.0: the identity tools, `operands/` with the
-guard ratchet, and the unwired `classify()` with its dry run. There is no engine pilot; the end state is plain
-shared functions.
-
-- **Identity has two tiers** (done). `devtools/identity_diff.py --tiers` fails on a change of verdict,
-  exception class, CSV, bytes or decode result, and lists message changes apart.
-- **Expected-diff file** (done). `devtools/expected_diff.txt` takes a case where CLICK shows today's verdict
-  is wrong (none so far) or where today's code crashes on the value. It lists the crashes on text of more than
-  4300 digits, which Python's `int()` refuses, in six fields: one entry per case, naming its baseline, its
-  family and the verdict that replaces the crash. An entry is judged only on a differing case it matches,
-  and the tools refuse a crash entry used where the base did not crash. An entry stays until its family's
-  branch has merged. The dry run compares today's checks with the shared functions in `operands/checks.py`,
-  each called with the field's parameters, and shows 0 disagreements in verdict or exception class apart
-  from those entries. Fill into TXT taking one character, Compare's float32 edge, Fill's hex above FFFFh and
-  the remote-address hex edge are parameters; Copy's termination keyword is fixed in the dry run; Math stays
-  out.
-- **Provenance out of src (done).**
-  - Delete `operands/sources.py` and `FieldError.source`. `dll_address()` moves into
-    `tests/test_no_dll_addresses.py`.
-  - Delete the citation comments: 142 lines in 16 files.
-  - The OBJ ids in messages stay.
-- **Per family** (bits, data, flow, move, comm):
-  - Replace the private regexes and the bank sets more than one family uses with the shared functions
-    (`check_operand`, `check_constant`, `check_quoted_text`, `check_address`, `check_flag`,
-    `check_out_target`) and sets (`BIT_BANKS`, `REGISTER_BANKS`, `POINTER_BANKS`, `OUT_BANKS`), and shrink
-    the guard allowlists.
-  - A set only one family uses (the compare groups, the For limit banks) may stay in that family, and so may a
-    check the shared functions don't express: the Modbus `device_id` (a FieldError for a bad DS address), the
-    For count's blank and spaced-digit refusals, the Drum register-preset test and the remote address's digits
-    branch. `devtools/classify_dryrun.py` names each one beside its rule.
-  - comm: `ModbusRtuTarget(device_id="DS" + "1" * 5000)` raises a bare ValueError (Python's 4300-digit `int()`
-    limit), not a FieldError. No tool records it: the probe's device ids are short. The check stays in the
-    family, so comm fixes it there.
-  - Each family must delete more lines than it adds.
-- **`FieldError.field` explicit everywhere.**
-  - Pass `field=` at every raise site (198 today; only 5 pass it, and about 45 come out None). Then drop the
-    parsing of `.field` from the message text, and add a guard test.
-  - A refusal across two fields names the instruction (`field="CompareContact"`).
-  - `.obj` is not promised.
-  - `csv/converter.py:365` drops `.field` when it re-raises as `ConvertError`.
-- **Locations for pyrung.** `read_csv` errors carry no rung, row or column. pyrung's export check (plan,
-  "pyrung takes laddercodec") needs one.
-- **One rule for flag fields.**
-  - Every `bool` field on an instruction carries an `Annotated[bool, FLAG]` marker.
-  - One base-class `__post_init__` loop checks every marked field.
-  - A guard test fails on an unmarked `bool`.
-  - Keep it only if it stays plain data plus one function.
-- **Recheck on main**, each against the operand probe, and fix or delete:
-  - every operand field the probe finds surprising;
-  - the move family's double `check_constant` call.
-
-## 4. Canonical constants (CLICK; after item 3)
+## 4. Canonical constants (CLICK)
 
 Addresses are written canonical everywhere, and tested. Constants are written as typed:
 - `copy(0ffh,DS1)`, `copy(005,DS1)`, `copy(+5,DS1)`, `fill(0ffh,...)`;
@@ -137,7 +84,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Math X/Y range members:** a span of more than two expansion slots, and a Y range that starts in the option
   slot. The fitted rule covers every capture so far.
 - **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
-  it; Compare accepts `3.5E+38` (item 3).
+  it; Compare accepts `3.5E+38`.
 - **Fill with hex above FFFFh:** does the Fill dialog take such a constant, and into which banks? A single
   Copy puts it into DD or CTD only; the code's Fill takes it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
@@ -204,6 +151,17 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 
 ## Later (nothing unless marked)
 
+- **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches, since
+  their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them or wire them.
+- **Search's refusal message** says "is a integer value". Fix the article.
+- **Hex message without an OBJ id (CLICK):** the refusal for a padded 32-bit constant ("a hex constant above
+  FFFFh has at most 8 digits") carries no OBJ id. Find the id CLICK shows, if any.
+- **`to_display` refusals** give `FieldError.field` None. They could take the caller's field.
+- **Kind-mismatch refusal for junk input:** "<field> takes a decimal integer", for a blank or a stray character,
+  states the rule but not what was wrong with the input.
+- **Read-only description of each field's rule (Sam, another repo):** banks, constant kinds and limits, for
+  callers such as pyrung. Under discussion in the ecosystem plan (`ssweber.github.io/plan/README.md`); not
+  repeated here.
 - **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
   blob stores it; the encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):
