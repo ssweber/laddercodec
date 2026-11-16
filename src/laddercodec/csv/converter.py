@@ -571,18 +571,19 @@ def _with_blank_fields(call: AfCall) -> AfInstruction | None:
     """The instruction *call* reads to with each blank argument's field blank, or None.
 
     Each blank argument is read as a marker, in each of :data:`_MARKER_FORMS` until the
-    token parses: bare, quoted (a name), and as a range (``M..M``, two fields).  The
-    fields the marker lands in are the argument's.  The instruction is then built again
+    token parses: bare, quoted (a name), and as a range (``M..M``, two fields), where a
+    range with a blank end (``..``, ``..DS4``) is blank too.  The fields the marker lands
+    in are the argument's.  The instruction is then built again
     from its fields, each marker blank, with the checks construction runs: inside
     ``read_csv(..., unchecked=True)`` it keeps the refusals, else it raises them.  None
     when the token holds no blank argument, does not parse with the markers, or a marker
     lands in no field.
     """
     text = call.raw or call.to_token()
-    for form in _MARKER_FORMS:
-        found = _marked(text, form)
+    for form, ranges in _MARKER_FORMS:
+        found = _marked(text, form, ranges=ranges)
         if found is None:
-            return None
+            continue
         marked, marks = found
         try:
             with unchecked():
@@ -596,13 +597,14 @@ def _with_blank_fields(call: AfCall) -> AfInstruction | None:
     return None
 
 
-#: How a blank argument is written while its fields are found: ``@`` stands for the marker.
-_MARKER_FORMS = ("@", '"@"', "@..@")
+#: How a blank argument is written while its fields are found (``@`` stands for the
+#: marker), and whether it is read as a range (:func:`fill_blank_args`).
+_MARKER_FORMS = (("@", False), ('"@"', False), ("@", True))
 
 
-def _marked(text: str, form: str) -> tuple[str, set[str]] | None:
-    """*text* with each blank argument a marker written in *form*, and the markers; None
-    when no argument is blank."""
+def _marked(text: str, form: str, *, ranges: bool) -> tuple[str, set[str]] | None:
+    """*text* with each blank argument a marker written in *form*, read as a range when
+    *ranges*, and the markers; None when no argument is blank."""
     marks: set[str] = set()
 
     def mark(i: int) -> str:
@@ -612,7 +614,7 @@ def _marked(text: str, form: str) -> tuple[str, set[str]] | None:
         marks.add(found)
         return form.replace("@", found)
 
-    marked = fill_blank_args(text, mark)
+    marked = fill_blank_args(text, mark, ranges=ranges)
     return None if marked is None else (marked, marks)
 
 

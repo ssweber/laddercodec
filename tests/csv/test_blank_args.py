@@ -30,6 +30,10 @@ from laddercodec import (
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import af_node_to_token
 from laddercodec.csv.token_parser import fill_blank_args, parse_af_token
+from laddercodec.instructions import from_tags_af
+from laddercodec.instructions.copy import BlockCopy, Copy
+from laddercodec.instructions.math import Math
+from laddercodec.instructions.raw import _decompose_blob, _fields_to_tag_dicts
 from laddercodec.operands.unchecked import refusals, unchecked
 from tests.sweep_keys import kind_of
 
@@ -83,9 +87,13 @@ BLANKS = [
     ("shift()", ["Shift.start_bit", "Shift.end_bit"]),
     ("blockcopy(,DS40..DS43)", ["BlockCopy.source_start", "BlockCopy.source_end"]),
     ("blockcopy(DS1..DS4,)", ["BlockCopy.dest_start", "BlockCopy.dest_end"]),
-    # write_csv writes a range whose ends are blank as `..`.
+    # write_csv writes a range whose ends are blank as `..`, and one whose start or end is
+    # blank as `..END` or `START..`.
     ("shift(..)", ["Shift.start_bit", "Shift.end_bit"]),
     ("blockcopy(..,DS40..DS43)", ["BlockCopy.source_start", "BlockCopy.source_end"]),
+    ("blockcopy(..DS4,DS40..DS43)", ["BlockCopy.source_start"]),
+    ("blockcopy(DS1..DS4,DS40..)", ["BlockCopy.dest_end"]),
+    ("out(Y001..)", ["Coil.range_end"]),
     ("pack_bits(,DS1)", ["Pack.source_start", "Pack.source_end"]),
     ("fill(,DS1..DS4)", ["Fill.value"]),
     ("copy(DS1,)", ["Copy.destination"]),
@@ -201,7 +209,16 @@ def test_fill_blank_args() -> None:
 
     assert fill_blank_args("out()", fill) == "out(<0>)"
     assert fill_blank_args("out(C1)", fill) is None
-    assert fill_blank_args("blockcopy(..,DS1..DS4)", fill) == "blockcopy(<0>,DS1..DS4)"
+    assert fill_blank_args("copy(..,DS1)", fill) is None  # `..` is a value, not a blank
+    assert fill_blank_args("blockcopy(..,DS1..DS4)", fill, ranges=True) == (
+        "blockcopy(<0>..<0>,DS1..DS4)"
+    )
+    assert fill_blank_args("blockcopy(..DS4,DS1..)", fill, ranges=True) == (
+        "blockcopy(<0>..DS4,DS1..<1>)"
+    )
+    assert fill_blank_args("blockcopy(DS1..DS4,)", fill, ranges=True) == (
+        "blockcopy(DS1..DS4,<1>..<1>)"
+    )
     assert fill_blank_args("timed(,on_acc=,unit=Tms)", fill) == "timed(<0>,on_acc=<1>,unit=Tms)"
     assert fill_blank_args('send(target=T(ip=),x="")', fill) is None  # nested, and quoted
     assert fill_blank_args("raw(,0000)", fill) is None  # a raw token's own field specs
@@ -268,3 +285,66 @@ def test_a_blank_python_accepts_reads_from_its_csv_token(
     assert kind_of(holder, attr) == kind
     value = getattr(holder, attr)
     assert value == "" or (isinstance(value, list) and "" in value), value
+
+
+#: ``..`` where a field takes one value is that value, not a blank: (token, field, reason
+#: the default read refuses it with).  ``read_csv(..., unchecked=True)`` keeps it as ``..``.
+DOTS = [
+    ("copy(..,DS1)", "Copy.source", Reason.ADDRESS, "source"),
+    (TIMED.replace("on_acc=TD18", "on_acc=.."), "OutVariant.on_acc", Reason.ADDRESS, "on_acc"),
+    (SEND.replace("error=C3", "error=.."), "Send.error", Reason.ADDRESS, "error"),
+    (SEND.replace("source=C11", "source=.."), "Send.source", Reason.FORM, "source"),
+    (RECEIVE.replace("dest=DS1..DS5", "dest=.."), "Receive.dest", Reason.FORM, "dest"),
+]
+
+
+@pytest.mark.parametrize(("token", "field", "reason", "attr"), DOTS)
+def test_dots_in_a_one_value_field_are_its_value(
+    tmp_path: Path, token: str, field: str, reason: Reason, attr: str
+) -> None:
+    path = _write(tmp_path / "main.csv", token)
+    with pytest.raises(FieldError) as raised:
+        read_csv(path)
+    assert [(e.field, e.reason) for e in raised.value.errors] == [(field, reason)]
+    if reason is Reason.FORM:  # no stored instruction holds a malformed range
+        with pytest.raises(FieldError) as raised:
+            read_csv(path, unchecked=True)
+        assert [(e.field, e.reason) for e in raised.value.errors] == [(field, reason)]
+        return
+    [rung] = _read_unchecked(path)[1:]
+    held = rung.instructions[0]
+    assert getattr(held, attr) == ".."
+    assert [(e.field, e.reason) for e in refusals(held)] == [(field, reason)]
+
+
+def test_a_range_with_a_blank_end_writes_and_reads_back(tmp_path: Path) -> None:
+    with unchecked():
+        block = BlockCopy(source_start="", source_end="DS4", dest_start="DS40", dest_end="DS43")
+    rung = Rung(
+        logical_rows=1,
+        conditions=[["-"] * len(CONDITION_COLUMNS)],
+        instructions=[block],
+        comment_rtf=None,
+        comment=None,
+    )
+    path = tmp_path / "main.csv"
+    write_csv(path, [rung])
+    [read] = _read_unchecked(path)
+    assert read.instructions[0] == block
+
+
+@pytest.mark.parametrize(
+    ("instruction", "attr"),
+    [(Copy(source="DS1", destination="DS2"), "source"), (Math("DS2 + 1", "DS1"), "result")],
+)
+def test_a_stored_dots_decodes_as_before(instruction: Any, attr: str) -> None:
+    """A stored ``..`` in a one-value field decodes as the instruction holding it, refused
+    as an address, as it did before ``..`` read as a blank range."""
+    class_name, type_code, _parts, _extra, stored = _decompose_blob(instruction.build_blob())
+    tags, variant_u16, variant_string = _fields_to_tag_dicts(stored)
+    [tag] = [tag for tag, value in tags.items() if value == getattr(instruction, attr)]
+    edited = tags | {tag: ".."}
+    decoded = from_tags_af(class_name, type_code, edited, variant_u16, variant_string)
+    assert decoded is not None
+    assert getattr(decoded, attr) == ".."
+    assert [e.reason for e in refusals(decoded)] == [Reason.ADDRESS]

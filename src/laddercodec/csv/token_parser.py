@@ -299,13 +299,17 @@ def parse_af_token(token: str) -> AfNode:
     )
 
 
-def fill_blank_args(token: str, fill: Callable[[int], str]) -> str | None:
+def fill_blank_args(
+    token: str, fill: Callable[[int], str], *, ranges: bool = False
+) -> str | None:
     """*token*, an AF call, with each blank argument replaced by ``fill(i)``, or None when no
     argument is blank.
 
     ``i`` counts the top-level arguments from 0.  A blank positional argument becomes
-    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument,
-    and ``..`` is a blank range (``write_csv`` writes a range whose ends are blank so).
+    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument.
+    With *ranges*, each is read as a range: a blank argument becomes ``fill(i)..fill(i)``,
+    and a range with a blank end (``..``, ``..DS4``, ``DS1..``, as ``write_csv`` writes a
+    range whose start or end is blank) is a blank argument too, each blank end ``fill(i)``.
     A ``raw(...)`` token has none: its arguments are its own field specs.
     """
     m = _CALL_RE.fullmatch(token.strip())
@@ -315,16 +319,21 @@ def fill_blank_args(token: str, fill: Callable[[int], str]) -> str | None:
     filled = []
     for i, seg in enumerate(segments):
         eq_idx = _kwarg_eq_index(seg)
-        if eq_idx >= 0 and _is_blank(seg[eq_idx + 1 :]):
-            seg = f"{seg[: eq_idx + 1]}{fill(i)}"
-        elif eq_idx < 0 and _is_blank(seg):
-            seg = fill(i)
-        filled.append(seg)
+        key, value = (seg[: eq_idx + 1], seg[eq_idx + 1 :]) if eq_idx >= 0 else ("", seg)
+        blank = _filled(value.strip(), i, fill, ranges=ranges)
+        filled.append(seg if blank is None else f"{key}{blank}")
     if filled == segments:
         return None
     return f"{m.group(1)}({','.join(filled)})"
 
 
-def _is_blank(arg: str) -> bool:
-    """Whether *arg* is blank: nothing, or a range with both ends blank (``..``)."""
-    return arg.strip() in ("", "..")
+def _filled(
+    value: str, i: int, fill: Callable[[int], str], *, ranges: bool
+) -> str | None:
+    """*value*, argument *i*, with its blanks ``fill(i)``, or None when it has none."""
+    if not ranges:
+        return fill(i) if not value else None
+    start, dots, end = value.partition("..")
+    if value and (not dots or (start and end)):
+        return None
+    return f"{start or fill(i)}..{end or fill(i)}"
