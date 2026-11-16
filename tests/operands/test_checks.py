@@ -33,6 +33,8 @@ DIGITS = Constants(frozenset({N}), signs="", high=32767)
 COUNTER = Constants(frozenset({N}), signs="-", max_length=12)
 #: A Compare constant: 16-bit hex, and any real spelling.
 COMPARE = Constants(ALL_KINDS, hex_high=0xFFFF, float32=False)
+#: A hex remote address: 0h to FFFEh.
+HEX_REMOTE = Constants(frozenset({H}), hex_high=0xFFFE)
 #: A Fill into TXT: one character.
 ONE_CHAR = Constants(frozenset({T, C}), text_max=1)
 
@@ -89,7 +91,8 @@ REFUSED: list[tuple[str, Constants, str]] = [
     ("", ANY, "not a constant"),
     ("2147483648", ANY, "-2147483648 to 2147483647"),
     ("+1h", ANY, "has no sign"),
-    ("100000000h", ANY, "at most 8 digits"),
+    ("100000000h", ANY, "is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh (OBJ-005)"),
+    ("0FFFFFFFFh", ANY, "a hex constant above FFFFh has at most 8 digits"),
     ("3.5E+38", ANY, "float32"),
     ('""', ANY, "1 to 128 characters"),
     ('"a"b"', ANY, "no quote inside"),
@@ -107,7 +110,7 @@ REFUSED: list[tuple[str, Constants, str]] = [
     # signs
     ("+1", DIGITS, "takes no sign"),
     ("-0", DIGITS, "takes no sign"),
-    ("+1", COUNTER, "takes -"),
+    ("+1", COUNTER, "takes no plus sign (OBJ-005)"),
     # limits
     ("32768", DIGITS, "outside 0 to 32767"),
     ("0", Constants(frozenset({N}), signs="", low=1, high=32767), "outside 1 to 32767"),
@@ -115,14 +118,14 @@ REFUSED: list[tuple[str, Constants, str]] = [
     ("3000000000", DIGITS, "outside 0 to 32767 (OBJ-005)"),
     ("-3000000000", COUNTER, "outside -2147483648 to 2147483647 (OBJ-005)"),
     ("3000000000", Constants(frozenset({N}), signs="", low=0, high=2**31 - 1), "outside 0 to"),
-    ("3000000000", Constants(frozenset({H})), "an integer constant is -2147483648"),
+    ("3000000000", Constants(frozenset({H})), "is a decimal integer; X.f takes a hex value"),
     ("-3000000000", Constants(frozenset({N}), signs=""), "takes no sign"),
-    ("+3000000000", COUNTER, "takes -"),
+    ("+3000000000", COUNTER, "takes no plus sign (OBJ-005)"),
     ("10000h", COMPARE, "above FFFFh"),
     ("FFFFh", Constants(frozenset({H}), hex_high=0xFFFE), "above FFFEh"),
     ("0000000000005", COUNTER, "13 characters"),
     ('"AB"', ONE_CHAR, "one character (OBJ-023)"),
-    ('"A' + "B" * 128 + '"', ONE_CHAR, "1 to 128 characters"),
+    ('"A' + "B" * 128 + '"', ONE_CHAR, "a text constant is one character in quotes"),
     ('"ABC"', Constants(frozenset({T}), text_max=2), "at most 2"),
     ('"é"', ANY, "printable ASCII"),
 ]
@@ -134,6 +137,47 @@ def test_check_constant_refuses(value: str, constants: Constants, message: str) 
         check_constant(value, "X.f", constants)
     assert type(caught.value) is FieldError
     assert caught.value.field == "X.f"
+
+
+#: A constant the field's kinds refuse, worded by the field's own rule.
+REFUSED_EXACT: list[tuple[str, Constants, str]] = [
+    # a field of decimal integers only: a real beyond float32 reads as 1.5 does
+    ("1.5", DIGITS, "X.f: '1.5' is a real; X.f takes a decimal integer"),
+    ("3.5E+38", DIGITS, "X.f: '3.5E+38' is a real; X.f takes a decimal integer"),
+    ("123456789h", DIGITS, "X.f: '123456789h' is a hex value; X.f takes a decimal integer"),
+    ("$G1", DIGITS, "X.f: '$G1' is refused; X.f takes a decimal integer"),
+    ('"A"b"', DIGITS, "X.f: '\"A\"b\"' is quoted text; X.f takes a decimal integer"),
+    ("$G1", COUNTER, "X.f: '$G1' is refused; X.f takes a decimal integer"),
+    ("$G1", HEX_REMOTE, "X.f: '$G1' is refused; X.f takes a hex value"),
+    ("100000000h", COMPARE, "X.f: '100000000h' is above FFFFh; a hex constant here is 0h to FFFFh (OBJ-005)"),
+    ("1 2", DIGITS, "X.f: '1 2' is refused; X.f takes a decimal integer"),
+    # a hex field: no padding limit below the field's highest, no sign, hex digits then h
+    ("h", HEX_REMOTE, "X.f: 'h' is refused; X.f takes a hex value: hex digits then h"),
+    ("+1h", HEX_REMOTE, "X.f: '+1h' is refused; a hex constant has no sign"),
+    ("-1h", HEX_REMOTE, "X.f: '-1h' is refused; a hex constant has no sign"),
+    ("100000000h", HEX_REMOTE, "X.f: '100000000h' is above FFFEh; a hex constant here is 0h to FFFEh (OBJ-005)"),
+    ("5", HEX_REMOTE, "X.f: '5' is a decimal integer; X.f takes a hex value"),
+    # a sign the field does not take
+    ("+1", COUNTER, "X.f: '+1' is refused; a constant here takes no plus sign (OBJ-005)"),
+    ("+1", DIGITS, "X.f: '+1' is refused; a constant here takes no sign (OBJ-005)"),
+    ("-1", Constants(frozenset({N}), signs="+"), "X.f: '-1' is refused; a constant here takes no minus sign (OBJ-005)"),
+    # a Fill into TXT takes one character, a Compare text up to 128
+    ('"' + "A" * 129 + '"', ONE_CHAR, "X.f: '\"" + "A" * 129 + "\"' is refused; a text constant is one character in quotes, with no quote inside (write the quote character as $22)"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(("value", "constants", "message"), REFUSED_EXACT)
+def test_check_constant_words_the_fields_own_rule(
+    value: str, constants: Constants, message: str
+) -> None:
+    with pytest.raises(FieldError) as caught:
+        check_constant(value, "X.f", constants)
+    assert str(caught.value) == message
+    assert caught.value.field == "X.f"
+
+
+def test_a_padded_hex_constant_within_the_fields_range_is_accepted() -> None:
+    assert check_constant("000000001h", "X.f", HEX_REMOTE) == Constant(H, 1)
 
 
 def test_text_outside_printable_ascii_passes_when_the_field_allows_it() -> None:
@@ -187,10 +231,10 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("+1h", {"constants": Constants(ALL_KINDS, hex_sign=True)}, FieldError, "has no sign"),
     # With letter_first, text that starts with a letter is an address, other text a constant.
     ("FFFFh", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, AddressError, "not a CLICK address"),
-    ("+1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "takes -"),
+    ("+1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "takes no plus sign"),
     ("1.5", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "is a real"),
-    ("", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "not a constant"),
-    (" DS1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "not a constant"),
+    ("", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "X.f takes a decimal integer"),
+    (" DS1", {"banks": {"DS"}, "constants": COUNTER, "letter_first": True}, FieldError, "X.f takes a decimal integer"),
     # Without constants, every text is an address.
     ("5", {"banks": {"DS"}}, AddressError, "not a CLICK address"),
     # Pointers

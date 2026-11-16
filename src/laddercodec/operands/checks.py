@@ -158,21 +158,74 @@ def _kinds_text(kinds: Collection[Kind]) -> str:
     return ", ".join(names[k] for k in Kind if k in kinds) or "no constant"
 
 
-def _unread(value: str) -> str:
-    """Why :func:`classify` reads no constant in ``value``."""
+def _kind_refusal(value: str, name: str, kind: Kind, constants: Constants) -> FieldError:
+    """The refusal of a constant of a kind the field does not take."""
+    return FieldError(
+        f"{name}: {value!r} is {_kinds_text([kind])}; {name} takes {_kinds_text(constants.kinds)}",
+        field=name,
+    )
+
+
+def _hex_above(value: str, name: str, constants: Constants) -> FieldError:
+    """The refusal of a hex constant above the field's highest."""
+    return FieldError(
+        f"{name}: {value!r} is above {constants.hex_high:X}h; a hex constant here is 0h to "
+        f"{constants.hex_high:X}h (OBJ-005)",
+        field=name,
+    )
+
+
+def _unread(value: str, name: str, constants: Constants) -> FieldError:
+    """The refusal of text :func:`classify` reads no constant in, worded by the field's own
+    kinds and limits."""
+    kinds = constants.kinds
     if len(value) >= 2 and value[0] == value[-1] == '"':
-        return (
-            f"a text constant is 1 to {TEXT_MAX} characters in quotes, with no quote inside "
-            "(write the quote character as $22)"
+        if Kind.TEXT not in kinds:
+            return _kind_refusal(value, name, Kind.TEXT, constants)
+        if constants.text_max == 1:
+            rule = "a text constant is one character in quotes"
+        else:
+            rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
+        return FieldError(
+            f"{name}: {value!r} is refused; {rule}, with no quote inside "
+            "(write the quote character as $22)",
+            field=name,
         )
     upper = value.upper() if value.isascii() else ""
-    if _HEX_SHAPE.fullmatch(upper):
-        return "a hex constant has no sign and at most 8 digits"
+    m = _HEX_SHAPE.fullmatch(upper)
+    if m is not None:
+        if Kind.HEX not in kinds:
+            return _kind_refusal(value, name, Kind.HEX, constants)
+        if m.group(1):
+            return FieldError(
+                f"{name}: {value!r} is refused; a hex constant has no sign", field=name
+            )
+        if int(upper[:-1], 16) > constants.hex_high:
+            return _hex_above(value, name, constants)
+        # Past FFFFh only the digit count refuses: 0FFFFFFFFh is no 32-bit constant.
+        return FieldError(
+            f"{name}: {value!r} is refused; a hex constant above FFFFh has at most 8 digits",
+            field=name,
+        )
     if _INTEGER_SHAPE.fullmatch(upper):
-        return f"an integer constant is {INT32_MIN} to {INT32_MAX}"
+        # check_constant words an integer for a field that takes integers, so only a field
+        # that does not take them gets here.
+        return _kind_refusal(value, name, Kind.INTEGER, constants)
     if _FLOAT_SHAPE.fullmatch(upper):
-        return "a real constant is a finite number within float32 (up to about 3.4028235E+38)"
-    return "it is not a constant"
+        if Kind.FLOAT not in kinds:
+            return _kind_refusal(value, name, Kind.FLOAT, constants)
+        return FieldError(
+            f"{name}: {value!r} is refused; a real constant is a finite number within float32 "
+            "(up to about 3.4028235E+38)",
+            field=name,
+        )
+    if kinds == ALL_KINDS:
+        rule = "it is not a constant"
+    elif kinds == {Kind.HEX}:
+        rule = f"{name} takes a hex value: hex digits then h"
+    else:
+        rule = f"{name} takes {_kinds_text(kinds)}"
+    return FieldError(f"{name}: {value!r} is refused; {rule}", field=name)
 
 
 def check_constant(value: str, name: str, constants: Constants) -> Constant:
@@ -186,7 +239,12 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
     if value.startswith("$"):
         const = classify(value)
         if const is None or const.kind is not Kind.CHAR:
-            raise FieldError(f"{name}: {value!r} is refused; {CHAR_CODE_RULE}", field=name)
+            rule = (
+                CHAR_CODE_RULE
+                if Kind.CHAR in constants.kinds
+                else f"{name} takes {_kinds_text(constants.kinds)}"
+            )
+            raise FieldError(f"{name}: {value!r} is refused; {rule}", field=name)
     else:
         const = classify(value)
         if (
@@ -204,13 +262,9 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
                     f"{name}: {value!r} is outside {low} to {constants.high} (OBJ-005)",
                     field=name,
                 )
-            raise FieldError(f"{name}: {value!r} is refused; {_unread(value)}", field=name)
+            raise _unread(value, name, constants)
     if const.kind not in constants.kinds:
-        raise FieldError(
-            f"{name}: {value!r} is {_kinds_text([const.kind])}; {name} takes "
-            f"{_kinds_text(constants.kinds)}",
-            field=name,
-        )
+        raise _kind_refusal(value, name, const.kind, constants)
     _check_limits(value, name, constants, const)
     return const
 
@@ -218,9 +272,11 @@ def check_constant(value: str, name: str, constants: Constants) -> Constant:
 def _check_sign(value: str, name: str, constants: Constants) -> None:
     """Refuse a leading sign the field does not take."""
     if value[:1] in "+-" and value[0] not in constants.signs:
-        signs = " or ".join(constants.signs) if constants.signs else "no sign"
+        # Name the sign the field refuses: "no plus sign" where a minus sign stands.
+        refused = {"+": "plus ", "-": "minus "}[value[0]] if constants.signs else ""
         raise FieldError(
-            f"{name}: {value!r} is refused; a constant here takes {signs} (OBJ-005)", field=name
+            f"{name}: {value!r} is refused; a constant here takes no {refused}sign (OBJ-005)",
+            field=name,
         )
 
 
@@ -237,11 +293,7 @@ def _check_limits(value: str, name: str, constants: Constants, const: Constant) 
             field=name,
         )
     if kind is Kind.HEX and int(const.value) > constants.hex_high:
-        raise FieldError(
-            f"{name}: {value!r} is above {constants.hex_high:X}h; a hex constant here is 0h to "
-            f"{constants.hex_high:X}h (OBJ-005)",
-            field=name,
-        )
+        raise _hex_above(value, name, constants)
     if kind is Kind.TEXT:
         text = str(const.value)
         if len(text) > constants.text_max:
