@@ -74,11 +74,11 @@ OUT_OF_RANGE = [
 #: kind (a jump target's also says whether the jump is on), ``None`` for a class without one:
 #: a time drum's accumulator and unit, and a jump-on drum's target, are checked.
 UNCHECKED = {
-    ("Drum.jump_target", "event, jump off"),
-    ("Drum.jump_target", "time, jump off"),
-    ("Drum.jump_target", "time_event, jump off"),
-    ("Drum.accumulator", "event"),
-    ("Drum.unit", "event"),
+    ("Drum.jump_step", "event_drum, jump off"),
+    ("Drum.jump_step", "time_drum, jump off"),
+    ("Drum.jump_step", "time_event_drum, jump off"),
+    ("Drum.accumulator", "event_drum"),
+    ("Drum.unit", "event_drum"),
     ("ModbusRtuTarget.name", None),
     ("ModbusTcpTarget.name", None),
     ("RawInstruction.class_name", None),

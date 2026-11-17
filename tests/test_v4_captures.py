@@ -580,7 +580,7 @@ def test_time_event_drum_blobs_match_native() -> None:
         starts.append(i)
     checked = 0
     for drum, start in zip(drums, starts, strict=True):
-        if drum.drum_kind != "time_event":
+        if drum.kind != "time_event_drum":
             continue
         blob = drum.build_blob()
         *head, native_fields = _decompose_blob(buf[start : start + len(blob)])

@@ -78,12 +78,15 @@ def _blanks(inst: Any) -> list[tuple[str, Callable[[Any], Any]]]:
 #: entry no blank reaches fails too.
 ACCEPTS_BLANK = frozenset(
     {
-        ("Drum", "event", "accumulator"),  # an event drum has none
-        ("Drum", "event", "unit"),
-        ("Drum", "time_event", "events"),  # a step with a duration needs no event
-        ("Drum", "time_event", "events_or_presets"),  # and one with an event needs no duration
+        ("Drum", "event_drum", "accumulator"),  # an event drum has none
+        ("Drum", "event_drum", "unit"),
+        ("Drum", "time_event_drum", "events"),  # a step with a duration needs no event
+        ("Drum", "time_event_drum", "presets"),  # and one with an event needs no duration
         # no jump: with the jump on, the target is checked
-        *(("Drum", f"{kind}, jump off", "jump_target") for kind in ("event", "time", "time_event")),
+        *(
+            ("Drum", f"{kind}, jump off", "jump_step")
+            for kind in ("event_drum", "time_drum", "time_event_drum")
+        ),
         ("ModbusRtuTarget", None, "name"),  # a label, not in the binary
         ("ModbusTcpTarget", None, "name"),
         ("OutVariant", "toggle", "on_acc"),  # a toggle has none of the five

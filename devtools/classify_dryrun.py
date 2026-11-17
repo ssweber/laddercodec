@@ -505,10 +505,10 @@ def _data_flow_comm() -> list[Field]:
 
     def drum(ns: Any, value: str) -> Any:
         return ns.inst.Drum(
-            drum_kind="time",
-            outputs=["C1361", "C1362"],
-            events_or_presets=[value, "DS1303"],
-            pattern=[[1, 0], [0, 1]],
+            kind="time_drum",
+            outputs=("C1361", "C1362"),
+            presets=(value, "DS1303"),
+            pattern=((1, 0), (0, 1)),
             current_step="DS1206",
             completion_flag="C1406",
             accumulator="TD106",
@@ -522,10 +522,10 @@ def _data_flow_comm() -> list[Field]:
         Field(
             "data",
             "Drum.presets[0] (time)",
-            "Drum/time/events_or_presets",
+            "Drum/time/presets",
             drum,
             digits_rule("Drum.presets[0]", frozenset({"DS"}), 0, 32767, letter_first=True),
-            lambda value: [value, "DS1303"],
+            lambda value: (value, "DS1303"),
         )
     )
     out.append(

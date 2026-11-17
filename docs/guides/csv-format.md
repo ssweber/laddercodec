@@ -482,7 +482,7 @@ with a blank end is read so too: `..` where a range goes, and `..DS4` or `DS1..`
 are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere `..`
 is the value written (`copy(..,DS1)` is refused as an address). These blanks are
 still syntax errors, with no `field`: a Timer or time drum `unit=`, a Math `mode=`,
-a time-event drum `accumulator=`, a drum list, a whole Modbus `target=`, a search
+a drum list, a whole Modbus `target=`, a search
 expression, a blank flag in `out` or `for` (`oneshot=`), and a blank argument the
 token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way.
 
@@ -657,6 +657,11 @@ currently emit:
     one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
     and a `.jump()` target that is a `DS` address. Each step has an event (event
     drum) or a duration (time drum); a time and event step needs a duration or an event.
+    A time drum or a time and event drum without a `unit=`, and a time and event drum
+    without an `accumulator=`, is a syntax error, but a blank `accumulator=` on a time and
+    event drum is a `FieldError` (`missing`); a `unit=` that is not `Tms`, `Ts`,
+    `Tm`, `Th` or `Td`, an accumulator that is not `TD`, and a pattern cell that is not
+    `0` or `1` are refused with a `FieldError`.
   - Drum events are X, Y, C, T, CT or SC; a duration is `0`-`32767` (no sign) or a
     `DS` address. No output appears twice or equals the completion flag, compared as
     addresses (`C1` and `C001` are the same bit).
@@ -932,7 +937,7 @@ Two classes differ:
 
 - A `FieldError` refused while a box takes its pin rows arrives as a `CsvError`, not
   a `FieldError`. It carries the refusal's `field`, `fields`, `reason`, `click_id`
-  and `errors` as `FieldError` has them (`Drum.jump_target`).
+  and `errors` as `FieldError` has them (`Drum.jump_step`).
 - Every refusal in a `FieldError`'s `errors` has its own `location`, not only the one
   raised. A refusal a pin row's value causes is at that pin's row; the rest take the
   cell that raised them. Only the raised error's message ends with the location.

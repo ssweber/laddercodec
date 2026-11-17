@@ -42,18 +42,19 @@ def _fields(build: Any) -> list[tuple[str, ...]]:
     return [e.fields for e in caught.value.errors]
 
 
-def _drum(kind: str = "event", **kw: Any) -> Drum:
+def _drum(kind: str = "event_drum", **kw: Any) -> Drum:
     fields: dict[str, Any] = dict(
-        drum_kind=kind,
+        kind=kind,
         outputs=["C1", "C2"],
-        events_or_presets=["C10", "C11"],
         pattern=[[1, 0], [0, 1]],
         current_step="DS1",
         completion_flag="C3",
     )
-    if kind != "event":
-        fields.update(events_or_presets=["100", "200"], unit="Tms", accumulator="TD1")
-    if kind == "time_event":
+    if kind == "event_drum":
+        fields.update(events=["C10", "C11"])
+    else:
+        fields.update(presets=["100", "200"], unit="Tms", accumulator="TD1")
+    if kind == "time_event_drum":
         fields.update(events=["C10", "C11"])
     return Drum(**{**fields, **kw})
 
@@ -237,10 +238,10 @@ def test_call_reports_its_one_field_once() -> None:
         (lambda: ForLoop("2147483648"), ("ForLoop.limit", Reason.RANGE, "OBJ-005")),
         (lambda: ForLoop("3", oneshot=2), ("ForLoop.oneshot", Reason.FLAG, None)),
         # Drum
-        (lambda: _drum("spin"), ("Drum.drum_kind", Reason.CHOICE, None)),
+        (lambda: _drum("spin"), ("Drum.kind", Reason.CHOICE, None)),
         (
-            lambda: _drum(events_or_presets=["C10"] * 17),
-            ("Drum.events_or_presets", Reason.RANGE, None),
+            lambda: _drum(events=["C10"] * 17),
+            ("Drum.events", Reason.RANGE, None),
         ),
         (lambda: _drum(outputs=[]), ("Drum.outputs", Reason.RANGE, None)),
         (lambda: _drum(pattern=[[1, 0]]), ("Drum.pattern", Reason.FORM, None)),
@@ -250,31 +251,42 @@ def test_call_reports_its_one_field_once() -> None:
         (lambda: _drum(outputs=["C1", "C1"]), ("Drum.outputs[1]", Reason.CONFLICT, "OBJ-014")),
         (lambda: _drum(outputs=["C1", "C3"]), ("Drum.outputs[1]", Reason.CONFLICT, "OBJ-014")),
         (
-            lambda: _drum(events_or_presets=["DS1", "C11"]),
-            ("Drum.events_or_presets[0]", Reason.BANK, None),
+            lambda: _drum(events=["DS1", "C11"]),
+            ("Drum.events[0]", Reason.BANK, None),
         ),
         (
-            lambda: _drum(events_or_presets=["C10", ""]),
-            ("Drum.events_or_presets", Reason.MISSING, "OBJ-021"),
+            lambda: _drum(events=["C10", ""]),
+            ("Drum.events", Reason.MISSING, "OBJ-021"),
         ),
-        (lambda: _drum("time", unit="Tx"), ("Drum.unit", Reason.CHOICE, None)),
-        (lambda: _drum("time", accumulator="DS1"), ("Drum.accumulator", Reason.BANK, None)),
+        (lambda: _drum("time_drum", unit="Tx"), ("Drum.unit", Reason.CHOICE, None)),
+        (lambda: _drum("time_drum", accumulator="DS1"), ("Drum.accumulator", Reason.BANK, None)),
         (
-            lambda: _drum("time", events_or_presets=["DH1", "200"]),
-            ("Drum.events_or_presets[0]", Reason.BANK, "OBJ-004"),
-        ),
-        (
-            lambda: _drum("time", events_or_presets=["100", ""]),
-            ("Drum.events_or_presets", Reason.MISSING, "OBJ-022"),
-        ),
-        (lambda: _drum("time_event", events=["C10"]), ("Drum.events", Reason.CONFLICT, None)),
-        (
-            lambda: _drum("time_event", events_or_presets=["100", ""], events=["C10", ""]),
-            ("Drum.events_or_presets[1]", Reason.MISSING, "OBJ-1019"),
+            lambda: _drum("time_drum", presets=["DH1", "200"]),
+            ("Drum.presets[0]", Reason.BANK, "OBJ-004"),
         ),
         (
-            lambda: _drum(jump_enabled=True, jump_target="C1"),
-            ("Drum.jump_target", Reason.BANK, None),
+            lambda: _drum("time_drum", presets=["100", ""]),
+            ("Drum.presets", Reason.MISSING, "OBJ-022"),
+        ),
+        (
+            lambda: _drum("time_event_drum", events=["C10"]),
+            ("Drum.events", Reason.CONFLICT, None),
+        ),
+        (
+            lambda: _drum("time_event_drum", presets=["100", ""], events=["C10", ""]),
+            ("Drum.presets[1]", Reason.MISSING, "OBJ-1019"),
+        ),
+        (
+            lambda: _drum(presets=["100", "200"]),
+            ("Drum.presets", Reason.CONFLICT, None),
+        ),
+        (
+            lambda: _drum("time_drum", events=["C10", "C11"]),
+            ("Drum.events", Reason.CONFLICT, None),
+        ),
+        (
+            lambda: _drum(jump_enabled=True, jump_step="C1"),
+            ("Drum.jump_step", Reason.BANK, None),
         ),
         (lambda: _drum(jog_enabled=2), ("Drum.jog_enabled", Reason.FLAG, None)),
         # Search
@@ -347,17 +359,17 @@ def test_drum_duplicate_outputs_each_refuse() -> None:
 
 def test_drum_blank_step_beside_a_refused_item() -> None:
     """A bad event and a blank step are two refusals, the blank one named by its step."""
-    build = lambda: _drum(events_or_presets=["DS1", ""])  # noqa: E731
+    build = lambda: _drum(events=["DS1", ""])  # noqa: E731
     assert _errors(build) == [
-        ("Drum.events_or_presets[0]", Reason.BANK, None),
-        ("Drum.events_or_presets[1]", Reason.MISSING, "OBJ-021"),
+        ("Drum.events[0]", Reason.BANK, None),
+        ("Drum.events[1]", Reason.MISSING, "OBJ-021"),
     ]
 
 
 def test_drum_size_and_pattern() -> None:
     """A wrong step count does not also report the pattern against it."""
-    build = lambda: _drum(events_or_presets=["C10"] * 17)  # noqa: E731
-    assert [f for f, _, _ in _errors(build)] == ["Drum.events_or_presets"]
+    build = lambda: _drum(events=["C10"] * 17)  # noqa: E731
+    assert [f for f, _, _ in _errors(build)] == ["Drum.events"]
 
 
 def test_out_variant_refused_maintained_decides_nothing_about_the_unit() -> None:
@@ -419,9 +431,15 @@ def test_every_refusal_written_here_gives_a_reason(module: str) -> None:
 
 def test_drum_refused_kind_leaves_out_the_checks_that_read_it() -> None:
     build = lambda: Drum(  # noqa: E731
-        "zzz", ["Y1", "Y2"], ["X1", "X2"], [[1, 0], [0, 1]], "DS1", "C1", events=["ZZ", ""]
+        "zzz",
+        outputs=["Y1", "Y2"],
+        presets=["X1", "X2"],
+        events=["ZZ", ""],
+        pattern=[[1, 0], [0, 1]],
+        current_step="DS1",
+        completion_flag="C1",
     )
-    assert _errors(build) == [("Drum.drum_kind", Reason.CHOICE, None)]
+    assert _errors(build) == [("Drum.kind", Reason.CHOICE, None)]
 
 
 def test_out_variant_junk_maintained_refuses_unit_first() -> None:
