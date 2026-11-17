@@ -1,4 +1,4 @@
-"""Oracle tests for RTF comment decoding."""
+"""Tests that RTF comment decoding gives the same text as the striprtf library."""
 
 from __future__ import annotations
 

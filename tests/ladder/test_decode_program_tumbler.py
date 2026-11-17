@@ -1,11 +1,11 @@
-"""Tumbler fixture: 34 real Click programs, SCR decode vs clipboard ground truth.
+"""Tests that decoding a program file gives the same rungs as decoding its clipboard copy.
 
-Each ``<name>.scr`` (Click's internal Scr*.tmp program file) is paired with
-``<name>.clipboard.bin``, the same program copied out of Click via the
-clipboard, and ``<name>.clipboard.csv``, that copy decoded with the verified
-clipboard decoder and written with ``write_csv``.  Decoding the SCR file must
-give the clipboard decode's rungs cell for cell (rows, conditions,
-instructions, comment), and write the same CSV text.
+The fixtures in ``tests/fixtures/tumbler`` are 34 real Click programs. Each ``<name>.scr``
+is a program file that Click keeps internally as Scr*.tmp. Two files sit beside it.
+``<name>.clipboard.bin`` is the same program copied out of Click through the clipboard.
+``<name>.clipboard.csv`` is that copy decoded with the clipboard decoder and written with
+``write_csv``. Decoding the SCR file must give the same rungs as the clipboard copy, cell for
+cell: rows, conditions, instructions and comment. It must also write the same CSV text.
 """
 
 from __future__ import annotations

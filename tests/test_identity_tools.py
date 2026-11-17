@@ -1,4 +1,8 @@
-"""Smoke test for the behaviour-identity devtools (fixture snapshot, operand probe)."""
+"""Tests for the devtools that check that behaviour stays the same.
+
+The tools are ``fixture_snapshot.py``, ``operand_probe.py``, ``identity_diff.py`` and
+``classify_dryrun.py``.
+"""
 
 from __future__ import annotations
 
@@ -44,7 +48,8 @@ def _identity_diff() -> Any:
 
 
 def _narrowed(factory: pytest.TempPathFactory, banks: dict[str, tuple[int, int]]) -> Path:
-    """A copy of ``src`` with ``banks`` replacing those banks' ranges in ``ADDRESS_BANKS``."""
+    """Return a copy of ``src`` in which ``banks`` replaces those banks' ranges in
+    ``ADDRESS_BANKS``."""
     src = factory.mktemp("narrowed") / "src"
     shutil.copytree(
         SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
@@ -57,19 +62,21 @@ def _narrowed(factory: pytest.TempPathFactory, banks: dict[str, tuple[int, int]]
 
 @pytest.fixture(scope="module")
 def narrowed_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Refuses C2000 and DS31 and above."""
+    """Return a copy of the source that refuses C2000, and DS31 and above."""
     return _narrowed(tmp_path_factory, {"C": (1, 1999), "DS": (1, 30)})
 
 
 @pytest.fixture(scope="module")
 def c2000_refused_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Refuses C2000, which no probe baseline holds."""
+    """Return a copy of the source that refuses C2000, which no baseline case of the probe uses."""
     return _narrowed(tmp_path_factory, {"C": (1, 1999)})
 
 
 @pytest.fixture(scope="module")
 def drum_refused_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Refuses C187 and above: of the first baselines, only ``Drum/event`` holds one."""
+    """Return a copy of the source that refuses C187 and above.
+
+    Of the probe's first baseline cases, only ``Drum/event`` uses one of those addresses."""
     return _narrowed(tmp_path_factory, {"C": (1, 186)})
 
 
@@ -168,7 +175,7 @@ def _tiers(tmp_path: Path, a: Any, b: Any, expected: str = "") -> tuple[int, str
 
 
 def _refused(cls: str, message: str, **more: Any) -> dict[str, Any]:
-    """A probe record whose constructor refused, as the tools write it."""
+    """Return a probe record, in the form the tools write, for a value the constructor refused."""
     return {"new": f"!{cls}", "errors": [[cls, message]], **more}
 
 
@@ -186,7 +193,7 @@ def test_tiers_list_a_message_change_apart(tmp_path: Path) -> None:
     [
         {"new": "ok"},  # a refusal became an accept
         _refused("AddressError", "same words"),  # the exception class changed
-        _refused("FieldError", "row 1: AddressError: m"),  # a class the message names
+        _refused("FieldError", "row 1: AddressError: m"),  # the message names an exception class
         _refused("FieldError", "same words", warn=["UserWarning: x"]),  # a warning appears
     ],
 )
@@ -205,7 +212,8 @@ def test_tiers_fail_on_a_warning_class_change(tmp_path: Path, key: str) -> None:
 
 
 def test_tiers_see_text_shaped_like_an_exception(tmp_path: Path) -> None:
-    # Accepted text that holds "!A: " is data: a change after it is a CSV change.
+    # Accepted text that contains "!A: " is data, not an exception record. A change after it
+    # is a change to the written CSV, not to a message.
     a = _doc({"Copy/s/source='\"!A: x\"'": {"new": "ok", "write": 'copy("!A: x",TXT1)'}})
     b = _doc({"Copy/s/source='\"!A: x\"'": {"new": "ok", "write": 'copy("!A: x",TXT2)'}})
     status, out = _tiers(tmp_path, a, b)
@@ -292,7 +300,7 @@ def test_a_pin_needs_read_and_dec_to_agree(
     assert _tiers(tmp_path, a, b, entry)[0] == status
 
 
-#: The base of a crash entry, a value every path crashed on.
+#: A base record in which every path crashed on the value, as a kind (b) entry requires.
 _CRASHED = {
     "new": "!ValueError",
     "read": "!ValueError",
@@ -301,7 +309,7 @@ _CRASHED = {
     "text": "X:1",
     "errors": [["ValueError", "m"]] * 4,
 }
-#: The branch records a pin allows: an accept, and a refusal on every path.
+#: Branch records that a ``new=`` pin allows: an accept, and a refusal on every path.
 _ACCEPTED = {"new": "ok", "read": "=", "dec": "=", "tag": "6066 X:1", "text": "X:1"}
 _REFUSED = {
     "new": "!FieldError",
@@ -337,8 +345,8 @@ _REFUSED = {
         ("ok", {**_ACCEPTED, "tag": "6066 None"}, 1),
         ("ok", {**_ACCEPTED, "tag": "6066 !AddressError"}, 1),
         ("ok", {**_ACCEPTED, "tag": "6066 compose!ValueError"}, 1),
-        # The constructor refuses; the blob parser builds the instruction, keeping the
-        # refusal, but not when it crashes.
+        # The constructor refuses. The blob parser may build the instruction if it keeps the
+        # refusal, but it may not crash.
         (
             "!FieldError",
             {**_REFUSED, "tag": "6066 X:1 refused[X.f]", "dec": "= refused[X.f]"},
@@ -350,7 +358,7 @@ _REFUSED = {
         ("ok", {**_ACCEPTED, "tag": "6066 X:1 refused[X.f]"}, 1),
         ("ok", {**_ACCEPTED, "tag": "6066 T:t @pins=[1] ['x']"}, 0),
         ("!FieldError", {**_REFUSED, "errors": [["FieldError", "m"], ["ValueError", "m"]]}, 1),
-        # A branch without read or dec does not state the verdict whole.
+        # A branch record without read or dec does not state the whole verdict.
         ("!FieldError", {"new": "!FieldError", "text": "X:1", "errors": [["FieldError", "m"]]}, 1),
         ("ok", {"new": "ok", "text": "X:1", "csv": "X:999", "write": "ok"}, 1),
     ],
@@ -395,7 +403,8 @@ def test_a_crash_entry_covers_crashes(tmp_path: Path) -> None:
     ],
 )
 def test_tiers_refuse_a_crash_entry_used_on_a_verdict(tmp_path: Path, base: dict[str, Any]) -> None:
-    # The entry allows the crash on "on" and is used on the verdict on "off": a misuse.
+    # The kind (b) entry matches both cases. It may cover the crash on "on". On "off" the
+    # base gave a verdict, so using the entry there is a misuse.
     branch = {"new": "ok", "read": "=", "dec": "=", "csv": "x"}
     a = _doc({"Timer/on/setpoint='9'": _CRASH, "Timer/off/setpoint='9'": base})
     b = _doc({"Timer/on/setpoint='9'": branch, "Timer/off/setpoint='9'": branch})
@@ -408,7 +417,8 @@ def test_tiers_refuse_a_crash_entry_used_on_a_verdict(tmp_path: Path, base: dict
 
 
 def test_a_crash_entry_over_an_unchanged_verdict_is_unused(tmp_path: Path) -> None:
-    # The family's change has not landed, or has landed in the base: the entry is unused.
+    # The base and the branch give the same verdict, so the entry matches no difference.
+    # This happens before the family's change lands, or after it lands in the base.
     doc = _doc({"Timer/off/setpoint='9'": _refused("FieldError", "a verdict")})
     entry = "Timer/*/setpoint='9' | family=data | kind=b | new=ok | r\n"
     status, out = _tiers(tmp_path, doc, doc, entry)
@@ -464,7 +474,7 @@ def test_an_entry_key_matches_whole(pattern: str, key: str, matches: bool) -> No
         f"key | {_ENTRY} | keys= | reason",
         f"key | {_ENTRY} | keys=a,,b | r",
         f"key | {_ENTRY} | new= | r",
-        "key | family=bits | kind=b | reason",  # a crash entry without new=
+        "key | family=bits | kind=b | reason",  # a kind (b) entry without new=
         "key | family=bits | kind=b | new=ok",  # no reason: new=ok is not one
         f"key | {_ENTRY} | keys=new",
     ],
@@ -476,7 +486,7 @@ def test_tiers_refuse_a_malformed_expected_file(tmp_path: Path, line: str) -> No
 
 
 def test_the_committed_expected_file_reads() -> None:
-    # It may be empty: the last family to merge removes the last entries.
+    # The file may be empty. The last family branch to merge removes the last entries.
     entries = _identity_diff().read_expected(DEVTOOLS / "expected_diff.txt")
     assert all(entry.reason for entry in entries)
     assert all(entry.new for entry in entries if entry.kind == "b")
@@ -488,8 +498,9 @@ def test_the_dry_run_finds_no_difference() -> None:
     assert "0 failure(s)" in result.stdout
 
 
-#: Compare's entries for a long run of leading zeros, as the committed file once held them.
-#: The two tests below carry their own copy, so they hold after those entries are removed.
+#: The Compare entries for a long run of leading zeros, as the committed expected-diff file
+#: once held them. The two tests below use this copy, so they still pass after the entries
+#: are removed from that file.
 _COMPARE_ENTRIES = "".join(
     f"CompareContact/{group}/{side}='0'\\*5000+'1' | family=bits | kind=b | new={new} | r\n"
     for group, new in (
@@ -541,7 +552,9 @@ _Compare.__post_init__ = _refuse_the_zeros
 
 
 def _with_compare_patch(factory: pytest.TempPathFactory, name: str, patch: str) -> Path:
-    """A copy of ``src`` whose CompareContact runs ``patch``, appended to comparison.py."""
+    """Return a copy of ``src`` with ``patch`` appended to comparison.py.
+
+    CompareContact in the copy runs the patch."""
     src = factory.mktemp(name) / "src"
     shutil.copytree(
         SRC / "laddercodec", src / "laddercodec", ignore=shutil.ignore_patterns("__pycache__")
@@ -553,21 +566,24 @@ def _with_compare_patch(factory: pytest.TempPathFactory, name: str, patch: str) 
 
 @pytest.fixture(scope="module")
 def compare_crashing_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The tree with Compare reading a long integer through ``int()``: the base before the bits
-    family was wired."""
+    """Return a copy of the source in which Compare reads a long integer with ``int()``.
+
+    The copy stands in for the base before the bits family change."""
     return _with_compare_patch(tmp_path_factory, "compare_crashing", _CRASHING_COMPARE)
 
 
 @pytest.fixture(scope="module")
 def compare_misread_src(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """The tree with Compare refusing a long run of leading zeros with a FieldError."""
+    """Return a copy of the source in which Compare refuses a long run of leading zeros.
+
+    The refusal is a FieldError."""
     return _with_compare_patch(tmp_path_factory, "compare_misread", _MISREADING_COMPARE)
 
 
 def test_a_family_branch_uses_its_entries(compare_crashing_src: Path, tmp_path: Path) -> None:
-    # Against a base that crashes on a long integer, --tiers allows the ten Compare crash
-    # cases by their entries.  It fails if the crash is not seen (the base is not a crash),
-    # if the wired tree gives another verdict, or if --tiers stops matching entries.
+    # The base crashes on a long integer. --tiers allows the ten Compare crash cases through
+    # their entries. The test fails if the base does not crash, if the current source gives
+    # another verdict, or if --tiers stops matching entries.
     base, branch = tmp_path / "base.json", tmp_path / "branch.json"
     for src, out in ((compare_crashing_src, base), (SRC, branch)):
         result = _run("operand_probe.py", src, out, "--classes", "CompareContact")
@@ -589,9 +605,10 @@ def test_a_family_branch_uses_its_entries(compare_crashing_src: Path, tmp_path: 
 def test_the_dry_run_refuses_a_crash_entry_used_on_a_verdict(
     compare_misread_src: Path, tmp_path: Path
 ) -> None:
-    # Today refuses '0'*5000+'1' with a FieldError where the shared check accepts it: a real
-    # difference, and the crash entry that matches it does not cover a verdict.  It fails if
-    # the dry run stops seeing the difference or lets the crash entry cover it.
+    # The patched source refuses '0'*5000+'1' with a FieldError, where the shared check
+    # accepts it. That is a real difference. The kind (b) entry that matches it covers only a
+    # crash, not a verdict. The test fails if the dry run stops seeing the difference or lets
+    # the entry cover it.
     expected = tmp_path / "expected.txt"
     expected.write_text(_COMPARE_ENTRIES, encoding="utf-8")
     dry = _run("classify_dryrun.py", compare_misread_src, "--expected", expected)

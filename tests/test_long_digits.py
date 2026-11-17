@@ -1,15 +1,17 @@
-"""A constant of more than 4300 digits is refused, never a crash.
+"""Tests that a constant of more than 4300 digits is refused and never causes a crash.
 
-``int()`` refuses a string of more than 4300 digits with a ``ValueError``, so a field that
-reads its constant with ``int()`` before checking its length crashes.  Every instruction the
-golden CSVs read to (``devtools/field_sweep.py`` lists them), and a minimal Email, Home,
-Position and Velocity, is rebuilt with each text field (nested ones too: a Send's
-``ModbusAddress``), each text in a list field and each optional text field left empty,
-replaced by digit text in the spellings a constant takes:
-decimal, signed, hex, real, with an exponent, and inside an expression.  Each rebuild is
-accepted or refused with ``FieldError``; any other exception fails.  A spelling beyond every
-field's range must be refused.  Leading zeros and a long fraction hold a value in range, so a
-field may take them.  The fields no check reads, by kind, are named in ``UNCHECKED``.
+``int()`` raises ``ValueError`` for a string of more than 4300 digits. A field that reads its
+constant with ``int()`` before it checks the length would crash.
+
+The test takes every instruction that the golden CSVs read to, and a minimal Email, Home,
+Position and Velocity. ``devtools/field_sweep.py`` lists the golden instructions. The test
+rebuilds each instruction with long digit text in one place: a text field, a text in a list
+field, or an optional text field that was empty. Nested fields count too, such as a Send's
+``ModbusAddress``. The digit text comes in the forms that a constant takes: decimal, signed,
+hex, real, with an exponent, and inside an expression. Each rebuild must be accepted or
+refused with ``FieldError``. Any other exception fails the test. A form whose value is outside
+every field's range must be refused. Leading zeros and a long fraction keep a value in range,
+so a field may accept them. ``UNCHECKED`` names the fields that no check reads, by kind.
 """
 
 from __future__ import annotations
@@ -43,12 +45,12 @@ SWEEP = _sweep()
 
 _RUN = "7" * 4400
 _ZEROS = "0" * 4400
-#: Spellings whose value is in range: a field may take them.
+#: Digit texts whose value is in range. A field may accept them.
 IN_RANGE = [
     _ZEROS + "1",
     "1." + _RUN,
 ]
-#: Compare takes a real of any size (its constants are not held to float32).
+#: Compare accepts a real of any size, because it does not hold its constants to float32.
 HUGE_REALS = [_RUN + ".5", "1E" + _RUN, "1E+" + _RUN]
 HUGE_REAL_FIELDS = {"CompareContact.left", "CompareContact.right"}
 OUT_OF_RANGE = [
@@ -68,11 +70,12 @@ OUT_OF_RANGE = [
     "DS[" + _RUN + "]",
 ]
 
-#: Fields no check reads, so any text is kept, as ``(Class.field, kind)``: a drum's jump target
-#: while its jump is off, its accumulator and unit where its kind has none (an event drum), a
-#: Modbus target's name, and a raw instruction's class name.  ``kind`` is the Drum or OutVariant
-#: kind (a jump target's also says whether the jump is on), ``None`` for a class without one:
-#: a time drum's accumulator and unit, and a jump-on drum's target, are checked.
+#: Fields that no check reads, so they keep any text. Each entry is ``(Class.field, kind)``.
+#: They are a drum's jump target while its jump is off, an event drum's accumulator and unit,
+#: a Modbus target's name, and a raw instruction's class name. An event drum has no
+#: accumulator or unit. ``kind`` is the Drum or OutVariant kind, or ``None`` for a class
+#: without one. For a jump target, the kind also says whether the jump is on. A time drum's
+#: accumulator and unit are checked, and so is the target of a drum whose jump is on.
 UNCHECKED = {
     ("Drum.jump_step", "event_drum, jump off"),
     ("Drum.jump_step", "time_drum, jump off"),
@@ -84,7 +87,8 @@ UNCHECKED = {
     ("RawInstruction.class_name", None),
 }
 
-#: Classes whose fields are opaque tag-keyed text, kept as written.
+#: Classes whose fields are text keyed by tag. laddercodec keeps that text as written and
+#: does not interpret it.
 OPAQUE = {"Email", "Home", "Position", "Velocity"}
 
 #: Instruction classes with no text field to sweep.
@@ -101,7 +105,9 @@ Path_ = tuple[tuple[str, int | None], ...]
 
 
 def _walk(obj: Any, label: str, path: Path_) -> list[tuple[str, Path_, Any]]:
-    """Each (label, path, original value) of a text field in ``obj`` and what it holds."""
+    """Return (label, path, value) for each text field in ``obj``.
+
+    The list includes the fields of nested dataclasses and the text items of list fields."""
     found = []
     for f in dataclasses.fields(obj):
         if not f.init:
@@ -133,7 +139,7 @@ def _replace(obj: Any, path: Path_, text: str) -> Any:
 
 
 def _cases() -> list[tuple[str, Any, Path_]]:
-    """One case per (field, value it held) in the golden set, with the instruction to rebuild."""
+    """Return one (label, instruction, path) case for each distinct field, value and kind."""
     seen: dict[tuple[str, str, str | None], tuple[str, Any, Path_]] = {}
     for inst in _roots():
         for label, path, value in _walk(inst, type(inst).__name__, ()):

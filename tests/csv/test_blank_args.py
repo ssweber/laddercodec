@@ -1,10 +1,11 @@
-"""A blank argument in an AF token is its field left blank, as built in Python.
+"""Tests that a blank argument in an AF token reads as that field left blank.
 
-``read_csv`` refuses a token whose argument is blank as building the instruction with that
-field blank refuses it: a ``FieldError`` with reason ``missing`` naming the field, at the
-token's cell.  ``read_csv(..., unchecked=True)`` keeps the refusal on the instruction, as it
-keeps any.  A token broken in another way stays a syntax error, and a blank the CSV accepted
-is still accepted.
+``read_csv`` refuses a token with a blank argument in the same way as Python refuses the
+instruction built with that field blank. It raises a ``FieldError`` with reason ``missing``.
+The error names the field and gives the location of the token's cell.
+``read_csv(..., unchecked=True)`` keeps the refusal on the instruction, as it does for any
+refusal. A token that is malformed in another way still raises a syntax error. Every field
+that Python accepts blank also reads blank from its CSV token.
 """
 
 from __future__ import annotations
@@ -63,7 +64,7 @@ RECEIVE = (
 TIMED = "timed(C1,on_acc=TD18,on_preset=1000,unit=Tms)"
 TIMING = ("on_acc", "on_preset", "off_acc", "off_preset", "unit")
 
-#: (token with a blank argument, the fields refused as missing).
+#: Each case is a token with a blank argument and the fields that the read refuses as missing.
 BLANKS = [
     ("out()", ["Coil.operand"]),
     ("out( )", ["Coil.operand"]),
@@ -104,9 +105,10 @@ BLANKS = [
     (EVENT_DRUM.replace("current_step=DS1", "current_step="), ["Drum.current_step"]),
 ]
 
-#: Tokens broken in another way, blank arguments or not: each stays the error it was.
+#: Tokens that are malformed in another way, whether or not an argument is blank, each with
+#: the pattern of its error message. Each raises a syntax error that names no field.
 SYNTAX = [
-    ("out(C1", "Unsupported AF instruction"),  # no closing paren: not a call
+    ("out(C1", "Unsupported AF instruction"),  # without a closing paren it is not a call
     ("bogus()", "Unsupported AF instruction"),
     ("on_delay(T1,TD1,,preset=1,unit=Tms)", "expects 2 positional args"),  # beyond the arity
     ("on_delay(,TD1)", "missing preset or unit"),
@@ -121,8 +123,9 @@ def _cells(af: str) -> list[str]:
 
 
 def _write(path: Path, af: str) -> Path:
-    """A CSV of a rung, then a rung whose output is *af*, with a ``.reset()`` row under a
-    counter or drum."""
+    """Write a CSV of two rungs to *path* and return *path*. The second rung's output is *af*.
+
+    If *af* is a ``count_`` or ``event_drum`` token, add a ``.reset()`` row under it."""
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(CSV_HEADER)
@@ -153,7 +156,7 @@ def test_a_blank_argument_is_its_field_missing(
     want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=AF)
     for error in raised.value.errors:
         assert error.reason is Reason.MISSING
-        assert ": is blank" in str(error)  # as a blank field built in Python says
+        assert ": is blank" in str(error)  # the same text that a blank field raises in Python
         assert CsvLocation.of(error) == want
 
 
@@ -189,7 +192,7 @@ def _read_unchecked(path: Path) -> list[Rung]:
 
 @pytest.mark.parametrize(("token", "fields"), BLANKS)
 def test_write_csv_writes_it_back(tmp_path: Path, token: str, fields: list[str]) -> None:
-    """Read unchecked, the instruction with the blank field writes a CSV that reads back."""
+    """An instruction read unchecked with a blank field writes a CSV that reads back the same."""
     rungs = _read_unchecked(_write(tmp_path / "main.csv", token))
     written = tmp_path / "written.csv"
     write_csv(written, rungs)
@@ -221,22 +224,23 @@ def test_fill_blank_args() -> None:
     )
     assert fill_blank_args("timed(,on_acc=,unit=Tms)", fill) == "timed(<0>,on_acc=<1>,unit=Tms)"
     assert fill_blank_args('send(target=T(ip=),x="")', fill) is None  # nested, and quoted
-    assert fill_blank_args("raw(,0000)", fill) is None  # a raw token's own field specs
+    assert fill_blank_args("raw(,0000)", fill) is None  # a raw token's arguments are field specs
     assert fill_blank_args("NOP", fill) is None
 
 
 def _blank(token: str, key: str) -> str:
-    """*token* with the value of its top-level keyword *key* blank."""
+    """Return *token* with the value of its keyword argument *key* made blank."""
     blanked, count = re.subn(rf"\b{key}=[^,()]*", f"{key}=", token, count=1)
     assert count == 1, (token, key)
     return blanked
 
 
-#: The CSV token for each blank ``tests/test_blank_missing.py`` lists as accepted in Python,
-#: keyed as its ``ACCEPTS_BLANK`` is: the token reads to the instruction with that field
-#: blank.  Where the token has no argument for the field, its blank is the token without
-#: one: a toggle has none of the five timing fields, a timed box no off phase, and a drum
-#: with no ``.jump()`` row no jump target.
+#: A CSV token for each field that Python accepts blank. ``ACCEPTS_BLANK`` in
+#: ``tests/test_blank_missing.py`` lists those fields, and this dict uses the same keys:
+#: (class name, kind, field). Each token reads to the instruction with that field blank.
+#: Where the token has no argument for the field, the token leaves the field out. A toggle
+#: has none of the five timing fields. A ``timed`` token has no off phase. A drum with no
+#: ``.jump()`` row has no jump target.
 CSV_BLANKS: dict[tuple[str, str | None, str], str] = {
     ("Drum", "event_drum", "accumulator"): EVENT_DRUM[:-1] + ",accumulator=)",
     ("Drum", "event_drum", "unit"): EVENT_DRUM[:-1] + ",unit=)",
@@ -269,7 +273,7 @@ def test_csv_blanks_answer_every_blank_python_accepts() -> None:
 
 
 def _holder(inst: Any, cls: str) -> Any:
-    """*inst*, or the target it holds, whichever is a *cls*."""
+    """Return *inst*, or the value of one of its fields, whose class is named *cls*."""
     for value in (inst, *(getattr(inst, f.name) for f in dataclasses.fields(inst))):
         if type(value).__name__ == cls:
             return value
@@ -287,8 +291,10 @@ def test_a_blank_python_accepts_reads_from_its_csv_token(
     assert value == "" or (isinstance(value, tuple) and "" in value), value
 
 
-#: ``..`` where a field takes one value is that value, not a blank: (token, field, reason
-#: the default read refuses it with).  ``read_csv(..., unchecked=True)`` keeps it as ``..``.
+#: In a field that takes one value, ``..`` is the value itself, not a blank range. Each case is
+#: (token, field, the reason that the default read refuses it with, attribute).
+#: ``read_csv(..., unchecked=True)`` keeps ``..`` in the field when the reason is ``address``.
+#: It still raises when the reason is ``form``.
 DOTS = [
     ("copy(..,DS1)", "Copy.source", Reason.ADDRESS, "source"),
     (TIMED.replace("on_acc=TD18", "on_acc=.."), "OutVariant.on_acc", Reason.ADDRESS, "on_acc"),
@@ -338,8 +344,9 @@ def test_a_range_with_a_blank_end_writes_and_reads_back(tmp_path: Path) -> None:
     [(Copy(source="DS1", dest="DS2"), "source"), (Math("DS2 + 1", "DS1"), "dest")],
 )
 def test_a_stored_dots_decodes_as_before(instruction: Any, attr: str) -> None:
-    """A stored ``..`` in a one-value field decodes as the instruction holding it, refused
-    as an address, as it did before ``..`` read as a blank range."""
+    """A ``..`` stored in a one-value field decodes as the value ``..``, not as a blank range.
+
+    The decoded instruction holds ``..`` and carries one refusal, with reason ``address``."""
     class_name, type_code, _parts, _extra, stored = _decompose_blob(instruction.build_blob())
     tags, variant_u16, variant_string = _fields_to_tag_dicts(stored)
     [tag] = [tag for tag, value in tags.items() if value == getattr(instruction, attr)]
