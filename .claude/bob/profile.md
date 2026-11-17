@@ -48,7 +48,11 @@ release is the user's, PR text) apply as written; this file adds laddercodec's.
   change (hex Math `DH1 + 7`), never rewrite it silently.
 - Zero runtime dependencies. `make` commands only; shell hygiene per the root AGENTS.md (no
   multi-line content inlined in shell commands).
-- Every PR carries its CHANGELOG line (Unreleased) when users see a change. Docs move only
+- Every PR carries its CHANGELOG line (Unreleased) when users see a change. An entry states the
+  change against the last release (the newest tag, `v0.4.0` at the time of writing; read its
+  code or docs with `git show v0.4.0:<path>`), not against `main`: amend an Unreleased entry
+  the change revises rather than add one that contradicts it, and never write "where it was X"
+  for an X no release had. Say when the error class a caller catches changes. Docs move only
   where a user's CSV or API use changes, in the tone docs/AGENTS.md sets: guides say how to use
   it, `docs/internals/` holds the binary format.
 
