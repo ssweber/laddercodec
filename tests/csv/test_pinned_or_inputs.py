@@ -25,7 +25,7 @@ from laddercodec.csv.converter import CsvError
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact, Counter, Drum, Timer
-from laddercodec.model import InstructionType, PinnedInstruction
+from laddercodec.model import PinnedInstruction
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 COLUMNS = 31
@@ -154,7 +154,7 @@ def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
     counter = from_bridge.instructions[0]
     assert isinstance(counter, Counter)
     assert counter.pin_rows == (1, n + 2)
-    assert from_bridge.conditions[1][0] == Contact(InstructionType.CONTACT_NO, "C1")
+    assert from_bridge.conditions[1][0] == Contact("C1")
 
     back = _roundtrip(from_bridge)
     (again,) = read_csv(_write(tmp_path / "again.csv", decoded_rung_to_rows(back)))
@@ -221,7 +221,7 @@ def test_native_timer_beside_tall_or_input() -> None:
 
 
 def _wire(op: str) -> list:
-    return [Contact(type=InstructionType.CONTACT_NO, operand=op)] + ["-"] * (COLUMNS - 1)
+    return [Contact(op)] + ["-"] * (COLUMNS - 1)
 
 
 def _empty() -> list:
@@ -258,7 +258,7 @@ WRITER_CASES = {
     # count_down's empty lead row is written when a blank-AF row sits above it.
     "count_down_under_or_leg": (
         [_wire("X1"), _wire("X2"), _empty(), _wire("X3"), _wire("X4")],
-        [Coil(type=InstructionType.COIL_OUT, operand="Y1"), "", _count_down(), "NOP", ""],
+        [Coil("Y1"), "", _count_down(), "NOP", ""],
     ),
     # A box above count_down keeps its padding, so the lead row stays the lead row.
     "timer_then_count_down_lead": (

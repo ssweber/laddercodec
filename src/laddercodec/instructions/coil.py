@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_value
 from ..errors import CsvError
@@ -18,7 +18,7 @@ from ..model import (
     InstructionType,
     Reason,
 )
-from ..operands.checks import Refusals, check_operand, check_out_target
+from ..operands.checks import Refusals, check_csv_flag, check_operand, check_out_target
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -28,37 +28,39 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-COIL_FUNC_CODES: dict[tuple[InstructionType, bool, bool, bool], str] = {
-    # (type, is_range, immediate, oneshot) -> func_code
-    (InstructionType.COIL_OUT, False, False, False): "8193",
-    (InstructionType.COIL_OUT, False, True, False): "8197",
-    (InstructionType.COIL_OUT, True, False, False): "8207",
-    (InstructionType.COIL_OUT, True, True, False): "8208",
-    (InstructionType.COIL_OUT, False, False, True): "8205",
-    (InstructionType.COIL_OUT, False, True, True): "8206",
-    (InstructionType.COIL_OUT, True, False, True): "8209",
-    (InstructionType.COIL_OUT, True, True, True): "8210",
-    (InstructionType.COIL_LATCH, False, False, False): "8195",
-    (InstructionType.COIL_LATCH, False, True, False): "8199",
-    (InstructionType.COIL_LATCH, True, False, False): "8213",
-    (InstructionType.COIL_LATCH, True, True, False): "8214",
-    (InstructionType.COIL_RESET, False, False, False): "8196",
-    (InstructionType.COIL_RESET, False, True, False): "8200",
-    (InstructionType.COIL_RESET, True, False, False): "8219",
-    (InstructionType.COIL_RESET, True, True, False): "8220",
+#: A coil's kind, as its CSV call is named: ``out(...)``, ``latch(...)``, ``reset(...)``.
+CoilKind = Literal["out", "latch", "reset"]
+
+COIL_FUNC_CODES: dict[tuple[CoilKind, bool, bool, bool], str] = {
+    # (kind, is_range, immediate, oneshot) -> func_code
+    ("out", False, False, False): "8193",
+    ("out", False, True, False): "8197",
+    ("out", True, False, False): "8207",
+    ("out", True, True, False): "8208",
+    ("out", False, False, True): "8205",
+    ("out", False, True, True): "8206",
+    ("out", True, False, True): "8209",
+    ("out", True, True, True): "8210",
+    ("latch", False, False, False): "8195",
+    ("latch", False, True, False): "8199",
+    ("latch", True, False, False): "8213",
+    ("latch", True, True, False): "8214",
+    ("reset", False, False, False): "8196",
+    ("reset", False, True, False): "8200",
+    ("reset", True, False, False): "8219",
+    ("reset", True, True, False): "8220",
 }
 
-COIL_NAME_TO_TYPE = {
+_KIND_TO_ITYPE: dict[CoilKind, InstructionType] = {
     "out": InstructionType.COIL_OUT,
     "latch": InstructionType.COIL_LATCH,
     "reset": InstructionType.COIL_RESET,
 }
 
-COIL_TYPE_TO_NAME = {v: k for k, v in COIL_NAME_TO_TYPE.items()}
-_SET_RESET = (InstructionType.COIL_LATCH, InstructionType.COIL_RESET)
+_ITYPE_TO_KIND: dict[InstructionType, CoilKind] = {v: k for k, v in _KIND_TO_ITYPE.items()}
 
-# Reverse lookup: func_code string → (InstructionType, is_range, immediate, oneshot).
-_FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
+# Reverse lookup: func_code string → (kind, is_range, immediate, oneshot).
+_FUNC_TO_COIL: dict[str, tuple[CoilKind, bool, bool, bool]] = {
     v: k for k, v in COIL_FUNC_CODES.items()
 }
 
@@ -85,26 +87,30 @@ def _bank_of(value: str) -> str | None:
 
 @dataclass
 class Coil(AfInstruction):
-    """An output coil instruction."""
+    """An output coil: ``out``, ``latch`` (Set) or ``reset``, on one bit or a range.
 
-    type: InstructionType  # COIL_OUT, COIL_LATCH, COIL_RESET
+    ``Coil("Y001", kind="latch")`` is the CSV token ``latch(Y001)``, and
+    ``Coil("C1", range_end="C8", oneshot=True)`` is ``out(C1..C8,oneshot=1)``.
+    """
+
     operand: str  # e.g. "Y001"
+    kind: CoilKind = "out"
     range_end: str | None = None
     immediate: bool = False
     oneshot: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.type not in tuple(COIL_TYPE_TO_NAME):
+            if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
                 check.refuse(
-                    "type", f"{self.type!r} is not a coil (out, latch or reset)", Reason.CHOICE
+                    "kind", f"{self.kind!r} is not a coil (out, latch or reset)", Reason.CHOICE
                 )
             check.flag("immediate", "oneshot")
-            if self.oneshot and self.type in _SET_RESET:
+            if self.oneshot and self.kind in ("latch", "reset"):
                 # CLICK's Set/Reset dialog has no One Shot box, so it never writes these.
                 check.refuse(
-                    ("oneshot", "type"),
-                    f"{COIL_TYPE_TO_NAME[self.type]}() has no one-shot form; only out() does",
+                    ("oneshot", "kind"),
+                    f"{self.kind}() has no one-shot form; only out() does",
                     Reason.CONFLICT,
                 )
             check.normalize("operand")
@@ -156,7 +162,7 @@ class Coil(AfInstruction):
         if not m:
             raise CsvError(f"Cannot parse coil: {token!r}")
 
-        coil_type = COIL_NAME_TO_TYPE[m.group(1)]
+        kind = cast(CoilKind, m.group(1))
         inner = m.group(2).strip()
         parts = [seg.strip() for seg in inner.split(",") if seg.strip()]
         if not parts:
@@ -173,10 +179,7 @@ class Coil(AfInstruction):
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
             raise CsvError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
-        oneshot_raw = kwargs.get("oneshot", "0")
-        if oneshot_raw not in {"0", "1"}:
-            raise CsvError("coil oneshot must be 0 or 1")
-        oneshot = oneshot_raw == "1"
+        oneshot = check_csv_flag(kwargs, "oneshot", "Coil.oneshot")
 
         immediate_inner = False
         inner = re.fullmatch(r"immediate\((.+)\)", arg)
@@ -193,28 +196,23 @@ class Coil(AfInstruction):
             if len(parts) != 2 or not all(parts):
                 raise CsvError(f"Cannot parse coil range: {token!r}")
             return cls(
-                type=coil_type,
-                operand=parts[0],
+                parts[0],
+                kind=kind,
                 range_end=parts[1],
                 immediate=immediate,
                 oneshot=oneshot,
             )
 
-        return cls(
-            type=coil_type,
-            operand=arg,
-            immediate=immediate,
-            oneshot=oneshot,
-        )
+        return cls(arg, kind=kind, immediate=immediate, oneshot=oneshot)
 
     @property
     def func_code(self) -> str:
         return COIL_FUNC_CODES[
-            (self.type, self.range_end is not None, self.immediate, self.oneshot)
+            (self.kind, self.range_end is not None, self.immediate, self.oneshot)
         ]
 
     def to_csv(self) -> str:
-        name = COIL_TYPE_TO_NAME[self.type]
+        name = self.kind
         operand = self.operand
         if self.range_end is not None:
             operand = f"{operand}..{self.range_end}"
@@ -234,7 +232,7 @@ class Coil(AfInstruction):
 
         return _build_blob(
             "Out",
-            0x2700 | self.type,
+            0x2700 | _KIND_TO_ITYPE[self.kind],
             _COIL_TAGS,
             [
                 self.operand,
@@ -261,11 +259,8 @@ def from_tags(
 ) -> Coil | None:
     """Construct a Coil from tag data (shared by both decoders)."""
     itype = TYPE_CODE_TO_ITYPE.get(type_code)
-    if class_name not in ("Out", "Latch", "Reset") or itype not in (
-        InstructionType.COIL_OUT,
-        InstructionType.COIL_LATCH,
-        InstructionType.COIL_RESET,
-    ):
+    kind = _ITYPE_TO_KIND.get(itype) if itype is not None else None
+    if class_name not in ("Out", "Latch", "Reset") or kind is None:
         return None
     operand = tag_value(tags, 0x6066)
     if not operand:
@@ -278,8 +273,8 @@ def from_tags(
         return None
     range_end_val = tag_value(tags, 0x6067)
     return Coil(
-        type=itype,
-        operand=operand,
+        operand,
+        kind=kind,
         range_end=range_end_val or None,
         immediate=tag_flag(tags, 0x11F5),
         oneshot=tag_flag(tags, 0x11F8),

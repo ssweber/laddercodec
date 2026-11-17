@@ -44,6 +44,7 @@ from ..operands.checks import (
     Operand,
     Refusals,
     check_constant,
+    check_csv_flag,
     check_kept_text,
     check_operand,
     check_writable_sd,
@@ -2298,19 +2299,6 @@ def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
         raise CsvError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
 
 
-def _csv_flag(kwargs: Mapping[str, str], name: str, field: str) -> bool:
-    """A flag keyword (``oneshot=1``): ``1`` or ``0``, off when absent.  A blank one
-    (``oneshot=``) is refused as missing, and any other text as no flag."""
-    value = kwargs.get(name, "0")
-    if value in ("0", "1"):
-        return value == "1"
-    if not value.strip():
-        raise FieldError(
-            f"{field}: is blank; it needs a value, 1 or 0", field=field, reason=Reason.MISSING
-        )
-    raise FieldError(f"{field}: {value!r} is not 1 or 0", field=field, reason=Reason.FLAG)
-
-
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
     """Build a Copy from ``copy(source, dest, ...)`` arguments (both CSV paths)."""
     _refuse_unknown_kwargs("copy", kwargs)
@@ -2340,7 +2328,7 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
         source=source,
         destination=destination,
         format=fmt,
-        oneshot=_csv_flag(kwargs, "oneshot", "Copy.oneshot"),
+        oneshot=check_csv_flag(kwargs, "oneshot", "Copy.oneshot"),
         suppress_zero=text_opts.get("suppress_zero"),
         exponential=text_opts.get("exponential", "0"),
         termination_code=termination_code,
@@ -2373,7 +2361,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             dest_start=dest_start,
             dest_end=dest_end,
             format=fmt,
-            oneshot=_csv_flag(call.kwargs, "oneshot", "BlockCopy.oneshot"),
+            oneshot=check_csv_flag(call.kwargs, "oneshot", "BlockCopy.oneshot"),
             termination_code=call.kwargs.get("termination_code", "0"),
         )
 
@@ -2388,7 +2376,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             value=call.args[0],
             dest_start=dest_start,
             dest_end=dest_end,
-            oneshot=_csv_flag(call.kwargs, "oneshot", "Fill.oneshot"),
+            oneshot=check_csv_flag(call.kwargs, "oneshot", "Fill.oneshot"),
         )
 
     if call.name in ("pack_bits", "pack_words", "pack_text"):
@@ -2403,8 +2391,10 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             source_end=src_end,
             destination=call.args[1],
             pack_type=call.name.removeprefix("pack_"),
-            allow_whitespace=_csv_flag(call.kwargs, "allow_whitespace", "Pack.allow_whitespace"),
-            oneshot=_csv_flag(call.kwargs, "oneshot", "Pack.oneshot"),
+            allow_whitespace=check_csv_flag(
+                call.kwargs, "allow_whitespace", "Pack.allow_whitespace"
+            ),
+            oneshot=check_csv_flag(call.kwargs, "oneshot", "Pack.oneshot"),
         )
 
     if call.name in ("unpack_to_bits", "unpack_to_words"):
@@ -2419,7 +2409,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             dest_start=dest_start,
             dest_end=dest_end,
             unpack_type=call.name.removeprefix("unpack_to_"),
-            oneshot=_csv_flag(call.kwargs, "oneshot", "Unpack.oneshot"),
+            oneshot=check_csv_flag(call.kwargs, "oneshot", "Unpack.oneshot"),
         )
 
     raise CsvError(f"Unsupported copy-family instruction: {call.name!r}")

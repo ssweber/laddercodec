@@ -28,9 +28,9 @@ from laddercodec import Coil, Contact, Rung, encode
 rung = Rung(
     logical_rows=1,
     conditions=[
-        [Contact.from_csv_token("X001"), "-", Contact.from_csv_token("~X002")] + [""] * 28,
+        [Contact("X001"), "-", Contact("X002", kind="nc")] + [""] * 28,
     ],
-    instructions=[Coil.from_csv_token("out(Y001)")],
+    instructions=[Coil("Y001")],
     comment="Motor start circuit",
 )
 
@@ -71,41 +71,43 @@ binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", ""],
 
 ## Condition-Side Instructions
 
-The most convenient public helpers are the instruction token parsers:
+A contact takes its operand first and a `kind`: `"no"` (the default), `"nc"`,
+`"rise"` or `"fall"`. Each line below is the CSV token in its comment:
 
 ```python
 from laddercodec import CompareContact, Contact
 
-Contact.from_csv_token("X001")
-Contact.from_csv_token("~X001")
-Contact.from_csv_token("rise(X001)")
-Contact.from_csv_token("fall(X001)")
-Contact.from_csv_token("immediate(X001)")
+Contact("X001")                                # X001
+Contact("X001", kind="nc")                     # ~X001
+Contact("X001", kind="rise")                   # rise(X001)
+Contact("X001", kind="fall")                   # fall(X001)
+Contact("X001", immediate=True)                # X001.immediate
+Contact("X001", kind="nc", immediate=True)     # ~X001.immediate
 
-CompareContact.from_csv_token("DS1==DS2")
+CompareContact(op=">=", left="DS1", right="100")  # DS1>=100
 ```
 
-You can also construct comparison contacts directly:
-
-```python
-from laddercodec import CompareContact
-
-compare = CompareContact(op=">=", left="DS1", right="100")
-```
+Only an NO or NC contact on X has an immediate form: an edge contact, or an
+immediate contact on another bank, raises `FieldError`.
 
 ## AF-Side Instructions
 
-Coils have a CSV-token helper as well:
+A coil takes its operand first and a `kind`: `"out"` (the default), `"latch"` or
+`"reset"`, the names of its CSV calls:
 
 ```python
 from laddercodec import Coil
 
-Coil.from_csv_token("out(Y001)")
-Coil.from_csv_token("latch(Y001)")
-Coil.from_csv_token("reset(Y001)")
-Coil.from_csv_token("out(immediate(Y001))")
-Coil.from_csv_token("out(C1..C8)")
+Coil("Y001")                                   # out(Y001)
+Coil("Y001", kind="latch")                     # latch(Y001)
+Coil("Y001", kind="reset")                     # reset(Y001)
+Coil("Y001", immediate=True)                   # out(immediate(Y001))
+Coil("C1", range_end="C8")                     # out(C1..C8)
+Coil("C1", oneshot=True)                       # out(C1,oneshot=1)
 ```
+
+Each instruction's `to_csv()` writes its CSV token, and `from_csv_token()` reads
+one back.
 
 Timers are typically easiest to build directly:
 
@@ -115,7 +117,7 @@ from laddercodec import Contact, Rung, Timer, encode
 rung = Rung(
     logical_rows=2,
     conditions=[
-        [Contact.from_csv_token("X001")] + [""] * 30,
+        [Contact("X001")] + [""] * 30,
         [""] * 31,
     ],
     instructions=[

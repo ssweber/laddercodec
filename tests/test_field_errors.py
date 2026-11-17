@@ -29,7 +29,8 @@ from laddercodec import (
     Shift,
     Timer,
 )
-from laddercodec.model import AfInstruction, InstructionType
+from laddercodec.instructions.coil import CoilKind
+from laddercodec.model import AfInstruction
 from laddercodec.operands.address import check_address, display_form_only
 from laddercodec.operands.checks import (
     ALL_KINDS,
@@ -42,8 +43,6 @@ from laddercodec.operands.checks import (
     check_quoted_text,
 )
 from laddercodec.operands.constants import Kind
-
-OUT, LATCH = InstructionType.COIL_OUT, InstructionType.COIL_LATCH
 
 
 def _refusals(build: Any) -> tuple[FieldError, ...]:
@@ -179,39 +178,37 @@ def test_timer_pin_rows() -> None:
 
 
 def test_coil_gives_every_refusal() -> None:
-    errors = _refusals(lambda: Coil(LATCH, "X1", "SC1", oneshot=True))
+    errors = _refusals(lambda: Coil("X1", kind="latch", range_end="SC1", oneshot=True))
     assert _shape(errors) == [
         ("Coil.oneshot", "conflict", None),
         ("Coil.operand", "bank", "OBJ-004"),
         ("Coil.range_end", "not_writable", "OBJ-003"),
     ]
-    assert errors[0].fields == ("Coil.oneshot", "Coil.type")
+    assert errors[0].fields == ("Coil.oneshot", "Coil.kind")
 
 
-@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
+@pytest.mark.parametrize("kind", ["out", "latch", "reset"])
 @pytest.mark.parametrize(
     ("start", "end", "click_id"),
     [("C5", "Y5", "OBJ-008"), ("C9", "C1", "OBJ-009"), ("C5", "C5", "OBJ-012")],
 )
-def test_coil_range(kind: InstructionType, start: str, end: str, click_id: str) -> None:
+def test_coil_range(kind: CoilKind, start: str, end: str, click_id: str) -> None:
     """Out, Set and Reset give the same ids: another bank, an end below, the same address."""
-    (error,) = _refusals(lambda: Coil(kind, start, end))
+    (error,) = _refusals(lambda: Coil(start, kind=kind, range_end=end))
     assert error.fields == ("Coil.range_end", "Coil.operand")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, click_id)
     assert str(error).endswith(f" ({click_id})")
 
 
-@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
+@pytest.mark.parametrize("kind", ["out", "latch", "reset"])
 @pytest.mark.parametrize(
     ("start", "end"),
     [("C1", "DS1"), ("C1", "TXT1"), ("Y001", "X001"), ("Y001", "ds1"), ("Y001", "DS[DS1]")],
 )
-def test_coil_range_into_a_refused_bank_is_obj_008(
-    kind: InstructionType, start: str, end: str
-) -> None:
+def test_coil_range_into_a_refused_bank_is_obj_008(kind: CoilKind, start: str, end: str) -> None:
     """An end in another bank, a pointer CLICK reads included, is OBJ-008 before its own
     refusal."""
-    errors = _refusals(lambda: Coil(kind, start, end))
+    errors = _refusals(lambda: Coil(start, kind=kind, range_end=end))
     assert _shape(errors) == [("Coil.range_end", "conflict", "OBJ-008")]
     assert errors[0].fields == ("Coil.range_end", "Coil.operand")
 
@@ -219,7 +216,7 @@ def test_coil_range_into_a_refused_bank_is_obj_008(
 @pytest.mark.parametrize("end", ["X[DS1]", "DS[DS0]", "DS[DS[DS1]]"])
 def test_coil_range_end_click_does_not_read_as_a_pointer_has_no_id(end: str) -> None:
     """A pointer CLICK does not read (OBJ-005 for Y001..X[DS1]) has no bank to compare."""
-    assert _shape(_refusals(lambda: Coil(OUT, "Y001", end))) == [
+    assert _shape(_refusals(lambda: Coil("Y001", range_end=end))) == [
         ("Coil.range_end", "address", None)
     ]
 
@@ -232,26 +229,26 @@ def test_coil_range_across_banks_comes_before_the_end_s_own_checks(
 ) -> None:
     """laddercodec's own: no answer covers an end CLICK would also refuse as not writable (SC1)
     or as not immediate (C2); the bank pairing comes first, as in ``C1..DS1``."""
-    assert _shape(_refusals(lambda: Coil(OUT, start, end, immediate=immediate))) == [
+    assert _shape(_refusals(lambda: Coil(start, range_end=end, immediate=immediate))) == [
         ("Coil.range_end", "conflict", "OBJ-008")
     ]
 
 
 def test_coil_skips_what_depends_on_a_refused_field() -> None:
-    # A refused type: the one-shot pairing is not checked.
-    assert _shape(_refusals(lambda: Coil(99, "C1", oneshot=True))) == [  # type: ignore[arg-type]
-        ("Coil.type", "choice", None)
+    # A refused kind: the one-shot pairing is not checked.
+    assert _shape(_refusals(lambda: Coil("C1", kind=99, oneshot=True))) == [  # type: ignore[arg-type]
+        ("Coil.kind", "choice", None)
     ]
     # A refused immediate flag: C1 is not refused as an immediate target.
-    assert _shape(_refusals(lambda: Coil(OUT, "C1", immediate=2))) == [
-        ("Coil.immediate", "flag", None)
-    ]
+    assert _shape(_refusals(lambda: Coil("C1", immediate=2))) == [("Coil.immediate", "flag", None)]
     # A refused range start: the range pairing is not checked.
-    assert _shape(_refusals(lambda: Coil(OUT, "C0", "Y5"))) == [("Coil.operand", "address", None)]
+    assert _shape(_refusals(lambda: Coil("C0", range_end="Y5"))) == [
+        ("Coil.operand", "address", None)
+    ]
 
 
 def test_coil_typed_text_is_named_in_each_refusal() -> None:
-    errors = _refusals(lambda: Coil(OUT, "x1", "c0"))
+    errors = _refusals(lambda: Coil("x1", range_end="c0"))
     assert [str(e) for e in errors] == [
         "Coil.operand: 'x1' (X001) is not allowed; Coil.operand takes Y, C, SC (OBJ-004)",
         "Coil.range_end: 'c0' (C0) is outside C1-C2000",
@@ -259,34 +256,34 @@ def test_coil_typed_text_is_named_in_each_refusal() -> None:
 
 
 def test_coil_immediate_target_is_a_conflict_with_immediate() -> None:
-    (error,) = _refusals(lambda: Coil(OUT, "C1", immediate=True))
+    (error,) = _refusals(lambda: Coil("C1", immediate=True))
     assert error.fields == ("Coil.operand", "Coil.immediate")
     assert error.reason == Reason.CONFLICT
     # A pair refuses its leading field only: the range end is checked against immediate too.
-    errors = _refusals(lambda: Coil(OUT, "C1", "C5", immediate=True))
+    errors = _refusals(lambda: Coil("C1", range_end="C5", immediate=True))
     assert [e.fields for e in errors] == [
         ("Coil.operand", "Coil.immediate"),
         ("Coil.range_end", "Coil.immediate"),
     ]
 
 
-@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
-def test_coil_bank_id(kind: InstructionType) -> None:
-    (error,) = _refusals(lambda: Coil(kind, "DS1"))
+@pytest.mark.parametrize("kind", ["out", "latch", "reset"])
+def test_coil_bank_id(kind: CoilKind) -> None:
+    (error,) = _refusals(lambda: Coil("DS1", kind=kind))
     assert (error.reason, error.click_id) == (Reason.BANK, "OBJ-004")
 
 
-@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
-def test_coil_sc_not_writable_is_obj_003(kind: InstructionType) -> None:
-    (error,) = _refusals(lambda: Coil(kind, "SC163"))
+@pytest.mark.parametrize("kind", ["out", "latch", "reset"])
+def test_coil_sc_not_writable_is_obj_003(kind: CoilKind) -> None:
+    (error,) = _refusals(lambda: Coil("SC163", kind=kind))
     assert (error.field, error.reason, error.click_id) == (
         "Coil.operand",
         Reason.NOT_WRITABLE,
         "OBJ-003",
     )
     assert str(error).endswith(" (OBJ-003)")
-    assert Coil(kind, "SC50").operand == "SC50"
-    assert Coil(kind, "SC162").operand == "SC162"
+    assert Coil("SC50", kind=kind).operand == "SC50"
+    assert Coil("SC162", kind=kind).operand == "SC162"
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +300,7 @@ def test_timer_refusal_survives_a_later_crash() -> None:
 
 def test_coil_refusal_survives_a_later_crash() -> None:
     with pytest.raises(FieldError) as caught:
-        Coil(OUT, 5, immediate=2)  # type: ignore[arg-type]
+        Coil(5, immediate=2)  # type: ignore[arg-type]
     assert caught.value.field == "Coil.immediate"
     assert isinstance(caught.value.__cause__, TypeError)
 

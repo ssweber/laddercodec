@@ -521,18 +521,17 @@ def _send_baselines(ns: Any) -> dict[str, dict[str, Any]]:
 PROBES: dict[str, Probe] = {
     "Contact": Probe(
         fields={
-            "type": "itype",
             "operand": "op",
+            "kind": _lit("no", "nc", "rise", "fall", None, "up", "NO", ""),
             "immediate": "bool",
-            "edge_kind": _lit("rise", "fall", None, "up", ""),
             "wire_down": "bool",
         },
         baselines=lambda ns: {
-            "no": dict(type=ns.IT(0x11), operand="X001"),
-            "nc": dict(type=ns.IT(0x12), operand="C1"),
-            "rise": dict(type=ns.IT(0x13), operand="C1", edge_kind="rise"),
-            "fall": dict(type=ns.IT(0x13), operand="X001", edge_kind="fall"),
-            "imm": dict(type=ns.IT(0x11), operand="X001", immediate=True),
+            "no": dict(operand="X001"),
+            "nc": dict(operand="C1", kind="nc"),
+            "rise": dict(operand="C1", kind="rise"),
+            "fall": dict(operand="X001", kind="fall"),
+            "imm": dict(operand="X001", immediate=True),
         },
     ),
     "CompareContact": Probe(
@@ -552,19 +551,19 @@ PROBES: dict[str, Probe] = {
     ),
     "Coil": Probe(
         fields={
-            "type": "itype",
             "operand": "op",
+            "kind": _lit("out", "latch", "reset", None, "set", "toggle", ""),
             "range_end": "op?",
             "immediate": "bool",
             "oneshot": "bool",
         },
         baselines=lambda ns: {
-            "out": dict(type=ns.IT(0x15), operand="C1"),
-            "latch": dict(type=ns.IT(0x16), operand="Y001"),
-            "reset": dict(type=ns.IT(0x17), operand="C1"),
-            "out_range": dict(type=ns.IT(0x15), operand="C1", range_end="C4"),
-            "out_imm": dict(type=ns.IT(0x15), operand="Y001", immediate=True),
-            "out_oneshot": dict(type=ns.IT(0x15), operand="C1", oneshot=True),
+            "out": dict(operand="C1"),
+            "latch": dict(operand="Y001", kind="latch"),
+            "reset": dict(operand="C1", kind="reset"),
+            "out_range": dict(operand="C1", range_end="C4"),
+            "out_imm": dict(operand="Y001", immediate=True),
+            "out_oneshot": dict(operand="C1", oneshot=True),
         },
         ranges=(("operand", "range_end"),),
     ),

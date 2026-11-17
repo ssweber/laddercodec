@@ -36,7 +36,6 @@ from laddercodec.instructions import (
     Send,
     UnknownInstruction,
 )
-from laddercodec.model import InstructionType
 
 GOLDEN_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "ladder_captures" / "golden"
 
@@ -59,17 +58,17 @@ def _blank_conditions() -> list[object]:
 
 def _contact_row(operand: str) -> list[object]:
     """Return a simple NO-contact row with trailing wires."""
-    return [Contact(InstructionType.CONTACT_NO, operand)] + ["-"] * 30
+    return [Contact(operand)] + ["-"] * 30
 
 
 def _edge_row(operand: str) -> list[object]:
     """Return a simple rising-edge contact row with trailing wires."""
-    return [Contact(InstructionType.CONTACT_EDGE, operand, edge_kind="rise")] + ["-"] * 30
+    return [Contact(operand, kind="rise")] + ["-"] * 30
 
 
 def _branch_row(operand: str) -> list[object]:
     """A row whose wire branches down at column B: a NO contact at A, or no contact."""
-    first: object = Contact(InstructionType.CONTACT_NO, operand) if operand else ""
+    first: object = Contact(operand) if operand else ""
     return [first, "T"] + ["-"] * 29
 
 
@@ -193,8 +192,8 @@ class TestDecodedRungToRows:
         """Single row: contact → wire → coil."""
         rung = Rung(
             logical_rows=1,
-            conditions=[[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30],
-            instructions=[Coil(InstructionType.COIL_OUT, "Y001")],
+            conditions=[[Contact("X001")] + ["-"] * 30],
+            instructions=[Coil("Y001")],
             comment_rtf=None,
             comment=None,
         )
@@ -228,7 +227,7 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=2,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
+                [Contact("X001")] + ["-"] * 30,
                 [""] * 31,
             ],
             instructions=[timer, ""],
@@ -245,7 +244,7 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=2,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
+                [Contact("X001")] + ["-"] * 30,
                 ["-"] * 31,
             ],
             instructions=[timer, ""],
@@ -282,9 +281,9 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=3,
             conditions=[
-                [Contact(InstructionType.CONTACT_EDGE, "C73", edge_kind="rise")] + ["-"] * 30,
+                [Contact("C73", kind="rise")] + ["-"] * 30,
                 [""] * 31,
-                [Contact(InstructionType.CONTACT_NO, "C74")] + ["-"] * 30,
+                [Contact("C74")] + ["-"] * 30,
             ],
             instructions=[counter, "", ""],
             comment_rtf=None,
@@ -309,9 +308,9 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=3,
             conditions=[
-                [Contact(InstructionType.CONTACT_EDGE, "C75", edge_kind="rise")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C76")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C77")] + ["-"] * 30,
+                [Contact("C75", kind="rise")] + ["-"] * 30,
+                [Contact("C76")] + ["-"] * 30,
+                [Contact("C77")] + ["-"] * 30,
             ],
             instructions=[counter, "", ""],
             comment_rtf=None,
@@ -337,8 +336,8 @@ class TestDecodedRungToRows:
             logical_rows=3,
             conditions=[
                 [""] * 31,
-                [Contact(InstructionType.CONTACT_EDGE, "C78", edge_kind="rise")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C79")] + ["-"] * 30,
+                [Contact("C78", kind="rise")] + ["-"] * 30,
+                [Contact("C79")] + ["-"] * 30,
             ],
             instructions=[counter, "NOP", ""],
             comment_rtf=None,
@@ -364,9 +363,9 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=3,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "C77")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_EDGE, "C78", edge_kind="rise")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C79")] + ["-"] * 30,
+                [Contact("C77")] + ["-"] * 30,
+                [Contact("C78", kind="rise")] + ["-"] * 30,
+                [Contact("C79")] + ["-"] * 30,
             ],
             instructions=[counter, "NOP", ""],
             comment_rtf=None,
@@ -395,8 +394,8 @@ class TestDecodedRungToRows:
             logical_rows=3,
             conditions=[
                 [""] * 8 + ["|"] + [""] * 22,
-                [Contact(InstructionType.CONTACT_EDGE, "C78", edge_kind="rise")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C79")] + ["-"] * 30,
+                [Contact("C78", kind="rise")] + ["-"] * 30,
+                [Contact("C79")] + ["-"] * 30,
             ],
             instructions=[counter, "NOP", ""],
             comment_rtf=None,
@@ -487,9 +486,9 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=3,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "C96")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C97")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C98")] + ["-"] * 30,
+                [Contact("C96")] + ["-"] * 30,
+                [Contact("C97")] + ["-"] * 30,
+                [Contact("C98")] + ["-"] * 30,
             ],
             instructions=[shift, "", ""],
             comment_rtf=None,
@@ -535,8 +534,8 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=2,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "C96")] + ["-"] * 30,
-                [Contact(InstructionType.CONTACT_NO, "C97")] + ["-"] * 30,
+                [Contact("C96")] + ["-"] * 30,
+                [Contact("C97")] + ["-"] * 30,
             ],
             instructions=[shift, ""],
             comment_rtf=None,
@@ -563,7 +562,7 @@ class TestDecodedRungToRows:
     def test_forloop_serializes(self) -> None:
         rung = Rung(
             logical_rows=1,
-            conditions=[[Contact(InstructionType.CONTACT_NO, "C222")] + ["-"] * 30],
+            conditions=[[Contact("C222")] + ["-"] * 30],
             instructions=[ForLoop(limit="3", oneshot=False)],
             comment_rtf=None,
             comment=None,
@@ -617,7 +616,7 @@ class TestGenericTallRoundTrip:
         af: object,
         visual_rows: int,
     ) -> None:
-        lead = Coil(InstructionType.COIL_OUT, "Y801")
+        lead = Coil("Y801")
         rung = Rung(
             logical_rows=visual_rows + 1,
             conditions=[
@@ -649,8 +648,8 @@ class TestGenericTallRoundTrip:
         af: object,
         visual_rows: int,
     ) -> None:
-        lead = Coil(InstructionType.COIL_OUT, "Y802")
-        tail = Coil(InstructionType.COIL_OUT, "Y803")
+        lead = Coil("Y802")
+        tail = Coil("Y803")
         rung = Rung(
             logical_rows=visual_rows + 2,
             conditions=[
@@ -684,7 +683,7 @@ class TestDehydrateHydrateWires:
         rung = Rung(
             logical_rows=3,
             conditions=[_branch_row("C10"), _down_row(), _wire_row()],
-            instructions=[search, "", Coil(InstructionType.COIL_OUT, "Y001")],
+            instructions=[search, "", Coil("Y001")],
             comment_rtf=None,
             comment=None,
         )
@@ -704,7 +703,7 @@ class TestDehydrateHydrateWires:
     def test_redundant_verticals_read_as_one_merge(self, tmp_path: Path) -> None:
         """Two verticals joining the same rows are one OR merge, drawn after the last contact."""
         search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
-        conds_row0 = [Contact(InstructionType.CONTACT_NO, "C20")] + ["-"] * 30
+        conds_row0 = [Contact("C20")] + ["-"] * 30
         conds_row0[5] = "T"  # col F
         conds_row0[15] = "T"  # col P
         rung = Rung(
@@ -712,9 +711,9 @@ class TestDehydrateHydrateWires:
             conditions=[
                 conds_row0,
                 ["", "", "", "", "", "|"] + [""] * 9 + ["|"] + [""] * 15,
-                [Contact(InstructionType.CONTACT_NO, "C21")] + ["-"] * 30,
+                [Contact("C21")] + ["-"] * 30,
             ],
-            instructions=[search, "", Coil(InstructionType.COIL_OUT, "Y002")],
+            instructions=[search, "", Coil("Y002")],
             comment_rtf=None,
             comment=None,
         )
@@ -976,8 +975,8 @@ def _simple_rung(operand: str, coil: str) -> Rung:
     """A single-row NO-contact → coil rung."""
     return Rung(
         logical_rows=1,
-        conditions=[[Contact(InstructionType.CONTACT_NO, operand)] + ["-"] * 30],
-        instructions=[Coil(InstructionType.COIL_OUT, coil)],
+        conditions=[[Contact(operand)] + ["-"] * 30],
+        instructions=[Coil(coil)],
         comment_rtf=None,
         comment=None,
     )
@@ -1009,7 +1008,7 @@ class TestIndexedMarkers:
         multirow = Rung(
             logical_rows=2,
             conditions=[
-                [Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30,
+                [Contact("X001")] + ["-"] * 30,
                 ["-"] * 31,
             ],
             instructions=[timer, ""],
@@ -1025,8 +1024,8 @@ class TestIndexedMarkers:
     def test_index_true_leaves_comment_rows_untouched(self, tmp_path: Path) -> None:
         commented = Rung(
             logical_rows=1,
-            conditions=[[Contact(InstructionType.CONTACT_NO, "X001")] + ["-"] * 30],
-            instructions=[Coil(InstructionType.COIL_OUT, "Y001")],
+            conditions=[[Contact("X001")] + ["-"] * 30],
+            instructions=[Coil("Y001")],
             comment_rtf=None,
             comment="Line 1\nLine 2",
         )

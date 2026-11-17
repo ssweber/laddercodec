@@ -13,19 +13,14 @@ from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import from_tags_af, from_tags_condition
-from laddercodec.instructions.coil import COIL_NAME_TO_TYPE as COIL_TYPES
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.contact import Contact
 from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.timer import TIMER_UNIT_TO_INDEX
-from laddercodec.model import InstructionType
 from laddercodec.operands.checks import WRITABLE_SC
 from tests.kept_refusals import kept
-
-NO = InstructionType.CONTACT_NO
-OUT = InstructionType.COIL_OUT
 
 
 def timed(**kw) -> OutVariant:
@@ -49,24 +44,24 @@ def debounce(**kw) -> OutVariant:
 class TestContact:
     @pytest.mark.parametrize("op", ["X1", "Y1", "C1", "T1", "CT1", "SC1"])
     def test_banks_accepted(self, op: str) -> None:
-        Contact(NO, op)
+        Contact(op)
 
     @pytest.mark.parametrize("op", ["DS1", "TXT1", "TD1", "XD0"])
     def test_other_banks_refused(self, op: str) -> None:
         with pytest.raises(AddressError, match="^Contact.operand"):
-            Contact(NO, op)
+            Contact(op)
 
     def test_immediate_only_on_x(self) -> None:
-        Contact(NO, "X1", immediate=True)
+        Contact("X1", immediate=True)
         for op in ("Y1", "C1", "T1"):
             with pytest.raises(FieldError, match="^Contact.immediate"):
-                Contact(NO, op, immediate=True)
+                Contact(op, immediate=True)
         with pytest.raises(FieldError, match="^Contact.immediate"):
             Contact.from_csv_token("~C1.immediate")
 
     def test_edge_has_no_immediate(self) -> None:
         with pytest.raises(FieldError, match="^Contact.immediate"):
-            Contact(InstructionType.CONTACT_EDGE, "X1", immediate=True, edge_kind="rise")
+            Contact("X1", kind="rise", immediate=True)
 
 
 class TestCompare:
@@ -358,13 +353,13 @@ class TestCoil:
         with pytest.raises(AddressError, match=rf"^Coil.operand: '{op}' .*takes Y, C, SC"):
             _read_af(tmp_path, f"{name}({op})")
         with pytest.raises(AddressError, match="^Coil.operand"):
-            Coil(COIL_TYPES[name], op)
+            Coil(op, kind=name)
 
     # Set and Reset take the same SC list as Out.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["SC50", "SC51", "SC171", "SC303", "SC326"])
     def test_writable_sc_accepted(self, tmp_path: Path, name: str, op: str) -> None:
-        Coil(COIL_TYPES[name], op)
+        Coil(op, kind=name)
         assert isinstance(_read_af(tmp_path, f"{name}({op})"), Coil)
 
     @pytest.mark.parametrize("name", _COILS)
@@ -374,7 +369,7 @@ class TestCoil:
         with pytest.raises(AddressError, match=message):
             _read_af(tmp_path, f"{name}({op})")
         with pytest.raises(AddressError, match=message):
-            Coil(COIL_TYPES[name], op)
+            Coil(op, kind=name)
 
     def test_writable_sc_is_the_dialog_list(self) -> None:
         # the 25 bits CLICK's address picker lists.
@@ -403,16 +398,16 @@ class TestCoil:
             _read_af(tmp_path, f"{name}(SC1..SC50)")
 
     def test_immediate_only_on_y(self) -> None:
-        Coil(OUT, "Y1", immediate=True)
-        Coil(OUT, "Y1", range_end="Y4", immediate=True)
+        Coil("Y1", immediate=True)
+        Coil("Y1", range_end="Y4", immediate=True)
         with pytest.raises(FieldError, match="^Coil.operand"):
-            Coil(OUT, "C1", immediate=True)
+            Coil("C1", immediate=True)
         with pytest.raises(FieldError, match="^Coil.operand"):
-            Coil(InstructionType.COIL_LATCH, "C1", immediate=True)
+            Coil("C1", kind="latch", immediate=True)
 
     def test_immediate_range_ends_both_y(self) -> None:
         with pytest.raises(FieldError, match="^Coil.range_end"):
-            Coil(InstructionType.COIL_LATCH, "Y1", range_end="C2", immediate=True)
+            Coil("Y1", kind="latch", range_end="C2", immediate=True)
 
     @pytest.mark.parametrize("name", _COILS)
     def test_immediate_range_crosses_a_module(self, tmp_path: Path, name: str) -> None:
@@ -434,7 +429,7 @@ class TestCoil:
             _read_af(tmp_path, f"{name}({token})")
         start, end = token.split("..")
         with pytest.raises(FieldError, match="^Coil.range_end"):
-            Coil(COIL_TYPES[name], start, range_end=end)
+            Coil(start, kind=name, range_end=end)
 
     # Out, Set and Reset: OBJ-009 for C9..C1, OBJ-012 for C5..C5.
     @pytest.mark.parametrize("name", _COILS)
@@ -444,13 +439,13 @@ class TestCoil:
             _read_af(tmp_path, f"{name}({token})")
         start, end = token.split("..")
         with pytest.raises(FieldError, match="^Coil.range_end: .* is not above"):
-            Coil(COIL_TYPES[name], start, range_end=end)
+            Coil(start, kind=name, range_end=end)
 
     @pytest.mark.parametrize("name", _COILS)
     def test_range_accepted(self, name: str) -> None:
-        Coil(COIL_TYPES[name], "C1", range_end="C5")
-        Coil(COIL_TYPES[name], "Y16", range_end="Y101")
-        Coil(COIL_TYPES[name], "C1", range_end="C2")
+        Coil("C1", kind=name, range_end="C5")
+        Coil("Y16", kind=name, range_end="Y101")
+        Coil("C1", kind=name, range_end="C2")
 
 
 class TestOutVariant:
@@ -828,7 +823,7 @@ class TestDecodeRefusal:
         compare = kept(from_tags_condition("Compare", 0x2714, tags), field)
         assert (compare.left, compare.right) == (left, right)
         with pytest.raises(FieldError):
-            encode_rung(1, [[compare, *["-"] * 30]], [Coil(InstructionType.COIL_OUT, "Y001")])
+            encode_rung(1, [[compare, *["-"] * 30]], [Coil("Y001")])
 
     def test_multi_character_compare_blob_decodes(self) -> None:
         tags = {0x3218: "4103", 0x6066: "TXT771", 0x6067: '"AB"', 0x21F7: "0"}

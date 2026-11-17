@@ -50,7 +50,7 @@ from laddercodec.instructions import (
 )
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.timer import from_tags as timer_from_tags
-from laddercodec.model import InstructionType, Reason
+from laddercodec.model import Reason
 
 
 def _write_csv(path: Path, rows: list[tuple[str, list[str], str]]) -> None:
@@ -442,7 +442,7 @@ class TestConditionNodeToToken:
         node = ContactCondition(operand="X001", negated=False, immediate=False)
         result = condition_node_to_token(node)
         assert isinstance(result, Contact)
-        assert result.type == InstructionType.CONTACT_NO
+        assert result.kind == "no"
         assert result.operand == "X001"
 
     def test_contact_wire_down(self) -> None:
@@ -455,7 +455,7 @@ class TestConditionNodeToToken:
         node = EdgeCondition(kind="rise", operand="X002", wire_down=True)
         result = condition_node_to_token(node)
         assert isinstance(result, Contact)
-        assert result.type == InstructionType.CONTACT_EDGE
+        assert result.kind == "rise"
         assert result.wire_down is True
 
     def test_compare_wire_down(self) -> None:
@@ -482,7 +482,7 @@ class TestAfNodeToToken:
         node = AfCall(name="out", args=("Y001",), known=True)
         result = af_node_to_token(node)
         assert isinstance(result, Coil)
-        assert result.type == InstructionType.COIL_OUT
+        assert result.kind == "out"
         assert result.operand == "Y001"
 
     def test_coil_immediate_range(self) -> None:
@@ -638,7 +638,7 @@ class TestCounterRows:
         assert afs[1] == ""
         assert afs[2] == ""
         assert isinstance(conds[0][0], Contact)
-        assert conds[0][0].type == InstructionType.CONTACT_EDGE
+        assert conds[0][0].kind == "rise"
         assert conds[0][0].operand == "C73"
         assert all(c == "" for c in conds[1])
         assert isinstance(conds[2][0], Contact)
@@ -690,7 +690,7 @@ class TestCounterRows:
         assert afs[2] == ""
         assert all(c == "" for c in conds[0])
         assert isinstance(conds[1][0], Contact)
-        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].kind == "rise"
         assert conds[1][0].operand == "C78"
         assert isinstance(conds[2][0], Contact)
         assert conds[2][0].operand == "C79"
@@ -716,7 +716,7 @@ class TestCounterRows:
         assert isinstance(conds[0][0], Contact)
         assert conds[0][0].operand == "C77"
         assert isinstance(conds[1][0], Contact)
-        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].kind == "rise"
         assert conds[1][0].operand == "C78"
         assert isinstance(conds[2][0], Contact)
         assert conds[2][0].operand == "C79"
@@ -742,7 +742,7 @@ class TestCounterRows:
         assert isinstance(conds[0][0], Contact)
         assert conds[0][0].operand == "C77"
         assert isinstance(conds[1][0], Contact)
-        assert conds[1][0].type == InstructionType.CONTACT_EDGE
+        assert conds[1][0].kind == "rise"
         assert conds[1][0].operand == "C78"
         assert isinstance(conds[2][0], Contact)
         assert conds[2][0].operand == "C79"

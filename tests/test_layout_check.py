@@ -32,7 +32,6 @@ from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.instructions import Coil, Contact, Shift, Timer
 from laddercodec.layout_check import _blank_rows
-from laddercodec.model import InstructionType
 from laddercodec.undecoded import UndecodedRungWarning
 
 FIX = Path(__file__).parent / "fixtures"
@@ -303,7 +302,7 @@ def test_reset_wired_from_the_rail_is_not_captured() -> None:
 
 
 def _contact(name: str, *, down: bool = False) -> Contact:
-    return Contact(type=InstructionType.CONTACT_NO, operand=name, wire_down=down)
+    return Contact(name, wire_down=down)
 
 
 def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
@@ -312,7 +311,7 @@ def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
 
 
 def _out(name: str) -> Coil:
-    return Coil(type=InstructionType.COIL_OUT, operand=name)
+    return Coil(name)
 
 
 def _timer(*, retained: bool = True) -> Timer:

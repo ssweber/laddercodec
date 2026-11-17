@@ -52,15 +52,15 @@ def _drum(**kw) -> Drum:
     )
 
 
-@pytest.mark.parametrize("coil_type", [InstructionType.COIL_LATCH, InstructionType.COIL_RESET])
-def test_set_reset_oneshot_refused(coil_type) -> None:
+@pytest.mark.parametrize("kind", ["latch", "reset"])
+def test_set_reset_oneshot_refused(kind) -> None:
     # CLICK's Set/Reset dialog has no One Shot box.
     with pytest.raises(FieldError, match="Coil.oneshot"):
-        Coil(coil_type, "C1", oneshot=True)
+        Coil("C1", kind=kind, oneshot=True)
 
 
 def test_out_oneshot_kept() -> None:
-    assert Coil(InstructionType.COIL_OUT, "C1", oneshot=True).func_code == "8205"
+    assert Coil("C1", oneshot=True).func_code == "8205"
 
 
 def test_count_down_down_enabled_refused() -> None:
@@ -78,27 +78,18 @@ def test_off_delay_retained_refused() -> None:
         Timer("off_delay", "T1", "TD1", "5", "Ts", retained=True)
 
 
-@pytest.mark.parametrize("bad", [0x99, 0x2711, "out", None])
-def test_coil_type_refused(bad) -> None:
-    with pytest.raises(FieldError, match="Coil.type"):
-        Coil(bad, "C1")
+@pytest.mark.parametrize("bad", [0x99, 0x2715, InstructionType.COIL_OUT, "set", "OUT", "", None])
+def test_coil_kind_refused(bad) -> None:
+    with pytest.raises(FieldError, match="Coil.kind"):
+        Coil("C1", kind=bad)
 
 
-@pytest.mark.parametrize("bad", [0x99, InstructionType.COIL_OUT, "NO", None])
-def test_contact_type_refused(bad) -> None:
-    with pytest.raises(FieldError, match="Contact.type"):
-        Contact(bad, "X1")
-
-
-@pytest.mark.parametrize("bad", ["", "rising", None])
-def test_edge_contact_needs_edge_kind(bad) -> None:
-    with pytest.raises(FieldError, match="Contact.edge_kind"):
-        Contact(InstructionType.CONTACT_EDGE, "X1", edge_kind=bad)
-
-
-def test_plain_contact_has_no_edge_kind() -> None:
-    with pytest.raises(FieldError, match="Contact.edge_kind"):
-        Contact(InstructionType.CONTACT_NO, "X1", edge_kind="rise")
+@pytest.mark.parametrize(
+    "bad", [0x99, InstructionType.CONTACT_NO, InstructionType.COIL_OUT, "NO", "rising", "", None]
+)
+def test_contact_kind_refused(bad) -> None:
+    with pytest.raises(FieldError, match="Contact.kind"):
+        Contact("X1", kind=bad)
 
 
 @pytest.mark.parametrize(
@@ -160,12 +151,10 @@ def test_raw_keeps_every_part_count_decode_makes() -> None:
 
 @pytest.mark.parametrize("bad", [[], {}, {1}, [1, 2]], ids=repr)
 def test_unhashable_fields_raise_field_error(bad) -> None:
-    with pytest.raises(FieldError, match="Coil.type"):
-        Coil(bad, "C1")
-    with pytest.raises(FieldError, match="Contact.type"):
-        Contact(bad, "X1")
-    with pytest.raises(FieldError, match="Contact.edge_kind"):
-        Contact(InstructionType.CONTACT_EDGE, "X1", edge_kind=bad)
+    with pytest.raises(FieldError, match="Coil.kind"):
+        Coil("C1", kind=bad)
+    with pytest.raises(FieldError, match="Contact.kind"):
+        Contact("X1", kind=bad)
     with pytest.raises(FieldError, match="Timer.unit"):
         Timer("on_delay", "T1", "TD1", "5", bad)  # type: ignore[arg-type]
     with pytest.raises(FieldError, match="Timer.kind"):
@@ -173,9 +162,9 @@ def test_unhashable_fields_raise_field_error(bad) -> None:
     with pytest.raises(FieldError, match="Counter.kind"):
         Counter(bad, "CT1", "CTD1", "5", reset_enabled=True)  # type: ignore[arg-type]
     with pytest.raises(FieldError, match="Coil.oneshot"):
-        Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)  # type: ignore[arg-type]
+        Coil("C1", oneshot=bad)  # type: ignore[arg-type]
     with pytest.raises(FieldError, match="Contact.immediate"):
-        Contact(InstructionType.CONTACT_NO, "X1", immediate=bad)  # type: ignore[arg-type]
+        Contact("X1", immediate=bad)  # type: ignore[arg-type]
     with pytest.raises(FieldError, match="Counter.down_enabled"):
         Counter("count_up", "CT1", "CTD1", "5", down_enabled=bad, reset_enabled=True)  # type: ignore[arg-type]
 
@@ -214,15 +203,15 @@ def test_csv_off_delay_with_reset_refused(tmp_path: Path) -> None:
 
 
 def test_int_flags_normalise_to_bool() -> None:
-    one = Coil(InstructionType.COIL_OUT, "Y1", oneshot=1, immediate=1)  # type: ignore[arg-type]
-    true = Coil(InstructionType.COIL_OUT, "Y1", oneshot=True, immediate=True)
+    one = Coil("Y1", oneshot=1, immediate=1)  # type: ignore[arg-type]
+    true = Coil("Y1", oneshot=True, immediate=True)
     assert one.oneshot is True and one.immediate is True
     assert one.build_blob() == true.build_blob()
-    off = Coil(InstructionType.COIL_OUT, "Y1", oneshot=0)  # type: ignore[arg-type]
+    off = Coil("Y1", oneshot=0)  # type: ignore[arg-type]
     assert off.oneshot is False
-    contact = Contact(InstructionType.CONTACT_NO, "X1", immediate=1)  # type: ignore[arg-type]
+    contact = Contact("X1", immediate=1)  # type: ignore[arg-type]
     assert contact.immediate is True
-    assert contact.build_blob() == Contact(InstructionType.CONTACT_NO, "X1", True).build_blob()
+    assert contact.build_blob() == Contact("X1", immediate=True).build_blob()
     counter = Counter("count_up", "CT1", "CTD1", "5", down_enabled=1, reset_enabled=1)  # type: ignore[arg-type]
     assert counter.down_enabled is True and counter.reset_enabled is True
 
@@ -230,9 +219,9 @@ def test_int_flags_normalise_to_bool() -> None:
 @pytest.mark.parametrize("bad", [2, -1, "1", None, 1.0, []], ids=repr)
 def test_other_flag_values_refused(bad) -> None:
     with pytest.raises(FieldError, match="Coil.oneshot"):
-        Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)
+        Coil("C1", oneshot=bad)
     with pytest.raises(FieldError, match="Contact.immediate"):
-        Contact(InstructionType.CONTACT_NO, "X1", immediate=bad)
+        Contact("X1", immediate=bad)
 
 
 def test_counter_reset_defaults_on() -> None:
@@ -261,7 +250,7 @@ def test_counter_csv_read_keeps_reset() -> None:
 
 _FLAG_FIELDS = {
     "Timer.retained": lambda v: Timer("on_delay", "T1", "TD1", "5", "Ts", retained=v),
-    "Contact.wire_down": lambda v: Contact(InstructionType.CONTACT_NO, "X1", wire_down=v),
+    "Contact.wire_down": lambda v: Contact("X1", wire_down=v),
     "CompareContact.wire_down": lambda v: CompareContact("==", "DS1", "5", wire_down=v),
     "Drum.jog_enabled": lambda v: _drum(jog_enabled=v),
     "Drum.jump_enabled": lambda v: _drum(jump_enabled=v, jump_target="DS2"),

@@ -31,7 +31,6 @@ from laddercodec.model import (
     Address,
     AddressError,
     FieldError,
-    InstructionType,
     check_address,
 )
 from laddercodec.operands.unchecked import refusals
@@ -175,15 +174,15 @@ class TestCheckAddress:
 class TestConstructionRaises:
     def test_contact(self) -> None:
         with pytest.raises(ValueError, match="^Contact.operand: 'X999'"):
-            Contact(InstructionType.CONTACT_NO, "X999")
+            Contact("X999")
         with pytest.raises(ValueError, match="^Contact.operand: 'Q1'"):
-            Contact(InstructionType.CONTACT_EDGE, "Q1", edge_kind="rise")
+            Contact("Q1", kind="rise")
 
     def test_coil(self) -> None:
         with pytest.raises(ValueError, match="^Coil.operand: 'C9999'"):
-            Coil(InstructionType.COIL_OUT, "C9999")
+            Coil("C9999")
         with pytest.raises(ValueError, match="^Coil.range_end: 'C2001'"):
-            Coil(InstructionType.COIL_OUT, "C1", range_end="C2001")
+            Coil("C1", range_end="C2001")
 
     def test_counter(self) -> None:
         with pytest.raises(ValueError, match="^Counter.done: 'CT251'"):
@@ -255,11 +254,11 @@ class TestConstructionRaises:
         ("field", "build"),
         [
             ("Contact.operand", lambda: Contact.from_csv_token("XD0u")),
-            ("Contact.operand", lambda: Contact(InstructionType.CONTACT_NO, "YD0u")),
+            ("Contact.operand", lambda: Contact("YD0u")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(XD0u)")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
             # Set takes Y, C and SC only, so the range starts at Y1, not YD0.
-            ("Coil.range_end", lambda: Coil(InstructionType.COIL_LATCH, "Y1", range_end="YD0u")),
+            ("Coil.range_end", lambda: Coil("Y1", kind="latch", range_end="YD0u")),
             ("Counter.done", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
             ("Counter.accumulator", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
@@ -317,9 +316,9 @@ class TestDecodeRefusedAddress:
 
     def test_af_families(self) -> None:
         cases = [
-            (Coil(InstructionType.COIL_OUT, "Y801"), "Y801", "Y901", "Coil.operand"),
+            (Coil("Y801"), "Y801", "Y901", "Coil.operand"),
             (
-                Coil(InstructionType.COIL_OUT, "C1", range_end="C1999"),
+                Coil("C1", range_end="C1999"),
                 "C1999",
                 "C2999",
                 "Coil.range_end",
@@ -354,7 +353,7 @@ class TestDecodeRefusedAddress:
             assert error.obj is parsed
 
     def test_contact(self) -> None:
-        blob = Contact(InstructionType.CONTACT_NO, "X101").build_blob()
+        blob = Contact("X101").build_blob()
         assert isinstance(parse_condition_blob(blob), Contact)
         parsed = parse_condition_blob(_swap_operand(blob, "X101", "X117"))
         assert isinstance(parsed, Contact)
@@ -362,8 +361,8 @@ class TestDecodeRefusedAddress:
         assert [error.field for error in refusals(parsed)] == ["Contact.operand"]
 
     def test_clipboard_decode(self) -> None:
-        conditions = [[Contact(InstructionType.CONTACT_NO, "X101"), *["-"] * 30]]
-        data = encode_rung(1, conditions, [Coil(InstructionType.COIL_OUT, "Y801")])
+        conditions = [[Contact("X101"), *["-"] * 30]]
+        data = encode_rung(1, conditions, [Coil("Y801")])
         data = _swap_operand(_swap_operand(data, "Y801", "Y901"), "X101", "X117")
         with pytest.warns(RefusedFieldWarning) as caught:
             [rung] = decode(data)
@@ -417,7 +416,7 @@ class TestDecodeRefusedAddress:
         contact = rung.conditions[0][0]
         assert isinstance(contact, Contact) and contact.operand == "C0"
         assert [error.field for error in refusals(contact)] == ["Contact.operand"]
-        assert rung.instructions[0] == Coil(InstructionType.COIL_OUT, "C3")
+        assert rung.instructions[0] == Coil("C3")
 
     def test_dispatchers_catch_only_field_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def refuse(*_args: object) -> None:

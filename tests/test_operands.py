@@ -9,7 +9,6 @@ import pytest
 
 from laddercodec import Coil, Contact, model
 from laddercodec.instructions import copy, counter, forloop, search, send_receive, shift
-from laddercodec.model import InstructionType
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
 from laddercodec.operands.checks import BIT_BANKS
@@ -184,7 +183,7 @@ def test_check_address_names_the_field() -> None:
 
 def test_constructor_refusal_names_field_and_instance() -> None:
     with pytest.raises(errors.AddressError) as info:
-        Coil(InstructionType.COIL_OUT, "x0")
+        Coil("x0")
     exc = info.value
     assert str(exc) == (
         "Coil.operand: 'x0' (X000) is not allowed; Coil.operand takes Y, C, SC (OBJ-004)"
@@ -195,7 +194,7 @@ def test_constructor_refusal_names_field_and_instance() -> None:
 
 def test_display_form_refusal_names_instance() -> None:
     with address.display_form_only(), pytest.raises(errors.FieldError) as info:
-        Contact(InstructionType.CONTACT_NO, "x1")
+        Contact("x1")
     assert isinstance(info.value.obj, Contact)
     assert info.value.field == "Contact.operand"
     assert info.value.reason == "form"

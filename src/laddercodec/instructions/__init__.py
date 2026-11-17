@@ -93,11 +93,10 @@ class UnknownInstruction:
     raw: bytes
 
 
-#: A condition-column cell: wire token, parsed Contact/CompareContact, or unknown blob.
 ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
+"""A condition-column cell of a ``Rung``: a wire token (``"-"``, ``"|"``, ``"T"``, ``""``),
+a ``Contact`` or ``CompareContact``, or an ``UnknownCondition`` decode could not read."""
 
-#: An AF-column cell: ``""`` / ``"NOP"`` string, parsed AF instruction model,
-#: raw opaque blob, or unknown blob.
 AfToken = (
     str
     | Coil
@@ -121,6 +120,9 @@ AfToken = (
     | AfInstruction
     | UnknownInstruction
 )
+"""An AF-column cell of a ``Rung``: ``""`` or ``"NOP"``, an output instruction (an
+``AfInstruction``, ``RawInstruction`` and ``Undecoded`` among them), or an
+``UnknownInstruction`` decode could not read."""
 
 
 CONDITION_FAMILY_SPECS: tuple[ConditionInstructionFamilySpec, ...] = (
