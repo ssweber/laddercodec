@@ -1,8 +1,7 @@
-"""Golden round-trip tests and validation tests for decode_rung().
+"""Test decoding of single-rung clipboard binaries, and the errors that decode_rung() raises.
 
-For each single-rung golden .bin fixture, decodes the binary and compares
-the result against the CSV-derived data (the same data that produced the
-.bin via encode_rung()).
+For each golden CSV whose name does not start with mr-, the test decodes the .bin file that
+was generated from it. It compares each rung with what read_csv() returns for the CSV.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_decode(csv_path: Path) -> None:
-    expected = read_csv(csv_path)  # several rungs when CLICK splits the CSV's one
+    expected = read_csv(csv_path)  # more than one rung where CLICK splits the CSV rung
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
     data = bin_path.read_bytes()
@@ -203,7 +202,7 @@ def test_decoded_rung_no_comment_rtf_when_empty() -> None:
 
 
 def test_encode_decode_roundtrip_special_chars() -> None:
-    """Backslash, braces survive encode → decode."""
+    """A comment with a backslash and braces survives encode and decode."""
     conds = [[""] * 31]
     afs = [""]
     comment = "if (x > 0) { return x \\ y; }"
@@ -213,7 +212,7 @@ def test_encode_decode_roundtrip_special_chars() -> None:
 
 
 def test_encode_decode_roundtrip_indented_comment() -> None:
-    """Leading whitespace (code-style indentation) preserved."""
+    """Spaces at the start of each line of a comment survive encode and decode."""
     conds = [[""] * 31]
     afs = [""]
     comment = "  indented line\n    double indented"
@@ -223,7 +222,7 @@ def test_encode_decode_roundtrip_indented_comment() -> None:
 
 
 def test_encode_decode_roundtrip_special_chars_multiline() -> None:
-    """Special chars + multiline + indentation combined."""
+    """A comment with braces, several lines and indented lines survives encode and decode."""
     conds = [[""] * 31]
     afs = [""]
     comment = "func() {\n  x = 1;\n  y = 2;\n}"
@@ -236,13 +235,13 @@ def test_encode_decode_roundtrip_special_chars_multiline() -> None:
 
 
 def test_rtf_decode_crlf_before_par() -> None:
-    """CR/LF before \\par is RTF source whitespace, not content."""
+    """The decoder drops a CR LF before \\par. In RTF it is whitespace in the source, not text."""
     payload = _PREFIX + b"Line 1\r\n\\par Line 2" + _SUFFIX
     assert _decode_rtf(payload) == "Line 1\nLine 2"
 
 
 def test_rtf_decode_cr_before_par() -> None:
-    """Bare CR before \\par is also stripped."""
+    """The decoder also drops a CR with no LF after it before \\par."""
     payload = _PREFIX + b"Line 1\r\\par Line 2" + _SUFFIX
     assert _decode_rtf(payload) == "Line 1\nLine 2"
 
@@ -306,7 +305,10 @@ def _make_time_drum():
 
 
 def test_drop_tall_span_nops_clears_nop_inside_drum() -> None:
-    """A stray NOP on a drum continuation row (editing cruft) is dropped."""
+    """A NOP on a row that a drum box covers below its first row is dropped.
+
+    Such a NOP is left over from editing, for example when the user inserts a row above it.
+    """
     from laddercodec.decode import _drop_tall_span_nops
 
     instrs = [_make_time_drum(), "NOP", "", ""]
@@ -315,7 +317,7 @@ def test_drop_tall_span_nops_clears_nop_inside_drum() -> None:
 
 
 def test_drop_tall_span_nops_keeps_count_down_bridge() -> None:
-    """count_down's NOP bridge row is genuine and must be preserved."""
+    """A NOP on the main input row of a count_down box is kept, because it is part of the box."""
     from laddercodec import Counter
     from laddercodec.decode import _drop_tall_span_nops
 
@@ -331,7 +333,7 @@ def test_drop_tall_span_nops_keeps_count_down_bridge() -> None:
 
 
 def test_drop_tall_span_nops_keeps_standalone_nop() -> None:
-    """A NOP not inside any tall-instruction span is left alone."""
+    """A NOP on a row that no box of several rows covers is kept."""
     from laddercodec.decode import _drop_tall_span_nops
 
     instrs = ["", "NOP", ""]
@@ -340,9 +342,11 @@ def test_drop_tall_span_nops_keeps_standalone_nop() -> None:
 
 
 def test_drum_with_parallel_branch_roundtrips() -> None:
-    """A drum with a parallel input branch running past its body
-    (``T`` → ``|`` … → ``X002``) keeps every row positional through CSV,
-    instead of collapsing ``X002`` up into the drum's jog slot."""
+    """A drum whose parallel input branch runs below the drum box keeps every row in place
+    through CSV rows.
+
+    The branch runs down from ``T`` through ``|`` cells to ``X002`` in the bottom row.
+    ``X002`` does not move up into the row of the drum's jog input."""
     from laddercodec.csv.writer import _rebuild_rung_from_rows, decoded_rung_to_rows
     from laddercodec.instructions import Drum
 

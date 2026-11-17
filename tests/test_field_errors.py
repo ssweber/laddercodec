@@ -1,8 +1,9 @@
-"""The field error pyrung reads: every refusal of one construction, each with a stable shape.
+"""Test the shape of FieldError, which pyrung reads.
 
-``FieldError.errors`` holds every refusal, the raised one first; ``field`` is ``Class.attr``;
-``reason`` is a :class:`~laddercodec.Reason` and ``click_id`` CLICK's own error id.  The
-fixture in ``conftest.py`` checks the field and reason of every refusal the suite builds.
+One construction raises one FieldError, and ``FieldError.errors`` holds every refusal, with
+the raised one first. In each refusal, ``field`` is ``Class.attr``, ``reason`` is a
+:class:`~laddercodec.Reason`, and ``click_id`` is CLICK's own error id. The fixture in
+``conftest.py`` checks the field and reason of every refusal that the test suite builds.
 """
 
 from __future__ import annotations
@@ -127,7 +128,9 @@ def test_pickle_keeps_every_refusal() -> None:
 
 
 def test_timer_gives_every_refusal() -> None:
-    """A wrong done and a preset of 40000: two refusals; the TD match is not checked."""
+    """A done bit in the wrong bank and a preset of 40000 give two refusals.
+
+    The accumulator is not checked against the refused done bit."""
     errors = _refusals(lambda: _timer(done="C1", preset="40000"))
     assert _shape(errors) == [
         ("Timer.done", "bank", None),
@@ -167,7 +170,7 @@ def test_timer_retained_off_delay_needs_both_fields_taken() -> None:
     (error,) = _refusals(lambda: _timer(kind="off_delay", retained=True))
     assert error.fields == ("Timer.retained", "Timer.kind")
     assert error.reason == Reason.CONFLICT
-    # A refused flag value is not read again for the pair.
+    # When the flag value itself is refused, the pair is not checked.
     (flag,) = _refusals(lambda: _timer(kind="off_delay", retained=2))
     assert flag.reason == Reason.FLAG
 
@@ -201,7 +204,10 @@ def test_coil_gives_every_refusal() -> None:
     [("C5", "Y5", "OBJ-008"), ("C9", "C1", "OBJ-009"), ("C5", "C5", "OBJ-012")],
 )
 def test_coil_range(kind: CoilKind, start: str, end: str, click_id: str) -> None:
-    """Out, Set and Reset give the same ids: another bank, an end below, the same address."""
+    """Out, Set and Reset refuse a bad range end with the same CLICK ids.
+
+    The ids are OBJ-008 for another bank, OBJ-009 for an end below the start, and OBJ-012
+    for the same address."""
     (error,) = _refusals(lambda: Coil(start, kind=kind, range_end=end))
     assert error.fields == ("Coil.range_end", "Coil.operand")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, click_id)
@@ -214,8 +220,8 @@ def test_coil_range(kind: CoilKind, start: str, end: str, click_id: str) -> None
     [("C1", "DS1"), ("C1", "TXT1"), ("Y001", "X001"), ("Y001", "ds1"), ("Y001", "DS[DS1]")],
 )
 def test_coil_range_into_a_refused_bank_is_obj_008(kind: CoilKind, start: str, end: str) -> None:
-    """An end in another bank, a pointer CLICK reads included, is OBJ-008 before its own
-    refusal."""
+    """A range end in another bank is refused with OBJ-008 alone, before any refusal of the
+    end itself. The same holds for a pointer that CLICK reads."""
     errors = _refusals(lambda: Coil(start, kind=kind, range_end=end))
     assert _shape(errors) == [("Coil.range_end", "conflict", "OBJ-008")]
     assert errors[0].fields == ("Coil.range_end", "Coil.operand")
@@ -223,7 +229,9 @@ def test_coil_range_into_a_refused_bank_is_obj_008(kind: CoilKind, start: str, e
 
 @pytest.mark.parametrize("end", ["X[DS1]", "DS[DS0]", "DS[DS[DS1]]"])
 def test_coil_range_end_click_does_not_read_as_a_pointer_has_no_id(end: str) -> None:
-    """A pointer CLICK does not read (OBJ-005 for Y001..X[DS1]) has no bank to compare."""
+    """A pointer that CLICK does not read has no bank to compare, so its refusal has no id.
+
+    CLICK refuses Y001..X[DS1] with OBJ-005."""
     assert _shape(_refusals(lambda: Coil("Y001", range_end=end))) == [
         ("Coil.range_end", "address", None)
     ]
@@ -235,21 +243,24 @@ def test_coil_range_end_click_does_not_read_as_a_pointer_has_no_id(end: str) -> 
 def test_coil_range_across_banks_comes_before_the_end_s_own_checks(
     start: str, end: str, immediate: bool
 ) -> None:
-    """laddercodec's own: no answer covers an end CLICK would also refuse as not writable (SC1)
-    or as not immediate (C2); the bank pairing comes first, as in ``C1..DS1``."""
+    """A range end in another bank is OBJ-008, before the checks of the end itself.
+
+    This order is laddercodec's choice. No CLICK answer covers an end that CLICK would also
+    refuse as not writable (SC1) or as not immediate (C2). laddercodec checks the bank pair
+    first, as for ``C1..DS1``."""
     assert _shape(_refusals(lambda: Coil(start, range_end=end, immediate=immediate))) == [
         ("Coil.range_end", "conflict", "OBJ-008")
     ]
 
 
 def test_coil_skips_what_depends_on_a_refused_field() -> None:
-    # A refused kind: the one-shot pairing is not checked.
+    # When the kind is refused, the one-shot pairing is not checked.
     assert _shape(_refusals(lambda: Coil("C1", kind=99, oneshot=True))) == [  # type: ignore[arg-type]
         ("Coil.kind", "choice", None)
     ]
-    # A refused immediate flag: C1 is not refused as an immediate target.
+    # When the immediate flag is refused, C1 is not refused as an immediate target.
     assert _shape(_refusals(lambda: Coil("C1", immediate=2))) == [("Coil.immediate", "flag", None)]
-    # A refused range start: the range pairing is not checked.
+    # When the range start is refused, the range pairing is not checked.
     assert _shape(_refusals(lambda: Coil("C0", range_end="Y5"))) == [
         ("Coil.operand", "address", None)
     ]
@@ -267,7 +278,8 @@ def test_coil_immediate_target_is_a_conflict_with_immediate() -> None:
     (error,) = _refusals(lambda: Coil("C1", immediate=True))
     assert error.fields == ("Coil.operand", "Coil.immediate")
     assert error.reason == Reason.CONFLICT
-    # A pair refuses its leading field only: the range end is checked against immediate too.
+    # A refusal of a pair blocks later refusals of its leading field only, so the range end
+    # is still checked against immediate.
     errors = _refusals(lambda: Coil("C1", range_end="C5", immediate=True))
     assert [e.fields for e in errors] == [
         ("Coil.operand", "Coil.immediate"),
@@ -325,7 +337,7 @@ def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
 
 @dataclasses.dataclass
 class _Inner(AfInstruction):
-    a: str = "x"  # not blank: a blank is refused as missing
+    a: str = "x"  # not blank, because a blank value is refused as missing
     b: str = "x"
 
     def __post_init__(self) -> None:
@@ -346,7 +358,7 @@ class _Outer(AfInstruction):
                 check.refuse("items[1]", "is refused", Reason.BANK, code=Code.BANK_NOT_ALLOWED)
                 check.refuse(
                     "items", "is refused too", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE
-                )  # its item was refused
+                )  # dropped, because an item of the list was refused
                 check.refuse(
                     "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
                 )
@@ -362,7 +374,7 @@ class _Outer(AfInstruction):
                 )
                 check.refuse(
                     "items[0]", "is skipped", Reason.BANK, code=Code.BANK_NOT_ALLOWED
-                )  # items leads a refusal
+                )  # dropped, because items leads a refusal above
             elif self.mode == "list":
                 check.refuse("items", "is refused", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE)
                 assert check.refused("items[0]")
@@ -382,7 +394,7 @@ class _Outer(AfInstruction):
             elif self.mode == "raised nested":
                 _Inner()
             elif self.mode == "together":
-                # One check's refusals of one field, as a Math formula gives them.
+                # Two refusals of one field from one check, as a Math formula check raises them.
                 error = FieldError(
                     "_Outer.other: one", field="_Outer.other", code=Code.INVALID_CHOICE
                 )
@@ -446,7 +458,9 @@ def test_unconverted_class_raises_one_refusal() -> None:
 
 
 def test_labels_are_not_fields() -> None:
-    """Send and Receive messages keep their wording; the field is ``Class.attr``."""
+    """Send and Receive messages start with their own label, such as ``Receive dest:``.
+
+    The field is still ``Class.attr``."""
     target = ModbusRtuTarget(name="r", com_port="cpu2", device_id=1)
     common: dict[str, Any] = dict(
         target=target, remote_start="DS1", quantity=1, success="", error="",
@@ -484,7 +498,7 @@ def test_display_form_refusal_names_the_field() -> None:
 
 
 def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
-    """The conftest fixture is active: a refusal naming no field of its class fails."""
+    """The conftest fixture fails a refusal that names a field its class does not have."""
 
     @dataclasses.dataclass
     class Box(AfInstruction):
@@ -590,7 +604,7 @@ def test_shift_same_ends_is_a_conflict() -> None:
 
 
 def test_every_reason_has_a_docstring() -> None:
-    """A string after each member, which the API reference shows."""
+    """Each member of Reason has a docstring after it, which the API reference shows."""
     import ast
     import inspect
 

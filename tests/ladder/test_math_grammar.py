@@ -1,9 +1,12 @@
-"""The Math formula reader against CLICK's Math grammar, one test per rule.
+"""Test the Math formula reader against CLICK's Math grammar, with one test per rule.
 
-Sources: the Math dialog's check (the steps of ``docs/internals/instruction-blobs.md``,
-"Math formula grammar"), the dialog answers and the native captures.
-``math_unary_plus_pi.bin`` is ``fixtures/v4_captures/math_unary_plus_pi.bin``: two formulas
-typed in CLICK v4, then one rung per formula the dialog refused, its comment naming the formula.
+The rules are the steps of the check that CLICK's Math dialog runs, as "Math formula grammar"
+in ``docs/internals/instruction-blobs.md`` lists them. The expected results come from what the
+dialog accepted and refused, and from captures of what CLICK saved.
+
+``math_unary_plus_pi.bin`` is ``fixtures/v4_captures/math_unary_plus_pi.bin``. It holds two
+formulas typed in CLICK v4. After them it holds one rung for each formula that the dialog
+refused, with a comment that names the formula.
 """
 
 from __future__ import annotations
@@ -66,8 +69,9 @@ def test_hex_constant_with_digits_then_e_is_refused(constant: str) -> None:
 def test_hex_constant_click_stores_with_digits_e_digits_is_read(
     typed: str, display: str, value: int
 ) -> None:
-    # A hex Math stores a constant typed 1e3 (no h) as 1E3h, UH483: the real number the
-    # tokenizer cuts is followed only by the h, so the word is read as hex.
+    # A hex Math stores a constant typed 1e3 (no h) as 1E3h, UH483. CLICK's tokenizer rule
+    # would split 1E3h into the real number 1E3 and a lone h. laddercodec reads a word split
+    # before a lone h as hex, so these constants read as hex.
     assert _views(f"DH1 + {typed}", "hex") == (
         f"DH1 + {display}",
         f"@ + {display}",
@@ -102,8 +106,8 @@ def test_trig_body_holds_a_colon_only_in_a_sum() -> None:
 
 
 def test_hex_bare_digits_stay_refused() -> None:
-    # CLICK rewrites hex DH1 + 7 as 7h; laddercodec keeps the CSV's intent and refuses it,
-    # naming the h form, as it refuses 7H7, which CLICK rewrites as 77h.
+    # In a hex Math, CLICK rewrites DH1 + 7 as DH1 + 7h, and 7H7 as 77h. laddercodec refuses
+    # both instead of changing what the CSV says. For 7 and 1e3 the message names the h form.
     _refused("DH1 + 7", "hex", "7 has no h; a hex Math takes hex constants, .* write 7h")
     _refused("DH1 + 1e3", "hex", "1e3 has no h; .* reads it as 1E3h: write 1E3h")
     _refused("DH1 + 7H7", "hex", "'7H7' is not an address")
@@ -142,7 +146,8 @@ def test_hex_no_h_message_names_a_fix_that_is_taken(expression: str, fix: str, f
 def test_hex_no_h_message_names_no_fix_where_the_h_form_is_refused(
     expression: str, with_h: str
 ) -> None:
-    # A signed argument of RAND or a shift is refused with its h too (OBJ-1001).
+    # RAND and the shifts refuse a signed argument even with its h (OBJ-1001), so the
+    # message names no fix.
     with pytest.raises(FieldError) as caught:
         parse(expression, "hex")
     first = str(caught.value.errors[0])
@@ -154,7 +159,8 @@ def test_hex_no_h_message_names_no_fix_where_the_h_form_is_refused(
 
 @pytest.mark.parametrize("word", ["00005", "000FF", "0FFFE"])
 def test_hex_five_typed_digits_name_no_h_form(word: str) -> None:
-    # CLICK counts the digits as typed: five are refused (OBJ-1009), so no h form is named.
+    # CLICK counts the digits as typed and refuses five (OBJ-1009), so the message names no
+    # h form.
     with pytest.raises(FieldError) as caught:
         parse(f"DH1 + {word}", "hex")
     assert "has no h" not in str(caught.value)
@@ -172,7 +178,7 @@ def test_hex_five_typed_digits_name_no_h_form(word: str) -> None:
         ("SUM(DS1:DS3)", "SUM ( DS1 : DS3 )"),  # and on ( ) , :
         ("DS1\t+   DS2", "DS1 + DS2"),  # a run of spaces or tabs is one gap
         ("DF1*1.5E+10", "DF1 * 1.5E+10"),  # a real number keeps its exponent sign
-        ("DF1+.5", "DF1 + 0.5"),  # a real is printed back
+        ("DF1+.5", "DF1 + 0.5"),  # a real is written as CLICK prints its value
         ("DF1+1.", "DF1 + 1.0"),
     ],
 )
@@ -182,19 +188,20 @@ def test_tokenizer_splits_as_clicks(typed: str, display: str) -> None:
 
 @pytest.mark.parametrize("word", ["1.5x", "1.2.3", "2E5DS", "1EMOD"])
 def test_word_the_number_rule_cuts_is_refused(word: str) -> None:
-    # The longest real number a digit run starts is one token; a word going on past it
-    # would be two tokens side by side.
+    # CLICK's tokenizer ends a number token at the end of the longest real number that a run
+    # of digits starts. A word that goes on past that point would be two tokens side by side.
     _refused(f"DF1 + {word}", "decimal", "is not an address, a function name or a constant")
 
 
 @pytest.mark.parametrize("char", ["=", "#", "@", ";", "!", "&", "<", "\n", "\xa0", "\u2003"])
 def test_character_outside_a_formula_is_refused(char: str) -> None:
-    # Only a space or a tab separates tokens; other white space is refused.
+    # Only a space or a tab separates tokens. Other white space is refused.
     _refused(f"DS1 +{char}DS2", "decimal", "is no part of a Math formula")
 
 
 def test_pointer_is_refused() -> None:
-    # CLICK takes a pointer in Math; its pass was not read, and laddercodec refuses it.
+    # CLICK accepts a pointer in Math. The step of CLICK's check that handles a pointer has
+    # not been read, so laddercodec refuses one.
     _refused("DS[DS1] + 1", "decimal", "'\\[' is part of a pointer")
 
 
@@ -207,9 +214,9 @@ def test_pointer_is_refused() -> None:
     "expression", ["DS1 + FOO", "DS1 + NAN", "DS1 + 0x1A", "DS1 + .", "DS1 . DS2"]
 )
 def test_word_is_refused(expression: str) -> None:
-    # FOO: dialog answer.  NAN and the strtod hex real 0x1A: CLICK's converter
-    # takes them; laddercodec refuses them.  A lone '.':
-    # math_unary_plus_pi.bin refuses DS1 + .
+    # CLICK's dialog refuses FOO. CLICK's number converter (strtod) accepts NAN and the hex
+    # real 0x1A, but laddercodec refuses them. For a lone '.', a rung in
+    # math_unary_plus_pi.bin records that CLICK refused DS1 + .
     _refused(expression, "decimal", "is not an address, a function name or a constant")
 
 
@@ -223,13 +230,15 @@ def test_word_is_refused(expression: str) -> None:
     ],
 )
 def test_decimal_integer_is_h_or_w_by_int16(constant: str, internal: str) -> None:
-    # 32767 is H, 40000 and 100000 are W.
+    # An integer inside the int16 range gets H, and one outside it gets W.
     assert parse(f"( {constant} )", "decimal").internal() == f"(#{internal}#)"
 
 
 @pytest.mark.parametrize("constant", ["007", "00", "3000000000", "000000000001", "9" * 5000])
 def test_decimal_integer_must_print_back_at_its_length(constant: str) -> None:
-    # _wtoi64, low 32 bits, %d; %d prints at most 11 characters.
+    # CLICK reads the integer with _wtoi64, keeps the low 32 bits and prints them with %d.
+    # It refuses the integer unless the print has the typed length. %d prints at most 11
+    # characters.
     _refused(f"DS1 + {constant}", "decimal", f"{constant[:20]}")
 
 
@@ -241,9 +250,10 @@ def test_real_is_f_and_fits_float32() -> None:
 @pytest.mark.parametrize(
     "constant",
     [
-        # CLICK's answers: refused, though float32 rounds it to its largest value.
+        # CLICK refuses this one, though float32 rounds it to its largest value.
         "3.4028235E+38",
-        # laddercodec's, until CLICK answers: above float32's largest value as typed.
+        # Nobody has tried these in CLICK. laddercodec refuses them because, as typed, they
+        # are above float32's largest value in size.
         "3.40282347E+38",
         "-3.4028235E+38",
     ],
@@ -261,14 +271,14 @@ def test_real_above_the_largest_float32_is_refused(constant: str) -> None:
 
 @pytest.mark.parametrize("constant", ["3.40282E+38", "-3.40282E+38", "1E-50"])
 def test_real_up_to_the_largest_float32_is_taken(constant: str) -> None:
-    # The largest real of 6 significant digits, and a small one.
+    # The largest real of 6 significant digits, its negative, and a small real.
     assert parse(f"DF1 * ( {constant} )", "decimal").internal() == f"DF1#*#(#F{constant}#)"
 
 
 @pytest.mark.parametrize(
     ("constant", "digits", "kept"),
     [
-        # CLICK's answer: 0.33333334 typed in a formula is saved as 0.333333.
+        # CLICK saves 0.33333334 typed in a formula as 0.333333.
         ("0.33333334", 8, "0.333333"),
         ("1.234567", 7, "1.23457"),
         ("1234567.89", 9, "1234570.0"),
@@ -297,14 +307,14 @@ def test_real_of_6_digits_trailing_zeros_aside_is_taken(constant: str) -> None:
 @pytest.mark.parametrize(
     ("typed", "stored"),
     [
-        # CLICK's answers: a real is stored as CLICK prints it back, display and internal.
+        # CLICK stores a real as it prints the value, in the display and internal forms.
         ("1.50", "1.5"),
         ("1e3", "1000.0"),
         (".5", "0.5"),
         ("1.5E+10", "1.5E+10"),
-        # A typed sign stays with it (DS1 + ( +2.5 ) is stored F+2.5).
+        # A typed sign stays with the real. CLICK stores DS1 + ( +2.5 ) with F+2.5.
         ("( +2.50 )", "( +2.5 )"),
-        # Exponent form is kept as typed: how CLICK prints it is not known beyond 1.5E+10.
+        # laddercodec keeps an exponent form as typed. Only 1.5E+10 shows how CLICK prints one.
         ("( -1.5e10 )", "( -1.5e10 )"),
         ("1.0E-10", "1.0E-10"),
     ],
@@ -319,9 +329,9 @@ def test_real_is_written_as_click_prints_it(typed: str, stored: str) -> None:
 
 
 def test_hex_constant_is_written_as_click_shows_it() -> None:
-    # %Xh of the value.
+    # CLICK prints the value with %Xh.
     assert _views("DH1 + 0fH", "hex") == ("DH1 + Fh", "@ + Fh", "@#+#UH15", "DH1#+#UH15")
-    _refused("DH1 + 0FFFEh", "hex", "0FFFEh is outside 0h..FFFFh")  # four digits as typed
+    _refused("DH1 + 0FFFEh", "hex", "0FFFEh is outside 0h..FFFFh")  # at most 4 digits as typed
 
 
 def test_each_mode_takes_its_own_constants() -> None:
@@ -359,7 +369,7 @@ def test_decimal_sign_joins_its_constant(typed: str, internal: str) -> None:
 
 
 def test_plus_sign_joins_its_constant() -> None:
-    # math_unary_plus_pi.bin: typed DS1 + ( +5 ), stored as these four strings.
+    # In math_unary_plus_pi.bin, CLICK stored a typed DS1 + ( +5 ) as these four strings.
     assert _views("DS1 + ( +5 )", "decimal") == (
         "DS1 + ( +5 )",
         "@ + ( +5 )",
@@ -370,17 +380,18 @@ def test_plus_sign_joins_its_constant() -> None:
 
 
 def test_plus_sign_keeps_the_length_rule() -> None:
-    # The check string is '+' and %d of the value, so +007 prints back as +7.
+    # CLICK prints '+' and then the value with %d, so +007 prints back as +7 and is refused.
     _refused("( +007 )", "decimal", "\\+007 is refused; CLICK reads it back as \\+7")
 
 
 def test_hex_sign_stays_a_token() -> None:
-    # Typed ( -Ah ), stored (#-#UH10#).
+    # CLICK stores ( -Ah ) typed in a hex Math as (#-#UH10#).
     assert parse("DH1 + ( -Ah )", "hex").internal() == "DH1#+#(#-#UH10#)"
 
 
 def test_hex_plus_sign_stays_a_token() -> None:
-    # No sign joins in a hex Math [code, step 5], as math_hex_signed.bin shows for '-'.
+    # In a hex Math no sign joins its constant (step 5 of CLICK's check). math_hex_signed.bin
+    # shows this for '-'.
     assert _views("DH1 + ( +Ah )", "hex") == (
         "DH1 + ( + Ah )",
         "@ + ( + Ah )",
@@ -402,7 +413,7 @@ def test_keys_of_the_other_keypad_are_refused() -> None:
 @pytest.mark.parametrize(
     ("expression", "message"),
     [
-        # '(' may not be followed by an operator other than a sign, ',', ':' or ')'
+        # '(' may not be followed by ',', ':', ')' or an operator other than a sign
         ("( * DS1 )", "'\\*' after '\\(': it needs a value before it"),
         ("( )", "the parentheses hold nothing"),
         ("( : DS3 )", "':' after '\\('"),
@@ -410,7 +421,7 @@ def test_keys_of_the_other_keypad_are_refused() -> None:
         ("( DS1 ) ( DS2 )", "'\\(' after '\\)'"),
         ("( DS1 ) DS2", "'DS2' after '\\)'"),
         ("( DS1 ) SIN ( DS2 )", "'SIN' after '\\)'"),
-        ("RAND ( 1 , 10 ) DS1", "'DS1' after '\\)'"),  # math_unary_plus_pi.bin
+        ("RAND ( 1 , 10 ) DS1", "'DS1' after '\\)'"),  # refused in math_unary_plus_pi.bin
         # an operator may not be followed by ')', an operator, ',' or ':'
         ("( DS1 + )", "'\\)' after '\\+'"),
         ("DS1 + * DS2", "'\\*' after '\\+'"),
@@ -440,7 +451,7 @@ def test_shift_may_not_follow_a_comma() -> None:
 
 
 def test_shift_may_not_follow_a_value() -> None:
-    # math_unary_plus_pi.bin refuses DS1 LSH 1h.
+    # A rung in math_unary_plus_pi.bin records that CLICK refused DS1 LSH 1h.
     _refused("DS1 LSH 1h", "hex", "'LSH' after 'DS1'")
 
 
@@ -477,7 +488,7 @@ def test_formula_may_start_with_a_sign_or_end_with_pi() -> None:
     ],
 )
 def test_rand_takes_one_token_per_argument(expression: str) -> None:
-    # The editor refuses a compound argument; laddercodec refuses it.
+    # CLICK's editor refuses an argument of more than one token, and so does laddercodec.
     _refused(expression, "decimal", "RAND takes RAND \\( a , b \\)")
 
 
@@ -491,14 +502,14 @@ def test_shift_takes_one_token_per_argument(expression: str) -> None:
 
 @pytest.mark.parametrize("expression", ["SUM DS1", "ABS DS1", "MAX DS1", "RAND .5"])
 def test_every_function_takes_parentheses(expression: str) -> None:
-    # The trig functions follow the check; math_unary_plus_pi.bin refuses SUM DS1, and the other
-    # functions follow it.
+    # CLICK's check requires '(' after a trig function. A rung in math_unary_plus_pi.bin
+    # records that CLICK refused SUM DS1. laddercodec treats the other functions as SUM.
     _refused(expression, "decimal", "takes its argument in parentheses")
 
 
 def test_pi_may_take_parentheses() -> None:
-    # The checker lets '(' follow PI; math_unary_plus_pi.bin stores typed PI ( 2 )
-    # in call form.
+    # CLICK's check lets '(' follow PI. In math_unary_plus_pi.bin, CLICK stored a typed
+    # PI ( 2 ) in call form.
     assert _views("PI ( 2 )", "decimal") == ("PI ( 2 )", "PI ( 2 )", "PI#(#H2#)", "PI#(#H2#)")
     _refused("PI DS1", "decimal", "'DS1' after 'PI'")
 
@@ -506,8 +517,8 @@ def test_pi_may_take_parentheses() -> None:
 @pytest.mark.parametrize(
     "expression",
     [
-        "SUM ( DS1 + DS2 )",  # math_unary_plus_pi.bin
-        "MAX ( DS1 , DS2 )",  # math_unary_plus_pi.bin
+        "SUM ( DS1 + DS2 )",  # refused in math_unary_plus_pi.bin
+        "MAX ( DS1 , DS2 )",  # refused in math_unary_plus_pi.bin
         "SUM ( DS1 )",
         "SUM ( DS1 : DS3 : DS5 )",
         "SUM ( 1 : 5 )",
@@ -515,7 +526,8 @@ def test_pi_may_take_parentheses() -> None:
     ],
 )
 def test_range_function_takes_two_addresses(expression: str) -> None:
-    # SUM, MAX, MIN, MDN and AVG take F ( addr : addr ); math_unary_plus_pi.bin confirms it.
+    # SUM, MAX, MIN, MDN and AVG take the form F ( addr : addr ). The refused rungs in
+    # math_unary_plus_pi.bin agree with this rule.
     name = expression.split()[0]
     _refused(expression, "decimal", f"{name} takes {name} \\( a : b \\)")
 
@@ -528,8 +540,8 @@ def test_hex_range_function_takes_two_addresses() -> None:
     "expression", ["DS1 , DS2", "DS1 + 1 , 5", "( DS1 , DS2 )", "ABS ( DS1 , DS2 )"]
 )
 def test_comma_outside_a_two_argument_call_is_refused(expression: str) -> None:
-    # OBJ-037 "Please use a period (.) as a decimal point.", the dialog's answer to
-    # DS1 , DS2 (math_unary_plus_pi.bin).
+    # A rung in math_unary_plus_pi.bin records that CLICK's dialog refused DS1 , DS2 with
+    # OBJ-037 "Please use a period (.) as a decimal point."
     _refused(expression, "decimal", "use a period \\(.\\) as the decimal point")
 
 
@@ -541,8 +553,8 @@ def test_colon_outside_a_range_function_is_refused(expression: str) -> None:
 
 @pytest.mark.parametrize("address", ["DS0", "DS4501", "XD1u", "X017", "DS100000000"])
 def test_address_passes_the_full_check(address: str) -> None:
-    # math_unary_plus_pi.bin refuses DS1 + DS0: the bank's range is checked, not only the
-    # address's shape.
+    # CLICK refused DS1 + DS0 in math_unary_plus_pi.bin, so it checks each address against
+    # its bank's range, not only its shape.
     with pytest.raises(AddressError, match=f"'{address}'"):
         Math(f"DS1 + {address}", "DS9")
 
@@ -571,7 +583,8 @@ def test_comma_function_is_stored_infix(expression: str, mode: str, internal: st
 
 
 def test_template_writes_at_for_each_address() -> None:
-    # retyped/math_xd.bin: XD and YD addresses are @ in the template too.
+    # retyped/math_xd.bin shows that CLICK writes XD and YD addresses as @ in the template,
+    # like other addresses.
     assert _views("XD0u AND YD1", "hex") == ("XD0u AND YD1", "@ AND @", "@#AND#@", "XD0u#AND#YD1")
 
 
@@ -582,9 +595,9 @@ def test_template_writes_at_for_each_address() -> None:
 _NEEDLE = "Math".encode("utf-16-le") + b"\x00\x00"
 _SLOT_TAGS = (0x6888, 0x688C)
 
-#: Blobs the encoder wrote before its current rules, in retyped/math_wide.bin: its XD/YD
-#: rungs keep the address in the template, where CLICK writes @ (native retyped/math_xd.bin),
-#: and its 69-address sum is over the 270-character cap.
+#: Formulas in retyped/math_wide.bin, which an older version of the encoder wrote. Its XD
+#: and YD rungs put the address itself in the template, where CLICK writes @, as CLICK's own
+#: retyped/math_xd.bin shows. Its sum of 69 addresses is over the 270-character limit.
 _OLD_TEMPLATES = {"XD0 AND 1h", "XD0u AND 1h", "YD1 AND 1h", "MAX ( XD0 : XD3 )"}
 
 
@@ -598,7 +611,10 @@ def _clipboard_files() -> list[tuple[str, bytes]]:
 
 
 def _fixture_blobs() -> list[tuple[str, bool, str, dict[int, str]]]:
-    """(file, native, mode, header tags) of each Math blob in the clipboard fixtures."""
+    """Return (file, native, mode, header tags) for each Math blob in the clipboard fixtures.
+
+    *native* is True when CLICK's editor wrote the blob.
+    """
     found = []
     for name, buf in _clipboard_files():
         i = -1
@@ -618,11 +634,13 @@ _DECODE_PROGRAM = importlib.import_module("laddercodec.decode_program")
 
 
 def _scr_blobs() -> list[tuple[str, bool, str, dict[int, str]]]:
-    """(file, native, mode, tags) of each Math the SCR decoder reads in the fixtures.
+    """Return (file, native, mode, tags) for each Math that the SCR decoder reads in the
+    fixtures.
 
-    ``decode_program`` returns the decoded ``Math``, not the strings the SCR file stores,
-    and no public function returns an SCR instruction's tags.  So this wraps the private
-    ``_scr_af``, which the SCR decoder calls with each AF cell's tags.
+    ``decode_program`` returns the decoded ``Math``, not the strings that the SCR file
+    stores, and no public function returns the tags of an SCR instruction. This function
+    therefore wraps the private ``_scr_af``, which the SCR decoder calls with the tags of
+    each AF cell.
     """
     found: list[tuple[str, bool, str, dict[int, str]]] = []
     read = _DECODE_PROGRAM._scr_af
@@ -663,7 +681,7 @@ def test_fixtures_hold_native_math() -> None:
 def test_reader_prints_every_stored_math(
     path: str, native: bool, mode: str, tags: dict[int, str]
 ) -> None:
-    """Each formula, read from its stored form, prints back the four strings stored."""
+    """Each stored formula, parsed, prints back the four strings that its blob stores."""
     expression = _reconstruct_expression(tags[0x61FF], tags[0x61FD])
     if not native and path.endswith("math_wide.bin"):
         if len(tags[0x6229]) > 270:
@@ -675,8 +693,8 @@ def test_reader_prints_every_stored_math(
             assert tags[0x61FF] == formula.display != formula.template
             assert formula.internal() == tags[0x61FD]
             return
-    # The X/Y ranges of v4_captures/math_ranges_*.bin that laddercodec refuses; the
-    # encoder also wrote SUM ( X001 : X036 ) into retyped/math_wide.bin.
+    # laddercodec refuses some X and Y ranges in v4_captures/math_ranges_*.bin. An older
+    # encoder also wrote one of them, SUM ( X001 : X036 ), into retyped/math_wide.bin.
     if expression in REFUSED_XY_RANGES:
         with pytest.raises(FieldError, match=re.escape(xy_range_message(expression))):
             parse(expression, mode)
@@ -687,8 +705,9 @@ def test_reader_prints_every_stored_math(
     assert formula.internal() == tags[0x61FD]
     display = tags[0x6228]
     if tags.get(0x2224) == "1":
-        # Nickname view: each address shows its project nickname, which the blob names only
-        # in the display; compare the rest of the display.
+        # With nicknames shown, the display names each address by its project nickname in
+        # <...>, and no other field holds the nickname. Replace each one with @ and compare
+        # the result with the template.
         parts = display.split("<")
         display = parts[0] + "".join("@" + p.split(">", 1)[1] for p in parts[1:])
         assert display == formula.template
@@ -718,8 +737,8 @@ def _raw_maths(rungs: list) -> list[RawInstruction]:  # noqa: ANN001
 
 
 def test_refused_stored_formula_decodes_as_raw() -> None:
-    # math_unary_plus_pi.bin's DS1 + ( +5 ), its template rewritten to DS1 + +5, a sign
-    # right after an operator.
+    # Take DS1 + ( +5 ) from math_unary_plus_pi.bin and rewrite its template as DS1 + +5,
+    # which puts a sign right after an operator.
     buf = (FIXTURES / "v4_captures" / "math_unary_plus_pi.bin").read_bytes()
     stored, refused = "@ + ( +5 )".encode("utf-16-le"), "@ + +5    ".encode("utf-16-le")
     rungs = decode(buf.replace(stored, refused))
@@ -730,7 +749,7 @@ def test_refused_stored_formula_decodes_as_raw() -> None:
 
 
 def test_refused_stored_formula_keeps_its_refusal_from_scr() -> None:
-    # sm_IsCmdValid.scr's DH51 AND DH52, its template rewritten to DH51 DH52 AND.
+    # Take DH51 AND DH52 from sm_IsCmdValid.scr and rewrite its template as DH51 DH52 AND.
     data = (FIXTURES / "tumbler" / "subroutines" / "sm_IsCmdValid.scr").read_bytes()
     stored = "@ AND @".encode("utf-16-le")
     assert stored in data
@@ -768,7 +787,8 @@ def test_stored_constant_of_5000_digits_keeps_its_refusal() -> None:
     digits = "9" * 5000
     parsed = kept(parse_af_blob(_blob(f"@ + {digits}", f"DS1#+#H{digits}")), "Math.expression")
     assert parsed.expression == f"DS1 + {digits}"
-    # A long constant only in the internal formula reads no further than the template.
+    # The reader takes constants from the template, so a long constant that only the
+    # internal formula holds is not read.
     parsed = parse_af_blob(_blob("@ + 5", f"DS1#+#H{digits}"))
     assert isinstance(parsed, Math)
     assert parsed.expression == "DS1 + 5"

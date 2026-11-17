@@ -1,7 +1,7 @@
-"""Golden round-trip tests and validation tests for decode_rungs().
+"""Test decoding of multi-rung clipboard binaries, and the error that decode_rungs() raises.
 
-For each multi-rung golden .bin fixture (mr-*.csv), decodes the binary and
-compares the result against the CSV-derived data.
+For each golden CSV named mr-*.csv, the test decodes the .bin file beside it and compares
+each rung with what read_csv() returns for the CSV.
 """
 
 from __future__ import annotations
