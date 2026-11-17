@@ -521,6 +521,7 @@ _Compare.__post_init__ = _int_of_the_text
 """
 
 _MISREADING_COMPARE = """
+from laddercodec.codes import Code as _Code
 from laddercodec.model import FieldError as _FieldError
 from laddercodec.instructions.comparison import CompareContact as _Compare
 
@@ -531,7 +532,7 @@ def _refuse_the_zeros(self):
     # A FieldError for a long run of leading zeros: not the shared check's verdict.
     for value in (self.left, self.right):
         if len(value) > 4300 and value.lstrip("+-").startswith("0"):
-            raise _FieldError("CompareContact: too many digits")
+            raise _FieldError("CompareContact: too many digits", code=_Code.CONSTANT_OUT_OF_RANGE)
     _built(self)
 
 

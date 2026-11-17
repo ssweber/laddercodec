@@ -283,7 +283,7 @@ comment is the note alone.
 text reads as styling when you encode it, as it does in any comment.
 
 A marker never reaches CLICK. `encode()` refuses it, and `check()` reports it as an
-`undecoded` finding. `write_csv()` writes it as an `undecoded(...)` token, and
+`undecoded-rung` finding. `write_csv()` writes it as an `undecoded(...)` token, and
 `read_csv()` reads that token back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).
 
 ## Check for CLICK v4 instructions
@@ -326,7 +326,7 @@ for finding in check(read_csv("main.csv")):
 # rung 0: the circuit is not series-parallel (CLICK: C0001)
 ```
 
-Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
+Each `Finding` has `rung`, `code`, `click_id`, `captured`, `row`, `column` and
 `message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
 is AF). `row` and `column` are `None` for a finding about the whole rung.
 
@@ -336,23 +336,24 @@ first row is blank, the count starts on the second row. That rests on one captur
 and CLICK may count otherwise. Every other message gives the cell counted from 0.
 
 `captured` is `True` where a CLICK capture shows its syntax check reporting the
-shape with that code:
-| `kind` | shape | `code` |
+shape with that CLICK id. [Error codes](codes.md) lists every code.
+
+| `code` | shape | `click_id` |
 |---|---|---|
-| `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
-| `no_rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
-| `feeds_no_box` | a path from the rail that reaches no box input, at its last contact (the cell CLICK named in three captured rungs) | `C0202` |
-| `no_coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
-| `nop_only_contact` | a contact the rail reaches that feeds a `NOP` and no other box, even when a coil is on another wire or leg of the rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
-| `shorted_contact` | a contact whose two sides a wire joins (in parallel with a wire-only leg); CLICK's text is "Short circuit error" | `C0002` |
-| `unwired_pin` | a timer's or counter's reset whose row holds nothing (no contact, no wire, no vertical into it), at its AF cell | `C0202` |
-| `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off the pinned box's main input's net, once per group of boxes that share nets | `C000A` |
-| `shared_input_net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
-| `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
-| `undecoded` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
+| `not-series-parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
+| `no-rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
+| `feeds-no-box` | a path from the rail that reaches no box input, at its last contact (the cell CLICK named in three captured rungs) | `C0202` |
+| `no-coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
+| `contact-feeds-only-nop` | a contact the rail reaches that feeds a `NOP` and no other box, even when a coil is on another wire or leg of the rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
+| `shorted-contact` | a contact whose two sides a wire joins (in parallel with a wire-only leg); CLICK's text is "Short circuit error" | `C0002` |
+| `unwired-input` | a timer's or counter's reset whose row holds nothing (no contact, no wire, no vertical into it), at its AF cell | `C0202` |
+| `output-above-box-inputs` | a box above a box with a used pin row (a `.reset()` row and the like), both off the pinned box's main input's net, once per group of boxes that share nets | `C000A` |
+| `shared-input-net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
+| `input-without-contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
+| `undecoded-rung` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 
 The net of a C000A finding is one that the rail reaches through a contact, not the
-rail itself. A rung whose rail reaches no box gets no `not_series_parallel`
+rail itself. A rung whose rail reaches no box gets no `not-series-parallel`
 finding, as in CLICK.
 
 A rung whose circuit is not series-parallel gets no C000A finding and no finding
@@ -369,31 +370,31 @@ C000A has `captured=False` in these cases:
 - a pin's net is shared with another pin, or with a main input above the pin
 - a box is below the pinned box, on a reset teed off its main input
 
-`unwired_pin` has `C0202` with `captured=False` in these cases:
+`unwired-input` has `C0202` with `captured=False` in these cases:
 
 - the pin is not a timer's or counter's reset (a shift's clock, a
   drum's jog, a counter's down)
 - the rung's rail reaches no box
 - the pin's row holds a wire or a contact, but no rail or contact reaches it
 
-A rung that holds an undecoded marker gets an `undecoded` finding for each marker,
+A rung that holds an undecoded marker gets an `undecoded-rung` finding for each marker,
 then its other findings. A marker rung as the decoders make it (one row of wires
-into the marker) gets only its `undecoded` finding.
+into the marker) gets only its `undecoded-rung` finding.
 
-`pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code.
+`input-without-contact` on other pins (a counter's reset, a drum's jog) has no CLICK id.
 On a reset wired straight from the rail, or a reset whose contacts are all another
-pin's, it has the box's code with `captured=False`. A contact that two pins share
-counts as the earlier pin's. A `no_rail` or `feeds_no_box` finding on a loop of
+pin's, it has the box's CLICK id with `captured=False`. A contact that two pins share
+counts as the earlier pin's. A `no-rail` or `feeds-no-box` finding on a loop of
 contacts is also `captured=False`.
 
 These shapes are also reported with `captured=False`:
 
 - an unpowered box
-- a pin circuit that shares contacts with a main input (`pin_shares_main`) or
-  another pin (`pin_shares_pin`) but has some of its own
+- a pin circuit that shares contacts with a main input (`input-shares-enable`) or
+  another pin (`inputs-share-contacts`) but has some of its own
 - a pin circuit that is not series-parallel
 
-Those kinds are provisional. They may be renamed or dropped once CLICK's response
+Those codes are provisional. They may be renamed or dropped once CLICK's response
 to them is captured. A finding with `captured=False` may be a shape CLICK accepts.
 
 CLICK's check drops a `NOP` that no rail or contact reaches. `check()` does not

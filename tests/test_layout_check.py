@@ -48,13 +48,13 @@ def _rungs(path: Path) -> list[Rung]:
 
 
 def _cells(findings: list[Finding]) -> list[tuple[int, str, str | None, int | None, int | None]]:
-    return [(f.rung, f.kind, f.code, f.row, f.column) for f in findings]
+    return [(f.rung, f.code, f.click_id, f.row, f.column) for f in findings]
 
 
 def test_bridge_is_c0001() -> None:
     rungs = read_csv(LC / "wheatstone_bridge.csv")
     findings = check(rungs)
-    assert _cells(findings) == [(0, "not_series_parallel", "C0001", None, None)]
+    assert _cells(findings) == [(0, "not-series-parallel", "C0001", None, None)]
     assert findings[0].captured
     encode(rungs)  # reported, not refused: the rung encodes as drawn
 
@@ -70,8 +70,8 @@ def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
     rungs = _rungs(V4 / "layoutthy_pasted.bin")
     findings = check(rungs)
     assert _cells(findings) == [
-        (22, "no_rail", "C0202", 3, 3),
-        (22, "not_series_parallel", "C0001", None, None),
+        (22, "no-rail", "C0202", 3, 3),
+        (22, "not-series-parallel", "C0001", None, None),
     ]
     assert findings[0].message.startswith("row 3, column D in CLICK's numbering: ")
     assert findings[0].message.endswith("(CLICK: C0202)")
@@ -123,9 +123,9 @@ def _as_click(findings: list[Finding]) -> list[tuple[int, str, str | None]]:
     """Each finding as CLICK prints it: the rung, the code, and a C0202 cell."""
     out: list[tuple[int, str, str | None]] = []
     for f in findings:
-        assert f.code is not None and f.captured, f
-        cell = f.message.split(" in CLICK's numbering")[0] if f.code == "C0202" else None
-        out.append((f.rung, f.code, cell))
+        assert f.click_id is not None and f.captured, f
+        cell = f.message.split(" in CLICK's numbering")[0] if f.click_id == "C0202" else None
+        out.append((f.rung, f.click_id, cell))
     return out
 
 
@@ -159,19 +159,19 @@ def test_layoutq_stub_csv_matches_the_pasted_capture() -> None:
 def test_layoutq_kinds() -> None:
     findings = check(_layoutq_pasted())
     assert _cells(findings) == [
-        (11, "output_above_pinned_box", "C000A", 1, 31),  # out, then a retentive timer
-        (13, "output_above_pinned_box", "C000A", 1, 31),  # out, then a count_down
-        (14, "pin_without_contact", "C0205", 1, 31),  # timer Reset teed off its input
-        (15, "pin_without_contact", "C0212", 1, 31),  # drum Reset teed off the Or merge
-        (16, "feeds_no_box", "C0202", 1, 1),  # C94, the last contact of row 1
-        (16, "no_coil", "C0003", None, None),
-        (17, "feeds_no_box", "C0202", 1, 1),
-        (17, "no_coil", "C0003", None, None),
-        (18, "feeds_no_box", "C0202", 0, 0),  # C101 into count_down's unused Up
-        (18, "no_coil", "C0003", None, None),
-        (19, "no_rail", "C0202", 0, 2),  # the rail reaches no box, so no C0001
-        (20, "no_rail", "C0202", 2, 4),
-        (20, "not_series_parallel", "C0001", None, None),
+        (11, "output-above-box-inputs", "C000A", 1, 31),  # out, then a retentive timer
+        (13, "output-above-box-inputs", "C000A", 1, 31),  # out, then a count_down
+        (14, "input-without-contact", "C0205", 1, 31),  # timer Reset teed off its input
+        (15, "input-without-contact", "C0212", 1, 31),  # drum Reset teed off the Or merge
+        (16, "feeds-no-box", "C0202", 1, 1),  # C94, the last contact of row 1
+        (16, "no-coil", "C0003", None, None),
+        (17, "feeds-no-box", "C0202", 1, 1),
+        (17, "no-coil", "C0003", None, None),
+        (18, "feeds-no-box", "C0202", 0, 0),  # C101 into count_down's unused Up
+        (18, "no-coil", "C0003", None, None),
+        (19, "no-rail", "C0202", 0, 2),  # the rail reaches no box, so no C0001
+        (20, "no-rail", "C0202", 2, 4),
+        (20, "not-series-parallel", "C0001", None, None),
     ]
 
 
@@ -213,8 +213,8 @@ def test_windy_road_pasted_is_refused_by_decode() -> None:
     """
     with pytest.warns(UndecodedRungWarning):
         rung = decode((V4 / "windy_road_pasted.bin").read_bytes())
-    assert [(f.kind, f.code, f.captured, f.row, f.column) for f in check(rung)] == [
-        ("undecoded", None, False, 0, 31)
+    assert [(f.code, f.click_id, f.captured, f.row, f.column) for f in check(rung)] == [
+        ("undecoded-rung", None, False, 0, 31)
     ]
 
 
@@ -241,28 +241,28 @@ def test_tumbler_program_has_no_findings(path: Path) -> None:
 _LADDER_FINDINGS = {
     # A shape: X003 X004 on row 1 run to an AF cell with no box.
     "instr-2row-cond__and": [
-        (0, "feeds_no_box", "C0202", 1, 1),
-        (0, "no_coil", "C0003", None, None),
+        (0, "feeds-no-box", "C0202", 1, 1),
+        (0, "no-coil", "C0003", None, None),
     ],
     # C20 C21 in series feed only a NOP: C0003, as for one contact (accepted_shapes.csv rung 2).
-    "instr-cond__and": [(0, "nop_only_contact", "C0003", None, None)],
-    "mr-instr-cond__and": [(0, "nop_only_contact", "C0003", None, None)],
-    "instr-2row-spread": [(0, "feeds_no_box", "C0202", 1, 10), (0, "no_coil", "C0003", None, None)],
+    "instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
+    "mr-instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
+    "instr-2row-spread": [(0, "feeds-no-box", "C0202", 1, 10), (0, "no-coil", "C0003", None, None)],
     # X001's output joins the rail through B's vertical and the row 2 wire.
-    "instr-3row-branch": [(0, "shorted_contact", "C0002", 0, 0), (0, "unpowered_box", None, 1, 31)],
+    "instr-3row-branch": [(0, "shorted-contact", "C0002", 0, 0), (0, "unpowered-box", None, 1, 31)],
     "instr-3row-scatter": [
-        (0, "feeds_no_box", "C0202", 1, 5),
-        (0, "feeds_no_box", "C0202", 2, 15),
-        (0, "no_coil", "C0003", None, None),
+        (0, "feeds-no-box", "C0202", 1, 5),
+        (0, "feeds-no-box", "C0202", 2, 15),
+        (0, "no-coil", "C0003", None, None),
     ],
     # out(Y001) above the timer on one net; the reset is the out(Y001) circuit, the bridge.
     # CLICK reports C0001 alone on this shape (check_shapes.csv rung 2).
-    "instr-coil-timer-ret": [(0, "not_series_parallel", "C0001", None, None)],
+    "instr-coil-timer-ret": [(0, "not-series-parallel", "C0001", None, None)],
     # The drum's Reset tees off its main input, and copy(1,DS1) below hangs off that net too:
     # no capture shows a box below the pinned box through a reset teed off its main input.
-    "instr-copy-multirow-2af-T": [(0, "shared_input_net", "C000A", 0, 31)],
+    "instr-copy-multirow-2af-T": [(0, "shared-input-net", "C000A", 0, 31)],
     # The Reset row is a wire from the rail.
-    "instr-timer-ret": [(0, "pin_without_contact", "C0205", 1, 31)],
+    "instr-timer-ret": [(0, "input-without-contact", "C0205", 1, 31)],
 }
 
 #: Findings above whose shape no capture shows with that code.
@@ -283,7 +283,7 @@ def test_ladder_golden_findings(path: Path) -> None:
 
 def test_unknown_shapes_say_so() -> None:
     _, finding = check(read_csv(LADDER / "instr-3row-branch.csv"))
-    assert finding.code is None
+    assert finding.click_id is None
     assert not finding.captured
     assert finding.message == (
         "row 1 from 0, column AF: no rail or contact reaches the box"
@@ -293,7 +293,11 @@ def test_unknown_shapes_say_so() -> None:
 
 def test_reset_wired_from_the_rail_is_not_captured() -> None:
     (finding,) = check(read_csv(LADDER / "instr-timer-ret.csv"))
-    assert (finding.kind, finding.code, finding.captured) == ("pin_without_contact", "C0205", False)
+    assert (finding.code, finding.click_id, finding.captured) == (
+        "input-without-contact",
+        "C0205",
+        False,
+    )
     assert finding.message == (
         "row 1 from 0, column AF: the pin has no contact of its own"
         " (C0205 as for a reset whose contacts are all the main input's;"
@@ -337,7 +341,7 @@ def _bridge_rows() -> list[list[object]]:
 def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
     rung = _rung([[_contact("X010"), *["-"] * 30], *_bridge_rows()], [_timer(), "", "", ""])
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "not_series_parallel", "C0001", 1, 31)]
+    assert _cells([finding]) == [(0, "not-series-parallel", "C0001", 1, 31)]
     assert not finding.captured  # no capture shows CLICK's check on a pin's bridge
     assert finding.message == (
         "row 1 from 0, column AF: the pin's circuit is not series-parallel"
@@ -355,7 +359,7 @@ def test_pin_with_a_contact_of_its_own_after_the_main_input_is_provisional() -> 
         [_timer(), ""],
     )
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "pin_shares_main", None, 1, 31)]
+    assert _cells([finding]) == [(0, "input-shares-enable", None, 1, 31)]
     assert not finding.captured
 
 
@@ -376,7 +380,7 @@ def test_box_below_a_pinned_box_through_its_teed_reset_is_provisional_c000a() ->
         [_timer(), "", _out("Y001")],
     )
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "shared_input_net", "C000A", 0, 31)]
+    assert _cells([finding]) == [(0, "shared-input-net", "C000A", 0, 31)]
     assert not finding.captured
     assert finding.message == (
         "row 0 from 0, column AF: a pin of this box shares its net with another box's input"
@@ -391,7 +395,7 @@ def test_reset_teed_off_its_own_main_input_is_not_c000a() -> None:
         [[_contact("X001"), "T", *["-"] * 29], ["", "-", *["-"] * 29]],
         [_timer(), ""],
     )
-    assert _cells(check(rung)) == [(0, "pin_without_contact", "C0205", 1, 31)]
+    assert _cells(check(rung)) == [(0, "input-without-contact", "C0205", 1, 31)]
 
 
 @pytest.mark.parametrize("number", [5, 6, 7])
@@ -406,7 +410,7 @@ def test_one_c000a_per_group_of_boxes_sharing_nets(number: int) -> None:
     """
     rung = read_csv(LC / "check_shapes.csv")[number - 1]
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "shared_input_net", "C000A", 0, 31)]
+    assert _cells([finding]) == [(0, "shared-input-net", "C000A", 0, 31)]
     assert finding.captured
 
 
@@ -421,7 +425,7 @@ def test_nop_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None:
         ["NOP", _timer(), ""],
     )
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "output_above_pinned_box", "C000A", 1, 31)]
+    assert _cells([finding]) == [(0, "output-above-box-inputs", "C000A", 1, 31)]
     assert not finding.captured
 
 
@@ -442,8 +446,8 @@ def test_pinned_box_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None
     )
     findings = check(rung)
     assert _cells(findings) == [
-        (0, "unwired_pin", "C0202", 1, 31),
-        (0, "output_above_pinned_box", "C000A", 2, 31),
+        (0, "unwired-input", "C0202", 1, 31),
+        (0, "output-above-box-inputs", "C000A", 2, 31),
     ]
     assert [f.captured for f in findings] == [False, False]
 
@@ -455,7 +459,7 @@ def test_pin_row_of_wires_no_rail_reaches_is_not_captured() -> None:
         [_timer(), ""],
     )
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "unwired_pin", "C0202", 1, 31)]
+    assert _cells([finding]) == [(0, "unwired-input", "C0202", 1, 31)]
     assert not finding.captured
     assert finding.message == (
         "row 1 from 0, column AF: the pin's input has no line connection"
@@ -471,8 +475,8 @@ def test_unwired_reset_where_the_rail_reaches_no_box_is_not_captured() -> None:
     )
     findings = check(rung)
     assert _cells(findings) == [
-        (0, "no_rail", "C0202", 0, 1),
-        (0, "unwired_pin", "C0202", 1, 31),
+        (0, "no-rail", "C0202", 0, 1),
+        (0, "unwired-input", "C0202", 1, 31),
     ]
     assert [f.captured for f in findings] == [True, False]
     assert findings[1].message.endswith(
@@ -485,7 +489,7 @@ def test_unwired_reset_is_c0202_at_its_af_cell() -> None:
     """CLICK: "Row 3, Column AF : Missing line connection" for a counter's unwired Reset."""
     rung = read_csv(LC / "check_shapes.csv")[14]
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "unwired_pin", "C0202", 2, 31)]
+    assert _cells([finding]) == [(0, "unwired-input", "C0202", 2, 31)]
     assert finding.captured
     assert finding.message == (
         "row 3, column AF in CLICK's numbering: the pin's input has no line connection"
@@ -502,7 +506,7 @@ def test_unwired_shift_reset_is_not_captured() -> None:
     ]
     rung = _rung(rows, [Shift(start_bit="C1", end_bit="C8"), "", ""])
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "unwired_pin", "C0202", 2, 31)]
+    assert _cells([finding]) == [(0, "unwired-input", "C0202", 2, 31)]
     assert not finding.captured
     assert finding.message == (
         "row 2 from 0, column AF: the pin's input has no line connection"
@@ -522,7 +526,7 @@ def test_read_csv_lays_out_a_rung_whose_only_finding_is_an_unwired_pin(tmp_path:
     path.write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
     (rung,) = read_csv(path)
     assert getattr(rung.conditions[0][0], "operand", None) == "X001"  # packed left
-    assert [f.kind for f in check(rung)] == ["unwired_pin"]
+    assert [f.code for f in check(rung)] == ["unwired-input"]
 
 
 def test_box_above_a_timer_with_no_reset_is_accepted() -> None:
@@ -545,14 +549,14 @@ def test_boxes_off_the_rail_are_not_c000a() -> None:
 
 def test_shorted_contact_is_c0002() -> None:
     shorted = check(read_csv(LADDER / "instr-3row-branch.csv"))[0]
-    assert (shorted.kind, shorted.code, shorted.captured) == ("shorted_contact", "C0002", True)
+    assert (shorted.code, shorted.click_id, shorted.captured) == ("shorted-contact", "C0002", True)
     assert shorted.message.endswith("(CLICK: C0002)")
 
 
 def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
     """A second contact: C0202 at the first; the rail reaches no box, so no C0001."""
     rung = _rung([["", "", _contact("X001"), _contact("X002"), *["-"] * 27]], [_out("Y001")])
-    assert _cells(check(rung)) == [(0, "no_rail", "C0202", 0, 2)]
+    assert _cells(check(rung)) == [(0, "no-rail", "C0202", 0, 2)]
 
 
 def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
@@ -566,7 +570,7 @@ def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
         [_out("Y001"), "", ""],
     )
     (finding,) = check(rung)
-    assert _cells([finding]) == [(0, "no_rail", "C0202", 0, 1)]
+    assert _cells([finding]) == [(0, "no-rail", "C0202", 0, 1)]
     assert not finding.captured  # no capture shows a loop
     assert finding.message == (
         "row 0 from 0, column B: the contact's input has no line connection"
@@ -582,8 +586,8 @@ def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
         [_out("Y001"), _out("Y002")],
     )
     assert _cells(check(rung)) == [
-        (0, "no_rail", "C0202", 1, 1),
-        (0, "not_series_parallel", "C0001", None, None),
+        (0, "no-rail", "C0202", 1, 1),
+        (0, "not-series-parallel", "C0001", None, None),
     ]
 
 
@@ -600,8 +604,8 @@ def test_path_ending_in_a_loop_is_c0202_once() -> None:
     )
     findings = check(rung)
     assert _cells(findings) == [
-        (0, "feeds_no_box", "C0202", 0, 1),
-        (0, "no_coil", "C0003", None, None),
+        (0, "feeds-no-box", "C0202", 0, 1),
+        (0, "no-coil", "C0003", None, None),
     ]
     assert [f.captured for f in findings] == [False, False]  # no capture shows a loop
 
@@ -638,7 +642,7 @@ def test_blank_first_row_count_takes_a_rung_with_no_outputs() -> None:
 def test_one_rung_or_a_list() -> None:
     bridge = read_csv(LC / "wheatstone_bridge.csv")[0]
     plain = read_csv(LADDER / "instr-series.csv")[0]
-    assert _cells(check(bridge)) == [(0, "not_series_parallel", "C0001", None, None)]
+    assert _cells(check(bridge)) == [(0, "not-series-parallel", "C0001", None, None)]
     assert [f.rung for f in check([plain, plain, bridge])] == [2]
 
 
@@ -660,5 +664,5 @@ def test_only_an_unpowered_nop_goes_unreported(box: object) -> None:
     """An unpowered coil keeps its finding: no capture shows CLICK's check on one."""
     stub = ["-"] + [""] * 30
     rung = _rung([[_contact("C1")] + ["-"] * 30, stub], [_out("Y1"), box])
-    want = [] if box == "NOP" else [(0, "unpowered_box", None, 1, 31)]
+    want = [] if box == "NOP" else [(0, "unpowered-box", None, 1, 31)]
     assert _cells(check(rung)) == want

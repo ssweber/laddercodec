@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from ..codes import Code
 from ..errors import LaddercodecError
 
 
@@ -62,6 +63,9 @@ class FieldError(LaddercodecError):
         and both for a pair (``CompareContact.left`` with ``CompareContact.right``).
     reason:
         Why, a :class:`Reason`; None where a check names no reason yet.
+    code:
+        The rule refused, a :class:`~laddercodec.Code` (``"bank-not-allowed"``).  Each
+        refusal in :attr:`errors` has its own.
     click_id:
         CLICK's id for the error (``"OBJ-005"``), or None where CLICK has none.
     errors:
@@ -73,6 +77,7 @@ class FieldError(LaddercodecError):
     field: str | None
     fields: tuple[str, ...]
     reason: Reason | None
+    code: Code
     click_id: str | None
     errors: tuple[FieldError, ...]
     obj: Any
@@ -80,6 +85,7 @@ class FieldError(LaddercodecError):
     def __init__(
         self,
         *args: object,
+        code: Code,
         field: str | tuple[str, ...] | None = None,
         reason: Reason | None = None,
         click_id: str | None = None,
@@ -90,9 +96,19 @@ class FieldError(LaddercodecError):
         self.fields = (field,) if isinstance(field, str) else tuple(field or ())
         self.field = self.fields[0] if self.fields else None
         self.reason = reason
+        self.code = code
         self.click_id = click_id
         self.errors = (self,)
         self.obj = obj
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Unpickling calls the class with args alone. FieldError requires code, so pass it too.
+        return (_rebuild, (type(self), self.args, self.code), self.__dict__)
+
+
+def _rebuild(cls: type[FieldError], args: tuple[object, ...], code: Code) -> FieldError:
+    """Rebuild a pickled :class:`FieldError`; its other attributes come from its state."""
+    return cls(*args, code=code)
 
 
 class AddressError(FieldError):

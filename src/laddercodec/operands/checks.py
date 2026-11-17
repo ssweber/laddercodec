@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, NamedTuple, TypedDict, TypeVar
 
+from ..codes import Code
 from .address import ADDRESS_BANKS, Address, check_address, normalize_fields
 from .constants import (
     CHAR_CODE_RULE,
@@ -162,6 +163,7 @@ class _At(NamedTuple):
         click_id: str | None = None,
         cls: type[FieldError] = FieldError,
         *,
+        code: Code,
         also: str | None = None,
     ) -> FieldError:
         """``label: 'value' rule``, with CLICK's id at the end; ``also`` is the other field
@@ -171,6 +173,7 @@ class _At(NamedTuple):
             f"{self.label}: {value!r} {rule}{tail}",
             field=self.field if also is None else (self.field, also),
             reason=reason,
+            code=code,
             click_id=click_id,
         )
 
@@ -230,6 +233,7 @@ def _kind_refusal(value: str, at: _At, kind: Kind, constants: Constants) -> Fiel
         value,
         f"is {_kinds_text([kind])}; {at.label} takes {_kinds_text(constants.kinds)}",
         Reason.KIND,
+        code=Code.CONSTANT_KIND_NOT_ALLOWED,
     )
 
 
@@ -241,6 +245,7 @@ def _hex_above(value: str, at: _At, constants: Constants) -> FieldError:
         f"is above {high}; a hex constant here is 0h to {high}",
         Reason.RANGE,
         constants.range_id,
+        code=Code.CONSTANT_OUT_OF_RANGE,
     )
 
 
@@ -256,11 +261,12 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
         else:
             rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
         # classify() refuses a quote inside, an empty text and a longer one.
-        reason = Reason.FORM if '"' in value[1:-1] else Reason.RANGE
+        quoted = '"' in value[1:-1]
         return at.error(
             value,
             f"is refused; {rule}, with no quote inside (write the quote character as $22)",
-            reason,
+            Reason.FORM if quoted else Reason.RANGE,
+            code=Code.INVALID_TEXT_CONSTANT if quoted else Code.CONSTANT_OUT_OF_RANGE,
         )
     upper = value.upper() if value.isascii() else ""
     m = _HEX_SHAPE.fullmatch(upper)
@@ -268,12 +274,20 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
         if Kind.HEX not in kinds:
             return _kind_refusal(value, at, Kind.HEX, constants)
         if m.group(1):
-            return at.error(value, "is refused; a hex constant has no sign", Reason.FORM)
+            return at.error(
+                value,
+                "is refused; a hex constant has no sign",
+                Reason.FORM,
+                code=Code.INVALID_CONSTANT,
+            )
         if int(upper[:-1], 16) > constants.hex_high:
             return _hex_above(value, at, constants)
         # Past FFFFh only the digit count refuses: 0FFFFFFFFh is no 32-bit constant.
         return at.error(
-            value, "is refused; a hex constant above FFFFh has at most 8 digits", Reason.RANGE
+            value,
+            "is refused; a hex constant above FFFFh has at most 8 digits",
+            Reason.RANGE,
+            code=Code.CONSTANT_OUT_OF_RANGE,
         )
     if _INTEGER_SHAPE.fullmatch(upper):
         # check_constant words an integer for a field that takes integers, so only a field
@@ -287,6 +301,7 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
             "is refused; a real constant is a finite number within float32 "
             "(up to about 3.4028235E+38)",
             Reason.RANGE,
+            code=Code.CONSTANT_OUT_OF_RANGE,
         )
     if kinds == ALL_KINDS:
         rule = "it is not a constant"
@@ -294,7 +309,7 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
         rule = f"{at.label} takes a hex value: hex digits then h"
     else:
         rule = f"{at.label} takes {_kinds_text(kinds)}"
-    return at.error(value, f"is refused; {rule}", Reason.KIND)
+    return at.error(value, f"is refused; {rule}", Reason.KIND, code=Code.NOT_A_CONSTANT)
 
 
 def check_constant(
@@ -320,9 +335,15 @@ def check_constant(
         const = classify(value)
         if const is None or const.kind is not Kind.CHAR:
             if Kind.CHAR in constants.kinds:
-                raise at.error(value, f"is refused; {CHAR_CODE_RULE}", Reason.FORM, char_id)
+                raise at.error(
+                    value,
+                    f"is refused; {CHAR_CODE_RULE}",
+                    Reason.FORM,
+                    char_id,
+                    code=Code.INVALID_CHAR_CODE,
+                )
             rule = f"{at.label} takes {_kinds_text(constants.kinds)}"
-            raise at.error(value, f"is refused; {rule}", Reason.KIND)
+            raise at.error(value, f"is refused; {rule}", Reason.KIND, code=Code.NOT_A_CONSTANT)
     else:
         const = classify(value)
         if (
@@ -345,7 +366,12 @@ def check_constant(
 
 def _blank(at: _At, cls: type[FieldError] = FieldError) -> FieldError:
     """The refusal of a blank field: reason ``missing``, and no CLICK id."""
-    return cls(f"{at.label}: is blank; it needs a value", field=at.field, reason=Reason.MISSING)
+    return cls(
+        f"{at.label}: is blank; it needs a value",
+        field=at.field,
+        reason=Reason.MISSING,
+        code=Code.BLANK_FIELD,
+    )
 
 
 def _outside(value: str, at: _At, constants: Constants) -> FieldError:
@@ -353,7 +379,11 @@ def _outside(value: str, at: _At, constants: Constants) -> FieldError:
     # Without a '-' the lowest value a field can take is 0.
     low = constants.low if "-" in constants.signs else max(constants.low, 0)
     return at.error(
-        value, f"is outside {low} to {constants.high}", Reason.RANGE, constants.range_id
+        value,
+        f"is outside {low} to {constants.high}",
+        Reason.RANGE,
+        constants.range_id,
+        code=Code.CONSTANT_OUT_OF_RANGE,
     )
 
 
@@ -362,8 +392,14 @@ def _check_sign(value: str, at: _At, constants: Constants) -> None:
     if value[:1] in "+-" and value[0] not in constants.signs:
         # Name the sign the field refuses: "no plus sign" where a minus sign stands.
         refused = {"+": "plus ", "-": "minus "}[value[0]] if constants.signs else ""
+        # A minus sign where the field's lowest value is 0 or more is out of range.
+        code = Code.CONSTANT_OUT_OF_RANGE if value[0] == "-" else Code.INVALID_CONSTANT
         raise at.error(
-            value, f"is refused; a constant here takes no {refused}sign", Reason.FORM, "OBJ-005"
+            value,
+            f"is refused; a constant here takes no {refused}sign",
+            Reason.FORM,
+            "OBJ-005",
+            code=code,
         )
 
 
@@ -385,11 +421,13 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
                     value,
                     f"is {len(text)} characters; {at.label} takes one character",
                     Reason.RANGE,
+                    code=Code.CONSTANT_OUT_OF_RANGE,
                 )
             raise at.error(
                 value,
                 f"is {len(text)} characters; {at.label} takes at most {constants.text_max}",
                 Reason.RANGE,
+                code=Code.CONSTANT_OUT_OF_RANGE,
             )
         if constants.printable and not printable(text):
             raise at.error(
@@ -397,6 +435,7 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
                 "is refused; text holds printable ASCII only (space to ~); write another "
                 "character as its $hh code",
                 Reason.FORM,
+                code=Code.INVALID_TEXT_CONSTANT,
             )
     if constants.max_length is not None and len(value) > constants.max_length:
         raise at.error(
@@ -404,6 +443,7 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
             f"is {len(value)} characters; a constant here is at most {constants.max_length}",
             Reason.RANGE,
             "OBJ-005",
+            code=Code.CONSTANT_OUT_OF_RANGE,
         )
 
 
@@ -416,7 +456,9 @@ def check_kept_text(value: str, text: str, field: str, *, label: str | None = No
     character of it (:func:`~laddercodec.operands.constants.kept_text`): a single Copy
     source and a Search text value take the characters CLICK keeps."""
     if not kept_text(text):
-        raise _at(field, label).error(value, f"is refused; {KEPT_TEXT_RULE}", Reason.FORM)
+        raise _at(field, label).error(
+            value, f"is refused; {KEPT_TEXT_RULE}", Reason.FORM, code=Code.INVALID_TEXT_CONSTANT
+        )
 
 
 def check_quoted_text(
@@ -442,11 +484,17 @@ def check_quoted_text(
             f"is refused; a text constant is 1 to {TEXT_MAX} {chars} in quotes (use $hh "
             "for a character by code)",
             Reason.RANGE if long else Reason.FORM,
+            code=Code.CONSTANT_OUT_OF_RANGE if long else Code.INVALID_TEXT_CONSTANT,
         )
     if kept:
         check_kept_text(value, inner, field, label=label)
     if '"' in inner:
-        raise at.error(value, "holds a quote; write the quote character as $22", Reason.FORM)
+        raise at.error(
+            value,
+            "holds a quote; write the quote character as $22",
+            Reason.FORM,
+            code=Code.INVALID_TEXT_CONSTANT,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -469,6 +517,7 @@ def check_operand(
     letter_first: bool = False,
     label: str | None = None,
     bank_id: str | None = None,
+    bank_code: Code = Code.BANK_NOT_ALLOWED,
 ) -> Operand:
     """Check one operand; raise :class:`FieldError` naming ``field`` if it is refused.
 
@@ -476,8 +525,8 @@ def check_operand(
     bank).  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` is in ``banks`` and in
     :data:`POINTER_BANKS`, and the index is a DS address.  With ``constants``, a constant
     goes through :func:`check_constant`.  Every refusal of a pointer, its index's included,
-    has the reason ``pointer``.  ``bank_id`` is CLICK's id for an address in a bank the
-    field does not take, as for :func:`check_address`.
+    has the reason ``pointer``.  ``bank_id`` and ``bank_code`` are CLICK's id and the code
+    for an address in a bank the field does not take, as for :func:`check_address`.
 
     Which of the two checks reads the text:
 
@@ -500,7 +549,11 @@ def check_operand(
     if m is not None:
         if not pointer:
             raise at.error(
-                value, f"is a pointer; {at.label} takes none", Reason.POINTER, cls=AddressError
+                value,
+                f"is a pointer; {at.label} takes none",
+                Reason.POINTER,
+                cls=AddressError,
+                code=Code.POINTER_OUTSIDE_COPY,
             )
         bank = m.group(1)
         allowed = POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks)
@@ -511,14 +564,17 @@ def check_operand(
                 f"is not allowed; a pointer in {at.label} addresses {listed}",
                 Reason.POINTER,
                 cls=AddressError,
+                code=Code.POINTER_BANK_NOT_ALLOWED,
             )
         try:
             index = check_address(m.group(2), field, {"DS"}, label=f"{at.label} pointer")
         except AddressError as exc:
+            # Whatever refused the index, the pointer's index is no DS address.
             exc.reason = Reason.POINTER
+            exc.code = Code.POINTER_NOT_DS
             raise
         return Operand(bank=bank, index=index)
-    address = check_address(value, field, banks, label=label, bank_id=bank_id)
+    address = check_address(value, field, banks, label=label, bank_id=bank_id, bank_code=bank_code)
     return Operand(bank=address.bank, address=address)
 
 
@@ -560,6 +616,7 @@ def check_writable_sd(
         Reason.NOT_WRITABLE,
         click_id,
         cls=AddressError,
+        code=Code.NOT_WRITABLE,
     )
 
 
@@ -593,6 +650,7 @@ def check_out_target(
             value,
             "is not allowed; an immediate coil takes Y only",
             Reason.CONFLICT,
+            code=Code.IMMEDIATE_COIL_NOT_Y,
             also=f"{field.rsplit('.', 1)[0]}.immediate",
         )
     if address.bank == "SC" and address.number not in WRITABLE_SC:
@@ -603,6 +661,7 @@ def check_out_target(
             Reason.NOT_WRITABLE,
             not_writable_id,
             cls=AddressError,
+            code=Code.NOT_WRITABLE,
         )
     return address
 
@@ -613,7 +672,10 @@ def check_flag(value: object, field: str) -> bool:
     if isinstance(value, int) and value in (0, 1):
         return bool(value)
     raise FieldError(
-        f"{field}: {value!r} is not True, False, 1 or 0", field=field, reason=Reason.FLAG
+        f"{field}: {value!r} is not True, False, 1 or 0",
+        field=field,
+        reason=Reason.FLAG,
+        code=Code.NOT_A_FLAG,
     )
 
 
@@ -627,9 +689,14 @@ def check_csv_flag(kwargs: Mapping[str, str], name: str, field: str) -> bool:
         return value == "1"
     if not value.strip():
         raise FieldError(
-            f"{field}: is blank; it needs a value, 1 or 0", field=field, reason=Reason.MISSING
+            f"{field}: is blank; it needs a value, 1 or 0",
+            field=field,
+            reason=Reason.MISSING,
+            code=Code.BLANK_FIELD,
         )
-    raise FieldError(f"{field}: {value!r} is not 1 or 0", field=field, reason=Reason.FLAG)
+    raise FieldError(
+        f"{field}: {value!r} is not 1 or 0", field=field, reason=Reason.FLAG, code=Code.NOT_A_FLAG
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -651,7 +718,9 @@ class Refusals:
             done = check("done", check_address, banks={"T"})
             accumulator = check("accumulator", check_address, banks={"TD"})
             if done is not None and accumulator is not None and done.number != accumulator.number:
-                check.refuse(("accumulator", "done"), "...", Reason.CONFLICT)
+                check.refuse(
+                    ("accumulator", "done"), "...", Reason.CONFLICT, code=Code.TIMER_PAIR_MISMATCH
+                )
 
     A field is named by its attribute (``"outputs[2]"`` for an item); the error names
     ``Class.attr``.  Once a field is refused, a later check or refusal that names it is
@@ -726,7 +795,8 @@ class Refusals:
                 self._errors.append(each)
 
     def _mark_blank(self, error: FieldError) -> None:
-        """Give a refusal of a blank field of this instruction the reason ``missing``.
+        """Give a refusal of a blank field of this instruction the reason ``missing`` and the
+        code ``blank-field``.
 
         A check of a field's own (a choice, a number) words a blank as a bad value; whatever
         refused it, the caller reads a blank as :attr:`Reason.MISSING`.  Only a refusal,
@@ -745,6 +815,7 @@ class Refusals:
             return
         if isinstance(value, str) and value == "":
             error.reason = Reason.MISSING
+            error.code = Code.BLANK_FIELD
             # The message says what is wrong with the value; a blank is wrong the same way
             # wherever it is refused.  CLICK's id, if any, stays on the error.
             error.args = (f"{field}: is blank; it needs a value",)
@@ -776,12 +847,20 @@ class Refusals:
         rule: str,
         reason: Reason,
         click_id: str | None = None,
+        *,
+        code: Code,
     ) -> None:
         """Refuse ``attrs``, one field or a pair, the first leading: ``Class.attr: rule``."""
         fields = tuple(map(self.field, (attrs,) if isinstance(attrs, str) else attrs))
         tail = f" ({click_id})" if click_id else ""
         self.add(
-            FieldError(f"{fields[0]}: {rule}{tail}", field=fields, reason=reason, click_id=click_id)
+            FieldError(
+                f"{fields[0]}: {rule}{tail}",
+                field=fields,
+                reason=reason,
+                code=code,
+                click_id=click_id,
+            )
         )
 
     def flag(self, *attrs: str) -> None:

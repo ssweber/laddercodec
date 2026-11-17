@@ -176,9 +176,9 @@ try:
     Timer(kind="on_delay", done="C1", accumulator="TD1", preset="40000", unit="Tms")
 except FieldError as exc:
     for error in exc.errors:
-        print(error.field, error.reason, error.click_id)
-# Timer.done bank None
-# Timer.preset range OBJ-005
+        print(error.field, error.code, error.click_id)
+# Timer.done bank-not-allowed None
+# Timer.preset constant-out-of-range OBJ-005
 ```
 
 If you build an instruction with a value that CLICK's dialog refuses, it raises
@@ -210,6 +210,7 @@ has these attributes:
 |------------|----------------------------------------------------------------------------------------|
 | `field`    | the field refused, `Class.attr`, or `Class.attr[i]` for an item of a list              |
 | `fields`   | `(field,)`, or both fields for a refused pair (`Timer.accumulator`, `Timer.done`)       |
+| `code`     | the rule refused, a `Code` (see [Error codes](codes.md))                               |
 | `reason`   | a `Reason`, listed below                                                               |
 | `click_id` | CLICK's id for the error where it has one (`OBJ-005`), or `None`                       |
 | `obj`      | the instruction being built                                                            |

@@ -29,6 +29,7 @@ from laddercodec import (
     Shift,
     Timer,
 )
+from laddercodec.codes import Code
 from laddercodec.instructions.coil import CoilKind
 from laddercodec.model import AfInstruction
 from laddercodec.operands.address import check_address, display_form_only
@@ -86,20 +87,26 @@ def test_reason_set_is_fixed() -> None:
 
 
 def test_a_lone_refusal_is_its_own_errors() -> None:
-    exc = FieldError("Coil.operand: no", field="Coil.operand")
+    exc = FieldError("Coil.operand: no", field="Coil.operand", code=Code.BANK_NOT_ALLOWED)
     assert exc.errors == (exc,)
     assert exc.fields == ("Coil.operand",)
     assert (exc.reason, exc.click_id, exc.obj) == (None, None, None)
 
 
 def test_a_pair_names_both_fields() -> None:
-    exc = FieldError("no", field=("CompareContact.left", "CompareContact.right"))
+    exc = FieldError(
+        "no",
+        field=("CompareContact.left", "CompareContact.right"),
+        code=Code.COMPARE_MIXED_TYPES,
+    )
     assert exc.field == "CompareContact.left"
     assert exc.fields == ("CompareContact.left", "CompareContact.right")
 
 
 def test_no_field() -> None:
-    exc = FieldError("raw(Tmr,...): pins= can't follow the hex", field=None)
+    exc = FieldError(
+        "raw(Tmr,...): pins= can't follow the hex", field=None, code=Code.INVALID_TOKEN
+    )
     assert (exc.field, exc.fields) == (None, ())
 
 
@@ -111,6 +118,7 @@ def test_pickle_keeps_every_refusal() -> None:
     assert [str(e) for e in copy.errors] == [str(e) for e in caught.value.errors]
     assert copy.errors[0] is copy
     assert _shape(copy.errors) == _shape(caught.value.errors)
+    assert [e.code for e in copy.errors] == [e.code for e in caught.value.errors]
 
 
 # ---------------------------------------------------------------------------
@@ -322,8 +330,8 @@ class _Inner(AfInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.refuse("a", "is refused", Reason.KIND)
-            check.refuse("b", "is refused", Reason.FORM)
+            check.refuse("a", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED)
+            check.refuse("b", "is refused", Reason.FORM, code=Code.INVALID_CONSTANT)
 
 
 @dataclasses.dataclass
@@ -335,31 +343,57 @@ class _Outer(AfInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             if self.mode == "item":
-                check.refuse("items[1]", "is refused", Reason.BANK)
-                check.refuse("items", "is refused too", Reason.RANGE)  # its item was refused
-                check.refuse("other", "is refused", Reason.KIND)
+                check.refuse("items[1]", "is refused", Reason.BANK, code=Code.BANK_NOT_ALLOWED)
+                check.refuse(
+                    "items", "is refused too", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE
+                )  # its item was refused
+                check.refuse(
+                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                )
             elif self.mode == "pair":
-                check.refuse(("items", "other"), "is refused", Reason.CONFLICT)
-                check.refuse(("other", "mode"), "is refused too", Reason.CONFLICT)
-                check.refuse("items[0]", "is skipped", Reason.BANK)  # items leads a refusal
+                check.refuse(
+                    ("items", "other"), "is refused", Reason.CONFLICT, code=Code.OPTION_NOT_OFFERED
+                )
+                check.refuse(
+                    ("other", "mode"),
+                    "is refused too",
+                    Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
+                )
+                check.refuse(
+                    "items[0]", "is skipped", Reason.BANK, code=Code.BANK_NOT_ALLOWED
+                )  # items leads a refusal
             elif self.mode == "list":
-                check.refuse("items", "is refused", Reason.RANGE)
+                check.refuse("items", "is refused", Reason.RANGE, code=Code.CONSTANT_OUT_OF_RANGE)
                 assert check.refused("items[0]")
-                check.refuse("items[2]", "is refused too", Reason.BANK)
+                check.refuse("items[2]", "is refused too", Reason.BANK, code=Code.BANK_NOT_ALLOWED)
             elif self.mode == "nested":
-                check.refuse("other", "is refused", Reason.KIND)
+                check.refuse(
+                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                )
                 check.run(_Inner)
             elif self.mode == "raised":
-                check.refuse("other", "is refused", Reason.KIND)
-                raise FieldError("_Outer.other: again", field="_Outer.other")
+                check.refuse(
+                    "other", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                )
+                raise FieldError(
+                    "_Outer.other: again", field="_Outer.other", code=Code.INVALID_CHOICE
+                )
             elif self.mode == "raised nested":
                 _Inner()
             elif self.mode == "together":
                 # One check's refusals of one field, as a Math formula gives them.
-                error = FieldError("_Outer.other: one", field="_Outer.other")
-                error.errors = (error, FieldError("_Outer.other: two", field="_Outer.other"))
+                error = FieldError(
+                    "_Outer.other: one", field="_Outer.other", code=Code.INVALID_CHOICE
+                )
+                error.errors = (
+                    error,
+                    FieldError("_Outer.other: two", field="_Outer.other", code=Code.INVALID_CHOICE),
+                )
                 check.add(error)
-                check.refuse("other", "is skipped", Reason.KIND)
+                check.refuse(
+                    "other", "is skipped", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                )
 
 
 def test_an_item_refused_covers_its_list() -> None:
@@ -458,7 +492,9 @@ def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
 
         def __post_init__(self) -> None:
             with Refusals(self) as check:
-                check.refuse("nothing", "is refused", Reason.KIND)
+                check.refuse(
+                    "nothing", "is refused", Reason.KIND, code=Code.CONSTANT_KIND_NOT_ALLOWED
+                )
 
     with pytest.raises(AssertionError, match="Box.nothing"):
         Box()

@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import AfInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand, check_out_target
@@ -145,7 +146,10 @@ class OutVariant(AfInstruction):
             check("operand", check_out_target, immediate=self.immediate)
             if self.kind not in _KIND_INDEX:
                 check.refuse(
-                    "kind", f"{self.kind!r} is not one of {', '.join(_KIND_INDEX)}", Reason.CHOICE
+                    "kind",
+                    f"{self.kind!r} is not one of {', '.join(_KIND_INDEX)}",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             else:
                 self._check_kind_rules(check)
@@ -160,16 +164,21 @@ class OutVariant(AfInstruction):
                     (name, "kind"),
                     f"{getattr(self, name)!r} is not used by {self.kind}",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
         if self.kind != "toggle" and self.immediate:
             check.refuse(
-                ("immediate", "kind"), f"{self.kind} has no immediate form", Reason.CONFLICT
+                ("immediate", "kind"),
+                f"{self.kind} has no immediate form",
+                Reason.CONFLICT,
+                code=Code.IMMEDIATE_NOT_ALLOWED,
             )
         if self.kind != "timed" and self.maintained:
             check.refuse(
                 ("maintained", "kind"),
                 "only timed has an Output Maintained box",
                 Reason.CONFLICT,
+                code=Code.OPTION_NOT_OFFERED,
             )
         if self.kind == "toggle":
             return
@@ -184,6 +193,7 @@ class OutVariant(AfInstruction):
                 ("unit", "kind"),
                 f"{self.kind} does not support unit={self.unit!r}",
                 Reason.CHOICE,
+                code=Code.COIL_TIME_UNIT,
             )
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
@@ -198,6 +208,7 @@ class OutVariant(AfInstruction):
                     "(on_acc and on_preset, or off_acc and off_preset)",
                     Reason.MISSING,
                     "OBJ-006",
+                    code=Code.DEBOUNCE_NEEDS_PHASE,
                 )
                 return
             phases = filled
@@ -214,6 +225,7 @@ class OutVariant(AfInstruction):
                     f"{self.kind} needs two different TD registers",
                     Reason.CONFLICT,
                     "OBJ-012",
+                    code=Code.DUPLICATE_ADDRESS,
                 )
 
     def _phase_fields(self, phase: str) -> tuple[str, str]:

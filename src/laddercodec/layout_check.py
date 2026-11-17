@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 
 from ._layout.network import AF_X, Box, Edge, GridCell, Network, Sink, cell_of, network
 from ._layout.tree import (
@@ -22,6 +22,7 @@ from ._layout.tree import (
     reachable,
     reduce,
 )
+from .codes import Code
 from .csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from .instructions.counter import Counter
 from .instructions.drum import Drum
@@ -31,23 +32,6 @@ from .model import PinnedInstruction
 
 if TYPE_CHECKING:
     from .decode import Rung
-
-FindingKind = Literal[
-    "not_series_parallel",
-    "no_rail",
-    "feeds_no_box",
-    "no_coil",
-    "nop_only_contact",
-    "unwired_pin",
-    "output_above_pinned_box",
-    "shared_input_net",
-    "pin_without_contact",
-    "pin_shares_main",
-    "pin_shares_pin",
-    "unpowered_box",
-    "shorted_contact",
-    "undecoded",
-]
 
 _COLUMN_NAMES = (*CONDITION_COLUMNS, OUTPUT_COLUMN)
 _UNKNOWN = "CLICK's response to this shape is not captured"
@@ -61,34 +45,34 @@ class Finding:
     ----------
     rung:
         Index of the rung in the checked list, from 0.
-    kind:
-        The shape, one of ``FindingKind``.  The decoding guide's "Check for line connection
-        errors" table gives each kind's shape and code.
     code:
+        The shape, a :class:`~laddercodec.Code`.  The decoding guide's "Check for line
+        connection errors" table gives each code's shape and CLICK id.
+    click_id:
         CLICK's syntax check error code for the shape, or ``None`` where no code is known.
     captured:
-        Whether CLICK's syntax check is known to report this shape with ``code``.
-        ``False`` for every kind with no code, and for these shapes that have one:
-        ``"not_series_parallel"`` on a pin input (C0001, as for a main input);
-        ``"pin_without_contact"`` on a reset wired straight from the rail or whose contacts
+        Whether CLICK's syntax check is known to report this shape with ``click_id``.
+        ``False`` for every code with no CLICK id, and for these shapes that have one:
+        ``"not-series-parallel"`` on a pin input (C0001, as for a main input);
+        ``"input-without-contact"`` on a reset wired straight from the rail or whose contacts
         are all another pin's (C0205 or C0212, as for a reset whose contacts are all the main
-        input's); ``"unwired_pin"`` on a pin other than a timer's or counter's reset, on a pin
-        whose row holds a contact or a wire, or in a rung whose rail reaches no box (C0202, as
-        for a reset whose row holds nothing, in a rung whose rail reaches a box);
-        ``"output_above_pinned_box"`` with a ``NOP`` or a box with a used pin above
-        (C000A, as for an output); and ``"shared_input_net"`` on a pin's net shared with a
+        input's); ``"unwired-input"`` on a pin other than a timer's or counter's reset, on a
+        pin whose row holds a contact or a wire, or in a rung whose rail reaches no box (C0202,
+        as for a reset whose row holds nothing, in a rung whose rail reaches a box);
+        ``"output-above-box-inputs"`` with a ``NOP`` or a box with a used pin above
+        (C000A, as for an output); and ``"shared-input-net"`` on a pin's net shared with a
         pin, with a ``NOP``, with a main input above the pin, or with the pinned box's own
         main input (C000A, as for a box's main input below the pin, on a net of the pin's
-        own).  A ``"no_rail"`` or
-        ``"feeds_no_box"`` finding on a loop of contacts, and a ``"no_coil"`` finding whose
+        own).  A ``"no-rail"`` or
+        ``"feeds-no-box"`` finding on a loop of contacts, and a ``"no-coil"`` finding whose
         paths all end in such a loop, are not captured either.  The findings with
-        ``captured`` ``False`` are provisional: their kinds may be renamed or dropped once
-        CLICK's response to those shapes is captured.  An ``"undecoded"`` finding is not one
-        of these: it reports an undecoded marker, which CLICK never sees.
+        ``captured`` ``False`` are provisional: their codes may be renamed or dropped once
+        CLICK's response to those shapes is captured.  An ``"undecoded-rung"`` finding is not
+        one of these: it reports an undecoded marker, which CLICK never sees.
     row, column:
         The cell, both counted from 0: ``row`` 0 is the rung's first row, ``column`` 0 is A
-        and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no_rail"`` or
-        ``"feeds_no_box"`` finding is at a contact; when captured, it is the contact CLICK
+        and 31 is AF.  ``None`` for a finding about the whole rung.  A ``"no-rail"`` or
+        ``"feeds-no-box"`` finding is at a contact; when captured, it is the contact CLICK
         named for C0202.  A finding about a box input is at its AF cell, and one about a
         whole box at its first row's AF cell.
     message:
@@ -97,13 +81,13 @@ class Finding:
         numbering``.  When the rung's first row is blank, the count starts on the second
         row, so the same cell reads ``row 2``; this is not known to hold for every rung,
         and CLICK may count otherwise.  Every other finding with a cell gives it counted
-        from 0, ``row 2 from 0, column D``.  The message ends with ``(CLICK: <code>)`` when
+        from 0, ``row 2 from 0, column D``.  The message ends with ``(CLICK: <click_id>)`` when
         ``captured``, else with ``not captured``.
     """
 
     rung: int
-    kind: FindingKind
-    code: str | None
+    code: Code
+    click_id: str | None
     captured: bool
     row: int | None
     column: int | None
@@ -118,11 +102,11 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     input on a pin's net (the rail aside), and contacts of its own on every pin input.  On a
     rung whose circuit is not series-parallel, C0001 is the last finding: no C000A finding or
     finding about a pin's contacts follows it.  Findings never stop ``write_csv()``, and only
-    an ``"undecoded"`` finding stops ``encode()``: the other rungs encode as drawn.  A finding
+    an ``"undecoded-rung"`` finding stops ``encode()``: the other rungs encode as drawn.  A finding
     with ``captured`` ``False`` may be a shape CLICK accepts, such as a reset wired straight
     from the rail.
 
-    A rung that holds an undecoded marker gets one ``"undecoded"`` finding per marker, at its
+    A rung that holds an undecoded marker gets one ``"undecoded-rung"`` finding per marker, at its
     AF cell, before its other findings.  A marker rung as the decoders make it (one row of
     wires from the rail into the marker) gets no other finding: its lines are a stand-in,
     not the rung.
@@ -136,10 +120,10 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
 
 @dataclass(frozen=True)
 class _Rule:
-    kind: FindingKind
-    code: str | None
+    code: Code
+    click_id: str | None
     captured: bool
-    #: For a code no capture shows on this shape: the shape a capture shows it on.
+    #: For a CLICK id no capture shows on this shape: the shape a capture shows it on.
     like: str = ""
 
 
@@ -149,36 +133,36 @@ _NO_COIL_TEXT = (
 _NO_COIL_NOP = (
     "a contact feeds a NOP and no other box (CLICK's text: no Coil instruction in the rung)"
 )
-_C0001 = _Rule("not_series_parallel", "C0001", True)
-_C0001_PIN = _Rule("not_series_parallel", "C0001", False, "a main input")
-_NO_RAIL = _Rule("no_rail", "C0202", True)
-_NO_RAIL_LOOP = _Rule("no_rail", "C0202", False, "a contact whose input no contact feeds")
-_FEEDS_NO_BOX = _Rule("feeds_no_box", "C0202", True)
-_FEEDS_NO_BOX_LOOP = _Rule("feeds_no_box", "C0202", False, "a contact no contact continues")
-_NO_COIL = _Rule("no_coil", "C0003", True)
-_NO_COIL_LOOP = _Rule("no_coil", "C0003", False, "a path that ends at a contact")
-_UNWIRED_PIN = _Rule("unwired_pin", "C0202", True)
-_UNWIRED_PIN_LIKE = _Rule("unwired_pin", "C0202", False, "a timer's or counter's reset")
-_UNWIRED_PIN_NO_BOX = _Rule("unwired_pin", "C0202", False, "a rung whose rail reaches a box")
-_UNWIRED_PIN_WIRED = _Rule("unwired_pin", "C0202", False, "a pin whose row holds nothing")
-_ABOVE_PINNED = _Rule("output_above_pinned_box", "C000A", True)
+_C0001 = _Rule(Code.NOT_SERIES_PARALLEL, "C0001", True)
+_C0001_PIN = _Rule(Code.NOT_SERIES_PARALLEL, "C0001", False, "a main input")
+_NO_RAIL = _Rule(Code.NO_RAIL, "C0202", True)
+_NO_RAIL_LOOP = _Rule(Code.NO_RAIL, "C0202", False, "a contact whose input no contact feeds")
+_FEEDS_NO_BOX = _Rule(Code.FEEDS_NO_BOX, "C0202", True)
+_FEEDS_NO_BOX_LOOP = _Rule(Code.FEEDS_NO_BOX, "C0202", False, "a contact no contact continues")
+_NO_COIL = _Rule(Code.NO_COIL, "C0003", True)
+_NO_COIL_LOOP = _Rule(Code.NO_COIL, "C0003", False, "a path that ends at a contact")
+_UNWIRED_PIN = _Rule(Code.UNWIRED_INPUT, "C0202", True)
+_UNWIRED_PIN_LIKE = _Rule(Code.UNWIRED_INPUT, "C0202", False, "a timer's or counter's reset")
+_UNWIRED_PIN_NO_BOX = _Rule(Code.UNWIRED_INPUT, "C0202", False, "a rung whose rail reaches a box")
+_UNWIRED_PIN_WIRED = _Rule(Code.UNWIRED_INPUT, "C0202", False, "a pin whose row holds nothing")
+_ABOVE_PINNED = _Rule(Code.OUTPUT_ABOVE_BOX_INPUTS, "C000A", True)
 _ABOVE_PINNED_LIKE = _Rule(
-    "output_above_pinned_box", "C000A", False, "an output above the box on its main input's net"
+    Code.OUTPUT_ABOVE_BOX_INPUTS, "C000A", False, "an output above the box on its main input's net"
 )
-_SHARED_NET = _Rule("shared_input_net", "C000A", True)
+_SHARED_NET = _Rule(Code.SHARED_INPUT_NET, "C000A", True)
 _SHARED_NET_LIKE = _Rule(
-    "shared_input_net",
+    Code.SHARED_INPUT_NET,
     "C000A",
     False,
     "a box's main input below the pin, on a net of the pin's own",
 )
-_PIN_SHARES = _Rule("pin_shares_main", None, False)
-_PIN_SHARES_PIN = _Rule("pin_shares_pin", None, False)
-_UNPOWERED = _Rule("unpowered_box", None, False)
-_SHORTED = _Rule("shorted_contact", "C0002", True)
-_NOP_ONLY = _Rule("nop_only_contact", "C0003", True)
+_PIN_SHARES = _Rule(Code.INPUT_SHARES_ENABLE, None, False)
+_PIN_SHARES_PIN = _Rule(Code.INPUTS_SHARE_CONTACTS, None, False)
+_UNPOWERED = _Rule(Code.UNPOWERED_BOX, None, False)
+_SHORTED = _Rule(Code.SHORTED_CONTACT, "C0002", True)
+_NOP_ONLY = _Rule(Code.CONTACT_FEEDS_ONLY_NOP, "C0003", True)
 
-#: CLICK's code for a pin with no contact of its own, per box class and pin: a
+#: CLICK's id for a pin with no contact of its own, per box class and pin: a
 #: retentive on_delay or a time drum.
 _PIN_CODES: dict[tuple[type[PinnedInstruction], str], str] = {
     (Timer, ".reset"): "C0205",
@@ -193,13 +177,13 @@ def _pin_rule(token: object, slot: int, lead: int, *, as_captured: bool) -> _Rul
     """
     if isinstance(token, PinnedInstruction):
         name = token.pin_names()[slot - lead - 1]
-        for (cls, pin), code in _PIN_CODES.items():
+        for (cls, pin), click_id in _PIN_CODES.items():
             if isinstance(token, cls) and name == pin:
                 if not as_captured:
                     like = "a reset whose contacts are all the main input's"
-                    return _Rule("pin_without_contact", code, False, like)
-                return _Rule("pin_without_contact", code, True)
-    return _Rule("pin_without_contact", None, False)
+                    return _Rule(Code.INPUT_WITHOUT_CONTACT, click_id, False, like)
+                return _Rule(Code.INPUT_WITHOUT_CONTACT, click_id, True)
+    return _Rule(Code.INPUT_WITHOUT_CONTACT, None, False)
 
 
 def _unwired_rule(box: Box, slot: int, *, holds: bool, rail_feeds_a_box: bool) -> _Rule:
@@ -220,21 +204,21 @@ def _finding(
     rung: int, rule: _Rule, cell: tuple[int, int] | None, what: str, blank_rows: int
 ) -> Finding:
     if rule.captured:
-        why = f"CLICK: {rule.code}"
-    elif rule.code:
-        why = f"{rule.code} as for {rule.like}; {_UNKNOWN}"
+        why = f"CLICK: {rule.click_id}"
+    elif rule.click_id:
+        why = f"{rule.click_id} as for {rule.like}; {_UNKNOWN}"
     else:
         why = _UNKNOWN
-    kind, code, captured = rule.kind, rule.code, rule.captured
+    code, click_id, captured = rule.code, rule.click_id, rule.captured
     if cell is None:
-        return Finding(rung, kind, code, captured, None, None, f"{what} ({why})")
+        return Finding(rung, code, click_id, captured, None, None, f"{what} ({why})")
     row, column = cell
     name = _COLUMN_NAMES[column]
-    if captured and code == "C0202":
+    if captured and click_id == "C0202":
         where = f"row {row - blank_rows + 1}, column {name} in CLICK's numbering"
     else:
         where = f"row {row} from 0, column {name}"
-    return Finding(rung, kind, code, captured, row, column, f"{where}: {what} ({why})")
+    return Finding(rung, code, click_id, captured, row, column, f"{where}: {what} ({why})")
 
 
 def _blank_rows(rung: Rung) -> int:
@@ -259,7 +243,7 @@ def _undecoded(index: int, rung: Rung) -> list[Finding]:
     return [
         Finding(
             index,
-            "undecoded",
+            Code.UNDECODED_RUNG,
             None,
             False,
             row,
@@ -363,7 +347,7 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     in_shared: set[int] = set()
     for b, rule, group in _c000a(net, c):
         in_shared |= group
-        if rule.kind == "output_above_pinned_box":
+        if rule.code is Code.OUTPUT_ABOVE_BOX_INPUTS:
             what = "a box above this one hangs off its main input's net"
         else:
             what = "a pin of this box shares its net with another box's input"
@@ -513,8 +497,8 @@ def _c000a(net: Network, c: Circuits) -> list[tuple[int, _Rule, set[int]]]:
     another box when:
 
     - the other box's main input is on the pinned box's main input's net, above it
-      (``"output_above_pinned_box"``), or
-    - an input of the other box is on the net of one of its pins (``"shared_input_net"``).
+      (``"output-above-box-inputs"``), or
+    - an input of the other box is on the net of one of its pins (``"shared-input-net"``).
 
     A box below the pinned box on its main input's net is not paired, nor are a box's own
     inputs on one net (a reset teed off the main input).  Paired boxes are one group, and each

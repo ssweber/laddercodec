@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
@@ -103,7 +104,10 @@ class Coil(AfInstruction):
         with Refusals(self) as check:
             if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
                 check.refuse(
-                    "kind", f"{self.kind!r} is not a coil (out, latch or reset)", Reason.CHOICE
+                    "kind",
+                    f"{self.kind!r} is not a coil (out, latch or reset)",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             check.flag("immediate", "oneshot")
             if self.oneshot and self.kind in ("latch", "reset"):
@@ -112,6 +116,7 @@ class Coil(AfInstruction):
                     ("oneshot", "kind"),
                     f"{self.kind}() has no one-shot form; only out() does",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
             check.normalize("operand")
             if self.range_end is not None:
@@ -134,6 +139,7 @@ class Coil(AfInstruction):
                     f"{start.bank} and must stay in it",
                     Reason.CONFLICT,
                     "OBJ-008",
+                    code=Code.RANGE_MIXED_BANKS,
                 )
             # An SC range needs both ends writable; the bits between are not checked.
             end = check("range_end", check_out_target, immediate=immediate, **ids)
@@ -147,6 +153,7 @@ class Coil(AfInstruction):
                     "lower to a higher address",
                     Reason.CONFLICT,
                     "OBJ-009" if end.number < start.number else "OBJ-012",
+                    code=Code.RANGE_NOT_ASCENDING,
                 )
 
     @classmethod

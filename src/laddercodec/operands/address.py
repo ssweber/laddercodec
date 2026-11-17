@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, NamedTuple
 
+from ..codes import Code
 from .errors import AddressError, FieldError, Reason
 
 #: Shape of an address token, in any letter case; the CSV token parser uses it to tell a
@@ -113,6 +114,7 @@ def to_display(value: str, display: str, field: str | None) -> str:
             f"{prefix}{value!r} is not CLICK's display form {display!r}",
             field=field,
             reason=Reason.FORM,
+            code=Code.NOT_CLICK_FORM,
         )
     return display
 
@@ -229,6 +231,7 @@ def check_address(
     *,
     label: str | None = None,
     bank_id: str | None = None,
+    bank_code: Code = Code.BANK_NOT_ALLOWED,
     bank_ids: Mapping[str, str] | None = None,
     range_ids: Mapping[str, str] | None = None,
     outside_range_of: str | None = None,
@@ -245,7 +248,8 @@ def check_address(
     ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
     YD.  The message names ``label``, or the field when no label is given.  ``bank_id`` is
     the error id CLICK's dialog gives for a bank the field does not take (``"OBJ-004"``),
-    where it is known; it becomes the refusal's ``click_id``.  ``bank_ids`` gives another id
+    where it is known; it becomes the refusal's ``click_id``.  ``bank_code`` is the
+    refusal's code: ``bank-not-allowed`` unless the caller passes another.  ``bank_ids`` gives another id
     for particular banks (``{"SD": "OBJ-003"}``), given only to an address inside its bank's
     range (SD0 gets ``bank_id``), and ``range_ids`` one for a number outside its bank's
     range, by bank.  A refusal with one of those ids says it is outside the range of
@@ -254,12 +258,18 @@ def check_address(
     name = label or field
     if value == "":
         raise AddressError(
-            f"{name}: is blank; it needs an address", field=field, reason=Reason.MISSING
+            f"{name}: is blank; it needs an address",
+            field=field,
+            reason=Reason.MISSING,
+            code=Code.BLANK_FIELD,
         )
     match = _ADDRESS_RE.fullmatch(value)
     if match is None:
         raise AddressError(
-            f"{name}: {value!r} is not a CLICK address", field=field, reason=Reason.ADDRESS
+            f"{name}: {value!r} is not a CLICK address",
+            field=field,
+            reason=Reason.ADDRESS,
+            code=Code.NOT_AN_ADDRESS,
         )
     bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
     if bank not in ADDRESS_BANKS:
@@ -267,6 +277,7 @@ def check_address(
             f"{name}: {value!r} has no CLICK bank {bank!r}; banks are {', '.join(ADDRESS_BANKS)}",
             field=field,
             reason=Reason.ADDRESS,
+            code=Code.NOT_AN_ADDRESS,
         )
     if banks is not None and bank not in banks:
         allowed = [b for b in ADDRESS_BANKS if b in banks]
@@ -280,6 +291,7 @@ def check_address(
                 f"({specific}); it takes {names}",
                 field=field,
                 reason=Reason.BANK,
+                code=bank_code,
                 click_id=specific,
             )
         tail = f" ({bank_id})" if bank_id else ""
@@ -287,6 +299,7 @@ def check_address(
             f"{name}: {value!r} is not allowed; {name} takes {', '.join(allowed)}{tail}",
             field=field,
             reason=Reason.BANK,
+            code=bank_code,
             click_id=bank_id,
         )
     if not _in_range(bank, digits, upper):
@@ -299,18 +312,21 @@ def check_address(
                 f"({in_range}); it takes {takes}",
                 field=field,
                 reason=Reason.ADDRESS,
+                code=Code.ADDRESS_OUT_OF_RANGE,
                 click_id=in_range,
             )
         raise AddressError(
             f"{name}: {value!r} is outside {_bank_range_text(bank)}",
             field=field,
             reason=Reason.ADDRESS,
+            code=Code.ADDRESS_OUT_OF_RANGE,
         )
     if upper and banks is None:
         raise AddressError(
             f"{name}: {value!r} is not allowed; {name} does not take {bank}0u",
             field=field,
             reason=Reason.FORM,
+            code=Code.UPPER_BYTE_NOT_ALLOWED,
         )
     return Address(bank, int(digits), upper)
 

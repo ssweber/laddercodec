@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..codes import Code
 from ..errors import CsvError, EncodeError
 from ..model import (
     Address,
@@ -206,6 +207,7 @@ def _check_distinct_outputs(
                 f"{text!r} is already output {seen[output]}; each output is a different bit",
                 Reason.CONFLICT,
                 "OBJ-014",
+                code=Code.DUPLICATE_ADDRESS,
             )
             continue
         seen[output] = i
@@ -215,6 +217,7 @@ def _check_distinct_outputs(
                 f"{text!r} is the completion flag; an output is a different bit",
                 Reason.CONFLICT,
                 "OBJ-014",
+                code=Code.DUPLICATE_ADDRESS,
             )
 
 
@@ -227,9 +230,9 @@ def _refuse_blank_steps(
         return
     if check.refused(attr):
         for i in blank:
-            check.refuse(f"{attr}[{i}]", rule, Reason.MISSING, click_id)
+            check.refuse(f"{attr}[{i}]", rule, Reason.MISSING, click_id, code=Code.DRUM_STEP_EMPTY)
     else:
-        check.refuse(attr, rule, Reason.MISSING, click_id)
+        check.refuse(attr, rule, Reason.MISSING, click_id, code=Code.DRUM_STEP_EMPTY)
 
 
 def _timer_done_bit(accumulator: str) -> str:
@@ -285,15 +288,26 @@ class Drum(PinnedInstruction):
             kind = self.kind
             if kind not in _DRUM_KINDS:
                 check.refuse(
-                    "kind", f"{kind!r} is not one of {', '.join(_DRUM_KINDS)}", Reason.CHOICE
+                    "kind",
+                    f"{kind!r} is not one of {', '.join(_DRUM_KINDS)}",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             else:
                 if kind == "event_drum" and self.presets:
                     check.refuse(
-                        "presets", "an event drum has events, not presets", Reason.CONFLICT
+                        "presets",
+                        "an event drum has events, not presets",
+                        Reason.CONFLICT,
+                        code=Code.OPTION_NOT_OFFERED,
                     )
                 elif kind == "time_drum" and self.events:
-                    check.refuse("events", "a time drum has presets, not events", Reason.CONFLICT)
+                    check.refuse(
+                        "events",
+                        "a time drum has presets, not events",
+                        Reason.CONFLICT,
+                        code=Code.OPTION_NOT_OFFERED,
+                    )
             steps, outputs = self.num_steps, self.num_outputs
             steps_field = "events" if kind == "event_drum" else "presets"
             sizes_ok = True
@@ -303,11 +317,15 @@ class Drum(PinnedInstruction):
                     steps_field,
                     f"{steps} steps is outside 1-{_MAX_DRUM_SIZE}",
                     Reason.RANGE,
+                    code=Code.DRUM_SIZE_OUT_OF_RANGE,
                 )
             if not 1 <= outputs <= _MAX_DRUM_SIZE:
                 sizes_ok = False
                 check.refuse(
-                    "outputs", f"{outputs} outputs is outside 1-{_MAX_DRUM_SIZE}", Reason.RANGE
+                    "outputs",
+                    f"{outputs} outputs is outside 1-{_MAX_DRUM_SIZE}",
+                    Reason.RANGE,
+                    code=Code.DRUM_SIZE_OUT_OF_RANGE,
                 )
             if sizes_ok:
                 self._check_pattern(check, steps, outputs)
@@ -370,13 +388,17 @@ class Drum(PinnedInstruction):
                 f"needs {steps} steps of {outputs} cells each, got "
                 f"{len(self.pattern)} steps of {sorted({len(row) for row in self.pattern})} cells",
                 Reason.FORM,
+                code=Code.DRUM_PATTERN_SHAPE,
             )
             return
         for row in self.pattern:
             for cell in row:
                 if type(cell) is not int or cell not in (0, 1):
                     check.refuse(
-                        "pattern", f"{cell!r} is not allowed, cells are 0 or 1", Reason.CHOICE
+                        "pattern",
+                        f"{cell!r} is not allowed, cells are 0 or 1",
+                        Reason.CHOICE,
+                        code=Code.INVALID_CHOICE,
                     )
                     return
 
@@ -388,6 +410,7 @@ class Drum(PinnedInstruction):
                 "unit",
                 f"{self.unit!r} is not one of {', '.join(_DRUM_UNIT_TO_INDEX)}",
                 Reason.CHOICE,
+                code=Code.INVALID_CHOICE,
             )
         check("accumulator", check_address, banks={"TD"})
         if kind == "time_drum":
@@ -406,6 +429,7 @@ class Drum(PinnedInstruction):
                 ("events", "presets"),
                 f"needs one event per step ({steps}), got {len(self.events)}",
                 Reason.CONFLICT,
+                code=Code.DRUM_PATTERN_SHAPE,
             )
             return
         for i, (preset, event) in enumerate(zip(self.presets, self.events, strict=True)):
@@ -415,6 +439,7 @@ class Drum(PinnedInstruction):
                     f"step {i + 1} needs a duration or an event",
                     Reason.MISSING,
                     "OBJ-1019",
+                    code=Code.DRUM_STEP_EMPTY,
                 )
 
     @property

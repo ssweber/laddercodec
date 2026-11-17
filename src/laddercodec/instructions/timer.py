@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
@@ -76,10 +77,20 @@ class Timer(PinnedInstruction):
         with Refusals(self) as check:
             check.flag("retained")
             if self.kind not in ("on_delay", "off_delay"):
-                check.refuse("kind", f"{self.kind!r} is not on_delay or off_delay", Reason.CHOICE)
+                check.refuse(
+                    "kind",
+                    f"{self.kind!r} is not on_delay or off_delay",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
+                )
             if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
                 units = ", ".join(TIMER_UNIT_TO_INDEX)
-                check.refuse("unit", f"{self.unit!r} is not one of {units}", Reason.CHOICE)
+                check.refuse(
+                    "unit",
+                    f"{self.unit!r} is not one of {units}",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
+                )
             check.normalize("done", "accumulator", "preset")
             done = check("done", check_address, banks={"T"})
             accumulator = check("accumulator", check_address, banks={"TD"})
@@ -89,6 +100,7 @@ class Timer(PinnedInstruction):
                     f"{self.accumulator!r} must be TD{done.number} to match Timer.done "
                     f"{self.done!r}",
                     Reason.CONFLICT,
+                    code=Code.TIMER_PAIR_MISMATCH,
                 )
             # An address preset is DS only, OBJ-004.
             check("preset", check_operand, {"DS"}, _PRESET, bank_id="OBJ-004")
@@ -98,6 +110,7 @@ class Timer(PinnedInstruction):
                     "off_delay can't be retentive (no .reset() pin); CLICK's Timer dialog "
                     "offers Retentive only for an On Delay timer",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
             check.run(self._check_pin_rows)
 

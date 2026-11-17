@@ -61,7 +61,7 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
    no rail or contact reaches, in a rung with a circuit. `check()` reports nothing for it.
    CLICK's check gives no error for it, and leaves a rung of `~X002` to `latch(Y002)` with
    stubs at A and C, an unwired `NOP` and a blank row as one row. `check()` reports any other
-   box that no rail or contact reaches as `unpowered_box`, and its rung stays as drawn.
+   box that no rail or contact reaches as `unpowered-box`, and its rung stays as drawn.
    CLICK's check on one is not known.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
    on the first. So `read_csv` can return more rungs than the CSV holds.
@@ -114,8 +114,8 @@ Three more shapes are kept as drawn, with no capture of CLICK's check on them:
 - A contact on the circuits of two pins, or of a main input and a pin that has contacts of
   its own as well. Each pin's circuit is drawn on rows of its own, so a layout would draw the
   contact once per input. `check()` reports the later pin. The finding is
-  `pin_without_contact` when all its contacts are the other pin's (a pin with no contact of
-  its own). Otherwise it is `pin_shares_pin` or `pin_shares_main`.
+  `input-without-contact` when all its contacts are the other pin's (a pin with no contact of
+  its own). Otherwise it is `inputs-share-contacts` or `input-shares-enable`.
 - A rung that would split (rule 9) and holds a `NOP` that a rail or contact reaches. The
   splits known are of coils and Copy boxes.
 - A rung the render cannot fit in 31 columns, or whose nets would cross.
@@ -138,7 +138,7 @@ shows is reported with `captured=False`.
     - A path from the rail that reaches no box is C0202 at its last contact, and C0003
       once for the rung.
     - A contact that feeds a `NOP` and no other box, along any path, is
-      `nop_only_contact`: C0003 once for the rung. This holds even when a coil sits on
+      `contact-feeds-only-nop`: C0003 once for the rung. This holds even when a coil sits on
       another wire of the rung or on another leg of the same split. A `NOP` on the rail
       alone, or on a net that a coil shares, does not count.
     - A contact whose two sides a wire joins (a contact in parallel with a wire-only
@@ -157,9 +157,9 @@ shows is reported with `captured=False`.
     itself, when one has a used pin (a retentive timer, a counter, a shift, a drum) and one
     of these holds:
     - the other box's main input is on the pinned box's main input's net, above it
-      (`output_above_pinned_box`)
+      (`output-above-box-inputs`)
     - an input of the other box is on the net of one of the pinned box's pins
-      (`shared_input_net`)
+      (`shared-input-net`)
 
     Each is C000A: CLICK's "All inputs of the box instruction must originate from the same
     branch". Paired boxes are one group, and each group is one finding. The finding is at

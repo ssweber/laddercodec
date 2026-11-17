@@ -12,6 +12,7 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import Any, cast
 
+from ..codes import Code
 from ..model import PinnedInstruction
 from ..operands.unchecked import rebuilt
 from .network import GridCell, Network, cell_of, network
@@ -90,7 +91,7 @@ def canonical(rung: Any) -> list[Any] | None:
     """
     from ..layout_check import check
 
-    if any(f.kind not in ("unwired_pin", "nop_only_contact") for f in check(rung)):
+    if any(f.code not in (Code.UNWIRED_INPUT, Code.CONTACT_FEEDS_ONLY_NOP) for f in check(rung)):
         return None
     try:
         net = network_of_rung(rung)
@@ -121,7 +122,8 @@ def circuit(rungs: Sequence[Any]) -> list[object]:
         for e in net.edges:
             if seen[id(e)] != 1:
                 raise LayoutError(
-                    f"row {e.row} column {e.col}: the circuit holds the contact {seen[id(e)]} times"
+                    f"row {e.row} column {e.col}: the circuit holds the contact {seen[id(e)]} times",
+                    code=Code.LAYOUT_CANNOT_DRAW,
                 )
     return out
 

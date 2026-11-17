@@ -53,13 +53,14 @@ src/laddercodec/
 ├── _grid.py              # Shared grid building: _validate_rung, _compute_rung_metadata, _build_rung_grid
 ├── binary_helpers.py     # UTF-16LE, tagged-field read/write primitives
 ├── errors.py             # LaddercodecError(ValueError) and the tree under it: DecodeError, EncodeError, CsvError, WriterError, LayoutError
+├── codes.py              # Code: the kebab-case name of each refusal, finding and layout error rule; CLICK_IDS
 ├── decode.py             # decode() (always a list[Rung]) + internal decode_rung(), decode_rungs()
 ├── decode_program.py     # decode_program(): Scr*.tmp to Program
 ├── legacy.py             # LegacyEncodingWarning: saved forms an older laddercodec wrote that CLICK runs differently
 ├── undecoded.py          # UndecodedRungWarning, marker_rung(): the rung decoders and write_csv put in place of one they can't read
 ├── refused.py            # RefusedFieldWarning, warn_refused(): a decoded instruction that holds a value its checks refuse
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
-├── layout_check.py       # check(): Finding per shape CLICK's syntax check cannot lay out (C0001, C0202, ...)
+├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
 │                         #   tree.py (series-parallel tree), render.py (packed layout). Used by csv/ and layout_check.py
 ├── cell.py               # ClickCell, preamble, terminal and row builders
@@ -77,7 +78,7 @@ src/laddercodec/
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)
-│   ├── errors.py         # FieldError (LaddercodecError), AddressError; .errors, .field(s), .reason (Reason), .click_id, .obj
+│   ├── errors.py         # FieldError (LaddercodecError), AddressError; .errors, .field(s), .code (Code), .reason (Reason), .click_id, .obj
 │   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()
@@ -112,6 +113,8 @@ src/laddercodec/
 - **Operand rules.**
   - A refused field raises `FieldError` at construction (`AddressError` for an address).
   - A decoder builds the instruction anyway and keeps the refusal (`operands/unchecked.py`).
+  - Each refusal site passes `code=Code.<MEMBER>` (`codes.py`). `tests/test_code_guard.py` fails on a call without one.
+  - `docs/gen_codes.py` writes the error codes page (`docs/guides/codes.md`) from `Code`. `tests/test_codes.py` fails when the page is out of date.
   - `tests/test_operand_guards.py` counts three things in `instructions/` and compares the counts with an allowlist. They are each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` or a `laddercodec.errors` class outside blob parsing.
   - A new one fails the test. Remove an allowlist entry when the code no longer has it.
   - `devtools/classify_dryrun.py` calls the shared checks in `operands/checks.py` with each field's parameters. It reports where they disagree with today's checks.

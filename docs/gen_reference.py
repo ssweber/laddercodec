@@ -40,6 +40,8 @@ PAGES: tuple[ReferencePage, ...] = (
             "FieldError",
             "AddressError",
             "Reason",
+            "Code",
+            "CLICK_IDS",
             "LaddercodecError",
             "DecodeError",
             "EncodeError",
@@ -62,7 +64,11 @@ PAGES: tuple[ReferencePage, ...] = (
         slug="instructions",
         title="Instructions API",
         tier="Stable Core",
-        summary="Domain objects for ladder logic instructions.",
+        summary=(
+            "Domain objects for ladder logic instructions. `Email`, `Home`, `Position` and"
+            " `Velocity` are provisional: their fields are named after CLICK's tag ids and"
+            " will change."
+        ),
         symbols=(
             "ConditionInstruction",
             "AfInstruction",
@@ -159,7 +165,7 @@ def _write_index() -> None:
         "",
         "This section is generated from an explicit, versioned public API manifest.",
         "",
-        "Every name in `laddercodec.__all__` is public API; everything else is internal and may change in any release. Message text is not API: match on the exception class or its fields.",
+        "Every name in `laddercodec.__all__` is public API; everything else is internal and may change in any release. Message text is not API: match on the exception class, its `code` or its fields.",
         "",
         "## Stable Core Pages",
         "",

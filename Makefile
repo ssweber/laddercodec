@@ -31,6 +31,7 @@ build:
 
 docs-generate:
 	uv run --group docs python docs/gen_reference.py
+	uv run --group docs python docs/gen_codes.py
 
 docs-serve: docs-generate
 	uv run --group docs zensical serve

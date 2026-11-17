@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Refusals
@@ -68,6 +69,7 @@ class Shift(PinnedInstruction):
                     f"{self.start_bit!r}; a shift register needs two different ends",
                     Reason.CONFLICT,
                     "OBJ-012",
+                    code=Code.DUPLICATE_ADDRESS,
                 )
             check.run(self._check_pin_rows)
 

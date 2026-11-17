@@ -116,6 +116,7 @@ class Namespace:
         sys.path.insert(0, str(src))
         import laddercodec
         from laddercodec import instructions
+        from laddercodec.codes import Code
         from laddercodec.instructions.comparison import _GROUP_BANKS
         from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
         from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
@@ -128,6 +129,7 @@ class Namespace:
         self.inst: Any = instructions
         self.checks: Any = checks
         self.Kind: Any = Kind
+        self.Code: Any = Code
         self.FieldError: Any = FieldError
         self.AddressError: Any = AddressError
         self.InstructionType: Any = InstructionType
@@ -144,9 +146,10 @@ class Namespace:
         k = self.checks.ALL_KINDS if kinds is None else frozenset(kinds)
         return self.checks.Constants(k, **limits)
 
-    def refuse(self, message: str, *, address: bool = False) -> None:
-        """A refusal the family keeps for itself (a pairing), in the family's class."""
-        raise (self.AddressError if address else self.FieldError)(message)
+    def refuse(self, message: str, *, code: str, address: bool = False) -> None:
+        """A refusal the family keeps for itself (a pairing), in the family's class, with
+        the family's code (a ``Code`` member's name)."""
+        raise (self.AddressError if address else self.FieldError)(message, code=self.Code[code])
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +176,7 @@ def compare_rule(other_group: str) -> Callable[[Any, str], None]:
         else:
             group = next(g for g, banks in ns.compare_groups.items() if op.bank in banks)
         if group != other_group:
-            ns.refuse("not in one compare group")
+            ns.refuse("not in one compare group", code="COMPARE_MIXED_TYPES")
 
     return rule
 
@@ -214,9 +217,11 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
         if shape is not None:
             ns.checks.check_constant(text, "Copy.source", constants)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
-            ns.refuse("text copies to TXT", address=True)
+            ns.refuse("text copies to TXT", address=True, code="COPY_BANK_INCOMPATIBLE")
         if shape == ns.Kind.HEX and _wide_hex(text) and dest not in ("DD", "CTD"):
-            ns.refuse("hex above FFFFh copies to DD, CTD", address=True)
+            ns.refuse(
+                "hex above FFFFh copies to DD, CTD", address=True, code="COPY_BANK_INCOMPATIBLE"
+            )
         op = ns.checks.check_operand(
             text,
             "Copy.source",
@@ -225,18 +230,24 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
             pointer=True,
         )
         if op.constant is None and op.bank in ns.checks.BIT_BANKS:
-            ns.refuse("a bit copies to Y, C", address=True)
+            ns.refuse("a bit copies to Y, C", address=True, code="COPY_BANK_INCOMPATIBLE")
         if op.constant is None and op.bank == "TXT" and dest not in ("DF", "TXT"):
-            ns.refuse("a TXT register into a number needs to_value or to_ascii")
+            ns.refuse(
+                "a TXT register into a number needs to_value or to_ascii",
+                code="COPY_TXT_NEEDS_CONVERT",
+            )
         number = op.constant.kind in _NUMBER_KINDS if op.constant else op.bank != "TXT"
         if dest == "TXT" and number:
-            ns.refuse("a number into TXT needs a converter")
+            ns.refuse("a number into TXT needs a converter", code="COPY_TXT_NEEDS_CONVERT")
         if op.constant and op.constant.kind == ns.Kind.TEXT:
             if not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
-                ns.refuse("text holds U+0001 to U+FFFF, no NUL and no surrogate")
+                ns.refuse(
+                    "text holds U+0001 to U+FFFF, no NUL and no surrogate",
+                    code="INVALID_TEXT_CONSTANT",
+                )
         if op.constant and op.constant.kind == ns.Kind.FLOAT:
             if ns.real_beyond_kept_digits(text) is not None:
-                ns.refuse("a real of more than 7 significant digits")
+                ns.refuse("a real of more than 7 significant digits", code="INVALID_CONSTANT")
 
     return rule
 
@@ -267,10 +278,14 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
         if shape == ns.Kind.CHAR:
             ns.checks.check_constant(text, "Fill.value", constants)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
-            ns.refuse("text fills TXT", address=True)
+            ns.refuse("text fills TXT", address=True, code="COPY_BANK_INCOMPATIBLE")
         op = ns.checks.check_operand(text, "Fill.value", ns.checks.REGISTER_BANKS, constants)
         if op.constant is None and (op.bank == "TXT") != (dest == "TXT"):
-            ns.refuse("a TXT fills TXT, a numeric register the numeric banks", address=True)
+            ns.refuse(
+                "a TXT fills TXT, a numeric register the numeric banks",
+                address=True,
+                code="COPY_BANK_INCOMPATIBLE",
+            )
 
     return rule
 
@@ -288,10 +303,13 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "Search.value", ns.checks.REGISTER_BANKS, constants)
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
-            ns.refuse("the value's kind does not search this table")
+            ns.refuse("the value's kind does not search this table", code="SEARCH_VALUE_BANK")
         if op.constant and op.constant.kind == ns.Kind.TEXT:
             if not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
-                ns.refuse("text holds U+0001 to U+FFFF, no NUL and no surrogate")
+                ns.refuse(
+                    "text holds U+0001 to U+FFFF, no NUL and no surrogate",
+                    code="INVALID_TEXT_CONSTANT",
+                )
 
     return rule
 
@@ -320,9 +338,9 @@ def for_limit_rule(ns: Any, value: str) -> None:
     digits with a space inside."""
     text = value.strip()
     if not text:
-        ns.refuse("a For count is not blank")
+        ns.refuse("a For count is not blank", code="BLANK_FIELD")
     if re.fullmatch(r"[0-9]+(\s+[0-9]+)+", text):
-        ns.refuse("a constant count is digits only")
+        ns.refuse("a constant count is digits only", code="INVALID_CONSTANT")
     constants = ns.constants({ns.Kind.INTEGER}, signs="", low=0, high=2**31 - 1)
     ns.checks.check_operand(ns.normalize(text), "ForLoop.count", ns.for_limit_banks, constants)
 
@@ -346,7 +364,7 @@ def modbus_hex_rule(ns: Any, value: str) -> None:
         constants = ns.constants({ns.Kind.HEX}, hex_high=0xFFFE)
         ns.checks.check_constant(value, "ModbusAddress.address", constants)
     elif not (value.isascii() and value.isdigit()) or len(value) > 4300:
-        ns.refuse("not a MODBUS 984 number or hex")
+        ns.refuse("not a MODBUS 984 number or hex", code="NOT_AN_ADDRESS")
 
 
 def out_target_rule(immediate: bool) -> Callable[[Any, str], None]:

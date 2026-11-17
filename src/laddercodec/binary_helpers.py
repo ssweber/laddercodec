@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import struct
 
+from .codes import Code
 from .operands.errors import FieldError, Reason
 
 # ---------------------------------------------------------------------------
@@ -214,7 +215,9 @@ def tag_int(tags: dict[int, str], tag: int, class_name: str = "") -> int:
     try:
         return int(value)
     except ValueError:
-        raise NotANumber(f"tag 0x{tag:04X}: {value!r} is no number", reason=Reason.KIND) from None
+        raise NotANumber(
+            f"tag 0x{tag:04X}: {value!r} is no number", reason=Reason.KIND, code=Code.NOT_CLICK_FORM
+        ) from None
 
 
 def tag_flag(tags: dict[int, str], tag: int) -> bool:

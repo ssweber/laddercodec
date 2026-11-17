@@ -4,8 +4,9 @@ The fixture below wraps the step that completes the refusals of an instruction c
 ``__post_init__``, so every test that builds a refused instruction checks the error's shape
 too: each refusal's ``field`` (and each of its ``fields``) is ``Class.attr`` or
 ``Class.attr[i]``, where ``Class`` is the class name of the instance its refusal is about and
-``attr`` one of its dataclass fields, and its ``reason`` is a :class:`~laddercodec.Reason` or
-None, and a class in ``REASONED`` has no refusal without one.  A refusal that breaks this
+``attr`` one of its dataclass fields, its ``reason`` is a :class:`~laddercodec.Reason` or
+None, and a class in ``REASONED`` has no refusal without one; its ``code`` is a
+:class:`~laddercodec.Code`, and its ``click_id`` one the code lists in ``CLICK_IDS``.  A refusal that breaks this
 fails the test that built it with an ``AssertionError``.
 
 It sees only the refusals the suite builds, and only through an instruction class's
@@ -22,6 +23,7 @@ from typing import Any
 
 import pytest
 
+from laddercodec.codes import CLICK_IDS, Code
 from laddercodec.operands import address
 from laddercodec.operands.errors import FieldError, Reason
 
@@ -71,7 +73,22 @@ def refusal_problems(error: FieldError) -> list[str]:
         problems.append(f"reason {error.reason!r} is not a Reason")
     if error.reason is None and cls.__name__ in REASONED:
         problems.append(f"{error.field!r} has no reason")
+    problems += code_problems(error)
     return problems
+
+
+def code_problems(error: FieldError) -> list[str]:
+    """What is wrong with one refusal's code: not a Code, or a CLICK id its code does not list.
+
+    A ``blank-field`` refusal keeps the id of the check that refused the blank.
+    """
+    if not isinstance(error.code, Code):
+        return [f"{error.field!r}: code {error.code!r} is not a Code"]
+    if error.click_id is None or error.code is Code.BLANK_FIELD:
+        return []
+    if error.click_id not in CLICK_IDS.get(error.code, ()):
+        return [f"{error.field!r}: {error.code} does not list {error.click_id}"]
+    return []
 
 
 @pytest.fixture(autouse=True, scope="session")

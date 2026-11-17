@@ -48,6 +48,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import NoReturn
 
+from ..codes import Code
 from ..model import (
     ADDRESS_BANKS,
     XY_SLOTS,
@@ -75,10 +76,12 @@ from ..operands.errors import Reason
 _NAME = "Math.expression"
 
 
-def _error(rule: str, reason: Reason, click_id: str | None = None) -> FieldError:
+def _error(rule: str, reason: Reason, click_id: str | None = None, *, code: Code) -> FieldError:
     """A refusal of the formula: ``Math.expression: rule``, ending with CLICK's id if known."""
     tail = f" ({click_id})" if click_id else ""
-    return FieldError(f"{_NAME}: {rule}{tail}", field=_NAME, reason=reason, click_id=click_id)
+    return FieldError(
+        f"{_NAME}: {rule}{tail}", field=_NAME, reason=reason, code=code, click_id=click_id
+    )
 
 
 def _raise(found: Sequence[FieldError]) -> NoReturn:
@@ -287,10 +290,16 @@ def _lex(text: str) -> list[_Raw]:
             continue
         if ch in '"$':
             raise _error(
-                f"{text!r} holds a text constant; a Math formula takes numbers only", Reason.KIND
+                f"{text!r} holds a text constant; a Math formula takes numbers only",
+                Reason.KIND,
+                code=Code.MATH_CONSTANT_KIND,
             )
         if not _is_word_char(ch):
-            raise _error(f"{ch!r} in {text!r} is no part of a Math formula", Reason.FORM)
+            raise _error(
+                f"{ch!r} in {text!r} is no part of a Math formula",
+                Reason.FORM,
+                code=Code.MATH_INVALID_TOKEN,
+            )
         end = i
         while end < n and _is_word_char(text[end]):
             end += 1
@@ -340,6 +349,7 @@ def _word_refusal(word: str) -> FieldError:
         "a Math formula takes only those",
         Reason.KIND,
         "OBJ-1001",
+        code=Code.MATH_INVALID_TOKEN,
     )
 
 
@@ -360,7 +370,10 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
         kind = "op" if word in "+-*/^" else word
         return Token(kind, word)
     if any(c.isdecimal() and not c.isascii() for c in word):
-        return refuse(_error(f"{word!r} has a digit outside 0-9", Reason.FORM), None)
+        return refuse(
+            _error(f"{word!r} has a digit outside 0-9", Reason.FORM, code=Code.MATH_INVALID_TOKEN),
+            None,
+        )
     hex_digits = _hex_digits(word)
     # CLICK stores a hex Math constant typed as a real number without h, such as 1e3, as
     # the digits then h (1E3h): the cut there leaves only the h, and the constant is read.
@@ -372,6 +385,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 f"{word} is refused; CLICK reads the digits before E as a real number, so it "
                 f"reads {word} as {first} then {rest}",
                 Reason.FORM,
+                code=Code.MATH_INVALID_TOKEN,
             )
             return refuse(error, "const")
         if hex_digits is None:
@@ -402,6 +416,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 "constants such as 7",
                 Reason.KIND,
                 "OBJ-1001",
+                code=Code.MATH_CONSTANT_KIND,
             )
             return refuse(error, "const")
         if len(hex_digits) > 4:
@@ -410,6 +425,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
                 f"{hex_digits}h is outside 0h..FFFFh; a hex constant has at most 4 digits",
                 Reason.RANGE,
                 "OBJ-1009",
+                code=Code.MATH_CONSTANT_OUT_OF_RANGE,
             )
             return refuse(error, "const")
         try:
@@ -427,13 +443,14 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
         if signed == word or not _in_call(raws, i - 1):
             # A signed argument of RAND, LSH, RSH, LRO or RRO is refused with its h too.
             rule = f"{signed} has no h; a hex Math takes hex constants, and CLICK reads it as {fixed}: write {fixed}"
-        return refuse(_error(rule, Reason.KIND), "const")
+        return refuse(_error(rule, Reason.KIND, code=Code.MATH_CONSTANT_KIND), "const")
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             error = _error(
                 f"{_signed(raws, i, word)} is a decimal constant; a hex Math takes hex "
                 "constants such as 7h",
                 Reason.KIND,
+                code=Code.MATH_CONSTANT_KIND,
             )
             return refuse(error, "const")
         return Token("const", word)
@@ -456,13 +473,24 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None
                     f"{shown!r} nests parentheses {depth} deep; CLICK allows {MAX_NESTING}",
                     Reason.RANGE,
                     "OBJ-1010",
+                    code=Code.MATH_NESTING_DEPTH,
                 )
         elif token.kind == ")":
             depth -= 1
             if depth < 0:
-                return _error(f"{shown!r} has a ')' with no '('", Reason.FORM, "OBJ-1004")
+                return _error(
+                    f"{shown!r} has a ')' with no '('",
+                    Reason.FORM,
+                    "OBJ-1004",
+                    code=Code.MATH_UNBALANCED_PARENS,
+                )
     if depth > 0:
-        return _error(f"{shown!r} has a '(' with no ')'", Reason.FORM, "OBJ-1005")
+        return _error(
+            f"{shown!r} has a '(' with no ')'",
+            Reason.FORM,
+            "OBJ-1005",
+            code=Code.MATH_UNBALANCED_PARENS,
+        )
     return None
 
 
@@ -514,6 +542,7 @@ def _decimal_internal(text: str) -> str | FieldError:
                 f"{_FLOAT32_MAX_TEXT} in size, float32's largest value",
                 Reason.RANGE,
                 "OBJ-1009",
+                code=Code.MATH_CONSTANT_OUT_OF_RANGE,
             )
         kept = real_beyond_kept_digits(text, MATH_REAL_DIGITS)
         if kept is not None:
@@ -521,6 +550,7 @@ def _decimal_internal(text: str) -> str | FieldError:
                 f"{text} has {significant_digits(text)} significant digits; CLICK keeps "
                 f"{MATH_REAL_DIGITS} significant digits in Math: write {kept}",
                 Reason.FORM,
+                code=Code.MATH_CONSTANT_OUT_OF_RANGE,
             )
         return f"F{text}"
     if len(text) > _MAX_PRINTED:
@@ -530,6 +560,7 @@ def _decimal_internal(text: str) -> str | FieldError:
             "characters, which is not what was typed",
             _integer_reason(text, body),
             "OBJ-1009",
+            code=Code.MATH_CONSTANT_OUT_OF_RANGE,
         )
     value = int(text)
     # _wtoi64 saturates at the int64 limits.
@@ -543,11 +574,12 @@ def _decimal_internal(text: str) -> str | FieldError:
                 rule = f"{text} is refused; an integer constant has no leading zeros"
             else:
                 rule = f"{text} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
-            return _error(rule, reason, "OBJ-1009")
+            return _error(rule, reason, "OBJ-1009", code=Code.MATH_CONSTANT_OUT_OF_RANGE)
         return _error(
             f"{text} is refused; CLICK reads it back as {printed}, which is not what was typed",
             Reason.FORM,
             "OBJ-1009",
+            code=Code.MATH_CONSTANT_OUT_OF_RANGE,
         )
     return f"{'H' if INT16_MIN <= value <= INT16_MAX else 'W'}{text}"
 
@@ -583,6 +615,7 @@ def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldErr
             field=(_NAME, "Math.mode"),
             reason=Reason.CONFLICT,
             click_id="OBJ-1006",
+            code=Code.MATH_FUNCTION_MODE,
         )
         for token in tokens
         if token.kind in ("op", "func", "pi") and token.text in other
@@ -649,7 +682,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
             reason = _follow_refusal(token, nxt)
             if reason:
                 rule = f"{nxt.text!r} after {token.text!r}: {reason}"
-                return _error(rule, Reason.FORM, "OBJ-1001")
+                return _error(rule, Reason.FORM, "OBJ-1001", code=Code.MATH_SYNTAX_ERROR)
         if token.kind == "," and i not in call_separators:
             # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
             # (OBJ-037: DS1 , DS2 is refused).  MAX ( DS1 , DS2 ) is refused too, by the
@@ -659,6 +692,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 "decimal comma: use a period (.) as the decimal point",
                 Reason.FORM,
                 "OBJ-037",
+                code=Code.MATH_SYNTAX_ERROR,
             )
         if token.kind == ":" and i not in call_separators:
             # A ':' outside SUM..AVG ( a : b ) is refused.
@@ -666,6 +700,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 "':' stands outside SUM, MAX, MIN, MDN or AVG ( a : b ); a range is written in "
                 "one of those",
                 Reason.FORM,
+                code=Code.MATH_SYNTAX_ERROR,
             )
         if token.kind != "func":
             continue
@@ -685,6 +720,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                     "constant, one each",
                     Reason.FORM,
                     "OBJ-1001",
+                    code=Code.MATH_ARG_EXPRESSION,
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
@@ -696,6 +732,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                     f"{token.text} takes {token.text} ( a : b ), a range from address a to "
                     "address b",
                     Reason.FORM,
+                    code=Code.MATH_ARG_EXPRESSION,
                 )
             call_separators.add(i + 3)
         elif token.text in TRIG:
@@ -708,12 +745,23 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                     "refuses it",
                     Reason.FORM,
                     "OBJ-1001",
+                    code=Code.MATH_SYNTAX_ERROR,
                 )
     first, last = tokens[0], tokens[-1]
     if first.kind in (")", ",", ":") or (first.kind == "op" and first.text not in _SIGNS):
-        return _error(f"the formula starts with {first.text!r}", Reason.FORM, "OBJ-1001")
+        return _error(
+            f"the formula starts with {first.text!r}",
+            Reason.FORM,
+            "OBJ-1001",
+            code=Code.MATH_SYNTAX_ERROR,
+        )
     if last.kind not in (")", "pi", "const", "addr"):
-        return _error(f"the formula ends with {last.text!r}", Reason.FORM, "OBJ-1001")
+        return _error(
+            f"the formula ends with {last.text!r}",
+            Reason.FORM,
+            "OBJ-1001",
+            code=Code.MATH_SYNTAX_ERROR,
+        )
     return None
 
 
@@ -747,7 +795,9 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         for bound in (low, high):
             if bound.kind == "const" and not bound.refused and bound.internal.startswith("F"):
                 rule_text = f"{bound.text} is a real constant; {rule}"
-                found.append(_error(rule_text, Reason.KIND, "OBJ-1001"))
+                found.append(
+                    _error(rule_text, Reason.KIND, "OBJ-1001", code=Code.RANDOM_BOUND_TYPE)
+                )
         if not (low.refused or high.refused) and low.text == high.text:
             found.append(
                 _error(
@@ -755,6 +805,7 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
                     "different bounds",
                     Reason.FORM,
                     "OBJ-1001",
+                    code=Code.RANDOM_EQUAL_BOUNDS,
                 )
             )
     return found
@@ -809,19 +860,19 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
             if bank in operands.anywhere:
                 # A register the rest of the formula takes: a Copy into the bound's bank works.
                 rule += f": copy {token.text} into {_RAND_COPY_INTO[mode]} register first"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+            found.append(_error(rule, Reason.BANK, "OBJ-1002", code=Code.RANDOM_BOUND_TYPE))
             continue
         if bank in operands.anywhere or (i in sum_at and bank in operands.in_sum):
             continue
         bank_refused.add(i)
         if i not in sum_at:
             rule = f"{token.text} is refused; {operands.rule}"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+            found.append(_error(rule, Reason.BANK, "OBJ-1002", code=Code.MATH_OPERAND_BANK))
         elif (at := sum_at[i]) not in sum_refused:
             sum_refused.add(at)
             shown = f"SUM ( {texts[at + 2]} : {texts[at + 4]} )"
             rule = f"{shown} is refused for {token.text}; {operands.rule}"
-            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+            found.append(_error(rule, Reason.BANK, "OBJ-1002", code=Code.SUM_BANK_UNAVAILABLE))
     return found, bank_refused
 
 
@@ -846,13 +897,18 @@ def _check_ranges(
         shown = f"{texts[i - 1]} : {texts[i + 1]}"
         if low[0] != high[0]:
             shapes.append(
-                _error(f"{shown} spans two banks; a range stays in one", Reason.FORM, "OBJ-1015")
+                _error(
+                    f"{shown} spans two banks; a range stays in one",
+                    Reason.FORM,
+                    "OBJ-1015",
+                    code=Code.MATH_RANGE_MIXED_BANKS,
+                )
             )
             continue
         count = _range_position(*high) - _range_position(*low) + 1
         if count < 1:
             rule = f"{shown} runs high to low; a range runs low : high"
-            shapes.append(_error(rule, Reason.FORM, "OBJ-1014"))
+            shapes.append(_error(rule, Reason.FORM, "OBJ-1014", code=Code.MATH_RANGE_NOT_ASCENDING))
             continue
         width = 2 if low[0] in _TWO_BYTE_BANKS else 4 if low[0] in _FOUR_BYTE_BANKS else 0
         if texts[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
@@ -862,6 +918,7 @@ def _check_ranges(
                     f"{_MEDIAN_MAX_BYTES}",
                     Reason.RANGE,
                     "OBJ-1013",
+                    code=Code.MEDIAN_RANGE_TOO_LARGE,
                 )
             )
             continue
@@ -893,6 +950,7 @@ def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldErro
         f"refused: {where} in the option slot ({first_shown}-{last_shown}), and CLICK sums "
         f"the wrong bits for this range.",
         Reason.RANGE,
+        code=Code.SUM_OPTION_SLOT,
     )
 
 
@@ -1021,12 +1079,14 @@ def parse(text: str, mode: str) -> Formula:
     raws = _lex(text)
     if not raws:
         # A Math blob with no formula decodes as raw(), so none is encoded.
-        raise _error("is blank; a Math needs a formula", Reason.MISSING)
+        raise _error("is blank; a Math needs a formula", Reason.MISSING, code=Code.BLANK_FIELD)
     for raw in raws:
         if raw.symbol and raw.text in ("[", "]"):
             # A pointer such as DS[DS1]: refused before its bank name reads as a word.
             raise _error(
-                f"{raw.text!r} is part of a pointer; Math takes no pointer", Reason.POINTER
+                f"{raw.text!r} is part of a pointer; Math takes no pointer",
+                Reason.POINTER,
+                code=Code.POINTER_OUTSIDE_COPY,
             )
     found: list[FieldError] = []
     tokens: list[Token] = []
@@ -1076,6 +1136,7 @@ def parse(text: str, mode: str) -> Formula:
                 f"{MAX_INTERNAL_LENGTH}",
                 Reason.RANGE,
                 "OBJ-1008",
+                code=Code.MATH_FORMULA_TOO_LONG,
             )
         )
     if found:
