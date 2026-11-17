@@ -1,8 +1,9 @@
-"""Every writer puts a Math or Copy constant in the form CLICK's dialog stores.
+"""Every writer writes a Math or Copy constant in the form that CLICK's dialog stores.
 
-A constant typed another way that means the same (``1.50``, ``005``, ``0ffh``, ``$1``) is
-built into CLICK's form where the instruction is built, so ``to_csv()``, ``write_csv`` and the
-encoded blob all write that form, and a decoded save compares equal to the typed instruction.
+A constant can be typed in another form with the same meaning (``1.50``, ``005``, ``0ffh``,
+``$1``).  The instruction converts it to CLICK's form when it is built.  Because of that,
+``to_csv()``, ``write_csv`` and the encoded blob all write CLICK's form, and an instruction
+decoded from a save compares equal to the instruction as typed.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ _COPY_SOURCE = 0x6074
 _MATH_DISPLAY = 0x6228
 _MATH_INTERNAL = 0x61FD
 
-#: (typed source, destination, CLICK's form): CLICK's answers for a single Copy.
+#: CLICK's answers for a single Copy, as (typed source, destination, the form CLICK stores).
 _COPY_ANSWERED = [
     ("005", "DS1", "5"),
     ("+5", "DS1", "+5"),
@@ -50,7 +51,7 @@ _COPY_ANSWERED = [
     ("$1", "TXT1", "$01"),
     ("$41", "TXT1", "$41"),
 ]
-#: The same rules on spellings CLICK was not asked about.
+#: Spellings that CLICK was not asked about, with the form that the same rules give.
 _COPY_DERIVED = [
     ("-007", "DS1", "-7"),
     ("-00", "DS1", "0"),
@@ -59,16 +60,17 @@ _COPY_DERIVED = [
     ('"AB"', "TXT1", '"AB"'),
 ]
 _COPY = _COPY_ANSWERED + _COPY_DERIVED
-#: (typed source, destination, CLICK's form): a real with more significant digits than the
-#: seven CLICK keeps, which it saves cut to seven; the first is CLICK's answer.
+#: Reals with more than the seven significant digits that CLICK keeps, as (typed source,
+#: destination, the seven-digit form that CLICK saves).  The first case is CLICK's answer.
 _COPY_ROUNDED = [
     ("3.4028235E+38", "DS1", "3.402823E+38"),
     ("3.40282355E+38", "DF1", "3.402823E+38"),
     ("1.23456789", "DF1", "1.234568"),
 ]
 
-#: (typed formula, mode, CLICK's display, CLICK's internal form): the constant forms of
-#: CLICK's Math answers, in a formula; 1E3h is the form CLICK stores for a typed 1e3.
+#: The constant forms from CLICK's Math answers, each in a formula, as (typed formula, mode,
+#: CLICK's display form, CLICK's internal form).  In a hex Math, CLICK stores a typed 1e3 as
+#: 1E3h.
 _MATH = [
     ("DS2 + 1.50", "decimal", "DS2 + 1.5", "DS2#+#F1.5"),
     ("DS2 + 1e3", "decimal", "DS2 + 1000.0", "DS2#+#F1000.0"),
@@ -130,8 +132,9 @@ def test_copy_source_every_writer_writes_clicks_form(
 def test_copy_source_clicks_rounding_is_refused_and_named(
     tmp_path: Path, typed: str, destination: str, stored: str
 ) -> None:
-    # CLICK keeps seven significant digits: the typed value is not the one it saves, so it
-    # is refused, and the message names the constant of seven digits to write.
+    # CLICK keeps seven significant digits, so it would save a value other than the one
+    # typed.  laddercodec refuses the typed value, and the message names the seven-digit
+    # constant to write instead.
     rule = rf"CLICK keeps 7 significant digits: write {re.escape(stored)}"
     with pytest.raises(FieldError, match=rule):
         Copy(typed, destination)
@@ -181,13 +184,13 @@ def test_copy_source_hex_word_read_as_a_real_is_refused(source: str, fix: str) -
 
 
 def test_fill_keeps_its_value_as_typed() -> None:
-    # Only a single Copy's source is written in CLICK's form; Fill is not part of this change.
+    # A single Copy converts its source to CLICK's form, but a Fill keeps its value as typed.
     assert Fill("005", "DS1", "DS3").value == "005"
 
 
 _SAVES = Path(__file__).parent.parent / "fixtures" / "scr_captures" / "constants"
 
-#: (save, the instruction as typed, as CLICK stored it).
+#: (save, the instruction as typed, the instruction as CLICK stored it).
 _SAVED = [
     ("math_hex_005", "math(005,DH1,mode=hex)", "math(5h,DH1,mode=hex)"),
     ("math_hex_0ffh", "math(0ffh,DH1,mode=hex)", "math(FFh,DH1,mode=hex)"),
@@ -217,8 +220,9 @@ _SAVED = [
 ]
 
 
-#: The typed forms laddercodec refuses, though CLICK takes them: a hex Math constant needs
-#: its h, and EH reads as hex E where CLICK stores the real 0.0.
+#: The saves whose typed form CLICK accepts and laddercodec refuses.  laddercodec requires the
+#: h on a constant in a hex Math.  A Copy source of EH reads as hex E, but CLICK stores the
+#: real 0.0, so laddercodec refuses it.
 _REFUSED_TYPED = {"math_hex_005", "math_hex_1e3", "math_hex_dh2_plus_1e3", "copy_EH"}
 
 

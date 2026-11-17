@@ -1,13 +1,13 @@
-"""Cell object builders for the ladder clipboard binary format.
+"""Build the cells of the ladder clipboard binary format.
 
-Five cell types:
+The module builds three kinds of cell:
 
-    ClickCell        Unified data/instruction cell (via ``to_bytes()``).
+    ClickCell        A data (wire) cell or an instruction cell (via ``to_bytes()``).
     Preamble cell    Multi-rung boundary: marks the start of the next rung (0x40 bytes).
     Terminal cell    End-of-grid sentinel (``+0x05 = 0xFF``) (0x40 bytes).
 
-Wire-flag resolution (token → flag values) and NOP detection stay in
-the calling encoder — this module only serializes.
+The encoder that calls this module turns wire tokens into flag values and
+finds the NOPs. This module only writes the bytes.
 """
 
 from __future__ import annotations
@@ -19,17 +19,17 @@ from dataclasses import dataclass
 from .errors import EncodeError
 from .topology import CELL_SIZE, COLS_PER_ROW
 
-# Instruction data starts at this offset in the cell header.
+# The cell header is this long, so instruction data starts at this offset in the cell.
 _INSTR_DATA_OFFSET = 0x25
 
-# Pre-compiled struct for the 37-byte cell header (single pack replaces 8 calls).
+# Pre-compiled struct for the 37-byte cell header, so that one pack call writes all of it.
 # Layout: pad(1) col(u32) row(u32) span(u8) vis(u8) 0(u8) extra(u8)
 #         instr_idx(i32) 1(u32) row_start(u32) seg(u32) right(u32) down(u32)
 _HEADER_STRUCT = struct.Struct("<xIIBBBBiIIIII")
 
 
 def _put_rung(buf: bytearray, offset: int, rung: int) -> None:
-    """Write a rung index: little-endian, carrying into the next byte past 255."""
+    """Write a rung index as two little-endian bytes, so an index past 255 fits."""
     buf[offset : offset + 2] = rung.to_bytes(2, "little")
 
 
@@ -40,7 +40,7 @@ def _put_rung(buf: bytearray, offset: int, rung: int) -> None:
 
 @dataclass
 class ClickCell:
-    """Unified representation of a Click PLC Ladder Cell.
+    """One cell of a Click PLC ladder grid: a data cell or an instruction cell.
 
     When ``blob`` is empty the cell is a data cell (0x40 bytes fixed).
     When ``blob`` is set the cell is a variable-length instruction cell
@@ -94,9 +94,9 @@ class ClickCell:
             # Pure wire/data cell in a wire-only rung: +0x0C = 0x01
             b09, b0a, b0c = 1, 1, 1
 
-        # Native +0x15 comes from the stored row's low flag bit, only at A.
-        # These rules construct the encoder's canonical state; Rung does not
-        # retain native row flags. Contacts/NOPs are not its complete meaning.
+        # CLICK sets +0x15 from bit 0 of the stored row's flags, and only in column A.
+        # A Rung does not keep those flags, so these rules write the encoder's own
+        # value. They set it for contacts and NOPs, but the flag means more than that.
         # 32-bit LE Wire & Logic Flags
         if self.blob:
             row_start = 1 if (self.is_contact and self.col == 0 and self.local_row == 0) else 0
@@ -120,17 +120,17 @@ class ClickCell:
         )
 
     def build_tail(self) -> bytearray:
-        """Build the 16-byte tail with dynamic rung index."""
+        """Build the 16-byte tail, with rung and row numbers that depend on the cell's place."""
         tail = bytearray(16)
 
         if self.blob:
-            # Instruction cell tail — always has marker, dynamic rung_idx.
-            # Condition-side (col < 31): tail[13] = local_row + 1.
-            # AF-side (col 31): single-rung and multi-rung use different
-            # row/rung counters.
+            # An instruction cell's tail always has a marker byte.
+            # Condition side (col < 31): tail[13] = local_row + 1.
+            # AF side (col 31): a single-rung and a multi-rung encode use different
+            # row and rung counters.
 
-            # Multi-rung last-row-of-last-rung: tail[12] = 1 constant
-            # marker, no tail[8]/tail[9].
+            # On the last row of the last rung in a multi-rung encode, the tail is
+            # only the marker tail[12] = 1, with no tail[8] or tail[9].
             if self.col == 31 and not self.single_rung:
                 is_last_row = self.local_row == self.logical_rows - 1
                 if is_last_row and self.is_last_rung:
@@ -149,15 +149,16 @@ class ClickCell:
                     tail[13] = min(self.instr_index + 1, self.logical_rows) & 0xFF
             else:
                 # Multi-rung AF instructions:
-                #   - tail[9] switches to next rung index at non-last rung end.
-                #   - tail[13] is only present on non-final data rows.
+                #   - on the last row of any rung but the last, tail[9] holds the
+                #     next rung's index.
+                #   - tail[13] is written only on rows before the rung's last row.
                 is_last_row = self.local_row == self.logical_rows - 1
                 if not self.is_last_rung and is_last_row:
                     _put_rung(tail, 9, self.rung_idx + 1)
                 if not is_last_row:
                     tail[13] = (self.local_row + 2) & 0xFF
         else:
-            # Data cell tail — position-dependent logic.
+            # Data cell tail. What it holds depends on the cell's column and row.
             is_last_row = self.local_row == self.logical_rows - 1
             if self.col < 31:
                 tail[8] = 0x01
@@ -178,7 +179,7 @@ class ClickCell:
         return tail
 
     def to_bytes(self) -> bytes:
-        """Stitch header + content + tail into a final binary payload."""
+        """Return the cell's bytes: the header, then the blob or padding, then the tail."""
         header = self.build_header()
         tail = self.build_tail()
 

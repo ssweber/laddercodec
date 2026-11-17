@@ -1,4 +1,8 @@
-"""LegacyEncodingWarning: decode warns on a Math constant stored as 16-bit past 16 bits."""
+"""decode warns with LegacyEncodingWarning on a 16-bit Math constant that does not fit 16 bits.
+
+An older laddercodec stored a decimal integer outside -32768..32767 as such a constant, for
+example ``H70000``.
+"""
 
 from __future__ import annotations
 
@@ -112,8 +116,12 @@ def test_no_fixture_warns():
 
 
 def test_hex_mode_legacy_h_is_a_refusal_not_a_legacy_finding():
-    """A hex Math takes no decimal constant, so an older ``H70000`` in one decodes keeping
-    that refusal, with no legacy finding: older laddercodec wrote H in a decimal Math only."""
+    """In a hex Math, ``H70000`` decodes with a kept refusal and no legacy finding.
+
+    A hex Math accepts no decimal constant, so the decoded Math keeps a refusal of its
+    expression. An older laddercodec wrote ``H`` constants only in a decimal Math, so the
+    decoder records no legacy finding for a hex one.
+    """
     class_name, type_code, _, _, fields = _decompose_blob(
         Math(expression="1h + DH1", dest="DH2", mode="hex").build_blob()
     )

@@ -1,7 +1,7 @@
-"""Read/write golden canonical CSV files for encode_rung() testing.
+"""Read and write the golden CSV files that the encode and decode tests use.
 
-Reading delegates to ``laddercodec.csv``.  Write helpers are
-test-only utilities that stay here.
+This module re-exports ``read_csv`` from ``laddercodec`` to read them. The write helpers
+are for tests only, so they stay here and not in the library.
 """
 
 from __future__ import annotations
@@ -35,7 +35,11 @@ __all__ = [
 
 
 def _token_to_csv(token: ConditionToken | AfToken) -> str:
-    """Serialize a token (string, Contact, Coil, CompareContact, Timer, or RawInstruction) to CSV."""
+    """Return the CSV text of *token*.
+
+    Call ``to_csv()`` on a Contact, Coil, CompareContact, Counter, Timer or RawInstruction,
+    and return any other token unchanged.
+    """
     if isinstance(token, (Contact, Coil, CompareContact, Counter, Timer, RawInstruction)):
         return token.to_csv()
     return token

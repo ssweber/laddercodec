@@ -1,7 +1,10 @@
-"""Manage coverage golden CSV/BIN fixtures.
+"""Regenerate the coverage golden .bin fixtures and prune their verification log.
 
-Regenerates all .bin files from .csv sources and prunes the verify log
-for changed/deleted fixtures.
+Encode every .csv file in tests/fixtures/coverage/golden and write the result to the
+.bin file of the same name. Delete each .bin file that has no .csv file. The log,
+verify_progress.log, records the result of pasting each fixture into CLICK. Remove from
+it each fixture whose .bin file has uncommitted changes in git or whose .csv file is
+gone. Then list the fixtures that the log does not name.
 
 Usage:
     uv run devtools/coverage_golden.py

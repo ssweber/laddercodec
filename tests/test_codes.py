@@ -1,9 +1,11 @@
-"""The code vocabulary: the names, the error codes page, and the codes the corpora give.
+"""Test the ``Code`` names, the error codes page, and the codes on the fixtures.
 
-Every refusal the suite builds is checked as it is raised (``tests/conftest.py``): its code
-is a ``Code`` and its ``click_id`` one its code lists.  These tests add what the suite does
-not build: the refusals decoding keeps on the fixtures, the ``check()`` findings on them,
-and the refusals of the field sweep's rebuilds.
+``tests/conftest.py`` checks every refusal that the other tests raise, as it is raised. Its
+code must be a ``Code``, and its ``click_id`` must be one that ``CLICK_IDS`` lists for that
+code. These tests check the codes that the other tests never raise: those of the refusals
+that decoding keeps on the fixtures, of the ``check()`` findings on the fixtures, and of the
+refusals raised when ``devtools/field_sweep.py`` rebuilds each golden instruction with
+changed fields.
 """
 
 from __future__ import annotations
@@ -26,7 +28,7 @@ from tests.conftest import code_problems
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests" / "fixtures"
 
-#: The approved names, Revision 1 of the proposal and ``for-count-bank``.
+#: The approved value of every ``Code`` member, in the order that ``Code`` defines them.
 NAMES = """
 blank-field not-an-address address-out-of-range bank-not-allowed upper-byte-not-allowed
 not-click-form not-writable pointer-outside-copy pointer-bank-not-allowed pointer-not-ds
@@ -96,7 +98,10 @@ def test_the_codes_page_is_current() -> None:
 
 
 def _decoded() -> Iterator[tuple[str, list[Any]]]:
-    """Every fixture decoded or read, with the rungs it gives; one that raises gives none."""
+    """Yield the path and the rungs of every fixture that decodes or reads.
+
+    Skip a fixture that raises.
+    """
     for path in sorted(FIXTURES.rglob("*")):
         name = path.name
         if not path.is_file():
@@ -141,7 +146,8 @@ def test_every_kept_refusal_in_the_corpora_has_its_code(
                 for error in refusals(token):
                     kept += 1
                     problems += [f"{rel}: {p}" for p in code_problems(error)]
-    # The v4 Math captures keep a few (sum-option-slot, math-formula-too-long).
+    # The v4 Math captures keep a few refusals, with the codes sum-option-slot and
+    # math-formula-too-long.
     assert kept >= 5, "the corpora keep fewer refusals than they hold: the walk is broken"
     assert not problems, "\n".join(problems[:50])
 

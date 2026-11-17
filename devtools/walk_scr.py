@@ -1,7 +1,8 @@
-"""Walk SC-SCR temp file using pre-validated instruction sections as anchors.
+"""Find the rungs in a CLICK .scr temp file and print a summary of each.
 
-Phase 1: scan for all valid instruction sections (validated by parsing every blob).
-Phase 2: for each section, scan backwards to find its row header and RTF comment.
+The script works in two phases. Phase 1 finds every instruction section, and accepts a
+section only if every blob in it parses. Phase 2 searches back from each section for the
+rung's row header and RTF comment.
 """
 
 from __future__ import annotations
@@ -32,9 +33,10 @@ def read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
 
 
 def parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
-    """Parse instruction blob at pos.
+    """Parse the instruction blob at pos.
 
-    Returns (class_name, type_code, end_offset, next_pos, row_height) or None.
+    Return (class_name, type_code, end_offset, next_pos, part_count), or None if no blob
+    parses at pos.
     """
     if pos >= len(data) - 20:
         return None
@@ -70,9 +72,10 @@ def parse_blob(data: bytes, pos: int) -> tuple[str, int, int, int, int] | None:
 
 
 def find_valid_sections(data: bytes, start: int = 0x100) -> list[tuple[int, int, int]]:
-    """Find all valid instruction sections.
+    """Find the instruction sections that start at or after ``start``.
 
-    Returns sorted list of (offset, instr_count, end_pos).
+    Accept a section only if every blob in it parses. Return a list of
+    (offset, instr_count, end_pos) in file order.
     """
     sections = []
     i = start
@@ -101,7 +104,7 @@ def find_valid_sections(data: bytes, start: int = 0x100) -> list[tuple[int, int,
 
 
 def parse_section_blobs(data: bytes, offset: int, count: int) -> list[ParsedInstruction]:
-    """Parse all instruction blobs in a validated section."""
+    """Parse the instruction blobs in a section that find_valid_sections accepted."""
     instrs: list[ParsedInstruction] = []
     cursor = offset + 6
     for _ in range(count):
@@ -142,7 +145,11 @@ def col_name(idx: int) -> str:
 
 
 def find_row_header_before(data: bytes, pos: int, max_lookback: int = 400) -> int | None:
-    """Find nearest row header signature [XX XX 03 00 00 01 20 00] before pos."""
+    """Return the offset of the nearest row header before pos, or None if there is none.
+
+    A row header is the bytes [XX XX 03 00 00 01 20 00]. The search looks back at most
+    max_lookback bytes.
+    """
     start = max(0, pos - max_lookback)
     for i in range(pos - 8, start - 1, -1):
         if data[i + 2 : i + 8] == b"\x03\x00\x00\x01\x20\x00":
@@ -151,10 +158,12 @@ def find_row_header_before(data: bytes, pos: int, max_lookback: int = 400) -> in
 
 
 def find_rtf_before(data: bytes, pos: int, max_lookback: int = 300) -> tuple[int, int, int] | None:
-    """Find nearest RTF comment body before pos.
+    """Find the nearest RTF comment body before pos.
 
-    Returns (rtf_body_offset, rtf_len, rung_idx_offset) or None.
-    The structure before RTF is: [u16 rung_idx] [u32 rtf_len] [RTF body...]
+    Return (rtf_body_offset, rtf_len, rung_idx_offset), or None if there is none within
+    max_lookback bytes. rung_idx_offset is -1 if the length before the body is zero or
+    runs past the end of the data. The bytes before an RTF body are:
+    [u16 rung_idx] [u32 rtf_len] [RTF body...]
     """
     start = max(0, pos - max_lookback)
     for i in range(pos - 2, start - 1, -1):
@@ -164,7 +173,7 @@ def find_rtf_before(data: bytes, pos: int, max_lookback: int = 300) -> tuple[int
                 rtf_len = struct.unpack_from("<I", data, i - 4)[0]
                 if rtf_len > 0 and i + rtf_len <= len(data):
                     return i, rtf_len, i - 6
-            # Could also be right after the file header (rung 0 has no rung_idx prefix)
+            # The body may also follow the file header directly. Rung 0 has no rung_idx prefix.
             if i >= 4:
                 rtf_len = struct.unpack_from("<I", data, i - 4)[0]
                 return i, rtf_len, -1
@@ -172,7 +181,9 @@ def find_rtf_before(data: bytes, pos: int, max_lookback: int = 300) -> tuple[int
 
 
 def parse_header(data: bytes) -> tuple[str, int, int]:
-    """Parse file header, return (program_name, prog_idx, data_start)."""
+    """Parse the file header and return (program_name, prog_idx, data_start).
+
+    data_start is the offset of the first byte after the header."""
     prog_idx = struct.unpack_from("<H", data, 0x40)[0]
     name_len = data[0x42]
     name = read_utf16le(data, 0x43, name_len)
@@ -185,9 +196,9 @@ def parse_header(data: bytes) -> tuple[str, int, int]:
     while cursor < len(data) - 1 and data[cursor] == 0x41 and data[cursor + 1] == 0x00:
         cursor += 2
 
-    # Handle 0x90 prefix
+    # Skip the 7-byte block that starts with the marker 0x90 0x00, if there is one.
     if data[cursor] == 0x90 and data[cursor + 1] == 0x00:
-        cursor += 7  # 2 (marker) + 1 (mystery) + 4 (u32)
+        cursor += 7  # 2 (marker) + 1 (unknown) + 4 (u32)
 
     return name, prog_idx, cursor
 
@@ -225,14 +236,13 @@ def walk(path: str, verbose: bool = False) -> None:
                     rung["comment"] = extract_rtf_text(data, rtf_body_off, rtf_len)
         else:
             rung["headerless"] = True
-            # Headerless — check for RTF comment just before the section
+            # The rung has no row header. Look for an RTF comment just before the section.
             rtf = find_rtf_before(data, sec_off, max_lookback=sec_off - prev_sec_end + 10)
             if rtf:
                 rtf_body_off, rtf_len, _ = rtf
                 if rtf_body_off >= prev_sec_end:
                     rung["comment"] = extract_rtf_text(data, rtf_body_off, rtf_len)
 
-        # Parse instruction blobs
         rung["instructions"] = parse_section_blobs(data, sec_off, count)
 
         if verbose:

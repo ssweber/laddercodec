@@ -1,8 +1,9 @@
-"""CLICK address banks as bit flags, in CLICK's type order.
+"""Bit flags for CLICK's address banks, in the order of CLICK's bank type numbers.
 
-Bit ``n`` is CLICK's bank type ``n``: X is bit 0, TXT bit 15.  A dialog's bank mask
-names the banks a field takes in this order: ``0x3f`` is X, Y, C, T, CT and SC.  The
-order is also the key order of :data:`~laddercodec.operands.address.ADDRESS_BANKS`.
+Bit ``n`` stands for CLICK's bank type ``n``. X is bit 0 and TXT is bit 15. A CLICK
+dialog stores the banks that a field accepts as a mask of these bits. For example,
+``0x3f`` is X, Y, C, T, CT and SC. :data:`~laddercodec.operands.address.ADDRESS_BANKS`
+lists its keys in the same order.
 
 Not public API.
 """
@@ -42,14 +43,18 @@ REGISTERS = ALL & ~BITS
 
 
 def banks(value: int) -> frozenset[str]:
-    """The names of the banks set in ``value``: ``banks(0x3f)`` is X, Y, C, T, CT and SC."""
+    """Return the names of the banks whose bits are set in ``value``.
+
+    For example, ``banks(0x3f)`` returns X, Y, C, T, CT and SC. Raise ``ValueError`` if
+    ``value`` sets a bit above TXT.
+    """
     if value & ~int(ALL):
         raise ValueError(f"bank mask {value:#x} sets a bit above TXT")
     return frozenset(name for name, bank in Bank.__members__.items() if value & bank)
 
 
 def mask(*names: str) -> Bank:
-    """The flags of the banks ``names``: ``mask("DS", "DD")`` is ``0xc0``."""
+    """Return the flags of the banks named in ``names``: ``mask("DS", "DD")`` is ``0xc0``."""
     result = Bank(0)
     for name in names:
         result |= Bank[name]

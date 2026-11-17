@@ -17,13 +17,14 @@ from typing import Any, NamedTuple
 from ..codes import Code
 from .errors import AddressError, FieldError, Reason
 
-#: Shape of an address token, in any letter case; the CSV token parser uses it to tell a
-#: contact from other condition tokens.  :func:`check_address` checks the bank and number.
+#: The pattern of an address token, in any letter case.  The CSV token parser uses it to tell
+#: a contact from other condition tokens.  :func:`check_address` checks the bank and number.
 OPERAND_RE = re.compile(r"^[A-Za-z]{1,3}[0-9]{1,5}$")
 
 
-#: Number range of every CLICK address bank.  X and Y number by slot (see :data:`XY_SLOTS`).
-#: XD and YD are ``XD0`` (slot 0), ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion 1-8).
+#: The number range of every CLICK address bank.  In the X and Y ranges, only the numbers
+#: inside a slot of :data:`XY_SLOTS` are addresses.  XD and YD are ``XD0`` (slot 0),
+#: ``XD0u`` (slot 1) and ``XD1``-``XD8`` (expansion modules 1-8).
 ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "X": (1, 816),
     "Y": (1, 816),
@@ -43,9 +44,9 @@ ADDRESS_BANKS: dict[str, tuple[int, int]] = {
     "TXT": (1, 1000),
 }
 
-#: The ten 16-point X/Y slots: ``(first, last)`` point numbers.  1-16 is the CPU, 21-36 the
-#: CPU's dual option slot (its word form is ``XD0u``/``YD0u``), 101-116 to 801-816 the
-#: expansion modules 1-8.
+#: The ten 16-point X/Y slots, each as its ``(first, last)`` point numbers.  Points 1-16 are
+#: on the CPU.  Points 21-36 are on the CPU's dual option slot, whose word form is
+#: ``XD0u``/``YD0u``.  Points 101-116 to 801-816 are on expansion modules 1-8.
 XY_SLOTS: tuple[tuple[int, int], ...] = ((1, 16), (21, 36)) + tuple(
     (100 * m + 1, 100 * m + 16) for m in range(1, 9)
 )
@@ -66,33 +67,34 @@ class Address(NamedTuple):
     def display(self) -> str:
         """The address as CLICK shows and stores it: ``X001``, ``C1``, ``XD0u``.
 
-        X and Y pad the number to 3 digits; every other bank writes it unpadded.
+        X and Y pad the number to 3 digits.  Every other bank writes it with no padding.
         """
         number = f"{self.number:03d}" if self.bank in _MODULE_BANKS else str(self.number)
         return f"{self.bank}{number}{'u' if self.upper else ''}"
 
 
 #: Address text in any letter case, with or without leading zeros (``x1``, ``ds07``,
-#: ``XD0U``), and a pointer ``BANK[address]``.
+#: ``XD0U``).  The second pattern matches a pointer, ``BANK[address]``.
 _LOOSE_ADDRESS_RE = re.compile(r"([A-Za-z]{1,3})([0-9]{1,5})([uU]?)")
 _LOOSE_POINTER_RE = re.compile(r"([A-Za-z]{1,3})\[([^\[\]]*)\]")
 
 
-#: Set while a decoder builds an instruction from a blob: text not in display form is
-#: refused, so the blob stays raw rather than re-encode as different bytes.
+#: True while a decoder builds an instruction from a blob.  Text that is not in display form
+#: is then refused, and the blob stays raw.  Otherwise the instruction would encode back to
+#: different bytes.
 _DISPLAY_FORM_ONLY: ContextVar[bool] = ContextVar("_DISPLAY_FORM_ONLY", default=False)
 
 
 class NotDisplayForm(FieldError):
-    """Text not in CLICK's display form, refused inside :func:`display_form_only`."""
+    """Raised inside :func:`display_form_only` for text that is not in CLICK's display form."""
 
 
 @contextmanager
 def display_form_only() -> Generator[None]:
     """Refuse, rather than normalize, text that is not in CLICK's display form.
 
-    The ``from_tags`` dispatchers build instructions inside this block: a blob holding
-    ``x1`` or ``C001`` raises :class:`NotDisplayForm` and stays unparsed.
+    The ``from_tags`` dispatchers build instructions inside this block.  A blob that holds
+    ``x1`` or ``C001`` then raises :class:`NotDisplayForm`, and the blob stays unparsed.
     """
     token = _DISPLAY_FORM_ONLY.set(True)
     try:
@@ -104,9 +106,9 @@ def display_form_only() -> Generator[None]:
 def to_display(value: str, display: str, field: str | None) -> str:
     """Return ``display``, the form CLICK writes for ``value``.
 
-    Inside :func:`display_form_only` a ``value`` that differs from it raises
-    :class:`NotDisplayForm` naming ``field``, the field ``value`` was read for, at the
-    start of its message as every refusal does.
+    Inside :func:`display_form_only`, raise :class:`NotDisplayForm` if ``value`` differs
+    from ``display``.  Its message starts with ``field``, the field that ``value`` was read
+    for, as the message of every refusal does.
     """
     if display != value and _DISPLAY_FORM_ONLY.get():
         prefix = f"{field}: " if field else ""
@@ -120,14 +122,16 @@ def to_display(value: str, display: str, field: str | None) -> str:
 
 
 def read_as_typed(value: str) -> str:
-    """Return the display form of address text CLICK saved as typed; other text unchanged.
+    """Return the display form of address text that CLICK saved as typed.
 
-    CLICK saves some fields as they were typed, not in display form (the decoders name
-    which): letter case (``ds1``, ``xd0U``), leading zeros (``DS001``, ``YD00``) and a
-    pointer's index (``DS[ds1]``) are kept, and the field reads as ``DS1``, ``XD0u``,
-    ``YD0`` and ``DS[DS1]``.  Text shorter than its display form (``Y1`` for ``Y001``) is
-    returned unchanged: no recorded save holds one, so :func:`display_form_only` still
-    refuses it.  Unlike :func:`normalize_address`, this never refuses.
+    Return other text unchanged.  CLICK saves some fields as they were typed, not in
+    display form.  The decoders name those fields.  Such a field keeps its letter case
+    (``ds1``, ``xd0U``), its leading zeros (``DS001``, ``YD00``) and a pointer's index
+    (``DS[ds1]``).  This function reads them as ``DS1``, ``XD0u``, ``YD0`` and ``DS[DS1]``.
+
+    Text that is shorter than its display form, such as ``Y1`` for ``Y001``, comes back
+    unchanged.  No recorded save holds such text, so :func:`display_form_only` still
+    refuses it.  Unlike :func:`normalize_address`, this function never refuses.
     """
     token = _DISPLAY_FORM_ONLY.set(False)
     try:
@@ -141,13 +145,13 @@ def normalize_fields(inst: object, *names: str) -> None:
     """Write each named text field of ``inst`` in display form with :func:`normalize_address`.
 
     Every value goes to :func:`normalize_address`, so a value that is not text raises
-    ``TypeError``; a caller that lets a field be None or a ``ModbusAddress`` leaves it out.
-    A refusal names ``Class.name``.
+    ``TypeError``.  If a field may be None or a ``ModbusAddress``, the caller does not
+    pass its name.  A refusal names the field as ``Class.name``.
     """
     cls = type(inst).__name__
     for name in names:
         value = normalize_address(getattr(inst, name), f"{cls}.{name}")
-        object.__setattr__(inst, name, value)  # a Modbus target is frozen
+        object.__setattr__(inst, name, value)  # Works on a frozen Modbus target too.
 
 
 def normalize_items(inst: object, *names: str) -> None:
@@ -165,16 +169,18 @@ def normalize_items(inst: object, *names: str) -> None:
 
 
 def normalize_address(value: str, field: str | None = None) -> str:
-    """Return an address in CLICK's display form; return other text unchanged.
+    """Return an address in CLICK's display form, and return other text unchanged.
 
-    CLICK normalizes an address as it is typed: the bank is uppercase, X and Y pad the
-    number to 3 digits and every other bank drops leading zeros, so ``x1`` becomes
-    ``X001``, ``C001`` becomes ``C1`` and ``xd0U`` becomes ``XD0u``.  A pointer
-    normalizes both parts (``ds[ds01]`` becomes ``DS[DS1]``).  Text that is not an
-    address in one of :data:`ADDRESS_BANKS` (a constant, a blank, an unknown bank) comes
-    back as given; range and allowed banks are :func:`check_address`'s job.  Inside
-    :func:`display_form_only` an address not in display form raises :class:`FieldError`
-    naming ``field``.
+    CLICK normalizes an address as you type it.  The bank becomes uppercase.  X and Y pad
+    the number to 3 digits, and every other bank drops leading zeros.  For example, ``x1``
+    becomes ``X001``, ``C001`` becomes ``C1`` and ``xd0U`` becomes ``XD0u``.  Both parts
+    of a pointer are normalized: ``ds[ds01]`` becomes ``DS[DS1]``.
+
+    Text that is not an address in one of :data:`ADDRESS_BANKS`, such as a constant, a
+    blank or an unknown bank, comes back as given.  This function does not check the
+    number's range or whether the field takes the bank.  :func:`check_address` does that.
+    Inside :func:`display_form_only`, an address that is not in display form raises
+    :class:`FieldError` naming ``field``.
     """
     pointer = _LOOSE_POINTER_RE.fullmatch(value)
     if pointer is not None:
@@ -236,24 +242,29 @@ def check_address(
     range_ids: Mapping[str, str] | None = None,
     outside_range_of: str | None = None,
 ) -> Address:
-    """Parse a CLICK address; raise :class:`AddressError` naming ``field`` if refused.
+    """Parse a CLICK address, or raise :class:`AddressError` naming ``field``.
 
-    The bank must be one of :data:`ADDRESS_BANKS` (and in ``banks`` when given), and the
-    number inside the bank's range.  X and Y number by 16-point slot (:data:`XY_SLOTS`):
-    ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option slot, and
-    ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading zeros are
-    allowed (``X001`` and ``X1`` are the same point); the bank must be uppercase.  An
-    instruction passes each field through :func:`normalize_address` first and keeps the
-    display form.
-    ``XD0u`` and ``YD0u`` are accepted, spelled exactly so, only when ``banks`` names XD or
-    YD.  The message names ``label``, or the field when no label is given.  ``bank_id`` is
-    the error id CLICK's dialog gives for a bank the field does not take (``"OBJ-004"``),
-    where it is known; it becomes the refusal's ``click_id``.  ``bank_code`` is the
-    refusal's code: ``bank-not-allowed`` unless the caller passes another.  ``bank_ids`` gives another id
-    for particular banks (``{"SD": "OBJ-003"}``), given only to an address inside its bank's
-    range (SD0 gets ``bank_id``), and ``range_ids`` one for a number outside its bank's
-    range, by bank.  A refusal with one of those ids says it is outside the range of
-    ``outside_range_of`` (the field's noun, else its name), and what the field takes.
+    The bank must be one of :data:`ADDRESS_BANKS`, and in ``banks`` when that is given.
+    The number must be inside the bank's range.  X and Y number by 16-point slot
+    (:data:`XY_SLOTS`): ``X001``-``X016`` on the CPU, ``X021``-``X036`` on its dual option
+    slot, and ``X101``-``X116`` to ``X801``-``X816`` on expansion modules 1-8.  Leading
+    zeros are allowed, so ``X001`` and ``X1`` are the same point.  The bank must be
+    uppercase.  An instruction passes each field through :func:`normalize_address` first
+    and keeps the display form.  ``XD0u`` and ``YD0u`` are accepted, spelled exactly so,
+    only when ``banks`` names XD or YD.
+
+    The message names ``label``, or the field when no label is given.  ``bank_id`` is the
+    error id that CLICK's dialog gives for a bank the field does not take, such as
+    ``"OBJ-004"``, where it is known.  It becomes the refusal's ``click_id``.
+    ``bank_code`` is the refusal's code.  It is ``bank-not-allowed`` unless the caller
+    passes another.
+
+    ``bank_ids`` gives a different id for particular banks, such as ``{"SD": "OBJ-003"}``.
+    It applies only to an address inside its bank's range, so SD0 gets ``bank_id``.
+    ``range_ids`` gives an id, by bank, for a number outside its bank's range.  A refusal
+    with one of those ids says that the address is outside the range of
+    ``outside_range_of``, the field's noun, or of the label or field when that is not
+    given.  It also says what the field takes.
     """
     name = label or field
     if value == "":
@@ -303,7 +314,7 @@ def check_address(
             click_id=bank_id,
         )
     if not _in_range(bank, digits, upper):
-        # No such address: the number is outside its bank.
+        # The number is outside its bank's range, so there is no such address.
         in_range = (range_ids or {}).get(bank)
         if in_range is not None:
             takes = ", ".join(_bank_range_text(b) for b in ADDRESS_BANKS if b in (banks or {bank}))
@@ -337,7 +348,7 @@ def check_address(
 
 
 def _text_fields(inst: object) -> dict[str, Any]:
-    """The instance's text fields and lists of text, by name."""
+    """Return the instance's fields that hold text or a list of text, by name."""
     return {
         name: list(value) if isinstance(value, (list, tuple)) else value
         for name, value in vars(inst).items()
@@ -347,10 +358,11 @@ def _text_fields(inst: object) -> dict[str, Any]:
 
 
 def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> str:
-    """Name the typed text beside each display form ``message`` quotes: ``'x0' (X000)``.
+    """Return ``message`` with the typed text beside each display form that it quotes.
 
-    A display form two fields reached from different text (``C1`` and ``C001``) is left
-    as it is, since the message does not say which field it quotes.
+    For example, ``'X000'`` becomes ``'x0' (X000)``.  If two fields reached the same
+    display form from different text, such as ``C1`` and ``C001``, leave that form as it
+    is, because the message does not say which field it quotes.
     """
     typed: dict[str, set[str]] = {}
     for name, old in before.items():
@@ -370,9 +382,10 @@ def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> 
 def _name_typed_text(cls: Any) -> None:
     """Wrap ``cls.__post_init__`` so a field error names the text as typed.
 
-    ``__post_init__`` writes each address in display form before checking it; a refusal
-    quotes that form, and this adds the text the caller gave: ``'x0' (X000) is outside``.
-    Each refusal's ``obj`` is the instance being built.
+    ``__post_init__`` writes each address in display form before it checks it, so a
+    refusal quotes the display form.  The wrapper adds the text that the caller gave, as
+    in ``'x0' (X000) is outside``.  It also sets each refusal's ``obj`` to the instance
+    being built.
     """
     post_init = cls.__dict__.get("__post_init__")
     if post_init is None:
@@ -391,9 +404,11 @@ def _name_typed_text(cls: Any) -> None:
 
 
 def _refused(inst: object, exc: FieldError, before: dict[str, Any] | None) -> None:
-    """Complete each refusal of ``inst`` in ``exc.errors``: its ``obj`` is ``inst``, and
-    given ``before`` (the text fields as typed) its message names the typed text.  A refusal
-    of an instruction built inside ``inst``'s checks was completed by its own wrapper."""
+    """Set ``obj`` to ``inst`` on each refusal in ``exc.errors``, and name the typed text.
+
+    With ``before``, the text fields as typed, add the typed text to each message.  Skip a
+    refusal whose ``obj`` is another instance.  It comes from an instruction built inside
+    the checks of ``inst``, and that instruction's own wrapper has completed it."""
     after = None if before is None else _text_fields(inst)
     for error in exc.errors:
         if error.obj is not None and error.obj is not inst:

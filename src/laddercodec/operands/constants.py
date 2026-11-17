@@ -1,24 +1,25 @@
-"""Constants as CLICK's shared input check reads them.
+"""Read constants the way CLICK's shared input check reads them.
 
-A dialog field that takes a constant first runs its text through one check shared by every
-instruction dialog, then applies its own limits.
-:func:`classify` reads text the same way: it says which kind of constant the text is and
-returns its value.  It applies no field's limits: a preset's 0 to 32767, the hex
-constants a Copy puts in DD only, the printable-ASCII text of a Compare (:func:`printable`),
-or which kinds a field takes at all belong to the field.
+Every instruction dialog runs the text of a constant field through one shared check, and
+then applies the field's own limits.  :func:`classify` reads text the same way as the
+shared check.  It returns the kind of constant that the text is, and its value.  It applies
+no field's limits.  These belong to the field: a preset's 0 to 32767, the hex constants
+that a Copy puts only in DD, the printable-ASCII text of a Compare (:func:`printable`), and
+which kinds of constant the field takes at all.
 
 The shared check works on an uppercase copy of the text, so ``ffffh``, ``$0d`` and ``1e5``
-are constants.  It tries, in order:
+are constants.  It tries these forms in order:
 
-- hex: hex digits then ``H``.  At most FFFFh is 16-bit; above that, at most eight digits
-  is 32-bit (:attr:`Constant.wide`); longer text is no constant.  Hex comes before an
-  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants (a single Copy refuses ``EH``
-  and ``1EH``, which CLICK's Copy stores as the reals 0.0 and 1.0).
-- text: ``"..."``, the text between the quotes (see :data:`TEXT_MAX`).
-- an address, which is no constant (:func:`classify` returns ``None``).
-- a decimal integer: an int16 value, or an int32 value (wide); outside int32, no constant.
-- a floating-point number (text with ``.`` or ``E``).
-- a character code ``$hh``.
+- Hex: hex digits then ``H``.  A value up to FFFFh is 16-bit.  Above that, hex of at most
+  eight digits is 32-bit (:attr:`Constant.wide`), and longer text is no constant.  Hex
+  comes before an address, so ``DH``, ``EH`` and ``ABCH`` are hex constants.  A single
+  Copy refuses ``EH`` and ``1EH``.  CLICK's Copy stores them as the reals 0.0 and 1.0.
+- Text: ``"..."``.  The value is the text between the quotes (see :data:`TEXT_MAX`).
+- An address.  An address is no constant, and :func:`classify` returns ``None``.
+- A decimal integer: an int16 value, or an int32 value (wide).  Outside int32 it is no
+  constant.
+- A floating-point number: text with ``.`` or ``E``.
+- A character code ``$hh``.
 """
 
 from __future__ import annotations
@@ -37,8 +38,8 @@ class Kind(StrEnum):
     INTEGER = "integer"  #: a decimal integer: ``42``, ``-7``, ``+1``, ``007``
     FLOAT = "float"  #: a floating-point number: ``1.5``, ``.5``, ``1E5``, ``-1.5e-3``
     HEX = "hex"  #: hex digits then ``h``: ``FFFFh``, ``0h``
-    #: Quoted text: ``"AB"``; the value is the text between the quotes.  ``"$41"`` is the
-    #: three characters ``$41`` (a quoted ``$hh`` is literal text).
+    #: Quoted text: ``"AB"``.  The value is the text between the quotes.  ``"$41"`` is the
+    #: three characters ``$41``, because a ``$hh`` inside quotes is literal text.
     TEXT = "text"
     CHAR = "char"  #: a character by code: ``$41``; the value is the code
 
@@ -48,8 +49,8 @@ class Constant(NamedTuple):
 
     kind: Kind
     value: int | float | str
-    #: An integer outside int16 (-32768 to 32767), or a hex constant above FFFFh: the 32-bit
-    #: form of the kind, which some fields refuse.
+    #: True for an integer outside int16 (-32768 to 32767) or a hex constant above FFFFh.
+    #: That is the 32-bit form of the kind, and some fields refuse it.
     wide: bool = False
 
 
@@ -68,13 +69,13 @@ PRINTABLE_ASCII = frozenset(chr(c) for c in range(0x20, 0x7F))
 
 _HEX_RE = re.compile(r"([0-9A-F]+)H")
 _INTEGER_RE = re.compile(r"([+-]?)([0-9]+)")
-# The shared check sends text holding ``.``, ``E`` or ``,`` to its floating-point test.  A
-# comma is refused here: what that test does with one is not known, and a comma separates
-# CSV arguments.
+# The shared check sends text holding ``.``, ``E`` or ``,`` to its floating-point test.  This
+# pattern refuses a comma for two reasons.  What that test does with a comma is not known, and
+# a comma separates CSV arguments.
 _FLOAT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:E[+-]?[0-9]+)?")
-# The shared check also takes ``$1`` as a character code, and a ``$`` value above FF as a
-# second kind.  A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``,
-# so only ``$`` and two hex digits is one.
+# The shared check also takes ``$1`` as a character code, and reads a ``$`` value above FF
+# as a second kind of constant.  A user picks a code from CLICK's Embed ASCII Code table,
+# ``$00`` to ``$FF``.  This pattern therefore takes only ``$`` and two hex digits as a code.
 _CHAR_RE = re.compile(r"\$([0-9A-F]{2})")
 
 
@@ -82,9 +83,9 @@ def classify(text: str) -> Constant | None:
     """Return the constant ``text`` spells, or ``None`` if it is no constant.
 
     ``None`` covers an empty text, an address, a value outside its kind and anything else the
-    shared check refuses.  A value outside its kind is an integer outside int32, hex longer
-    than eight digits, or a float that is not finite or above the float32 range.  Only ASCII
-    digits count: ``٣`` is no digit.  No space is trimmed; a field
+    shared check refuses.  A value outside its kind is an integer outside int32, hex above
+    FFFFh written with more than eight digits, or a float that is not finite or above the
+    float32 range.  Only ASCII digits count: ``٣`` is no digit.  No space is trimmed; a field
     that strips its text does so first.
     """
     if len(text) >= 2 and text[0] == text[-1] == '"':
@@ -108,9 +109,9 @@ def classify(text: str) -> Constant | None:
     return None
 
 
-#: The table banks a Search value of each kind searches (dialog): a
-#: decimal integer or a real the integer and real banks, a hex value DH, text or a character
-#: code TXT.
+#: The banks that a Search table may be in, by the kind of the search value, as CLICK's
+#: dialog allows them.  A decimal integer or a real searches the integer and real banks.  A
+#: hex value searches DH.  Text or a character code searches TXT.
 SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
     Kind.INTEGER: frozenset({"DS", "DD", "DF", "TD", "CTD"}),
     Kind.FLOAT: frozenset({"DS", "DD", "DF", "TD", "CTD"}),
@@ -125,11 +126,11 @@ FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
 
 
 def fits_float32(value: float) -> bool:
-    """Whether ``value`` is finite and fits float32.
+    """Return whether ``value`` is finite and fits float32.
 
     A value that rounds to float32's largest finite number, about 3.4028235E+38, fits.  A
-    decimal Math takes a real only up to :data:`FLOAT32_MAX` in size, so it refuses
-    3.4028235E+38, which fits.
+    decimal Math is stricter.  It takes a real only up to :data:`FLOAT32_MAX` in size, so it
+    refuses 3.4028235E+38, which fits here.
     """
     if not math.isfinite(value):
         return False
@@ -141,7 +142,7 @@ def fits_float32(value: float) -> bool:
 
 
 def hex_display(digits: str) -> str:
-    """CLICK's form of a hex value: uppercase digits without leading zeros, then ``h``.
+    """Return CLICK's form of a hex value: uppercase digits without leading zeros, then ``h``.
 
     ``0000Fh`` is stored ``Fh``, ``ffeh`` is ``FFEh`` and zero is ``0h``.
     """
@@ -155,17 +156,21 @@ MATH_REAL_DIGITS = 6
 
 
 def real_display(text: str) -> str:
-    """A real constant as laddercodec writes it: its value printed back, a typed ``+`` kept.
+    """Return the text that laddercodec writes for the real constant ``text``.
 
-    CLICK stores a real in a Math and a Copy source as it prints it back: ``1.50`` is
-    ``1.5``, ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and a typed
-    ``+2.5`` stays.  laddercodec prints with 7 significant digits, positional with at least
-    one digit after the point, as those answers do; the digit count and the rest are
-    laddercodec's until CLICK answers.  ``text`` comes back as given where that print is
-    another float32 value (more than 7 significant digits that count), and where 7 digits
-    print it in exponent form, from 1E+07 up and below 1E-04: CLICK keeps ``1.5E+10`` as
-    typed, and its form for the rest is not known.  ``text`` is a real :func:`classify`
-    reads: finite and within float32.
+    The text is the real's value printed back, and a typed ``+`` stays.  CLICK stores a real
+    in a Math and a Copy source the way it prints the real back: ``1.50`` is ``1.5``, ``.5``
+    is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and a typed ``+2.5`` stays.
+    laddercodec prints with 7 significant digits, in positional form, with at least one
+    digit after the point, which matches those examples.  The digit count and the other
+    details are laddercodec's own choice until CLICK's behaviour is captured.
+
+    ``text`` comes back as given in two cases.  The first is when the 7-digit print is a
+    different float32 value, because ``text`` has more than 7 significant digits that
+    count.  The second is when 7 digits print the value in exponent form: from 1E+07 up, or
+    below 1E-04.  CLICK keeps ``1.5E+10`` as typed, and its form for the other values is
+    not known.  ``text`` must be a real that :func:`classify` reads: finite and within
+    float32.
     """
     value = float(text)
     printed = f"{value:.{REAL_DIGITS}G}"
@@ -179,16 +184,18 @@ def real_display(text: str) -> str:
 
 
 def copy_real_display(text: str) -> str:
-    """A real constant as a single Copy source stores it.
+    """Return the text that a single Copy source stores for the real constant ``text``.
 
-    As :func:`real_display`, with two differences CLICK's Copy answers show: a typed ``+``
-    is dropped (``+1.5`` is ``1.5``), and a real typed in exponent form whose float32 value
-    7 significant digits print in exponent form, but not exactly, is written in that print
-    (``3.4028235E+38`` is ``3.402823E+38``, a slightly smaller float32 value).  One that 7
-    digits print exactly is kept as typed (``1E-45``, ``1E-50``); CLICK's form for one typed
-    otherwise (``1e7``, ``1.0E-10``) is not known.  ``text`` is a real :func:`classify`
-    reads: finite and within float32.  A single Copy refuses a real typed with more than 7
-    significant digits before it prints one (:func:`real_beyond_kept_digits`).
+    The text is the one :func:`real_display` returns, with two differences that CLICK's Copy
+    shows.  First, a typed ``+`` is dropped: ``+1.5`` is ``1.5``.  Second, a real may be
+    typed in exponent form, and 7 significant digits may print its float32 value in
+    exponent form but not exactly.  Such a real is written as that print: ``3.4028235E+38``
+    is ``3.402823E+38``, a slightly smaller float32 value.  A real that 7 digits print
+    exactly is kept as typed, as ``1E-45`` and ``1E-50`` are.  CLICK's form for one typed
+    otherwise, such as ``1e7`` or ``1.0E-10``, is not known.  ``text`` must be a real that
+    :func:`classify` reads: finite and within float32.  A single Copy refuses a real typed
+    with more than 7 significant digits before it calls this function
+    (:func:`real_beyond_kept_digits`).
     """
     text = text.removeprefix("+")
     value = _float32(float(text))
@@ -199,7 +206,7 @@ def copy_real_display(text: str) -> str:
 
 
 def _float32(value: float) -> float:
-    """The float32 value nearest ``value``, which is within float32."""
+    """Return the float32 value nearest ``value``.  ``value`` must be within float32."""
     return struct.unpack("<f", struct.pack("<f", value))[0]
 
 
@@ -209,35 +216,35 @@ _POSITIONAL_FROM, _POSITIONAL_BELOW = 1e-4, 1e7
 
 
 def significant_digits(text: str) -> int:
-    """The significant digits a real constant is typed with: its digits before any
-    exponent, leading and trailing zeros aside.
+    """Return the number of significant digits that a real constant is typed with: its
+    digits before any exponent, without leading and trailing zeros.
 
     ``0.0015`` has 2, ``1.50`` has 2, ``3.4028235E+38`` has 8, ``100000000.0`` has 1.
-    Trailing zeros are not counted: CLICK prints ``1.50`` back as ``1.5``.
+    Trailing zeros are not counted.  CLICK prints ``1.50`` back as ``1.5``.
     """
     mantissa = _EXPONENT_RE.split(text, maxsplit=1)[0]
     return len("".join(c for c in mantissa if c.isdigit()).strip("0"))
 
 
 def real_beyond_kept_digits(text: str, digits: int = REAL_DIGITS) -> str | None:
-    """The real constant ``text`` rounded to ``digits`` significant digits, when it is
-    typed with more; None for one typed with at most that many.
+    """Return the real constant ``text`` rounded to ``digits`` significant digits, when it
+    is typed with more.  Return None when it is typed with at most that many.
 
     CLICK keeps 7 significant digits of a real in a single Copy source
-    (:data:`REAL_DIGITS`) and 6 in a Math formula (:data:`MATH_REAL_DIGITS`): it saves
+    (:data:`REAL_DIGITS`) and 6 in a Math formula (:data:`MATH_REAL_DIGITS`).  It saves
     ``3.4028235E+38`` copied into DF1 as ``3.402823E+38``, and ``0.33333334`` in a Math as
-    ``0.333333``.  The text returned is the float32 value printed with ``digits``
-    significant digits, with ``.0`` added where that print has neither a point nor an
-    exponent, and positional from 1E-04 to below 1E+07 as :func:`real_display` prints
-    (``1234570.0``): the constant to write.  ``text`` is a real :func:`classify` reads:
-    finite and within float32.
+    ``0.333333``.  The text returned is the constant to write instead.  It is the float32
+    value printed with ``digits`` significant digits.  From 1E-04 to below 1E+07 the print
+    is positional, as :func:`real_display` prints (``1234570.0``).  ``.0`` is added where
+    the print has neither a point nor an exponent.  ``text`` must be a real that
+    :func:`classify` reads: finite and within float32.
     """
     if significant_digits(text) <= digits:
         return None
     printed = f"{_float32(float(text)):.{digits}G}"
     if "E" in printed and _POSITIONAL_FROM <= abs(float(printed)) < _POSITIONAL_BELOW:
-        # Positional from 1E-04 to below 1E+07, as laddercodec prints a real (1234570.0, not
-        # 1.23457E+06).
+        # Print in positional form from 1E-04 to below 1E+07, as laddercodec prints a real:
+        # 1234570.0, not 1.23457E+06.
         printed = format(Decimal(printed), "f")
     if "." not in printed and "E" not in printed:
         printed += ".0"
@@ -249,34 +256,37 @@ _REAL_DIGITS_MAX = 17
 
 
 def constant_text(value: int | float | str, *, hex: bool = False) -> str:
-    """Write a Python value as the constant text a Math or a Copy source takes.
+    """Return the constant text for a Python value, as a Math or a Copy source takes it.
 
-    The text is the one building the instruction stores for that value:
+    The text is the one that the instruction stores for that value when you build it:
 
     - an ``int`` is a decimal integer, -2147483648 to 2147483647 (``-7``), or with
       ``hex=True`` hex digits then ``h``, 0h to FFFFFFFFh (``255`` is ``FFh``);
     - a ``float`` is the float32 value nearest it, in the fewest significant digits that
       read back as that value and stay within float32, printed as laddercodec prints a real
       (``1000.0``, ``0.5``);
-    - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
-      ASCII is its code, ``$`` and two hex digits (``$0D``).
+    - a ``str`` is a text constant in quotes (``"AB"``).  A ``str`` of one character outside
+      printable ASCII is that character's code, ``$`` and two hex digits (``$0D``).
 
-    The text builds a Math for a real of at most 6 significant digits, and a single Copy
-    for one of at most 7.  CLICK keeps 6 in a Math and 7 in a Copy, and saves a real of
-    more cut to that many: a Math or a Copy refuses one, and its message names the
-    constant to write (:func:`real_beyond_kept_digits`).  The largest float32 value is
-    ``3.402823466E+38``; write ``3.40282E+38`` in a Math and ``3.402823E+38`` in a Copy.
+    A Math accepts the text for a real of at most 6 significant digits, and a single Copy
+    accepts it for a real of at most 7.  CLICK keeps 6 digits in a Math and 7 in a Copy,
+    and saves a real with more digits cut to that many.  A Math or a Copy refuses such a
+    real, and its message names the constant to write (:func:`real_beyond_kept_digits`).
+    The largest float32 value is ``3.402823466E+38``.  Write it as ``3.40282E+38`` in a
+    Math and as ``3.402823E+38`` in a Copy.
 
-    Provisional until CLICK answers: a real that 7 significant digits print in exponent
-    form (from 1E+07 up and below 1E-04) is written in Python's ``G`` form (``1.5E+10``),
-    and one that needs more than 7 digits keeps them (``0.33333334``).
+    Two choices are provisional until CLICK's behaviour is captured.  A real that 7
+    significant digits print in exponent form, from 1E+07 up or below 1E-04, is written in
+    Python's ``G`` form (``1.5E+10``).  A real that needs more than 7 digits keeps them
+    (``0.33333334``).
 
-    Whether a field takes the text (an int above int16, a hex value above FFFFh, a real in
-    a hex Math) is the field's check, made when the instruction is built.  A value no
-    constant spells raises ``ValueError``: an int outside the ranges above, a real that is
-    not finite or is outside the float32 range, empty text, text with a quote or longer
-    than 128 characters, or a character above ``$FF``.  A ``bool``, a float with
-    ``hex=True`` or any other type raises ``TypeError``.
+    When you build the instruction, the field's own check decides whether it takes the
+    text, such as an int above int16, a hex value above FFFFh or a real in a hex Math.  This
+    function does not check that.  A value that no constant spells raises ``ValueError``:
+    an int outside the ranges above, a real that is not finite or is outside the float32
+    range, empty text, text with a quote or longer than 128 characters, or a character
+    above ``$FF``.  A ``bool``, a float with ``hex=True`` or any other type raises
+    ``TypeError``.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{value!r} is not an int, a float or a str")
@@ -294,8 +304,8 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
         return str(value)
     if not fits_float32(value):
         raise ValueError(f"{value!r} is not a finite float32 value")
-    # The float32 value nearest, then the fewest digits that read back as it.  A rounded
-    # print above the largest float32 value is skipped, though it may round back to it.
+    # Find the nearest float32 value, then the fewest digits that read back as it.  Skip a
+    # rounded print above the largest float32 value, even when it would round back to it.
     nearest = struct.unpack("<f", struct.pack("<f", value))[0]
     text = repr(nearest)
     for digits in range(1, _REAL_DIGITS_MAX + 1):
@@ -331,21 +341,22 @@ def _text(inner: str) -> Constant | None:
 
 
 def printable(text: str) -> bool:
-    """Whether ``text`` is printable ASCII only.
+    """Return whether ``text`` is printable ASCII only.
 
-    Not part of the shared check, which takes any character: a field limit.  A Compare text
-    constant and the text of a Fill hold printable ASCII only; ``$hh`` spells any other
-    code.  A single Copy's text and a Search text value take what :func:`kept_text` takes.
+    This is a limit of some fields, not part of the shared check, which takes any
+    character.  A Compare text constant and the text of a Fill hold printable ASCII only,
+    and ``$hh`` spells any other code.  A single Copy's text and a Search text value take
+    the characters that :func:`kept_text` accepts instead.
     """
     return PRINTABLE_ASCII.issuperset(text)
 
 
-#: Why text :func:`kept_text` refuses is refused.
+#: The rule that text breaks when :func:`kept_text` refuses it.
 KEPT_TEXT_RULE = "text holds characters U+0001 to U+FFFF, no NUL and no surrogate; write NUL as $00"
 
 
 def kept_text(text: str) -> bool:
-    """Whether CLICK keeps each character of ``text`` as typed, one TXT register each.
+    """Return whether CLICK keeps each character of ``text`` as typed, in one TXT register each.
 
     CLICK keeps printable ASCII, a tab, a control character (U+0001), Latin-1 (U+00E9) and
     the rest of its 16-bit characters (U+20AC) in a single Copy source and a Search text
@@ -355,12 +366,14 @@ def kept_text(text: str) -> bool:
     return all(0 < ord(c) < 0xD800 or 0xE000 <= ord(c) <= 0xFFFF for c in text)
 
 
-#: Why a ``$`` value is refused; the shared field check raises it in every field.
+#: The rule that a refused ``$`` value breaks.  The shared field check puts it in the refusal
+#: in every field.
 CHAR_CODE_RULE = "a character code is $ and two hex digits, $00 to $FF, such as $41"
 
 
 def _hex(digits: str) -> Constant | None:
-    # 16-bit by value, so 0FFFFh is 16-bit; 32-bit by digit count, so 0FFFFFFFFh is none.
+    # The 16-bit limit counts the value, so 0FFFFh is 16-bit.  The 32-bit limit counts the
+    # digits, so 0FFFFFFFFh is no constant.
     significant = digits.lstrip("0") or "0"
     if len(significant) <= 4:
         return Constant(Kind.HEX, int(significant, 16))
@@ -370,9 +383,9 @@ def _hex(digits: str) -> Constant | None:
 
 
 def _integer(sign: str, digits: str) -> Constant | None:
-    # The shared check lets a sign stand anywhere among the digits.  The dialog
-    # check found ``1-2`` refused in the Counter dialog, whose own parse runs
-    # after it; the classifier extends that to every field, so a sign only leads.
+    # The shared check lets a sign stand anywhere among the digits.  The Counter
+    # dialog refuses ``1-2`` in its own parse, which runs after the shared check.
+    # classify() refuses such text in every field, so a sign may only lead.
     significant = digits.lstrip("0") or "0"
     if len(significant) > len(str(INT32_MAX)):
         return None

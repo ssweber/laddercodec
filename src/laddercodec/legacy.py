@@ -1,8 +1,9 @@
 """Warnings for saved rungs that an older laddercodec wrote in a form CLICK runs differently.
 
-An instruction parser that sees such a form records a :class:`LegacyFinding` on the
-decoded object (``_legacy_findings``). The decoders then call :func:`warn_legacy` once
-the rungs are built, which adds the rung index and program name.
+When an instruction parser sees such a form, it records a :class:`LegacyFinding` in the
+decoded instruction's ``_legacy_findings``. Once the rungs are built, the decoders call
+:func:`warn_legacy`. It issues a warning for each finding, with the rung index and the
+program name.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from .instructions import AfInstruction
 
 
 class LegacyFinding(NamedTuple):
-    """What an instruction parser found: the instruction, the token, and what CLICK runs."""
+    """A legacy form that an instruction parser found, with what CLICK runs instead."""
 
     instruction: str
     token: str
@@ -23,7 +24,8 @@ class LegacyFinding(NamedTuple):
 
 
 class LegacyEncodingWarning(UserWarning):
-    """A decoded rung holds bytes an older laddercodec wrote, which CLICK runs differently.
+    """Issued when a decoded rung holds bytes that an older laddercodec wrote and CLICK runs
+    differently.
 
     Attributes
     ----------
@@ -36,7 +38,8 @@ class LegacyEncodingWarning(UserWarning):
     rung:
         0-based rung index in the decoded buffer or program, or ``None`` if unknown.
     program:
-        Program name for :func:`laddercodec.decode_program`, else ``None``.
+        The program name if :func:`laddercodec.decode_program` decoded the rung, else
+        ``None``.
     """
 
     def __reduce__(self):

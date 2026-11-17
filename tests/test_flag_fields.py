@@ -1,8 +1,10 @@
 """Every bool field of an instruction is checked with ``check_flag`` in its ``__post_init__``.
 
 ``check_flag`` accepts True, False, 1 and 0 and refuses anything else with ``FieldError``.
-The guard finds the bool fields by introspection and the calls by AST, so a new bool field
-without its call fails here.  The table tests refuse and accept values field by field.
+The guard finds the bool fields from each class's type hints, and it finds the calls by
+parsing the source of each ``__post_init__``.  A bool field with no call fails the guard.
+The tests over ``CASES`` give each listed field values that it must refuse and values that it
+must accept.
 """
 
 from __future__ import annotations
@@ -48,7 +50,8 @@ def _all_subclasses(base: type) -> set[type]:
 
 
 def instruction_classes() -> list[type]:
-    """Every dataclass in laddercodec that is a condition or AF instruction."""
+    """Return every dataclass in laddercodec that subclasses ``ConditionInstruction`` or
+    ``AfInstruction``, sorted by module and name."""
     package = importlib.import_module(_PACKAGE)
     for info in pkgutil.iter_modules(package.__path__):
         importlib.import_module(f"{_PACKAGE}.{info.name}")
@@ -79,11 +82,14 @@ def _post_init_tree(source: str) -> ast.AST:
 
 
 def flag_checked_fields(source: str, class_name: str) -> set[str]:
-    """Names ``x`` assigned as ``self.x = check_flag(self.x, "<class_name>.x")``, or checked
-    as ``check.flag("x", ...)`` inside a ``Refusals`` block, which stores the bool back.
+    """Return the names of the fields that *source* checks as flags.
 
-    A bare call, a discarded result, a different target or a label that is not
-    ``<class_name>.x`` does not count.
+    A name ``x`` counts when *source* assigns ``self.x = check_flag(self.x, "<class_name>.x")``.
+    Each plain string passed to a call such as ``check.flag("x", ...)`` counts too.  That is
+    the form a ``Refusals`` block uses, and the block stores each checked bool back on the
+    instance.  A ``check_flag`` call does not count if its result is not stored, if it is
+    stored on another field, if it checks another field's value, or if its label is not a
+    plain ``"<class_name>.x"``.
     """
     names: set[str] = set()
     for node in ast.walk(_post_init_tree(source)):
@@ -140,10 +146,10 @@ def calls_super_post_init(source: str) -> bool:
 
 
 def is_flag_checked(cls: type, name: str) -> bool:
-    """Whether building ``cls`` runs a check of field ``name``.
+    """Return whether building ``cls`` runs a flag check on the field ``name``.
 
-    Walk the MRO: a class without its own ``__post_init__`` passes to its parent; one with
-    its own counts when it assigns the check, and passes on only if it calls
+    Walk the MRO.  Skip a class that has no ``__post_init__`` of its own.  For a class that
+    has one, return True if it checks the field.  Go on to the parent only if it calls
     ``super().__post_init__()``.
     """
     for klass in cls.__mro__:
@@ -179,8 +185,8 @@ def test_guard_finds_the_known_flags() -> None:
     assert by_class["OutVariant"] == ["immediate", "maintained"]
     assert by_class["Coil"] == ["immediate", "oneshot"]
     assert sum(len(names) for names in by_class.values()) >= 24
-    # math_formula's token has bool fields and is not an instruction: the guard walks the
-    # instruction base classes, so it never sees it.
+    # The token class in math_formula has bool fields but is not an instruction.  The guard
+    # collects only subclasses of the instruction base classes, so it never sees the token.
     assert not any(cls.__module__.endswith("math_formula") for cls in instruction_classes())
 
 
@@ -279,8 +285,8 @@ CASES: list[tuple[str, Any, str]] = [
     ("Math", lambda **kw: Math("DS1 + 1", "DS2", **kw), "oneshot"),
     ("ForLoop", lambda **kw: ForLoop("3", **kw), "oneshot"),
     ("OutVariant", lambda **kw: OutVariant("toggle", "Y001", **kw), "immediate"),
-    # A toggle has no Output Maintained box, so a truthy value was refused on this field
-    # already; a falsy one was accepted.
+    # A toggle has no Output Maintained box, and its check of ``kind`` refuses any truthy
+    # value on this field.  ``check_flag`` refuses a falsy one, such as None or "".
     ("OutVariant", lambda **kw: OutVariant("toggle", "Y001", **kw), "maintained"),
     ("Send", lambda **kw: Send(**_modbus(source="DS1", sending="C1"), **kw), "word_swap"),
     ("Receive", lambda **kw: Receive(**_modbus(dest="DS1", receiving="C1"), **kw), "word_swap"),

@@ -1,4 +1,4 @@
-"""One-time script to create mr-cmt-2rung-r1-max1400 golden CSV."""
+"""Write the golden CSV mr-cmt-2rung-r1-max1400.csv. This script was written to run once."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ comment_text = "ABCDEFGHIJ" * 140
 assert len(comment_text.encode("cp1252")) == 1400
 blank_row = cast(list[ConditionToken], [""] * 31)
 
-# 2 rungs, each 1 row, empty cells, no AF
+# Two rungs of one row each. Every condition cell is empty, and so is the output column AF.
 rungs: list[Rung] = [
     Rung(1, [blank_row.copy()], [""], None),  # rung 0: 1 row, no comment
     Rung(1, [blank_row.copy()], [""], comment_text),  # rung 1: 1 row, max comment

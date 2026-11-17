@@ -1,11 +1,10 @@
-"""Search instruction (type marker 0x2722).
+"""The Search instruction (type marker 0x2722, binary class name ``"Search"``).
 
-Binary class name: ``"Search"``.
-
-Searches a table range for a value matching a comparison condition.
-Six comparison operators (==, !=, >, <, >=, <=), with optional
-continuous and oneshot flags.  Func code is 8964 + operator index
-(== != > >= < <=) + 6 if oneshot, for data and text search alike.
+A Search looks through a table of registers for a value that meets a comparison.
+It has six comparison operators (==, !=, >, <, >=, <=) and optional continuous
+and oneshot flags.  The func code is 8964 plus the operator's index in the order
+== != > >= < <=, plus 6 with oneshot.  Data and text searches use the same func
+codes.
 
 Field layout (10 fields):
 
@@ -47,7 +46,8 @@ from .family import AfInstructionFamilySpec, fixed_cell_params
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
-#: Cell kwargs of a Search box: two rows (cell header +0x09 = +0x0A = 2).
+#: Cell kwargs of a Search box.  The box spans two rows: cell header bytes +0x09 and +0x0A
+#: are both 2.
 _CELL_PARAMS: dict = {"visual_rows": 2}
 
 # ---------------------------------------------------------------------------
@@ -86,16 +86,18 @@ _CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
 
 #: Banks a search table spans.
 TABLE_BANKS = frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "TXT"})
-#: The result holds the found address's index, a DS.
+#: The result is a DS register.  It receives the index of the address that was found.
 RESULT_BANKS = frozenset({"DS"})
 #: The Result Flag is a C bit (OBJ-004).
 FOUND_BANKS = frozenset({"C"})
-#: A text search value hides the four order operators, leaving these.  A TXT register
-#: counts as text as much as a text constant does.
+#: The operators offered for a text search value.  The four order operators are hidden for
+#: text.  A TXT register counts as text, the same as a text constant.
 _TEXT_OPS = frozenset({"==", "!="})
-#: The search value: a constant of any kind, hex 16-bit (above FFFFh is a 32-bit hex
-#: constant, which is OBJ-005).  A signed hex text reads as a hex constant, which the
-#: field then refuses.  Text takes the characters CLICK keeps, checked with its quotes.
+#: The constants a search value takes: any kind, with hex up to FFFFh.  A hex value above
+#: FFFFh is a 32-bit hex constant, which is refused with OBJ-005.  Hex text with a sign, such
+#: as ``+1h``, reads as a hex constant, so the field refuses it as a constant and not as an
+#: address.  Text is not limited to printable ASCII here.  ``check_quoted_text`` checks it,
+#: with its quotes, for the characters that CLICK keeps.
 _VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True, printable=False)
 
 # ---------------------------------------------------------------------------
@@ -165,8 +167,9 @@ class Search(AfInstruction):
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
-            # Search has no pointer path, so no field takes one.  The table is
-            # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
+            # No Search field takes a pointer.  The table's two ends are in one bank,
+            # and the end comes after the start.  check_range refuses a table that
+            # breaks this with OBJ-008, OBJ-009 or OBJ-012.
             start = check("table_start", check_box_operand, TABLE_BANKS)
             end = check("table_end", check_box_operand, TABLE_BANKS)
             table = None
@@ -192,7 +195,7 @@ class Search(AfInstruction):
             check.flag("continuous", "oneshot")
 
     def _check_value(self, check: Refusals, value: Operand, table: Address | None) -> None:
-        """The rules that tie the search value to the operator and to the table."""
+        """Refuse a search value that does not suit the operator or the table's bank."""
         const = value.constant
         if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or value.bank == "TXT":
             if self.op not in _TEXT_OPS:
@@ -203,7 +206,7 @@ class Search(AfInstruction):
                     Reason.CONFLICT,
                     code=Code.TEXT_ORDER_COMPARE,
                 )
-        # The value's kind ties to the table banks.
+        # A constant's kind decides which banks the table may be in.
         if (
             const is not None
             and table is not None
@@ -271,7 +274,12 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Search | None:
-    """Construct a Search from tag data (shared by both decoders)."""
+    """Build a Search from its decoded tags, or return None.
+
+    Return None when the blob is not a Search, when an operand field is blank, or when the
+    comparison code is unknown.  The clipboard decoder and the program file decoder both
+    call this function.
+    """
     if class_name != "Search" or type_code != _SEARCH_TYPE_CODE:
         return None
 

@@ -1,8 +1,9 @@
-"""laddercodec._layout: read_csv and write_csv draw rungs as CLICK's syntax check draws them.
+"""``read_csv`` and ``write_csv`` draw rungs as CLICK's syntax check draws them.
 
-Ground truth is CLICK v4's copy-back of pasted rungs before and after its syntax check
-(``v4_captures/*_pasted.bin`` and ``*_checked.bin``).  The checked copy has the rungs CLICK
-refused deleted, and a rung CLICK split stands as its parts.
+The layout code is in ``laddercodec._layout``.  The reference is what CLICK v4 copied back
+to the clipboard for pasted rungs, before and after its syntax check
+(``v4_captures/*_pasted.bin`` and ``*_checked.bin``).  In the checked copy, CLICK has deleted
+the rungs that it refused, and each rung that CLICK split appears as its separate parts.
 """
 
 from __future__ import annotations
@@ -60,7 +61,7 @@ _CHECKED = [
 
 @pytest.mark.parametrize("name", _CHECKED)
 def test_checked_capture_is_a_fixed_point_of_csv(name: str, tmp_path: Path) -> None:
-    """What CLICK's check drew writes to CSV and reads back unchanged."""
+    """A rung as CLICK's check drew it writes to CSV and reads back unchanged."""
     rungs = _rungs(name)
     assert [_drawing(r) for r in _through_csv(rungs, tmp_path)] == [_drawing(r) for r in rungs]
 
@@ -76,7 +77,8 @@ def test_checked_capture_is_a_fixed_point_of_csv(name: str, tmp_path: Path) -> N
     ],
 )
 def test_pasted_capture_reads_back_as_checked(pasted: str, checked: str, tmp_path: Path) -> None:
-    """Each rung CLICK accepted writes to CSV and reads back as CLICK's check redrew it."""
+    """Each pasted rung that ``check`` finds no fault in writes to CSV and reads back as
+    CLICK's check redrew it."""
     accepted = [r for r in _rungs(pasted) if not check(r)]
     got = _through_csv(accepted, tmp_path)
     assert [_drawing(r) for r in got] == [_drawing(r) for r in _rungs(checked)]
@@ -87,7 +89,8 @@ _ALL_CAPTURES = without_marker(sorted(V4.glob("*.bin"))) + sorted(TUMBLER.rglob(
 
 @pytest.mark.parametrize("path", _ALL_CAPTURES, ids=lambda p: p.stem)
 def test_layout_keeps_the_circuit(path: Path) -> None:
-    """The layout moves cells and splits rungs; the circuit it draws is the circuit read."""
+    """The layout may move cells and split a rung, but it draws the circuit of the rung that
+    was read."""
     for rung in _rungs(path):
         laid_out = canonical(rung)
         if laid_out is not None:
@@ -123,7 +126,8 @@ def test_checked_rungs_are_fixed_points(name: str) -> None:
         assert _same(got[0], rung)
 
 
-#: or_compact_pasted rung -> its checked rung(s); CLICK splits pasted rung 1 in two.
+#: The index of each rung in or_compact_pasted, mapped to the indexes of the rungs in
+#: or_compact_checked that CLICK made from it.  CLICK splits pasted rung 1 in two.
 _PAIRS = {0: [0], 1: [1, 2], 2: [3], 3: [4], 4: [5]}
 
 
@@ -146,7 +150,7 @@ def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
 
 
 def test_bridge_is_not_series_parallel() -> None:
-    """The Wheatstone bridge: CLICK's check refuses it with C0001."""
+    """``layout`` refuses a Wheatstone bridge with C0001, the id that CLICK's check gives it."""
     # out(Y001) <= X001 X003 | X001 X005 X004 | X002 X004
     rung = _rung(
         [
@@ -188,12 +192,14 @@ _TIME_DRUM = (
 
 
 def _csv_row(marker: str, cells: list[str], af: str) -> list[str]:
-    """A CSV data row: ``cells`` from column A, then wire to AE when ``af`` is set."""
+    """Return a CSV data row with ``cells`` from column A, then wire up to column AE if
+    ``af`` is set."""
     return [marker, *cells, *(["-"] if af else [""]) * (31 - len(cells)), af]
 
 
 def _read_rows(tmp_path: Path, rows: list[list[str]]) -> tuple[Rung, list[Rung]]:
-    """The rung as drawn, and as ``read_csv`` lays it out."""
+    """Write ``rows`` to a CSV file and return its first rung as drawn, and as ``read_csv``
+    lays it out."""
     path = tmp_path / "main.csv"
     with path.open("w", encoding="utf-8", newline="") as handle:
         csv_mod.writer(handle).writerows([CSV_HEADER, *rows])
@@ -211,8 +217,9 @@ def _contacts(rungs: list[Rung]) -> list[str]:
     )
 
 
-#: Pins of one box fed by one contact.  Each pin's circuit is drawn on rows of its own, so a
-#: layout would draw the shared contact once per pin.
+#: Rungs in which one contact feeds two pin inputs of one box, each with the code that
+#: ``check`` reports.  Each pin's circuit is drawn on rows of its own, so a layout would draw
+#: the shared contact once for each pin.
 _SHARED_PINS = {
     "shift clock and reset": (
         [
@@ -293,11 +300,12 @@ def _shift_with_two_pins(tmp_path: Path) -> Rung:
 def test_circuit_catches_a_contact_drawn_twice(
     lose: bool, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A layout that draws the clock's contact on the reset's rows too changes the circuit.
+    """A layout that also draws the clock's contact on the reset's rows changes the circuit.
 
-    ``trees`` is patched to give the reset the clock's circuit (before or instead of its own);
-    ``circuit()`` then holds C5 twice, the writer refuses the layout, and so would
-    ``test_layout_keeps_the_circuit``.
+    The test patches ``trees`` to give the reset the clock's circuit, either before the
+    reset's own circuit or in place of it.  ``circuit()`` then holds C5 twice and raises, and
+    the writer refuses the layout.  ``test_layout_keeps_the_circuit`` would fail on such a
+    layout too.
     """
     import laddercodec._layout as layout_mod
 
@@ -322,7 +330,8 @@ def test_circuit_catches_a_contact_drawn_twice(
         decoded_rung_to_rows(drawn)
 
 
-#: Contacts on two box inputs where neither is a pin: one SP tree holds each contact once.
+#: Rungs with a contact on the circuits of two box inputs, where neither input is a pin.  The
+#: layout's series-parallel tree holds each contact once.
 _SHARED_MAIN = {
     "a box and a branch after it": [
         _csv_row("R", ["C1", "T"], "out(Y1)"),
@@ -362,14 +371,19 @@ def test_contact_on_two_main_inputs_is_drawn_once(name: str, tmp_path: Path) -> 
     ids=["wired from the rail", "first", "behind a contact"],
 )
 def test_rung_that_would_split_off_a_nop_stays_as_drawn(rows, tmp_path: Path) -> None:
-    """No capture shows CLICK splitting a NOP into a rung of its own."""
+    """A rung whose layout would split a NOP into a rung of its own stays as drawn.
+
+    No capture shows CLICK making that split."""
     drawn, got = _read_rows(tmp_path, rows)
     assert got == [drawn]
     assert canonical(drawn) is None
 
 
 def test_golden_reads_as_click_checked_its_unpowered_nop() -> None:
-    """The middle rung's NOP, its stubs at A and C and its blank row go (no error from CLICK)."""
+    """The golden CSV reads as CLICK's check drew the rungs.
+
+    Reading drops the middle rung's NOP, its wire stubs at columns A and C, and its blank
+    row, as CLICK's check does.  CLICK reports no error for that rung."""
     golden = read_csv(LADDER / "mr-cmt-3rung-multirow.csv")
     native = _rungs("unpowered_nop_checked.bin")
     assert [_drawing(r) for r in golden] == [_drawing(r) for r in native]
@@ -377,7 +391,7 @@ def test_golden_reads_as_click_checked_its_unpowered_nop() -> None:
 
 
 def test_unpowered_nop_is_dropped(tmp_path: Path) -> None:
-    """A NOP no rail or contact reaches goes, and the rung lays out without it."""
+    """A NOP that no rail or contact reaches is dropped, and the rung lays out without it."""
     nop_row = ["", "-", "", "-", *[""] * 28, "NOP"]
     drawn, got = _read_rows(tmp_path, [_csv_row("R", ["C1"], "out(Y1)"), nop_row])
     assert drawn.instructions[1] == "NOP"
@@ -386,7 +400,9 @@ def test_unpowered_nop_is_dropped(tmp_path: Path) -> None:
 
 
 def test_unpowered_nop_is_dropped_before_a_split(tmp_path: Path) -> None:
-    """With the NOP gone, outputs that meet only at the rail split (no capture shows both)."""
+    """After the NOP is dropped, two outputs that meet only at the rail split into two rungs.
+
+    No capture shows CLICK doing both in one rung."""
     rows = [
         _csv_row("R", ["C1"], "out(Y1)"),
         ["", *[""] * 31, "NOP"],
@@ -401,7 +417,7 @@ def test_unpowered_nop_is_dropped_before_a_split(tmp_path: Path) -> None:
 
 
 def test_nop_behind_a_contact_with_a_coil_lays_out(tmp_path: Path) -> None:
-    """A NOP beside a coil on one net is not a split; the rung lays out."""
+    """A NOP and a coil on one net do not split the rung, and the rung lays out as one."""
     drawn, got = _read_rows(
         tmp_path,
         [_csv_row("R", ["C1", "T"], "out(Y1)"), _csv_row("", ["", "-"], "NOP")],

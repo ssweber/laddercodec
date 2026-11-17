@@ -1,4 +1,4 @@
-"""CSV row/file parser for Click Ladder canonical CSV rows."""
+"""Parse a file or a row in laddercodec's canonical CSV form of CLICK ladder logic."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from .token_parser import parse_af_token, parse_condition_token
 def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | None]:
     if path.name == "main.csv":
         return "main", None
-    # subroutines/ folder layout: parent dir is "subroutines", slug is stem
+    # A CSV file in a folder named "subroutines" is a subroutine, and its stem is the slug.
     if path.parent.name == "subroutines" and path.suffix.lower() == ".csv":
         return "subroutine", path.stem
     return "subroutine", None
@@ -36,15 +36,15 @@ def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
             f"Invalid marker {marker!r}; expected 'R' (optionally indexed, e.g. R1), '#', or blank"
         )
 
-    # Comment rows may be short (just marker + text); pad to full width.
-    # Preserve whitespace in column A for code-style comments (indentation).
+    # A comment row may hold only the marker and the text, so pad it to the full width.
+    # Keep the spaces in column A, because a comment may be indented like code.
     if marker == "#":
         padded = fields + [""] * (TOTAL_COLUMNS - len(fields))
         text = padded[1] if len(padded) > 1 else ""
         rest = tuple(cell.strip() for cell in padded[2:-1])
         conditions = (text,) + rest
-        # conditions[i] is column i: A holds the text, B onwards must be blank.  A row
-        # longer than the header carries its AF cell as conditions[31].
+        # conditions[i] is column i. Column A holds the text, and every later column must
+        # be blank. In a row longer than the header, conditions[31] is the AF cell.
         column = next((i for i, cell in enumerate(conditions) if i and cell), None)
         if column is not None:
             raise at(
@@ -83,8 +83,9 @@ def _row_ast(canonical: CanonicalRow, line: int | None = None) -> RowAst:
 def _rows_ast(records: Iterable[tuple[int | None, Sequence[str]]]) -> tuple[RowAst, ...]:
     """Parse each (line, fields) record into a ``RowAst``.
 
-    An error names the record's line and, for a row under an ``R`` row, the line of that
-    ``R`` row and the row's index in its rung (the rungs ``_segment_rungs`` forms).
+    The location of an error names the record's line. For a row in a rung, it also names
+    the line of the rung's ``R`` row and the row's index in the rung. These are the rungs
+    that ``_segment_rungs`` forms.
     """
     places: list[dict[str, int | None]] = []
     canonical_rows: list[CanonicalRow] = []
@@ -96,7 +97,7 @@ def _rows_ast(records: Iterable[tuple[int | None, Sequence[str]]]) -> tuple[RowA
             rung_line, row = line, 0
         elif marker == "#":  # a comment row ends the rung above it
             rung_line = row = None
-        elif row is not None:  # a continuation row, or an invalid marker refused below
+        elif row is not None:  # a continuation row, or a row whose bad marker is refused below
             row += 1
         place = {"line": line, "rung_line": rung_line, "row": row}
         places.append(place)
@@ -170,7 +171,10 @@ def _parse_single_rung_rows(row_fields: Sequence[Sequence[str]]) -> RungAst:
 
 
 def _read_records(path: Path) -> Generator[tuple[int | None, Sequence[str]]]:
-    """The rows after the header, each with the line it starts on, read as they are taken."""
+    """Yield each row after the header with the line that the row starts on.
+
+    Read the file one row at a time, as the caller asks for rows.
+    """
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle)
         header: list[str] | None = None
@@ -187,10 +191,11 @@ def _read_records(path: Path) -> Generator[tuple[int | None, Sequence[str]]]:
                     continue
                 yield start, parsed
         except csv.Error as exc:
-            # At the line the row being read starts on.
+            # The location is the line that the row being read starts on.
             raise at(CsvError(str(exc)), line=end + 1) from exc
         except UnicodeDecodeError as exc:
-            # Read in blocks, so the line is not known: the location names the file only.
+            # The file is decoded in blocks, so the line is not known. The location names
+            # only the file.
             raise CsvError(str(exc)) from exc
 
     if header is None:

@@ -49,7 +49,10 @@ class TestForLoopBlobRoundTrip:
 
 
 class TestLoopExits:
-    """CLICK v4 Break/Continue share class ``Next``; the func code (0x3218) tells them apart."""
+    """CLICK v4 stores Break and Continue under the class name ``Next``.
+
+    The function code in tag 0x3218 tells Next, Break and Continue apart.
+    """
 
     def test_break_round_trip(self) -> None:
         parsed = parse_af_blob(Break().build_blob())
@@ -88,7 +91,10 @@ class TestNativeBlobParsing:
         assert parsed.to_csv() == "next()"
 
     def test_parses_native_next_blob_multi_rung(self) -> None:
-        """Native multi-rung NEXT has 32-byte blob with proper UTF-16LE empty + trailing zeros."""
+        """A 32-byte Next blob as CLICK writes it in multi-rung data parses as Next.
+
+        The blob ends with an empty UTF-16LE string (two zero bytes) and four more zero bytes.
+        """
         blob = bytes.fromhex("4e006500780074000000262700000100010000000000ffffffff000000000000")
         parsed = parse_af_blob(blob)
         assert isinstance(parsed, Next)
@@ -101,7 +107,10 @@ class TestNextBlobSize:
         assert len(blob) == 28
 
     def test_next_blob_ends_with_empty_field(self) -> None:
-        """Terminal field uses proper UTF-16LE empty value (no trailing zeros)."""
+        """The last field of a Next blob is an empty UTF-16LE string of two zero bytes.
+
+        No padding zeros follow it.
+        """
         blob = Next().build_blob()
         assert blob[-2:] == b"\x00\x00"
 
@@ -155,12 +164,16 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
-#: The location ``read_csv`` ends a message about ``_read_af``'s AF cell with.
+#: The location that ``read_csv`` puts at the end of an error about the AF cell that
+#: ``_read_af`` writes.
 _AT_AF = r" \(at .*rung\.csv, line 2, rung at line 2, row 0 from 0, column AF\)$"
 
 
 def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
-    """Encode ``model``, swap one equal-length string, and decode the AF back."""
+    """Encode a rung with ``model``, replace ``old`` with ``new``, and return the decoded AF.
+
+    ``old`` and ``new`` must be the same length, and ``old`` must appear once in the bytes.
+    """
     assert len(old) == len(new)
     data = encode_rung(1, [["-"] * 31], [model])
     assert data.count(old.encode("utf-16-le")) == 1
@@ -169,7 +182,7 @@ def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
 
 
 class TestForCount:
-    """The For count rules."""
+    """Test which counts a For instruction accepts."""
 
     @pytest.mark.parametrize("limit", ["0", "1", "2147483647", "DS1", "DD1", "TD1", "CTD1", "SD1"])
     def test_accepted(self, tmp_path: Path, limit: str) -> None:
@@ -183,8 +196,9 @@ class TestForCount:
             ForLoop(count="2147483648")
 
     def test_a_count_of_thousands_of_digits(self) -> None:
-        # Beyond Python's 4300-digit int() limit: read as its value, or refused, never a bare
-        # ValueError.
+        # Both counts are longer than the 4300 digits that Python's int() reads. The first is
+        # accepted because its value is 1, and the second raises FieldError. Neither raises
+        # the ValueError from int().
         assert ForLoop(count="0" * 5000 + "1").count == "0" * 5000 + "1"
         with pytest.raises(FieldError):
             ForLoop(count="1" * 5000)
@@ -215,7 +229,8 @@ class TestForCount:
 
     @pytest.mark.parametrize("limit", ["1 0", "1  2 3"])
     def test_inner_space_refused(self, limit: str) -> None:
-        # The dialog lets it through; it is not a number, so it is refused.
+        # CLICK's dialog accepts a count with a space inside. laddercodec refuses it because
+        # it is not a number.
         with pytest.raises(FieldError, match="has a space inside"):
             ForLoop(count=limit)
 
@@ -233,7 +248,8 @@ class TestForCount:
         assert isinstance(af, ForLoop) and af.count == new
 
     def test_refused_bank_keeps_its_refusal_scr(self) -> None:
-        # coverage.scr: for(DS1), stored as a length byte then text and one NUL byte.
+        # coverage.scr holds one for(DS1). Its count is stored as a length byte, the text and
+        # one NUL byte.
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         old = bytes.fromhex("65600744005300310000")
         new = bytes.fromhex("65600744004600310000")  # DF1
@@ -245,7 +261,7 @@ class TestForCount:
 
 
 class TestSubroutineNames:
-    """CLICK's Add New Subroutine dialog rules."""
+    """Test that a Call's subroutine name follows the rules of CLICK's Add New Subroutine dialog."""
 
     @pytest.mark.parametrize(
         "name",
@@ -295,7 +311,6 @@ class TestSubroutineNames:
 
     @pytest.mark.parametrize("name", [" ", "   "])
     def test_blank_refused(self, tmp_path: Path, name: str) -> None:
-        # an all-space name is refused.
         with pytest.raises(FieldError, match="^Call.subroutine: .* is blank"):
             _read_af(tmp_path, f'call("{name}")')
 
@@ -306,7 +321,8 @@ class TestSubroutineNames:
         assert isinstance(af, Call) and af.subroutine == "coverage:sub"
 
     def test_refused_name_keeps_its_refusal_scr(self) -> None:
-        # coverage.scr: call("coverage_sub"), stored as a length byte, the text and one NUL.
+        # coverage.scr holds one call("coverage_sub"). Its name is stored as a length byte, the
+        # text and one NUL byte.
         old = bytes([25]) + "coverage_sub".encode("utf-16-le") + b"\x00"
         new = bytes([25]) + "coverage:sub".encode("utf-16-le") + b"\x00"
         data = (_SCR_DIR / "coverage.scr").read_bytes()
@@ -316,7 +332,8 @@ class TestSubroutineNames:
         calls = [a for r in rungs for a in r.instructions if isinstance(a, Call)]
         assert [kept(a, "Call.subroutine").subroutine for a in calls] == ["coverage:sub"]
 
-    # CLICK trims the name before it checks it, so the checks see the trimmed text.
+    # CLICK trims the name before it checks it. Call checks the trimmed name too, and keeps
+    # the name as given.
     @pytest.mark.parametrize("name", [" " + "x" * 24, "x" * 24 + " ", " a "])
     def test_checks_run_on_the_trimmed_name(self, name: str) -> None:
         assert Call(subroutine=name).subroutine == name

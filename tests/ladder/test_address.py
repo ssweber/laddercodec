@@ -74,7 +74,10 @@ class TestCheckAddress:
         "text", ["001", "1", "016", "16", "021", "21", "036", "36", "101", "116", "801", "816"]
     )
     def test_module_points_accepted(self, bank: str, text: str) -> None:
-        """21-36 is the CPU's dual option slot; CLICK v4's dialog accepts it."""
+        """X and Y accept both ends of 001-016, 021-036, 101-116 and 801-816, zero-padded or not.
+
+        21-36 is the CPU's dual option slot. CLICK v4's dialog accepts it.
+        """
         assert check_address(f"{bank}{text}", "f") == Address(bank, int(text))
 
     @pytest.mark.parametrize("bank", ["X", "Y"])
@@ -235,7 +238,7 @@ class TestConstructionRaises:
             OutVariant.from_csv_token("toggle(immediate(Y900))")
 
     def test_dual_option_slot_through_parse_paths(self, tmp_path: Path) -> None:
-        """X021-X036 and Y021-Y036 are the CPU's dual option slot."""
+        """CSV tokens and read_csv accept X021-X036 and Y021-Y036, the CPU's dual option slot."""
         assert Contact.from_csv_token("X021").operand == "X021"
         assert Contact.from_csv_token("~X036").operand == "X036"
         path = tmp_path / "rung.csv"
@@ -258,12 +261,12 @@ class TestConstructionRaises:
             ("Contact.operand", lambda: Contact("YD0u")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(XD0u)")),
             ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
-            # Set takes Y, C and SC only, so the range starts at Y1, not YD0.
+            # Set accepts only Y, C and SC. The range starts at Y1, so only range_end is refused.
             ("Coil.range_end", lambda: Coil("Y1", kind="latch", range_end="YD0u")),
             ("Counter.done", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
             ("Counter.accumulator", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
-            # A shift runs over C only, so the range starts at C1, not XD0.
+            # A shift accepts only C. The range starts at C1, so only end_bit is refused.
             ("Shift.end_bit", lambda: Shift(start_bit="C1", end_bit="XD0u")),
             ("ForLoop.count", lambda: ForLoop.from_csv_token("for(XD0u)")),
             ("OutVariant.operand", lambda: OutVariant.from_csv_token("toggle(YD0u)")),
@@ -300,7 +303,7 @@ def _utf16z(text: str) -> bytes:
 
 
 def _swap_operand(blob: bytes, old: str, new: str) -> bytes:
-    """Rewrite one UTF-16LE operand string of equal length inside a blob."""
+    """Return *blob* with its one UTF-16LE copy of *old* replaced by *new*, of the same length."""
     assert len(old) == len(new)
     before, after = old.encode("utf-16-le"), new.encode("utf-16-le")
     assert blob.count(before) == 1
@@ -308,11 +311,12 @@ def _swap_operand(blob: bytes, old: str, new: str) -> bytes:
 
 
 class TestDecodeRefusedAddress:
-    """A blob whose address CLICK refuses decodes as the model, keeping the refusal.
+    """A blob with an address CLICK refuses decodes to its instruction, which keeps the refusal.
 
-    Both decoders reach the families through ``from_tags_af``/``from_tags_condition``,
-    which build the instruction from what is stored.  An address not in display form
-    (``C00``, ``DS000``) is text CLICK never writes, and leaves the blob unparsed.
+    The clipboard decoder and the program decoder both build each instruction with
+    ``from_tags_af`` or ``from_tags_condition``, from the values stored in the blob. An
+    address that is not in display form, such as ``C00`` or ``DS000``, is text that CLICK
+    never writes. ``parse_af_blob`` returns None for a blob that holds one.
     """
 
     def test_af_families(self) -> None:
@@ -375,21 +379,23 @@ class TestDecodeRefusedAddress:
             (contact, "Contact.operand", 0),
             (coil, "Coil.operand", 0),
         ]
-        # Unchanged, the instructions write the bytes CLICK stored.
+        # While the instructions are unchanged, they write the bytes that CLICK stored.
         assert encode_rung(1, rung.conditions, rung.instructions) == data
-        # A copy runs its checks; a changed field drops the stored blob.
+        # replace() runs the checks on the copy, so it raises. Setting a field drops the
+        # stored blob, so encoding checks the coil and raises.
         with pytest.raises(AddressError, match="Y901"):
             replace(coil, oneshot=True)
         coil.oneshot = True
         with pytest.raises(AddressError, match="Y901"):
             encode_rung(1, rung.conditions, rung.instructions)
-        # A field fixed by assignment is accepted; the unchanged contact still writes its bytes.
+        # Setting the field to a valid address clears the refusal. The contact is unchanged,
+        # so it still writes its stored bytes, and encoding does not raise.
         coil.operand = "Y001"
         assert not refusals(coil)
         assert encode_rung(1, rung.conditions, rung.instructions) != data
 
     def test_scr_decode(self) -> None:
-        # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
+        # shift_scr.scr holds two shift(C1..C2) rungs. C2 occurs only as their end bits.
         data = (_SCR_DIR / "shift_scr.scr").read_bytes()
         data = data.replace(_utf16z("C2"), _utf16z("C0"))
         with pytest.warns(RefusedFieldWarning):
@@ -399,17 +405,19 @@ class TestDecodeRefusedAddress:
             assert isinstance(shift, Shift)
             assert shift.end_bit == "C0"
             assert [error.field for error in refusals(shift)] == ["Shift.end_bit"]
-            # Unchanged, it writes the blob its raw box wrote, composed from the entry's tags.
+            # While the shift is unchanged, it writes the clipboard blob that the decoder built
+            # from the tags of its SCR entry.
             stored = shift.build_blob()
             assert stored in encode(rung)
-            # Changed, it is checked again: a fixed field is accepted, a refused one raises.
+            # Once a field changes, the shift is checked again. A valid end bit is accepted,
+            # and a refused one makes encoding raise.
             shift.end_bit = "C3"
             assert not refusals(shift)
             assert shift.build_blob() != stored
             shift.end_bit = "X117"
             with pytest.raises(AddressError, match="X117"):
                 encode(rung)
-        # coverage rung 1 is ~C4 -> out(C3); C4 occurs once.
+        # Rung 1 of coverage.scr is ~C4 -> out(C3). C4 occurs only once in the file.
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         assert data.count(_utf16z("C4")) == 1
         with pytest.warns(RefusedFieldWarning):

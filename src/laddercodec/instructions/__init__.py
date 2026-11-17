@@ -1,4 +1,8 @@
-"""Instruction registry and shared family metadata."""
+"""The instruction classes, and the registry of instruction families.
+
+The registry finds a family by CSV name or by instance, and builds instructions from the
+tags that the decoders read.
+"""
 
 from __future__ import annotations
 
@@ -72,11 +76,11 @@ _Parsed = TypeVar("_Parsed", bound=ConditionInstruction | AfInstruction)
 
 @dataclass
 class UnknownCondition:
-    """Instruction cell on a condition column (A..AE).
+    """An instruction cell on a condition column (A..AE) that the decoder could not read.
 
-    The wire flags (always ``(1,1,0)`` for contacts) are implicit.
-    ``raw`` carries the instruction-specific bytes from cell offset
-    ``+0x25`` to the cell boundary.
+    The class does not hold the wire flags, which are always ``(1,1,0)`` for contacts.
+    ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
+    boundary. When ``decode_program`` builds one, ``raw`` holds the class name instead.
     """
 
     raw: bytes
@@ -84,10 +88,10 @@ class UnknownCondition:
 
 @dataclass
 class UnknownInstruction:
-    """Instruction cell on the AF column.
+    """An instruction cell on the AF column that the decoder could not read.
 
-    ``raw`` carries the instruction-specific bytes from cell offset
-    ``+0x25`` to the cell boundary.
+    ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
+    boundary.
     """
 
     raw: bytes
@@ -166,7 +170,8 @@ KNOWN_AF_NAMES = frozenset(_AF_CSV_TO_SPEC) | frozenset(
 )
 KNOWN_PIN_NAMES = frozenset(pin_name for spec in AF_FAMILY_SPECS for pin_name in spec.pin_names)
 
-# Backwards-compatible alias for the old binary-class-name registry.
+# Maps each binary class name to its family spec. The name stays so that code that
+# imports it keeps working.
 INSTRUCTION_MODULES = {
     **{class_name: spec for class_name, spec in _CONDITION_BINARY_TO_SPEC.items()},
     **{class_name: spec for class_name, spec in _AF_BINARY_TO_SPEC.items()},
@@ -228,8 +233,10 @@ def parse_af_blob(raw: bytes) -> AfInstruction | None:
 
 
 def _keeping_blob(parsed: _Parsed, raw: bytes) -> _Parsed:
-    """*parsed*, keeping the blob at the start of *raw* when it keeps refusals or was read
-    in another form (see :func:`~laddercodec.operands.unchecked.keep_stored_blob`)."""
+    """Return *parsed*, which keeps the blob at the start of *raw* if it needs one.
+
+    It needs the blob if it holds refusals or was read in another form (see
+    :func:`~laddercodec.operands.unchecked.keep_stored_blob`)."""
     import struct
 
     from .raw import find_blob_boundary
@@ -239,14 +246,19 @@ def _keeping_blob(parsed: _Parsed, raw: bytes) -> _Parsed:
     try:
         _class_name, end, _part_count = find_blob_boundary(raw)
     except (ValueError, struct.error):
-        # Without a blob it can write, encode() refuses it as one read from CSV.
+        # With no stored blob, encode() handles it as it handles one read from CSV.
         return parsed
     keep_stored_blob(parsed, raw[:end])
     return parsed
 
 
 def _with_pin_rows(parsed: AfInstruction | None, extra: bytes) -> AfInstruction | None:
-    """Carry a pinned instruction's part bytes (each pin's row) onto the model."""
+    """Return *parsed* with its ``pin_rows`` set from the blob's part bytes, *extra*.
+
+    Each part byte is the row of one pin. Return *parsed* unchanged if it is not a
+    pinned instruction or *extra* has the wrong length. Return None if CLICK's dialog
+    would not write those rows, so that the caller keeps the blob raw.
+    """
     if not isinstance(parsed, PinnedInstruction) or len(extra) != len(parsed.pin_rows):
         return parsed
     try:
@@ -302,16 +314,20 @@ def _from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None,
     variant_string_tags: dict[int, dict[int, str]] | None,
 ) -> object | None:
-    """The instruction the first spec that knows the blob builds from what is stored, or None.
+    """Return the instruction that the first spec to recognise the blob builds, or None.
 
-    Both decoders build every instruction here.  The instruction is built from the stored
-    values, unchecked: one whose values its checks refuse keeps the refusals
-    (:func:`~laddercodec.operands.unchecked.refusals`), so a stored instruction that
-    breaks a dialog rule still decodes as that instruction.  It stays unparsed (None,
-    and the caller keeps the blob raw) when the refusal is one no instruction keeps (text
-    CLICK never writes, such as ``x1`` or ``C001``; see :mod:`laddercodec.operands.unchecked`),
-    when the parser fails on a refused value, or when the instruction's CSV token does not
-    read back to it.
+    Both decoders build every instruction here, from the stored values, inside
+    :func:`~laddercodec.operands.unchecked.unchecked`. If the instruction's checks refuse
+    a value, the instruction keeps the refusals
+    (:func:`~laddercodec.operands.unchecked.refusals`) and does not raise. A stored
+    instruction that breaks a dialog rule therefore still decodes as that instruction.
+
+    The function returns None, and the caller keeps the blob raw, in these cases:
+
+    - a refusal that no instruction can keep, such as text CLICK never writes like ``x1``
+      or ``C001`` (see :mod:`laddercodec.operands.unchecked`);
+    - the parser fails on a value that the checks refused;
+    - the instruction's CSV token does not read back to it.
     """
     for spec in specs:
         if spec.from_tags is None:
@@ -322,7 +338,7 @@ def _from_tags(
                     class_name, type_code, tags, variant_u16_tags, variant_string_tags
                 )
             except FieldError:
-                # The blob's own family refused it: keep it unparsed rather than try
+                # The blob's own family refused it. Keep it unparsed, and do not try
                 # another family.
                 return None
             except Exception:
@@ -338,7 +354,7 @@ def _from_tags(
 
 
 def _reads_back(token: object) -> bool:
-    """Whether *token*'s CSV token reads back to it, as ``write_csv`` checks it does."""
+    """Return True if *token*'s CSV token reads back to it. ``write_csv`` checks the same."""
     from ..csv.converter import reads_back  # the CSV reader imports this package
 
     return reads_back(token)

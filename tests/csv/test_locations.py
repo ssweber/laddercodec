@@ -1,4 +1,5 @@
-"""Every error ``read_csv`` and the bundle reader raise for a bad CSV says where it is."""
+"""Every error that ``read_csv`` and the bundle reader raise for a bad CSV says where in the
+file the fault is."""
 
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ def _cells(marker: str, conditions: dict[int, str], af: str) -> list[str]:
 
 
 def _wired(contact: str) -> dict[int, str]:
-    """A contact in A wired across to AF."""
+    """Return condition cells with ``contact`` in column A and a wire from there to AF."""
     return {0: contact, **{c: "-" for c in range(1, len(CONDITION_COLUMNS))}}
 
 
@@ -59,7 +60,8 @@ def _raises(
     row: int | None = None,
     column: int | None = None,
 ) -> BaseException:
-    """Read *path*, which must raise exactly *kind* located in *path* at the given place."""
+    """Read *path*, assert that it raises exactly *kind* at the given place in *path*, and
+    return the error."""
     with pytest.raises(kind, match=match) as info:
         read_csv(path)
     exc = info.value
@@ -117,13 +119,15 @@ class TestParser:
         _raises(path, CsvError, "Invalid marker 'Q'", line=4)
 
     def test_comment_row_with_its_af_cell(self, tmp_path: Path) -> None:
-        """A comment row longer than the header, its AF cell filled: column AF."""
+        """A comment row that is longer than the header and has text in its AF cell is
+        refused at column AF."""
         bad = ["#", "note", *[""] * 30, "stray", ""]
         path = _write(tmp_path / "main.csv", [bad, GOOD])
         _raises(path, CsvError, "Comment rows may only", line=2, column=AF)
 
     def test_every_shape_before_any_token(self, tmp_path: Path) -> None:
-        """A token error on an earlier row loses to a shape error on a later one."""
+        """The reader checks every row's shape before it reads any token.  A shape error on
+        a later row is raised, not a token error on an earlier row."""
         rows: list[Row | list[str]] = [("R", _wired("X1"), "frob(1)"), GOOD, ["", "X2"]]
         path = _write(tmp_path / "main.csv", rows)
         _raises(path, CsvError, "Expected 33 columns", line=4, rung_line=3, row=1)
@@ -151,7 +155,7 @@ class TestParser:
         _raises(path, CsvError, "Comment row encountered without", line=3)
 
     def test_multiline_cell_counts_physical_lines(self, tmp_path: Path) -> None:
-        """A quoted cell over two lines moves every later row's line by one."""
+        """A quoted cell that spans two lines adds one to the line number of every later row."""
         rows: list[Row | list[str]] = [("#", {0: "two\nlines"}, ""), GOOD, ("Q", {}, "")]
         path = _write(tmp_path / "main.csv", rows)
         _raises(path, CsvError, "Invalid marker", line=5, rung_line=4, row=1)
@@ -184,7 +188,8 @@ class TestParser:
     def test_file_closed_while_the_error_is_held(
         self, tmp_path: Path, bad: Row | list[str], reader: str
     ) -> None:
-        """A shape error leaves the file closed: it can be removed while the error is held."""
+        """After a shape error the file is closed, so a caller can delete it while it still
+        holds the error."""
         path = _write(tmp_path / "main.csv", [GOOD, bad, GOOD, GOOD])
         with pytest.raises(CsvError) as info:
             if reader == "read_csv":
@@ -192,7 +197,7 @@ class TestParser:
             else:
                 parse_bundle(tmp_path)
         assert type(info.value) is CsvError
-        path.unlink()  # PermissionError on Windows while the file is open
+        path.unlink()  # raises PermissionError on Windows if the file is still open
         assert not path.exists()
 
     def test_undecodable_file_names_only_the_file(self, tmp_path: Path) -> None:
@@ -333,9 +338,11 @@ class TestConverterPins:
         assert exc.field is None
 
     def test_refused_pin_keeps_its_field(self, tmp_path: Path) -> None:
-        """A field a pin sets, refused, stays a CsvError and keeps the field it names.
+        """When the instruction refuses a field that a pin sets, the error is a CsvError that
+        names the field.
 
-        The ``.reset()`` row is the fault, so the error is at that row, not the box.
+        The ``.reset()`` row causes the fault, so the error is located at that row, not at
+        the box.
         """
         rows: list[Row | list[str]] = [
             ("R", _wired("X1"), "off_delay(T1,TD1,preset=1000,unit=Tms)"),
@@ -348,7 +355,8 @@ class TestConverterPins:
         assert isinstance(exc.__cause__, FieldError)
 
     def test_refused_jump_step_keeps_its_field(self, tmp_path: Path) -> None:
-        """The refused target is the ``.jump(...)`` row's value: the error is at that row."""
+        """The refused jump target comes from the ``.jump(...)`` row, so the error is located
+        at that row."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM),
             ("", _wired("C2"), ".reset()"),
@@ -361,7 +369,8 @@ class TestConverterPins:
         assert isinstance(exc.__cause__, AddressError)
 
     def test_refused_jump_step_with_pins_after_it(self, tmp_path: Path) -> None:
-        """A leg under the reset and a jog after the jump don't move the error off the jump."""
+        """A branch row under the reset and a ``.jog()`` row after the jump do not move the
+        error off the jump row."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM),
             ("", _wired("C2"), ".reset()"),
@@ -373,7 +382,8 @@ class TestConverterPins:
         _raises(path, CsvError, "jump_step", line=5, rung_line=2, row=3, column=AF)
 
     def test_box_open_at_the_rungs_end(self, tmp_path: Path) -> None:
-        """A box still open at the rung's end is located at its own row, not the last."""
+        """If the rung ends before a box gets its required pin row, the error is located at
+        the box's row, not at the rung's last row."""
         rows: list[Row | list[str]] = [
             ("R", _wired("X1"), "out(Y001)"),
             ("", _wired("C80"), "count_up(CT4,CTD4,preset=10)"),
@@ -383,7 +393,8 @@ class TestConverterPins:
         _raises(path, CsvError, "requires a .reset", line=3, rung_line=2, row=1, column=AF)
 
     def test_box_closed_by_a_later_row(self, tmp_path: Path) -> None:
-        """A box a later output row closes is located at its own row, not that later row."""
+        """If a later output row ends a box before it gets its required pin row, the error is
+        located at the box's row, not at that later row."""
         rows: list[Row | list[str]] = [
             (
                 "R",
@@ -476,10 +487,12 @@ class TestEveryRefusal:
 
 class TestOwnLocations:
     def test_pin_and_box_refusals_each_have_their_own_row(self) -> None:
-        """``with_pins`` refusing a pin's value and an unrelated field: each is at its own row.
+        """When ``with_pins`` refuses both a pin's value and an unrelated field, each refusal
+        is located at its own row.
 
-        No CSV reaches this (a box's own fields are refused when it is built, before its
-        pins), so a stub box stands in for one.
+        ``_refusing_pin`` returns the pin for the pin's refusal and None for the other
+        refusal.  No CSV can produce this case, because a box refuses its own fields when it is
+        built, before it gets its pins.  A stub box stands in for a real one.
         """
         from laddercodec.csv import converter
 
@@ -500,8 +513,9 @@ class TestOwnLocations:
         assert converter._refusing_pin(Box(), {"p": ()}, (), box_error) is None
 
     def test_pins_are_probed_with_their_checks_when_reading_unchecked(self) -> None:
-        """Read with ``unchecked=True``, a box would hold the refusal a pin's value raises;
-        each probe still raises it, so the pin that sets the value is the one named."""
+        """Under ``unchecked=True``, a box would keep the refusal that a pin's value causes
+        instead of raising it.  Each probe runs the checks and raises the refusal anyway, so
+        the probes still find the pin that sets the value."""
         from laddercodec.csv import converter
         from laddercodec.operands import unchecked as unchecked_mod
 
@@ -530,7 +544,7 @@ class TestOwnLocations:
 
 
 def _held_refusals(path: Path) -> list[FieldError]:
-    """Read *path* with ``unchecked=True``: every refusal its warnings carry, in order."""
+    """Read *path* with ``unchecked=True`` and return every refusal in its warnings, in order."""
     with pytest.warns(RefusedFieldWarning) as record:
         read_csv(path, unchecked=True)
     return [
@@ -539,8 +553,8 @@ def _held_refusals(path: Path) -> list[FieldError]:
 
 
 class TestHeldRefusals:
-    """``read_csv(..., unchecked=True)`` keeps each refusal located as the default read
-    raises it."""
+    """``read_csv(..., unchecked=True)`` gives each refusal that it keeps the location that
+    the default read gives the raised error."""
 
     def test_condition_cell(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [GOOD, ("R", {**_wired("X1"), 1: "DS2"}, "out(Y001)")]
@@ -553,7 +567,8 @@ class TestHeldRefusals:
         assert CsvLocation.of(raised.value) == want
 
     def test_a_contact_with_a_down_wire(self, tmp_path: Path) -> None:
-        """Layout copies the contact to mark its down wire; the copy keeps the location."""
+        """The layout copies the contact to set its down wire, and the copy keeps the
+        location of the refusal."""
         rows: list[Row | list[str]] = [
             ("R", {**_wired("X1"), 1: "T:DS2"}, "out(Y001)"),
             ("", {0: "X2", 1: "X3"}, ""),
@@ -570,8 +585,9 @@ class TestHeldRefusals:
         assert CsvLocation.of(raised.value) == want
 
     def test_a_pin_rows_value_is_at_its_row(self, tmp_path: Path) -> None:
-        """The box's own field is at the box's row and the ``.jump(...)`` target at the jump's
-        row, through the layout that moves the box's pin rows."""
+        """A refusal of the box's own field is located at the box's row, and a refusal of the
+        ``.jump(...)`` target at the jump row.  The locations stay right although the layout
+        moves the box's pin rows."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM.replace("current_step=DS1", "current_step=Y001")),
             ("", _wired("C2"), ".reset()"),
@@ -612,8 +628,9 @@ class TestHeldRefusals:
 def test_a_bad_text_option_raises_located_while_the_token_is_read(
     tmp_path: Path, token: str, message: str, unchecked: bool
 ) -> None:
-    """A text option that is no flag raises at parse, as ``oneshot=2`` does, even read with
-    ``unchecked=True``, which only keeps what the instruction's own checks refuse."""
+    """A ``to_text`` option whose value is not 1 or 0 raises when the token is parsed, as
+    ``oneshot=2`` does.  It raises even under ``unchecked=True``, because ``unchecked=True``
+    keeps only what the instruction's own checks refuse."""
     path = _write(tmp_path / "main.csv", [("R", _wired("X001"), token)])
     with pytest.raises(FieldError, match=message) as info:
         read_csv(path, unchecked=unchecked)

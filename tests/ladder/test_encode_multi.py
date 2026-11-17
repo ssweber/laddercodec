@@ -1,10 +1,11 @@
-"""Byte-exact golden-file tests and validation tests for encode_rungs().
+"""Tests of encode_rungs(), which encodes several rungs into one clipboard buffer.
 
-Golden fixtures are multi-rung CSV/BIN pairs in tests/fixtures/ladder_captures/golden/
-named mr-*.csv. Each CSV uses multiple R markers (one per rung). The BIN is the
-expected encode_rungs() output, verified through Click paste round-trip.
+The golden fixtures are pairs of CSV and BIN files in tests/fixtures/ladder_captures/golden/
+whose names match mr-*.csv. Each CSV holds several rungs, and each rung starts at an R
+marker. Each BIN holds the exact bytes that encode_rungs() must produce for its CSV. Each
+BIN was verified by a paste round trip through CLICK.
 
-Regenerate BIN files:  make golden
+To regenerate the BIN files, run ``make golden``.
 """
 
 from __future__ import annotations
@@ -106,7 +107,10 @@ def test_multi_rung_nop_each_rung() -> None:
 
 
 def test_multi_rung_nop_non_first_row() -> None:
-    """NOP on row 1 of a 2-row rung requires col0 +0x15 = 1."""
+    """encode_rungs accepts a NOP on row 1, the second row, of a 2-row rung.
+
+    That row needs +0x15 = 1 in its column 0 cell. This test does not check that byte.
+    """
     result = encode_rungs(
         [
             (2, [_empty(), _empty()], ["", "NOP"]),
@@ -128,7 +132,7 @@ def test_multi_rung_three_rungs() -> None:
 
 
 def test_multi_rung_mixed_row_counts() -> None:
-    """Rungs with different row counts in the same buffer."""
+    """encode_rungs accepts rungs with different row counts in one buffer."""
     result = encode_rungs(
         [
             (1, [_wire()], [""]),
@@ -143,14 +147,21 @@ def test_multi_rung_mixed_row_counts() -> None:
 
 
 def test_multi_rung_buffer_size_two_1row() -> None:
-    """Two 1-row rungs: 2 rung rows + 1 sep + 1 terminal = 4 grid rows."""
+    """Two 1-row rungs make a buffer of 4 grid rows, padded to 0x3000 bytes.
+
+    The 4 rows are 2 rung rows, 1 preamble row before the second rung and 1 terminal row.
+    """
     result = encode_rungs([(1, [_empty()], [""]), (1, [_empty()], [""])])
     # 4 grid rows: raw = 0x0A60 + 4 * 0x800 = 0x2A60 -> next page = 0x3000
     assert len(result) == 0x3000
 
 
 def test_multi_rung_buffer_size_three_1row() -> None:
-    """Three 1-row rungs: 3 rung rows + 2 sep + 1 terminal = 6 grid rows."""
+    """Three 1-row rungs make a buffer of 6 grid rows, padded to 0x4000 bytes.
+
+    The 6 rows are 3 rung rows, 2 preamble rows before the second and third rungs and 1
+    terminal row.
+    """
     result = encode_rungs(
         [
             (1, [_empty()], [""]),
@@ -222,10 +233,11 @@ _NATIVE_266 = GOLDEN_DIR.parents[1] / "scr_captures" / "rungs_266"
 
 
 def _row_fields(data: bytes) -> list[list[tuple[bytes, bytes]]]:
-    """Each row's cells as (row number field, 16-byte tail).
+    """Return each grid row as a list of its cells, each as (row number field, last 16 bytes).
 
-    600 is more rows than either buffer has: the walk ends at the native buffer's padding,
-    which it reports as a lost row, and at the terminal row of ours.
+    The walk asks for 600 rows, which is more than either buffer has. In CLICK's buffer the
+    walk stops at the padding and reports it as a lost row. In laddercodec's buffer the walk
+    stops at the terminal row.
     """
     rows, _ = _walk_grid(data, GRID_FIRST_ROW_START, 600)
     fields = []
@@ -250,7 +262,8 @@ def test_rung_and_row_fields_match_native_past_256_rungs() -> None:
 
     ours, theirs = _row_fields(encode(rungs)), _row_fields(native)
     assert len(ours) == len(theirs) == 532
-    # The last AF cell's end is not comparable: CLICK follows it with a table of its own.
+    # Leave out the last AF cell. CLICK follows that cell with a table of its own, so the end
+    # of the cell cannot be compared.
     ours[-1].pop()
     theirs[-1].pop()
     assert ours == theirs

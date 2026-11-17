@@ -1,7 +1,7 @@
-"""Compare — comparison contacts (type marker 0x2714).
+"""The ``CompareContact`` instruction, a contact that compares two values.
 
-Binary class name: ``"Compare"``.
-Operators: EQ, NE, GT, LT, GE, LE.
+Its binary class name is ``"Compare"`` and its type marker is 0x2714. It uses one of six
+operators: EQ, NE, GT, LT, GE and LE.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from .family import ConditionInstructionFamilySpec
 
 CompareOp = Literal["==", "!=", ">", "<", ">=", "<="]
 
-#: Compare func codes: func_code_str -> operator.
+#: The operator of each compare func code.
 COMPARE_FUNC_CODES: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "4103": "==",
     "4104": "!=",
@@ -37,10 +37,10 @@ COMPARE_FUNC_CODES: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "4109": "<=",
 }
 
-#: Reverse lookup: operator → compare func_code string.
+#: The compare func code of each operator.
 COMPARE_OP_TO_FUNC: dict[str, str] = {v: k for k, v in COMPARE_FUNC_CODES.items()}
 
-#: Operator → compare type index string (field 3 in the binary blob).
+#: The compare type index of each operator. The blob stores it in field 3, counting from 0.
 COMPARE_OP_TO_TYPE_IDX: dict[str, str] = {
     "==": "0",
     "!=": "1",
@@ -50,7 +50,7 @@ COMPARE_OP_TO_TYPE_IDX: dict[str, str] = {
     "<=": "5",
 }
 
-#: Reverse: type index → operator (used by from_tags).
+#: The operator of each compare type index, for ``from_tags``.
 _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
     "0": "==",
     "1": "!=",
@@ -64,9 +64,10 @@ _TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
 def split_comparison(token: str) -> tuple[str, str, str] | None:
     """Split ``left<op>right`` at the first operator outside a quoted text constant.
 
-    A quote opens a text constant that runs to the next quote; an unmatched quote is an
-    ordinary character.  Returns ``(left, op, right)``, or None when there is no operator
-    or a side is empty.
+    A double quote starts a text constant that ends at the next double quote, and an
+    operator inside the constant does not count. A double quote with no closing quote is an
+    ordinary character. Returns ``(left, op, right)``, or None when there is no operator or
+    one side is empty.
     """
     i = 0
     while i < len(token):
@@ -87,7 +88,8 @@ def split_comparison(token: str) -> tuple[str, str, str] | None:
 # Operand rules
 # ---------------------------------------------------------------------------
 
-#: Compare data banks by group.  A compare pairs two operands of one group.
+#: The data banks that a compare accepts, in three groups. Both operands of a compare must be
+#: in the same group.
 _GROUP_BANKS: dict[str, frozenset[str]] = {
     "hex": frozenset({"XD", "YD", "DH"}),
     "numeric": frozenset({"TD", "CTD", "DS", "DD", "DF", "SD"}),
@@ -95,19 +97,22 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 }
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
-#: Every kind of constant; hex is 16-bit, and a real is any spelling.
+#: A compare accepts every kind of constant. A hex constant must fit in 16 bits. A real
+#: constant may be spelled any way, and its value is not checked against the float32 range.
 _COMPARE_CONSTANTS = Constants(ALL_KINDS, hex_high=HEX16_MAX, float32=False)
 
 _CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numeric"}
 
-#: Operators CLICK offers when Data A is text: the dialog hides >, <, >= and <=
-#: (typing TXT1 into Data A leaves only = and != to choose).
+#: The operators that CLICK offers when Data A is text. If you type TXT1 into Data A, the
+#: dialog hides >, <, >= and <=, and leaves only = and != to choose from.
 _TEXT_OPS = ("==", "!=")
 
 
 def _operand_group(value: str, name: str) -> str:
-    """Return the group (hex, numeric or text) of a compare operand; raise if it is neither a data
-    register nor a constant CLICK's compare dialog accepts."""
+    """Return the group of a compare operand: ``"hex"``, ``"numeric"`` or ``"text"``.
+
+    Raise :class:`FieldError` if the operand is neither an address in a data bank that a
+    compare accepts nor a constant that CLICK's compare dialog accepts."""
     operand = check_operand(value, name, _DATA_BANKS, _COMPARE_CONSTANTS)
     if operand.constant is not None:
         return _CONSTANT_GROUPS.get(operand.constant.kind, "text")
@@ -129,8 +134,8 @@ _COMPARE_TAGS = (0x3218, 0x6066, 0x6067, 0x21F7, 0x0000)
 class CompareContact(ConditionInstruction):
     """A comparison contact (EQ, NE, GT, LT, GE, LE).
 
-    Occupies a condition column.  The binary class name is ``Compare``
-    (type marker 0x2714).
+    It sits in a condition column, like any contact. Its binary class name is ``Compare``
+    and its type marker is 0x2714.
     """
 
     op: Literal["==", "!=", "<", ">", "<=", ">="]
@@ -148,7 +153,8 @@ class CompareContact(ConditionInstruction):
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
-            # A constant comes back from normalize_address as written.
+            # normalize_address returns a constant as it was written, so an operand that is a
+            # constant is safe to normalize.
             check.normalize("left", "right")
             left = check("left", _operand_group)
             right = check("right", _operand_group)
@@ -171,13 +177,12 @@ class CompareContact(ConditionInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> CompareContact:
-        """Parse ``DS1==1``, ``DS2>=DS3``, etc.
+        """Parse the CSV token of a compare contact, such as ``DS1==1`` or ``DS2>=DS3``.
 
-        Also accepts wire-down prefix: ``T:DS1==1``.
+        A ``T:`` or ``|:`` prefix, as in ``T:DS1==1``, sets ``wire_down``.
         """
         token = token.strip()
 
-        # Detect wire-down prefix: T:DS1==1 or |:DS1==1
         wire_down = False
         if len(token) > 2 and token[1] == ":" and token[0] in ("T", "|"):
             wire_down = True
@@ -204,7 +209,7 @@ class CompareContact(ConditionInstruction):
         return inner
 
     def cell_params(self) -> dict:
-        """Return ClickCell kwargs intrinsic to this instruction."""
+        """Return the ``ClickCell`` keyword arguments that depend on this instruction alone."""
         return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
 
     def build_blob(self) -> bytes:
@@ -233,7 +238,11 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> CompareContact | None:
-    """Construct a CompareContact from tag data (shared by both decoders)."""
+    """Build a ``CompareContact`` from the tags of an instruction blob, or return None.
+
+    Return None if the blob is not a compare contact, or if it lacks an operand or a known
+    operator. The clipboard decoder and the program-file decoder both call this.
+    """
     if class_name != "Compare" or type_code != _COMPARE_TYPE_CODE:
         return None
     left = tag_value(tags, 0x6066)

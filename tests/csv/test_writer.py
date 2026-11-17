@@ -67,23 +67,26 @@ def _edge_row(operand: str) -> list[object]:
 
 
 def _branch_row(operand: str) -> list[object]:
-    """A row whose wire branches down at column B: a NO contact at A, or no contact."""
+    """Return a row whose wire branches down at column B.
+
+    Column A holds a NO contact on *operand*, or nothing when *operand* is empty.
+    """
     first: object = Contact(operand) if operand else ""
     return [first, "T"] + ["-"] * 29
 
 
 def _down_row() -> list[object]:
-    """A row that only carries the vertical at column B down."""
+    """Return a row that holds only the vertical wire at column B, carrying it down."""
     return ["", "|"] + [""] * 29
 
 
 def _wire_row() -> list[object]:
-    """A row fed by the vertical at column B, wired through to the output column."""
+    """Return a row that the vertical at column B feeds, wired through to the output column."""
     return ["", "-"] + ["-"] * 29
 
 
 def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
-    """Return representative non-pinned tall AF instructions."""
+    """Return test cases of tall AF instructions with no pins, each with its height in rows."""
     return [
         pytest.param(Copy("DS7", "DS8"), 2, id="copy"),
         pytest.param(Search("DS72", "DS81", "DS71", "DS82", "C81", "=="), 2, id="search"),
@@ -124,7 +127,10 @@ def _generic_tall_af_cases() -> list[pytest.ParameterSet]:
 
 
 def _search_continuation_row() -> list[object]:
-    """Return a nonblank continuation row with comparison and wire geometry."""
+    """Return a non-blank row to place under a tall instruction's first row.
+
+    It holds a compare contact with a down wire in A, a T in B and a | in C.
+    """
     return [CompareContact("==", "DS300", "1", wire_down=True), "T", "|"] + [""] * 28
 
 
@@ -149,8 +155,11 @@ def _event_drum() -> Drum:
 
 
 class TestGoldenRoundTrip:
-    """For each golden fixture, decode the .bin, write CSV, read it back,
-    and verify the result matches the original decode output."""
+    """Each decoded golden .bin keeps its rung count and comments through write_csv and read_csv.
+
+    The test compares the number of rungs and each rung's comment. It does not compare the
+    rows.
+    """
 
     @pytest.fixture(params=[p.stem for p in _golden_paths()], ids=lambda s: s)
     def golden_stem(self, request: pytest.FixtureRequest) -> str:
@@ -167,17 +176,16 @@ class TestGoldenRoundTrip:
             round_tripped = read_csv(out_csv)
             assert len(round_tripped) == len(result)
             for rt, rung in zip(round_tripped, result, strict=True):
-                # The CSV may have fewer rows than the binary for timers
-                # (padding rows stripped, auto-restored by encode).
+                # For a non-retained timer, the CSV holds fewer rows than the binary,
+                # because the writer drops the padding row. read_csv adds it back.
                 assert rt.comment == rung.comment
                 assert len(rt.conditions) == rt.logical_rows
                 assert len(rt.instructions) == rt.logical_rows
         else:
             write_csv(out_csv, [result])
             rt = read_csv(out_csv)[0]
-            # The CSV may have fewer rows than the binary for non-retained
-            # timers (padding stripped); read_csv returns the CSV row count.
-            # The forward path auto-pads back to full height.
+            # The CSV may hold fewer rows than the binary for a non-retained
+            # timer, because the writer drops the padding row.
             assert rt.logical_rows <= result.logical_rows
             assert rt.comment == result.comment
 
@@ -189,7 +197,7 @@ class TestGoldenRoundTrip:
 
 class TestDecodedRungToRows:
     def test_simple_contact_coil(self) -> None:
-        """Single row: contact → wire → coil."""
+        """A one-row rung of a contact, wires and a coil writes as one R row."""
         rung = Rung(
             logical_rows=1,
             conditions=[[Contact("X001")] + ["-"] * 30],
@@ -222,7 +230,7 @@ class TestDecodedRungToRows:
         assert rows[2][0] == "R"
 
     def test_timer_non_retained_strips_padding(self) -> None:
-        """Non-retained timer: trailing blank row stripped."""
+        """The writer drops a non-retained timer's trailing blank row."""
         timer = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=False)
         rung = Rung(
             logical_rows=2,
@@ -239,7 +247,7 @@ class TestDecodedRungToRows:
         assert rows[0][32] == "on_delay(T1,TD1,preset=1000,unit=Tms)"
 
     def test_timer_retained_emits_reset_pin(self) -> None:
-        """Retained timer: second row gets .reset() AF."""
+        """A retained timer's second row has .reset() in the AF column."""
         timer = Timer("on_delay", "T3", "TD3", "10", "Tm", retained=True)
         rung = Rung(
             logical_rows=2,
@@ -258,7 +266,7 @@ class TestDecodedRungToRows:
         assert rows[1][32] == ".reset()"
 
     def test_nop(self) -> None:
-        """NOP token serializes correctly."""
+        """A NOP writes as NOP in the AF column."""
         rung = Rung(
             logical_rows=1,
             conditions=[["-"] * 31],
@@ -547,7 +555,11 @@ class TestDecodedRungToRows:
         assert [row[1] for row in rows] == ["C96", "C97", ""]
 
     def test_shift_without_a_layout_requires_three_rows(self) -> None:
-        """With no contact to lay out, the rung is written as stored, and a 2-row shift has no CSV form."""
+        """A 2-row shift with no contacts raises WriterError.
+
+        With no contact to lay out, the writer writes the rung as it is stored. The CSV has
+        no form for a shift on 2 rows.
+        """
         rung = Rung(
             logical_rows=2,
             conditions=[_blank_conditions(), _blank_conditions()],
@@ -582,7 +594,7 @@ class TestDecodedRungToRows:
         assert rows[0][32] == "next()"
 
     def test_comment_rows_not_padded(self) -> None:
-        """Comment rows are short (just marker + text), not 33 columns."""
+        """A comment row holds only the marker and the text, not 33 columns."""
         rung = Rung(
             logical_rows=1,
             conditions=[[""] * 31],
@@ -678,7 +690,7 @@ class TestGenericTallRoundTrip:
 
 class TestDehydrateHydrateWires:
     def test_T_wire_pipe_dehydrate_hydrate_roundtrip(self, tmp_path: Path) -> None:
-        """Padding row with | under T is stripped by writer, restored by converter."""
+        """The writer drops a padding row with a | under a T, and read_csv restores it."""
         search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
         rung = Rung(
             logical_rows=3,
@@ -688,17 +700,17 @@ class TestDehydrateHydrateWires:
             comment=None,
         )
 
-        # Writer dehydrates: padding row (only blank + |) is stripped
+        # The writer drops the padding row, which holds only blanks and a |.
         rows = decoded_rung_to_rows(rung)
         assert len(rows) == 2
         assert rows[0][2] == "T"  # T preserved in col B
 
-        # Full round-trip: hydration restores | under T
+        # read_csv restores the padding row with its | under the T.
         out = tmp_path / "t-wire.csv"
         write_csv(out, [rung])
         [rt] = read_csv(out)
 
-        assert rt == rung  # the | under T is hydrated back
+        assert rt == rung
 
     def test_redundant_verticals_read_as_one_merge(self, tmp_path: Path) -> None:
         """Two verticals joining the same rows are one OR merge, drawn after the last contact."""
@@ -758,7 +770,8 @@ class TestMultiPinnedRoundTrip:
 
         out_csv = tmp_path / "count-up-timer.csv"
         write_csv(out_csv, [rung])
-        # The counter's and the timer's circuits meet only at the rail: one rung each.
+        # The counter's and the timer's circuits meet only at the rail, so the CSV holds one
+        # rung for each.
         counter_rung, timer_rung = read_csv(out_csv)
 
         assert counter_rung.logical_rows == 3  # Down's row, unused, stays above Reset
@@ -953,7 +966,8 @@ class TestRoundTripValidator:
         rows = decoded_rung_to_rows(rung)
         rows[2][32] = ""
 
-        # The orphaned jump row now reads as a reset leg, pushing the unused jump down.
+        # Without its .jump() label, the jump row reads back as an OR leg of the reset. That
+        # leg pushes the jump pin, which is then unused, down a row.
         with pytest.raises(WriterError, match=r"round-trip validation failed"):
             _validate_roundtrip(rung, rows)
 
@@ -972,7 +986,7 @@ def _markers(path: Path) -> list[str]:
 
 
 def _simple_rung(operand: str, coil: str) -> Rung:
-    """A single-row NO-contact → coil rung."""
+    """Return a one-row rung of a NO contact on *operand* and a coil on *coil*."""
     return Rung(
         logical_rows=1,
         conditions=[[Contact(operand)] + ["-"] * 30],
@@ -1017,8 +1031,8 @@ class TestIndexedMarkers:
         )
         out = tmp_path / "multirow.csv"
         write_csv(out, [multirow, _simple_rung("X002", "Y002")], index=True)
-        # First rung: data row R1, retained .reset() continuation stays blank.
-        # Second rung: R2.
+        # The first rung's row is R1, and the marker of its .reset() row stays blank. The
+        # second rung's row is R2.
         assert _markers(out) == ["R1", "", "R2"]
 
     def test_index_true_leaves_comment_rows_untouched(self, tmp_path: Path) -> None:
@@ -1061,12 +1075,20 @@ class TestIndexedMarkers:
 
 
 def _cells(marker: str, cells: dict[int, str], af: str, fill: str = "-") -> list[str]:
-    """Build one 33-column CSV data row from sparse condition cells."""
+    """Return one 33-column CSV data row.
+
+    *cells* maps a condition column's index to its text. Every other condition cell holds
+    *fill*.
+    """
     return [marker] + [cells.get(i, fill) for i in range(31)] + [af]
 
 
 def _floating_leg_rows(*span_rows: list[str]) -> list[list[str]]:
-    """Append a floating OR-leg row (contact joining a T on the row above)."""
+    """Return *span_rows* with an OR-leg row added below them.
+
+    The added row has no AF instruction. It holds C1 in column A, and C1 joins the T on the
+    row above.
+    """
     return [*span_rows, _cells("", {0: "C1"}, "", fill="")]
 
 
@@ -1112,10 +1134,13 @@ _FLOATING_CASES = [
 
 
 class TestFloatingRowBelowPinnedSpan:
-    """A floating OR-leg row below a pinned instruction's span must survive
-    CSV -> encode -> decode -> CSV without moving onto a span row, and the
-    writer's emission must equal the canonical input (unused span padding
-    dehydrated, pin rows adjacent)."""
+    """An OR-leg row below a pinned instruction's rows keeps its place through encode and decode.
+
+    Each case is a CSV with an OR-leg row below the instruction's last pin row. The rows that
+    decoded_rung_to_rows writes must equal the CSV rows, both after read_csv and after
+    encode and decode. The CSV is already in the writer's form: it has no padding rows for
+    unused pins, and the pin rows are next to each other.
+    """
 
     @pytest.mark.parametrize("data_rows", _FLOATING_CASES)
     def test_round_trip_preserves_geometry(
@@ -1133,9 +1158,9 @@ class TestFloatingRowBelowPinnedSpan:
         rungs = read_csv(src)
         assert len(rungs) == 1
 
-        # Writer emission is canonical: identical to the hand-written rows.
+        # The writer writes back exactly the hand-written rows.
         assert decoded_rung_to_rows(rungs[0]) == data_rows
 
-        # Binary round-trip preserves the same emission.
+        # After encode and decode, the writer writes the same rows.
         decoded = decode(encode(rungs))
         assert decoded_rung_to_rows(decoded[0]) == data_rows

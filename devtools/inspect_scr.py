@@ -1,6 +1,8 @@
-"""Inspect SC-SCR temp file format and compare to clipboard binary.
+"""Print an annotated dump of a CLICK .scr temp file.
 
-Annotates the byte stream with known structure markers.
+Label the file header, the program name and each known structure: RTF comments,
+instruction blobs, row headers, blocks of column types and runs of zeros. Print the
+other bytes two at a time as u16 values.
 """
 
 from __future__ import annotations
@@ -58,14 +60,14 @@ def annotated_dump(path: str) -> None:
     print("ANNOTATED DUMP from cursor")
     print("=" * 72)
 
-    # Rather than trying to parse, let's just dump and annotate known patterns
+    # Do not parse the file. Step through the bytes and label each known pattern.
     pos = cursor
     while pos < len(data):
         remaining = len(data) - pos
 
         # RTF body detection
         if remaining >= 6 and data[pos : pos + 6] == b"{\\rtf1":
-            # Backtrack to find length
+            # The declared length is the u32 just before the body.
             if pos >= 4:
                 rtf_len = struct.unpack_from("<I", data, pos - 4)[0]
             else:
@@ -91,7 +93,8 @@ def annotated_dump(path: str) -> None:
                     pos += 1
                 continue
 
-        # Length-prefixed UTF-16LE class name followed by InstructionType
+        # An instruction blob starts with a length byte, a UTF-16LE class name and a u16
+        # type code from 0x2700 to 0x2800.
         if remaining >= 10:
             str_len = data[pos]
             if 5 <= str_len <= 60 and pos + 1 + str_len + 2 <= len(data):
@@ -106,8 +109,8 @@ def annotated_dump(path: str) -> None:
                         and all(c.isalnum() for c in text)
                         and 0x2700 <= marker <= 0x2800
                     ):
-                        # Found instruction blob!
-                        # Determine blob extent: scan forward for next class name or rung marker
+                        # Find where the blob ends. Scan forward for the next class name,
+                        # an RTF comment or a row header.
                         blob_start = pos
                         scan = type_offset + 2
                         blob_end = None
@@ -151,7 +154,7 @@ def annotated_dump(path: str) -> None:
                         print(f"         Blob size: {len(blob_bytes)} bytes")
                         print(hexdump(blob_bytes, pos))
 
-                        # Parse tagged fields after type marker
+                        # Print the 16 bytes after the type code.
                         after_type = type_offset + 2
                         if after_type + 10 <= len(data):
                             print(

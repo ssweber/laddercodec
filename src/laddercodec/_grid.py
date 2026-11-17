@@ -1,8 +1,7 @@
-"""Shared grid-building functions for single-rung and multi-rung encoders.
+"""Functions that check a rung and build its cell grid, for both encoders.
 
-Extracted from ``encode.py`` and ``encode_multi.py`` to eliminate
-duplication.  Both encoders delegate to these functions after
-orchestrating headers, comments, and page padding.
+``encode.py`` encodes one rung and ``encode_multi.py`` encodes several.  Each one writes
+its own headers, comments and page padding, and calls these functions for the grid.
 """
 
 from __future__ import annotations
@@ -13,7 +12,6 @@ from typing import Any, cast
 
 from .cell import ClickCell, build_row
 
-# Imports from encode.py — constants and helpers that stay there.
 from .encode import (
     _TOKEN_FLAGS,
     MAX_ROWS,
@@ -43,10 +41,10 @@ from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 # ---------------------------------------------------------------------------
 
 #: An empty text constant.  CLICK writes one TXT register per character of a
-#: text constant, so ``""`` writes nothing.  The blank / NUL character is spelled
-#: with the ASCII-code constant ``$00``.  Copy, Fill, a compare contact and a Search
-#: refuse ``""`` when they are built; the check here catches only a Copy or Fill
-#: whose operand was changed after it was built.
+#: text constant, so ``""`` writes nothing.  To write the blank (NUL) character, use
+#: the ASCII-code constant ``$00``.  Copy, Fill, a compare contact and a Search
+#: refuse ``""`` when they are built.  The check here catches only a Copy or Fill
+#: whose operand was set to ``""`` after it was built.
 _EMPTY_TEXT_CONSTANT = '""'
 
 
@@ -62,9 +60,10 @@ def _text_constant_operands(token: object) -> tuple[str, ...]:
 def _check_text_constants(
     token: ConditionInstruction | AfInstruction, prefix: str, where: str
 ) -> None:
-    """Refuse an empty text constant ``""`` in *token*, set after the Copy or Fill was built.
+    """Refuse an empty text constant ``""`` that was set in a Copy or Fill after it was built.
 
-    It raises the ``FieldError`` building the Copy or Fill with that value raises.
+    The function builds *token* again, so it raises the same ``FieldError`` that building a
+    Copy or Fill with ``""`` raises.  If that build does not raise, it raises ``EncodeError``.
     """
     for operand in _text_constant_operands(token):
         if operand.strip() == _EMPTY_TEXT_CONSTANT:
@@ -79,12 +78,15 @@ def _check_text_constants(
 def _check_instruction(
     token: ConditionInstruction | AfInstruction, prefix: str, where: str
 ) -> None:
-    """Refuse what *token* holds that CLICK's dialog refuses.
+    """Refuse a value in *token* that CLICK's dialog refuses.
 
-    An unchanged decoded instruction that keeps its stored blob writes those bytes, as a
-    ``RawInstruction`` does, and is not checked.  Otherwise, an instruction built from
-    what is stored that keeps refusals raises the error building it raises (see
-    ``laddercodec.operands.unchecked``): ``encode()`` writes only what construction accepts.
+    A decoded instruction that is unchanged and still has the blob it was read from is not
+    checked.  ``encode()`` writes those bytes, as it does for a ``RawInstruction``.
+
+    Any other instruction is checked.  An instruction built from stored data can hold the
+    refusals that its construction would raise (see ``laddercodec.operands.unchecked``).
+    The function raises the first of them.  This way ``encode()`` writes only values that
+    construction accepts.
     """
     if stored_blob(token) is not None:
         return
@@ -105,7 +107,8 @@ def _validate_rung(
     Parameters
     ----------
     label:
-        Prefix for error messages (e.g. ``"Rung 1, "``).
+        Prefix for error messages, such as ``"Rung 1"``.  A message then starts
+        with ``"Rung 1: "``.
     """
     prefix = f"{label}: " if label else ""
 
@@ -172,7 +175,7 @@ def _validate_rung(
 
 @dataclass
 class RungMetadata:
-    """Pre-computed metadata for a single rung's grid building."""
+    """Facts about one rung that are computed once, before its cell grid is built."""
 
     rung_has_instructions: bool
     total_instr_count: int
@@ -195,7 +198,7 @@ def _compute_rung_metadata(
         1 for row in condition_rows for t in row if isinstance(t, ConditionInstruction)
     ) + sum(1 for af in af_tokens if isinstance(af, AfInstruction))
 
-    # Pre-compute instruction indices: conditions first, then AFs.
+    # Number the condition instructions first, row by row, then the AF instructions.
     cond_instr_indices: dict[tuple[int, int], int] = {}
     af_instr_indices: dict[int, int] = {}
     idx = 0
@@ -256,8 +259,8 @@ def _build_rung_grid(
         for col_idx in range(COLS_PER_ROW):
             if col_idx < CONDITION_COLUMNS:
                 token = cond_row[col_idx]
-                # Segment flag: on row 0, always 1 for non-blank.
-                # On row 1+, 0 below boundary, 1 at/above boundary.
+                # An instruction's segment flag is 1 on row 0.  On a later row it is 0 left
+                # of the row's segment boundary, and 1 at or right of the boundary.
                 seg = 1 if col_idx >= seg_bound else (0 if local_row > 0 and seg_bound > 0 else 1)
                 if isinstance(token, ConditionInstruction):
                     blob = token.build_blob()
@@ -282,7 +285,7 @@ def _build_rung_grid(
                     )
                 else:
                     seg, right, down = _TOKEN_FLAGS[token]
-                    # Apply segment boundary on row 1+.
+                    # On a later row, clear the segment flag left of the segment boundary.
                     if seg and local_row > 0 and seg_bound > 0 and col_idx < seg_bound:
                         seg = 0
                     cells.append(
@@ -317,7 +320,8 @@ def _build_rung_grid(
                         if isinstance(af, Math)
                         else af.build_blob()
                     )
-                    # A decoded instruction writing its stored blob writes its cell rows too.
+                    # A decoded instruction that writes its stored blob also writes the cell
+                    # row counts that were stored with it.
                     params = {**af.cell_params(), **stored_cell_rows(af)}
                     is_multi_row = params.get("visual_rows", 1) > 1
                     cells.append(

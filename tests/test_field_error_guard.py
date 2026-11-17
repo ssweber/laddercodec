@@ -1,7 +1,8 @@
 """Every ``FieldError`` and ``AddressError`` call in ``src/`` names its field.
 
-``FieldError.field`` is exactly what the raiser passes.  A refusal about no single field
-passes ``field=None`` on purpose, so the choice shows at the raise site.
+``FieldError.field`` holds exactly what the code that raises the error passes. A refusal that
+is about no single field passes ``field=None`` explicitly, so that a reader sees the choice
+where the error is raised.
 """
 
 from __future__ import annotations
@@ -24,14 +25,18 @@ def _called_name(node: ast.Call) -> str | None:
 
 
 def calls_without_field(source: str, filename: str = "<src>", keyword: str = "field") -> list[str]:
-    """``file:line`` of each FieldError or AddressError call without a ``keyword=`` keyword."""
+    """Return the ``file:line`` of each FieldError or AddressError in *source* with no *keyword*.
+
+    A call that does not pass the *keyword* argument counts, and so does a ``raise`` of the
+    class itself with no call.
+    """
     missing = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Call) and _called_name(node) in _NAMES:
             if not any(kw.arg == keyword for kw in node.keywords):
                 missing.append(f"{filename}:{node.lineno}")
         elif isinstance(node, ast.Raise) and isinstance(node.exc, (ast.Name, ast.Attribute)):
-            # A bare ``raise FieldError``: no call, so no field.
+            # ``raise FieldError`` with no call passes no field at all.
             exc = node.exc
             if (exc.id if isinstance(exc, ast.Name) else exc.attr) in _NAMES:
                 missing.append(f"{filename}:{node.lineno}")
@@ -49,8 +54,9 @@ def test_every_field_error_passes_field() -> None:
     )
 
 
-#: Modules every refusal of which has a reason: each FieldError they build passes ``reason=``.
-#: The conftest sweep checks the refusals the suite builds for their classes too.
+#: Modules in which every FieldError call must pass ``reason=``.
+#: The fixture in ``conftest.py`` also checks that each refusal the suite builds for a class in
+#: its ``REASONED`` set has a reason.
 REASONED_MODULES = ("instructions/math.py", "instructions/math_formula.py")
 
 

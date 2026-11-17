@@ -1,4 +1,4 @@
-"""Tests for clicknick.csv.token_parser."""
+"""Tests for laddercodec.csv.token_parser."""
 
 from __future__ import annotations
 

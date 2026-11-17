@@ -1,16 +1,19 @@
-"""Draw a rung tree in the packed layout CLICK's syntax check leaves.
+"""Draw a rung tree in the packed layout that CLICK's syntax check leaves.
 
-Columns.  Each net is one vertical, on the left edge of the column right after its longest
-contact path from the rail.  A contact sits in the cell right after its start net; a shorter
-path gets wire up to its end net.  A box input gets wire from its net to AE.
+The columns follow these rules.  Each net is drawn as one vertical line.  The line is on the
+left edge of the column just after the longest path of contacts from the rail to the net.  A
+contact sits in the column of the net it starts from.  When a longer path puts its end net
+further right, wire fills the cells between.  Wire runs from each box input's net to column
+AE.
 
-Rows.  Series terms start on one top row.  The legs of a parallel block stack downward in
-their original order (the row of each leg's first contact).  The items hanging off a net
-stack downward in output order: a box takes the first free AF row at or below the next free
-row of its net (boxes never overlap), and a branch after the split starts on the row of its
-first box.  A pinned box's inputs sit on their own rows below it: each slot starts on the row
-after the circuit above it, so OR legs under a slot push the later slots down, and the box
-ends on its last slot's row.
+The rows follow these rules.  Series terms start on one top row.  The legs of a parallel
+block stack downward, in the order of the row of each leg's first contact.  The items that
+hang off a net stack downward, in the order of the row of each item's first box.  A box
+takes the first AF row that no other box covers, at or below the next free row of its net.
+Boxes therefore never overlap.  A branch after the split starts on the row of its first box.
+The inputs of a pinned box sit on rows of their own below it.  Each input starts on the row
+after the circuit of the input above it.  When a pin's circuit has OR legs, they push the
+later pins down.  The box ends on the row of its last input.
 """
 
 from __future__ import annotations
@@ -53,7 +56,7 @@ class _Sink:
 
 
 def box_height(token: object) -> int:
-    """Rows a non-pinned box spans (a NOP spans one)."""
+    """Return the number of rows that a box with no pins spans.  A NOP spans one."""
     if isinstance(token, AfInstruction):
         return max(1, int(token.cell_params().get("visual_rows", 1)))
     return 1
@@ -68,7 +71,7 @@ class _Painter:
         self.sinks: list[_Sink] = []
         self.af: dict[int, object] = {}
         self.af_free = 0  # first AF row no box covers
-        self.cond_bottom = -1  # lowest row a contact or sink wire uses
+        self.cond_bottom = -1  # lowest row that a contact or the wire into a box input uses
 
     def new_net(self) -> int:
         self.nets.append(_Net())
@@ -108,7 +111,8 @@ class _Painter:
             self.af[row] = token
             self.af_free = row + box_height(token)
             return row + 1
-        # Slots: lead slots (unused) on the rows above the main input, then each pin.
+        # The first slots are the unused lead slots on the rows above the main input, then the
+        # main input.  The loop below adds the row of each pin.
         slots = list(range(token_row, row + 1))
         nxt = max(row + 1, self.cond_bottom + 1)
         pin_sinks = {
@@ -258,7 +262,7 @@ def _with_down(contact: object, down: bool) -> object:
 
 
 def render(network: Network, tree: RungTree) -> tuple[list[list[object]], list[object]]:
-    """Condition rows and AF tokens of one CLICK rung."""
+    """Return the condition rows and the AF tokens of one CLICK rung."""
     painter = _Painter(network, tree)
     painter.place_branch(tree.branch, RAIL, painter.first_lead(tree.branch))
     return painter.paint()

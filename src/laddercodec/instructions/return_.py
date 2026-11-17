@@ -1,6 +1,6 @@
-"""Return — instruction (type marker 0x2724).
+"""Return — the Return instruction (type marker 0x2724).
 
-Binary class name: ``"Return"``.
+In the binary, the class name is ``"Return"``.
 """
 
 from __future__ import annotations
@@ -56,7 +56,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Return | None:
-    """Construct a Return instruction from tag data (shared by both decoders)."""
+    """Build a Return from tag data, or return None when the class name or type code differ.
+
+    The clipboard decoder and the program-file decoder both call it.
+    """
     if class_name != "Return" or type_code != RETURN_TYPE_MARKER:
         return None
     return Return()

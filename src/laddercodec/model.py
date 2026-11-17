@@ -9,11 +9,11 @@ containers.  It re-exports:
   ``OPERAND_RE`` shape pattern, from :mod:`laddercodec.operands.address`;
 - the flag check :func:`check_flag`, from :mod:`laddercodec.operands.checks`.
 
-These are the foundation types imported by every ``instructions/`` module — no reverse
-dependency.
+Every module in ``instructions/`` imports these types, so this module does not import
+``instructions/`` when it loads.
 
-Instruction dataclasses (Contact, Coil, …) and their func-code
-tables live in :mod:`laddercodec.instructions`.
+The instruction dataclasses (Contact, Coil, …) and their func-code tables are in
+:mod:`laddercodec.instructions`.
 """
 
 from __future__ import annotations
@@ -54,7 +54,8 @@ if TYPE_CHECKING:
 class ConditionInstruction:
     """Base class for condition-side instructions (Contact, CompareContact)."""
 
-    # A plain class attribute, out of equality: see AfInstruction._refusal.
+    # A plain class attribute and not a dataclass field, so that it takes no part in
+    # equality. AfInstruction._refusal says what it holds.
     _refusal: FieldError | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -73,21 +74,23 @@ class ConditionInstruction:
 
 
 class AfInstruction:
-    """Base class for AF-side instructions (Coil, Timer, Counter, Copy, Fill, RawInstruction)."""
+    """Base class for instructions in the AF (output) column, such as Coil, Timer and Copy."""
 
     # Keep this a plain class attribute. As a dataclass field in a subclass it would
     # take part in equality and change how decoded instructions compare.
-    #: ``(instruction, token, detail)`` findings a decoder recorded for a legacy encoding;
-    #: see :mod:`laddercodec.legacy`.
+    #: The ``(instruction, token, detail)`` findings that a decoder recorded when it read
+    #: a form that an older laddercodec wrote. See :mod:`laddercodec.legacy`.
     _legacy_findings: Collection[tuple[str, str, str]] = ()
-    #: The error construction raises, kept by an instruction built from what is stored;
-    #: see :mod:`laddercodec.operands.unchecked`.  A plain class attribute for the same
-    #: reason.
+    #: The error that construction would have raised. An instruction built inside
+    #: ``unchecked()`` from stored data keeps it here. See
+    #: :mod:`laddercodec.operands.unchecked`. This is a plain class attribute for the
+    #: same reason.
     _refusal: FieldError | None = None
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        _name_typed_text(cls)  # first: the error it completes is the one kept
+        # Wrap first, so that the error which holds_refusals keeps already names the typed text.
+        _name_typed_text(cls)
         holds_refusals(cls)
 
     def to_csv(self) -> str:
@@ -103,26 +106,27 @@ class AfInstruction:
 class PinnedInstruction(AfInstruction):
     """An AF box with inputs ("slots") on several rows.
 
-    Slots run top to bottom: ``lead_rows`` slots above the main input
-    (count_down's unused Up), the main input (the CSV row holding the
-    instruction token), then one slot per name in ``pin_names()``.
-    ``pin_rows`` holds the row of every slot after the first; it is the
-    blob's part bytes, and the box ends at its last row.
+    The slots run from top to bottom. First come ``lead_rows`` slots above the main
+    input, such as the Up input that count_down does not use. Next is the main input,
+    which is the CSV row that holds the instruction token. Last comes one slot for each
+    name in ``pin_names()``. ``pin_rows`` holds the row of every slot after the first.
+    The blob stores these rows as its part bytes, and the box ends at the last of them.
 
-    OR legs under a slot push every later slot down; legs under the last
-    slot sit below the box.  An unused pin keeps a row of its own.  When
-    ``lead_rows`` is nonzero, the decoded main row's AF cell holds a NOP.
+    An OR leg under a slot pushes every later slot down. An OR leg under the last slot
+    sits below the box. An unused pin still takes a row of its own. When ``lead_rows``
+    is not zero, the AF cell of the main input's row holds a NOP in a decoded rung.
     """
 
     pin_rows: tuple[int, ...]
 
     def _check_pin_rows(self) -> None:
-        """Raise :class:`FieldError` unless ``pin_rows`` is one ascending row per pin.
+        """Raise :class:`FieldError` unless ``pin_rows`` is valid for this box.
 
         Each pinned class calls this at the end of its ``__post_init__``.
 
-        A box has ``lead_rows`` slots above its main input and one slot per pin name
-        below it; the blob stores each as one byte, so a row is 1 to 255.
+        ``pin_rows`` needs one row for each of the ``lead_rows`` slots above the main input
+        and one for each pin name below it, in ascending order. The first slot is on row 0
+        and the blob stores each row in one byte, so each row is 1 to 255.
         """
         name = f"{type(self).__name__}.pin_rows"
         rows = self.pin_rows
@@ -152,30 +156,33 @@ class PinnedInstruction(AfInstruction):
 
     @property
     def lead_rows(self) -> int:
-        """Slots above the main input."""
+        """The number of slots above the main input."""
         return 0
 
     def pin_names(self) -> tuple[str, ...]:
-        """CSV pin tokens below the main input, in box order (e.g. ``.reset``)."""
+        """Return the CSV pin tokens below the main input, top first, such as ``.reset``."""
         raise NotImplementedError
 
     def pin_labels(self) -> tuple[str | None, ...]:
-        """CSV text of each pin row, ``None`` for an unused pin."""
+        """Return the CSV text of each pin row, with ``None`` for an unused pin."""
         raise NotImplementedError
 
     def with_pins(
         self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]
     ) -> PinnedInstruction:
-        """Copy with the flags the used pins (name -> args) imply, at ``pin_rows``."""
+        """Return a copy with its slots at ``pin_rows`` and the flags that ``pins`` sets.
+
+        ``pins`` maps the name of each pin that the CSV uses to that pin's arguments.
+        """
         raise NotImplementedError
 
     def with_pin_rows(self, pin_rows: tuple[int, ...]) -> PinnedInstruction:
-        """Copy at ``pin_rows`` (subclasses are dataclasses); it keeps any refusals."""
+        """Return a copy with its slots at ``pin_rows``. The copy keeps any refusals."""
         return rebuilt(cast(Any, self), pin_rows=pin_rows)
 
 
 class InstructionType(IntEnum):
-    """Instruction type IDs (low byte; high byte is always 0x27)."""
+    """The low byte of each instruction type ID. The high byte is always 0x27."""
 
     CONTACT_NO = 0x11  # 0x2711
     CONTACT_NC = 0x12  # 0x2712
@@ -198,7 +205,7 @@ class InstructionType(IntEnum):
     SEND = 0x29  # 0x2729 (modbus send / write)
 
 
-# Mapping from SCR type-code marker to InstructionType.
+# Maps a stored 16-bit type code, such as 0x2711, to its InstructionType.
 TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
     0x2711: InstructionType.CONTACT_NO,
     0x2712: InstructionType.CONTACT_NC,
@@ -216,15 +223,17 @@ TYPE_CODE_TO_ITYPE: dict[int, InstructionType] = {
 # ---------------------------------------------------------------------------
 
 
-#: Longest subroutine or interrupt name: CLICK.exe's Add Subroutine edit takes 24
-#: characters.
+#: The longest subroutine or interrupt name. The name box in CLICK.exe's Add Subroutine
+#: dialog accepts 24 characters.
 PROGRAM_NAME_MAX = 24
 
-#: Characters a program name may not hold (CLICK.exe, GUI-040 "Invalid Program Name").
+#: The characters that CLICK.exe refuses in a program name, with GUI-040 "Invalid Program
+#: Name".
 _PROGRAM_NAME_FORBIDDEN = '\\/:*?"<>|'
 
-#: Windows device names a program name may not use before its last dot (CLICK.exe
-#: device table, GUI-040), compared case-insensitively.
+#: The Windows device names that CLICK.exe refuses, with GUI-040, as the part of a
+#: program name before its last dot. The list comes from a table in CLICK.exe. The
+#: check ignores case.
 _DEVICE_NAMES = frozenset(
     {"AUX", "CON", "NUL", "PRN", "CLOCK$"}
     | {f"COM{n}" for n in range(1, 10)}
@@ -235,11 +244,15 @@ _DEVICE_NAMES = frozenset(
 def check_program_name(name: str, field_name: str) -> None:
     """Raise :class:`FieldError` naming ``field_name`` if CLICK refuses ``name`` for a subroutine.
 
-    Follows CLICK's Add New Subroutine dialog, which trims the name first and
-    then checks it: not blank, at most
-    :data:`PROGRAM_NAME_MAX` characters, none of ``\\ / : * ? " < > |``, and the part
-    before the last dot is not a Windows device name (GUI-040).  ``Main``, ``.``,
-    inner spaces, ``-`` and a leading digit are accepted.
+    The check follows CLICK's Add New Subroutine dialog. It strips whitespace from both ends
+    of the name and then refuses the name if:
+
+    - it is blank;
+    - it is longer than :data:`PROGRAM_NAME_MAX` characters;
+    - it holds any of ``\\ / : * ? " < > |``;
+    - the part before its last dot is a Windows device name (GUI-040).
+
+    The check accepts ``Main``, ``.``, spaces inside the name, ``-`` and a leading digit.
     """
     text = name.strip()
     if not text:
@@ -293,7 +306,10 @@ class Program:
 
     @property
     def undecoded(self) -> list[Undecoded]:
-        """The undecoded markers in :attr:`rungs`, in rung order; empty when every rung decoded."""
+        """The undecoded markers in :attr:`rungs`, in rung order.
+
+        The list is empty if every rung decoded.
+        """
         from .undecoded import markers  # undecoded imports instructions, which import model
 
         return markers(self.rungs)

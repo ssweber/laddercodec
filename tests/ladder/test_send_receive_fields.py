@@ -1,6 +1,7 @@
-"""Field rules of Send and Receive: slave ID, TCP target, remote and local addresses, counts.
+"""Tests of the rules for the fields of Send and Receive.
 
-Limits follow CLICK's Send and Receive dialogs, RTU and TCP.
+They cover the slave ID, the TCP target, the remote and local addresses, and the counts. The
+limits are those of CLICK's Send and Receive dialogs, for both RTU and TCP.
 """
 
 from __future__ import annotations
@@ -33,21 +34,24 @@ from tests.kept_refusals import kept
 
 @pytest.mark.parametrize("device_id", [-1, 256, 65536])
 def test_tcp_device_id_range_refused_at_construction(device_id) -> None:
-    """Send and Receive: a literal TCP Slave ID is 0-255."""
+    """ModbusTcpTarget refuses a Slave ID number outside 0-255."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusTcpTarget(name="t", ip="1.2.3.4", port=502, device_id=device_id)
 
 
 @pytest.mark.parametrize("device_id", [-1, 248, 255, 256])
 def test_rtu_device_id_range_refused_at_construction(device_id) -> None:
-    """Send and Receive: a literal serial Slave ID is 0-247."""
+    """ModbusRtuTarget refuses a Slave ID number outside 0-247."""
     with pytest.raises(FieldError, match="device_id"):
         ModbusRtuTarget(name="r", com_port="cpu2", device_id=device_id)
 
 
 @pytest.mark.parametrize("digits", ["1" * 5000, "9" * 4301, "45010", "0"])
 def test_ds_device_id_beyond_ds4500_is_a_field_error(digits) -> None:
-    """A DS number past DS4500 is a FieldError however many digits it has (not int()'s limit)."""
+    """A DS Slave ID outside DS1-DS4500 raises FieldError, however many digits it has.
+
+    A number of more than 4300 digits raises FieldError too, not int()'s ValueError.
+    """
     with pytest.raises(FieldError, match="device_id") as caught:
         ModbusRtuTarget(name="r", com_port="cpu2", device_id="DS" + digits)
     assert caught.value.field == "ModbusRtuTarget.device_id"
@@ -214,7 +218,10 @@ def test_hex_address_ok(address) -> None:
     ],
 )
 def test_hex_address_written_as_click_stores_it(address, stored) -> None:
-    """CLICK stores uppercase digits, no leading zeros and a lowercase h (comm_hex_address.bin)."""
+    """ModbusAddress stores a hex address with uppercase digits, no leading zeros and a lowercase h.
+
+    CLICK stores a hex address in this form.
+    """
     assert ModbusAddress(address=address).address == stored
 
 
@@ -302,7 +309,7 @@ def test_send_local_lists() -> None:
     for source in ("XD0", "YD0u"):
         send(remote_start="DS1", source=source)
     with pytest.raises(AddressError, match="source"):
-        send(remote_start="C1", source="DS1")  # bit remote, register local
+        send(remote_start="C1", source="DS1")  # a bit remote address needs a bit source
     with pytest.raises(AddressError, match="source"):
         send(remote_start="DS1", source="C1")
     with pytest.raises(AddressError, match="source"):
@@ -323,7 +330,10 @@ def test_receive_lists() -> None:
 
 @pytest.mark.parametrize("dest", ["XD0", "TD1", "CTD1", "SD1"])
 def test_receive_dest_mask_refuses(dest) -> None:
-    """Receive: FC03/04 dest mask 0x8bc0 is DS, DD, DH, DF, YD and TXT (OBJ-004)."""
+    """Receive with FC03 or FC04 refuses a dest outside DS, DD, DH, DF, YD and TXT (OBJ-004).
+
+    These are the banks in CLICK's dest mask 0x8bc0.
+    """
     with pytest.raises(AddressError, match="dest"):
         receive(remote_start=ModbusAddress("400001"), dest=dest)
 
@@ -339,7 +349,7 @@ def test_receive_dest_mask_refuses(dest) -> None:
     ],
 )
 def test_receive_click_remote_pairs_with_dest_type(dest, ok, bad) -> None:
-    """Receive: a CLICK remote register matches the dest's data type."""
+    """Receive accepts a CLICK remote register only if its data type matches the dest's."""
     for remote in ok:
         receive(remote_start=remote, dest=dest)
     for remote in bad:
@@ -398,7 +408,8 @@ COIL_HEX = ModbusAddress("0h", "coil")
 @pytest.mark.parametrize(
     ("remote", "source", "room"),
     [
-        # CLICK addressing: the CPU and option slots are one run, an expansion slot its own
+        # With a CLICK remote address, the CPU and option slots are one run of points, and
+        # each expansion slot is a run of its own.
         ("C1", "X001", 32),
         ("C1", "X016", 17),
         ("C1", "X021", 16),
@@ -407,9 +418,10 @@ COIL_HEX = ModbusAddress("0h", "coil")
         ("C1", "X815", 2),
         ("C1990", "X001", 11),  # the room left in C is less
         ("Y001", "X001", 32),
-        ("Y101", "X001", 16),  # the higher start number decides
+        ("Y101", "X001", 16),  # the start with the higher number sets the room
         ("Y005", "X003", 28),
-        # MODBUS 984 or hex: the points left through the last slot
+        # With a MODBUS 984 or hex remote address, the room is every point from the source
+        # through the last slot.
         (ModbusAddress("1"), "X001", 160),
         (COIL_HEX, "X021", 144),
         (COIL_HEX, "X101", 128),
@@ -417,7 +429,10 @@ COIL_HEX = ModbusAddress("0h", "coil")
     ],
 )
 def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
-    """Send quantity limit: local X/Y case and C room."""
+    """Send from an X or Y source accepts a count up to the room, and refuses one more.
+
+    The room is counted by slot. A remote C start can make it smaller.
+    """
     send(remote_start=remote, source=source, quantity=room)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         send(remote_start=remote, source=source, quantity=room + 1)
@@ -426,12 +441,12 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
 @pytest.mark.parametrize(
     ("remote", "dest", "room"),
     [
-        # every addressing mode counts the slot run from the Y start
+        # with every kind of remote address, the room is the run of points from the Y start
         ("C1", "Y001", 32),
         ("C1", "Y016", 17),
         ("C1", "Y021", 16),
         ("X001", "Y001", 32),
-        ("X101", "Y001", 16),  # the higher start number decides
+        ("X101", "Y001", 16),  # the start with the higher number sets the room
         ("Y005", "Y003", 28),
         # a remote C, T, CT or SC caps the count at the room left in that bank
         ("C1995", "Y001", 6),
@@ -439,7 +454,8 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
         ("CT250", "Y021", 1),
         ("SC990", "Y001", 11),
         ("T1", "Y101", 16),
-        # from Y101 on, a remote C skips the slot run: the C room and the points through Y816
+        # From Y101 on, a remote C does not use the run of the slot. The room is the smaller
+        # of the room left in C and the points through Y816.
         ("C1", "Y101", 128),
         ("C1", "Y801", 16),
         ("C1995", "Y101", 6),
@@ -452,7 +468,10 @@ def test_send_x_y_room_counts_by_slot(remote, source, room) -> None:
     ],
 )
 def test_receive_y_room_counts_by_slot(remote, dest, room) -> None:
-    """Receive quantity limit: local Y case, 984 and hex starts."""
+    """Receive into a Y dest accepts a count up to the room, and refuses one more.
+
+    The cases cover CLICK, MODBUS 984 and hex remote starts.
+    """
     receive(remote_start=remote, dest=dest, quantity=room)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         receive(remote_start=remote, dest=dest, quantity=room + 1)
@@ -482,7 +501,10 @@ def test_receive_y_room_through_csv(tmp_path: Path) -> None:
     ],
 )
 def test_c_room_from_a_remote_x_y_counts_by_slot(build, kw, room) -> None:
-    """Send and Receive quantity limit: local C case."""
+    """With a remote X or Y and a local C, the room is the run of points from the remote start.
+
+    Send and Receive accept a count up to the room, and refuse one more.
+    """
     build(quantity=room, **kw)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         build(quantity=room + 1, **kw)
@@ -505,7 +527,10 @@ def test_c_room_from_a_remote_x_y_keeps_the_c_room() -> None:
     ],
 )
 def test_c_room_from_a_remote_bank(build, kw, room, last) -> None:
-    """Receive and Send quantity limit: local C cases."""
+    """With a local C, the count can reach the last address of the remote T, CT, SC or C bank.
+
+    One more raises an error that names that last address and the room left.
+    """
     build(quantity=room, **kw)
     with pytest.raises(FieldError, match=f"runs past {last} \\({room} left\\)"):
         build(quantity=room + 1, **kw)
@@ -682,7 +707,11 @@ def test_valid_instruction_round_trips(instr) -> None:
 def test_status_strings_decode_whatever_the_enable_flag(
     class_name, type_code, build, enables
 ) -> None:
-    """CLICK v4 rederives each enable from its string, so Send and Receive ignore the flags."""
+    """Send and Receive decode each status address whatever its enable flag holds.
+
+    CLICK v4 sets each enable flag again from its address string, so the decoder ignores the
+    flags.
+    """
     instr = build()
     fields = _fields(instr)
     for tag in enables:
@@ -718,7 +747,7 @@ def _fc_subtype(instr: Send | Receive) -> str:
         ({"source": "DS1"}, "1"),  # FC06
         ({"source": "XD0"}, "1"),
         ({"source": "YD0u"}, "1"),
-        ({"source": "DD1"}, "3"),  # FC16: FC06's mask refuses DD, DF and CTD
+        ({"source": "DD1"}, "3"),  # FC16, because FC06's mask refuses DD, DF and CTD
         ({"source": "DF1"}, "3"),
         ({"source": "CTD1"}, "3"),
         ({"remote_start": "DD1", "source": "DS1"}, "3"),
@@ -792,7 +821,11 @@ def test_send_banks_follow_function_code(kw, field) -> None:
      ("DS1", "DS1", 3, "2")],
 )  # fmt: skip
 def test_receive_click_address_keeps_its_function_code(remote, dest, fc, fc_subtype) -> None:
-    """CLICK writes FC02 and FC04 as picked; a native FC02/FC04 rung round-trips (S9)."""
+    """Receive from a CLICK address keeps its given function code, and its blob decodes back.
+
+    CLICK stores FC02 and FC04 as the user picked them. The CSV token names the function code
+    only for FC02 and FC04.
+    """
     got = receive(remote_start=remote, dest=dest, function_code=fc)
     assert _fc_subtype(got) == fc_subtype
     assert from_tags("RD", 0x2728, _fields(got)) == got
@@ -862,14 +895,17 @@ def test_function_code_subtype_that_names_no_code_decodes_as_raw() -> None:
 
 
 def test_receive_yd_dest_is_one_element() -> None:
-    """Receive: a YD dest is capped at 1."""
+    """Receive refuses a count above 1 for a YD dest."""
     receive(remote_start=ModbusAddress("400001"), dest="YD1")
     with pytest.raises(FieldError, match="outside 1-1"):
         receive(remote_start=ModbusAddress("400001"), dest="YD1", quantity=2)
 
 
 def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
-    """Receive: "(1 to 1)" for a DH dest read from a CLICK XD/YD."""
+    """Receive refuses a count above 1 for a DH dest read from a CLICK XD or YD.
+
+    CLICK's dialog shows "(1 to 1)" for this count.
+    """
     receive(remote_start="DH1", dest="DH1", quantity=5)
     for remote in ("XD1", "YD1"):
         receive(remote_start=remote, dest="DH1")
@@ -881,8 +917,10 @@ def test_receive_dh_from_xd_or_yd_is_one_element() -> None:
     ("quantity", "click_id"), [(1, "OBJ-010"), (3, "OBJ-029"), (125, "OBJ-029")]
 )
 def test_receive_text_count_is_even(quantity, click_id) -> None:
-    """Receive: at least 2 TXT characters, and an even count: below 2 is OBJ-010 (the range
-    message, once, for 1 too) and an odd count OBJ-029."""
+    """Receive refuses a TXT count below 2 with OBJ-010, and an odd count with OBJ-029.
+
+    A count of 1 is also odd, but it raises only the one error, OBJ-010.
+    """
     with pytest.raises(FieldError, match="even count") as caught:
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
     assert caught.value.click_id == click_id
@@ -893,13 +931,19 @@ def test_receive_text_count_is_even(quantity, click_id) -> None:
 
 @pytest.mark.parametrize("quantity", [124, 126, 250])
 def test_receive_text_count_up_to_250_characters(quantity) -> None:
-    """CLICK accepts a TXT count of 2 to 250 characters, even: past the register cap of 125."""
+    """Receive accepts an even TXT count of up to 250 characters, as CLICK does.
+
+    The limit is above the cap of 125 for registers, because a TXT count is in characters.
+    """
     receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
 
 
 @pytest.mark.parametrize("quantity", [251, 252, 400])
 def test_receive_text_count_past_250_is_the_range(quantity) -> None:
-    """Past 250 CLICK says OBJ-010 (range before evenness: 251 too), naming characters."""
+    """A TXT count above 250 raises OBJ-010, with a message that counts in characters.
+
+    CLICK checks the range before it checks for an even count, so 251 raises OBJ-010 too.
+    """
     with pytest.raises(FieldError, match="outside 1-250 characters") as caught:
         receive(remote_start="TXT1", dest="TXT1", quantity=quantity)
     assert caught.value.click_id == "OBJ-010"
@@ -944,11 +988,11 @@ def test_receive_word_swap_forced_off(kw) -> None:
 @pytest.mark.parametrize(
     "kw",
     [
-        {"remote_start": ModbusAddress("400001"), "dest": "DD1", "quantity": 5},  # native
+        {"remote_start": ModbusAddress("400001"), "dest": "DD1", "quantity": 5},
         {"remote_start": ModbusAddress("0h", "holding"), "dest": "DF1", "quantity": 2},
         {"remote_start": "DS1", "dest": "DS1", "quantity": 2},
         {"remote_start": "DH1", "dest": "DH1", "quantity": 2},
-        {"remote_start": ModbusAddress("400001"), "dest": "DD1"},  # 32-bit keeps it at 1
+        {"remote_start": ModbusAddress("400001"), "dest": "DD1"},  # allowed for one 32-bit element
         {"remote_start": ModbusAddress("0h", "holding"), "dest": "DF1"},
     ],
 )
@@ -981,7 +1025,7 @@ def test_receive_word_swap_on_one_element_keeps_its_refusal() -> None:
     ],
 )
 def test_receive_status_bit_used_twice(kw) -> None:
-    """Receive: one C bit can't serve two status fields (0x271e)."""
+    """Receive refuses the same C bit in two status fields (0x271e)."""
     with pytest.raises(FieldError, match="already the"):
         receive(**kw)
 
@@ -1023,7 +1067,7 @@ def test_refused_receive_keeps_its_refusal() -> None:
     ],
 )
 def test_send_status_bit_used_twice(kw) -> None:
-    """Send: one C bit can't serve two status fields (OBJ-014)."""
+    """Send refuses the same C bit in two status fields (OBJ-014)."""
     with pytest.raises(FieldError, match="already the"):
         send(**kw)
 
@@ -1036,7 +1080,7 @@ def test_send_status_bit_used_twice_keeps_its_refusal() -> None:
 
 @pytest.mark.parametrize("source", ["DD1", "DF1", "CTD1", "TXT1"])
 def test_send_32_bit_or_text_hex_start_stops_at_fffd(source) -> None:
-    """Send: a 32-bit, float or text source starts at 0h-FFFDh (OBJ-010)."""
+    """Send refuses a hex start above FFFDh for a 32-bit, float or text source (OBJ-010)."""
     holding = ModbusAddress("FFFDh", "holding")
     send(remote_start=holding, source=source)
     with pytest.raises(FieldError, match="outside 0h-FFFDh"):
@@ -1048,7 +1092,7 @@ def test_send_16_bit_hex_start_reaches_fffe() -> None:
 
 
 def test_send_dd_hex_count_room() -> None:
-    """Send: a DD source from hex start a has room for min(61, FFFEh - a)."""
+    """Send from a DD source to hex start a accepts a count of up to min(61, FFFEh - a)."""
     send(remote_start=ModbusAddress("FFFCh", "holding"), source="DD1", quantity=2)
     with pytest.raises(FieldError, match="outside 1-1"):
         send(remote_start=ModbusAddress("FFFDh", "holding"), source="DD1", quantity=2)
@@ -1101,7 +1145,7 @@ def test_blob_with_out_of_range_device_id_keeps_the_target_refusal(device_id, re
     sent = kept(from_tags_af("SD", 0x2729, fields), *refused)
     assert isinstance(sent.target, ModbusRtuTarget)
     assert sent.target.device_id == int(device_id)
-    # The target's refusal names the target; encode() refuses the Send with it.
+    # The refusal belongs to the target, not to the Send. encode() still refuses the Send.
     assert refusals(sent)[0].obj is sent.target
     with pytest.raises(FieldError, match="device_id"):
         encode_rung(3, [["-"] * 31] + [[""] * 31] * 2, [sent, "", ""])
@@ -1115,7 +1159,7 @@ def test_long_hex_address_through_csv(tmp_path: Path, written, stored) -> None:
 
 
 def test_zero_padded_hex_blob_stays_raw() -> None:
-    """A stored text CLICK never writes (0FFFEh) stays raw(...)."""
+    """A blob that stores ``0FFFEh``, a form CLICK never writes, does not decode to a Send."""
     sent = send(remote_start=ModbusAddress("FFFEh", "holding"))
     object.__setattr__(sent.remote_start, "address", "0FFFEh")
     blob = sent.build_blob()

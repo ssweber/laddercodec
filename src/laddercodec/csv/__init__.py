@@ -1,11 +1,10 @@
-"""CSV parsing subpackage for Click Ladder rows/files.
+"""Read Click Ladder CSV files.
 
-Public API for reading Click Ladder CSV files into structured data ready
-for ``encode_rung()`` / ``encode_rungs()``.
-
-Delegates to :func:`parse_csv_file` for CSV parsing and
-:func:`convert_rung` for AST → ``Rung`` conversion: pin rows (``.reset()``
-etc.) and the layout CLICK's syntax check draws.
+:func:`read_csv` reads a file into ``Rung`` objects that ``encode_rung()`` and
+``encode_rungs()`` accept.  :func:`parse_csv_file` parses the CSV text into an
+AST, and :func:`convert_rung` turns each rung of the AST into ``Rung`` objects.
+``convert_rung`` places the pin rows, such as ``.reset()``, and draws the layout
+that CLICK's syntax check draws.
 """
 
 from __future__ import annotations
@@ -36,11 +35,12 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
         r.instructions    # list[AfToken]
         r.comment         # str | None
 
-    Each rung is drawn as CLICK's syntax check draws it: the CSV gives the
-    circuit, and the rows, columns and box heights come from the layout.  A
-    CSV rung whose outputs' circuits meet only at the rail reads as one rung
-    per circuit, as CLICK splits it, so the list can hold more rungs than the
-    CSV.  A rung ``laddercodec.check()`` reports reads as written.
+    Each rung is drawn as CLICK's syntax check draws it.  The CSV gives the
+    circuit, and the layout sets the rows, the columns and the box heights.
+    CLICK splits a rung whose outputs' circuits meet only at the rail into one
+    rung per circuit, and ``read_csv`` does the same.  The list can therefore
+    hold more rungs than the CSV.  A rung that ``laddercodec.check()`` reports
+    is read as written.
 
     Instruction tokens (e.g. ``X001``, ``out(Y001)``) are parsed into
     ``Contact`` / ``Coil`` objects; wire tokens remain as strings.
@@ -49,19 +49,19 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
     replaced with blank tokens instead of raising.
 
     When *unchecked* is ``True``, an instruction whose values its checks refuse
-    is read as written, as ``decode()`` reads a stored one, with a
-    ``RefusedFieldWarning`` carrying the refusals; ``encode()`` still refuses
-    it.  A value no stored instruction holds (a timer unit that is none of
-    CLICK's, a flag that is not 0 or 1, pin rows the box can't take) still
-    raises.  By default every refusal raises.
+    is read as written, the same way ``decode()`` reads a stored instruction.
+    A ``RefusedFieldWarning`` carries the refusals, and ``encode()`` still
+    refuses the instruction.  A value that no stored instruction can hold still
+    raises: a timer unit that is none of CLICK's, a flag that is not 0 or 1, or
+    pin rows the box can't take.  By default every refusal raises.
 
     A file that isn't UTF-8 text, or a row, token or rung that can't be read, raises
-    ``CsvError``, and a value CLICK's dialog refuses ``FieldError`` (``AddressError``
-    for an address).  Each carries a :class:`CsvLocation` as its ``location``: the
-    file, line, rung, row and column where they are known.  ``CsvLocation.of(exc)``
-    reads it, and the message ends with it.
-    Each refusal an instruction keeps when *unchecked* is ``True`` carries the
-    location it would raise with.
+    ``CsvError``.  A value that CLICK's dialog refuses raises ``FieldError``, or
+    ``AddressError`` for an address.  Each error carries a :class:`CsvLocation` as its
+    ``location``, with the file, line, rung, row and column where they are known.
+    ``CsvLocation.of(exc)`` returns it, and the error message ends with it.  When
+    *unchecked* is ``True``, each refusal that an instruction keeps carries the
+    location it would have raised with.
     """
     path = Path(path)
     ast = parse_csv_file(path, syntax="canonical")

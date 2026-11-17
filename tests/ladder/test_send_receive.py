@@ -1,7 +1,7 @@
-"""Tests for laddercodec.instructions.send_receive: ports and slave IDs.
+"""Tests of the port and slave ID fields in laddercodec.instructions.send_receive.
 
-The protocol mode (0x220C), slave-ID fields (0x320E/0x60B2/0x223A) and func code
-(0x3218) are CLICK's.
+The tags that these tests check are CLICK's own fields. They are the protocol mode
+(0x220C), the three slave ID fields (0x320E, 0x60B2 and 0x223A) and the func code (0x3218).
 """
 
 from __future__ import annotations
@@ -71,7 +71,10 @@ def test_port_and_slave_id_fields(
 
 @pytest.mark.parametrize("device_id", ["DD1", "DH1", "C1", "DS0", "DS4501", "ds0"])
 def test_slave_id_address_must_be_ds(device_id: str) -> None:
-    """CLICK's Slave ID box takes a number or a DS address only."""
+    """A slave ID that is an address must be a DS address in range.
+
+    CLICK's Slave ID box accepts only a number or a DS address.
+    """
     with pytest.raises(ValueError, match="device_id"):
         ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=device_id)
     with pytest.raises(ValueError, match="device_id"):
@@ -90,11 +93,14 @@ def test_ports_belong_to_their_target() -> None:
     [
         (0x220C, "8"),  # no such port
         (0x3218, "9733"),  # ASCII static-message Send
-        (0x60B2, "DD1"),  # address slave ID the dialog refuses
+        (0x60B2, "DD1"),  # a slave ID address that CLICK's dialog refuses
     ],
 )
 def test_unmodelled_blob_decodes_as_raw(tag: int, value: str) -> None:
-    """A blob we can't represent isn't decoded as a different instruction."""
+    """from_tags returns None for a Send blob that laddercodec cannot represent.
+
+    The blob then decodes as a raw instruction, not as a Send with different fields.
+    """
     send = _parse(_send(_RTU.format(port="cpu2", id="DS1")))
     fields = _fields(send)
     fields[tag] = value

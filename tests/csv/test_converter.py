@@ -1,7 +1,9 @@
 """Tests for laddercodec.csv.converter.
 
-Most tests read a rung as drawn (``convert_literal``): pin rows, tall-box padding and
-wire hydration.  ``TestLayout`` reads through ``convert_rung``, which lays the rung out.
+Most tests read a rung as written, with ``convert_literal``. They cover pin rows, the blank
+rows added below a box that spans several rows, and wire hydration. Hydration continues a
+vertical wire by writing ``|`` into blank cells below a ``T`` or ``|``. ``TestLayout`` reads
+through ``convert_rung``, which also lays the rung out again as CLICK's syntax check draws it.
 """
 
 from __future__ import annotations
@@ -66,12 +68,12 @@ def _fields(rung: Rung) -> tuple[int, list, list, str | None]:
 
 
 def _literal(rung: RungAst, *, strict: bool = True) -> tuple[int, list, list, str | None]:
-    """``(rows, conditions, instructions, comment)`` of the rung as drawn."""
+    """Return ``(rows, conditions, instructions, comment)`` of the rung as written."""
     return _fields(convert_literal(rung, strict=strict))
 
 
 def _laid_out(rung: RungAst) -> tuple[int, list, list, str | None]:
-    """The same fields of the one rung *rung* lays out to."""
+    """Lay *rung* out, which must give one rung, and return the same fields of that rung."""
     (got,) = convert_rung(rung)
     return _fields(got)
 
@@ -205,7 +207,8 @@ class TestGenericTallRows:
 
 
 def _cells(cells: dict[int, str], wire_from: int | None = None) -> list[str]:
-    """A condition row with *cells* set and ``-`` from column *wire_from* to AE."""
+    """Return a condition row with *cells* set and ``-`` in each blank cell from column
+    *wire_from* to AE."""
     row = _blank()
     for col, token in cells.items():
         row[col] = token
@@ -217,8 +220,7 @@ def _cells(cells: dict[int, str], wire_from: int | None = None) -> list[str]:
 _COPY1 = "copy(1,DS1)"
 _COPY2 = "copy(2,DS2)"
 
-#: Legs C1..C3 join on one vertical
-#: before two Copies.
+#: Three OR legs, C1 to C3, that join on one vertical wire before two Copy boxes.
 _OR_LEGS = [
     ("R", _cells({0: "X1", 1: "T:C1", 2: "T"}, 3), _COPY1),
     ("", _cells({1: "T:C2", 2: "T"}, 3), _COPY2),
@@ -234,7 +236,8 @@ def _convert(tmp_path: Path, rows: list[tuple[str, list[str], str]]):
 
 
 class TestLayout:
-    """OR legs under a tall box lay out as CLICK checks them."""
+    """OR legs beside a box that spans several rows are laid out as CLICK's syntax check
+    draws them."""
 
     def test_legs_keep_their_rows(self, tmp_path: Path) -> None:
         rung, (lr, conds, afs, _) = _convert(tmp_path, _OR_LEGS)
@@ -320,10 +323,10 @@ class TestLayout:
         ],
     )
     def test_other_shapes_keep_their_circuit(self, tmp_path: Path, rows) -> None:
-        """Whatever the layout moves, the circuit it reads is the circuit as drawn.
+        """Whatever cells the layout moves, the rung it returns has the circuit as written.
 
-        A rung CLICK's check refuses (C3 feeding no box, when the right vertical stops
-        above it) has no layout and reads as drawn.
+        If check() reports a problem in the rung as written, convert_rung returns that rung
+        unchanged. One such case is C3 feeding no box when the right vertical stops above it.
         """
         csv_path = tmp_path / "main.csv"
         _write_csv(csv_path, rows)
@@ -353,7 +356,7 @@ class TestPinRows:
         timer = afs[0]
         assert isinstance(timer, Timer)
         assert timer.retained is True
-        assert afs[1] == ""  # .reset() absorbed, not emitted
+        assert afs[1] == ""  # .reset() makes the timer retentive and leaves no instruction
 
     def test_off_delay_rejects_reset(self, tmp_path: Path) -> None:
         """CLICK's Timer dialog offers Retentive only for an On Delay timer."""
@@ -372,7 +375,10 @@ class TestPinRows:
             _literal(rung)
 
     def test_retentive_off_delay_blob_decodes_as_raw(self) -> None:
-        """A blob CLICK's dialog never writes isn't decoded as a Timer it can't encode."""
+        """A retentive Off Delay blob is not decoded as a Timer.
+
+        CLICK's dialog never writes such a blob, and laddercodec cannot encode such a Timer.
+        """
         on = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=True)
         tags = {tag: value for tag, _s, value in _decompose_blob(on.build_blob())[4]}
         tags[0x21FA] = "1"  # off_delay
@@ -398,7 +404,7 @@ class TestPinRows:
         assert afs[1] == ""
 
     def test_reset_without_timer_parent_is_noop(self, tmp_path: Path) -> None:
-        """If .reset() appears but parent AF isn't a timer, it's just absorbed."""
+        """A .reset() row below an output that is not a timer raises nothing and is dropped."""
         csv_path = tmp_path / "main.csv"
         wires = ["-"] * len(CONDITION_COLUMNS)
         _write_csv(
@@ -849,7 +855,7 @@ class TestShiftRows:
 
 
 def _or_row(contact: str) -> list[str]:
-    """A pin row whose wire drops a vertical at column B for an OR leg below."""
+    """Return a pin row with a ``T`` in column B, where an OR leg in the row below joins it."""
     row = _wire_row(contact)
     row[1] = "T"
     return row
@@ -871,10 +877,11 @@ _BLANK = ("", _blank(), "")
 
 
 class TestDrumPinLayout:
-    """Each drum pin keeps a row of its own; an unused one goes below the legs above it.
+    """Each Drum pin has a row of its own. An unused pin's row goes below the OR legs above it.
 
-    Native CLICK v4 (clicknick test_drums.bin): Reset + Jog lays out Reset 1, blank
-    Jump 2, Jog 3; a Reset leg added with Insert Row gives Reset 1, leg 2, Jump 3, Jog 4.
+    CLICK v4 lays out a Drum with Reset and Jog as Reset on row 1, a blank Jump on row 2 and
+    Jog on row 3. If you add an OR leg to Reset with Insert Row, the rows are Reset 1, leg 2,
+    Jump 3 and Jog 4.
     """
 
     @pytest.mark.parametrize(
@@ -978,7 +985,7 @@ class TestConvertRungStrict:
 
 class TestHydrateWireContinuations:
     def test_pipe_added_under_T_non_A_column(self) -> None:
-        """T in column B propagates | to the blank cell below."""
+        """A T in column B puts a | in the blank cell below it."""
         rows = [
             ["", "T"] + [""] * 29,
             [""] * 31,
@@ -989,7 +996,7 @@ class TestHydrateWireContinuations:
         assert rows[2][1] == ""  # last row never written to
 
     def test_pipe_propagates_multi_row(self) -> None:
-        """| from hydration continues propagating downward."""
+        """A | that hydration adds also puts a | in the blank cell below it."""
         rows = [
             ["", "", "T"] + [""] * 28,
             [""] * 31,
@@ -998,11 +1005,11 @@ class TestHydrateWireContinuations:
         ]
         _hydrate_wire_continuations(rows)
         assert rows[1][2] == "|"
-        assert rows[2][2] == "|"  # propagated from row 1's newly-added |
+        assert rows[2][2] == "|"  # continued from the | that hydration added to row 1
         assert rows[3][2] == ""  # last row untouched
 
     def test_does_not_overwrite_existing_content(self) -> None:
-        """Only blank cells get hydrated."""
+        """Hydration writes a | only into a blank cell."""
         rows = [
             ["", "T"] + [""] * 29,
             ["", "-"] + [""] * 29,
@@ -1012,7 +1019,7 @@ class TestHydrateWireContinuations:
         assert rows[1][1] == "-"  # preserved, not overwritten
 
     def test_two_row_rung_is_noop(self) -> None:
-        """With only 2 rows, hydration does nothing (no safe target row)."""
+        """Hydration changes nothing in a 2-row rung, because it never writes to the last row."""
         rows = [
             ["", "T"] + [""] * 29,
             [""] * 31,
@@ -1021,7 +1028,7 @@ class TestHydrateWireContinuations:
         assert rows[1][1] == ""  # unchanged — last row, not eligible
 
     def test_existing_pipe_also_propagates(self) -> None:
-        """| in the source row also propagates downward, not just T."""
+        """A | puts a | in the blank cell below it, as a T does."""
         rows = [
             ["", "|"] + [""] * 29,
             [""] * 31,
@@ -1031,7 +1038,8 @@ class TestHydrateWireContinuations:
         assert rows[1][1] == "|"
 
     def test_timer_autopad_hydrates_T_wire(self, tmp_path: Path) -> None:
-        """Full converter round-trip: timer with T wire in non-A column."""
+        """Through the whole converter, a T in column B of a timer's row gives a | in the
+        padding row below."""
         csv_path = tmp_path / "main.csv"
         row0 = [""] * len(CONDITION_COLUMNS)
         row0[0] = "X001"

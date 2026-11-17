@@ -1,4 +1,4 @@
-"""Tests for deterministic empty multi-row synthesis."""
+"""Tests for the encoder that builds the bytes of an empty rung of 1 to 32 rows."""
 
 import pytest
 
@@ -71,7 +71,6 @@ def test_synthesize_empty_multirow_writes_row_word_header_and_cell_formulas(rows
 
     assert len(payload) == empty_multirow_payload_length(rows)
 
-    # Verify program header row word
     row_word = payload[PROGRAM_HEADER_BASE] | (payload[PROGRAM_HEADER_BASE + 1] << 8)
     assert row_word == empty_multirow_row_word(rows)
     assert payload[0x0A59] == 0x00

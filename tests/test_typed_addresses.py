@@ -1,14 +1,23 @@
-"""CLICK saves some addresses as typed; decode reads them in display form.
+"""CLICK saves some addresses as they were typed, and the decoders read them in display form.
 
-CLICK's answers (``tests/fixtures/editor_grids/*.answers.json``) show which fields: a single
-Copy's, a Block Copy's and a Pack's destination, each address of a Math formula, and a hex
-Math's result keep the text typed (``DS001``, ``ds1``, ``YD0U``, ``DS[ds1]``).  A Copy or
-Block Copy source, an Unpack source, a decimal Math result and an Out address are saved in
-display form.  Each answered save decodes as the instruction, with its CSV in display form;
-unchanged, it writes the saved bytes back, and changed, it is built in display form.  A typed
-form the rules refuse once it is in display form decodes holding the refusal, and a form no
-save shows stays raw.  A box ``decode_program`` reads keeps the blob composed from the program
-file, a set flag held as an empty field, and reads back from the clipboard as itself.
+The display form is the form that CLICK shows, such as ``DS1`` or ``YD0u``.  The answer files
+``tests/fixtures/editor_grids/*.answers.json`` record what CLICK saved, and they show which
+fields keep the typed text (``DS001``, ``ds1``, ``YD0U``, ``DS[ds1]``):
+
+- the destination of a single Copy, a Block Copy and a Pack;
+- each address in a Math formula;
+- the result of a hex Math.
+
+CLICK saves a Copy or Block Copy source, an Unpack source, the result of a decimal Math and
+an Out address in display form.
+
+Each answered save decodes as the instruction, and its CSV is in display form.  While the
+instruction is unchanged, it writes back the bytes that CLICK saved.  Once it is changed, it
+is built in display form.  If the rules refuse a typed form once it is in display form, the
+decoded instruction holds the refusal.  A typed form that no save shows stays a raw box.
+
+A box that ``decode_program`` reads keeps the blob composed from the program file, in which
+a set flag is an empty field.  That box reads back from the clipboard as itself.
 """
 
 from __future__ import annotations
@@ -47,7 +56,7 @@ from tests.kept_refusals import kept
 FIXTURES = Path(__file__).parent / "fixtures"
 GRIDS = FIXTURES / "editor_grids"
 
-#: Every save CLICK's answers hold with an address typed: (grid, case, instruction, CSV).
+#: Every save in the answer files that holds a typed address, as (grid, case, instruction, CSV).
 ANSWERED: list[tuple[str, str, AfInstruction, str]] = [
     ("copy_single", "single DS2 -> DS001", Copy("DS2", "DS1"), "copy(DS2,DS1)"),
     ("copy_single", "single DS2 -> DS01", Copy("DS2", "DS1"), "copy(DS2,DS1)"),
@@ -127,7 +136,7 @@ def _case(grid: str, label: str) -> dict[str, Any]:
 
 
 def _saved_rung(tmp_path: Path, case: dict[str, Any]) -> Rung:
-    """The rung CLICK saved for a case, as its ``stored`` rows record it."""
+    """Return the rung that CLICK saved for ``case``, read from the case's ``stored`` rows."""
     path = tmp_path / "stored.csv"
     path.write_text("\n".join([",".join(CSV_HEADER), *case["stored"]]) + "\n", "utf-8")
     [rung] = read_csv(path)
@@ -140,10 +149,12 @@ def _raw_box(rung: Rung) -> RawInstruction:
 
 
 def _program_box(raw: RawInstruction) -> AfInstruction:
-    """The box ``decode_program`` reads from the program file entry ``raw`` was written from.
+    """Return the box that ``decode_program`` reads from the program file entry that ``raw``
+    was written from.
 
-    The raw box holds the blob composed from the entry's tags, a flag that is set as an
-    empty value; read from those tags, it is read as ``decode_program`` reads the entry.
+    ``raw`` holds the blob composed from the entry's tags, in which a set flag is an empty
+    value.  This function reads the box from those tags, in the way that ``decode_program``
+    reads the entry.
     """
     class_name, type_code, parts, _extra, fields = _decompose_blob(raw.blob)
     assert parts == 1
@@ -164,7 +175,7 @@ def test_each_answered_save_reads_in_display_form(
     assert box == inst
     assert box.to_csv() == csv_text
     assert not refusals(box)
-    # Unchanged, it writes the bytes CLICK saved, and the cell rows.
+    # While unchanged, the box writes the bytes that CLICK saved, and the same cell rows.
     assert box.build_blob() == raw.blob
     instructions = [box if t is raw else t for t in rung.instructions]
     data = encode(replace(rung, instructions=instructions))
@@ -180,8 +191,8 @@ def test_each_answered_save_reads_in_display_form(
     assert box.build_blob() == replace(inst, oneshot=True).build_blob()
 
 
-#: The single Copy conversion saves that read as the Copy, with no address typed
-#: (``tests/ladder/test_copy_conversion.py``).
+#: The saves of a single Copy that converts its value.  Each reads as the Copy and holds no
+#: typed address.  ``tests/ladder/test_copy_conversion.py`` tests them.
 CONVERSION_SAVES = {
     ("copy_single", label)
     for label in (
@@ -202,8 +213,8 @@ CONVERSION_SAVES = {
 
 
 def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
-    """Of the Copy and Math saves the answers hold as ``raw(...)``, those that read as the
-    instruction now are the answered typed addresses and the single Copy conversion saves."""
+    """Of the Copy and Math saves that the answer files hold as ``raw(...)``, the ones that
+    read as an instruction are exactly those in ``ANSWERED`` and ``CONVERSION_SAVES``."""
     read: set[tuple[str, str]] = set()
     for grid in ("copy_single", "copy_block", "copy_pack", "math_decimal", "math_hex"):
         answers = json.loads((GRIDS / f"{grid}.answers.json").read_text(encoding="utf-8"))
@@ -217,7 +228,7 @@ def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
 
 
 def _retagged(blob: bytes, edits: dict[int, tuple[str, str]]) -> bytes:
-    """``blob`` with ``old`` written as ``new`` in each edited tag's value."""
+    """Return ``blob`` with ``old`` replaced by ``new`` in the value of each tag in ``edits``."""
     class_name, type_code, parts, extra, fields = _decompose_blob(blob)
     edited = []
     for tag, sentinel, value in fields:
@@ -230,7 +241,8 @@ def _retagged(blob: bytes, edits: dict[int, tuple[str, str]]) -> bytes:
 
 
 def _from_program(blob: bytes, rows: int) -> AfInstruction:
-    """The box ``decode_program`` reads from a program file entry of ``blob``'s fields.
+    """Return the box that ``decode_program`` reads from a program file entry with the
+    fields of ``blob``.
 
     A program file holds a set flag as an empty value and leaves an unset one out.
     """
@@ -242,8 +254,9 @@ def _from_program(blob: bytes, rows: int) -> AfInstruction:
     )
 
 
-#: Boxes ``decode_program`` reads holding the blob composed from the program file, each with
-#: a flag set: (instruction, tag edits that make the stored text differ, the flags set).
+#: Boxes that ``decode_program`` reads and that keep the blob composed from the program file,
+#: each with a flag set.  Each case is (id, instruction, the tag edits that make the stored
+#: text differ from the display form, the tags of the flags that are set).
 FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, ...]]] = [
     ("copy oneshot, typed", Copy("DS2", "DS1", oneshot=True), {0x6076: ("DS1", "ds1")}, (0x11F8,)),
     (
@@ -280,8 +293,10 @@ FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, .
 def test_a_program_box_reads_back_from_the_clipboard(
     inst: AfInstruction, edits: dict[int, tuple[str, str]], flags: tuple[int, ...]
 ) -> None:
-    """The blob composed from a program file writes a set flag as an empty value; the
-    clipboard decoder reads it as set, so the box reads back as itself."""
+    """A box read from a program file reads back from the clipboard as itself.
+
+    Its blob holds each set flag as an empty value, and the clipboard decoder reads that
+    empty value as set."""
     blob = inst.build_blob()
     fields = {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
     assert all(fields[flag] == "-1" for flag in flags)
@@ -300,7 +315,8 @@ def test_a_program_box_reads_back_from_the_clipboard(
 
 
 def test_a_program_box_holding_a_refusal_reads_back_from_the_clipboard() -> None:
-    """A box of another family that holds a refusal keeps its set flag through the clipboard."""
+    """A box of another family, here a ForLoop, that holds a refusal keeps its set flag and
+    its refusal through the clipboard."""
     blob = _retagged(ForLoop(count="3", oneshot=True).build_blob(), {0x6065: ("3", "Y001")})
     box = _from_program(blob, 1)
     assert isinstance(box, ForLoop) and box.oneshot
@@ -316,17 +332,17 @@ def test_a_program_box_holding_a_refusal_reads_back_from_the_clipboard() -> None
 
 
 def _one_box_of(box: AfInstruction) -> bytes:
-    """A one-rung clipboard holding ``box``."""
+    """Return a one-rung clipboard that holds ``box``."""
     return encode_rung(1, [["-"] * 31], [box])
 
 
 def _one_box(blob: bytes) -> bytes:
-    """A one-rung clipboard holding a raw box of ``blob``."""
+    """Return a one-rung clipboard that holds a raw box of ``blob``."""
     raw = RawInstruction(_decompose_blob(blob)[0], blob)
     return encode_rung(1, [["-"] * 31], [raw])
 
 
-#: Clipboard blobs with an address typed as CLICK saves it: (instruction, tag edits).
+#: Clipboard blobs with an address in a typed form that CLICK saves, as (instruction, tag edits).
 TYPED_BLOBS: list[tuple[AfInstruction, dict[int, tuple[str, str]]]] = [
     (Copy("DS2", "DS1"), {0x6076: ("DS1", "DS001")}),
     (Copy("DS2", "DS1"), {0x6076: ("DS1", "ds1")}),
@@ -399,7 +415,7 @@ def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
         (Unpack("DS1", "C1", "C16", "unpack_to_bits"), {0x6074: ("DS1", "ds1")}),
         # CLICK works out a Block Copy's destination end.
         (BlockCopy("DS1", "DS2", "DS11", "DS12"), {0x6077: ("DS12", "ds12")}),
-        # No save shows a typed Unpack or Fill destination, or an X or Y number made short.
+        # No save shows a typed Unpack or Fill destination, or a short X or Y address (Y1).
         (Unpack("DS1", "C1", "C16", "unpack_to_bits"), {0x6076: ("C1", "c1")}),
         (Fill("5", "DS1", "DS2"), {0x6076: ("DS1", "ds1")}),
         (Copy("C1", "Y001"), {0x6076: ("Y001", "Y1")}),
@@ -422,8 +438,9 @@ def _scr_text(text: str) -> bytes:
     return bytes([len(text) * 2 + 1]) + text.encode("utf-16-le") + b"\x00"
 
 
-#: Same-length edits of the coverage program and its clipboard capture that type an address
-#: as CLICK saves it: ((stored, typed) texts, class, field, the field's value read).
+#: Edits to the coverage program and its clipboard capture that write an address in a typed
+#: form that CLICK saves.  No edit changes the length of the text.  Each case is
+#: ((stored text, typed text) pairs, class, field, the value that the decoders read for it).
 COVERAGE_EDITS = [
     ((("DS10", "ds10"),), Copy, "dest", "DS10"),
     ((("DS32", "ds32"),), BlockCopy, "dest_start", "DS32"),
@@ -446,9 +463,12 @@ def test_both_decoders_read_a_typed_address(
     field: str,
     display: str,
 ) -> None:
-    """Each decoder reads the address in display form and, unchanged, writes back what it
-    wrote when the box decoded raw: the clipboard the bytes CLICK stored, the program file
-    the blob composed from its tags, the text as typed."""
+    """Both decoders read the typed address in display form.
+
+    While the box is unchanged, each decoder's result encodes to what it encoded when the
+    box stayed raw.  From the clipboard, that is the bytes that CLICK stored.  From the
+    program file, it is the blob composed from the entry's tags.  Both keep the address as
+    it was typed."""
     scr_dir = FIXTURES / "scr_captures"
     clipboard = (scr_dir / "coverage.bin").read_bytes()
     program = (scr_dir / "coverage.scr").read_bytes()
@@ -475,7 +495,7 @@ def test_both_decoders_read_a_typed_address(
     blob = inst.build_blob()
     assert all(_clip_text(new) in blob for _old, new in texts)
     assert blob in clipboard
-    # The clipboard's cells when that one stayed raw.
+    # Decode the clipboard again with this box left raw.
     decode_mod = sys.modules["laddercodec.decode"]
     parse_af = decode_mod.parse_af_blob
     monkeypatch.setattr(
@@ -487,7 +507,7 @@ def test_both_decoders_read_a_typed_address(
 
     scr_index, inst_scr = typed(from_program)
     assert inst_scr == inst and not refusals(inst_scr)
-    # The program file's boxes when that one stayed raw.
+    # Decode the program file again with this box left raw.
     program_mod = sys.modules["laddercodec.decode_program"]
     scr_af = program_mod._scr_af
     monkeypatch.setattr(

@@ -1,9 +1,9 @@
-"""Out variants — CLICK v4's toggle, debounce, flasher and timed coils.
+"""The ``OutVariant`` instruction, for CLICK v4's toggle, debounce, flasher and timed coils.
 
-Binary class name: ``"Out"``, type marker 0x2715 (same as a plain ``out``).
-The func code (tag ``0x3218``) tells them apart from plain coils.
+These coils have the same binary class name and type marker as a plain ``out`` coil:
+``"Out"`` and 0x2715. Their func code (tag ``0x3218``) tells them apart from plain coils.
 
-CSV token formats::
+Their CSV tokens look like this::
 
     toggle(C1)
     toggle(immediate(Y001))
@@ -13,8 +13,8 @@ CSV token formats::
     timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)
     timed(C1,on_acc=TD1,on_preset=3,unit=Ts,maintained=1)
 
-Each phase names only its accumulator (``TD``); Click claims the ``T`` of the
-same number with it.
+Each phase names only its accumulator, a ``TD`` register. CLICK takes the ``T`` bit with the
+same number for that phase as well.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ OutVariantKind = Literal["toggle", "debounce", "flasher", "timed"]
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: Variant -> tag 0x2248 value.
+#: The value of tag 0x2248 for each variant.
 _KIND_INDEX: dict[str, str] = {"toggle": "0", "debounce": "1", "flasher": "2", "timed": "3"}
 
 OUT_VARIANT_FUNC_CODES: dict[tuple[OutVariantKind, str, bool], str] = {
@@ -66,8 +66,9 @@ _FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, str, bool]] = {
 
 _TWO_PHASE = frozenset({"debounce", "flasher"})
 
-#: Cell kwargs per kind.  A timed box spans 2 rows but CLICK writes 3 sub-rows in the
-#: cell header (+0x09 = 2, +0x0A = 3); a toggle is one row like a plain coil.
+#: The ``ClickCell`` keyword arguments for each kind. A timed box spans 2 rows, but CLICK
+#: writes 3 sub-rows in the cell header (+0x09 = 2, +0x0A = 3). A toggle is one row, like a
+#: plain coil.
 _KIND_CELL_PARAMS: dict[str, dict] = {
     "toggle": {},
     "debounce": {"visual_rows": 3},
@@ -78,11 +79,12 @@ _KIND_CELL_PARAMS: dict[str, dict] = {
 #: Accumulators are timer data registers.
 _ACC_BANKS = frozenset({"TD"})
 
-#: Lowest constant preset: debounce takes 0, flasher and timed 1.
+#: The lowest constant preset that each kind accepts: 0 for debounce, 1 for flasher and timed.
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
 
-#: Fields each kind uses; any other of them must stay empty.
+#: The fields that each kind uses. Of these five fields, any that a kind does not use must be
+#: empty.
 _USED_FIELDS: dict[str, frozenset[str]] = {
     "toggle": frozenset(),
     "debounce": frozenset({"on_acc", "on_preset", "off_acc", "off_preset", "unit"}),
@@ -92,7 +94,8 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 
 
 def _check_preset(value: str, name: str, floor: int) -> None:
-    """A preset is a DS register or a digits-only constant from *floor* to 32767."""
+    """Raise ``FieldError`` unless the preset is a DS register or a digits-only constant from
+    *floor* to 32767."""
     constants = Constants(frozenset({Kind.INTEGER}), signs="", low=floor, high=INT16_MAX)
     check_operand(value, name, {"DS"}, constants, letter_first=True)
 
@@ -141,8 +144,9 @@ class OutVariant(AfInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("operand", "on_acc", "on_preset", "off_acc", "off_preset")
-            # The target follows Out's rule, writable SC list included.  A junk flag value
-            # is read as it stands here, and refused last, so it changes no earlier refusal.
+            # The target follows the same rules as an Out coil's target, including the list of
+            # writable SC bits. A flag that is not a bool is passed on here as it is.
+            # check.flag refuses it last, so its refusal comes after every other refusal.
             check("operand", check_out_target, immediate=self.immediate)
             if self.kind not in _KIND_INDEX:
                 check.refuse(
@@ -156,7 +160,7 @@ class OutVariant(AfInstruction):
             check.flag("immediate", "maintained")
 
     def _check_kind_rules(self, check: Refusals) -> None:
-        """The checks that depend on a valid ``kind``."""
+        """Run the checks that need a valid ``kind``."""
         used = _USED_FIELDS[self.kind]
         for name in ("on_acc", "on_preset", "off_acc", "off_preset", "unit"):
             if name not in used and getattr(self, name):
@@ -182,9 +186,11 @@ class OutVariant(AfInstruction):
             )
         if self.kind == "toggle":
             return
-        # The func code is looked up with the flag as given, so a junk ``maintained`` can
-        # refuse ``unit`` first; the flag itself is refused last.  A ``maintained`` refused
-        # above (a kind that has none) already explains the failed lookup.
+        # Look up the func code with ``maintained`` as given. If ``maintained`` is not a bool,
+        # the lookup can fail, and then ``unit`` is refused first. check.flag refuses
+        # ``maintained`` itself last. Skip the lookup if ``maintained`` was refused above,
+        # for a kind that has no Output Maintained box, because that refusal already
+        # explains the failure.
         if (
             not check.refused("maintained")
             and (self.kind, self.unit, self.maintained) not in OUT_VARIANT_FUNC_CODES
@@ -198,8 +204,10 @@ class OutVariant(AfInstruction):
         floor = _PRESET_FLOORS[self.kind]
         phases = ["on", "off"] if self.kind in _TWO_PHASE else ["on"]
         if self.kind == "debounce":
-            # A debounce phase with both fields empty is skipped; with both phases empty the on
-            # preset is refused, OBJ-006.  debounce_one_phase.bin holds both one-phase forms.
+            # Skip a debounce phase whose two fields are both empty. If both phases are empty,
+            # refuse the on preset with OBJ-006. CLICK writes a debounce with only an on phase
+            # and one with only an off phase. tests/fixtures/v4_captures/debounce_one_phase.bin
+            # holds both.
             filled = [ph for ph in phases if self._phase_fields(ph) != ("", "")]
             if not filled:
                 check.refuse(
@@ -216,7 +224,7 @@ class OutVariant(AfInstruction):
         for ph in phases:
             accs.append(check(f"{ph}_acc", check_address, _ACC_BANKS))
             check(f"{ph}_preset", _check_preset, floor)
-        # One register for both phases is OBJ-012.
+        # The same register for both phases is refused with OBJ-012.
         if len(accs) == 2 and accs[0] is not None and accs[1] is not None:
             if (accs[0].bank, accs[0].number) == (accs[1].bank, accs[1].number):
                 check.refuse(
@@ -312,11 +320,11 @@ class OutVariant(AfInstruction):
         return f"{self.kind}({','.join(parts)})"
 
     def cell_params(self) -> dict:
-        """Return ClickCell kwargs intrinsic to this instruction."""
+        """Return the ``ClickCell`` keyword arguments that depend on this instruction alone."""
         return dict(_KIND_CELL_PARAMS[self.kind])
 
     def _tag_values(self) -> list[str]:
-        """Values written for ``_OUT_VARIANT_TAGS``, in order."""
+        """Return the values to write for ``_OUT_VARIANT_TAGS``, in order."""
         return [
             self.operand,
             "",
@@ -348,11 +356,12 @@ class OutVariant(AfInstruction):
 
 
 def _writes_tags(decoded: OutVariant, tags: dict[int, str]) -> bool:
-    """True when re-encoding *decoded* keeps every value the blob holds.
+    """Return True if encoding *decoded* again writes every value that the blob holds.
 
-    A blob that holds a value the kind's dialog never writes (an accumulator, a unit or a
-    range end in a toggle, an immediate flag in a timed) would lose it; it stays raw.
-    A blank or absent tag holds no value: SCR files leave out the tags at their default.
+    A blob can hold a value that the kind's dialog never writes, such as an accumulator, a
+    unit or a range end in a toggle, or an immediate flag in a timed coil. Encoding would
+    lose that value, so such a blob stays raw. A blank or missing tag holds no value, because
+    SCR files leave out each tag that has its default value.
     """
     for tag, written in zip(_OUT_VARIANT_TAGS, decoded._tag_values(), strict=True):
         held = tags.get(tag, "")
@@ -368,10 +377,16 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> OutVariant | None:
-    """Construct an OutVariant from tag data (shared by both decoders)."""
+    """Build an ``OutVariant`` from the tags of an instruction blob, or return None.
+
+    Return None if the blob is not an Out variant that this function can read, or if
+    encoding the result again would lose a value that the blob holds. The clipboard
+    decoder and the program-file decoder both call this.
+    """
     if class_name != "Out" or type_code != 0x2715:
         return None
-    # The func code is per family, not a tag default (see binary_helpers.tag_default).
+    # Read the func code with tags.get, not tag_value. Each family has its own func codes,
+    # so the func code has no tag default (see binary_helpers.tag_default).
     variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
     operand = tag_value(tags, 0x6066)
     if variant is None or not operand:
@@ -396,7 +411,8 @@ def from_tags(
 
 
 def cell_params_from_tags(class_name: str, type_code: int, tags: dict[int, str]) -> dict | None:
-    """Cell kwargs of an Out blob whose func code (tag 0x3218) names a variant kind."""
+    """Return the ``ClickCell`` keyword arguments of an Out blob whose func code (tag 0x3218)
+    names a variant kind, or None for any other blob."""
     if class_name != "Out" or type_code != 0x2715:
         return None
     variant = _FUNC_TO_VARIANT.get(tags.get(0x3218, ""))
@@ -404,15 +420,16 @@ def cell_params_from_tags(class_name: str, type_code: int, tags: dict[int, str])
 
 
 def parse_af_call(call: AfCall) -> OutVariant:
-    """Parse an AF AST call into an OutVariant."""
+    """Parse a call from a CSV rung's AF (output) column into an ``OutVariant``."""
     return OutVariant.from_csv_token(call.to_token())
 
 
 SPEC = AfInstructionFamilySpec(
     family_name="out_variant",
     instruction_types=(OutVariant,),
-    # Shares class name "Out" with coil.py, which owns the INSTRUCTION_MODULES entry;
-    # from_tags dispatch tries every family, so the func code decides.
+    # Coil also uses the class name "Out", and coil.py's SPEC registers that name in
+    # INSTRUCTION_MODULES. The decoders try the from_tags of every family in turn, so the
+    # func code decides which family decodes an Out blob.
     binary_class_names=(),
     from_tags=from_tags,
     csv_names=("toggle", "debounce", "flasher", "timed"),

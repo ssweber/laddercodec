@@ -27,7 +27,7 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"hello"), "hello"),
         (_rtf(b"one\\par two"), "one\ntwo"),
         (_rtf(b"{\\b bold} and {\\i\\ul more}"), "bold and more"),
-        # truncated: no closing brace, no suffix
+        # a truncated payload, with no closing brace and no suffix
         (PREFIX + b"cut {\\b off", "cut off"),
         (b"{\\rtf1\\ansi{\\fonttbl{\\f0 Arial;", ""),
         # unknown destination groups are dropped, with their nested groups
@@ -45,11 +45,12 @@ def _rtf(body: bytes) -> bytes:
         (_rtf(b"lone \\u-10179?end"), "lone end"),
         (_rtf(b"a\\\\b\\{c\\}"), "a\\b{c}"),
         (_rtf(b"a\\~b\\_c"), "a b-c"),
-        # a closer that closes the outermost group while text follows is stray: reading goes on
+        # A closing brace that closes the outermost group with text after it is stray.
+        # Reading goes on past it.
         (_rtf(b"a}}b"), "ab"),
         (_rtf(b"{\\b one}} two"), "one two"),
         (_rtf(b"one } two\\par three"), "one  two\nthree"),
-        # the end is the closer with only whitespace or NULs after it
+        # the payload ends at the closing brace that has only whitespace or NULs after it
         (_rtf(b"hi") + b"\r\n \x00", "hi"),
         # bytes after the end are text too, since the record is length-bounded
         (_rtf(b"hi") + b"garbage after", "hi\ngarbage after"),
@@ -129,7 +130,7 @@ def test_recovered_comment_keeps_the_longest_text_that_fits(body: bytes) -> None
 
 
 def _wrong_code_page(data: bytes, index: int = 0) -> bytes:
-    """*data* with the code page of its comment number *index* (from 0) changed to 1251."""
+    """Return *data* with the code page of comment *index*, counted from 0, changed to 1251."""
     at = -1
     for _ in range(index + 1):
         at = data.index(b"ansicpg1252", at + 1)
@@ -159,7 +160,10 @@ def _rung(comment: str) -> Rung:
     ],
 )
 def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
-    """The recovered text comes back as the same text after an encode and a decode."""
+    """After an encode and a decode, a recovered comment holds its note and then its text.
+
+    The text is what a plain comment with the same characters decodes to.
+    """
     placeholder = "A" * len(raw)
     data = encode(_rung(placeholder)).replace(placeholder.encode(), raw.encode())
     with pytest.warns(UndecodedCommentWarning) as caught:

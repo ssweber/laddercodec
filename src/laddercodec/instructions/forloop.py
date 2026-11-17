@@ -37,13 +37,15 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-#: A constant count is digits only (0 is allowed, a sign is not) up to 2147483647, else
-#: OBJ-005; a register count is DS, DD, TD, CTD or SD, else OBJ-004.
+#: A constant count is digits only, from 0 to 2147483647, with no sign. Any other constant
+#: is refused with OBJ-005. A register count must be a DS, DD, TD, CTD or SD address. Any
+#: other bank is refused with OBJ-004.
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
 FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
 _FOR_LIMIT_CONSTANTS = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT32_MAX)
 
-# Class "Next" func codes (0x3218).  v3 writes Next without one; v4 writes 9220.
+# Func codes of binary class "Next", in tag 0x3218.  CLICK v3 writes a Next with no func
+# code, and v4 writes 9220.
 _NEXT_FUNC_CODE = "9220"
 _CONTINUE_FUNC_CODE = "9232"
 _BREAK_FUNC_CODE = "9233"
@@ -60,7 +62,7 @@ def _validate_for_count(value: str) -> str:
             code=Code.BLANK_FIELD,
         )
     if _FOR_SPACED_RE.fullmatch(text):
-        # The dialog lets ``1 0`` through; it is not a number, so it is refused.
+        # CLICK's dialog accepts ``1 0``.  It is not a number, so laddercodec refuses it.
         raise FieldError(
             f"ForLoop.count: {text!r} has a space inside; a constant count is digits only",
             field="ForLoop.count",
@@ -136,7 +138,7 @@ class ForLoop(AfInstruction):
             "For",
             FOR_TYPE_MARKER,
             _FOR_TAGS,
-            # One Shot flag: CLICK writes 1.
+            # The One Shot flag.  CLICK writes 1 when it is on.
             [self.count, self.func_code, "1" if self.oneshot else "0", ""],
         )
 
@@ -166,7 +168,9 @@ class Next(AfInstruction):
 
 @dataclass
 class Break(AfInstruction):
-    """BREAK (CLICK v4): leave the innermost loop.  Class ``Next``, func code 9233."""
+    """The CLICK v4 BREAK instruction, which leaves the innermost loop.
+
+    Its binary class is ``Next``, with func code 9233."""
 
     @classmethod
     def from_csv_token(cls, token: str) -> Break:
@@ -189,7 +193,9 @@ class Break(AfInstruction):
 
 @dataclass
 class Continue(AfInstruction):
-    """CONTINUE (CLICK v4): skip to the next iteration.  Class ``Next``, func code 9232."""
+    """The CLICK v4 CONTINUE instruction, which skips to the next iteration of the loop.
+
+    Its binary class is ``Next``, with func code 9232."""
 
     @classmethod
     def from_csv_token(cls, token: str) -> Continue:
@@ -217,7 +223,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> ForLoop | Next | Break | Continue | None:
-    """Construct a ForLoop, Next, Break or Continue from tag data (shared by both decoders)."""
+    """Build a ForLoop, Next, Break or Continue from tag data, or return None.
+
+    The clipboard decoder and the program file decoder both call this.
+    """
     if class_name == "Next" and type_code == NEXT_TYPE_MARKER:
         func_code = tags.get(0x3218, _NEXT_FUNC_CODE)
         if func_code == _NEXT_FUNC_CODE:

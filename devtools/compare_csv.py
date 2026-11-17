@@ -1,9 +1,9 @@
-"""Compare {slug}.csv against {slug}.clipboard.csv in a directory.
+"""Compare each {slug}.clipboard.csv under a directory with the {slug}.csv beside it.
 
-Reports which pairs are identical and which differ.  Rung markers are
-normalized before comparison (indexed ``R1``/``R2`` vs plain ``R``), since
-scr-derived bundles are written with ``index=True`` while clipboard saves
-are not.
+Print whether each pair is identical or differs, and name each {slug}.csv that is
+missing. Before the comparison, replace each indexed rung marker such as ``R1`` or
+``R2`` with a plain ``R``. The CSV files made from a .scr file are written with
+``index=True``, and the CSV files saved from the clipboard are not.
 
 Usage:
     uv run devtools/compare_csv.py <directory>
@@ -33,7 +33,7 @@ def main() -> None:
         print(f"Not a directory: {directory}", file=sys.stderr)
         sys.exit(1)
 
-    # Find all .clipboard.csv files and match to base CSVs
+    # Find every .clipboard.csv file, then look for the {slug}.csv beside each one.
     clipboard_files = sorted(directory.rglob("*.clipboard.csv"))
     if not clipboard_files:
         print(f"No *.clipboard.csv files found in {directory}")

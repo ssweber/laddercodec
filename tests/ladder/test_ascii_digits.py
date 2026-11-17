@@ -1,8 +1,8 @@
-"""Constants, counts and address numbers take the ASCII digits 0-9 only.
+"""Tests that constants, counts and address numbers accept only the ASCII digits 0-9.
 
-Python's ``\\d`` and ``int()`` accept every Unicode decimal digit (ARABIC-INDIC DIGIT
-THREE, ``\\u0663``); CLICK's validators do not.  A Search text value follows the Compare
-rule.
+Python's ``\\d`` and ``int()`` accept every Unicode decimal digit, such as ARABIC-INDIC
+DIGIT THREE (``\\u0663``). CLICK's validators do not. Search checks a quoted text value
+with the same rule as Compare.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def _time_drum(preset: str) -> Drum:
     )  # fmt: skip
 
 
-# (id, constructor taking the digit text).
+# Each case is a test id and a function that builds or checks an operand from the digit text.
 CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("address", lambda d: check_address(f"DS{d}", "x")),
     ("contact", lambda d: Contact(f"X00{d}")),
@@ -76,9 +76,10 @@ CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("math-address", lambda d: Math("DS1 + 1", f"DS{d}", "decimal")),
 ]
 
-# Counter and Drum need pin rows or a syntax read_csv does not take; their constructors
-# and checks are covered above.
-# (id, condition-column token or None, AF token) with ``@`` where the digit goes.
+# Counter and Drum are not listed here. In a CSV they need pin rows, or a syntax that
+# read_csv does not accept. The constructor cases above cover them.
+# Each case is a test id, a condition-column token and an AF token, which may be empty.
+# ``@`` marks where the digit goes.
 CSV_TOKENS: list[tuple[str, str, str]] = [
     ("contact", "X00@", ""),
     ("contact-C", "C@", ""),

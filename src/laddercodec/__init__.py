@@ -1,4 +1,12 @@
-"""Binary codec for AutomationDirect CLICK PLC ladder clipboard format."""
+"""Read and write the ladder logic of AutomationDirect's CLICK PLC programming software.
+
+``encode()`` turns ``Rung`` objects into the binary that CLICK puts on the clipboard, ready
+to paste. ``decode()`` turns that binary back into ``Rung`` objects. ``decode_program()``
+reads a program from a ``Scr*.tmp`` file, one of the temp files that CLICK writes to disk.
+``read_csv()`` and ``write_csv()`` convert between ``Rung`` objects and a CSV form that
+people and programs can read and edit. ``check()`` lists the shapes in your rungs that
+CLICK's Syntax Check refuses.
+"""
 
 from .codes import CLICK_IDS, Code
 from .compat import find_v4_only, is_v4_only

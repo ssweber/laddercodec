@@ -1,9 +1,10 @@
 """Lay a rung out from its circuit, as CLICK's syntax check draws it.
 
-Pipeline: cell grid -> nets and contact edges (``network``) -> structural series-parallel tree
-per CLICK rung (``tree``) -> packed layout (``render``).  The rules are in
-``docs/internals/layout.md``.  ``read_csv`` and ``write_csv`` use :func:`canonical`;
-``laddercodec.check()`` uses ``network`` and ``tree.circuits``.
+The work runs in three steps.  ``network`` reads the cell grid into nets and contact edges.
+``tree`` reduces the nets to one series-parallel tree for each CLICK rung, by structure
+alone.  ``render`` draws each tree in the packed layout.  ``docs/internals/layout.md`` gives
+the rules.  ``read_csv`` and ``write_csv`` use :func:`canonical`.  ``laddercodec.check()``
+uses ``network`` and ``tree.circuits``.
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ __all__ = [
 
 
 def network_of_rung(rung: Any, af_down: Sequence[bool] | None = None) -> Network:
-    """The nets of a decoded or CSV-read ``Rung``."""
+    """Return the network of a ``Rung`` that was decoded or read from CSV."""
     cells = [[cell_of(t) for t in row] for row in rung.conditions]
     return network(cells, list(rung.instructions), af_down)
 
@@ -42,21 +43,22 @@ def layout_grid(
     instructions: Sequence[object],
     af_down: Sequence[bool] | None = None,
 ) -> list[tuple[list[list[object]], list[object]]]:
-    """Each CLICK rung the grid lays out to, as (condition rows, AF tokens)."""
+    """Lay out a cell grid and return each CLICK rung it makes, as (condition rows, AF tokens)."""
     net = network(cells, instructions, af_down)
     return [render(net, t) for t in trees(net)]
 
 
 def layout(rung: Any, af_down: Sequence[bool] | None = None) -> list[Any]:
-    """The rung (or rungs, when CLICK splits it) in CLICK's layout; the comment goes on the first.
+    """Return the rung in CLICK's layout, as several rungs when CLICK splits it.
 
-    Raises :class:`LayoutError` for a rung this layout cannot draw.  A rung that holds wires
-    and unwired NOPs at most comes back as it is.
+    The rung's comment goes on the first rung returned.  Raises :class:`LayoutError` for a
+    rung this layout cannot draw.  A rung with no contact, and no box except NOPs that no
+    rail or contact reaches, comes back as it is.
     """
     net = network_of_rung(rung, af_down)
     found = trees(net)
     if not found:
-        return [rung]  # an empty rung (no box, no contact) draws as it is
+        return [rung]  # nothing to lay out
     return _render(rung, net, found)
 
 
@@ -79,15 +81,22 @@ def _render(rung: Any, net: Network, found: list[RungTree]) -> list[Any]:
 
 
 def canonical(rung: Any) -> list[Any] | None:
-    """The rung as CLICK's syntax check draws it, one ``Rung`` per CLICK rung, or ``None``.
+    """Return the rung as CLICK's syntax check draws it, one ``Rung`` per CLICK rung, or ``None``.
 
-    ``None`` when the rung has no layout: it holds wires and unwired NOPs at most, or
-    ``laddercodec.check()`` reports it (its circuit is not series-parallel, a contact or box
-    no rail reaches, a shape CLICK's check refuses), or the layout cannot draw it.  Such a
-    rung stays as drawn.  Two findings keep a layout: a pin no rail or contact reaches (the layout
-    draws its row blank, as CLICK saves a pin whose row holds nothing) and a contact that feeds
-    only a NOP (laid out as before; CLICK keeps that layout when pasted, and its check on the
-    rung as written is not captured).
+    Return ``None`` when the rung has no layout.  That happens in three cases:
+
+    - The rung has no contact, and no box except NOPs that no rail or contact reaches.
+    - ``laddercodec.check()`` reports the rung.  For example, its circuit is not
+      series-parallel, no rail reaches one of its contacts or boxes, or CLICK's check refuses
+      its shape.
+    - The layout cannot draw the rung.
+
+    The caller keeps such a rung as it was drawn.  Two findings of ``check()`` still allow a
+    layout.  The first is a pin that no rail or contact reaches.  The layout draws the pin's
+    row blank, the same way CLICK saves a pin whose row holds nothing.  The second is a contact
+    that feeds only a NOP.  The layout draws that rung like any other.  CLICK keeps that layout
+    when the rung is pasted.  What CLICK's check reports for the rung as written is not
+    captured.
     """
     from ..layout_check import check
 
@@ -102,12 +111,13 @@ def canonical(rung: Any) -> list[Any] | None:
 
 
 def circuit(rungs: Sequence[Any]) -> list[object]:
-    """The circuits of *rungs*, one per CLICK rung, with every row and column left out.
+    """Return the circuits of *rungs*, one for each CLICK rung, without rows or columns.
 
-    Two lists of rungs with equal circuits hold the same contacts, in the same series and
-    parallel blocks, feeding the same boxes with the same pin circuits: each contact of a
-    rung is in its circuit exactly once, so a contact drawn twice or lost makes the circuits
-    differ.  A rung that holds wires and unwired NOPs at most has no circuit.  Raises
+    If two lists of rungs have equal circuits, they hold the same contacts in the same series
+    and parallel blocks, and those contacts feed the same boxes with the same pin circuits.
+    Each contact of a rung appears exactly once in the rung's circuit.  A contact that is
+    drawn twice, or lost, therefore makes the circuits differ.  A rung with no contact, and
+    no box except NOPs that no rail or contact reaches, has no circuit.  Raises
     :class:`LayoutError` for a rung with no series-parallel circuit, or whose circuit would
     hold a contact twice or not at all.
     """
@@ -146,7 +156,10 @@ class _Circuit:
         return ("branch", tuple(self.node(n) for n in branch.series), items)
 
     def box(self, sink: int) -> object:
-        """A box without its rows (a pinned box's pin rows are layout), with its pin circuits."""
+        """Return a box with its pin circuits and without its rows.
+
+        The pin rows of a pinned box belong to the layout, not to the circuit.
+        """
         b = self.net.sinks[sink].box
         token = self.net.boxes[b].token
         if isinstance(token, PinnedInstruction):

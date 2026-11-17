@@ -1,4 +1,4 @@
-"""Tests for laddercodec.model — Contact, Coil parsing."""
+"""Tests of how Contact and Coil read and write CSV tokens, and of their function codes."""
 
 import csv
 from pathlib import Path
@@ -22,7 +22,8 @@ def _rung_csv(path: Path, condition: str, af: str) -> Path:
 
 
 class TestKind:
-    """Contact and Coil are built by kind, operand first, and write the CSV token of it."""
+    """Contact and Coil take the operand first and a ``kind`` argument. Each one writes the
+    CSV token for its kind and reads that token back."""
 
     @pytest.mark.parametrize(
         ("contact", "token"),
@@ -109,7 +110,8 @@ class TestKind:
         with pytest.raises(FieldError, match="Coil.oneshot") as info:
             read_csv(path)
         assert info.value.reason is reason
-        # The parser raises it, so it is never kept, even read unchecked.
+        # The parser raises this refusal itself, so no instruction keeps it. read_csv raises it
+        # even with unchecked=True.
         with pytest.raises(FieldError, match="Coil.oneshot"):
             read_csv(path, unchecked=True)
 

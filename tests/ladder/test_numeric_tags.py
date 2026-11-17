@@ -1,8 +1,10 @@
-"""Text that is no number in a numeric tag leaves the blob raw.
+"""Tests that a blob stays raw when a numeric tag holds text that is not a number.
 
-A numeric tag read as its default would build another variant of the instruction (a Pack
-of text read as a Pack of words) and hold the refusals of that one.  Each case takes a
-coverage golden's blob, stores ``C1`` in one numeric tag, and parses the tags again.
+If the decoder read such a tag as its default value, it would build a different variant of
+the instruction and keep the refusals of that variant. A Pack of text, for example, would
+decode as a Pack of words. Each case builds the blob of an instruction read from a CSV file
+in ``tests/fixtures/coverage/golden``, stores ``C1`` in one numeric tag, and parses the tags
+again.
 """
 
 from __future__ import annotations
@@ -23,7 +25,8 @@ from laddercodec.instructions.raw import _decompose_blob, _fields_to_tag_dicts
 
 GOLDEN = Path(__file__).parents[1] / "fixtures" / "coverage" / "golden"
 
-#: (golden, class read from it, numeric tag).
+#: Each case is the name of a golden file, the class of the instruction read from it, and
+#: the numeric tag that the test changes.
 CASES = [
     ("cond__eq", "CompareContact", 0x21F7),
     ("cond__rise", "Contact", 0x21F6),
@@ -72,7 +75,8 @@ def test_home_variant_tag_with_no_number_leaves_the_blob_raw() -> None:
 
 
 def test_pack_text_with_no_number_conversion_decodes_raw() -> None:
-    """The stored blob is not read as a Pack of words, which it isn't."""
+    """A Pack of text whose tag 0x2227 holds ``C1`` decodes as a raw instruction, not as a
+    Pack of words."""
     data = (GOLDEN / "pack_text__allow_whitespace.bin").read_bytes()
     stored = b"\x27\x22\xff\xff\xff\xff" + "10".encode("utf-16-le") + b"\x00\x00"
     assert data.count(stored) == 1
