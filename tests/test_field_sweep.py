@@ -8,7 +8,10 @@ refusals (a golden added later is recorded from the code of its day).  Now each 
 refusal: what was accepted stays accepted, what was refused stays refused with the same
 class, and a refusal never becomes a crash.
 
-The record changes only with the golden set: ``make field-sweep``.
+The record is keyed by a digest of the instruction's class name and CSV text, which a field
+rename does not change: after a pure rename the keys are the same and, if the field order and
+types are unchanged, so are the outcome strings.  The record changes only with the golden set:
+``make field-sweep``.
 """
 
 from __future__ import annotations
