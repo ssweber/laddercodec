@@ -1,6 +1,7 @@
-"""Out — all coil types (type markers 0x2715, 0x2716, 0x2717).
+"""The ``Coil`` instruction, for CLICK's Out, Set and Reset coils.
 
-Binary class name: ``"Out"`` (for out, latch, and reset).
+The type markers are 0x2715 for Out, 0x2716 for Set and 0x2717 for Reset. All three kinds
+use the binary class name ``"Out"``.
 """
 
 from __future__ import annotations
@@ -29,7 +30,8 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: A coil's kind, as its CSV call is named: ``out(...)``, ``latch(...)``, ``reset(...)``.
+#: The kind of a coil. Each kind is also the name of the coil's CSV call: ``out(...)``,
+#: ``latch(...)`` or ``reset(...)``.
 CoilKind = Literal["out", "latch", "reset"]
 
 COIL_FUNC_CODES: dict[tuple[CoilKind, bool, bool, bool], str] = {
@@ -73,8 +75,10 @@ _COIL_TAGS = (0x6066, 0x6067, 0x11F8, 0x11F5, 0x3218, 0x0000)
 
 
 def _bank_of(value: str) -> str | None:
-    """The bank of ``value`` if it is a CLICK address or a pointer CLICK reads (``DS[DS1]``,
-    not ``X[DS1]``), of any bank; else None."""
+    """Return the bank of ``value``, or None if ``value`` is not an address CLICK accepts.
+
+    ``value`` may be an address in any bank, or a pointer that CLICK accepts, such as
+    ``DS[DS1]``. A pointer that CLICK does not accept, such as ``X[DS1]``, returns None."""
     try:
         return check_operand(value, "Coil.range_end", pointer=True).bank
     except AddressError:
@@ -102,7 +106,9 @@ class Coil(AfInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
+            # Test against a tuple, not the dict, so that an unhashable kind is refused and
+            # does not raise TypeError.
+            if self.kind not in tuple(_KIND_TO_ITYPE):
                 check.refuse(
                     "kind",
                     f"{self.kind!r} is not a coil (out, latch or reset)",
@@ -121,16 +127,19 @@ class Coil(AfInstruction):
             check.normalize("operand")
             if self.range_end is not None:
                 check.normalize("range_end")
-            # A refused immediate flag is not read: the bank checks still run.
+            # If check.flag refused ``immediate`` because it is not a bool, count it as False,
+            # so that the target checks below still run.
             immediate = self.immediate is True
-            # Out, Set and Reset follow the same target and range rules, with the same ids:
-            # OBJ-004 for a bank they do not take, OBJ-003 for an SC bit they can't write.
+            # Out, Set and Reset follow the same rules for targets and ranges, and CLICK gives
+            # the same error ids for all three. OBJ-004 is for a bank that the coil does not
+            # accept, and OBJ-003 is for an SC bit that it cannot write.
             ids = {"bank_id": "OBJ-004", "not_writable_id": "OBJ-003"}
             start = check("operand", check_out_target, immediate=immediate, **ids)
             if self.range_end is None:
                 return
-            # An end in another bank is OBJ-008 before the end's own checks, even where its
-            # bank is refused too (C1..DS1) and where it is a pointer (Y001..DS[DS1]).
+            # If the end of the range is in another bank, refuse it with OBJ-008 before the
+            # end's own checks run. This applies even when a coil does not accept the end's
+            # bank at all (C1..DS1), and when the end is a pointer (Y001..DS[DS1]).
             end_bank = _bank_of(self.range_end)
             if start is not None and end_bank is not None and end_bank != start.bank:
                 check.refuse(
@@ -141,12 +150,14 @@ class Coil(AfInstruction):
                     "OBJ-008",
                     code=Code.RANGE_MIXED_BANKS,
                 )
-            # An SC range needs both ends writable; the bits between are not checked.
+            # In an SC range, both ends must be writable. The bits between them are not
+            # checked.
             end = check("range_end", check_out_target, immediate=immediate, **ids)
             if start is None or end is None:
                 return
             if end.number <= start.number:
-                # An end below the start is OBJ-009; the same address at both ends, OBJ-012.
+                # An end below the start is refused with OBJ-009. An end at the same address
+                # as the start is refused with OBJ-012.
                 check.refuse(
                     ("range_end", "operand"),
                     f"{self.range_end!r} is not above {self.operand!r}; a range runs from a "
@@ -158,7 +169,10 @@ class Coil(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Coil:
-        """Parse coil forms with inner immediate wrapper and ranges."""
+        """Parse the CSV token of a coil, such as ``out(Y001)`` or ``out(C1..C8,oneshot=1)``.
+
+        An ``immediate(...)`` wrapper goes inside the call, as in ``out(immediate(Y001))``.
+        """
         token = token.strip()
         if token.startswith("immediate("):
             raise CsvError(
@@ -230,7 +244,7 @@ class Coil(AfInstruction):
         return f"{name}({operand})"
 
     def cell_params(self) -> dict:
-        """Return ClickCell kwargs intrinsic to this instruction."""
+        """Return the ``ClickCell`` keyword arguments that depend on this instruction alone."""
         return {}
 
     def build_blob(self) -> bytes:
@@ -264,7 +278,11 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Coil | None:
-    """Construct a Coil from tag data (shared by both decoders)."""
+    """Build a ``Coil`` from the tags of an instruction blob, or return None.
+
+    Return None if the blob is not a plain coil, or if it has no operand. The clipboard
+    decoder and the program-file decoder both call this.
+    """
     itype = TYPE_CODE_TO_ITYPE.get(type_code)
     kind = _ITYPE_TO_KIND.get(itype) if itype is not None else None
     if class_name not in ("Out", "Latch", "Reset") or kind is None:
@@ -272,9 +290,9 @@ def from_tags(
     operand = tag_value(tags, 0x6066)
     if not operand:
         return None
-    # CLICK v4's Out variants (toggle, debounce, flasher, timed) share class "Out" and
-    # type 0x2715; an unknown func code must fall through to RawInstruction, not decode
-    # as a plain coil.
+    # CLICK v4's Out variants (toggle, debounce, flasher, timed) also use class "Out" and
+    # type 0x2715. Return None for a func code that no plain coil has, so that the decoder
+    # tries the next family (OutVariant) and keeps the blob raw if none decodes it.
     func_code = tags.get(0x3218)
     if func_code is not None and func_code not in _FUNC_TO_COIL:
         return None
@@ -289,7 +307,7 @@ def from_tags(
 
 
 def parse_af_call(call: AfCall) -> Coil:
-    """Parse an AF AST call into a Coil."""
+    """Parse a coil call from the AF (output) column of a CSV rung into a ``Coil``."""
     return Coil.from_csv_token(call.to_token())
 
 
