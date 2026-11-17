@@ -207,7 +207,9 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
    `+` joins the number after it (`( + 5 )` is `+5`, stored `H+5`,
    `v4_captures/math_unary_plus_pi.bin`). Nowhere else, and never in hex.
 6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
-   typed `+` kept) at the typed length, or a real that fits float32. Hex: CLICK
+   typed `+` kept) at the typed length, or a real whose value, read as a double, is at
+   most float32's largest, 3.402823466E+38, in size (`3.4028235E+38`, which float32
+   rounds to that value, is refused with OBJ-1009). Hex: CLICK
    uppercases the word and deletes its first `H`, wherever it is, then takes 1 to
    4 hex digits, so it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as `77h`.
    laddercodec takes only 1 to 4 hex digits followed by `h` or `H`, and refuses
@@ -246,7 +248,10 @@ Each address must lie inside its bank's range (`DS1 + DS0` is refused). The
 internal template (`0x6229`) holds at most 270 characters. A `RAND` bound is a
 DS or DD register or an integer in a decimal formula, and a DH register or a hex
 constant in a hex one (OBJ-1002 for another bank, OBJ-1001 for a real); its two
-bounds differ (OBJ-1001).
+bounds differ (OBJ-1001). A range `a : b` stays in one bank (OBJ-1015) and runs
+low to high (OBJ-1014); CLICK refuses those before an address in a bank the
+mode does not take (OBJ-1002), so `SUM ( DH2 : DH1 )` in a decimal formula is
+OBJ-1014.
 
 ### Operand and reserved slots
 

@@ -81,20 +81,6 @@ EDGE_SPACE_KEPT = (
     "as the address without it"
 )
 
-# Math (roadmap item 3, except where marked).
-FLOAT_EDGE = "to do: the constant 3.4028235E+38 in a decimal Math is OBJ-1009; the rules accept it"
-SUM_ORDER = (
-    "to do: a SUM whose ends are reversed is OBJ-1014, over a bank the mode refuses too; the "
-    "rules give OBJ-1002"
-)
-SUM_BLOCK = (
-    "to do: a SUM whose ends are in two banks is OBJ-1015, where a bank is refused too; the "
-    "rules give OBJ-1002"
-)
-HEX_RESULT_SD = (
-    "to do: a hex Math result past SD's range (SD0, SD1001) is OBJ-004; the rules give OBJ-003"
-)
-
 # Copy (roadmap item 3, except where marked).
 INNER_SPACE = (
     "to do: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
@@ -283,93 +269,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "hex DH1 = RAND(DH0,Ah)",
             "hex DH1 = RAND(DH501,Ah)",
             "hex DH1 = abc",
-        ),
-    ),
-    (
-        FLOAT_EDGE,
-        "math_decimal",
-        "outcome",
-        (
-            "dec DS1 = 3.4028235E+38",
-            "dec DS1 = DS1 + 3.4028235E+38",
-        ),
-    ),
-    (
-        SUM_ORDER,
-        "math_decimal",
-        "code",
-        (
-            "dec DS1 = SUM(CT2:CT1)",
-            "dec DS1 = SUM(DH2:DH1)",
-            "dec DS1 = SUM(TXT2:TXT1)",
-            "dec DS1 = SUM(XD1:XD0)",
-            "dec DS1 = SUM(YD1:YD0)",
-        ),
-    ),
-    (
-        SUM_ORDER,
-        "math_hex",
-        "code",
-        (
-            "hex DH1 = SUM(C2:C1)",
-            "hex DH1 = SUM(CT2:CT1)",
-            "hex DH1 = SUM(CTD2:CTD1)",
-            "hex DH1 = SUM(DD2:DD1)",
-            "hex DH1 = SUM(DF2:DF1)",
-            "hex DH1 = SUM(DS2:DS1)",
-            "hex DH1 = SUM(SC2:SC1)",
-            "hex DH1 = SUM(SD2:SD1)",
-            "hex DH1 = SUM(T2:T1)",
-            "hex DH1 = SUM(TD2:TD1)",
-            "hex DH1 = SUM(TXT2:TXT1)",
-            "hex DH1 = SUM(X002:X001)",
-            "hex DH1 = SUM(Y002:Y001)",
-        ),
-    ),
-    (
-        SUM_BLOCK,
-        "math_decimal",
-        "code",
-        (
-            "dec DS1 = SUM(C1:TXT2)",
-            "dec DS1 = SUM(CT1:C2)",
-            "dec DS1 = SUM(CT1:DS2)",
-            "dec DS1 = SUM(CT1:TXT2)",
-            "dec DS1 = SUM(CT1:X002)",
-            "dec DS1 = SUM(CTD1:TXT2)",
-            "dec DS1 = SUM(DD1:TXT2)",
-            "dec DS1 = SUM(DF1:TXT2)",
-            "dec DS1 = SUM(DH1:C2)",
-            "dec DS1 = SUM(DH1:DS2)",
-            "dec DS1 = SUM(DH1:TXT2)",
-            "dec DS1 = SUM(DH1:X002)",
-            "dec DS1 = SUM(DS1:TXT2)",
-            "dec DS1 = SUM(SC1:TXT2)",
-            "dec DS1 = SUM(SD1:TXT2)",
-            "dec DS1 = SUM(T1:TXT2)",
-            "dec DS1 = SUM(TD1:TXT2)",
-            "dec DS1 = SUM(TXT1:C2)",
-            "dec DS1 = SUM(TXT1:DS2)",
-            "dec DS1 = SUM(TXT1:X002)",
-            "dec DS1 = SUM(X001:TXT2)",
-            "dec DS1 = SUM(XD0:C2)",
-            "dec DS1 = SUM(XD0:DS2)",
-            "dec DS1 = SUM(XD0:TXT2)",
-            "dec DS1 = SUM(XD0:X002)",
-            "dec DS1 = SUM(Y001:TXT2)",
-            "dec DS1 = SUM(YD0:C2)",
-            "dec DS1 = SUM(YD0:DS2)",
-            "dec DS1 = SUM(YD0:TXT2)",
-            "dec DS1 = SUM(YD0:X002)",
-        ),
-    ),
-    (
-        HEX_RESULT_SD,
-        "math_hex",
-        "code",
-        (
-            "hex SD0 = DH2 + DH3",
-            "hex SD1001 = DH2 + DH3",
         ),
     ),
     (
@@ -671,7 +570,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 2814
+CODES_COMPARED = 2816
 
 
 @pytest.fixture(scope="module")

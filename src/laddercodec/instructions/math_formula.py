@@ -25,8 +25,9 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
 6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
    starts and ends (step 9).
 7. :func:`_check_rand`: a RAND bound is not a real constant, and its two bounds differ.
-8. :func:`_check_operands`: the banks each mode takes (:data:`_OPERANDS`), a RAND bound's
-   among them, ranges, and then the 270-character cap of the internal template.
+8. :func:`_check_operands`: each range's banks and order, the banks each mode takes
+   (:data:`_OPERANDS`), a RAND bound's among them, a median's size and X/Y option-slot
+   ends, and then the 270-character cap of the internal template.
 
 A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
 and a token out of order each end the reading there.  Every other refusal is one of many:
@@ -57,7 +58,7 @@ from ..model import (
     to_display,
 )
 from ..operands.banks import Bank, banks
-from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display, real_display
+from ..operands.constants import FLOAT32_MAX, INT16_MAX, INT16_MIN, hex_display, real_display
 from ..operands.errors import Reason
 
 _NAME = "Math.expression"
@@ -107,6 +108,9 @@ MAX_NESTING = 8
 #: of 68 addresses fits, 69 does not).
 MAX_INTERNAL_LENGTH = 270
 _INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
+#: :data:`FLOAT32_MAX` as a refusal names it: the shortest text, not above it, that float32
+#: reads back as it.
+_FLOAT32_MAX_TEXT = "3.402823466E+38"
 #: The longest integer CLICK prints back: ``-2147483648``.
 _MAX_PRINTED = 11
 #: Registers of 2 and of 4 bytes, for the median's 1024-byte cap
@@ -487,13 +491,15 @@ def _decimal_internal(text: str) -> str | FieldError:
     print as ``1705032704``, passes; a typed ``+`` is put before the printed value
     (``+5``).  It stores an int16 value as ``H`` and a wider one as ``W``,
     keeping the typed text (``H+5``).  A real is stored as
-    ``F`` and must fit float32.
+    ``F``; its value, read as a double, is at most float32's largest in size, so
+    ``3.4028235E+38``, which float32 rounds to that largest value, is refused.
     """
     body = text[1:] if text[:1] in _SIGNS else text
     if not all(c in _DIGITS for c in body):
-        if not fits_float32(float(text)):
+        if abs(float(text)) > FLOAT32_MAX:
             return _error(
-                f"{text} is outside the float32 range; a real constant fits 32 bits",
+                f"{text} is outside the float32 range; a real constant is at most "
+                f"{_FLOAT32_MAX_TEXT} in size, float32's largest value",
                 Reason.RANGE,
                 "OBJ-1009",
             )
@@ -738,7 +744,7 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
 
 
 def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
-    """Each address is in a bank its mode takes; a range stays in one bank and runs low : high.
+    """A range stays in one bank and runs low : high; each address is in a bank its mode takes.
 
     :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, the
     bits it takes only as the range of ``SUM ( a : b )``, and the registers a bound of
@@ -748,6 +754,21 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     for each range.  An address refused while it was read (``DS0``) is not checked again; a
     range with an end refused for its bank is still checked for its banks, its order and a
     median's size, but not for its option-slot ends.
+
+    CLICK refuses a range's banks (OBJ-1015) and its order (OBJ-1014) before the bank of an
+    address (OBJ-1002): ``SUM ( DH2 : DH1 )`` in a decimal Math is OBJ-1014.  So those come
+    first, then the banks, then a median's size and the option-slot ends.
+    """
+    in_banks, bank_refused = _check_banks(tokens, mode)
+    shapes, sizes = _check_ranges(tokens, bank_refused)
+    return [*shapes, *in_banks, *sizes]
+
+
+def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], set[int]]:
+    """A refusal for each address in a bank its mode does not take, and where those stand.
+
+    One refusal for each address outside a SUM and one for each SUM; the set holds every
+    address refused for its bank, in a SUM or not.
     """
     operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
@@ -784,6 +805,21 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
             shown = f"SUM ( {texts[at + 2]} : {texts[at + 4]} )"
             rule = f"{shown} is refused for {token.text}; {operands.rule}"
             found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+    return found, bank_refused
+
+
+def _check_ranges(
+    tokens: Sequence[Token], bank_refused: set[int]
+) -> tuple[list[FieldError], list[FieldError]]:
+    """The refusals of each ``a : b`` range: of its banks and order, and of its size and ends.
+
+    A range in two banks (OBJ-1015) or high to low (OBJ-1014) is not checked further.  A
+    median covers at most 1024 bytes (OBJ-1013), and an X or Y range whose ends are not
+    refused for their bank is checked for the option slot (:func:`_check_xy_range`).
+    """
+    texts = [t.text for t in tokens]
+    shapes: list[FieldError] = []
+    sizes: list[FieldError] = []
     for i in range(1, len(texts) - 1):
         if texts[i] != ":" or tokens[i - 1].refused or tokens[i + 1].refused:
             continue
@@ -792,18 +828,18 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
             continue
         shown = f"{texts[i - 1]} : {texts[i + 1]}"
         if low[0] != high[0]:
-            found.append(
+            shapes.append(
                 _error(f"{shown} spans two banks; a range stays in one", Reason.FORM, "OBJ-1015")
             )
             continue
         count = _range_position(*high) - _range_position(*low) + 1
         if count < 1:
             rule = f"{shown} runs high to low; a range runs low : high"
-            found.append(_error(rule, Reason.FORM, "OBJ-1014"))
+            shapes.append(_error(rule, Reason.FORM, "OBJ-1014"))
             continue
         width = 2 if low[0] in _TWO_BYTE_BANKS else 4 if low[0] in _FOUR_BYTE_BANKS else 0
         if texts[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
-            found.append(
+            sizes.append(
                 _error(
                     f"MDN ( {shown} ) covers {count * width} bytes; a median covers at most "
                     f"{_MEDIAN_MAX_BYTES}",
@@ -816,8 +852,8 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         if low[0] in _XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_range(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
-                found.append(error)
-    return found
+                sizes.append(error)
+    return shapes, sizes
 
 
 def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldError | None:

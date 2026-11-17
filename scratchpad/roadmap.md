@@ -115,7 +115,15 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       constant, a range end, a `SUM`), XD and YD in hex and DH, XD, YD, TXT and CT in decimal included,
       except a RAND bound, which takes fewer banks (RAND bounds, below).
     - A `SUM` whose ends are reversed is OBJ-1014, and one whose ends are in two banks OBJ-1015, ahead of
-      OBJ-1002 for a refused bank (`SUM ( DH2 : DH1 )`, `SUM ( X001 : TXT2 )`); the rules give OBJ-1002.
+      OBJ-1002 for a refused bank (`SUM ( DH2 : DH1 )`, `SUM ( X001 : TXT2 )`). Closed: the rules check
+      every range's banks and order before any address's bank, then a median's size and the X/Y
+      option-slot ends. Open (CLICK), the rules' order where no answer covers it:
+      - A reversed or two-bank `MAX`, `MIN`, `MDN` or `AVG` range over a refused bank
+        (`MAX ( DH2 : DH1 )` in decimal): the rules give OBJ-1014 or OBJ-1015 first, as for a `SUM`.
+      - A formula with a refused address beside a refused range (`DH1 + SUM ( DS5 : DS2 )` in
+        decimal): the rules give the range's OBJ-1014 first, whatever stands before it.
+      - A median over a refused bank that is also past 1024 bytes: the rules give OBJ-1002 before
+        OBJ-1013.
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
     Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
     instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and
@@ -166,7 +174,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   those lists (`picker_lists.answers.json`) and CLICK's two rule-table rows (`rule_rows.answers.json`: a
   block Copy of TXT into TXT and a hex Math into YD) agree with the rules, except one id: CLICK refuses an
   SD as a hex Math result with OBJ-003 (outside the range), answered for SD29 and SD31 and applied to all of
-  SD; YD9 is answered the same way, applied to a YD past YD8. The rules now say so, where they said OBJ-004 or
+  SD1-SD1000 (the full grid answers SD0 and SD1001 with OBJ-004); YD9 is answered the same way, applied to a YD past YD8. The rules now say so, where they said OBJ-004 or
   gave no id.
   A bank a hex result does not take (DS1) stays OBJ-004.
 - **Follow-ups from the full grids (waiting on nothing).** Each is one group in `DISAGREEMENTS`; fix the
@@ -186,10 +194,17 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       give OBJ-1001 for the shape.
     - Do the shift and rotate arguments (`LSH ( XD0 , 1h )`) take XD and YD, as the rules do? No answer
       covers them.
-  - `3.4028235E+38` in a decimal Math, alone or as an operand, is OBJ-1009; the rules accept it. A Copy
-    source takes it (`3.4028236E+38` is OBJ-005 there).
-  - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (above).
-  - A hex Math result past SD's range (SD0, SD1001) is OBJ-004; the rules give OBJ-003.
+  - The float32 edge in a decimal Math (closed): `3.4028235E+38`, alone or as an operand, is OBJ-1009,
+    though float32 rounds it to its largest value; the largest real answered as taken is `1E5`.
+    The rules refuse a real whose value, read as a double, is above float32's largest, 3.402823466E+38, in size:
+    of the bounds the answers allow, the only one with a reason, and the one that refuses least. A Copy
+    source takes it (`3.4028236E+38` is OBJ-005 there). Open (CLICK), neighbours no answer covers:
+    `-3.4028235E+38` (the rules refuse it, as `-3.5E+38` is refused), `3.40282347E+38` (refused, above
+    the largest as a double), and `3.402823466E+38`, `3.4028234E+38` and any real from 1E5 up to them
+    (taken).
+  - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (closed, above).
+  - A hex Math result past SD's range (SD0, SD1001) is OBJ-004 (closed): the OBJ-003 for an SD as a hex
+    result covers SD1-SD1000 only, and an SD past them is refused as a bank the result does not take.
   - Copy `DS 1` (a space inside) is accepted as a single Copy's source (saved `DS1`) and destination (saved
     `DS 1`, which `read_csv` refuses) and as a decimal Math result; the rules refuse it. Decide whether it
     is refused on purpose, as the edge space is.
@@ -237,8 +252,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - OBJ-002 and OBJ-003: which dialogs give them for an address that is not one and for a number outside its
     bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
-    from CLICK's own code; the math grids confirm every one the rules give, except the `SUM` order and the
-    hex SD result (follow-ups, above).
+    from CLICK's own code; the math grids confirm every one the rules give.
 
 ## 4. Canonical constants (CLICK)
 
