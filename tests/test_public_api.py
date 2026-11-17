@@ -56,6 +56,9 @@ EXPECTED_ROOT_EXPORTS = (
     "FieldError",
     "AddressError",
     "Reason",
+    "DecodeError",
+    "WriterError",
+    "ConvertError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
@@ -69,9 +72,11 @@ EXPECTED_ROOT_EXPORTS = (
     "OutVariant",
     "Drum",
     "Copy",
+    "Email",
     "End",
     "Fill",
     "ForLoop",
+    "Home",
     "Math",
     "Next",
     "Break",
@@ -80,11 +85,15 @@ EXPECTED_ROOT_EXPORTS = (
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Pack",
+    "Position",
     "Receive",
     "Send",
     "Timer",
     "Undecoded",
+    "UnknownCondition",
+    "UnknownInstruction",
     "Unpack",
+    "Velocity",
     "RawInstruction",
     "Return",
     "Search",
@@ -133,6 +142,24 @@ def test_program_and_project_models_are_root_exports() -> None:
 
     assert project.main is main
     assert project.subroutines == []
+
+
+def test_new_root_exports_are_their_home_module_objects() -> None:
+    import importlib
+
+    decode_mod = importlib.import_module("laddercodec.decode")
+    from laddercodec import instructions
+    from laddercodec.csv import converter, writer
+
+    assert laddercodec.DecodeError is decode_mod.DecodeError
+    assert laddercodec.WriterError is writer.WriterError
+    assert laddercodec.ConvertError is converter.ConvertError
+    assert laddercodec.UnknownCondition is instructions.UnknownCondition
+    assert laddercodec.UnknownInstruction is instructions.UnknownInstruction
+    assert laddercodec.Email is instructions.email.Email
+    assert laddercodec.Home is instructions.home.Home
+    assert laddercodec.Position is instructions.position.Position
+    assert laddercodec.Velocity is instructions.velocity.Velocity
 
 
 def test_advanced_helpers_remain_module_scoped() -> None:

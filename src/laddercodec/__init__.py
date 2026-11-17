@@ -2,8 +2,9 @@
 
 from .compat import find_v4_only, is_v4_only
 from .csv import CsvLocation, read_csv
-from .csv.writer import write_csv
-from .decode import Rung, decode
+from .csv.converter import ConvertError
+from .csv.writer import WriterError, write_csv
+from .decode import DecodeError, Rung, decode
 from .decode_program import decode_program
 from .encode import encode
 from .instructions import (
@@ -17,9 +18,11 @@ from .instructions import (
     Copy,
     Counter,
     Drum,
+    Email,
     End,
     Fill,
     ForLoop,
+    Home,
     Math,
     ModbusAddress,
     ModbusRtuTarget,
@@ -27,6 +30,7 @@ from .instructions import (
     Next,
     OutVariant,
     Pack,
+    Position,
     RawInstruction,
     Receive,
     Return,
@@ -35,7 +39,10 @@ from .instructions import (
     Shift,
     Timer,
     Undecoded,
+    UnknownCondition,
+    UnknownInstruction,
     Unpack,
+    Velocity,
 )
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
@@ -61,6 +68,9 @@ __all__ = [
     "FieldError",
     "AddressError",
     "Reason",
+    "DecodeError",
+    "WriterError",
+    "ConvertError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
@@ -74,9 +84,11 @@ __all__ = [
     "OutVariant",
     "Drum",
     "Copy",
+    "Email",
     "End",
     "Fill",
     "ForLoop",
+    "Home",
     "Math",
     "Next",
     "Break",
@@ -85,11 +97,15 @@ __all__ = [
     "ModbusRtuTarget",
     "ModbusTcpTarget",
     "Pack",
+    "Position",
     "Receive",
     "Send",
     "Timer",
     "Undecoded",
+    "UnknownCondition",
+    "UnknownInstruction",
     "Unpack",
+    "Velocity",
     "RawInstruction",
     "Return",
     "Search",
