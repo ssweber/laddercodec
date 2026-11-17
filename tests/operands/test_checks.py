@@ -1,4 +1,8 @@
-"""The shared field checks: each function's accepted and refused forms, by parameter."""
+"""Test the field checks in ``laddercodec.operands.checks``.
+
+Each check gets the values that it accepts and the values that it refuses, for each set of
+parameters.
+"""
 
 from __future__ import annotations
 
@@ -27,13 +31,13 @@ from laddercodec.operands.errors import AddressError, FieldError
 
 N, F, H, T, C = Kind.INTEGER, Kind.FLOAT, Kind.HEX, Kind.TEXT, Kind.CHAR
 
-#: Every kind at classify()'s limits (a Copy source).
+#: Every kind of constant, within the limits that classify() applies. A Copy source uses these.
 ANY = Constants(ALL_KINDS)
 #: A timer preset: digits only, 0 to 32767.
 DIGITS = Constants(frozenset({N}), signs="", high=32767)
 #: A counter preset: an int32 integer, a leading '-' only, at most 12 characters.
 COUNTER = Constants(frozenset({N}), signs="-", max_length=12)
-#: A Compare constant: 16-bit hex, and any real spelling.
+#: A Compare constant. Hex is at most 16 bits, and a real may be outside the float32 range.
 COMPARE = Constants(ALL_KINDS, hex_high=0xFFFF, float32=False)
 #: A hex remote address: 0h to FFFEh.
 HEX_REMOTE = Constants(frozenset({H}), hex_high=0xFFFE)
@@ -64,7 +68,7 @@ ACCEPTED: list[tuple[str, Constants, Constant]] = [
     ("-5", COUNTER, Constant(N, -5)),
     ("000000000005", COUNTER, Constant(N, 5)),
     ("-2147483648", COUNTER, Constant(N, -2147483648, wide=True)),
-    # Compare: 16-bit hex, any real spelling
+    # Compare: 16-bit hex, and a real outside the float32 range
     ("FFFFh", COMPARE, Constant(H, 0xFFFF)),
     ("000000001h", COMPARE, Constant(H, 1)),
     ("3.5E+38", COMPARE, Constant(F, 3.5e38)),
@@ -116,7 +120,8 @@ REFUSED: list[tuple[str, Constants, str]] = [
     # limits
     ("32768", DIGITS, "outside 0 to 32767"),
     ("0", Constants(frozenset({N}), signs="", low=1, high=32767), "outside 1 to 32767"),
-    # beyond int32: the field's own limits word the refusal (low 0 where no '-' is taken)
+    # An integer beyond int32 is refused by the field's own sign rule or limits. The low
+    # limit in the message is 0 when the field accepts no '-'.
     ("3000000000", DIGITS, "outside 0 to 32767 (OBJ-005)"),
     ("-3000000000", COUNTER, "outside -2147483648 to 2147483647 (OBJ-005)"),
     ("3000000000", Constants(frozenset({N}), signs="", low=0, high=2**31 - 1), "outside 0 to"),
@@ -141,9 +146,11 @@ def test_check_constant_refuses(value: str, constants: Constants, message: str) 
     assert caught.value.field == "X.f"
 
 
-#: A constant the field's kinds refuse, worded by the field's own rule.
+#: Constants that the field refuses, with the exact message. Each message states the
+#: field's own rule.
 REFUSED_EXACT: list[tuple[str, Constants, str]] = [
-    # a field of decimal integers only: a real beyond float32 reads as 1.5 does
+    # A field of decimal integers only refuses a real beyond float32 with the same message
+    # as 1.5.
     ("1.5", DIGITS, "X.f: '1.5' is a real; X.f takes a decimal integer"),
     ("3.5E+38", DIGITS, "X.f: '3.5E+38' is a real; X.f takes a decimal integer"),
     ("123456789h", DIGITS, "X.f: '123456789h' is a hex value; X.f takes a decimal integer"),
@@ -153,7 +160,8 @@ REFUSED_EXACT: list[tuple[str, Constants, str]] = [
     ("$G1", HEX_REMOTE, "X.f: '$G1' is refused; X.f takes a hex value"),
     ("100000000h", COMPARE, "X.f: '100000000h' is above FFFFh; a hex constant here is 0h to FFFFh (OBJ-005)"),
     ("1 2", DIGITS, "X.f: '1 2' is refused; X.f takes a decimal integer"),
-    # a hex field: no padding limit below the field's highest, no sign, hex digits then h
+    # A hex field accepts any number of leading zeros on a value within its range. It
+    # refuses a sign, and text that is not hex digits then h.
     ("h", HEX_REMOTE, "X.f: 'h' is refused; X.f takes a hex value: hex digits then h"),
     ("+1h", HEX_REMOTE, "X.f: '+1h' is refused; a hex constant has no sign"),
     ("-1h", HEX_REMOTE, "X.f: '-1h' is refused; a hex constant has no sign"),
@@ -213,7 +221,8 @@ def test_check_operand_accepts(value: str, kwargs: dict, expected: Operand) -> N
     assert check_operand(value, "X.f", **kwargs) == expected
 
 
-#: (value, kwargs, error class, message): the class says which check read the text.
+#: Each case is (value, kwargs, error class, message). The error class shows which check
+#: read the text: FieldError for the constant check, AddressError for the address check.
 OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     # By default, text spelled as a constant the field takes is a constant ...
     ("40000", {"banks": {"DS"}, "constants": DIGITS}, FieldError, "outside 0 to 32767"),
@@ -228,7 +237,8 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("DD1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "takes DS"),
     ("1,5", {"constants": ANY}, AddressError, "not a CLICK address"),
     ("nan", {"constants": ANY}, AddressError, "not a CLICK address"),
-    # A sign before hex digits is no constant, unless hex_sign reads it as one.
+    # A sign before hex digits makes the text an address, unless hex_sign is set. With
+    # hex_sign the text is read, and refused, as a constant.
     ("+1h", {"constants": COMPARE}, AddressError, "not a CLICK address"),
     ("+1h", {"constants": Constants(ALL_KINDS, hex_sign=True)}, FieldError, "has no sign"),
     # With letter_first, text that starts with a letter is an address, other text a constant.
@@ -302,7 +312,8 @@ def test_check_out_target_accepts(value: str, kwargs: dict, expected: Address) -
         ("SC1", {}, AddressError, "not a writable SC bit"),
         ("SC52", {}, AddressError, "not a writable SC bit"),
         ("C1", {"immediate": True}, FieldError, "an immediate coil takes Y only"),
-        # immediate first: an immediate SC target is refused whatever its number
+        # The immediate check runs first, so an immediate SC target is refused whatever its
+        # number.
         ("SC1", {"immediate": True}, FieldError, "an immediate coil takes Y only"),
         ("SC50", {"banks": {"Y", "C"}}, AddressError, "takes Y, C"),
     ],

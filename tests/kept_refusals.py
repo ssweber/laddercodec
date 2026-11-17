@@ -1,4 +1,8 @@
-"""Check an instruction a decoder built from stored values that its checks refuse."""
+"""Check the refusals that a decoded instruction keeps.
+
+A refusal is the ``FieldError`` that building an instruction raises for a value that CLICK's
+dialog rejects. A decoder builds the instruction anyway, and the instruction keeps the error.
+"""
 
 from __future__ import annotations
 
@@ -10,11 +14,12 @@ _T = TypeVar("_T")
 
 
 def kept(instruction: _T | None, *fields: str) -> _T:
-    """Assert that *instruction* was built and keeps one refusal per name in *fields*, in
-    the order construction raises them; return it.
+    """Assert that a decoder built *instruction* and that it keeps one refusal for each name
+    in *fields*, in the order that construction raises them. Return *instruction*.
 
-    Each refusal names the instruction as its ``obj``, except one on a Send's or Receive's
-    Modbus target or remote address, which names that object.
+    Only the field names are compared. A refusal's ``obj`` is the instruction, except for a
+    refusal on the Modbus target or remote address of a Send or Receive. That refusal's
+    ``obj`` is the target or the address.
     """
     assert instruction is not None, "the blob was left unparsed"
     found = refusals(instruction)

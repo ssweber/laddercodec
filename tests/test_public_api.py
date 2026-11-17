@@ -210,7 +210,7 @@ def test_advanced_helpers_remain_module_scoped() -> None:
 
 
 def test_root_imports_are_all_usable() -> None:
-    # These assertions keep static imports above from becoming dead weight.
+    # Use each name imported at the top of the file, so that no import goes unused.
     assert encode
     assert decode
     assert decode_program

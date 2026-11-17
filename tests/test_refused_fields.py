@@ -1,12 +1,18 @@
-"""A stored instruction that breaks a dialog rule decodes as that instruction.
+"""Test that a stored instruction that breaks a rule of CLICK's dialog decodes as itself.
 
-Each case edits one coverage golden so that one instruction holds a value its checks refuse,
-one case per family with checks.  The checks refuse it by default; ``read_csv(...,
-unchecked=True)`` and the decoders read it as written, keeping the refusals and warning with
-a ``RefusedFieldWarning``; and ``write_csv`` writes it as it is held.  Decoded and unchanged,
-it writes the bytes it was decoded from (for a program file's output box, the blob its raw
-box wrote); ``encode()`` refuses it, with the error building it raises, once a field changes
-and is still refused, when it was read from CSV, and for a program file's condition.
+Each case edits one coverage golden so that one instruction holds a value that its checks
+refuse. The cases cover each instruction family that has checks. The tests show that:
+
+- ``read_csv`` raises the refusal by default.
+- ``read_csv(..., unchecked=True)`` and the decoders build the instruction as stored. The
+  instruction keeps the refusals, and the reader warns with a ``RefusedFieldWarning``.
+- ``write_csv`` writes the instruction as it holds it.
+- An instruction that was decoded and not changed encodes as the bytes it was decoded from.
+  For an output box from a program file, that is the blob that the decoder composes from the
+  file's tags, the same blob that the box holds when it decodes raw.
+- ``encode()`` raises the error that building the instruction raises after a field changes
+  and is still refused, when the instruction was read from CSV, and for a condition from a
+  program file.
 """
 
 from __future__ import annotations
@@ -114,8 +120,9 @@ CASES = [
 
 _IDS = [f"{case[3].__name__}-{case[4][0]}" for case in CASES]
 
-#: A Send's or Receive's own fields are checked again when its blob is built, so these cases
-#: edit the golden's bytes instead: (tag, stored text, replacement), the same length.
+#: Building a Send's or Receive's blob checks its own fields again, so ``_stored_bytes``
+#: cannot encode these edits from CSV. These cases edit the golden's .bin file instead. Each
+#: value is (tag, stored text, replacement), and both texts are the same length.
 _BYTE_EDITS = {
     (Send, "Send.success"): (0x607B, "C2", "C1"),
     (Receive, "Receive.dest"): (0x607E, "DS1", "TD1"),
@@ -135,7 +142,10 @@ def _tokens(rung: Rung) -> list[object]:
 
 
 def _held(rungs: list[Rung]) -> tuple[int, object]:
-    """The rung index and the one instruction in ``rungs`` that keeps refusals."""
+    """Return the rung index and the one instruction in ``rungs`` that keeps refusals.
+
+    Assert that exactly one instruction keeps refusals.
+    """
     found = [(i, t) for i, rung in enumerate(rungs) for t in _tokens(rung) if refusals(t)]
     assert len(found) == 1, found
     return found[0]
@@ -170,7 +180,8 @@ def test_read_csv_unchecked_reads_it_as_written(tmp_path, golden, old, new, cls,
 def test_read_csv_unchecked_locates_each_refusal_as_raised(
     tmp_path, golden, old, new, cls, fields
 ) -> None:
-    """Each refusal kept carries the location the default read raises it with."""
+    """Each refusal that the unchecked read keeps has the CSV location that the default read
+    raises it with."""
     path = _edited(tmp_path, golden, old, new)
     with pytest.raises(FieldError) as raised:
         read_csv(path)
@@ -199,8 +210,12 @@ def test_encode_refuses_it(tmp_path, golden, old, new, cls, fields) -> None:
 
 
 def _stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields) -> bytes:
-    """The clipboard bytes of the edited golden, as an older laddercodec, or a paste CLICK
-    kept, would have stored them."""
+    """Return the clipboard bytes of the edited golden, as an older laddercodec, or a paste
+    that CLICK kept, would have stored them.
+
+    The cases in ``_BYTE_EDITS`` edit the golden's .bin file. The other cases encode the
+    edited CSV with the checks turned off.
+    """
     edit = _BYTE_EDITS.get((cls, fields[0]))
     if edit is not None:
         tag, was, now = edit
@@ -235,7 +250,7 @@ def test_stored_bytes_decode_as_the_instruction(
     found = _held(decoded)
     assert found[0] == index
     if (cls, fields[0]) in _BYTE_EDITS:
-        # A CSV leaves a Modbus function code out; the bytes hold it.
+        # A CSV does not hold a Modbus function code, and the bytes do. Compare without it.
         assert rebuilt(found[1], function_code=None) == held
     else:
         assert found[1] == held
@@ -255,7 +270,7 @@ def test_decoded_and_unchanged_it_writes_the_stored_bytes(
 
 
 def _fix(held: object, valid: object) -> None:
-    """Assign *held* each field value of *valid* that it differs in."""
+    """Set each field of *held* that differs from *valid* to the value in *valid*."""
     for f in dataclasses.fields(cast("Any", valid)):
         if getattr(held, f.name) != getattr(valid, f.name):
             setattr(held, f.name, getattr(valid, f.name))
@@ -266,7 +281,11 @@ def _fix(held: object, valid: object) -> None:
 def test_a_field_fixed_by_assignment_is_accepted(
     tmp_path, monkeypatch, source, golden, old, new, cls, fields
 ) -> None:
-    """Changed, it is checked again: fixed, it encodes as the golden it was edited from."""
+    """After a field changes, the instruction is checked again.
+
+    Once the refused field is fixed, the instruction holds no refusal, and the rungs encode
+    as the golden that they were edited from.
+    """
     if source == "clipboard":
         rungs, _ = _decoded(_stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields))
     else:
@@ -284,8 +303,10 @@ def test_a_field_fixed_by_assignment_is_accepted(
 def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
     tmp_path, monkeypatch, source, golden, old, new, cls, fields
 ) -> None:
-    """Fixed with an address typed in lowercase, it writes the address as construction
-    writes it, in display form, as the golden does."""
+    """A field fixed with an address typed in lowercase encodes the address in display form.
+
+    That is how construction writes it, so the rungs encode as the golden.
+    """
     if source == "clipboard":
         rungs, _ = _decoded(_stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields))
     else:
@@ -311,7 +332,11 @@ def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
 
 @pytest.mark.parametrize(("golden", "old", "new", "cls", "fields"), CASES, ids=_IDS)
 def test_a_copy_of_it_refuses(tmp_path, monkeypatch, golden, old, new, cls, fields) -> None:
-    """A copy runs its checks; one that a held Modbus target lets through has no blob."""
+    """A copy made with ``replace`` raises the first refusal of the instruction.
+
+    The copy runs its checks. If the copy keeps a Modbus target that holds the refusal, its
+    own checks pass, but it has no stored blob, so ``build_blob()`` raises the refusal.
+    """
     data = _stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields)
     rungs, _ = _decoded(data)
     _, held = _held(rungs)
@@ -357,7 +382,10 @@ def test_warning_survives_pickle_and_copy(tmp_path) -> None:
 
 @pytest.mark.parametrize("unchecked", [False, True])
 def test_a_refusal_no_stored_instruction_holds_still_raises(tmp_path, unchecked) -> None:
-    """A timer unit that is none of CLICK's names no stored value."""
+    """A timer unit that is not one of CLICK's unit names raises, even with ``unchecked``.
+
+    Such a unit matches no stored value, so no decoded instruction can keep its refusal.
+    """
     path = _edited(tmp_path, "off_delay__tof", "unit=Tms", "unit=Tx")
     with pytest.raises(FieldError) as raised:
         read_csv(path, unchecked=unchecked)
@@ -368,7 +396,7 @@ def test_a_refusal_no_stored_instruction_holds_still_raises(tmp_path, unchecked)
     assert "'Tx' is not one of" in str(error)
 
 
-#: Each Math CLICK saved whose formula its dialog refuses: capture and rung.
+#: Each Math that CLICK saved with a formula that its dialog refuses, as (capture, rung index).
 REAL_MATH = [
     ("math_ranges_x25_x101.bin", 0),
     ("math_ranges_x_t.bin", 2),
@@ -384,7 +412,8 @@ REAL_MATH = [
 
 @pytest.mark.parametrize(("file", "index"), REAL_MATH, ids=[f"{f}:{i}" for f, i in REAL_MATH])
 def test_clicks_own_refused_math_writes_its_bytes(monkeypatch, file, index) -> None:
-    """Each encodes as it did when it decoded as ``raw(...)``: CLICK's blob and cell rows."""
+    """Each Math encodes as it did when it decoded as ``raw(...)``, with CLICK's blob and cell
+    rows. After a field changes, ``encode()`` raises."""
     data = (FIXTURES / "v4_captures" / file).read_bytes()
     rungs, _ = _decoded(data)
     rung = rungs[index]
@@ -412,8 +441,9 @@ def test_clicks_own_refused_math_writes_its_bytes(monkeypatch, file, index) -> N
         encode(rung)
 
 
-#: Same-length edits of a program file and the clipboard capture of the same program:
-#: (pair, stored text, replacement), each refused where it is held.
+#: Edits made to both a program file and the clipboard capture of the same program. Each is
+#: (file name without extension, stored text, replacement), and both texts are the same
+#: length. The instruction that holds each replacement refuses it.
 PROGRAM_EDITS = [
     ("shift_scr", "C2", "C0"),
     ("counter_scr", "CTD1", "CTD2"),
@@ -428,9 +458,13 @@ def _instructions(rungs: list[Rung]) -> list[object]:
 
 @pytest.mark.parametrize(("name", "old", "new"), PROGRAM_EDITS)
 def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> None:
-    """Both read the same instructions and refusals.  The clipboard one writes the blob CLICK
-    stored; a box from a program file writes the blob its raw box wrote, composed from the
-    entry's tags, and a condition from a program file has none to write."""
+    """The clipboard decoder and the program decoder read the same instructions and refusals.
+
+    An instruction from the clipboard keeps the blob that CLICK stored. A box from a program
+    file keeps the blob that the decoder composes from the entry's tags, the same blob that
+    the box holds when it stays raw. A condition from a program file keeps no blob, so its
+    ``build_blob()`` raises its first refusal.
+    """
     scr_dir = FIXTURES / "scr_captures"
     clipboard = (scr_dir / f"{name}.bin").read_bytes()
     program = (scr_dir / f"{name}.scr").read_bytes()
@@ -449,7 +483,7 @@ def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> No
         from_program = decode_program(program.replace(scr(old), scr(new))).rungs
     held, held_scr = _instructions(from_clipboard), _instructions(from_program)
     assert held and held == held_scr
-    # The boxes the program file's entries made when one holding a refusal stayed raw.
+    # Decode the program file again, and leave each box that holds a refusal raw.
     program_mod = sys.modules["laddercodec.decode_program"]
     scr_af = program_mod._scr_af
     monkeypatch.setattr(
@@ -476,7 +510,10 @@ def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> No
 
 
 def _saved_blob(tmp_path: Path, case: str) -> bytes:
-    """The blob CLICK saved for one ``risky`` editor-grid case, as its answers record it."""
+    """Return the blob that CLICK saved for one case of the ``risky`` editor grid.
+
+    Read it from the stored rows that ``risky.answers.json`` records for the case.
+    """
     answers = json.loads(
         (FIXTURES / "editor_grids" / "risky.answers.json").read_text(encoding="utf-8")
     )
@@ -497,7 +534,11 @@ def _saved_blob(tmp_path: Path, case: str) -> bytes:
     ],
 )
 def test_an_edge_spaced_destination_writes_the_stored_bytes(tmp_path, case, cls) -> None:
-    """The address reads without the space, and the blob CLICK saved is written back."""
+    """A destination saved with a space at its start or end reads as the address alone.
+
+    The instruction writes back the blob that CLICK saved. A copy made with ``replace``
+    writes a different blob.
+    """
     blob = _saved_blob(tmp_path, case)
     parsed = parse_af_blob(blob)
     assert isinstance(parsed, cls)
@@ -510,8 +551,9 @@ def test_an_edge_spaced_destination_writes_the_stored_bytes(tmp_path, case, cls)
     assert from_tags_af(class_name, type_code, *_fields_to_tag_dicts(fields)) == parsed
 
 
-#: Same-length edits of the coverage program and its clipboard capture that put a space at
-#: the edge of a destination: (stored text, replacement, class).
+#: Edits to the coverage program and its clipboard capture that put a space at the start or
+#: end of a destination. Each is (stored text, replacement, class), and both texts are the
+#: same length.
 EDGE_EDITS = [("DS10", " DS1", Copy), ("DS10", "DS1 ", Copy), ("DS167", " DS16", Pack)]
 
 
@@ -519,9 +561,12 @@ EDGE_EDITS = [("DS10", " DS1", Copy), ("DS10", "DS1 ", Copy), ("DS167", " DS16",
 def test_both_decoders_write_an_edge_spaced_destination_as_stored(
     monkeypatch, old, new, cls
 ) -> None:
-    """Each decoder reads the address without the space and, unchanged, writes back what
-    it wrote when the box decoded raw: the clipboard the bytes CLICK stored, the program file
-    the blob composed from its tags, space and all."""
+    """Each decoder reads the address without the space.
+
+    The unchanged instruction writes back what the box wrote when it decoded raw. From the
+    clipboard, that is the bytes that CLICK stored. From the program file, it is the blob
+    that the decoder composes from the entry's tags, with the space kept.
+    """
     scr_dir = FIXTURES / "scr_captures"
     clipboard = (scr_dir / "coverage.bin").read_bytes()
     program = (scr_dir / "coverage.scr").read_bytes()
@@ -547,7 +592,7 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
     assert not refusals(inst)
     blob = inst.build_blob()
     assert clip_new in blob and blob in clipboard
-    # The clipboard's cells when that one stayed raw.
+    # Decode the clipboard again, and leave that instruction raw.
     decode_mod = sys.modules["laddercodec.decode"]
     parse_af = decode_mod.parse_af_blob
     monkeypatch.setattr(
@@ -562,7 +607,7 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
     from_program = decode_program(program).rungs
     scr_index, inst_scr = edge_spaced(from_program)
     assert inst_scr == inst and not refusals(inst_scr)
-    # The program file's boxes when that one stayed raw.
+    # Decode the program file again, and leave that box raw.
     program_mod = sys.modules["laddercodec.decode_program"]
     scr_af = program_mod._scr_af
     monkeypatch.setattr(
@@ -578,7 +623,11 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
 
 
 def test_a_block_copy_destination_keeps_its_edge_space() -> None:
-    """CLICK refuses a space at a Block Copy destination's edge: a stored one stays raw."""
+    """CLICK refuses a space at the start or end of a Block Copy destination.
+
+    So a stored blob with one does not decode as a BlockCopy, and ``from_tags_af`` returns
+    None for it.
+    """
     block = BlockCopy(source_start="DS1", source_end="DS2", dest_start="DS11", dest_end="DS12")
     class_name, type_code, _parts, _extra, fields = _decompose_blob(block.build_blob())
     tags, variant_u16, variant_string = _fields_to_tag_dicts(fields)
@@ -599,7 +648,10 @@ def _copy_rung(copy_af: Copy) -> Rung:
 
 
 def test_write_csv_refuses_a_value_set_after_construction(tmp_path) -> None:
-    """Built by its checks, then changed to a refused value: the rows don't read back."""
+    """If you set a refused value on an instruction after it is built, ``write_csv`` raises.
+
+    The rows that it would write do not read back as the rung.
+    """
     copy_af = Copy("DS1", "DS2")
     copy_af.dest = "Y001"
     with pytest.raises(WriterError, match="Y001"):
@@ -607,8 +659,12 @@ def test_write_csv_refuses_a_value_set_after_construction(tmp_path) -> None:
 
 
 def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
-    """In a rung that holds a refusal, a token changed to a refused value still refuses:
-    it reads back holding a refusal the token written did not."""
+    """``write_csv`` also raises for a token changed to a refused value in a rung that holds
+    a refusal.
+
+    The writer reads such a rung back unchecked, and the token read back holds a refusal
+    that the token written did not hold.
+    """
     rungs, _ = _read_unchecked(_edited(tmp_path, "cond__no", ",C2,", ",DS2,"))
     _, contact = _held(rungs)
     copy_af = Copy("DS1", "DS2")
