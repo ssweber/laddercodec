@@ -161,7 +161,8 @@ TXT_CHOICE_DESTS = ["DS1", "DD1", "DH1", "YD0", "TD1", "CTD1", "DS[DS1]", "YD[DS
 def test_a_txt_register_into_a_number_needs_value_or_ascii(source: str, destination: str) -> None:
     """A plain copy of a TXT register into a number register other than DF is refused.
     CLICK's dialog makes you pick Copy Character Value or Copy ASCII Code Value, so CLICK
-    never saves a plain copy of this kind. Each of the two options writes its tags and decodes back to the same Copy."""
+    never saves a plain copy of this kind. Each of the two options writes its tags and
+    decodes back to the same Copy."""
     [error] = _errors(lambda: Copy(source, destination))
     assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)

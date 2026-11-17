@@ -254,7 +254,8 @@ def from_tags(
     """Construct a Timer from the tags of a decoded blob.
 
     Return None if the blob is not a timer, lacks a field, stores a time unit that is not
-    known, or is a retentive off-delay timer. The clipboard and program-file decoders both use it.
+    known, or is a retentive off-delay timer. The clipboard and program-file decoders both
+    use it.
     """
     if class_name != "Tmr" or type_code != _TIMER_TYPE_CODE:
         return None
