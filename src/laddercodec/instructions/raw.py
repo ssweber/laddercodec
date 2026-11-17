@@ -1,8 +1,8 @@
 """Raw: an AF instruction that laddercodec keeps as bytes.
 
 The decoders return one for a class name that no family recognises.  They also return one
-for a box that its family cannot read, and for a box whose stored row span is not the row
-span of its class.
+for a box that its family cannot read, and for a box whose cell stores a row span other
+than the span the decoded box would have.
 
 ``RawInstruction`` keeps the whole instruction blob, from cell offset +0x25 up to
 the tail.  The encoder builds the cell header and the tail from the position of

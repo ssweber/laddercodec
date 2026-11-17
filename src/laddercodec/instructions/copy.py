@@ -414,7 +414,7 @@ def _refusal(
 
     The message is ``Class.attr: rule``, with CLICK's id in parentheses at the end when there
     is one. When the rule is about several fields, ``attrs`` lists them all, and the error's
-    ``field`` holds them all."""
+    ``fields`` holds them all."""
     fields = tuple(f"{cls}.{attr}" for attr in attrs)
     tail = f" ({click_id})" if click_id else ""
     return error(
@@ -773,7 +773,8 @@ def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[st
     SC303. It refuses any other source as a pairing of kinds (OBJ-024), for example DS2 or
     5 into X001. OBJ-024 is also the id of every other pairing that a single Copy refuses.
     XD is the one register bank that a Copy does not write. For a source other than a ``$hh``
-    code, no CLICK answer covers XD, so this function returns no id.
+    code, CLICK's id depends on the source (OBJ-004 for most, OBJ-024 for a bit, a text or
+    10000h), and this function returns no id.
 
     If the source is refused, this function returns no id. That happens for an address
     that ``_source_kind`` refuses (``kind`` is None). It also happens for a constant that
