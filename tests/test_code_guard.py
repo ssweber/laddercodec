@@ -1,13 +1,14 @@
 """Every refusal in ``src/`` names its code.
 
-A function, method or error class that takes a required keyword-only ``code`` (``FieldError``,
-``LayoutError``, ``Refusals.refuse``, ``_refusal``, ...) is found by its signature, and
-every call of it in ``src/`` must pass ``code=``: the code is chosen at the refusal site.
-A function passed to ``check.run(...)`` or ``check(...)`` counts as called there.  A call
-of a parameter annotated ``type[FieldError]`` (or another error class that takes ``code``)
-counts as a call of that class: ``_blank``'s ``cls(...)`` builds a refusal as surely as
-``FieldError(...)`` does.  A new call without a code fails the test.  :data:`ALLOWED`
-lists none and must stay empty.
+The guard finds each function, method and error class whose signature has a required
+keyword-only ``code`` parameter, such as ``FieldError``, ``LayoutError``,
+``Refusals.refuse`` and ``_refusal``. Every call of one of them in ``src/`` must pass
+``code=``, so that each place that makes a refusal chooses its code. A function passed to
+``check.run(...)`` or ``check(...)`` counts as called there. A call of a parameter annotated
+``type[FieldError]``, or ``type[C]`` for another error class that takes ``code``, counts as
+a call of that class. For example, ``cls(...)`` in ``_blank`` builds a refusal just as
+``FieldError(...)`` does. Any call without a code fails the test. :data:`ALLOWED` lists
+no such call and must stay empty.
 """
 
 from __future__ import annotations
@@ -17,12 +18,13 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[1] / "src" / "laddercodec"
 
-#: ``file:name`` -> calls allowed without ``code=``.  Empty: every refusal names its code.
+#: Maps ``file:name`` to the number of calls allowed without ``code=``. It is empty because
+#: every refusal names its code.
 ALLOWED: dict[str, int] = {}
 
 
 def _takes_code(args: ast.arguments) -> bool:
-    """Whether a signature has ``code`` as a required keyword-only parameter."""
+    """Return whether a signature has ``code`` as a required keyword-only parameter."""
     return any(
         arg.arg == "code" and default is None
         for arg, default in zip(args.kwonlyargs, args.kw_defaults, strict=True)
@@ -30,10 +32,10 @@ def _takes_code(args: ast.arguments) -> bool:
 
 
 def code_takers(trees: list[ast.Module]) -> tuple[set[str], set[str], set[str]]:
-    """The names a call must pass ``code=`` to: (functions, classes, methods).
+    """Return the names whose calls must pass ``code=``, as (functions, classes, methods).
 
-    A class takes it when its ``__init__`` does, or when it subclasses one that does and
-    defines no ``__init__`` of its own.
+    A class is included when its ``__init__`` requires ``code``. It is also included when it
+    subclasses an included class and defines no ``__init__`` of its own.
     """
     functions: set[str] = set()
     classes: set[str] = set()
@@ -67,8 +69,12 @@ def code_takers(trees: list[ast.Module]) -> tuple[set[str], set[str], set[str]]:
 
 
 def _class_params(tree: ast.Module, classes: set[str]) -> dict[int, set[str]]:
-    """Map each call node, by ``id``, to the parameters of its enclosing functions that hold
-    a code-taking class: those annotated ``type[C]`` with ``C`` in *classes*."""
+    """Return a dict from the ``id`` of each call node to the parameters that can hold a class
+    in *classes*.
+
+    These are the parameters of the functions that enclose the call and are annotated
+    ``type[C]``, with ``C`` in *classes*. A call with no such parameter is left out.
+    """
 
     def holds_class(arg: ast.arg) -> bool:
         ann = arg.annotation
@@ -103,7 +109,11 @@ def calls_without_code(
     methods: set[str],
     filename: str = "<src>",
 ) -> list[str]:
-    """``file:line name`` of each call of a code taker that passes no ``code=``."""
+    """Return ``file:line name`` for each call of a name in the given sets that passes no
+    ``code=``.
+
+    A bare ``raise`` of one of the classes counts as such a call.
+    """
     missing = []
     tree = ast.parse(source)
     held = _class_params(tree, classes)
@@ -111,7 +121,7 @@ def calls_without_code(
         if isinstance(node, ast.Raise) and isinstance(node.exc, (ast.Name, ast.Attribute)):
             exc = node.exc
             name = exc.id if isinstance(exc, ast.Name) else exc.attr
-            if name in classes:  # a bare ``raise FieldError``: no call, so no code
+            if name in classes:  # a bare ``raise FieldError`` makes no call, so passes no code
                 missing.append(f"{filename}:{node.lineno} {name}")
             continue
         if not isinstance(node, ast.Call):

@@ -1,9 +1,9 @@
-"""Ensure every golden CSV has been verified through Click paste round-trip.
+"""Test that every golden fixture has been pasted into CLICK and recorded as working.
 
-Covers both golden directories: the ladder captures and the coverage
-fixtures. Each reads its own verify_progress.log and checks that every .csv
-stem in the directory has a corresponding ": worked" entry. Fails with a
-clear list of unverified fixtures if any are missing.
+The test runs on two golden directories, the ladder captures and the coverage fixtures.
+For each one, it reads the directory's verify_progress.log and checks that every .csv
+stem in the directory has a ": worked" line. If any are missing, the test fails and
+lists them.
 
 To verify fixtures:  clicknick-rung guided <golden dir>
 To regenerate bins:  make golden / make coverage-golden

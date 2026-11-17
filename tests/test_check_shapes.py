@@ -1,13 +1,15 @@
-"""check() and read_csv against CLICK v4.00's Syntax Check on 16 pasted shapes.
+"""Compare check() and read_csv with CLICK v4.00's Syntax Check on 16 pasted rungs.
 
-Ground truth (``fixtures/layout_check/README.md``): ``check_shapes.csv`` pasted into CLICK
-as one program of 16 rungs, CLICK's Syntax Check output ``check_shapes_errors.txt``, and the
-program CLICK saved after that check, ``check_shapes_checked.scr``.
+The expected results come from CLICK, as ``fixtures/layout_check/README.md`` describes.
+``check_shapes.csv`` was pasted into CLICK as one program of 16 rungs.
+``check_shapes_errors.txt`` is the output of CLICK's Syntax Check on that program, and
+``check_shapes_checked.scr`` is the program that CLICK saved after the check.
 
-Two ratchets.  For each rung, the set of codes ``check()`` reports must be CLICK's set, and
-the C0202 cell CLICK names must be the one ``check()`` names; for each rung, ``read_csv``'s
-layout must be the rung CLICK saved.  A rung that differs is listed below with its reason;
-the test fails on a difference not listed, and on a listed one that no longer differs.
+Two tests run on each rung. The first requires that ``check()`` reports the same set of
+codes as CLICK, and that it names the same C0202 cells as CLICK. The second requires that
+``read_csv`` lays the rung out as CLICK saved it. A rung that is known to differ is listed
+in ``CODES_DIFFER`` or ``LAYOUT_DIFFERS`` with the reason. A test fails if a rung differs
+and is not listed, and also if a rung is listed and does not differ.
 """
 
 from __future__ import annotations
@@ -55,13 +57,18 @@ _LINE = re.compile(r"Rung (\d+) : error (C[0-9A-F]{4}): (?:Row (\d+), Column ([A
 
 
 def _click() -> dict[int, list[tuple[str, str | None]]]:
-    """CLICK's errors per rung: (code, "row N, column X" or None), the program's own dropped."""
+    """Return CLICK's errors for each rung, as (code, cell) pairs.
+
+    The cell is "row N, column X", or None when CLICK names no cell. The error about the
+    whole program is left out.
+    """
     out: dict[int, list[tuple[str, str | None]]] = {n: [] for n in SHAPES}
     for line in (LC / "check_shapes_errors.txt").read_text(encoding="utf-8").splitlines():
         m = _LINE.search(line)
         assert m, line
         rung, code, row, column = m.groups()
-        if code == "C0201":  # no END in the main program: about the program, not a rung
+        # C0201 says that the main program has no END. It is about the program, not a rung.
+        if code == "C0201":
             assert int(rung) == len(SHAPES) + 1
             continue
         out[int(rung)].append((code, f"row {row}, column {column}" if row else None))
@@ -88,7 +95,7 @@ def _codes(rung: Rung) -> set[str | None]:
 
 
 def _c0202_cells(rung: Rung) -> list[str]:
-    """Each C0202 cell as CLICK prints it."""
+    """Return the cell of each captured C0202 finding from check(), as CLICK prints it."""
     return [
         f.message.split(" in CLICK's numbering")[0]
         for f in check(rung)

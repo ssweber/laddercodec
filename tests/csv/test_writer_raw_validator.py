@@ -57,7 +57,8 @@ from laddercodec.instructions import Email, Home, Position, Velocity
 def test_validate_roundtrip_accepts_equivalent_raw_instruction(
     instruction: Email | Home | Position | Velocity,
 ) -> None:
-    # The box spans 3 rows, as the raw box the CSV reads back does.
+    # The CSV writes each of these as a raw(...) token, which reads back as a RawInstruction
+    # 3 rows tall. The rung is 3 rows tall to match.
     rung = Rung(
         logical_rows=3,
         conditions=[["-"] * 31, [""] * 31, [""] * 31],

@@ -12,26 +12,30 @@ Public API
 Layout
 ------
 
-A rung with a layout is written as CLICK's syntax check draws it
-(``docs/internals/layout.md``), and reads back to exactly that drawing.  A
-rung CLICK would split is written as the rungs it splits into.  A rung
-with no layout (``laddercodec.check()`` reports it) is written as drawn.
+When laddercodec can lay out a rung, the writer writes it as CLICK's syntax
+check draws it (``docs/internals/layout.md``), and the file reads back to
+exactly that drawing.  If CLICK would split the rung, the writer writes the
+rungs that CLICK splits it into.  A rung that has no layout keeps its cells
+where they are.  That happens when it holds only wires and unwired NOPs, when
+the layout cannot draw it, or when ``laddercodec.check()`` reports a finding
+other than an unwired box input or a contact that feeds only a NOP.
 
 Pin row reconstruction
 ----------------------
 
-The binary format stores pin use as flags in the blob (e.g. timer
-retention) and each pin's row as the blob's part bytes (``pin_rows``).
-The CSV format represents each used pin as a pin row (``.reset()``, ...)
-at that row, with the OR-leg rows between pins kept in place.
+In the binary format, flags in the blob say which pins are in use, such as
+the flag for a retained timer.  The blob's part bytes hold the row of each
+pin (``pin_rows``).  In the CSV format, each pin in use is a pin row, such
+as ``.reset()``, on that row.  The OR-leg rows between pins stay in place.
 
 Tall instruction padding
 ------------------------
 
-Tall AF instructions have trailing padding rows for visual height.  Padding
-rows — those containing only blank cells and vertical pass-through wires
-(``|``) — are stripped before writing.  The forward path's auto-padding and
-wire-continuation hydration restores them.
+A tall AF instruction spans several rows.  Rows below its token that hold
+only blank cells and vertical wires (``|``) are padding.  The writer leaves
+out the padding rows at the end of the instruction.  When ``read_csv()``
+reads the file, it pads the instruction back to its height and puts the
+vertical wires back.
 """
 
 from __future__ import annotations
@@ -75,7 +79,8 @@ def _token_to_csv(token: object) -> str:
         raise WriterError(
             f"Cannot serialize unknown instruction to CSV (raw {len(token.raw)} bytes)"
         )
-    # Wire tokens and plain strings ("", "-", "|", "T", "+", "+|", "-!", "-|", "NOP")
+    # Wire tokens and plain strings ("", "-", "|", "T", "+", "+|", "-!", "-|", "NOP") are
+    # already CSV text.
     return str(token)
 
 
@@ -85,12 +90,10 @@ def _token_to_csv(token: object) -> str:
 
 
 def _is_padding_row(conditions: Sequence[object]) -> bool:
-    """Return True when a row is pure tall-instruction padding.
+    """Return True if every cell of the row is blank or a vertical wire (``|``).
 
-    Padding rows contain only blank cells and vertical pass-through
-    wires (``|``).  The ``|`` tokens are reconstructable from ``T``
-    tokens in the row above, so they can be stripped on write and
-    restored on read.
+    Such a row is padding below a tall instruction.  The read rebuilds each
+    ``|`` from the wire in the row above, so the writer can leave the row out.
     """
     return all(c in ("", "|") for c in conditions)
 
@@ -101,21 +104,23 @@ def _append_data_row(
     conditions: Sequence[object],
     af: object,
 ) -> int:
-    """Append one CSV data row and return the new emitted-data-row count."""
+    """Append one CSV data row to *rows* and return *data_row_count* plus one."""
     marker = "R" if data_row_count == 0 else ""
     rows.append([marker] + [_token_to_csv(c) for c in conditions] + [_token_to_csv(af)])
     return data_row_count + 1
 
 
 def _followed_by_floating_row(af_tokens: Sequence[object], span_end: int) -> bool:
-    """True when a blank-AF row sits just below a tall instruction's span.
+    """Return True if the row just below a tall instruction's rows has a blank AF cell, or
+    holds a box with lead slots.
 
-    Such a row would be absorbed into the instruction's continuation slots on
-    reparse, so the instruction's trailing padding must stay positional rather
-    than dehydrated — otherwise the following content floats up.  A real AF
-    instruction (or the end of the rung) anchors the position, so dehydration
-    is safe there — except a box with lead slots, whose lead rows are written
-    as blank-AF rows above its token.
+    If so, the writer must keep the instruction's padding rows.  Otherwise the
+    read would take the blank-AF row as one of the instruction's rows, and that
+    row and the rows below it would move up.  An AF instruction or the end of
+    the rung after the span holds the rows in place, and the padding rows can
+    be left out.  The exception is a box with lead slots, the slots above its
+    main input.  Its lead rows are written as blank-AF rows above its token,
+    so this returns True for it too.
     """
     if span_end >= len(af_tokens):
         return False
@@ -129,12 +134,12 @@ def _emit_blank_continuation(
     conditions: Sequence[object],
     keep_positional: bool = False,
 ) -> int:
-    """Emit a blank-AF continuation row.
+    """Append a continuation row of a tall instruction, with a blank AF cell.
 
-    Trailing padding (blank cells and ``|`` pass-through wires) is dehydrated —
-    the reparser rebuilds it from the instruction's visual height.  But when a
-    blank-AF row follows the instruction's span (``keep_positional``), the row
-    is emitted so following content keeps its position on reparse.
+    Leave out a padding row, one with only blank cells and ``|`` wires,
+    because the read pads the instruction back to its height.  With
+    *keep_positional*, write the padding row anyway, so that the rows after
+    it keep their place on read.  Return the new data row count.
     """
     if not keep_positional and _is_padding_row(conditions):
         return data_row_count
@@ -142,7 +147,7 @@ def _emit_blank_continuation(
 
 
 def _require_blank_af(af: object, *, message: str) -> None:
-    """Ensure a consumed continuation row does not hide another AF token."""
+    """Raise ``WriterError(message)`` if *af*, a continuation row's AF cell, is not blank."""
     if af != "":
         raise WriterError(message)
 
@@ -153,10 +158,11 @@ def _emit_pin_gap(
     gap: Sequence[Sequence[object]],
     unused_pins: int,
 ) -> int:
-    """Emit the rows between two slots of a pinned block, before a used pin.
+    """Append the rows between two slots of a pinned block, before a used pin.
 
-    Drops as much trailing padding as the converter re-pads for the unused
-    pins in between (``pinned_gap_height``), so the pin lands on its row.
+    Leave out as many padding rows at the end of *gap* as the converter adds
+    back for the unused pins in between (``pinned_gap_height``).  The used pin
+    then lands on its own row on read.  Return the new data row count.
     """
     keep = len(gap)
     for drop in range(min(unused_pins, len(gap)), 0, -1):
@@ -176,10 +182,12 @@ def _emit_box_tail(
     tail: Sequence[Sequence[object]],
     keep_positional: bool,
 ) -> int:
-    """Emit a pinned block's rows after its last used pin (its unused pins' rows).
+    """Append the rows of a pinned block after its last used pin.
 
-    Trailing padding dehydrates, since the reparse pads the box back to its
-    height, unless a floating row follows (``keep_positional``).
+    These are the rows of its unused pins.  Leave out the padding rows at the
+    end, because the read pads the box back to its height.  With
+    *keep_positional*, keep them, because a blank-AF row follows the box.
+    Return the new data row count.
     """
     last = len(tail) - 1
     if not keep_positional:
@@ -197,12 +205,15 @@ def _emit_pinned_block(
     start: int,
     af: PinnedInstruction,
 ) -> tuple[int, int]:
-    """Emit a box whose slots sit at ``af.pin_rows``; return ``(new_count, consumed_rows)``.
+    """Append the rows of a box whose slots sit at ``af.pin_rows``.
 
-    Lead slots (above the main input) are emitted as blank-AF rows before the
-    instruction token; the token goes on the main input's row, which decodes
-    with a NOP in its AF cell.  Empty lead rows are left out, unless the row
-    above is a blank-AF row the reparse would take as the lead row instead.
+    Return ``(new_count, consumed_rows)``.
+
+    Write the lead slots, the slots above the main input, as blank-AF rows
+    before the instruction token.  Write the token on the main input's row.
+    In the decoded rung, that row has a NOP in its AF cell.  Leave out the
+    blank lead rows at the top of the box.  Keep them if the row above the box
+    has a blank AF cell, because the read would take that row as a lead row.
     """
     name = af.to_csv().split("(", 1)[0]
     height = af.pin_rows[-1] + 1
@@ -253,10 +264,12 @@ def _emit_generic_tall_block(
     start: int,
     af: AfInstruction,
 ) -> tuple[int, int]:
-    """Emit a non-pinned tall AF block, dropping only its trailing padding rows.
+    """Append the rows of a tall AF instruction that is not pinned.
 
-    A padding row above a later nonblank row of the span is kept, so that row
-    keeps its position on reparse (a raw Drum's unused pin row above a used one).
+    Return ``(new_count, consumed_rows)``.  Leave out only the padding rows at
+    the end of its span.  Keep a padding row that has a non-padding row below
+    it in the span, so that the lower row keeps its place on read.  A raw Drum
+    has such a row when an unused pin row sits above a used one.
     """
     visual_rows = int(af.cell_params().get("visual_rows", 1))
     needed = start + visual_rows
@@ -295,7 +308,8 @@ def _display_token(token: object) -> str:
 
 
 def _af_tokens_match(expected: object, actual: object) -> bool:
-    """Return True when AF tokens are semantically equivalent for CSV replay."""
+    """Return True if two AF tokens are equal, or if either is a ``RawInstruction``
+    and both build the same blob and cell parameters."""
     if expected == actual:
         return True
 
@@ -312,15 +326,16 @@ def _af_tokens_match(expected: object, actual: object) -> bool:
 
 
 def _same_refusals(expected: object, actual: object) -> bool:
-    """Whether a token read back holds refusals of the same fields as the one written."""
+    """Return True if the token read back holds refusals of the same fields as the one written."""
     return [e.field for e in refusals(expected)] == [e.field for e in refusals(actual)]
 
 
 def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]], *, held: bool = False) -> Rung:
-    """Read one rung's emitted CSV rows back, as ``read_csv`` reads them.
+    """Read the CSV rows written for one rung back into a ``Rung``, as ``read_csv`` reads them.
 
-    With *held* (the rung holds a refusal), as ``read_csv(..., unchecked=True)`` reads
-    them: a decoded instruction that holds refusals reads back to one that holds the same.
+    Pass *held* when the rung holds a refusal.  The rows are then read as
+    ``read_csv(..., unchecked=True)`` reads them, so that an instruction that holds
+    refusals reads back to one that holds the same refusals.
     """
     try:
         with unchecked() if held else nullcontext():
@@ -337,18 +352,19 @@ def _rebuild_rung_from_rows(rows: Sequence[Sequence[str]], *, held: bool = False
 
 
 def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: bool = False) -> None:
-    """Fail loudly when emitted CSV rows lose information from the rung.
+    """Raise ``WriterError`` if the CSV rows written for *rung* lose any of it on read.
 
-    With ``exact`` (a rung in CLICK's layout), the rows must read back to the rung itself.
-    Without it, trailing blank rows the read-back drops only raise a warning.
+    Pass ``exact`` for a rung in CLICK's layout.  Its rows must then read back to the rung
+    itself.  Without ``exact``, if the read drops blank rows at the end of the rung, this
+    only warns.
     """
     tokens = [*(t for row in rung.conditions for t in row), *rung.instructions]
     rebuilt = _rebuild_rung_from_rows(rows, held=any(refusals(t) for t in tokens))
 
     if rebuilt.logical_rows != rung.logical_rows:
-        # Trailing blank rows (no conditions, no AF) can be lost when
-        # a tall instruction's stripped continuation absorbs them on
-        # read-back.  This is cosmetic — warn instead of failing.
+        # Blank rows at the end of the rung, with no conditions and no AF, can be
+        # lost on read.  A tall instruction whose padding rows were left out takes
+        # them as its own rows.  The loss is cosmetic, so warn instead of failing.
         extra = rung.logical_rows - rebuilt.logical_rows
         if (
             not exact
@@ -414,18 +430,21 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
 def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     """Convert a ``Rung`` to a list of CSV row lists.
 
-    Each returned row is a list of 33 strings: [marker, A..AE, AF].
-    Comment rows have marker ``"#"`` and text in column A.
-    Data rows have marker ``"R"`` (first) or ``""`` (continuation).
+    Each data row is a list of 33 strings: [marker, A..AE, AF].  The first
+    data row of a rung has the marker ``"R"``, and the rest have ``""``.  A
+    comment row is ``["#", text]``, with the text in column A.
 
-    A rung with a layout is written as CLICK's syntax check draws it.  When
-    CLICK would split it, the rows hold one rung per part, each starting with
-    an ``R`` row, and the comment goes on the first.  A rung with no layout
-    is written as drawn.
+    When laddercodec can lay out the rung, it is written as CLICK's syntax
+    check draws it.  If CLICK would split the rung, the rows hold one rung per
+    part, each starting with an ``R`` row, and the comment goes on the first.
+    A rung that has no layout keeps its cells where they are.  That happens
+    when it holds only wires and unwired NOPs, when the layout cannot draw it,
+    or when ``laddercodec.check()`` reports a finding other than an unwired
+    box input or a contact that feeds only a NOP.
 
-    Retained timers produce a ``.reset()`` pin row from the second
-    grid row.  Multi-row AF families are streamed in order so multiple
-    pinned/tall blocks survive CSV round-trip without truncation.
+    A retained timer writes a ``.reset()`` pin row on its reset input's row,
+    which is the second grid row by default.  A rung can hold several tall or
+    pinned instructions, and each one reads back with all of its rows.
     """
     rows: list[list[str]] = []
     for part, exact in _drawn(rung):
@@ -436,7 +455,7 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
 
 
 def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
-    """The rungs to write for *rung*, and whether each is in CLICK's layout."""
+    """Return the rungs to write for *rung*, each with whether it is in CLICK's layout."""
     parts = canonical(rung)
     if parts is None:
         return [(rung, False)]
@@ -451,7 +470,7 @@ def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
 
 
 def _rung_rows(rung: Rung) -> list[list[str]]:
-    """The CSV rows of *rung*'s grid."""
+    """Return the CSV rows for *rung*, its comment rows first."""
     rows: list[list[str]] = []
 
     # --- Comment rows ---
@@ -504,12 +523,14 @@ def write_csv(
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
-    Each rung is written as CLICK's syntax check draws it when it has a
-    layout, so the file can hold more rungs than *rungs* when CLICK would
-    split one; a rung ``laddercodec.check()`` reports is written as drawn.
+    When laddercodec can lay out a rung, it is written as CLICK's syntax check
+    draws it.  If CLICK would split a rung, the file holds the rungs it splits
+    into, so the file can hold more rungs than *rungs*.  A rung that has no
+    layout is written with its cells where they are (see
+    :func:`decoded_rung_to_rows`).
 
-    A rung holding an unknown condition or instruction, whose bytes no CSV
-    token holds, is written as an undecoded marker rung, with an
+    No CSV token can hold the bytes of an unknown condition or instruction.
+    A rung that holds one is written as an undecoded marker rung, with an
     ``UndecodedRungWarning``.
 
     Parameters
@@ -519,14 +540,14 @@ def write_csv(
     rungs:
         One or more decoded rungs, such as the list ``decode()`` returns.
     index:
-        When ``True``, the per-rung ``R`` marker is replaced with a 1-based
-        sequential index (``R1``, ``R2``, ``R3``, ...) counting across the
-        whole file.  The default (``False``) emits a plain ``R``.  Indexed
-        files still round-trip through ``read_csv()`` — the digits are
-        decorative and ignored on read.
+        When ``True``, each rung's ``R`` marker gets the rung's number, counted
+        from 1 across the whole file: ``R1``, ``R2``, ``R3`` and so on.  The
+        default, ``False``, writes a plain ``R``.  ``read_csv()`` ignores the
+        digits, so an indexed file reads back the same.
     stop:
-        How a marker written for a rung with an unknown token stops: ``"end"`` in the
-        main program, ``"return"`` in a subroutine.
+        Whether the marker that stands in for a rung with an unknown token acts as
+        ``end()`` or as ``return()``.  Pass ``"end"`` in the main program and
+        ``"return"`` in a subroutine.
 
     Raises
     ------
@@ -540,7 +561,7 @@ def write_csv(
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
-        rung_number = 0  # counts the rungs written: a rung CLICK would split writes several
+        rung_number = 0  # Counts the rungs written. A rung CLICK would split counts as several.
         for rung_index, rung in enumerate(rungs):
             unknown = _unknown_cell(rung)
             if unknown is None:
@@ -559,9 +580,9 @@ def write_csv(
 
 
 def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:
-    """``(row, column, error)`` of the first unknown condition or instruction in *rung*.
+    """Return ``(row, column, error)`` for the first unknown condition or instruction in *rung*.
 
-    ``row`` and ``column`` count from 0; None when *rung* holds no unknown token.
+    ``row`` and ``column`` count from 0.  Return None if *rung* holds no unknown token.
     """
     for row, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=False)):
         cells = [*enumerate(conditions), (len(CONDITION_COLUMNS), af)]

@@ -1,21 +1,23 @@
-"""Ratchet: no new regex, bank-name literal or ValueError raise in ``instructions/``.
+"""Refuse any regex, bank-name literal or ValueError raise in ``instructions/`` beyond those listed.
 
-Constants, bank sets and field refusals are moving to :mod:`laddercodec.operands`.  Each
-instance in ``src/laddercodec/instructions/`` today is listed below, keyed by file and its
-source text (:func:`_key`); the scan fails on an instance the lists do not hold, and on a
-listed instance the code no longer has.  A step that removes an instance removes its
-entry.
+Constants, bank sets and field refusals are being moved into :mod:`laddercodec.operands`.
+The lists below hold each instance of the three kinds that ``src/laddercodec/instructions/``
+still has, keyed by file and source text (:func:`_key`). The scan fails on an instance that
+the lists do not hold. It also fails on a listed instance that the code no longer has, so a
+change that removes an instance must also remove its entry.
 
 - ``REGEX``: a call to a ``re`` function (``compile``, ``match``, ``fullmatch``,
-  ``search``, ``sub``, ``subn``, ``split``, ``findall``, ``finditer``), through
-  ``import re``, ``import re as x`` or ``from re import ...``.
-- ``BANK_NAMES``: a set, tuple or list literal (or ``set``/``frozenset`` of one) whose
-  items are all text and include a bank name, and a dict literal whose keys are.
-- ``VALUE_ERROR``: a raise of ``ValueError``, called or bare, of a name bound to it, of a
-  ``ValueError`` subclass defined in ``instructions/``, or of a class of
-  :mod:`laddercodec.errors` (``CsvError``, ``EncodeError``, ...), outside the blob-parse
-  functions in ``BLOB_PARSE``, which report malformed bytes and stay ``ValueError``.  A
-  ``FieldError`` is the form a refused field takes, and is not counted.
+  ``search``, ``sub``, ``subn``, ``split``, ``findall``, ``finditer``) that was imported
+  by ``import re``, ``import re as x`` or ``from re import ...``.
+- ``BANK_NAMES``: a set, tuple or list literal, or a ``set`` or ``frozenset`` call on one,
+  whose items are all text and include at least one bank name. A dict literal counts when
+  its keys meet the same test.
+- ``VALUE_ERROR``: a raise of ``ValueError``, with or without a call. A raise of a name
+  bound to ``ValueError`` counts too, and so does a raise of a ``ValueError`` subclass
+  defined in ``instructions/`` or of a class of :mod:`laddercodec.errors` (``CsvError``,
+  ``EncodeError``, ...). A raise in a function listed in ``BLOB_PARSE`` does not count.
+  Those functions report malformed bytes, and they keep raising ``ValueError``. A raise of
+  ``FieldError`` does not count, because ``FieldError`` is how a refused field is reported.
 """
 
 from __future__ import annotations
@@ -35,12 +37,13 @@ _REGEX_FUNCS = frozenset(
 )
 _SEQUENCES = (ast.Set, ast.List, ast.Tuple)
 
-#: Functions that parse blob bytes; a ``ValueError`` there reports malformed data.
+#: The functions that parse blob bytes. A ``ValueError`` raised in one reports malformed data.
 BLOB_PARSE = frozenset({("raw.py", "_read_utf16le_boundary"), ("raw.py", "find_blob_boundary")})
 
 Key = tuple[str, str]
 
-#: The classes of :mod:`laddercodec.errors`: a raise of one is counted as a ``ValueError``.
+#: The ``ValueError`` subclasses in :mod:`laddercodec.errors`. The scan counts a raise of one
+#: as a ``ValueError``.
 TREE_ERRORS = frozenset(
     name
     for name, value in vars(errors).items()
@@ -54,7 +57,7 @@ TREE_ERRORS = frozenset(
 
 
 def _fstring_text(node: ast.JoinedStr) -> str:
-    """An f-string's source between the quotes, the same on every Python version."""
+    """Return an f-string's source between its quotes, in the same form on every Python version."""
     parts = []
     for part in node.values:
         if isinstance(part, ast.Constant):
@@ -71,14 +74,15 @@ def _fstring_text(node: ast.JoinedStr) -> str:
 
 
 class _FStringsAsCalls(ast.NodeTransformer):
-    """Write ``f"a {x!r}"`` as ``f('a {x!r}')``, which unparses alike on 3.11 and 3.12+."""
+    """Rewrites ``f"a {x!r}"`` as ``f('a {x!r}')``. The call unparses the same on 3.11 and 3.12+."""
 
     def visit_JoinedStr(self, node: ast.JoinedStr) -> ast.AST:
         return ast.Call(ast.Name("f", ast.Load()), [ast.Constant(_fstring_text(node))], [])
 
 
 def _key(node: ast.AST) -> str:
-    """The node's source text, with f-strings in a version-independent form."""
+    """Return the node's source text, with each f-string in a form that every Python version
+    unparses the same."""
     return ast.unparse(_FStringsAsCalls().visit(copy.deepcopy(node)))
 
 
@@ -88,7 +92,8 @@ def _key(node: ast.AST) -> str:
 
 
 def _re_names(tree: ast.Module) -> tuple[set[str], set[str]]:
-    """(names bound to the ``re`` module, names bound to a ``re`` function) in ``tree``."""
+    """Return two sets: the names in ``tree`` bound to the ``re`` module, and those bound to a
+    ``re`` function."""
     modules: set[str] = set()
     funcs: set[str] = set()
     for node in ast.walk(tree):
@@ -119,9 +124,11 @@ def _text_items(elts: list[ast.expr]) -> list[str] | None:
 
 
 def _bank_items(node: ast.AST) -> list[str] | None:
-    """The text items of a set/tuple/list literal, ``set``/``frozenset`` of one, or dict keys.
+    """Return the text items of a set, tuple or list literal, or the keys of a dict literal.
 
-    None unless every item (every key) is text.
+    A ``set`` or ``frozenset`` call on a set, tuple or list literal counts as that literal.
+    Return None for any other node, for an empty literal, and for one with an item or key
+    that is not text.
     """
     if isinstance(node, _SEQUENCES):
         return _text_items(node.elts)
@@ -141,8 +148,9 @@ def _bank_items(node: ast.AST) -> list[str] | None:
 
 def _names_banks(node: ast.AST) -> bool:
     items = _bank_items(node)
-    # Any item, so a misspelled bank still counts; this also counts a few literals that are
-    # not bank sets, such as the wire tokens ``("T", "|")`` and blob names ``("RD", "SD")``.
+    # One bank name among the items is enough, so a set with a misspelled bank still counts.
+    # This also counts a few literals that are not bank sets, such as the wire tokens
+    # ``("T", "|")`` and the blob names ``("RD", "SD")``.
     return items is not None and any(item in ADDRESS_BANKS for item in items)
 
 
@@ -156,8 +164,11 @@ def _is_bank_literal(node: ast.AST, parent: ast.AST | None) -> bool:
 
 
 def _value_error_names(trees: list[ast.Module]) -> set[str]:
-    """``ValueError``, the classes of :mod:`laddercodec.errors`, the names bound to them and
-    their subclasses defined in ``trees``."""
+    """Return the names that count as ``ValueError``.
+
+    They are ``ValueError``, the ``ValueError`` subclasses in :mod:`laddercodec.errors`, and
+    each name in ``trees`` that is bound to one of these or is a class that subclasses one.
+    """
     names = {"ValueError", *TREE_ERRORS}
 
     def is_known(expr: ast.expr) -> bool:
@@ -189,7 +200,8 @@ def _raises_value_error(node: ast.AST, names: set[str]) -> bool:
 
 
 def scan(root: Path = INSTRUCTIONS) -> dict[str, Counter[Key]]:
-    """Every instance of each guarded kind under ``root``, counted by (file, key)."""
+    """Return every instance of each guarded kind in the ``.py`` files in ``root``, counted by
+    (file, key)."""
     found: dict[str, Counter[Key]] = {
         "REGEX": Counter(),
         "BANK_NAMES": Counter(),
@@ -483,7 +495,8 @@ ALLOWED: dict[str, dict[Key, int]] = {
 
 
 def _differences(kind: str) -> tuple[list[str], list[str]]:
-    """(new instances, listed instances the code no longer has) for guard ``kind``."""
+    """Return the instances of ``kind`` that are not listed, and the listed ones that the code
+    no longer has."""
     found = scan()[kind]
     allowed = Counter(ALLOWED[kind])
     new = [f"{name}: {key} (x{n})" for (name, key), n in sorted((found - allowed).items())]
@@ -577,7 +590,8 @@ def test_scan_finds_each_kind(tmp_path: Path) -> None:
             ("raw.py", "{'DS': 1, 'DD': 2}"): 1,
         }
     )
-    # The blob-parse function's ValueError is exempt; the others are found.
+    # The scan skips the ValueError in find_blob_boundary, which BLOB_PARSE lists, and finds
+    # the others.
     assert found["VALUE_ERROR"] == Counter(
         {
             ("raw.py", "ValueError"): 1,

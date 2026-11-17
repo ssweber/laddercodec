@@ -1,6 +1,6 @@
-"""Reverse-engineered offsets for the Click clipboard binary format.
+"""Offsets in the binary that CLICK puts on the clipboard, found by reverse engineering.
 
-Fixed-size 64-byte cell layout, program header, and rung preamble.
+They cover the program header, the rung preamble and the layout of the 64-byte cells.
 """
 
 from __future__ import annotations
@@ -27,10 +27,10 @@ COLS_PER_ROW = 32
 GRID_ROW_STRIDE = CELL_SIZE * COLS_PER_ROW  # 0x800
 CELL_TAIL_SIZE = 16  # 16-byte tail appended after the blob in instruction cells
 
-# Cell-local topology flag offsets
-# +0x19: segment flag — load-bearing; getting it wrong causes contacts/wires
-#        to shift down to their own row.  Encoder computes per-row boundary
-#        from T/|/contact positions.
+# Offsets of the topology flags within a cell.
+# +0x19: the segment flag. If it is wrong, contacts and wires shift down to a row of
+#        their own. The encoder works out, for each row, the column where the flag
+#        changes, from the positions of T, | and contacts.
 CELL_SEGMENT_FLAG_OFFSET = 0x19
 CELL_HORIZONTAL_RIGHT_OFFSET = 0x1D
 CELL_VERTICAL_DOWN_OFFSET = 0x21

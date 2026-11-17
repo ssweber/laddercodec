@@ -1,13 +1,17 @@
-"""Which tags Click's SCR files leave out, measured on native SCR + clipboard pairs.
+"""Helpers that measure which tags Click's SCR files leave out.
 
-Click's program files (``Scr*.tmp``) store a tag only when it differs from its
-default; the clipboard stores every tag.  ``survey()`` pairs each SCR blob with the
-clipboard blob of the same instruction (same class, same non-empty operands) and
-counts, per (class, tag), the clipboard values seen when SCR left the tag out and
-when it kept it.  ``mismatches()`` lists the tags SCR left out at a value other
-than ``binary_helpers.tag_default`` returns.
+They compare SCR files with clipboard copies of the same programs, using only clipboard
+copies that came from Click. Click's program files (``Scr*.tmp``) store a tag only when its
+value differs from the default. The clipboard stores every tag.
 
-Used by ``tests/test_instruction_defaults.py`` and ``devtools/scr_defaults_survey.py``.
+``survey()`` pairs each SCR blob with the clipboard blob of the same instruction, which has
+the same class and the same non-empty operands. For each class and tag, it counts the
+clipboard values in two cases: when the SCR file left the tag out, and when it kept the tag.
+``mismatches()`` lists the tags that an SCR file left out where the clipboard value is not
+the one ``binary_helpers.tag_default`` returns.
+
+``tests/test_instruction_defaults.py`` and ``devtools/scr_defaults_survey.py`` use this
+module.
 """
 
 from __future__ import annotations
@@ -32,8 +36,9 @@ FIXTURES = Path(__file__).parent / "fixtures"
 #: SCR fixtures whose clipboard copy is synthetic (see scr_captures/README.md).
 _SYNTHETIC = {"time_drums"}
 
-#: Wire types whose omission ``tag_default`` doesn't model (flags: absent = unset;
-#: variants: an all-zero array is left out) and the func code each family derives.
+#: ``mismatches()`` skips these wire types and the func code tag. ``tag_default`` does not
+#: model how an SCR file leaves out these wire types. An absent flag means unset, and an
+#: all-zero variant array is left out. Each instruction family derives its own func code.
 _UNCHECKED_WIRES = {"flag", "variant_u16", "variant_string"}
 _FUNC_CODE = 0x3218
 
@@ -42,7 +47,7 @@ Counts = dict[tuple[str, int], dict[str, int]]
 
 
 def fixture_pairs() -> list[tuple[Path, Path]]:
-    """Every native (scr, clipboard) pair under tests/fixtures."""
+    """Return every (scr, clipboard) pair under tests/fixtures whose clipboard came from Click."""
     pairs: list[tuple[Path, Path]] = []
     for scr in sorted((FIXTURES / "scr_captures").glob("*.scr")):
         if scr.stem in _SYNTHETIC:
@@ -73,7 +78,9 @@ def _wrapped(module: Any, name: str, wrapper: Callable[[Callable], Callable]) ->
 
 
 def _scr_tags(data: bytes) -> list[tuple[str, Tags]]:
-    """Each SCR blob's class name and tags (variant arrays as their repr)."""
+    """Return the class name and tags of each SCR blob in *data*.
+
+    The value of a variant array is its repr."""
     log: list[tuple[str, Tags]] = []
 
     def wrap(original: Callable) -> Callable:
@@ -93,7 +100,9 @@ def _scr_tags(data: bytes) -> list[tuple[str, Tags]]:
 
 
 def _clipboard_tags(data: bytes) -> list[tuple[str, Tags]]:
-    """Each clipboard blob's class name and raw tag values (before flag normalising)."""
+    """Return the class name and raw tag values of each clipboard blob in *data*.
+
+    The values are read before the decoder normalizes flags."""
     log: list[tuple[str, Tags]] = []
     classes: list[str] = []
 
@@ -165,7 +174,7 @@ def is_checked(tag: int) -> bool:
 
 
 def mismatches(result: Survey) -> list[tuple[str, int, str, list[str]]]:
-    """``(class, tag, default, values)`` for each tag SCR left out at a non-default value."""
+    """Return ``(class, tag, default, values)`` for each tag left out at a non-default value."""
     found = []
     for (class_name, tag), values in sorted(result.omitted.items()):
         if not is_checked(tag):

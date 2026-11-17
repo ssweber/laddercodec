@@ -1,10 +1,10 @@
-"""Deterministic empty multi-row payload synthesis for the validated empty lane.
+"""Build the clipboard payload of an empty rung with 1 to 32 rows.
 
-This encoder targets the empty-rung family validated so far:
-- header row word at entry0 (+0x00/+0x01) follows (rows + 1) * 0x20;
-- payload length scales by 0x1000 pages;
-- header +0x05 and trailer 0x0A59 are zeroed for this lane;
-- active-cell offsets follow deterministic row/column formulas.
+The payload follows these rules, which have been checked for empty rungs only:
+- The row word in the program header (+0x00/+0x01) is (rows + 1) * 0x20.
+- The payload length grows in pages of 0x1000 bytes.
+- The byte at header +0x05 and the byte at 0x0A59 are zero.
+- The bytes of each cell in the rung's rows are set by fixed formulas of row and column.
 """
 
 from __future__ import annotations
@@ -47,13 +47,14 @@ def _load_template() -> bytes:
 
 
 def empty_multirow_payload_length(logical_rows: int) -> int:
-    """Return lane-validated payload length for a logical empty row count."""
+    """Return the payload length in bytes of an empty rung with ``logical_rows`` rows."""
     _validate_rows(logical_rows)
     return EMPTY_MULTIROW_PAGE_SIZE * (((logical_rows + 1) // 2) + 1)
 
 
 def empty_multirow_row_word(logical_rows: int) -> int:
-    """Return header row word (entry0 +0x00/+0x01, little-endian)."""
+    """Return the row word for ``logical_rows`` rows. The program header stores it
+    little-endian at +0x00 and +0x01."""
     _validate_rows(logical_rows)
     return (logical_rows + 1) * EMPTY_MULTIROW_ROW_WORD_STRIDE
 
@@ -63,7 +64,8 @@ def synthesize_empty_multirow(
     *,
     template: bytes | None = None,
 ) -> bytes:
-    """Build a deterministic empty multi-row payload for the validated empty family."""
+    """Build the payload of an empty rung with ``logical_rows`` rows, starting from
+    ``template`` or, if it is None, from the packaged template file."""
     _validate_rows(logical_rows)
 
     template_bytes = template if template is not None else _load_template()

@@ -1,6 +1,6 @@
-"""End — program terminator instruction (type marker 0x2727).
+"""The ``End`` instruction, which ends the program.
 
-Binary class name: ``"End"``.
+Its CSV token is ``end()``. Its binary class name is ``"End"`` and its type marker is 0x2727.
 """
 
 from __future__ import annotations
@@ -50,14 +50,18 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> End | None:
-    """Construct an End instruction from tag data (shared by both decoders)."""
+    """Build an ``End`` from the tags of an instruction blob, or return None.
+
+    Return None if the blob is not an End. The clipboard decoder and the program-file
+    decoder both call this.
+    """
     if class_name != "End" or type_code != END_TYPE_MARKER:
         return None
     return End()
 
 
 def parse_af_call(call: AfCall) -> End:
-    """Parse an AF AST call into an End."""
+    """Parse an ``end()`` call from the AF (output) column of a CSV rung into an ``End``."""
     return End.from_csv_token(call.to_token())
 
 

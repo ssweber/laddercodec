@@ -37,11 +37,11 @@ def test_reconstruct_expression_preserves_display_literals_and_concrete_operands
 
 
 def test_internal_form_normalizes_literals() -> None:
-    """Decimal integers get ``H``; hex constants become ``UH`` + decimal value.
+    """The internal form writes each literal with the prefix that CLICK stores.
 
-    ``Ah`` → ``UH10`` is from a CLICK v4 copy-back (clicknick math-error-ok.bin);
-    ``( -5 )`` → ``(#H-5#)`` and ``( -2.5 )`` → ``(#F-2.5#)`` from ones typed
-    in v4 (math_neg.bin).
+    A decimal integer gets ``H``, and a real gets ``F``. A hex constant becomes ``UH`` and
+    its decimal value. CLICK v4 stores ``Ah`` as ``UH10``, ``( -5 )`` as ``(#H-5#)`` and
+    ``( -2.5 )`` as ``(#F-2.5#)``.
     """
     assert parse("DS1 + 200", "decimal").internal() == "DS1#+#H200"
     assert parse("DS401 + ( -5 )", "decimal").internal() == "DS401#+#(#H-5#)"
@@ -57,17 +57,19 @@ def test_internal_form_normalizes_literals() -> None:
 @pytest.mark.parametrize(
     ("display", "internal"),
     [
-        # typed in CLICK v4: math_r1.bin, math_typed.bin, the math__v4 RAND rungs
+        # CLICK v4 stored these forms for formulas typed into it. math_typed.bin and the
+        # RAND rungs of math__v4 hold some of them.
         ("LSH ( DH5 , 1h )", "DH5#LSH#UH1#"),
         ("RAND ( 1 , 100 )", "H1#RAND#H100#"),
         ("RAND ( DD111 , DD112 )", "DD111#RAND#DD112#"),
         ("RAND ( 1 , 10 ) + DS1", "H1#RAND#H10#+#DS1"),
         ("SUM ( DS1 : DS3 ) + 5", "SUM#(#DS1#:#DS3#)#+#H5"),
         ("MAX ( DS1 : DS3 ) + SUM ( DS5 : DS8 )", "MAX#(#DS1#:#DS3#)#+#SUM#(#DS5#:#DS8#)"),
-        # typed in CLICK v4: math-multiple.bin
+        # CLICK v4 stored these forms for formulas typed into it.
         ("DH2 + LSH ( DH1 , 1h )", "DH2#+#DH1#LSH#UH1#"),
         ("LSH ( DH1 , 1h ) AND RSH ( DH2 , 2h )", "DH1#LSH#UH1#AND#DH2#RSH#UH2#"),
-        # the other comma functions and positions: same rule, not typed yet
+        # The same rule for another two-argument function, and for calls inside parentheses
+        # or inside another function. Nobody has typed these in CLICK.
         ("RRO ( DH1 , DH2 )", "DH1#RRO#DH2#"),
         ("( LSH ( DH1 , 1h ) ) + DH2", "(#DH1#LSH#UH1#)#+#DH2"),
         ("ABS ( RAND ( 1 , 10 ) )", "ABS#(#H1#RAND#H10#)"),

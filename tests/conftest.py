@@ -1,17 +1,23 @@
-"""A refusal an instruction's ``__post_init__`` raises names a field of that instruction.
+"""Every refusal that an instruction's ``__post_init__`` raises names a field of that instruction.
 
-The fixture below wraps the step that completes the refusals of an instruction class's
-``__post_init__``, so every test that builds a refused instruction checks the error's shape
-too: each refusal's ``field`` (and each of its ``fields``) is ``Class.attr`` or
-``Class.attr[i]``, where ``Class`` is the class name of the instance its refusal is about and
-``attr`` one of its dataclass fields, its ``reason`` is a :class:`~laddercodec.Reason` or
-None, and a class in ``REASONED`` has no refusal without one; its ``code`` is a
-:class:`~laddercodec.Code`, and its ``click_id`` one the code lists in ``CLICK_IDS``.  A refusal that breaks this
-fails the test that built it with an ``AssertionError``.
+The fixture below wraps ``address._refused``, the step that completes each refusal of an
+instruction class's ``__post_init__``.  Every test that builds a refused instruction therefore
+also checks the shape of each refusal:
 
-It sees only the refusals the suite builds, and only through an instruction class's
-``__post_init__``: not those of CSV token parsing or of the Modbus target classes.
-``tests/test_field_names.py`` reads every field name written out in the source.
+- ``field`` is the first item of ``fields``.
+- Each item of ``fields`` is ``Class.attr`` or ``Class.attr[i]``.  ``Class`` is the class name
+  of the instance that the refusal is about, and ``attr`` is one of its dataclass fields.
+- ``reason`` is a :class:`~laddercodec.Reason` or None.  A refusal by a class in ``REASONED``
+  always has a reason.
+- ``code`` is a :class:`~laddercodec.Code`.  ``click_id`` is None or one of the ids that
+  ``CLICK_IDS`` lists for that code.
+
+A refusal that breaks a rule fails the test that built it with an ``AssertionError``.
+
+The fixture sees only the refusals that the suite builds, and only those that an instruction
+class's ``__post_init__`` raises.  It does not see the refusals of CSV token parsing or of the
+Modbus target classes.  ``tests/test_field_names.py`` checks every field name that is written
+out in the source.
 """
 
 from __future__ import annotations
@@ -29,7 +35,7 @@ from laddercodec.operands.errors import FieldError, Reason
 
 _FIELD = re.compile(r"(\w+)\.(\w+)(?:\[\d+\])?")
 
-#: Instruction classes whose every refusal has a reason (and so a Reason from the fixed set).
+#: The instruction classes in which every refusal must have a reason, a member of ``Reason``.
 REASONED = frozenset(
     {
         "Coil",
@@ -58,7 +64,8 @@ REASONED = frozenset(
 
 
 def refusal_problems(error: FieldError) -> list[str]:
-    """What is wrong with the shape of one refusal raised while ``error.obj`` was built."""
+    """Return a message for each fault in the shape of *error*, a refusal raised while
+    ``error.obj`` was built."""
     obj = error.obj
     cls = type(obj)
     problems = []
@@ -78,9 +85,11 @@ def refusal_problems(error: FieldError) -> list[str]:
 
 
 def code_problems(error: FieldError) -> list[str]:
-    """What is wrong with one refusal's code: not a Code, or a CLICK id its code does not list.
+    """Return a list with one message if the code of *error* is not a ``Code``, or if its
+    CLICK id is not one that ``CLICK_IDS`` lists for the code.  Otherwise return an empty list.
 
-    A ``blank-field`` refusal keeps the id of the check that refused the blank.
+    A ``blank-field`` refusal keeps the CLICK id of the check that refused the blank, so its
+    id is not checked.
     """
     if not isinstance(error.code, Code):
         return [f"{error.field!r}: code {error.code!r} is not a Code"]

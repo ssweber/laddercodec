@@ -1,13 +1,19 @@
-"""Drum — event, time, and time & event drum instructions (type marker 0x271B).
+"""Drum instructions: the event drum, the time drum and the time & event drum.
 
-Binary class name: ``"Drum"``.
-Drum types: event_drum (event-driven), time_drum (time-driven), and CLICK v4's
-time_event_drum (each step ends on its preset time and/or its event).
-Event and time drums use the 64-field v3 blob.  The v4-only drums, time & event
-and a time drum with a register preset, use v4's 82-field blob (16 preset slots
-``0x6891``, constant-preset mask ``0x428A``, timer done bit ``0x6068``).
-4 grid rows: main + reset (row 1) + jump (row 2) + jog (row 3), more when OR
-legs under a pin push the later pins down (``pin_rows``, the blob's part bytes).
+The binary class name is ``"Drum"``, and the type marker is 0x271B.
+
+There are three kinds of drum.  An event_drum is event-driven, and a time_drum is
+time-driven.  CLICK v4 adds the time_event_drum, in which each step ends on its preset
+time and/or its event.
+
+Event and time drums use the 64-field v3 blob.  Two drums exist only in v4: the time &
+event drum, and a time drum with a register preset.  They use v4's 82-field blob, which
+holds 16 preset slots (``0x6891``), a constant-preset mask (``0x428A``) and a timer done
+bit (``0x6068``).
+
+A drum has 4 grid rows: the main row, the reset pin on row 1, the jump pin on row 2 and
+the jog pin on row 3.  OR legs under a pin push the later pins down and make the drum
+taller.  ``pin_rows`` holds the row of each pin, and the blob stores it in its part bytes.
 """
 
 from __future__ import annotations
@@ -38,15 +44,15 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-# Event drum: no-jog group (base, reset, jump)
+# The func codes of an event drum without jog: base, reset, jump.
 _EVENT_FC_NO_JOG = (8491, 8492, 8493)
-# Event drum: jog group (base, reset, jump, jog)
+# The func codes of an event drum with jog: base, reset, jump, jog.
 _EVENT_FC_JOG = (8494, 8495, 8496, 8497)
 
-# Time drum: unit → first func code of its block (no-jog group: base, reset, jump).
-# The jog group (base, reset, jump, jog) follows at block+3, except for Th, whose
-# jog group is at block+4: code 8479 is the unused one,
-# which makes the Th block 8 codes long.
+# The first func code of a time drum's block, for each unit.  A block starts with the
+# no-jog group (base, reset, jump).  The jog group (base, reset, jump, jog) follows at
+# block+3.  For Th the jog group is at block+4, because code 8479 is not used.  The Th
+# block is therefore 8 codes long.
 _TIME_FC_BASE: dict[str, int] = {
     "Tms": 8455,
     "Ts": 8462,
@@ -56,12 +62,13 @@ _TIME_FC_BASE: dict[str, int] = {
 }
 _TH_JOG_SKIP = 1
 
-# A time drum with a register preset (CLICK v4) uses the same blocks 1792 codes up
-# (Tms 10247); constant presets only keep the 8455 series.
+# A time drum with a register preset (CLICK v4) uses the same blocks, 1792 codes higher,
+# so its Tms block starts at 10247.  A time drum whose presets are all constants uses the
+# series that starts at 8455.
 _REGISTER_PRESET_FC_OFFSET = 10247 - 8455
 
-# Time & event drum (CLICK v4): unit → first func code of its block; same block
-# shape as the time drum.
+# The first func code of a time & event drum's block (CLICK v4), for each unit.  The
+# blocks have the same shape as the time drum's.
 _TIME_EVENT_FC_BASE: dict[str, int] = {
     "Tms": 10503,
     "Ts": 10510,
@@ -73,10 +80,10 @@ _TIME_EVENT_FC_BASE: dict[str, int] = {
 #: A drum has at most 16 steps and 16 outputs.
 _MAX_DRUM_SIZE = 16
 
-# Drum base (tag 0x2200).
+# The values of tag 0x2200, the drum base.
 _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT = "0", "1", "2"
 
-# Time unit name → index string (same convention as Timer).
+# The index string of each time unit.  Timer uses the same indexes.
 _DRUM_UNIT_TO_INDEX: dict[str, str] = {
     "Tms": "0",
     "Ts": "1",
@@ -94,7 +101,7 @@ _DRUM_KINDS = ("event_drum", "time_drum", "time_event_drum")
 
 
 def _pattern_to_bitmasks(pattern: tuple[tuple[int, ...], ...], num_steps: int) -> list[str]:
-    """Convert pattern matrix to signed-int16 bitmask strings (16 slots)."""
+    """Return the pattern as 16 bitmask strings, one per step slot, each a signed int16."""
     result: list[str] = []
     for step_idx in range(16):
         if step_idx < num_steps:
@@ -121,7 +128,7 @@ def _parse_simple_list(val: str) -> tuple[str, ...]:
 def _parse_pattern(val: str) -> tuple[tuple[int | str, ...], ...]:
     """Parse ``"[[1,0],[0,1]]"`` into rows of cells.
 
-    A cell that is not an integer stays text, for the Drum to refuse."""
+    A cell other than 0 or 1 stays text, for the Drum to refuse."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
         raise CsvError(f"Expected nested list: {val!r}")
@@ -152,7 +159,9 @@ def _pattern_cell(text: str) -> int | str:
 
 
 def _parse_optional_list(val: str) -> tuple[str, ...]:
-    """Parse ``"[1000,None,DS1]"``; ``None`` (an unused step slot) becomes ``""``."""
+    """Parse ``"[1000,None,DS1]"``, with ``""`` for each ``None``.
+
+    ``None`` marks a step that leaves this value blank."""
     return tuple("" if x == "None" else x for x in _parse_simple_list(val))
 
 
@@ -165,15 +174,16 @@ _REGISTER_RE = re.compile(r"[A-Z]+[0-9]+")
 
 
 def is_register_preset(preset: str) -> bool:
-    """Whether a time drum preset names a register (``DS1``) rather than a duration."""
+    """Return True if a time drum preset names a register, such as ``DS1``, not a duration."""
     return bool(_REGISTER_RE.fullmatch(preset))
 
 
 def _constant_preset_mask(presets: tuple[str, ...]) -> str:
-    """Tag 0x428A: bit *n* stays set unless step *n*'s preset is a register.
+    """Return the value of tag 0x428A, a mask of the presets that are constants.
 
-    All 16 bits set (``-1``) when every preset is a constant or blank; CLICK v4
-    writes it on OK, and picks a time drum's func code series from it.
+    Bit *n* is set unless step *n*'s preset is a register.  When every preset is a
+    constant or blank, all 16 bits are set and the value is ``-1``.  CLICK v4 writes the
+    tag on OK, and picks a time drum's func code series from it.
     """
     mask = -1
     for i, preset in enumerate(presets):
@@ -182,9 +192,10 @@ def _constant_preset_mask(presets: tuple[str, ...]) -> str:
     return str(mask)
 
 
-#: A constant step duration is 0 to 32767 for every unit, digits only: an int16
-#: with no ``-`` or ``+``, else OBJ-005.  A register duration is DS (OBJ-004 for another
-#: bank); whether the CPU takes a register at all is a project rule and is not checked.
+#: A constant step duration is digits only, from 0 to 32767 for every unit, with no ``-``
+#: or ``+``.  Any other constant is refused with OBJ-005.  A register duration must be a DS
+#: address, and another bank is refused with OBJ-004.  Whether the CPU accepts a register
+#: duration at all depends on the project, and laddercodec does not check it.
 _DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 
@@ -194,8 +205,8 @@ def _check_distinct_outputs(
     """Refuse an output used twice, or used as the completion flag (OBJ-014).
 
     CLICK normalizes an address as it is typed (``C001`` becomes ``C1``) before it
-    compares, so ``C1`` and ``C001`` are the same output.  An output refused on its own
-    (``None``) is not compared.
+    compares, so ``C1`` and ``C001`` are the same output.  An output that its own check
+    refused is ``None`` in *outputs*, and this does not compare it.
     """
     seen: dict[Address, int] = {}
     for i, (output, text) in enumerate(zip(outputs, texts, strict=True)):
@@ -224,8 +235,10 @@ def _check_distinct_outputs(
 def _refuse_blank_steps(
     check: Refusals, attr: str, blank: list[int], rule: str, click_id: str
 ) -> None:
-    """Refuse a list field with a blank step: the list itself, or, where another refusal
-    already covers the list, each blank step, so that refusal does not hide this one."""
+    """Refuse the list field *attr* if any of its steps is blank.
+
+    Refuse the list itself.  If another refusal already covers the list, refuse each blank
+    step instead, so that the other refusal does not hide this one."""
     if not blank:
         return
     if check.refused(attr):
@@ -236,7 +249,7 @@ def _refuse_blank_steps(
 
 
 def _timer_done_bit(accumulator: str) -> str:
-    """``TD101`` -> ``T101``: the timer a time & event drum's accumulator belongs to."""
+    """Return the done bit of the timer that owns *accumulator*: ``TD101`` -> ``T101``."""
     if not accumulator.startswith("TD"):
         raise CsvError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
     return f"T{accumulator[2:]}"
@@ -249,16 +262,17 @@ def _timer_done_bit(accumulator: str) -> str:
 
 @dataclass
 class Drum(PinnedInstruction):
-    """A drum sequencer instruction (event_drum / time_drum / time_event_drum).
+    """A drum sequencer instruction: an event_drum, a time_drum or a time_event_drum.
 
-    Occupies the AF column.  The binary class name is ``Drum``
-    (type marker 0x271B).  A drum takes at least 4 grid rows: row 0 = main,
-    then reset, jump and jog at ``pin_rows`` (1, 2, 3 unless OR legs grow it).
+    The drum sits in the AF column.  Its binary class name is ``Drum``, and its type
+    marker is 0x271B.  A drum takes at least 4 grid rows.  Row 0 is the main row, and the
+    reset, jump and jog pins sit at ``pin_rows``.  These are rows 1, 2 and 3 unless OR
+    legs push them down.
 
     ``kind`` is the CSV call name.  An event drum has ``events``, a time drum has
-    ``presets``, and a time & event drum has both, one of each per step; giving a
-    drum the one its kind does not use is refused.  A time & event step may leave
-    either one blank (``""``, ``None`` in CSV).  The lists are stored as tuples.
+    ``presets``, and a time & event drum has both, one of each per step.  The drum refuses
+    the list that its kind does not use.  A time & event step may leave either one blank,
+    as ``""`` here and ``None`` in CSV.  The lists are stored as tuples.
     """
 
     kind: Literal["event_drum", "time_drum", "time_event_drum"]
@@ -273,8 +287,8 @@ class Drum(PinnedInstruction):
     jog_enabled: bool = False
     jump_enabled: bool = False
     jump_step: str = ""  # DS address
-    #: Rows of the reset, jump and jog inputs below the main row.  OR legs under
-    #: a pin push the later pins down; an unused pin keeps its row.
+    #: The rows of the reset, jump and jog inputs, counting the main row as 0.  OR legs
+    #: under a pin push the later pins down.  An unused pin keeps a row of its own.
     pin_rows: tuple[int, ...] = (1, 2, 3)
 
     def __post_init__(self) -> None:
@@ -336,7 +350,7 @@ class Drum(PinnedInstruction):
             check("current_step", check_address, banks={"DS"})
             flag = check("completion_flag", check_address, banks={"C"})
             _check_distinct_outputs(check, addresses, self.outputs, flag)
-            # The checks of the items read the kind: a refused kind leaves them out.
+            # The checks of the list items depend on the kind, so skip them if it was refused.
             if not check.refused("kind"):
                 for i, event in enumerate(self.events):
                     if event:
@@ -372,8 +386,9 @@ class Drum(PinnedInstruction):
                     self._check_timed(check, kind, steps, sizes_ok)
 
     def _freeze_pattern(self) -> None:
-        """Store the pattern as a tuple of tuples, as given lists of lists.  A pattern that
-        can't be iterated stays as it is, for the checks of its shape to find."""
+        """Store the pattern as a tuple of tuples, even if it was given as lists of lists.
+
+        A pattern that can't be iterated stays as it is, so that the shape check finds it."""
         try:
             pattern = tuple(tuple(row) for row in self.pattern)
         except TypeError:
@@ -381,7 +396,7 @@ class Drum(PinnedInstruction):
         object.__setattr__(self, "pattern", pattern)
 
     def _check_pattern(self, check: Refusals, steps: int, outputs: int) -> None:
-        """The pattern is one row per step and one cell per output, each 0 or 1."""
+        """Refuse the pattern unless it has a row per step and a cell per output, each 0 or 1."""
         if len(self.pattern) != steps or any(len(row) != outputs for row in self.pattern):
             check.refuse(
                 "pattern",
@@ -403,8 +418,9 @@ class Drum(PinnedInstruction):
                     return
 
     def _check_timed(self, check: Refusals, kind: str, steps: int, sizes_ok: bool) -> None:
-        """What a time or time & event drum adds: the unit, the accumulator, each step's
-        duration and event."""
+        """Check the fields that a time or time & event drum adds.
+
+        These are the unit, the accumulator, and each step's duration and event."""
         if self.unit not in _DRUM_UNIT_TO_INDEX:
             check.refuse(
                 "unit",
@@ -452,14 +468,16 @@ class Drum(PinnedInstruction):
 
     @property
     def has_register_preset(self) -> bool:
-        """A time or time & event drum reads a step's duration from a register."""
+        """True if this time or time & event drum reads a step's duration from a register."""
         return self.kind != "event_drum" and any(
             is_register_preset(preset) for preset in self.presets
         )
 
     @property
     def v4_blob(self) -> bool:
-        """Written in v4's 82-field form: time & event, or a time drum with a register preset."""
+        """True if the drum is a time & event drum or a time drum with a register preset.
+
+        Such a drum is written in v4's 82-field form."""
         return self.kind == "time_event_drum" or self.has_register_preset
 
     def to_csv(self) -> str:
@@ -497,7 +515,8 @@ class Drum(PinnedInstruction):
         )
 
     def cell_params(self) -> dict:
-        # +0x0A keeps the base height when OR legs grow the box (pins.bin).
+        # The cell's +0x0A byte (sub_rows) keeps the base height when OR legs make the
+        # box taller.
         return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 4}
 
     def pin_names(self) -> tuple[str, ...]:
@@ -524,9 +543,9 @@ class Drum(PinnedInstruction):
     def _compute_func_codes(self) -> list[str]:
         """Return the 4 func-code slot values [base, reset, jump, jog].
 
-        Codes run consecutively over the enabled pins: with jump off, jog takes
-        the code jump would have had (8496, not 8497).  CLICK v3 accepts either;
-        v4's syntax check rejects the gap with C000A ("All inputs of the box
+        The codes run without a gap over the enabled pins.  With jump off, jog
+        takes the code that jump would have had: 8496, not 8497.  CLICK v3 accepts
+        either.  v4's syntax check rejects the gap with C000A ("All inputs of the box
         instruction must originate from the same branch").
         """
         if self.kind == "event_drum":
@@ -547,8 +566,8 @@ class Drum(PinnedInstruction):
                 block_base += _REGISTER_PRESET_FC_OFFSET
         if not block_base:
             raise EncodeError(f"Unsupported {self.kind} unit: {self.unit!r}")
-        # Each time unit's block has the event drum's shape: no-jog group (base,
-        # reset, jump) then jog group (base, reset, jump, jog).
+        # Each time unit's block has the event drum's shape.  The no-jog group (base,
+        # reset, jump) comes first, then the jog group (base, reset, jump, jog).
         if self.jog_enabled:
             jog_base = block_base + 3 + (_TH_JOG_SKIP if self.unit == "Th" else 0)
             base, reset = jog_base, jog_base + 1
@@ -571,7 +590,7 @@ class Drum(PinnedInstruction):
         out += _utf16le_null("Drum")
         out += struct.pack("<I", type_marker)
         out += struct.pack("<H", 4)  # part count
-        out += bytes(self.pin_rows)  # extra bytes: each pin's row
+        out += bytes(self.pin_rows)  # one extra part byte per pin, holding its row
         time_event = self.kind == "time_event_drum"
         out += struct.pack("<I", 82 if self.v4_blob else 64)  # field count
 
@@ -614,8 +633,8 @@ class Drum(PinnedInstruction):
         # Field 13: jump target
         out += _tagged_field(0x6071, self.jump_step)
 
-        # Fields 14-29: events/presets (sub-indexed 0x6872, 16 slots); a time & event
-        # drum keeps its events here and its presets in 0x6891.
+        # Fields 14-29: events/presets (sub-indexed 0x6872, 16 slots).  A time & event
+        # drum stores its events here and its presets in 0x6891.
         step_values = self.presets if self.kind == "time_drum" else self.events
         for i in range(16):
             value = step_values[i] if i < len(step_values) else ""
@@ -636,17 +655,18 @@ class Drum(PinnedInstruction):
 
         if self.v4_blob:
             # Fields 63-78: a time & event drum's presets (sub-indexed 0x6891, 16
-            # slots); a time drum keeps its presets in 0x6872 and leaves these blank.
+            # slots).  A time drum stores its presets in 0x6872 and leaves these blank.
             for i in range(16):
                 value = self.presets[i] if time_event and i < self.num_steps else ""
                 out += _variant_tagged_field(0x6891, struct.pack("<I", i), value)
-            # Field 79: which presets are constants.  A paste keeps it as written
-            # (absent = -1), and a time drum's func code series follows it.
+            # Field 79: which presets are constants.  When the rung is pasted, CLICK
+            # keeps the value as written, and a missing tag counts as -1.  A time drum's
+            # func code series follows the value.
             out += _tagged_field(0x428A, _constant_preset_mask(self.presets))
             # Field 80: the done bit of the accumulator's timer (TD101 -> T101)
             try:
                 done_bit = _timer_done_bit(self.accumulator)
-            except CsvError as exc:  # the accumulator was changed after it was built
+            except CsvError as exc:  # The accumulator was changed after the drum was built.
                 raise EncodeError(str(exc)) from exc
             out += _tagged_field(0x6068, done_bit)
 
@@ -670,13 +690,17 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Drum | None:
-    """Construct a Drum from tag data (shared by both decoders)."""
+    """Build a Drum from tag data, or return None.
+
+    The clipboard decoder and the program file decoder both call this.
+    """
     if class_name != "Drum" or type_code != _DRUM_TYPE_CODE:
         return None
 
-    # Tag 0x2200 is the drum base: absent/0 time, 1 event, 2 time & event (CLICK v4,
-    # events in 0x6872, presets in 0x6891).  Any other base falls through to
-    # RawInstruction rather than misreading its step slots.
+    # Tag 0x2200 is the drum base: 0 or absent for time, 1 for event, and 2 for time &
+    # event (CLICK v4, with events in 0x6872 and presets in 0x6891).  For any other base,
+    # return None so that the blob stays a RawInstruction and its step slots are not
+    # misread.
     base = tag_value(tags, 0x2200)
     if base not in (_BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT):
         return None
@@ -775,8 +799,9 @@ def from_tags(
 def parse_af_call(call: AfCall) -> Drum:
     """Parse an AF AST call into a Drum.
 
-    A keyword the call lacks or leaves blank (``unit``, a time & event drum's
-    ``accumulator``) is a CSV error; a value the Drum refuses is its ``FieldError``."""
+    Raise ``CsvError`` if the call lacks a keyword it needs or leaves it blank, such as
+    ``unit`` or a time & event drum's ``accumulator``.  A value that the Drum refuses
+    raises the Drum's ``FieldError``."""
     outputs = _parse_simple_list(call.kwargs.get("outputs", "[]"))
     # A cell that is not 0 or 1 stays text, which the Drum refuses.
     pattern = cast("tuple[tuple[int, ...], ...]", _parse_pattern(call.kwargs.get("pattern", "[]")))

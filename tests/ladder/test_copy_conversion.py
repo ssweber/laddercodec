@@ -1,11 +1,18 @@
-"""A single Copy's conversion type 7 and a number copied into TXT, as CLICK saves them.
+"""Tests a single Copy's conversion type 7, and a number copied into TXT, as CLICK saves them.
 
-CLICK saves conversion type 7 (tag 0x2227) for a value converted between a real and a 32-bit
-integer: DF to DD or CTD and back (a DF, DD or CTD pointer source too), a real constant into DD
-or CTD, and an integer outside int16 into DF.  It saves a number constant whose text fills more than one TXT with the TXT that text
-ends in (tag 0x6077), counted on the constant as typed, and the conversion type of its kind.
-The saves are CLICK's answers in ``tests/fixtures/editor_grids/copy_single.answers.json`` and
-the CLICK v4 captures in ``tests/fixtures/v4_captures/copy_single/``.
+CLICK saves conversion type 7 (tag 0x2227) when a Copy converts a value between a real and a
+32-bit integer. These copies are:
+
+- DF to DD or CTD, and DD or CTD to DF. The source or the destination may be a pointer.
+- A real constant into DD or CTD.
+- An integer outside int16 into DF.
+
+A number constant's text may fill more than one TXT register. CLICK then saves the last TXT
+register that the text fills (tag 0x6077), and these tests call that register the end. CLICK
+counts the characters of the constant as typed. It also saves the conversion type for the
+constant's kind. CLICK's saves are the answers in
+``tests/fixtures/editor_grids/copy_single.answers.json`` and the CLICK v4 captures in
+``tests/fixtures/v4_captures/copy_single/``.
 """
 
 from __future__ import annotations
@@ -31,7 +38,7 @@ ANSWERS = (
 
 
 def _saved_blob(tmp_path: Path, case: str) -> bytes:
-    """The blob CLICK saved for one ``copy_single`` case, as its answers record it."""
+    """Return the blob that CLICK saved for one ``copy_single`` case, read from the answers."""
     answers = json.loads(ANSWERS.read_text(encoding="utf-8"))
     [found] = [c for c in answers["cases"] if c["case"] == case]
     path = tmp_path / "stored.csv"
@@ -42,12 +49,13 @@ def _saved_blob(tmp_path: Path, case: str) -> bytes:
 
 
 def _tags(blob: bytes) -> dict[int, str]:
-    """Every tag a blob holds, by tag."""
+    """Return a dict that maps each tag in *blob* to its value."""
     return {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
 
 
-#: Each answered save: the case, the CSV decode writes, and the conversion type and end the
-#: encoder writes for that CSV (CLICK's, but where the rule has no answer to rest on).
+#: Each case is a save that CLICK answered: the case name, the CSV that decode writes for it,
+#: and the conversion type and end that the encoder writes for that CSV. Both match what
+#: CLICK saved for that case.
 SAVES = [
     ("single 1.5 -> DD1", "copy(1.5,DD1)", "7", ""),
     ("single 1.5 -> DD[DS1]", "copy(1.5,DD[DS1])", "7", ""),
@@ -99,12 +107,12 @@ def test_a_save_decodes_as_the_copy_and_writes_its_bytes(
     assert isinstance(parsed, Copy)
     assert parsed.to_csv() == csv
     assert not refusals(parsed)
-    # Unchanged, it writes the blob CLICK saved.
+    # The unchanged Copy writes the blob that CLICK saved.
     assert parsed.build_blob() == blob
-    # The tags read alone, as a program file holds them, build the same Copy.
+    # A program file holds only the tags. The tags alone build the same Copy.
     class_name, type_code, _parts, _extra, fields = _decompose_blob(blob)
     assert from_tags_af(class_name, type_code, *_fields_to_tag_dicts(fields)) == parsed
-    # Built from its CSV, it writes the encoder's conversion type and end, and reads back.
+    # A Copy built from the CSV writes the encoder's conversion type and end, and reads back.
     built = Copy.from_csv_token(csv)
     assert built == parsed
     written = built.build_blob()
@@ -116,7 +124,7 @@ def test_a_save_decodes_as_the_copy_and_writes_its_bytes(
 @pytest.mark.parametrize(
     ("source", "destination"),
     [
-        ("DD1", "DF1"),  # the DD <-> DF Copy Value, written before
+        ("DD1", "DF1"),  # DD to DF and back
         ("DF1", "DD1"),
         ("CTD1", "DF1"),
         ("DF1", "CTD1"),
@@ -196,7 +204,10 @@ def test_other_copies_write_type_0(source: str, destination: str) -> None:
 def test_type_7_decodes_only_where_click_saves_it(
     source: str, destination: str, decodes: bool
 ) -> None:
-    """Type 7 for any other pair is no blob CLICK saves: it stays raw()."""
+    """Tags with type 7 decode to a Copy only for the pairs that CLICK saves with type 7.
+
+    CLICK saves no blob with type 7 for any other pair, so ``from_tags`` returns None and the
+    instruction stays raw()."""
     parsed = from_tags("Copy", 0x2721, {0x6074: source, 0x6076: destination, 0x2227: "7"})
     assert (parsed is not None) is decodes
     if parsed is not None:
@@ -219,7 +230,7 @@ def test_type_7_decodes_only_where_click_saves_it(
         ("5", "TXT1", ""),  # one character
         ("-5", "TXT[DS1]", ""),  # a pointer
         ("DS1", "TXT1", ""),
-        ("DD[DS1]", "TXT1", ""),  # CLICK's: an integer pointer, type 1 and no end
+        ("DD[DS1]", "TXT1", ""),  # CLICK saves an integer pointer with type 1 and no end
         ("DS[DS1]", "TXT1", ""),
     ],
 )
@@ -236,20 +247,22 @@ def test_a_number_into_txt_writes_the_end_its_text_fills(
 @pytest.mark.parametrize(
     ("source", "destination", "end"),
     [
-        ("1.5", "TXT1", "TXT3"),  # CLICK's
+        ("1.5", "TXT1", "TXT3"),  # as CLICK saves it
         ("-1.5", "TXT1", "TXT4"),
         ("100000.0", "TXT10", "TXT17"),
         ("1.5", "TXT[DS1]", ""),  # a pointer
         ("DF1", "TXT1", ""),
-        ("DF[DS1]", "TXT1", ""),  # CLICK's
+        ("DF[DS1]", "TXT1", ""),  # as CLICK saves it
     ],
 )
 @pytest.mark.parametrize(("exponential", "conv"), [(False, "3"), (True, "4")])
 def test_a_real_into_txt_writes_its_numbering_and_end(
     source: str, destination: str, end: str, exponential: bool, conv: str
 ) -> None:
-    """A real constant or a DF source, a pointer too, takes real (3) or exponential (4)
-    numbering, with 0x2206 set for exponential."""
+    """A real constant or DF source copied into TXT writes conversion type 3 or 4, and its end.
+
+    Type 3 is real numbering. Type 4 is exponential numbering, which also sets tag 0x2206.
+    The source or the destination may be a pointer."""
     copy = Copy(source, destination, convert="to_text", exponential=exponential)
     written = _tags(copy.build_blob())
     assert (written[0x2227], written[0x2206], written[0x6077]) == (conv, str(int(exponential)), end)
@@ -261,7 +274,9 @@ def test_a_real_into_txt_writes_its_numbering_and_end(
 
 
 def test_a_number_with_zeros_kept_writes_its_end() -> None:
-    """The end counts the constant as typed, whichever option the text takes."""
+    """A number copied into TXT with zeros kept writes type 2 and the end of its text.
+
+    The end counts the characters of the constant as typed, as it does with zeros suppressed."""
     copy = Copy("-5", "TXT1", convert="to_text", suppress_zero=False)
     assert (_tags(copy.build_blob())[0x2227], _tags(copy.build_blob())[0x6077]) == ("2", "TXT2")
     assert parse_af_blob(copy.build_blob()) == copy
@@ -293,7 +308,9 @@ def test_a_number_whose_text_passes_txt1000_is_refused(
 
 @pytest.mark.parametrize("destination", ["DF1", "DF[DS1]"])
 def test_a_hex_constant_above_ffffh_into_df_is_refused(destination: str) -> None:
-    """CLICK refuses 10000h into DF1 as a combination it does not allow (OBJ-024)."""
+    """CLICK refuses 10000h into DF1 as a combination it does not allow (OBJ-024).
+
+    The test checks the same refusal for a DF pointer."""
     with pytest.raises(FieldError) as raised:
         Copy("10000h", destination)
     [error] = raised.value.errors
@@ -303,9 +320,9 @@ def test_a_hex_constant_above_ffffh_into_df_is_refused(destination: str) -> None
 @pytest.mark.parametrize(
     ("source", "end", "conv", "decodes"),
     [
-        ("-5", "TXT2", "1", True),  # CLICK's
-        ("1.5", "TXT3", "3", True),  # CLICK's
-        ("1.5", "TXT3", "4", True),  # CLICK's
+        ("-5", "TXT2", "1", True),  # as CLICK saves it
+        ("1.5", "TXT3", "3", True),  # as CLICK saves it
+        ("1.5", "TXT3", "4", True),  # as CLICK saves it
         ("-5", "", "1", True),  # an integer with no end, as laddercodec 0.4.0 wrote it
         ("1.5", "", "1", True),  # a real, as laddercodec 0.4.0 wrote it
         ("-5", "TXT2", "4", False),  # exponential numbering for an integer
@@ -338,10 +355,10 @@ def test_a_number_end_decodes_only_as_click_saves_it(
 @pytest.mark.parametrize(
     ("source", "conv", "decodes"),
     [
-        ("DF[DS1]", "3", True),  # CLICK's
-        ("DF[DS1]", "4", True),  # CLICK's
-        ("DD[DS1]", "1", True),  # CLICK's
-        ("DS[DS1]", "1", True),  # CLICK's
+        ("DF[DS1]", "3", True),  # as CLICK saves it
+        ("DF[DS1]", "4", True),  # as CLICK saves it
+        ("DD[DS1]", "1", True),  # as CLICK saves it
+        ("DS[DS1]", "1", True),  # as CLICK saves it
         ("DD[DS1]", "4", False),  # exponential numbering for an integer pointer
     ],
 )
@@ -354,7 +371,7 @@ def test_a_pointer_into_txt_decodes_by_its_bank(source: str, conv: str, decodes:
 
 
 def _with_tags(blob: bytes, changes: dict[int, str]) -> bytes:
-    """*blob* with the tags in *changes* holding their new values."""
+    """Return *blob* with each tag in *changes* set to the value given there."""
     class_name, type_code, _parts, _extra, fields = _decompose_blob(blob)
     tags = tuple(tag for tag, _sentinel, _value in fields)
     values = [changes.get(tag, value) for tag, _sentinel, value in fields]
@@ -364,22 +381,24 @@ def _with_tags(blob: bytes, changes: dict[int, str]) -> bytes:
 @pytest.mark.parametrize(
     ("copy", "changes"),
     [
-        # A real or DF source saved with type 1, as laddercodec 0.4.0 wrote it: the
-        # encoder writes real numbering (type 3) and the end.
+        # A real or DF source saved with type 1, as laddercodec 0.4.0 wrote it. The encoder
+        # writes real numbering (type 3) and the end instead.
         (Copy("1.5", "TXT1", convert="to_text"), {0x2227: "1", 0x6077: ""}),
         (Copy("1.5", "TXT[DS1]", convert="to_text"), {0x2227: "1"}),
         (Copy("DF[DS1]", "TXT1", convert="to_text"), {0x2227: "1"}),
-        # An integer's text with no end: the encoder writes the end it fills.
+        # An integer's text saved with no end. The encoder writes the end that the text fills.
         (Copy("-5", "TXT1", convert="to_text", suppress_zero=True), {0x6077: ""}),
-        # An integer outside int16 into DF as type 0: the encoder writes type 7.
+        # An integer outside int16 into DF, saved as type 0. The encoder writes type 7.
         (Copy("2147483647", "DF1"), {0x2227: "0"}),
     ],
 )
 def test_a_save_the_encoder_writes_otherwise_keeps_its_blob(
     copy: Copy, changes: dict[int, str]
 ) -> None:
-    """A decoded Copy whose conversion type or end differs from what its fields write
-    writes the stored blob while unchanged, and the encoder's blob once changed."""
+    """A decoded Copy keeps a blob whose conversion type or end differs from the encoder's.
+
+    While the Copy is unchanged, it writes the stored blob. Once it is changed, it writes the
+    blob that the encoder builds from its fields."""
     stored = _with_tags(copy.build_blob(), changes)
     assert stored != copy.build_blob()
     parsed = parse_af_blob(stored)
@@ -390,7 +409,8 @@ def test_a_save_the_encoder_writes_otherwise_keeps_its_blob(
 
 CAPTURES = Path(__file__).resolve().parents[1] / "fixtures" / "v4_captures" / "copy_single"
 
-#: Each CLICK v4 capture of a single Copy CLICK accepted: the case and the CSV decode writes.
+#: Each case in CAPTURED is a CLICK v4 capture of a single Copy that CLICK accepted. It
+#: gives the case name and the CSV that decode writes for the capture.
 _TO_TEXT = "convert=to_text(suppress_zero=1,termination_code=none)"
 _REAL = "convert=to_text(exponential=0,termination_code=none)"
 _EXPONENTIAL = "convert=to_text(exponential=1,termination_code=none)"
@@ -417,18 +437,19 @@ CAPTURED = [
     ("case22", f"copy(1.5,TXT1,{_EXPONENTIAL})"),
     ("case23", f"copy(DF[DS1],TXT1,{_REAL})"),
     ("case24", f"copy(DF[DS1],TXT1,{_EXPONENTIAL})"),
-    ("case25", f"copy(DF[DS1],TXT1,{_REAL})"),  # Suppress zero asked for; not offered
+    ("case25", f"copy(DF[DS1],TXT1,{_REAL})"),  # Suppress zero was asked for but not offered
     ("case26", f"copy(DD[DS1],TXT1,{_TO_TEXT})"),
     ("case27", f"copy(DS[DS1],TXT1,{_TO_TEXT})"),
 ]
 
-#: Saves whose tags are the ones the encoder writes, but 0x1201: a plain copy (type 0) and
-#: a pointer's text.  They keep no stored blob, so they write 0x1201 as laddercodec does.
+#: Captures whose tags match the encoder's in every tag except 0x1201. They are the plain
+#: copies (type 0) and the copies of a pointer into TXT. Decoding keeps no stored blob for
+#: them, so they write 0x1201 as the encoder does.
 _ENCODERS = ("case12", "case14", "case23", "case24", "case25", "case26", "case27")
 
 
 def _clip_blob(clip: bytes) -> bytes:
-    """The Copy blob in a one-Copy clipboard capture, to the end of the buffer."""
+    """Return a one-Copy clipboard capture from the start of the Copy blob to the end."""
     return clip[clip.index("Copy".encode("utf-16-le") + b"\x00\x00") :]
 
 
@@ -448,8 +469,8 @@ def test_a_click_capture_decodes_as_the_copy_and_writes_its_bytes(case: str, csv
         assert not refusals(copy)
     assert from_clip == from_scr
     if case in _ENCODERS:
-        # It writes the encoder's blob, which differs from CLICK's only in the text flag:
-        # CLICK v4 sets 0x1201 on every save and ignores it on load.
+        # The Copy writes the encoder's blob. That blob differs from CLICK's only in the text
+        # flag, 0x1201. CLICK v4 sets the flag on every save and ignores it on load.
         assert stored_blob(from_clip) is None
         assert stored_blob(from_scr) is None
         click = _tags(_clip_blob(clip))
@@ -457,8 +478,8 @@ def test_a_click_capture_decodes_as_the_copy_and_writes_its_bytes(case: str, csv
         assert (click.pop(0x1201), ours.pop(0x1201)) == ("-1", "0")
         assert ours == click
         return
-    # Unchanged, each writes the blob it was decoded from: the clipboard's, and the one
-    # composed from the program file's tags.
+    # Each unchanged Copy writes the blob that it was decoded from. For the clipboard, that is
+    # the clipboard's blob. For the program file, it is the blob built from the file's tags.
     assert _clip_blob(clip).startswith(from_clip.build_blob())
     assert stored_blob(from_scr) is not None
     assert from_scr.build_blob() == stored_blob(from_scr)
@@ -466,8 +487,9 @@ def test_a_click_capture_decodes_as_the_copy_and_writes_its_bytes(case: str, csv
 
 @pytest.mark.parametrize(("case", "csv"), CAPTURED)
 def test_the_copy_a_capture_reads_as_writes_clicks_tags(case: str, csv: str) -> None:
-    """Built from its CSV, the Copy writes every tag CLICK's clipboard holds, but the text
-    flag: CLICK v4 sets 0x1201 on every save and ignores it on load."""
+    """A Copy built from a capture's CSV writes the tags of CLICK's clipboard, except 0x1201.
+
+    0x1201 is the text flag. CLICK v4 sets it on every save and ignores it on load."""
     click = _tags(_clip_blob((CAPTURES / f"{case}.bin").read_bytes()))
     ours = _tags(Copy.from_csv_token(csv).build_blob())
     assert (click.pop(0x1201), ours.pop(0x1201)) == ("-1", "0")

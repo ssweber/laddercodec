@@ -1,8 +1,9 @@
-"""Box and contact instructions report every field they refuse, each with a reason.
+"""Box and contact instructions report every field that they refuse, each with a reason.
 
 Contact, CompareContact, OutVariant, Counter, Shift, Call, ForLoop, Drum and Search run their
-checks through ``Refusals``: an instruction with two independent bad fields reports both in
-``FieldError.errors``, the first being the one raised.
+checks through ``Refusals``. When one of them has two bad fields that do not depend on each
+other, it reports both in ``FieldError.errors``. The first error in that list is the one
+raised.
 """
 
 from __future__ import annotations
@@ -345,7 +346,7 @@ def test_a_refused_operand_is_not_read_by_a_rule_that_needs_it() -> None:
 
 
 def test_drum_items_refuse_one_by_one() -> None:
-    """An item refusal does not hide another item's."""
+    """The refusal of one Drum output does not hide the refusal of another."""
     build = lambda: _drum(outputs=["DS1", "QQ9"])  # noqa: E731
     assert [f for f, _, _ in _errors(build)] == ["Drum.outputs[0]", "Drum.outputs[1]"]
 
@@ -358,7 +359,10 @@ def test_drum_duplicate_outputs_each_refuse() -> None:
 
 
 def test_drum_blank_step_beside_a_refused_item() -> None:
-    """A bad event and a blank step are two refusals, the blank one named by its step."""
+    """A bad event and a blank event give two refusals.
+
+    The refusal of the blank event names its step, as ``Drum.events[1]``.
+    """
     build = lambda: _drum(events=["DS1", ""])  # noqa: E731
     assert _errors(build) == [
         ("Drum.events[0]", Reason.BANK, None),
@@ -367,7 +371,8 @@ def test_drum_blank_step_beside_a_refused_item() -> None:
 
 
 def test_drum_size_and_pattern() -> None:
-    """A wrong step count does not also report the pattern against it."""
+    """When the number of steps is refused, the pattern is not also refused for having a
+    different number of steps."""
     build = lambda: _drum(events=["C10"] * 17)  # noqa: E731
     assert [f for f, _, _ in _errors(build)] == ["Drum.events"]
 
@@ -417,8 +422,10 @@ def _calls(name: str) -> list[ast.Call]:
 
 @pytest.mark.parametrize("module", _MODULES)
 def test_every_refusal_written_here_gives_a_reason(module: str) -> None:
-    """``FieldError(...)`` names a ``reason=``; ``check.refuse(...)`` gives one as its third
-    argument (or ``reason=``)."""
+    """Every ``FieldError(...)`` in the module passes ``reason=``.
+
+    Every ``check.refuse(...)`` passes a reason as its third argument or as ``reason=``.
+    """
     for call in _calls(module):
         func = call.func
         name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)

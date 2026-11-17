@@ -1,12 +1,12 @@
-"""Ladder rung encoder — unified pipeline.
+"""Encode ladder rungs as the binary that CLICK puts on the clipboard.
 
 Definitions
 -----------
 
 Rung:
     One logical unit of ladder logic. A rung has 1..32 rows, each with
-    31 condition columns (A..AE) and 1 output column (AF). The rung may
-    also carry a single plain-text comment.
+    31 condition columns (A..AE) and 1 output column (AF). A rung may
+    also have one comment.
 
 Row:
     A horizontal slice of the rung grid. Row 0 is the topmost visible
@@ -14,45 +14,51 @@ Row:
     0x800 per row (32 columns x 64 bytes per cell).
 
 Cell:
-    A 64-byte (0x40) block within the grid. Addressed by (row, column).
-    Contains wire flags, structural control bytes, and (for instruction-
-    bearing rungs) stream-placement metadata.
+    The bytes for one (row, column) position in the grid. A wire cell
+    is 64 (0x40) bytes, and an instruction cell is longer. A cell holds
+    wire flags and bytes that describe the grid's structure. In a rung
+    with instructions it also holds metadata that places it in the
+    instruction stream.
 
 Wire topology:
     The arrangement of horizontal wires ("-"), vertical pass-throughs
     ("|"), and junction-down points ("T") across the condition grid.
-    Encoded via three per-cell flag bytes: +0x19 (segment), +0x1D
-    (right), +0x21 (down). Conditions also set these flags (like "-").
+    Each cell stores it in three flag bytes: +0x19 (segment), +0x1D
+    (right) and +0x21 (down). A condition cell sets these flags as a
+    "-" cell does.
 
 Condition:
-    An instruction placed on a condition column (A..AE).  Includes
-    ``Contact`` (NO/NC/edge) and ``CompareContact`` (GT/GE/LT/LE/EQ/NE).
-    Condition cells are variable-length: a 0x25-byte header (wire flags,
-    column, row, instruction index) followed by an instruction blob
-    (class name, type marker, operand, func_code).  Passed as
-    ``Contact`` or ``CompareContact`` objects in the condition_rows grid.
+    An instruction in a condition column (A..AE): a ``Contact``
+    (NO/NC/edge) or a ``CompareContact`` (GT/GE/LT/LE/EQ/NE). A
+    condition cell has a variable length. It is a 0x25-byte header
+    (wire flags, column, row, instruction index) followed by the
+    instruction blob (class name, type marker, operand, func_code). The
+    caller passes each condition as an object in the condition_rows grid.
 
 NOP:
-    The simplest AF-column instruction. At most one per rung. Encoded
-    via a minimal byte model: col31 +0x1D = 1 (all rows), plus col0
-    +0x15 = 1 for non-first rows. Does not require an instruction stream
-    entry.
+    The simplest AF-column instruction. A rung holds at most one. The
+    encoder writes it as flags: +0x1D = 1 in column 31 of the NOP's row,
+    and +0x15 = 1 in column 0 of that row if it is not the first row and
+    the rung holds no other instruction.
+    A NOP needs no entry in the instruction stream.
 
 Comment:
-    Plain-text annotation on a rung. Stored as an RTF envelope (fixed
-    prefix + cp1252 body + fixed suffix) in the payload region at
-    0x0298. The 4-byte payload length sits at 0x0294. The cell grid
-    (always at 0x0A60 in a no-payload buffer) is pushed forward by
-    payload_len bytes after insertion. Max 1400 bytes.
+    Text attached to a rung. The encoder stores it as RTF: a fixed
+    prefix, the cp1252 body and a fixed suffix. The RTF goes in the
+    payload region at 0x0298, and its 4-byte length goes at 0x0294.
+    With no comment the cell grid starts at 0x0A60. A comment moves the
+    grid forward by the length of the RTF. The body is at most 1400
+    bytes.
 
 Page:
     A 0x1000 (4096) byte allocation unit. Buffer size is:
     pad_to_page(0x0A60 + logical_rows * 0x800 + payload_len).
 
 Program header:
-    A single 0x40-byte structure at 0x0254. Contains the row-count
-    word (+0x00/+0x01 = (rows+1)*0x20) and other GUI state. Not a
-    32-entry table — the range 0x0294–0x0A5F is the payload region.
+    A single 0x40-byte structure at 0x0254. It holds the row-count
+    word (+0x00/+0x01 = (rows+1)*0x20) and other GUI state. There is
+    only one. The range 0x0294–0x0A5F after it is the payload region,
+    not a table of 32 headers.
 
 
 Supported checklist
@@ -80,16 +86,16 @@ Pipeline steps
 --------------
 
     1. Header   — load from synthesize_empty_multirow (includes row_word)
-    2. Grid     — build 32 cell objects per row (wire flags + NOP baked
-                  in), concatenate to form the grid bytes
+    2. Grid     — build the 32 cells of each row, with their wire flags
+                  and any NOP, and join them into the grid bytes
     3. Assemble — header[:0x0A60] + grid_bytes
     4. Comment  — assemble RTF, insert at 0x0298, push grid forward
     5. Pad      — to next 0x1000 page boundary
 
-Cell objects are bytes blobs built by ``ClickCell.to_bytes()``.
-Wire cells are 0x40 bytes.  Instruction cells (contacts, coils, timers)
-are larger, and the concatenation model handles variable-length cells
-naturally — no fixed-offset assumptions in the grid.
+Each cell is the bytes that ``ClickCell.to_bytes()`` returns. A wire
+cell is 0x40 bytes. An instruction cell, such as a contact, coil or
+timer, is longer. The encoder joins the cells end to end, so it does
+not assume that any cell sits at a fixed offset in the grid.
 """
 
 from __future__ import annotations
@@ -116,7 +122,7 @@ if TYPE_CHECKING:
 # Constants
 # ---------------------------------------------------------------------------
 
-# Rung 0 comment offsets — derived from preamble layout.
+# Offsets of the comment's length and body, from the layout of rung 0's preamble.
 PAYLOAD_LENGTH_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_LENGTH  # 0x0294
 PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 COMMENT_MAX_BYTES = 1400
@@ -151,9 +157,9 @@ _SUFFIX = b"\r\n\\par }\r\n\x00"
 
 _PAGE_SIZE = 0x1000
 
-# Markdown inline-style patterns — double markers matched before single.
-# Underscore delimiters require non-word chars (or string edge) on the outside
-# so that identifiers like count_up_down are not misinterpreted as markup.
+# Patterns for the Markdown inline styles. _build_rtf_body applies the double markers
+# before the single ones. Underscore delimiters require non-word chars (or string edge)
+# on the outside so that identifiers like count_up_down are not misinterpreted as markup.
 _RE_BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
 _RE_UNDERLINE = re.compile(r"(?<!\w)__(.+?)__(?!\w)", re.DOTALL)
 _RE_ITALIC_STAR = re.compile(r"\*(.+?)\*", re.DOTALL)
@@ -206,18 +212,20 @@ def _sanitize_to_ascii(text: str) -> str:
 
 
 def _build_rtf_body(text: str) -> str:
-    """Convert comment text to an RTF body string.
+    """Return comment text as the body of an RTF string.
 
-    Handles:
-    - Line endings: ``\\r\\n`` and bare ``\\r`` → ``\\n``; ``\\n`` → ``\\par ``
-    - Inline styles (double markers before single to avoid partial matches):
+    The function first replaces non-ASCII characters with
+    :func:`_sanitize_to_ascii`. Then it converts:
+
+    - Line endings: ``\\r\\n`` and a lone ``\\r`` → ``\\n``; ``\\n`` → ``\\par ``
+    - Inline styles, double markers first, so that ``**`` is not read as two ``*``:
         ``**text**`` → ``{\\b text}``  (bold)
         ``__text__`` → ``{\\ul text}`` (underline)
         ``*text*``   → ``{\\i text}``  (italic, asterisk)
         ``_text_``   → ``{\\i text}``  (italic, underscore)
 
-    RTF special characters (``\\``, ``{``, ``}``) in the plain text are
-    escaped before markdown conversion so they pass through safely.
+    It escapes the RTF special characters (``\\``, ``{``, ``}``) in the text
+    before it converts the Markdown, so they appear as typed.
     """
     text = _sanitize_to_ascii(text)
     text = text.replace("\r\n", "\n").replace("\r", "\n")
@@ -255,19 +263,20 @@ def _normalize_af(token: AfToken) -> str:
 def _compute_seg_boundaries(
     condition_rows: Sequence[Sequence[ConditionToken]],
 ) -> list[int]:
-    """Compute per-row segment boundaries for instruction-bearing rungs.
+    """Return the segment boundary of each row, for a rung that holds instructions.
 
-    Row 0 is exempt (boundary=0 → all non-blank cells get seg=1).
-    Row R>0: boundary = max of:
-        - T col+2 / | col+1 from row R-1 only (does not propagate further),
-        - Contact/Compare col+2 from rows 0..R-1.
+    A cell in a column below its row's boundary gets seg=0. A cell at or past
+    the boundary keeps the flag of its token, which is 1 for ``-``, ``T`` and a
+    condition instruction. Row 0 has boundary 0. For a later row R, the
+    boundary is the largest of:
 
-    Cells at col < boundary get seg=0; cells at col >= boundary get seg=1.
+        - col+2 for a ``T`` and col+1 for a ``|``, in row R-1 only;
+        - col+2 for a Contact or CompareContact, in any of rows 0..R-1.
 
-    Note: Click's native seg flags depend on editor creation order — if a
-    user "inserts row above", the original row stays exempt instead of row 0.
-    Our encoder always treats row 0 as exempt, which matches rungs built
-    top-down (the way our encoder creates them).
+    In CLICK the seg flags depend on the order in which the user made the rows.
+    If a user "inserts row above", the original top row keeps boundary 0 and
+    the new row 0 does not. This encoder always gives row 0 boundary 0, which
+    matches a rung built from the top down.
     """
     n = len(condition_rows)
     boundaries = [0] * n
@@ -291,14 +300,16 @@ def _compute_seg_boundaries(
 
 
 def _af_segment(row_idx: int, is_multi_row: bool, single_rung: bool) -> int:
-    """Construct the canonical segment flag for an AF instruction cell.
+    """Return the segment flag that the encoder writes for an AF instruction cell.
 
-    Native CLICK copies a stored per-entry bit; these generation conventions
-    do not describe native serialization or preserve arbitrary editing history.
+    CLICK itself copies a bit that it stores for each entry. These rules do not
+    describe how CLICK writes the flag, and they do not reproduce a flag that a
+    rung's editing history produced.
 
-    - Multi-row AF (Timer, multi-part Raw): always 0.
-    - Multi-rung (all AF types): always 0.
-    - Single-rung, single-row AF (Coil, single-part Raw): 1 on row 0, else 0.
+    - A multi-row AF instruction (Timer, multi-part Raw) gets 0.
+    - Every AF instruction gets 0 when several rungs are encoded together.
+    - A single-row AF instruction (Coil, single-part Raw) in a single rung gets 1
+      on row 0 and 0 on any other row.
     """
     if is_multi_row or not single_rung:
         return 0
@@ -318,25 +329,25 @@ def encode_rung(
     *,
     show_nicknames: bool = False,
 ) -> bytes:
-    """Encode a ladder rung to binary payload.
+    """Encode one ladder rung as CLICK clipboard binary.
 
     Parameters
     ----------
     logical_rows:
         Number of rung rows (1..32).
     condition_rows:
-        Row-major token grid. Each row has 31 condition-column entries.
-        Supported: ``""`` blank, ``"-"`` horizontal wire,
+        The token grid, one list per row. Each row has 31 condition-column
+        entries. Each entry is ``""`` blank, ``"-"`` horizontal wire,
         ``"|"`` vertical pass-through, ``"T"`` junction-down,
-        or a ``Contact`` object.
+        or a condition instruction such as a ``Contact``.
     af_tokens:
         One per row. ``"NOP"`` encodes the NOP instruction on the AF
-        column; ``""`` leaves it blank; a ``Coil`` object encodes the
-        coil instruction.
+        column, and ``""`` leaves it blank. An AF instruction object,
+        such as a ``Coil``, encodes that instruction.
     comment:
-        Optional comment text (max 1400 bytes after RTF encoding). Stored
-        as an RTF envelope inserted at 0x0298; the cell grid is pushed
-        forward by payload_len bytes automatically.
+        Optional comment text, at most 1400 bytes after RTF encoding. The
+        encoder inserts it as RTF at 0x0298 and moves the cell grid forward
+        by the length of the RTF.
 
         Inline styles (markdown syntax):
             ``**text**``  → bold
@@ -344,12 +355,12 @@ def encode_rung(
             ``*text*``    → italic (asterisk)
             ``_text_``    → italic (underscore)
         Line breaks: ``\\n`` becomes an RTF paragraph break (``\\par``).
-        ``\\r\\n`` and bare ``\\r`` are normalized to ``\\n`` first.
+        ``\\r\\n`` and a lone ``\\r`` are normalized to ``\\n`` first.
 
     Returns
     -------
     bytes
-        Encoded binary payload ready for the target environment.
+        The encoded rung, padded to a whole number of 0x1000-byte pages.
     """
 
     from ._grid import _build_rung_grid, _compute_rung_metadata, _validate_rung
@@ -455,10 +466,11 @@ def encode(rungs: Rung | Iterable[Rung], *, show_nicknames: bool = False) -> byt
 
 
 def _cells(rung: Rung) -> tuple[Sequence[Sequence[ConditionToken]], Sequence[AfToken]]:
-    """*rung*'s condition rows and AF tokens, as the encoder's token types.
+    """Return the condition rows and AF tokens of *rung*, typed as the encoder's tokens.
 
-    A decoded rung's cells can also hold an ``UnknownCondition`` or ``UnknownInstruction``,
-    which those types leave out.
+    The cast changes only the static type. A decoded rung's cells can also hold an
+    ``UnknownCondition`` or ``UnknownInstruction``, and the encoder's token types do
+    not include them.
     """
     return (
         cast("Sequence[Sequence[ConditionToken]]", rung.conditions),

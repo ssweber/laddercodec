@@ -1,25 +1,28 @@
-"""CLICK's answers to the editor grids, compared with laddercodec's rules.
+"""Tests that compare CLICK's answers to the editor grids with laddercodec's rules.
 
-``tests/fixtures/editor_grids/*.answers.json`` hold what CLICK's dialogs said to each case
-(see that folder's README); they are never edited to fit the code.  Each answered case is
-rebuilt here with the builders ``devtools/editor_grids.py`` uses and compared three ways:
+The files ``tests/fixtures/editor_grids/*.answers.json`` record what CLICK's dialogs
+answered for each case. The README in that folder describes them. Nobody edits them to make
+the code pass. These tests rebuild each answered case with the builders that
+``devtools/editor_grids.py`` uses, and compare the result three ways:
 
-- the outcome: CLICK accepted or refused, and so do the rules;
-- the code: where both refuse and CLICK gave an ``OBJ-nnn``, the refusal's ``click_id`` is the
-  same (a ``click_id`` of None is not a disagreement, and most refusals have none yet, so
-  only some codes are compared: ``CODES_COMPARED`` is today's number, and a change that
-  adds or drops ids changes it and fails); where one OK raised a chain of error boxes
-  (``boxes``), ``code`` is the first;
-- the save: an accepted case's ``stored`` rows read back with ``read_csv`` as an instruction
-  that is not ``raw(...)``.
+- The outcome. The rules accept a case that CLICK accepted and refuse a case that CLICK
+  refused.
+- The code. Where both refuse and CLICK gave an ``OBJ-nnn``, the refusal's ``click_id`` is
+  the same. A ``click_id`` of None is not a disagreement. Most refusals have none yet, so
+  only some codes are compared. ``CODES_COMPARED`` holds the number compared, so a change
+  that adds or removes ids changes that number and fails the test. Where one click of OK
+  raised a chain of error boxes (``boxes``), ``code`` is the code of the first box.
+- The save. ``read_csv`` reads the ``stored`` rows of an accepted case back as an
+  instruction that is not ``raw(...)``.
 
-A case whose text is longer than its field's ``limits`` is skipped: the runner sets text by
-WM_SETTEXT, which ignores the limit, so no user can type it.  The rule is the text length,
-not the label.
+The tests skip a case whose text is longer than its field's ``limits``. The runner set the
+text with WM_SETTEXT, which ignores the field's limit, so no user could type that text. The
+skip depends on the length of the text, not on the case label.
 
-``DISAGREEMENTS`` lists every difference, keyed by grid, case label and kind, with its reason
-and the roadmap item that owns it.  The test fails on a difference not listed and on an entry
-that no longer differs, as ``tests/test_operand_guards.py`` does for its allowlists.
+``DISAGREEMENTS`` lists every difference, keyed by grid, case label and kind, with the
+reason for it. The test fails on a difference that the list does not hold, and on an entry
+whose difference is gone. ``tests/test_operand_guards.py`` checks its allowlists the same
+way.
 """
 
 from __future__ import annotations
@@ -116,8 +119,11 @@ RX2_COUNT = (
 
 
 def _table(*groups: tuple[str, str, str, tuple[str, ...]]) -> dict[Key, str]:
-    """One entry for each case of each group (reason, grid, kind, labels); a case listed twice
-    fails, in one group or in two."""
+    """Return the reason for each case label of each group, keyed by (grid, label, kind).
+
+    Each group is (reason, grid, kind, labels). Raise ValueError if a case is listed twice,
+    in one group or in two.
+    """
     table: dict[Key, str] = {}
     for reason, grid, kind, labels in groups:
         for label in labels:
@@ -128,9 +134,11 @@ def _table(*groups: tuple[str, str, str, tuple[str, ...]]) -> dict[Key, str]:
     return table
 
 
-#: Every difference between CLICK's answers and the rules.  Kinds: ``outcome`` (accepted or
-#: refused), ``code`` (the OBJ id), ``stored`` (the save reads back as raw), ``list`` (the
-#: writable SC or SD addresses).  Each group is one thing to do (or one kept on purpose).
+#: Every difference between CLICK's answers and the rules. The kind ``outcome`` means that
+#: one accepted the case and the other refused it. ``code`` means that the OBJ ids differ.
+#: ``stored`` means that CLICK's save reads back as raw. ``list`` means that the writable SC
+#: or SD addresses differ. Each group is one piece of work to do, or one difference kept on
+#: purpose.
 DISAGREEMENTS: dict[Key, str] = _table(
     (RX2_COUNT, "receive", "outcome", ("03 -> TXT1",)),
     (
@@ -246,7 +254,8 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (COPY_REAL_DIGITS, "copy_single", "outcome", ("single 3.4028235E+38 -> DS1",)),
 )
 
-#: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
+#: The number of cases whose codes are compared. A case counts when CLICK and the rules both
+#: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
 CODES_COMPARED = 2840
 
 
@@ -263,7 +272,7 @@ def generator() -> Any:
 
 @pytest.fixture(scope="module")
 def compared(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
-    """The comparison of every answer file, made once for the tests that read it."""
+    """Return the comparison of every answer file, built once for the tests that read it."""
     return compare(generator)
 
 
@@ -273,13 +282,17 @@ def _answers(name: str) -> list[dict[str, Any]]:
 
 
 def too_long(case: dict[str, Any]) -> bool:
-    """Whether the runner put in more text than the field takes: text no user can type."""
+    """Return True if the runner put more text in a field than the field's limit allows.
+
+    No user can type such text.
+    """
     return any(len(text) > case["limits"][name] for name, text in case["fields"].items())
 
 
 def _receive(case: dict[str, Any]) -> object:
-    """A Receive from a case, with the count the dialog held at OK (``read_back``).  A case
-    with no recorded count (the rx2 file) is compared at quantity 1."""
+    """Build a Receive from a case, with the count that the dialog held when OK was clicked
+    (``read_back``). A case with no recorded count, as in ``receive.answers.json``, gets
+    quantity 1."""
     f = case["fields"]
     count = int(case["read_back"].get("count", 1))
     code = int(case["choices"]["function"].split(" ")[0])
@@ -297,7 +310,8 @@ def _receive(case: dict[str, Any]) -> object:
 
 
 def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | None]:
-    """Whether the rules accept the case, and the ``click_id`` of the refusal."""
+    """Return whether the rules accept the case, and the ``click_id`` of the refusal if they
+    refuse it."""
     try:
         if case["instruction"] == "receive":
             _receive(case)
@@ -318,25 +332,30 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
                 generator.check_case(case)
             finally:
                 generator.verdict_of = original
-    except ValueError as exc:  # FieldError is one; any other exception fails the test
+    except ValueError as exc:  # FieldError is a ValueError. Any other exception fails the test.
         return False, getattr(exc, "click_id", None)
     return True, None
 
 
 def _read_rows(path: Path, rows: list[str]) -> list[Any]:
-    """The rungs ``read_csv`` reads from *rows*, written to *path* under the header."""
+    """Write *rows* to *path* under a CSV header, and return the rungs that ``read_csv``
+    reads from it."""
     lines = ["marker," + ",".join(_columns()), *rows]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return read_csv(path)
 
 
 def reads_as_raw(rows: list[str]) -> bool:
-    """Whether the saved rung reads back as ``raw(...)`` (or an unknown condition).
+    """Return True if the saved rung does not read back as a decoded instruction.
 
-    The rows were written by the laddercodec of the run from CLICK's program file; a
-    ``raw(...)`` among them is read again from its tags, as ``decode_program`` reads that
-    save today.  That laddercodec wrote ``to_text(suppress_zero=...)`` for a real constant,
-    which now takes only ``exponential``; such a row is read without it.
+    That is so when ``read_csv`` raises, when the rung holds an ``Undecoded`` marker, or when
+    it holds a ``raw(...)`` that ``decode_program`` would also read as raw.
+
+    The laddercodec of the run that recorded the answers wrote these rows from CLICK's
+    program file. So a ``raw(...)`` among them is read again from its tags, the way
+    ``decode_program`` reads that program file. That laddercodec wrote
+    ``to_text(suppress_zero=...)`` for a real constant, but ``to_text`` of a real constant
+    accepts only ``exponential``. Such a row is read without ``suppress_zero``.
     """
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "stored.csv"
@@ -357,7 +376,8 @@ def reads_as_raw(rows: list[str]) -> bool:
 
 
 def saved_box(raw: RawInstruction) -> AfInstruction | None:
-    """The box ``decode_program`` reads from the entry of a raw box it wrote, or None.
+    """Return the box that ``decode_program`` reads from the program-file entry that *raw*
+    was written from, or None if that box is raw too.
 
     That raw box holds the blob composed from the program file entry's tags: every tag a
     standard field, and a flag that is set an empty value.  So the box is read from those
@@ -377,7 +397,11 @@ def _columns() -> list[str]:
 
 
 def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
-    """Each difference found, by key, and the counts."""
+    """Compare every answer file with the rules.
+
+    Return each difference found, keyed by (grid, label, kind), and the counts of cases
+    compared, cases skipped and codes compared.
+    """
     found: dict[Key, str] = {}
     counts = {"compared": 0, "skipped": 0, "codes": 0}
     for grid in ANSWER_FILES:
@@ -386,7 +410,8 @@ def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
                 counts["skipped"] += 1
                 continue
             counts["compared"] += 1
-            # Picker checks are several cases per list: a difference is keyed by the row.
+            # The pickcheck file holds several cases for each list, so a difference there is
+            # keyed by the row, not by the case.
             label = case["row"] if grid == "pickcheck" else case["case"]
             accepted, click_id = rules_verdict(generator, case)
             clicks = case["outcome"] == "accepted"
@@ -409,9 +434,12 @@ def _writable() -> list[dict[str, Any]]:
 
 
 def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
-    """Whether the rules accept the address ``bank`` + ``number`` in the picker's field, with the other
-    fields as the picker had them (``filled``; a field left empty is tried with each source
-    that could be there)."""
+    """Return whether the rules accept the address ``bank`` + ``number`` in the picker's field.
+
+    A Pack or Unpack uses the source that the picker had filled in (``filled``). If the
+    picker had no source filled in, each source that could be there is tried, and the
+    address counts as accepted if any of them builds.
+    """
     address = f"{bank}{number}"
     filled = field.get("filled") or {}
     kind, mode = field["instruction"], field.get("mode")
@@ -457,7 +485,8 @@ def _pack(source: str, end: str, address: str) -> object:
 
 
 def _unpack(source: str, bank: str, number: int, as_end: bool) -> object:
-    """An Unpack whose destination range holds ``number`` as its start, or as its end."""
+    """Build an Unpack whose destination range starts at ``number``, or ends at it if
+    ``as_end`` is true."""
     if bank in ("C", "Y", "SC", "X"):
         length = 16
         kind = "unpack_to_bits"
@@ -472,15 +501,20 @@ def _unpack(source: str, bank: str, number: int, as_end: bool) -> object:
 
 
 def compare_lists() -> dict[Key, str]:
-    """Each field and bank whose writable list differs from the addresses the rules accept.
-    A bank with no list (null: its tab is greyed) is an empty list, which the rules must match
-    by accepting no address of that bank."""
+    """Return each field and bank whose list of writable addresses differs from the
+    addresses that the rules accept.
+
+    A bank whose tab the picker greys has null for its list. That counts as an empty list,
+    so the rules must accept no address of that bank.
+    """
     found: dict[Key, str] = {}
     for field in _writable():
         for bank in ("SC", "SD"):
             listed = set(field[bank] or [])
             lo, hi = ADDRESS_BANKS[bank]
-            # A Block Copy needs the second address as well: the picker lists the start of a pair.
+            # CLICK's Address Picker lists each SC or SD address that the field may write. The
+            # Block Copy that _accepts_address builds writes two addresses, n and n+1. So for
+            # a Block Copy, address n is wanted only if n+1 is listed too.
             accepted = {n for n in range(lo, hi + 1) if _accepts_address(field, bank, n)}
             wanted = listed
             if field.get("mode") == "block":
@@ -497,13 +531,17 @@ def compare_lists() -> dict[Key, str]:
     return found
 
 
-#: The fields whose picker-check answers (the ``pickcheck`` file) follow the lists.
+#: The fields whose answers in the ``pickcheck`` file must agree with the writable lists.
 PICKER_CHECKED = {("out", None), ("copy", "single"), ("copy", "block"), ("math", "decimal")}
 
 
 def compare_picker_checks() -> list[str]:
-    """Picker-check answers that do not follow the list (a start in the list, and for a Block
-    Copy the next address too, is accepted; an SC or SD outside its field's list is refused)."""
+    """Return the ``pickcheck`` cases whose answers disagree with the writable lists.
+
+    A case should be accepted when its address is in the list, and for a Block Copy when the
+    next address is in the list too. An SC or SD address outside the field's list should be
+    refused.
+    """
     lists = {
         (f["instruction"], f.get("mode")): {
             int(a[2:]) for a in f["SC" if f["instruction"] == "out" else "SD"]
@@ -518,7 +556,7 @@ def compare_picker_checks() -> list[str]:
         target = f.get("destination") or f.get("result") or f["address"]
         bank_wanted = "SC" if case["instruction"] == "out" else "SD"
         if not target.startswith(bank_wanted):
-            expected = False  # an SC address in a Copy: the field's tab is greyed
+            expected = False  # such as an SC address in a Copy, where the SC tab is greyed
         else:
             number = int(target[2:])
             listed = lists[key]
@@ -578,8 +616,9 @@ def test_a_case_listed_twice_fails() -> None:
 
 
 def test_a_chain_of_boxes_starts_with_the_code() -> None:
-    """Where one OK raised several error boxes (``boxes``, each a code and its message), the
-    case's ``code`` and ``message`` are the first box's, and that code is the one compared."""
+    """When one click of OK raised several error boxes, the case lists them in ``boxes``,
+    each as a code and its message. The case's ``code`` and ``message`` are those of the
+    first box, and that code is the one compared."""
     chains = [
         (grid, case)
         for grid in ANSWER_FILES
@@ -595,7 +634,8 @@ def test_a_chain_of_boxes_starts_with_the_code() -> None:
 
 
 def test_answers_are_the_grids_cases() -> None:
-    """The answered cases are the grid file's, label for label, with the same fields."""
+    """The answer files of the nine editor grids that the loop names hold the cases of their
+    grid files, with the same labels in the same order and the same fields."""
     for grid in (
         "preflight",
         "risky",

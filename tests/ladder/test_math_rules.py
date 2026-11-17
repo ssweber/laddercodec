@@ -1,7 +1,7 @@
-"""Math field rules, decimal and hex, and OBJ-10xx.
+"""Test the Math field rules in decimal and hex mode, and the OBJ-10xx refusals.
 
-Each rule is checked through ``read_csv`` and direct construction; a refused blob decodes
-as raw.
+Each rule is checked through ``read_csv`` and through direct construction. A stored Math that
+breaks a rule decodes as a Math that keeps the refusal.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ _COPY_DS = ": copy .* into a DS or DD register first \\(OBJ-1002\\)"
 _COPY_DH = ": copy .* into a DH register first \\(OBJ-1002\\)"
 
 _REFUSED = [
-    # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
+    # the result is DS, DD, DF, TD, CTD or SD in decimal mode, and DH or YD in hex mode
     ("DS1 + 1", "DH1", "decimal", "Math.dest: 'DH1' is not allowed"),
     ("DS1 + 1", "YD1", "decimal", "Math.dest: 'YD1' is not allowed"),
     ("DS1", "X001", "decimal", "Math.dest: 'X001' is not allowed"),
@@ -61,7 +61,8 @@ _REFUSED = [
     ("DH1 + 1h", "DD9", "hex", "Math.dest: 'DD9' is not allowed"),
     ("DH1 + 1h", "XD1", "hex", "Math.dest: 'XD1' is not allowed"),
     ("DS1", "DS4501", "decimal", "outside DS1-DS4500"),
-    # constants (OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
+    # constants (OBJ-1009): a decimal integer fits in 32 bits, and a hex constant has at
+    # most 4 digits and is at most FFFFh
     ("DS1 + 3000000000", "DD9", "decimal", "3000000000 is outside -2147483648..2147483647"),
     ("DS1 + ( -3000000000 )", "DD9", "decimal", "-3000000000 is outside"),
     # a decimal integer must print back at its typed length
@@ -71,7 +72,7 @@ _REFUSED = [
     ("DH1 + 1FFFFh", "DH9", "hex", "1FFFFh is outside 0h..FFFFh"),
     ("DH1 + 0FFFFh", "DH9", "hex", "0FFFFh is outside 0h..FFFFh"),
     ("DH1 + 10000H", "DH9", "hex", "10000h is outside 0h..FFFFh"),
-    # a hex constant in a decimal Math, H as h
+    # a hex constant in a decimal Math, with H read as h
     ("DH1 + 1Eh", "DS9", "decimal", "1Eh is a hex constant; a decimal Math"),
     ("DS1 + 10000h", "DD9", "decimal", "10000h is a hex constant"),
     ("DS1 + ( -1Fh )", "DD9", "decimal", "1Fh is a hex constant"),
@@ -80,7 +81,8 @@ _REFUSED = [
     # a decimal constant in a hex Math
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
     ("DH1 + 1.5", "DH9", "hex", "1.5 is a decimal constant"),
-    # hex digits without h: CLICK reads them as hex; the message names the h form
+    # hex digits without an h, which CLICK reads as hex. laddercodec refuses them, and the
+    # message names the h form.
     ("DH1 + 7", "DH9", "hex", "7 has no h; .* write 7h"),
     ("DH1 + 007", "DH9", "hex", "007 has no h; .* write 7h"),
     ("DH1 + 1E5", "DH9", "hex", "1E5 has no h; .* write 1E5h"),
@@ -166,8 +168,9 @@ _REFUSED = [
     ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is refused"),
     ("MAX ( DD1 : DD3 )", "DH9", "hex", "DD1 is refused"),
     ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is refused"),
-    # a RAND bound: a DS or DD register or an integer in decimal, a DH register or a hex
-    # constant in hex (OBJ-1002 for a bank); no real bound and no equal bounds (OBJ-1001)
+    # A RAND bound is a DS or DD register or an integer in decimal mode, and a DH register or
+    # a hex constant in hex mode. A bound in another bank is OBJ-1002. A real bound or two
+    # equal bounds is OBJ-1001.
     ("RAND ( DF1 , 10 )", "DS9", "decimal", "DF1 is refused; " + _DECIMAL_RAND + _COPY_DS),
     ("RAND ( 1 , TD500 )", "DS9", "decimal", "TD500 is refused; " + _DECIMAL_RAND + _COPY_DS),
     ("RAND ( CTD1 , 10 )", "DS9", "decimal", "CTD1 is refused; " + _DECIMAL_RAND + _COPY_DS),
@@ -189,14 +192,16 @@ _REFUSED = [
     ("DS1 + 1", "SD148", "decimal", "Math.dest: 'SD148' is not a writable SD"),
     ("DS1 + 1", "SD216", "decimal", "Math.dest: 'SD216' is not a writable SD"),
     ("DS1 + 1", "SD1000", "decimal", "Math.dest: 'SD1000' is not a writable SD"),
-    # ranges: one bank (OBJ-1015), low : high (OBJ-1014), median <= 1024 bytes (OBJ-1013)
+    # A range stays in one bank (OBJ-1015) and runs low to high (OBJ-1014). A median covers
+    # at most 1024 bytes (OBJ-1013).
     ("SUM ( DS1 : DD5 )", "DD9", "decimal", "DS1 : DD5 spans two banks"),
     ("SUM ( DS10 : DS1 )", "DD9", "decimal", "DS10 : DS1 runs high to low"),
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
-    # an X/Y range with an end in the option slot, 21-36, but not from the CPU slot to 21,
-    # of one point, or of two points numbered one apart (X036 : X101 is refused)
+    # An X or Y range with an end in the option slot (21-36) is refused. A range from the CPU
+    # slot to 21, a range of one point, and a range of two points numbered one apart are
+    # accepted. X036 : X101 is refused.
     (
         "SUM ( X001 : X036 )",
         "DS9",
@@ -223,7 +228,8 @@ _REFUSED = [
     ("SUM ( X016 : X022 )", "DS9", "decimal", "SUM \\( X016 : X022 \\) is refused"),
     ("SUM ( Y021 : Y023 )", "DS9", "decimal", "SUM \\( Y021 : Y023 \\) is refused"),
     ("DS1 + SUM ( X1 : X36 )", "DS9", "decimal", "SUM \\( X001 : X036 \\) is refused"),
-    # 270 characters of the internal template (OBJ-1008): DS1..DS69 is 273
+    # The internal template holds at most 270 characters (OBJ-1008). A sum of DS1 to DS69 is
+    # 273.
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
     ("SIN ( DS1 ) + " * 23 + "PI", "DF1", "decimal", "is 278 characters"),
     # a formula is required: a Math blob with none decodes as raw
@@ -233,7 +239,8 @@ _REFUSED = [
 ]
 
 
-#: An unclosed ``(`` already stops the CSV argument split, before Math is built.
+#: The cases of _REFUSED but the unclosed ``(``. read_csv fails on that one when it splits
+#: the CSV arguments, before it builds the Math.
 _CSV_REFUSED = [r for r in _REFUSED if r[0] != "( DS1 + DS2"]
 
 
@@ -263,9 +270,9 @@ def test_unknown_mode_refused() -> None:
         # SUM over X, Y, T and SC, and MAX over TD and DS
         ("SUM ( X001 : X101 )", "DS9", "decimal"),
         ("SUM ( Y001 : Y008 )", "DS9", "decimal"),
-        # an X/Y range with no end in the option slot, from the CPU slot to 21, of one point,
-        # or of two points numbered one apart (X001 : X116, X001 : X021 and X025 : X026
-        # captured)
+        # An X or Y range is accepted when no end is in the option slot, when it runs from the
+        # CPU slot to 21, when it is one point, or when it is two points numbered one apart.
+        # CLICK captures hold X001 : X116, X001 : X021 and X025 : X026.
         ("SUM ( X001 : X116 )", "DS9", "decimal"),
         ("SUM ( X001 : X021 )", "DS9", "decimal"),
         ("SUM ( Y016 : Y021 )", "DS9", "decimal"),
@@ -291,7 +298,7 @@ def test_unknown_mode_refused() -> None:
         ("DS1 + ( -2147483648 )", "DD9", "decimal"),
         ("DH1 + FFFFh", "DH9", "hex"),
         ("DH1 + FFFFH", "DH9", "hex"),
-        # its low 32 bits print at the same length, so CLICK passes it
+        # CLICK accepts 6000000000, because its low 32 bits print at the typed length
         ("DS1 + 6000000000", "DD9", "decimal"),
         ("DS1 + 0", "DS9", "decimal"),
         ("SUM ( DS1 : DS1 )", "DS9", "decimal"),
@@ -303,8 +310,9 @@ def test_unknown_mode_refused() -> None:
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
         ("ABS ( DS1 ) ^ 2 + PI", "DF9", "decimal"),
         ("LSH ( DH1 , 1h ) XOR DH2", "DH9", "hex"),
-        # RAND bounds: DS, DD and integers in decimal, DH and hex constants in hex, reversed
-        # too; equal bounds are the same text, so 1 and +1 differ
+        # A RAND takes DS, DD and integer bounds in decimal mode, and DH and hex constant
+        # bounds in hex mode, in either order. Two bounds are equal only when their text is
+        # the same, so 1 and +1 differ.
         ("RAND ( DS1 , DD1000 )", "DS9", "decimal"),
         ("RAND ( -5 , 2147483647 )", "DD9", "decimal"),
         ("RAND ( 10 , 1 )", "DS9", "decimal"),
@@ -325,7 +333,8 @@ def test_accepted(tmp_path: Path, expression: str, result: str, mode: str) -> No
 
 
 def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
-    """The header field count is what the blob holds (S1); 68 operands is 269 characters."""
+    """The field count in the header matches the fields in the blob, for the longest sum
+    that fits. A sum of 68 operands is 269 characters."""
     blob = Math(_sum_of(68), "DD1").build_blob()
     header = struct.unpack_from("<I", blob, 16)[0]
     assert header == 1010
@@ -337,10 +346,10 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
     [
         ({0x6065: "C1"}, "Math.dest"),  # a bit result
         ({0x6065: "SD62"}, "Math.dest"),  # an SD that is not writable
-        ({0x11FE: "-1", 0x6065: "DH9", 0x61FD: "DS1#+#DH2"}, "Math.expression"),  # hex DS
+        ({0x11FE: "-1", 0x6065: "DH9", 0x61FD: "DS1#+#DH2"}, "Math.expression"),  # DS in a hex Math
         ({0x11FE: "-1", 0x61FD: "DH1#+#DH2"}, "Math.dest"),  # a hex Math into DS9
-        ({0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"}, "Math.expression"),  # CT
-        ({0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"}, "Math.expression"),  # int32
+        ({0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"}, "Math.expression"),  # a CT range
+        ({0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"}, "Math.expression"),  # past int32
         ({0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"}, "Math.expression"),  # reads back as 7
         ({0x61FF: "@ + 1Fh", 0x61FD: "DS1#+#1Fh"}, "Math.expression"),  # hex in a decimal Math
         ({0x61FF: "@ + 1FH", 0x61FD: "DS1#+#1FH"}, "Math.expression"),
@@ -367,7 +376,7 @@ def test_hex_constant_drops_leading_zeros(typed: str, display: str) -> None:
 
 
 def test_hex_constant_digit_limit_counts_typed_zeros() -> None:
-    """CLICK refuses ``0FFFEh`` (5 digits typed), though its value fits 4."""
+    """CLICK refuses ``0FFFEh``, which has 5 digits as typed, though its value fits in 4."""
     with pytest.raises(FieldError, match="0FFFEh is outside 0h..FFFFh"):
         Math("DH1 + 0FFFEh", "DH9", "hex")
 
@@ -420,7 +429,9 @@ def test_hex_formula_takes_dh_and_decimal_sum_takes_bits() -> None:
 
 
 def test_pasted_formula_over_the_cap_keeps_its_refusal() -> None:
-    """CLICK keeps a pasted 69-operand sum (273 characters) that its dialog refuses."""
+    """A pasted sum of 69 operands (273 characters) decodes as a Math that keeps its refusal.
+
+    CLICK keeps such a paste, though its dialog refuses the formula."""
     path = Path(__file__).parents[1] / "fixtures/v4_captures/retyped/math_wide.bin"
     with pytest.warns(RefusedFieldWarning, match="CLICK allows 270"):
         rungs = decode(path.read_bytes())
@@ -434,8 +445,9 @@ def test_pasted_formula_over_the_cap_keeps_its_refusal() -> None:
     assert isinstance(by_name["math_operands__spacing_add"].instructions[0], Math)
 
 
-#: A RAND CLICK's dialog takes, the same-length edits of its stored text that make one it
-#: refuses, and the refusal: (formula, result, mode, edits, message).
+#: Each case is (formula, result, mode, edits, message). CLICK's dialog accepts the formula.
+#: Each edit replaces text in the stored blob with text of the same length, to make a RAND
+#: that the dialog refuses. The message is part of the refusal.
 _STORED_RAND = [
     ("RAND ( DD1 , 10 )", "DS9", "decimal", [("DD1", "DF1")], "DF1 is refused"),
     ("RAND ( DH1 , Ah )", "DH9", "hex", [("DH1", "XD1")], "XD1 is refused"),
@@ -481,9 +493,11 @@ def test_a_stored_rand_its_dialog_refuses_decodes_and_writes_its_bytes(
 def test_a_stored_real_above_the_largest_float32_decodes_and_writes_its_bytes(
     tmp_path: Path,
 ) -> None:
-    """CLICK's Math dialog refuses 3.4028235E+38 (OBJ-1009); a Math stored with it decodes
-    as that Math, keeping the refusal, and encodes its bytes unchanged."""
-    # 3.4028200E+38: 6 significant digits, as a Math takes, and as long as the value stored.
+    """CLICK's Math dialog refuses 3.4028235E+38 (OBJ-1009). A stored Math with that
+    constant decodes as the Math and keeps the refusal, and encode() writes its bytes
+    unchanged."""
+    # 3.4028200E+38 has the 6 significant digits that a Math takes, and the same length as
+    # the value that replaces it.
     rung = _read_af_rung(tmp_path, "math(DF1 * 3.4028200E+38,DF9,mode=decimal)")
     data = encode(rung)
     old, new = "3.4028200E+38".encode("utf-16-le"), "3.4028235E+38".encode("utf-16-le")

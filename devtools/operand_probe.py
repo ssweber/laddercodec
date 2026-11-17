@@ -3,47 +3,61 @@
     uv run python -I devtools/operand_probe.py <src_dir> <out.json> [--limit N] [--classes A,B]
     uv run python -I devtools/operand_probe.py --diff a.json b.json
 
-``<src_dir>`` is the ``src`` directory of the checkout under test; it goes first on
-``sys.path`` so ``import laddercodec`` loads it rather than the installed package.
+``<src_dir>`` is the ``src`` directory of the checkout under test. The script puts it first
+on ``sys.path``, so that ``import laddercodec`` loads it and not the installed package.
 
-For every instruction class in the family registry, each probe baseline (a known-good set
-of constructor arguments) is varied one field at a time over a fixed value list, and each
-range field pair is varied together.  Every case records, under ``<Class>/<baseline>/<field>=
-<value>``:
+The script probes every instruction class in the family registry. For each class,
+``PROBES`` gives one or more baselines. A baseline is a set of constructor arguments that
+the class is expected to accept. The script varies one field of a baseline at a time over a
+fixed list of values. It varies each pair of range fields, such as a start and an end
+address, together. Each variation is a case, keyed ``<Class>/<baseline>/<field>=<value>``.
+Its record holds:
 
 ``new``    ``ok`` or ``!<ExceptionClass>`` from the constructor
 ``csv``    ``to_csv()`` of the constructed instance (``ok`` only)
-``blob``   sha256 of ``build_blob()`` and the ``cell_params()`` (``ok`` only)
+``blob``   the sha256 of ``build_blob()``, then the ``cell_params()`` (``ok`` only)
 ``write``  the CSV writer's result for a rung holding the instance (``ok`` only)
 ``write_warn``
            warnings the writer raised, each ``<WarningClass>: <message>``
-``enc``    sha256 (24 hex digits) of ``encode()`` of that rung, then the case's token in
-           ``decode()`` of those bytes, ``=`` when it matches ``csv`` (``ok`` only)
-``text``   ``to_csv()`` of an instance built without its checks, holding the raw value
-``read``   that text read back through the CSV path (token parser and converter)
-``renc``   ``enc`` for the rung ``read`` produced, ``=`` when it matches ``read``
+``enc``    sha256 (24 hex digits) of ``encode()`` of that rung, then the case's instruction
+           as ``decode()`` returns it from those bytes, or ``=`` if it matches ``csv``
+           (``ok`` only)
+``text``   ``to_csv()`` of an instance that holds the value as given, built without its
+           checks
+``read``   that text, put in place of the instance's cell in the CSV rows that the writer
+           wrote for the case, or for the baseline if the case was not written, and read
+           back through the CSV parser and converter
+``renc``   ``enc`` for the rung that ``read`` returned, with ``=`` if it matches ``read``
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
-``tag``    the baseline's blob with the varied field's tag set to the case's value, parsed
-           back by the blob decoder (only when one tag holds the baseline value)
+``tag``    the baseline's blob, with the varied field's tag set to the case's value, parsed
+           back by the blob decoder (only when exactly one tag holds the baseline value)
 ``warn``   warnings raised by any path except the writer's, each
            ``<WarningClass>: <message>``
 ``errors`` the message of every exception above, in order, as ``[class, message]``
 
-A path that raises records ``!<ExceptionClass>`` where its result would be; the message
-goes to ``errors`` only, so no value of the case holds an exception message.
+When a step raises, the script records ``!<ExceptionClass>`` in place of the step's result.
+The message goes only to ``errors``, so no other value of the case holds an exception
+message.
 
-``read`` and ``dec`` are ``=`` when they match ``text``.  ``<value>`` in a key is the
-value's repr, with text over 1000 characters written as an expression of its runs
-(``'0'*5000+'1'``).  The value lists are fixed here, so two source trees get the same
-cases.  Values that are objects of the tree under test
-(``InstructionType`` members, Modbus targets and addresses) are built from literal
-arguments; one the tree refuses to build records only ``new: !value: <Class>!<error>``.  A
-baseline the tree refuses is listed in ``meta.refused_baselines`` and its cases still run;
-the probe then exits 3 after writing its output, and ``--diff`` refuses the file.  A
-registered instruction class with no baseline, or a field with no value kind, stops the
-run, and so does a case key that appears twice.  ``--limit`` keeps the first N cases of each
-class, and ``--classes`` probes only the classes named; both are part of ``meta.scope``, so
-outputs of different scope do not compare.
+``read`` and ``dec`` are ``=`` when they match ``text``. ``<value>`` in a key is the value's
+repr. Text over 1000 characters is written as a Python expression of repeated characters,
+such as ``'0'*5000+'1'``. The value lists are fixed in this script, so two source trees get
+the same cases.
+
+Some values are objects of the tree under test: ``InstructionType`` members, Modbus targets
+and Modbus addresses. The script builds these from literal arguments. If the tree refuses
+to build one, the case's ``new`` is ``!value: <Class>!<ExceptionClass>`` and the case runs
+no other step.
+
+If the tree refuses a baseline, the script lists it in ``meta.refused_baselines`` and still
+runs its cases. After writing its output, the script then exits 3, and ``--diff`` refuses
+to compare the file. The run stops if a registered class has no entry in ``PROBES``, if a
+class's fields differ from that entry, if a field's value kind is unknown, or if a case key
+appears twice.
+
+``--limit N`` keeps the first N cases of each class, and ``--classes`` probes only the
+classes that it names. Both go into ``meta.scope``, and ``--diff`` refuses to compare two
+outputs whose scopes differ.
 
 ``--diff`` prints only the differences between two outputs and exits 1 if there is any.
 """
@@ -117,7 +131,8 @@ def _text(n: int) -> str:
     return '"' + "A" * n + '"'
 
 
-#: Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+#: Digit strings longer than Python's 4300-digit ``int()`` limit. The first is 5000 zeros
+#: and a 1, and the second is 5000 ones.
 LONG_DIGITS: list[str] = ["0" * 5000 + "1", "1" * 5000]
 
 OPERANDS: list[str] = _dedupe(
@@ -141,7 +156,8 @@ OPERANDS: list[str] = _dedupe(
     + LONG_DIGITS
 )
 
-#: Values for the opaque tag fields of the motion and email boxes (no checks to probe).
+#: Values for the opaque tag fields of the motion and Email boxes. These fields have no
+#: checks to probe.
 OPAQUE: list[str] = [
     "",
     "0",
@@ -328,12 +344,13 @@ TIMER_UNITS = _lit("Tms", "Ts", "Tm", "Th", "Td", "", "ms", "tms", "TMS")
 
 @dataclasses.dataclass
 class Probe:
-    """How to probe one class: field value kinds, baselines, range pairs."""
+    """How to probe one class: the value kind of each field, the baselines and the range pairs."""
 
     fields: dict[str, Any]
     baselines: Callable[[Any], dict[str, dict[str, Any]]]
     ranges: tuple[tuple[str, str], ...] = ()
-    #: Nested value classes are only constructed (no CSV or blob path).
+    #: True for a value class such as a Modbus target. The probe only constructs it, and runs
+    #: no CSV or blob step.
     nested: bool = False
 
 
@@ -346,10 +363,11 @@ def _opaque_probe(names: str) -> Probe:
 
 @dataclasses.dataclass(frozen=True)
 class Frozen:
-    """A value the probe builds from source classes, keyed by fixed text.
+    """A value that the probe builds with a class of the tree under test, with a fixed key.
 
-    ``build(ns)`` makes the value from literal arguments; the case key uses ``key``, so a
-    source tree that builds it differently (or refuses it) still gets the same case.
+    ``build(ns)`` makes the value from literal arguments. The case key uses ``key`` and not
+    the value's repr, so that a tree that builds the value differently, or refuses it, still
+    gets the same case key.
     """
 
     key: str
@@ -357,11 +375,12 @@ class Frozen:
 
 
 class ValueRefused(Exception):
-    """A frozen value's own constructor refused its literal arguments."""
+    """Raised when the class of a :class:`Frozen` value refuses its literal arguments."""
 
 
-#: Instruction type ids 0x2711-0x2729 (low byte), and one that is none.  A value that is a
-#: member of the source's ``InstructionType`` is passed as that member.
+#: The low bytes of the instruction type ids 0x2711 to 0x2729, and 0x99, which is no type id.
+#: If the tree's ``InstructionType`` has a member for a value, the probe passes that member.
+#: Otherwise it passes the plain int.
 ITYPE_IDS: tuple[int, ...] = (
     0x11,
     0x12,
@@ -457,14 +476,15 @@ def _tcp(ns: Any) -> Any:
 
 
 def _blob(class_name: str, marker: int, fields: list[tuple[int, str]]) -> bytes:
-    """A standard instruction blob (class name, type marker, one part, tagged fields)."""
+    """Return a standard instruction blob with one part, from a class name, marker and fields."""
     out = class_name.encode("utf-16-le") + b"\0\0" + struct.pack("<IHI", marker, 1, len(fields))
     for tag, value in fields:
         out += struct.pack("<H", tag) + b"\xff\xff\xff\xff" + value.encode("utf-16-le") + b"\0\0"
     return out
 
 
-#: Velocity's default blob (literal, not built by the source under test).
+#: The default blob of a Velocity box. It is a literal, and the tree under test does not
+#: build it.
 VELOCITY_BLOB = bytes.fromhex(
     "560065006c006f00630069007400790000003527000001000f0000002d22ffffffff300000009b60"
     "ffffffff00009c60ffffffff00009d60ffffffff00002f22ffffffff32000000f511ffffffff3000"
@@ -472,7 +492,7 @@ VELOCITY_BLOB = bytes.fromhex(
     "ffff00007d60ffffffff00008360ffffffff00001832ffffffff390037003400340000000000ffff"
     "ffff0000"
 )
-#: A blob whose class name no family owns.
+#: A blob whose class name belongs to no instruction family.
 WIDGET_BLOB = _blob("Widget", 0x2799, [(0x6065, "X001"), (0x0000, "")])
 
 
@@ -965,7 +985,7 @@ PROBES: dict[str, Probe] = {
     ),
 }
 
-#: Value classes probed beside the registry's instruction classes.
+#: Value classes that the probe tests as well as the instruction classes in the registry.
 NESTED = ("ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress")
 
 # ---------------------------------------------------------------------------
@@ -973,12 +993,16 @@ NESTED = ("ModbusRtuTarget", "ModbusTcpTarget", "ModbusAddress")
 # ---------------------------------------------------------------------------
 
 
-#: What a decoded token that holds refusals adds to its description, before the fields.
+#: The text added to the description of a decoded instruction that holds refusals. The
+#: names of the refused fields follow it.
 HELD = " refused["
 
 
 class Namespace:
-    """The laddercodec names the probe tables and runner use."""
+    """The laddercodec objects that the probe tables and the runner use.
+
+    They are imported from the tree under test.
+    """
 
     def __init__(self, src_dir: str) -> None:
         src = Path(src_dir).resolve()
@@ -1017,7 +1041,7 @@ class Namespace:
         self.compose: Any = _compose_blob
         try:
             from laddercodec.operands.unchecked import refusals
-        except ImportError:  # a laddercodec whose decoders hold no refusals
+        except ImportError:  # a laddercodec whose decoded instructions cannot hold refusals
             refusals = None
         self.refusals: Any = refusals
         for name in NESTED:
@@ -1029,12 +1053,12 @@ class Namespace:
         return classes + [getattr(self.instructions, name) for name in NESTED]
 
 
-#: CLICK's tallest rung; a box taller than this skips the writer.
+#: The most rows a CLICK rung can have. The probe does not write a box taller than this.
 MAX_ROWS = 32
 
 
 class ProbeSkip(Exception):
-    """A case the probe does not run through one of its paths."""
+    """Raised when the probe skips a step for one case."""
 
 
 #: ``[class, message]`` of every exception the current case recorded, in order.
@@ -1042,7 +1066,10 @@ ERRORS: list[list[str]] = []
 
 
 def error_text(exc: BaseException) -> str:
-    """``!<ExceptionClass>``; the message goes to :data:`ERRORS`."""
+    """Return ``!<ExceptionClass>`` for ``exc``.
+
+    Append the class and message of ``exc`` to :data:`ERRORS`.
+    """
     ERRORS.append([type(exc).__name__, str(exc)])
     return f"!{type(exc).__name__}"
 
@@ -1056,7 +1083,7 @@ _KEY_MAX = 1000
 
 
 def _runs(text: str) -> str:
-    """``text`` as a Python expression of repeated runs: ``'0'*5000+'1'``."""
+    """Return ``text`` as a Python expression of repeated characters, such as ``'0'*5000+'1'``."""
     parts: list[str] = []
     start = 0
     while start < len(text):
@@ -1070,8 +1097,11 @@ def _runs(text: str) -> str:
 
 
 def _key(value: Any) -> str:
-    """The case key of a value: its repr, with text over 1000 characters (alone or in a
-    list or tuple) written as its runs."""
+    """Return the case key of ``value``.
+
+    The key is the value's repr. Text over 1000 characters, alone or in a list or tuple, is
+    written by :func:`_runs`. A :class:`Frozen` value has its own key.
+    """
     if isinstance(value, Frozen):
         return value.key
     if isinstance(value, str) and len(value) > _KEY_MAX:
@@ -1086,7 +1116,7 @@ def _key(value: Any) -> str:
 
 
 def _values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
-    """The values field ``field`` is varied over, without repeats."""
+    """Return the values to try in ``field``, without repeats."""
     values = _raw_values(kind, field, base)
     seen: set[str] = set()
     out = []
@@ -1128,7 +1158,8 @@ def _raw_values(kind: Any, field: str, base: dict[str, Any]) -> list[Any]:
     if kind == "oplist":
         current = list(base.get(field, []))
         lists = [[op, *current[1:]] for op in OPERANDS]
-        # The long digits at index 1 too: each item of a list is converted on its own.
+        # Put the long digit strings at index 1 too, because each item of a list is converted
+        # separately.
         second = [[*current[:1], op, *current[2:]] for op in LONG_DIGITS if len(current) > 1]
         return [*lists, *second, [], [*current, *current[-1:]], ["C1"] * 16, ["C1"] * 17]
     raise SystemExit(f"no value kind {kind!r} for field {field!r}")
@@ -1147,7 +1178,11 @@ def _fill(cls: type, kwargs: dict[str, Any]) -> dict[str, Any]:
 
 
 def _unchecked(cls: type, kwargs: dict[str, Any]) -> Any:
-    """An instance holding ``kwargs`` as given, without ``__post_init__``'s checks."""
+    """Return an instance of ``cls`` that holds ``kwargs`` as given, without its checks.
+
+    The instance is built without running ``__post_init__``. Fields not in ``kwargs`` get
+    their defaults.
+    """
     obj = object.__new__(cls)
     for name, value in _fill(cls, kwargs).items():
         object.__setattr__(obj, name, value)
@@ -1161,7 +1196,11 @@ class Runner:
         self.base_fields: dict[str, Any] = {}
 
     def describe(self, token: Any) -> str:
-        """Type and CSV text of a token; pinned boxes add their pin rows."""
+        """Return the type name and CSV text of a token.
+
+        For a :class:`PinnedInstruction`, a box with extra input rows, add its pin rows and
+        pin labels.
+        """
         ns = self.ns
         if isinstance(token, (ns.AfInstruction, ns.ConditionInstruction)):
             try:
@@ -1177,7 +1216,11 @@ class Runner:
         return f"{type(token).__name__}:{token!r}"
 
     def rung_for(self, inst: Any) -> Any:
-        """A rung holding ``inst``: a contact in column A, or an AF box with its rows."""
+        """Return a rung that holds ``inst``.
+
+        A condition goes in column A. An instruction for the output column (AF) gets as many
+        rows as it needs. Raise :class:`ProbeSkip` if it needs more than :data:`MAX_ROWS`.
+        """
         ns = self.ns
         if isinstance(inst, ns.ConditionInstruction):
             return ns.Rung(1, [[inst] + ["-"] * 30], [""], None)
@@ -1196,7 +1239,7 @@ class Runner:
         return ns.Rung(rows, conditions, afs, None)
 
     def template(self, rung: Any) -> tuple[list[list[str]], list[str]]:
-        """The writer's CSV rows for ``rung``, and any warnings it gave."""
+        """Return the CSV writer's rows for ``rung``, and the warnings that it raised."""
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             rows = [list(row) for row in self.ns.rung_to_rows(rung)]
@@ -1209,13 +1252,16 @@ class Runner:
         return self.describe(token) if token is not None else f"none:{instructions!r}"
 
     def read_back(self, rows: list[list[str]], condition: bool) -> tuple[str, Any]:
-        """The case's token read back from CSV rows, and the rung it read (or None)."""
+        """Read ``rows`` back, and return the case's instruction as text and the rung.
+
+        If reading raises, return the error text and None.
+        """
         ns = self.ns
         try:
             got = ns.convert_rung(ns.parse_rows(rows))
         except Exception as exc:
             return error_text(exc), None
-        if isinstance(got, list):  # laddercodec lays the rung out: one Rung per CLICK rung
+        if isinstance(got, list):  # one Rung per CLICK rung. An older tree returns a tuple.
             rung = got[0]
             conditions, instructions = rung.conditions, rung.instructions
         else:
@@ -1224,9 +1270,11 @@ class Runner:
         return self.main_token(conditions, instructions, condition), rung
 
     def round_trip(self, rung: Any, condition: bool, expect: str) -> str:
-        """sha of ``encode(rung)`` and the case's token in ``decode()`` of those bytes.
+        """Return the sha of ``encode(rung)`` and the case's instruction from ``decode()``.
 
-        The token is ``=`` when it is ``expect``.
+        ``decode()`` reads the bytes that ``encode()`` returned. The instruction is written as
+        ``=`` if it matches ``expect``. If a step raises, the text names the step and the
+        exception class.
         """
         ns = self.ns
         try:
@@ -1237,7 +1285,7 @@ class Runner:
             decoded = ns.decode(data)
         except Exception as exc:
             return f"{_sha(data)} decode{error_text(exc)}"
-        if isinstance(decoded, list):  # a tree older than decode()'s list returns the Rung
+        if isinstance(decoded, list):  # an older tree's decode() returns one Rung, not a list
             decoded = decoded[0]
         token = self.main_token(decoded.conditions, decoded.instructions, condition)
         return f"{_sha(data)} {'=' if token == expect else token}"
@@ -1257,7 +1305,7 @@ class Runner:
         return self.describe(parsed) + self.held(parsed)
 
     def held(self, token: Any) -> str:
-        """`` refused[<field>,...]`` for a decoded token that holds refusals; else empty."""
+        """Return `` refused[<field>,...]`` if a decoded instruction holds refusals, else ``""``."""
         found = self.ns.refusals(token) if self.ns.refusals is not None else ()
         if not found:
             return ""
@@ -1355,10 +1403,11 @@ class Runner:
         kwargs: dict[str, Any],
         condition: bool,
     ) -> str | None:
-        """Decode the baseline's blob with each varied field's tag holding the case's value.
+        """Decode the baseline's blob with the tag of each varied field set to the case's value.
 
-        A field is located by its baseline value: it must be a non-empty string held by
-        exactly one tag.  Returns None when a varied field cannot be located.
+        The probe finds a field's tag by the field's baseline value. That value must be a
+        non-empty string, exactly one tag must hold it, and the case's value must be a string.
+        Return None if no field varies or a varied field's tag cannot be found.
         """
         changed = [name for name in kwargs if name not in base or kwargs[name] != base[name]]
         if not changed:
@@ -1390,7 +1439,11 @@ class Runner:
 
 
 def _cases(probe: Probe, base: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """``(case key, overrides)`` for one baseline; overrides may hold ``Frozen`` values."""
+    """Return ``(case key, overrides)`` for each case of one baseline.
+
+    The first case, ``-``, is the baseline unchanged. The overrides may hold :class:`Frozen`
+    values.
+    """
     cases: list[tuple[str, dict[str, Any]]] = [("-", {})]
     for field, kind in probe.fields.items():
         for value in _values(kind, field, base):
@@ -1402,7 +1455,10 @@ def _cases(probe: Probe, base: dict[str, Any]) -> list[tuple[str, dict[str, Any]
 
 
 def _resolve(ns: Any, base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    """The case's constructor arguments; raises ValueRefused for a refused frozen value."""
+    """Return the constructor arguments of a case.
+
+    Raise :class:`ValueRefused` if the tree refuses to build a :class:`Frozen` value.
+    """
     kwargs = dict(base)
     for name, value in overrides.items():
         kwargs[name] = value.build(ns) if isinstance(value, Frozen) else value

@@ -1,12 +1,14 @@
-"""Send / Receive (Modbus) instruction family.
+"""The Modbus Send and Receive instructions.
 
-Binary class names: ``"SD"`` (Send, type marker 0x2729) and
-``"RD"`` (Receive, type marker 0x2728).
+CLICK stores a Send with the binary class name ``"SD"`` and the type marker 0x2729. It
+stores a Receive with ``"RD"`` and 0x2728.
 
-SD has 411 tagged fields (30 semantic + 250 x 0x6889 padding + 2 post-padding
-+ 128 x 0x688F padding + terminator).
+An SD blob has 411 tagged fields. There are 30 fields with fixed meanings, then 250
+padding fields tagged 0x6889, then the IP and port fields, then 128 padding fields tagged
+0x688F, and then a terminator.
 
-RD has 169 tagged fields (40 semantic + 128 x 0x688F padding + terminator).
+An RD blob has 169 tagged fields. There are 40 fields with fixed meanings, then 128
+padding fields tagged 0x688F, and then a terminator.
 """
 
 from __future__ import annotations
@@ -39,7 +41,8 @@ from .family import AfInstructionFamilySpec, fixed_cell_params
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
-#: Cell kwargs of a Send or Receive box: three rows (cell header +0x09 = +0x0A = 3).
+#: The cell keyword arguments of a Send or Receive box. The box is three rows tall. In the
+#: cell header, +0x09 and +0x0A are both 3.
 _CELL_PARAMS: dict = {"visual_rows": 3}
 
 # ---------------------------------------------------------------------------
@@ -50,7 +53,7 @@ _CELL_PARAMS: dict = {"visual_rows": 3}
 @holds_refusals
 @dataclass(frozen=True)
 class ModbusRtuTarget:
-    """RTU serial target."""
+    """A Modbus RTU device on a serial port, which a Send or Receive talks to."""
 
     name: str  # human label, not in binary
     com_port: str  # "cpu2", "cpu3", "slot0_1", "slot0_2", "slot1_1", "slot1_2"
@@ -72,7 +75,7 @@ class ModbusRtuTarget:
 @holds_refusals
 @dataclass(frozen=True)
 class ModbusTcpTarget:
-    """TCP/IP target."""
+    """A Modbus TCP device at an IP address and port, which a Send or Receive talks to."""
 
     name: str  # human label, not in binary
     ip: str
@@ -109,7 +112,10 @@ class ModbusTcpTarget:
 
 
 def _choice_reason(value: object) -> Reason:
-    """Why text is not one of a field's named values: another member (a choice), or no text."""
+    """Return the reason to give when *value* is not one of a field's named values.
+
+    The reason is ``CHOICE`` when *value* is text, and ``FORM`` when it is not text.
+    """
     return Reason.CHOICE if isinstance(value, str) else Reason.FORM
 
 
@@ -117,15 +123,21 @@ _DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
 
 
 def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, high: int) -> None:
-    """CLICK's Slave ID box takes a number or a DS address (DD, DH, C... are refused)."""
+    """Refuse a Slave ID that is neither a number from 0 to *high* nor an address from DS1
+    to DS4500.
+
+    CLICK's Slave ID box accepts a number or a DS address. It refuses DD, DH, C and the
+    other banks.
+    """
     device_id = target.device_id
     if isinstance(device_id, str):
         check.normalize("device_id")
         if check.refused("device_id"):
             return
-        typed = str(target.device_id)  # in display form now
+        typed = str(target.device_id)  # check.normalize put it in display form
         m = _DS_ADDRESS_RE.fullmatch(typed)
-        # Four digits at most: DS4500 is the last, and int() refuses a longer digit string.
+        # Check the length before int(). DS4500 is the last DS address, so more than four
+        # digits is out of range, and int() raises for a string of more than 4300 digits.
         if not m or len(m.group(1)) > 4 or int(m.group(1)) > 4500:
             check.refuse(
                 "device_id",
@@ -150,7 +162,11 @@ def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget,
 
 
 def _device_id_reason(device_id: str, field: str) -> Reason:
-    """Why text is no DS address: no address at all, another bank, or a number past DS4500."""
+    """Return the reason that *device_id* is not a DS address from DS1 to DS4500.
+
+    The text may be no address at all, an address in another bank, or a DS address past
+    DS4500.
+    """
     try:
         address = check_address(device_id, field)
     except AddressError as exc:
@@ -162,7 +178,10 @@ _IP_RE = re.compile(r"([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})")
 
 
 def _check_ip(check: Refusals, ip: str) -> None:
-    """A TCP server IP is four octets, each 0-255 (0.0.0.0 is accepted)."""
+    """Refuse an IP address that is not four decimal octets, each from 0 to 255.
+
+    0.0.0.0 is accepted.
+    """
     m = _IP_RE.fullmatch(ip) if isinstance(ip, str) else None
     rule = f"must be four octets, each 0-255 (a.b.c.d), got {ip!r}"
     if m is None:
@@ -171,14 +190,15 @@ def _check_ip(check: Refusals, ip: str) -> None:
         check.refuse("ip", rule, Reason.RANGE, code=Code.INVALID_MODBUS_TARGET)
 
 
-#: int() refuses a longer digit string, so a longer decimal address is refused as no number.
+#: The most digits that int() converts. A decimal address with more digits is refused as
+#: not a number.
 _MAX_INT_DIGITS = 4300
 
 
 @holds_refusals
 @dataclass(frozen=True)
 class ModbusAddress:
-    """Non-CLICK remote address (MODBUS 984 or hex)."""
+    """A remote address given as a MODBUS 984 number or in hex, not as a CLICK address."""
 
     address: str  # "400001" or "0h"
     register_type: str | None = None  # "coil"|"holding"|... — only for hex
@@ -194,9 +214,10 @@ class ModbusAddress:
                 )
             if self.address.endswith(("h", "H")):
                 if check("address", check_constant, _REMOTE_HEX) is not None:
-                    # The range check reads the typed value: padding past four digits is still
-                    # in range.  CLICK stores uppercase digits without leading zeros and a
-                    # lowercase h (0FFFEh -> FFFEh, 0H -> 0h).
+                    # The range check reads the value, not the number of digits. So leading
+                    # zeros do not take it out of range, even past four digits. CLICK stores
+                    # the digits in uppercase, without leading zeros, and with a lowercase h
+                    # (0FFFEh -> FFFEh, 0H -> 0h).
                     display = check.run(
                         to_display,
                         self.address,
@@ -253,8 +274,8 @@ _TCP_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _TCP_PORT_MODE.items()}
 # Function codes
 # ---------------------------------------------------------------------------
 
-#: fc_subtype (0x2211) per Modbus function code: the item index in each dialog's
-#: Function Code box.
+#: The fc_subtype (0x2211) of each Modbus function code. It is the index of the code in
+#: the Function Code box of the Send or Receive dialog.
 _RD_FC_SUBTYPE: dict[int, str] = {1: "0", 2: "1", 3: "2", 4: "3"}
 _SD_FC_SUBTYPE: dict[int, str] = {5: "0", 6: "1", 15: "2", 16: "3"}
 _RD_FC_FROM_SUBTYPE: dict[str, int] = {v: k for k, v in _RD_FC_SUBTYPE.items()}
@@ -298,11 +319,13 @@ def _xy_points_left(number: int) -> int:
 
 
 def _xy_click_room(number: int) -> int:
-    """Points the slot run from X/Y point ``number`` holds.
+    """Return how many X/Y points a count from point ``number`` can cover in its slot run.
 
-    The CPU slot and its dual option slot count as one run (X001 gives 32); a count from an
-    expansion slot stays in that slot (X101 gives 16).  A CLICK-addressed Send uses it
-    for an X/Y source; a Receive into Y uses it every time.
+    A slot run is the set of slots that one count may cross. The CPU slot and its dual
+    option slot form one run, so a count from X001 can cover 32 points. A count from an
+    expansion slot must stay in that slot, so a count from X101 can cover 16. A Send with
+    a CLICK remote address uses this room for an X/Y source. A Receive into Y uses it too
+    (see :func:`_receive_y_room`).
     """
     if number <= 16:
         return 33 - number
@@ -314,15 +337,17 @@ def _xy_click_room(number: int) -> int:
 def _receive_y_room(
     local: Address, remote: str | ModbusAddress, remote_addr: Address | None
 ) -> int:
-    """Points a Receive can count into Y point ``local``: the slot run, capped by the remote.
+    """Return how many points a Receive can count into Y from the Y point ``local``.
 
-    The slot run applies in every addressing mode.  A remote X/Y start takes the higher of the two
-    start numbers; a remote C, T, CT or SC caps the count at the room left in that bank;
-    a MODBUS 984 start up to 65535 caps it at 65536 minus the start.
+    The limit is the room in the slot run from ``local`` (:func:`_xy_click_room`), for
+    every kind of remote address. The remote start can lower it. For a remote X or Y
+    start, the run is taken from the higher of the two start numbers. A remote C, T, CT or
+    SC start caps the count at the room left in that bank. A MODBUS 984 start up to 65535
+    caps it at 65536 minus the start.
 
-    From Y101 on, the remote C case skips its slot formula (both range tests
-    jump past it), so only the C room and the points that exist through Y816
-    apply there.
+    From Y101 on, CLICK's two range tests both skip the slot rule for a remote C start.
+    There, only the room left in C and the Y points that exist through Y816 limit the
+    count.
     """
     if remote_addr is not None:
         if remote_addr.bank in _XY_BANKS:
@@ -338,10 +363,12 @@ def _receive_y_room(
 
 
 def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -> None:
-    """A count between local C and a CLICK remote also fits the remote side.
+    """Refuse a count between local C bits and a CLICK remote address that does not fit
+    on the remote side.
 
-    The room is the lesser of the C room and the remote's: the slot run from an X/Y start
-    or the room left in a C, T, CT or SC bank.
+    For a remote X or Y start, the room is the slot run from that start
+    (:func:`_xy_click_room`). For a remote C, T, CT or SC start, it is the room left in
+    that bank. :func:`_check_quantity` checks the room left in C on the local side.
     """
     bank, number = remote_addr.bank, remote_addr.number
     if bank in _XY_BANKS:
@@ -371,7 +398,11 @@ def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -
 
 
 def _xy_nth(number: int, steps: int, cls: str) -> int:
-    """The X/Y point ``steps`` points after ``number``, counted along the slots."""
+    """Return the X/Y point that is ``steps`` points after ``number``.
+
+    Count only the points in the slots, and skip the numbers between slots. Raise
+    ``FieldError`` if the count runs past the last slot.
+    """
     for lo, hi in XY_SLOTS:
         if hi < number:
             continue
@@ -388,7 +419,10 @@ def _xy_nth(number: int, steps: int, cls: str) -> int:
 
 
 def _addr_end(start: str, quantity: int, cls: str) -> str:
-    """End address of ``quantity`` elements from ``start`` (DS1 + 5 is DS5, X001 + 17 is X021)."""
+    """Return the last address of ``quantity`` elements from ``start``.
+
+    Five elements from DS1 end at DS5, and 17 from X001 end at X021.
+    """
     m = _ADDR_NUM_RE.fullmatch(start)
     if not m:
         return start
@@ -417,8 +451,8 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 # ---------------------------------------------------------------------------
 # Field rules
 #
-# A bank outside a field's set raises OBJ-004; a count past its cap or room, or a hex start
-# past FFFDh, OBJ-010.
+# A refusal of a bank that a field does not accept carries CLICK's id OBJ-004. A refusal
+# of a count past its cap or room, or of a hex start past FFFDh, carries OBJ-010.
 # ---------------------------------------------------------------------------
 
 _BANK_ID = "OBJ-004"
@@ -428,16 +462,19 @@ _ODD_ID = "OBJ-029"  # a Receive TXT count that is odd: "only an even number"
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
 _SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
-#: Send local banks per function code (masks 0x3f, 0xdd40, 0xf3c0).
+#: The local banks that a Send accepts for each function code. CLICK's bank masks are 0x3f
+#: for bits, 0xdd40 for FC06 and 0xf3c0 for FC16.
 _SEND_LOCAL_REGS_FC06 = frozenset({"DS", "DH", "XD", "YD", "TD", "SD", "TXT"})
 _SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "TXT"})
-#: Banks that only FC16 carries; one of them makes a single-element Send FC16.
+#: Banks that only FC16 can write. A Send of one element uses FC16 if either side is in one
+#: of these banks.
 _FC16_ONLY = frozenset({"CTD", "DD", "DF"})
 #: Local data types whose hex remote start stops at FFFDh (int32, float, text).
 _SEND_HEX_FFFD = frozenset({"DD", "CTD", "DF", "TXT"})
 
-#: CLICK-addressed Receive remote banks per local bank:
-#: int16, int32, float, hex and text pair only with their own kind.
+#: For a Receive with a CLICK remote address, the remote banks that each local bank
+#: accepts. A local bank of each data type (int16, int32, float, hex or text) pairs only
+#: with remote banks of the same type.
 _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
     "DS": frozenset({"DS", "TD", "SD"}),
     "DD": frozenset({"DD", "CTD"}),
@@ -447,7 +484,8 @@ _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
     "TXT": frozenset({"TXT"}),
 }
 _RECEIVE_REMOTE_REGS = frozenset().union(*_RECEIVE_REMOTE_FOR_DEST.values())
-#: Receive local banks: FC01/02 mask 6, FC03/04 mask 0x8bc0.
+#: The local banks that a Receive accepts. CLICK's bank masks are 6 for FC01 and FC02, and
+#: 0x8bc0 for FC03 and FC04.
 _RECEIVE_LOCAL_BITS = frozenset({"Y", "C"})
 _RECEIVE_LOCAL_REGS = frozenset(_RECEIVE_REMOTE_FOR_DEST)
 
@@ -481,11 +519,14 @@ _SEND_984_KINDS = {"coil": _984_COIL, "holding": _984_HOLDING}
 def _check_slave_id(
     check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, rtu_low: int
 ) -> None:
-    """A numeric Slave ID: Receive RTU starts at 1 (the 0-247 and 0-255 ceilings are checked
-    when the target is built); a DS address always passes.
+    """Refuse a numeric Slave ID below *rtu_low* on an RTU target.
 
-    A target refused by its own checks never reaches the instruction, and names its own
-    field (``ModbusTcpTarget.port``); the floor Receive adds names ``Receive.target``."""
+    A Receive passes 1 and a Send passes 0. A DS address always passes. The target checks
+    the upper limits, 247 for RTU and 255 for TCP, when it is built.
+
+    The target runs its own checks when it is built, and their refusals name the target's
+    field, such as ``ModbusTcpTarget.port``. The refusal of a Slave ID below 1 on a Receive
+    names ``Receive.target``."""
     device_id = target.device_id
     if isinstance(device_id, str):
         return
@@ -499,7 +540,8 @@ def _check_slave_id(
 
 
 def _normalize_operands(check: Refusals, inst: Send | Receive, names: tuple[str, ...]) -> None:
-    """Write the CLICK addresses in display form; a ModbusAddress stays as written."""
+    """Put ``remote_start`` and each field in *names* in display form if it is a CLICK
+    address. Leave a ModbusAddress as written."""
     check.normalize(*(n for n in ("remote_start", *names) if isinstance(getattr(inst, n), str)))
 
 
@@ -519,7 +561,7 @@ def _check_status_bits(
     names: tuple[str, str, str],
     click_id: str | None = None,
 ) -> None:
-    """Each status field is a C bit, and no C bit serves two of them."""
+    """Refuse a status field that is not a C bit, and a C bit that two status fields use."""
     seen: dict[tuple[str, int], str] = {}
     for name in names:
         found = _check_status(check, inst, name, _STATUS_BITS)
@@ -539,7 +581,10 @@ def _check_status_bits(
 
 
 def _check_984(check: Refusals, address: str, kinds: dict[str, tuple[int, int]]) -> str | None:
-    """The kind (a key of ``kinds``) a MODBUS 984 start address belongs to; None if refused."""
+    """Return the kind, a key of ``kinds``, whose MODBUS 984 range holds *address*.
+
+    If no range holds it, refuse the address and return None.
+    """
     n = int(address)
     for kind, (low, high) in kinds.items():
         if low <= n <= high:
@@ -573,12 +618,13 @@ def _check_quantity(
     xy_room: int | None = None,
     unit: str | None = None,
 ) -> None:
-    """The count cap per kind, then the room left from the local start.
+    """Refuse a count above the cap for its kind, then a count that runs past the room left
+    from the local start.
 
-    ``xy_room`` is the room from an X/Y start, which depends on the remote side.  None, for
-    a Send to a MODBUS 984 or hex address, is the points left through the last slot.
-    ``unit`` names what the cap counts when it is not registers (a Receive TXT count is in
-    characters).
+    ``xy_room`` is the room from an X or Y start, which depends on the remote address. If
+    it is None, the room is the X/Y points left through the last slot. A Send to a MODBUS
+    984 or hex address passes None. ``unit`` names what the cap counts when it does not
+    count registers. A Receive TXT count is in characters.
     """
     bits, regs, wide = caps
     if bit:
@@ -610,7 +656,7 @@ def _check_quantity(
             )
         return
     if local.bank in ("XD", "YD"):
-        return  # one element only; the function code or local bank rule says so
+        return  # XD and YD take one element, and another check refuses a larger count
     last_number = ADDRESS_BANKS[local.bank][1]
     left = last_number - local.number + 1
     if quantity > left:
@@ -626,8 +672,10 @@ def _check_quantity(
 def _check_quantity_bounds(
     check: Refusals, quantity: int, caps: tuple[int, int, int], bit: bool | None
 ) -> None:
-    """A count no start could take: below 1, or above the largest cap of the kinds the
-    remote and local fields leave possible.  Used when one of them is refused."""
+    """Refuse a count that no start could take. That is a count below 1, or above the
+    largest cap of the kinds that the remote and local fields still allow.
+
+    The callers use it when the remote or local field is refused."""
     high = caps[1] if bit is False else caps[0]
     if not 1 <= quantity <= high:
         check.refuse(
@@ -640,8 +688,11 @@ def _check_quantity_bounds(
 
 
 def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | None) -> int:
-    """FC05/FC15 for bits, FC06/FC16 for registers; one element is FC05/FC06 unless a bank
-    only FC16 carries (DD, DF, CTD) is on either side."""
+    """Return the function code that a Send uses by default.
+
+    Bits use FC05 for one element and FC15 for more. Registers use FC06 for one element
+    and FC16 for more. One register uses FC16 if either side is in DD, DF or CTD, which
+    only FC16 can write."""
     single = send.quantity == 1
     if bit:
         return 5 if single else 15
@@ -651,7 +702,8 @@ def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | N
 
 
 def _validate_send(send: Send) -> tuple[int, int]:
-    """Check every field; return the function code the Send is written with, and the default."""
+    """Check every field of *send*, and return the function code that the Send is written
+    with and the default function code."""
     with Refusals(send) as check:
         found = _check_send(send, check)
     assert found is not None  # a refusal ended the block
@@ -659,9 +711,11 @@ def _validate_send(send: Send) -> tuple[int, int]:
 
 
 def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
-    """Check every field, keeping each refusal; a field that depends on a refused one is not
-    checked.  Return the function code the Send is written with, and the default; None when
-    a refusal means neither is known."""
+    """Check every field of *send*, and record each refusal in *check*.
+
+    Skip a check that depends on a field that is already refused. Return the function code
+    that the Send is written with and the default function code. Return None if a refusal
+    leaves either code unknown."""
     who = "Send"
     _check_slave_id(check, send.target, 0)
     _check_function_code(check, send.function_code, tuple(_SD_FC_SUBTYPE))
@@ -755,7 +809,8 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
                 # Send: the higher of the two start numbers decides the room.
                 xy_room = _xy_click_room(max(local.number, remote_addr.number))
             else:
-                # Remote C: the room left in C or in the local slot run.
+                # A remote C start: the room is the smaller of the room left in C and the
+                # slot run from the local start.
                 c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
                 xy_room = min(c_room, _xy_click_room(local.number))
         _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
@@ -804,7 +859,10 @@ def _is_flag(value: object) -> bool:
 
 
 def _receive_default_fc(remote: str | ModbusAddress, bit: bool, kind_984: str | None) -> int:
-    """FC01 or FC03 for a CLICK address; a hex or 984 address names its own code."""
+    """Return the function code that a Receive uses by default.
+
+    A CLICK address uses FC01 for bits and FC03 for registers. A hex address sets the
+    code by its register type, and a 984 address by the range it is in."""
     if isinstance(remote, str):
         return 1 if bit else 3
     if remote.is_hex:
@@ -813,7 +871,8 @@ def _receive_default_fc(remote: str | ModbusAddress, bit: bool, kind_984: str | 
 
 
 def _validate_receive(receive: Receive) -> tuple[int, int]:
-    """Check every field; return the function code the Receive is written with, and the default."""
+    """Check every field of *receive*, and return the function code that the Receive is
+    written with and the default function code."""
     with Refusals(receive) as check:
         found = _check_receive(receive, check)
     assert found is not None  # a refusal ended the block
@@ -821,9 +880,11 @@ def _validate_receive(receive: Receive) -> tuple[int, int]:
 
 
 def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
-    """Check every field, keeping each refusal; a field that depends on a refused one is not
-    checked.  Return the function code the Receive is written with, and the default; None
-    when a refusal means neither is known."""
+    """Check every field of *receive*, and record each refusal in *check*.
+
+    Skip a check that depends on a field that is already refused. Return the function code
+    that the Receive is written with and the default function code. Return None if a
+    refusal leaves either code unknown."""
     who = "Receive"
     _check_slave_id(check, receive.target, 1)
     _check_function_code(check, receive.function_code, tuple(_RD_FC_SUBTYPE))
@@ -855,15 +916,16 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         fc = receive.function_code or default_fc
     if fc is not None:
         if remote_addr is not None:
-            # Receive: a CLICK address is read with whichever code is picked.
+            # A Receive may read a CLICK address with either code for its kind: FC01 or FC02
+            # for a bit, and FC03 or FC04 for a register.
             if bit is not None and fc not in ((1, 2) if bit else (3, 4)):
                 kind = "a bit" if bit else "a register"
                 check.refuse(
                     ("function_code", "remote_start"),
                     f"FC{fc:02d} cannot read {kind}",
                     Reason.CONFLICT,
-                    # CLICK refuses a register slave address read with FC01 as an address
-                    # the instruction can't use.
+                    # When FC01 reads a register slave address, CLICK refuses it with
+                    # OBJ-004, as an address that the instruction can't use.
                     _BANK_ID if fc == 1 and not bit else None,
                     code=Code.FUNCTION_CODE_MISMATCH,
                 )
@@ -894,7 +956,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
     if bit is not None and local is not None and counted:
         xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
         if local.bank == "TXT":
-            # Receive: a TXT count is in characters, two to a register: 2 to 250, even.
+            # A Receive TXT count is in characters, two to a register. It must be even, from
+            # 2 to 250.
             caps, unit = (_RECEIVE_CAPS[0], _TXT_RECEIVE_MAX, _RECEIVE_CAPS[2]), "characters"
         else:
             caps, unit = _RECEIVE_CAPS, None
@@ -902,7 +965,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
         if (local.bank == "YD" or hex_pair) and quantity != 1:
-            # Receive: a YD dest, or a DH dest read from XD/YD, is "(1 to 1)".
+            # A YD dest, or a DH dest read from XD or YD, takes one element. CLICK's message
+            # gives the range as "(1 to 1)".
             check.refuse(
                 "quantity",
                 f"{quantity} is outside 1-1 for this dest and remote",
@@ -911,8 +975,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                 code=Code.COUNT_OUT_OF_RANGE,
             )
         if local.bank == "TXT" and quantity < 2:
-            # Receive: the count is in characters, two to a register; below 2 is the range
-            # message, even for 1, which is also odd.
+            # A count below 2 gets the range id OBJ-010, even a count of 1, which is also
+            # odd.
             check.refuse(
                 "quantity",
                 _TXT_COUNT_RULE.format(quantity),
@@ -931,7 +995,8 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
     elif counted:
         _check_quantity_bounds(check, quantity, _RECEIVE_CAPS, bit)
 
-    # Receive: CLICK forces Word Swap off here.  A value that is no flag is refused as one.
+    # CLICK turns Word Swap off for a Receive in the cases below. If word_swap is not a
+    # flag, it is refused as not a flag instead.
     if receive.word_swap and bit is not None:
         if bit:
             why, partner = "bits", "remote_start"
@@ -942,7 +1007,7 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
         elif local.bank in ("DD", "DF") and remote_addr is not None:
             why, partner = f"a {local.bank} dest read from a CLICK address", "dest"
         elif local.bank in ("DS", "DH") and counted and quantity == 1:
-            # Receive: a DS or DH dest enables Word Swap above one element.
+            # CLICK offers Word Swap for a DS or DH dest only when the count is above one.
             why, partner = f"one {local.bank} element", "quantity"
         else:
             why, partner = "", ""
@@ -1077,8 +1142,9 @@ _SD_RESERVED_DEFAULTS: tuple[str, ...] = (
 # Func code constants
 # ---------------------------------------------------------------------------
 
-#: Modbus func code (0x3218) by (TCP, slave ID is an address).
-#: The ASCII variants (RD 9729/9730, SD 9732/9733) aren't modelled and decode as raw.
+#: The Modbus func code (0x3218), keyed by (the target is TCP, the Slave ID is an address).
+#: The ASCII variants (RD 9729/9730, SD 9732/9733) are not modelled, so they decode as raw
+#: instructions.
 _RD_FUNC: dict[tuple[bool, bool], str] = {
     (False, False): "9728",
     (True, False): "9735",
@@ -1144,8 +1210,10 @@ class Receive(AfInstruction):
     error: str
     exception_response: str  # DS/DD address ("" if disabled)
     word_swap: bool = False
-    #: Modbus function code 1-4.  None reads a CLICK bit address with FC01 and a register
-    #: with FC03; FC02 and FC04 must be named.  A hex or 984 address fixes its own code.
+    #: The Modbus function code, 1 to 4. With None, a Receive reads a CLICK bit address with
+    #: FC01 and a register with FC03. To read a CLICK address with FC02 or FC04, name the
+    #: code. A hex or 984 address sets its own code. Construction sets the field to None
+    #: when it equals the default.
     function_code: int | None = None
 
     def __post_init__(self) -> None:
@@ -1248,8 +1316,10 @@ class Send(AfInstruction):
     error: str
     exception_response: str
     word_swap: bool = False
-    #: Modbus function code 5, 6, 15 or 16.  None writes one element with FC05/FC06 (FC16
-    #: when DD, DF or CTD is on either side) and a block with FC15/FC16.
+    #: The Modbus function code: 5, 6, 15 or 16. With None, a Send writes one element with
+    #: FC05 or FC06, and more than one with FC15 or FC16. It writes one element with FC16
+    #: when either side is in DD, DF or CTD. Construction sets the field to None when it
+    #: equals the default.
     function_code: int | None = None
 
     def __post_init__(self) -> None:
@@ -1387,7 +1457,11 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Receive | Send | None:
-    """Construct a Send or Receive from tag data (shared by both decoders)."""
+    """Construct a Send or Receive from the tags of a decoded blob.
+
+    Return None if the blob is neither, or if it lacks a field or holds a value that this
+    module does not model. The clipboard and program-file decoders both use it.
+    """
     if class_name == "RD" and type_code == _RD_TYPE_CODE:
         return _from_tags_rd(tags)
     if class_name == "SD" and type_code == _SD_TYPE_CODE:
@@ -1398,7 +1472,13 @@ def from_tags(
 def _build_target(
     tags: dict[int, str], class_name: str
 ) -> ModbusRtuTarget | ModbusTcpTarget | None:
-    """The target, or None for a port or func code we don't model (decodes as raw)."""
+    """Return the target that the tags describe.
+
+    Return None for a port or func code that this module does not model. Also return None
+    if building the target raises ``ValueError``. That happens for a Slave ID address that
+    CLICK's dialog would not accept, and for a port tag that is not a number. In each case
+    the instruction then decodes as raw.
+    """
     func_code = tags.get(0x3218)
     known = _RD_FUNC if class_name == "RD" else _SD_FUNC
     if func_code is not None and func_code not in known.values():
@@ -1407,9 +1487,9 @@ def _build_target(
     if tag_value(tags, 0x223A) == "1":
         device_id: int | str = tag_value(tags, 0x60B2)
     else:
-        # SCR blobs elide fields at their class default: Receive's device_id
-        # default is 1, Send's 0 (a Send at device_id 0 stores no 0x320E/0x60B2
-        # tag, while one at 1 stores both).
+        # A program file (SCR) leaves out a field that has its class default. The default
+        # device_id is 1 for a Receive and 0 for a Send. A Send with device_id 0 stores
+        # neither 0x320E nor 0x60B2, and one with device_id 1 stores both.
         device_id = tag_int(tags, 0x320E if 0x320E in tags else 0x60B2, class_name)
     try:
         if protocol_mode in _TCP_PORT_MODE_INV:

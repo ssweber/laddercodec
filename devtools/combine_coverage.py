@@ -1,9 +1,11 @@
-"""Combine random coverage golden CSVs into a single multi-row rung.
+"""Combine the data rows of randomly chosen coverage golden CSVs into one rung.
 
-Picks N coverage fixtures at random, stacks their data rows into one
-rung, encodes to .bin, and writes both to devtools/.  The first data
-row gets the ``R`` marker; all others get an empty marker.  Comment
-rows are discarded.
+Pick N CSV files at random from tests/fixtures/coverage/golden and put all
+their data rows, in order, into one rung. Write that rung to
+devtools/combined.csv, encode it, and write the result to
+devtools/combined.bin. The first data row gets the ``R`` marker. Every
+other row gets an empty marker, so it continues the same rung. The script
+drops comment rows.
 
 Usage::
 
@@ -28,7 +30,7 @@ OUT_BIN = Path("devtools/combined.bin")
 
 
 def collect_data_rows(csv_path: Path) -> list[list[str]]:
-    """Read a coverage CSV and return data rows (no header, no comments)."""
+    """Return the data rows of a coverage CSV. Skip the header, empty rows and comment rows."""
     rows = []
     with csv_path.open(newline="") as f:
         reader = csv.reader(f)
@@ -64,7 +66,6 @@ def main() -> None:
         print("No data rows found", file=sys.stderr)
         sys.exit(1)
 
-    # First row gets R marker, rest get empty
     all_rows[0][0] = "R"
     for row in all_rows[1:]:
         row[0] = ""

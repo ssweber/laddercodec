@@ -1,10 +1,14 @@
-"""Manage golden CSV/BIN fixtures.
+"""Regenerate the golden .bin fixtures and prune their verification log.
+
+The fixtures are in tests/fixtures/ladder_captures/golden. Their log, verify_progress.log,
+records the result of pasting each fixture into CLICK.
 
 Subcommands:
-    generate  — Regenerate all .bin files from .csv sources.
-    prune     — Remove verify_progress.log entries for changed/deleted goldens,
-                delete debris (.note.txt, .png) and orphaned .bin (no .csv).
-    sync      — generate + prune (default when no subcommand given).
+    generate  — Encode each .csv file and write the result to the .bin file of the same name.
+    prune     — Remove the log entry of each fixture whose .bin file has uncommitted changes
+                or whose .csv file is gone. Delete each .note.txt and .png file, and each
+                .bin file that has no .csv file.
+    sync      — Run generate, then prune. This is the default when you give no subcommand.
 
 Usage:
     uv run devtools/golden.py           # sync (generate + prune)
@@ -92,15 +96,14 @@ def prune() -> None:
         Path(line.strip()).stem for line in result.stdout.strip().split("\n") if line.strip()
     }
 
-    # Stems in log that no longer have a .csv
+    # Drop each log entry whose .bin file changed or whose .csv file is gone.
     lines = LOG.read_text().splitlines(keepends=True)
     kept: list[str] = []
     removed: list[str] = []
 
     for line in lines:
-        # Preserve header / blank lines
         if line.startswith("#") or not line.strip():
-            # Drop old header lines — we'll write a fresh one
+            # Drop blank lines and the old header. The code below writes one header line.
             continue
         name = line.split(":")[0].strip()
         if name in changed_stems or name not in csv_stems:
@@ -108,7 +111,7 @@ def prune() -> None:
         else:
             kept.append(line)
 
-    # Write back with a single clean header
+    # Rewrite the log with one header line and the kept entries.
     with open(LOG, "w", encoding="utf-8") as f:
         f.write("# verify_progress.log — tracks Click paste verification status\n")
         for line in kept:

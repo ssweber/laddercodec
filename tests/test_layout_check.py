@@ -1,21 +1,29 @@
-"""check(): rungs CLICK's syntax check refuses for their lines are reported, never refused.
+"""Test that check() reports the rungs that CLICK's Syntax Check refuses for their lines.
 
-Ground truth, CLICK v4's syntax check on pasted rungs:
+check() reports these rungs and does not raise. The expected results come from CLICK v4's
+Syntax Check on rungs pasted into CLICK:
 
-- the bridge (C0001, ``fixtures/layout_check/README.md``);
-- layoutthy rung 23 (C0202, then C0001; ``v4_captures/layoutthy_pasted.bin``, copied back
-  right after paste), every other rung in that capture accepted;
-- the 21-rung layoutq stub (``v4_captures/layoutq_stub.csv``; ``layoutq_pasted.bin`` is its
-  copy-back after paste, which changed no rung, then Subroutine01's own ``return()`` rung):
-  CLICK's error list is ``_LAYOUTQ_ERRORS`` below, every other rung accepted
-  (``layoutq_checked.bin``, the refused rungs deleted);
-- the layoutq2 stub (``v4_captures/layoutq2_pasted.bin``, ``layoutq2_checked.bin``) and the
-  pyrung topology CSVs: every rung accepted;
-- the 16 rungs of ``layout_check/check_shapes.csv``, compared rung by rung in
-  ``test_check_shapes.py``.
+- The bridge in ``fixtures/layout_check/wheatstone_bridge.csv`` gets C0001.
+  ``fixtures/layout_check/README.md`` records CLICK's answer.
+- Rung 23 of ``v4_captures/layoutthy_pasted.bin`` gets C0202, then C0001. CLICK accepted
+  every other rung in that file. The file is the program copied back from CLICK right after
+  the paste.
+- The 21 rungs of ``v4_captures/layoutq_stub.csv`` were pasted into Subroutine01.
+  ``layoutq_pasted.bin`` is the program copied back after the paste. The paste changed no
+  rung, and the copy ends with the subroutine's own ``return()`` rung. ``_LAYOUTQ_ERRORS``
+  holds CLICK's error list, and CLICK accepted every other rung. ``layoutq_checked.bin`` is
+  the copy taken after the check, with the refused rungs deleted.
+- CLICK accepted every rung of the layoutq2 stub (``v4_captures/layoutq2_pasted.bin`` and
+  ``layoutq2_checked.bin``) and of the pyrung topology CSVs.
+- ``test_check_shapes.py`` compares the 16 rungs of ``layout_check/check_shapes.csv`` rung
+  by rung.
 
-The ladder-golden expectations below are the check's rules applied to rungs CLICK pasted but
-was never asked to check; ``instr-coil-timer-ret`` is the shape of check_shapes rung 2.
+CLICK pasted the ladder golden rungs, but its Syntax Check was never run on them. Their
+expected findings in ``_LADDER_FINDINGS`` are what check()'s rules give.
+``instr-coil-timer-ret`` has the shape of rung 2 of ``check_shapes.csv``.
+
+An uncaptured finding is one with ``captured`` False. No capture shows CLICK's check on its
+shape.
 """
 
 from __future__ import annotations
@@ -56,16 +64,19 @@ def test_bridge_is_c0001() -> None:
     findings = check(rungs)
     assert _cells(findings) == [(0, "not-series-parallel", "C0001", None, None)]
     assert findings[0].captured
-    encode(rungs)  # reported, not refused: the rung encodes as drawn
+    encode(rungs)  # check() reports the rung, and encode() still accepts it as drawn
 
 
 def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
-    """CLICK: "Row 3, Column D : Missing line connection" (listed twice), then C0001.
+    """check() reports layoutthy rung 23 as CLICK does: C0202 at row 3, column D, then C0001.
 
-    X010 at zero-based (3, D) is the one contact whose input no line reaches.  The rung's
-    first row is blank; read as counting from 1 after it, CLICK's "Row 3" is X010.  That
-    reading rests on this rung alone: CLICK may instead name the blank cell (2, D).  Why
-    CLICK lists the C0202 line twice is not known; the check reports it once.
+    CLICK printed "Row 3, Column D : Missing line connection" twice, then C0001. check()
+    reports the C0202 once. The reason CLICK lists it twice is not known.
+
+    X010, at zero-based (3, D), is the only contact whose input no line reaches. The rung's
+    first row is blank. If CLICK counts rows from 1 starting after that blank row, its
+    "Row 3" is X010. Only this rung supports that reading. CLICK may instead have named the
+    blank cell (2, D).
     """
     rungs = _rungs(V4 / "layoutthy_pasted.bin")
     findings = check(rungs)
@@ -79,7 +90,10 @@ def test_layoutthy_rung_23_is_c0202_then_c0001() -> None:
 
 
 def test_layoutthy_rungs_click_accepted_have_no_findings() -> None:
-    """CLICK's check accepted every pasted layoutthy rung but rung 23 (index 22)."""
+    """check() finds nothing on every layoutthy rung but rung 23 (index 22).
+
+    CLICK's check accepted all of those rungs.
+    """
     rungs = _rungs(V4 / "layoutthy_pasted.bin")
     assert len(rungs) == 24
     for index, rung in enumerate(rungs):
@@ -87,8 +101,8 @@ def test_layoutthy_rungs_click_accepted_have_no_findings() -> None:
             assert check(rung) == [], index
 
 
-#: CLICK v4's syntax check output on the pasted layoutq stub, as CLICK printed it (pasted
-#: into Subroutine01; rungs and rows count from 1).  Pasting changed no rung.
+#: The output of CLICK v4's Syntax Check on the layoutq stub, as CLICK printed it. The stub
+#: was pasted into Subroutine01, and the paste changed no rung. Rungs and rows count from 1.
 _LAYOUTQ_ERRORS = """\
 Subroutine01 : Rung 12 : error C000A: All inputs of the box instruction must originate from the same branch.
 Subroutine01 : Rung 14 : error C000A: All inputs of the box instruction must originate from the same branch.
@@ -109,7 +123,11 @@ _CLICK_LINE = re.compile(r"Rung (\d+) : error (C[0-9A-F]{4}): (?:Row (\d+), Colu
 
 
 def _click_errors(text: str) -> list[tuple[int, str, str | None]]:
-    """(rung from 0, code, CLICK's "row N, column X" or None) per line of CLICK's output."""
+    """Return one (rung, code, cell) tuple per line of CLICK's output.
+
+    The rung counts from 0. The cell is CLICK's "row N, column X", or None when the line
+    names no cell.
+    """
     out: list[tuple[int, str, str | None]] = []
     for line in text.splitlines():
         m = _CLICK_LINE.search(line)
@@ -120,7 +138,11 @@ def _click_errors(text: str) -> list[tuple[int, str, str | None]]:
 
 
 def _as_click(findings: list[Finding]) -> list[tuple[int, str, str | None]]:
-    """Each finding as CLICK prints it: the rung, the code, and a C0202 cell."""
+    """Return each finding as a (rung, CLICK id, cell) tuple, to compare with CLICK's output.
+
+    The cell is the one that CLICK prints for a C0202 finding, and None for any other
+    finding. Every finding must be captured and have a CLICK id.
+    """
     out: list[tuple[int, str, str | None]] = []
     for f in findings:
         assert f.click_id is not None and f.captured, f
@@ -137,16 +159,20 @@ def _layoutq_pasted() -> list[Rung]:
 
 
 def test_layoutq_pasted_gets_clicks_errors() -> None:
-    """Every rung, code and C0202 cell CLICK printed, in its order, and nothing more."""
+    """check() reports every rung, code and C0202 cell that CLICK printed, in CLICK's order.
+
+    It reports nothing more.
+    """
     findings = check(_layoutq_pasted())
     assert _as_click(findings) == _click_errors(_LAYOUTQ_ERRORS)
 
 
 def test_layoutq_stub_csv_matches_the_pasted_capture() -> None:
-    """The stub as written gives the findings decode of its copy-back gives.
+    """The stub as written gives the same findings as the decoded copy of the pasted stub.
 
-    read_csv gives the same findings on more rungs: it splits outputs off the rail
-    into rungs of their own, as CLICK's check does, and keeps every reported rung as written.
+    read_csv gives the same findings with other rung numbers, because it makes 26 rungs of
+    the 21. It moves each output that hangs off the rail into a rung of its own, as CLICK's
+    check does. It keeps each rung that has a finding as written.
     """
     pasted = check(_layoutq_pasted()[:21])
     stub = parse_csv_file(V4 / "layoutq_stub.csv").rungs
@@ -176,7 +202,11 @@ def test_layoutq_kinds() -> None:
 
 
 def test_layoutq_raw_drum_with_a_leg_on_its_jump_row_has_no_findings() -> None:
-    """CLICK accepted it.  The stub writes the drum as raw(...); its part rows are pins."""
+    """check() finds nothing on this rung, and CLICK accepted it.
+
+    The stub writes the drum as raw(...). check() treats the row of each part of a raw box
+    as a pin that the box uses.
+    """
     rung = read_csv(V4 / "layoutq_stub.csv")[6]
     assert type(rung.instructions[0]).__name__ == "RawInstruction"
     assert check(rung) == []
@@ -205,11 +235,12 @@ def test_rungs_click_accepted_have_no_findings(path: Path) -> None:
 
 
 def test_windy_road_pasted_is_refused_by_decode() -> None:
-    """CLICK's check accepted this rung and redrew it as windy_road_checked.bin.
+    """decode refuses the pasted windy road rung, and check() reports only its marker.
 
-    Its path runs down the AF column, which decode refuses, so the rung decodes as an
-    undecoded marker and check reports only that.  layout-afdown (layout phase 2, step 4)
-    decodes that flag; this then becomes a "no findings" test.
+    CLICK's check accepted this rung and redrew it as windy_road_checked.bin. The rung's
+    path runs down the AF column, and decode refuses that. The rung decodes as an undecoded
+    marker, and check() reports only the marker. When decode accepts a down wire in the AF
+    column, this test should expect no findings.
     """
     with pytest.warns(UndecodedRungWarning):
         rung = decode((V4 / "windy_road_pasted.bin").read_bytes())
@@ -233,18 +264,23 @@ _TUMBLER = sorted(FIX.glob("tumbler/**/*.clipboard.bin"))
 
 @pytest.mark.parametrize("path", _TUMBLER, ids=lambda p: p.name)
 def test_tumbler_program_has_no_findings(path: Path) -> None:
-    """Real programs, copied from CLICK (whether after a syntax check is not recorded)."""
+    """check() finds nothing in real programs copied from CLICK.
+
+    It is not recorded whether these programs passed a Syntax Check before they were copied.
+    """
     assert check(_rungs(path)) == []
 
 
-#: The ladder goldens CLICK's check would refuse: (rung, kind, code, row, column) per finding.
+#: The findings that check() reports on the ladder goldens, as (rung, code, CLICK id, row,
+#: column) per finding. A golden that is not listed has no findings.
 _LADDER_FINDINGS = {
-    # A shape: X003 X004 on row 1 run to an AF cell with no box.
+    # X003 and X004 on row 1 run to an AF cell that holds no box.
     "instr-2row-cond__and": [
         (0, "feeds-no-box", "C0202", 1, 1),
         (0, "no-coil", "C0003", None, None),
     ],
-    # C20 C21 in series feed only a NOP: C0003, as for one contact (accepted_shapes.csv rung 2).
+    # C20 and C21 in series feed only a NOP. CLICK gives C0003 when one contact feeds only a
+    # NOP (rung 2 of accepted_shapes.csv).
     "instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
     "mr-instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
     "instr-2row-spread": [(0, "feeds-no-box", "C0202", 1, 10), (0, "no-coil", "C0003", None, None)],
@@ -255,17 +291,20 @@ _LADDER_FINDINGS = {
         (0, "feeds-no-box", "C0202", 2, 15),
         (0, "no-coil", "C0003", None, None),
     ],
-    # out(Y001) above the timer on one net; the reset is the out(Y001) circuit, the bridge.
-    # CLICK reports C0001 alone on this shape (check_shapes.csv rung 2).
+    # out(Y001) is above the timer on the same net. The timer's reset has the same circuit as
+    # out(Y001), and that circuit is a bridge. CLICK reports only C0001 on this shape (rung 2
+    # of check_shapes.csv).
     "instr-coil-timer-ret": [(0, "not-series-parallel", "C0001", None, None)],
-    # The drum's Reset tees off its main input, and copy(1,DS1) below hangs off that net too:
-    # no capture shows a box below the pinned box through a reset teed off its main input.
+    # The drum's Reset tees off its main input, and copy(1,DS1) below hangs off that net too.
+    # No capture shows CLICK's check on a box that is joined in this way to a pinned box
+    # above it.
     "instr-copy-multirow-2af-T": [(0, "shared-input-net", "C000A", 0, 31)],
     # The Reset row is a wire from the rail.
     "instr-timer-ret": [(0, "input-without-contact", "C0205", 1, 31)],
 }
 
-#: Findings above whose shape no capture shows with that code.
+#: The findings in _LADDER_FINDINGS that are not captured, as (golden, index of the finding).
+#: No capture shows CLICK's check giving that code on that shape.
 _UNCAPTURED = {
     ("instr-3row-branch", 1),
     ("instr-copy-multirow-2af-T", 0),
@@ -350,7 +389,7 @@ def test_bridge_into_a_pin_is_c0001_at_the_pin() -> None:
 
 
 def test_pin_with_a_contact_of_its_own_after_the_main_input_is_provisional() -> None:
-    """Reset = X001 (the main input's contact), then X002 of its own."""
+    """A Reset through the main input's X001, then its own X002, gets an uncaptured finding."""
     rung = _rung(
         [
             [_contact("X001"), "T", *["-"] * 29],
@@ -364,12 +403,14 @@ def test_pin_with_a_contact_of_its_own_after_the_main_input_is_provisional() -> 
 
 
 def test_box_below_a_pinned_box_through_its_teed_reset_is_provisional_c000a() -> None:
-    """The order with a used Reset: the timer first, then out(Y001) under its Reset row.
+    """A box joined below a pinned box through its Reset gets an uncaptured C000A finding.
 
-    The vertical from the timer's net down to out(Y001) crosses the Reset row, so the drawing
-    joins the two nets: out(Y001) hangs off the reset's net, which is the main input's net
-    too.  No capture shows CLICK's check on this shape.  The reset has no contact of its own
-    either; a box reported for C000A gets no pin finding.
+    The timer is on row 0, its Reset on row 1, and out(Y001) on row 2. The vertical from the
+    timer's net down to out(Y001) crosses the Reset row, so the drawing joins the two nets.
+    out(Y001) hangs off the reset's net, and that is also the main input's net. No capture
+    shows CLICK's check on this shape. The reset has no contact of its own either. It gets
+    no finding for that, because check() gives no pin finding for a box that it reports for
+    C000A.
     """
     rung = _rung(
         [
@@ -390,7 +431,11 @@ def test_box_below_a_pinned_box_through_its_teed_reset_is_provisional_c000a() ->
 
 
 def test_reset_teed_off_its_own_main_input_is_not_c000a() -> None:
-    """A box's own inputs on one net join it to no other box: C0205 (layoutq rung 15)."""
+    """A Reset teed off its box's own main input gets C0205, as on layoutq rung 15.
+
+    Two inputs of one box on one net do not join the box to another box, so there is no
+    C000A.
+    """
     rung = _rung(
         [[_contact("X001"), "T", *["-"] * 29], ["", "-", *["-"] * 29]],
         [_timer(), ""],
@@ -400,13 +445,14 @@ def test_reset_teed_off_its_own_main_input_is_not_c000a() -> None:
 
 @pytest.mark.parametrize("number", [5, 6, 7])
 def test_one_c000a_per_group_of_boxes_sharing_nets(number: int) -> None:
-    """A pin's net feeds another box's main input below it: CLICK prints one C000A line.
+    """check() gives one C000A finding when a pin's net feeds a box's main input below it.
 
-    Rungs 5 and 6 of check_shapes.csv: the counter's Reset net feeds a timer's main input
-    (rung 5: the timer's Reset continues from that net too).  Rung 7: a timer's Reset net
-    feeds out(C3).  The finding is at the group's first pinned box, and no box of the group
-    gets a pin finding: CLICK reports C000A alone on rung 7, where the timer's Reset has no
-    contact of its own outside out(C3)'s circuit.
+    CLICK prints one C000A line for each of rungs 5, 6 and 7 of check_shapes.csv. On rungs 5
+    and 6, the counter's Reset net feeds a timer's main input. On rung 5 the timer's Reset
+    also continues from that net. On rung 7, a timer's Reset net feeds out(C3). The finding
+    is at the first pinned box of the group, and no box of the group gets a pin finding.
+    CLICK reports only C000A on rung 7, although the timer's Reset there has no contact of
+    its own outside the circuit of out(C3).
     """
     rung = read_csv(LC / "check_shapes.csv")[number - 1]
     (finding,) = check(rung)
@@ -415,7 +461,10 @@ def test_one_c000a_per_group_of_boxes_sharing_nets(number: int) -> None:
 
 
 def test_nop_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None:
-    """CLICK accepts a NOP on a coil's net; no capture shows one above a pinned box."""
+    """A NOP above a pinned box on its net gets an uncaptured C000A finding.
+
+    CLICK accepts a NOP on a coil's net, but no capture shows one above a pinned box.
+    """
     rung = _rung(
         [
             [_contact("X001"), "T", *["-"] * 29],
@@ -430,10 +479,12 @@ def test_nop_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None:
 
 
 def test_pinned_box_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None:
-    """Two retentive timers on one net, the upper one's Reset row crossed by a vertical alone.
+    """Two retentive timers on one net give two uncaptured findings: C0202, then C000A.
 
-    No capture shows a pinned box as the box above.  No rail or contact reaches the upper
-    timer's Reset, and its row holds the vertical: C0202 with ``captured`` ``False``.
+    The upper timer's Reset row holds only the vertical that runs down to the lower timer.
+    No rail or contact reaches that Reset, so it gets C0202. Its row holds the vertical, so
+    the C0202 is not captured. The C000A is not captured because no capture shows a pinned
+    box as the box above.
     """
     rung = _rung(
         [
@@ -453,7 +504,10 @@ def test_pinned_box_above_a_pinned_box_on_its_net_is_provisional_c000a() -> None
 
 
 def test_pin_row_of_wires_no_rail_reaches_is_not_captured() -> None:
-    """A Reset row of wires that start at no rail or contact: C0202 as for an empty row."""
+    """A Reset row of wires that no rail or contact reaches gets an uncaptured C0202.
+
+    C0202 is the code that CLICK gives a Reset whose row holds nothing.
+    """
     rung = _rung(
         [[_contact("X001"), *["-"] * 30], ["", "", *["-"] * 29]],
         [_timer(), ""],
@@ -486,7 +540,10 @@ def test_unwired_reset_where_the_rail_reaches_no_box_is_not_captured() -> None:
 
 
 def test_unwired_reset_is_c0202_at_its_af_cell() -> None:
-    """CLICK: "Row 3, Column AF : Missing line connection" for a counter's unwired Reset."""
+    """A counter's unwired Reset gets C0202 at its AF cell, as CLICK reports it.
+
+    CLICK prints "Row 3, Column AF : Missing line connection" for this Reset.
+    """
     rung = read_csv(LC / "check_shapes.csv")[14]
     (finding,) = check(rung)
     assert _cells([finding]) == [(0, "unwired-input", "C0202", 2, 31)]
@@ -498,7 +555,11 @@ def test_unwired_reset_is_c0202_at_its_af_cell() -> None:
 
 
 def test_unwired_shift_reset_is_not_captured() -> None:
-    """No capture shows CLICK's check on a shift's unwired pin; C0202 as for a reset."""
+    """A shift's unwired pin gets an uncaptured C0202.
+
+    CLICK gives C0202 for an unwired timer or counter reset. No capture shows CLICK's check
+    on a shift's unwired pin.
+    """
     rows = [
         [_contact("X001"), *["-"] * 30],
         [_contact("X002"), *["-"] * 30],
@@ -516,7 +577,10 @@ def test_unwired_shift_reset_is_not_captured() -> None:
 
 
 def test_read_csv_lays_out_a_rung_whose_only_finding_is_an_unwired_pin(tmp_path: Path) -> None:
-    """The layout draws an unwired pin's row blank, so read_csv still lays the rung out."""
+    """read_csv lays out a rung whose only finding is an unwired pin.
+
+    The layout draws the unwired pin's row blank.
+    """
     header = ",".join(["marker", *CONDITION_COLUMNS, OUTPUT_COLUMN])
     rows = [
         "R," + ",".join(["-", "X001", *["-"] * 29]) + ',"count_up(CT1,CTD1,preset=1)"',
@@ -525,12 +589,15 @@ def test_read_csv_lays_out_a_rung_whose_only_finding_is_an_unwired_pin(tmp_path:
     path = tmp_path / "unwired.csv"
     path.write_text("\n".join([header, *rows]) + "\n", encoding="utf-8")
     (rung,) = read_csv(path)
-    assert getattr(rung.conditions[0][0], "operand", None) == "X001"  # packed left
+    assert getattr(rung.conditions[0][0], "operand", None) == "X001"  # moved left into A
     assert [f.code for f in check(rung)] == ["unwired-input"]
 
 
 def test_box_above_a_timer_with_no_reset_is_accepted() -> None:
-    """C000A is for a box with a used pin row; a non-retentive timer has none."""
+    """A box above a non-retentive timer gets no C000A finding.
+
+    C000A applies only to a box with a used pin row, and a non-retentive timer has none.
+    """
     rung = _rung(
         [[_contact("X001"), "T", *["-"] * 29], ["", "-", *["-"] * 29]],
         [_out("Y001"), _timer(retained=False)],
@@ -539,7 +606,10 @@ def test_box_above_a_timer_with_no_reset_is_accepted() -> None:
 
 
 def test_boxes_off_the_rail_are_not_c000a() -> None:
-    """out(Y001) and the timer both hang off the rail: CLICK splits them."""
+    """out(Y001) and the timer both hang off the rail, so they get no C000A finding.
+
+    CLICK splits boxes that meet only at the rail into rungs of their own.
+    """
     rung = _rung(
         [["-", "T", *["-"] * 29], ["", "-", *["-"] * 29], [_contact("X002"), *["-"] * 30]],
         [_out("Y001"), _timer(), ""],
@@ -554,13 +624,19 @@ def test_shorted_contact_is_c0002() -> None:
 
 
 def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
-    """A second contact: C0202 at the first; the rail reaches no box, so no C0001."""
+    """Of two contacts in series that the rail does not reach, only the first gets C0202.
+
+    The rail reaches no box, so the rung gets no C0001.
+    """
     rung = _rung([["", "", _contact("X001"), _contact("X002"), *["-"] * 27]], [_out("Y001")])
     assert _cells(check(rung)) == [(0, "no-rail", "C0202", 0, 2)]
 
 
 def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
-    """X002 and X001 feed each other through B's vertical and the row 2 wire; A is blank."""
+    """A loop of contacts that no rail reaches gets one uncaptured C0202, at X002.
+
+    X002 and X001 feed each other through B's vertical and the row 2 wire. Column A is blank.
+    """
     rung = _rung(
         [
             ["", _contact("X002", down=True), _contact("X001"), "T", *["-"] * 27],
@@ -580,7 +656,10 @@ def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
 
 
 def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
-    """A shape: the rail reaches out(Y001), and X002's input has no line connection."""
+    """A contact whose input has no line connection gets C0202, then the rung gets C0001.
+
+    The contact is X002. The rail reaches out(Y001) on the row above.
+    """
     rung = _rung(
         [[_contact("X001"), *["-"] * 30], ["", _contact("X002"), *["-"] * 29]],
         [_out("Y001"), _out("Y002")],
@@ -592,7 +671,11 @@ def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
 
 
 def test_path_ending_in_a_loop_is_c0202_once() -> None:
-    """X001 feeds a loop of X002 and X003 that reaches no box: C0202 at the loop's first."""
+    """A path into a loop that reaches no box gets one C0202, at the loop's first contact.
+
+    X001 feeds a loop of X002 and X003, and the C0202 is at X002. The rung also gets C0003,
+    and neither finding is captured.
+    """
     rung = _rung(
         [
             [_contact("X001"), _contact("X002", down=True), _contact("X003"), "T"],
@@ -619,7 +702,7 @@ def test_no_coil_message_says_what_triggers_it() -> None:
 
 
 def test_message_rows_skip_one_blank_first_row() -> None:
-    """A rung with one blank first row counts its rows from the second."""
+    """When a rung's first row is blank, the message counts rows from the second row."""
     rung = _rung([[], ["", "", _contact("X001"), *["-"] * 28]], ["", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (1, 2)
@@ -627,7 +710,10 @@ def test_message_rows_skip_one_blank_first_row() -> None:
 
 
 def test_message_rows_skip_no_more_than_one_blank_row() -> None:
-    """Two blank first rows are not known to count the same way; only the first is skipped."""
+    """When a rung's first two rows are blank, the message skips only the first.
+
+    It is not known whether CLICK skips both.
+    """
     rung = _rung([[], [], ["", "", _contact("X001"), *["-"] * 28]], ["", "", _out("Y001")])
     (finding,) = check(rung)
     assert (finding.row, finding.column) == (2, 2)
@@ -652,7 +738,11 @@ def test_wires_and_unwired_nop_have_no_findings() -> None:
 
 
 def test_unpowered_nop_has_no_finding() -> None:
-    """CLICK's check dropped the golden's unpowered NOP with no error (unpowered_nop_checked)."""
+    """The golden's unpowered NOP gets no finding.
+
+    CLICK's check dropped that NOP and gave no error. ``v4_captures/unpowered_nop_checked.bin``
+    holds the rung after the check.
+    """
     ast = parse_csv_file(LADDER / "mr-cmt-3rung-multirow.csv")
     drawn = [convert_literal(r) for r in ast.rungs]
     assert drawn[1].instructions[1] == "NOP"
@@ -661,7 +751,10 @@ def test_unpowered_nop_has_no_finding() -> None:
 
 @pytest.mark.parametrize("box", ["NOP", _out("Y2")], ids=["nop", "coil"])
 def test_only_an_unpowered_nop_goes_unreported(box: object) -> None:
-    """An unpowered coil keeps its finding: no capture shows CLICK's check on one."""
+    """An unpowered NOP gets no finding, and an unpowered coil gets an uncaptured one.
+
+    No capture shows CLICK's check on an unpowered coil.
+    """
     stub = ["-"] + [""] * 30
     rung = _rung([[_contact("C1")] + ["-"] * 30, stub], [_out("Y1"), box])
     want = [] if box == "NOP" else [(0, "unpowered-box", None, 1, 31)]

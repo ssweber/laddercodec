@@ -1,10 +1,11 @@
 """Warnings for decoded instructions that hold a value CLICK's dialog refuses.
 
-The decoders build each instruction from what is stored, so an instruction that breaks a
-dialog rule (an older paste of ``DH70 == DS3920``, say) decodes as that instruction and
-keeps the refusals its construction would raise.  Once the rungs are built, the decoders,
-and ``read_csv(..., unchecked=True)``, call :func:`warn_refused`, which emits one
-:class:`RefusedFieldWarning` per such instruction with its rung index and program name.
+The decoders build each instruction from the stored values without refusing them. An
+instruction that breaks a dialog rule, such as an older paste of ``DH70 == DS3920``, still
+decodes as that instruction. It holds the refusals that building it would raise. When the
+rungs are built, the decoders and ``read_csv(..., unchecked=True)`` call
+:func:`warn_refused`. That function emits one :class:`RefusedFieldWarning` for each such
+instruction, with its rung index and program name.
 """
 
 from __future__ import annotations
@@ -17,25 +18,29 @@ from .operands.unchecked import refusals
 
 
 class RefusedFieldWarning(UserWarning):
-    """A decoded instruction holds a value its checks refuse; it decodes as that instruction.
+    """Emitted when a decoded instruction holds a value that its checks refuse. The
+    instruction still decodes as that instruction.
 
-    Unchanged, the instruction encodes as the bytes it was decoded from.  Changed, it is
-    checked again; read from CSV, or a condition read from a program file, it has no bytes
-    to write.  Then ``encode()`` raises the refusal it holds, as building it would.
+    If you leave the instruction unchanged, it encodes as the bytes it was decoded from.
+    If you change it, it is checked again. An instruction read from CSV, or a condition
+    read from a program file, has no stored bytes to write. When the instruction does not
+    write stored bytes and still holds a refusal, ``encode()`` raises that refusal, as
+    building the instruction would.
 
     Attributes
     ----------
     instruction:
         The decoded instruction, a contact or an AF instruction.
     error:
-        The :class:`~laddercodec.FieldError` building the instruction would raise: the
-        first refusal.
+        The :class:`~laddercodec.FieldError` that building the instruction would raise.
+        It is the first refusal.
     errors:
-        Every refusal, :attr:`error` first; those of a Send's or Receive's Modbus target
-        and remote address come before its own.  Read by ``read_csv(...,
-        unchecked=True)``, each carries a :class:`~laddercodec.CsvLocation` as its
-        ``location``, the one the default read raises it with, and the message ends with
-        :attr:`error`'s.
+        Every refusal, with :attr:`error` first. For a Send or Receive, the refusals of
+        its Modbus target and remote address come before its own. When
+        ``read_csv(..., unchecked=True)`` reads the instruction, each refusal has a
+        :class:`~laddercodec.CsvLocation` as its ``location``, the same location that the
+        default read raises it with. The warning message then ends with the location of
+        :attr:`error`.
     rung:
         0-based rung index in the decoded buffer, program or CSV, or ``None`` if unknown.
     program:
@@ -73,8 +78,8 @@ class RefusedFieldWarning(UserWarning):
 
 
 def warn_refused(rungs: Iterable[object], *, program: str | None = None) -> None:
-    """Emit one :class:`RefusedFieldWarning` per instruction in ``rungs`` that keeps refusals,
-    in rung order, each rung's cells row by row."""
+    """Emit one :class:`RefusedFieldWarning` for each instruction in ``rungs`` that holds
+    refusals. Go through the rungs in order, and through the cells of each rung row by row."""
     for index, rung in enumerate(rungs):
         conditions = getattr(rung, "conditions", ())
         instructions = getattr(rung, "instructions", ())

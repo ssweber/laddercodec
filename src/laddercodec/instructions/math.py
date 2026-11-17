@@ -1,19 +1,23 @@
 """Math instructions (type marker 0x271A).
 
-Binary class name: ``"Math"``.
+In the binary, the class name is ``"Math"``.
 
 The math instruction evaluates a user-defined formula and stores the
-result in a destination register.  Two modes: decimal (trig, log, etc.)
-and hex (bitwise AND/OR/XOR, shift/rotate).
+result in a destination register.  It has two modes.  Decimal mode has
+functions such as trig and log.  Hex mode has bitwise AND, OR and XOR,
+and shift and rotate.
 
 The binary blob is 1010 tagged fields:
 
 - 9 header fields (result, flags, formula strings, func code)
 - 500 operand slots (tag 0x6888, indexed sentinel)
-- 500 reserved slots (tag 0x688C, indexed sentinel): interior addresses of each ``A : B`` range
-  (CLICK v4 copies back 5000 reserved slots; 500 pastes into both v3 and v4, so the encoder
-  writes 5000, for 5510 fields, only when the ranges have more than 500 interiors)
+- 500 reserved slots (tag 0x688C, indexed sentinel): the addresses between the ends of each
+  ``A : B`` range
 - 1 terminator (tag 0x0000)
+
+When you copy a Math box, CLICK v4 puts 5000 reserved slots on the clipboard.  A blob with
+500 reserved slots pastes into both v3 and v4.  So the encoder writes 5000 reserved slots,
+for 5510 fields, only when the ranges have more than 500 addresses between their ends.
 
 CSV token format::
 
@@ -21,8 +25,8 @@ CSV token format::
     math(DH1 + DH2, DH3, mode=hex)
     math(DS68 * DS69, DS70, mode=decimal, oneshot=1)
 
-The expression is read by :mod:`.math_formula`, which follows CLICK's Math dialog: it
-refuses what the dialog refuses and prints the four formula strings the blob stores.
+:mod:`.math_formula` reads the expression.  It refuses what CLICK's Math dialog refuses,
+and it writes the four formula strings that the blob stores.
 """
 
 from __future__ import annotations
@@ -77,10 +81,11 @@ _TAG_TERMINATOR = 0x0000
 
 _OPERAND_SLOTS = 500
 RESERVED_SLOTS = 500
-#: CLICK v4's capacity.  Its editor stops listing interiors here, whatever the formula says.
+#: The number of reserved slots in CLICK v4.  CLICK v4's editor lists no more range
+#: addresses than this, whatever the formula says.
 _V4_RESERVED_SLOTS = 5000
-# The formula's length cap (``math_formula.MAX_INTERNAL_LENGTH``) allows at most 68
-# operands, within the 500 slots.
+# The formula's length limit (``math_formula.MAX_INTERNAL_LENGTH``) allows at most 68
+# operands, so the 500 operand slots are always enough.
 
 # Pre-computed empty slot bytes: each slot is [2B tag LE][4B index LE][00 00].
 # Avoids 1000 _variant_tagged_field() calls per Math instruction.
@@ -92,8 +97,9 @@ _EMPTY_RESERVED_BYTES = b"".join(
     struct.pack("<HI", _TAG_RESERVED, i) + b"\x00\x00" for i in range(RESERVED_SLOTS)
 )
 
-#: Result banks per mode (another bank is OBJ-004).  A decimal result in SD is one of
-#: ``WRITABLE_SD`` (another SD is OBJ-003).
+#: The banks a Math result may be in, for each mode.  CLICK reports OBJ-004 for any other
+#: bank.  A decimal result in SD must be one of ``WRITABLE_SD``, and CLICK reports OBJ-003
+#: for any other SD.
 RESULT_BANKS: dict[str, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
@@ -101,10 +107,11 @@ RESULT_BANKS: dict[str, frozenset[str]] = {
 
 
 def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
-    """The stored formulas of a raw Math blob: ``(internal, display, filled reserved slots)``.
+    """Return the stored formulas of a raw Math blob and its count of filled reserved slots.
 
-    The internal formula is tag ``0x61FD``, the display formula ``0x6228``; each is ``""``
-    when the blob lacks it.  ``None`` when the blob's fields do not parse.
+    The result is ``(internal, display, filled reserved slots)``.  The internal formula is
+    tag ``0x61FD``, and the display formula is tag ``0x6228``.  Each is ``""`` when the
+    blob lacks it.  Return ``None`` when the blob's fields do not parse.
     """
     try:
         *_, fields = _decompose_blob(blob)
@@ -116,29 +123,30 @@ def raw_formula_fields(blob: bytes) -> tuple[str, str, int] | None:
 
 
 def range_interiors(expression: str) -> list[str]:
-    """The addresses each ``A : B`` range of a display formula lists (``range_interiors``)."""
+    """Return the addresses between the ends of each ``A : B`` range in a display formula."""
     return formula_range_interiors(expression.split())
 
 
 def _reconstruct_expression(template_display: str, formula_internal: str) -> str:
-    """Rebuild a canonical expression from display literals + internal operands.
+    """Rebuild the formula from the display template and the internal formula's operands.
 
-    Click stores two useful math formula views:
+    CLICK stores the formula in two forms that this function uses:
 
-    - ``template_display`` keeps the user's literal formatting but replaces
-      operands with ``@`` placeholders.
-    - ``formula_internal`` keeps concrete operands but normalizes literals
+    - ``template_display`` keeps the constants as the user typed them, but
+      replaces each operand with an ``@`` placeholder.
+    - ``formula_internal`` holds the operands, but rewrites the constants
       (for example ``200`` may become ``H200``).
 
-    There is also a display-expression field in native blobs that may be
-    nickname-expanded (for example ``<tag_name> + 200``).  Canonical CSV
-    deliberately ignores that richer display form for now; if we later add a
-    ``preserve_math_display``-style option, that field is the right source to
-    expose alongside the canonical expression.
+    The function replaces each ``@`` with the next operand of the internal
+    form.  The result keeps the constants as typed and shows no nicknames.
+    If the template is missing, or its placeholders do not match the
+    operands, the function returns the internal formula with spaces in
+    place of ``#``.
 
-    Replacing each ``@`` with the next operand occurrence from the internal
-    form gives us a stable CSV expression without nickname expansion and
-    without the internal-only literal normalization.
+    A blob from CLICK also has a display formula, which may show nicknames
+    (for example ``<tag_name> + 200``).  The CSV form ignores it on purpose.
+    If laddercodec adds an option to keep it, such as
+    ``preserve_math_display``, that field is the one to read.
     """
 
     if not template_display:
@@ -161,7 +169,7 @@ def _reconstruct_expression(template_display: str, formula_internal: str) -> str
 
 
 def _holds_nickname(expression: str) -> bool:
-    """Whether *expression* holds a ``<nickname>``, as CLICK's nickname view shows one."""
+    """Return whether *expression* holds a ``<nickname>`` as CLICK's nickname view shows one."""
     return "<" in expression and ">" in expression.split("<", 1)[1]
 
 
@@ -177,10 +185,10 @@ class Math(AfInstruction):
     Attributes
     ----------
     expression:
-        The formula in Click syntax (e.g. ``"DS65 + DS66"``), kept as CLICK shows it: one
-        space between tokens, uppercase function names, addresses in display form.  A
-        formula CLICK's Math dialog refuses raises :class:`FieldError`, and so does a
-        ``<nickname>``: Math takes addresses.
+        The formula in Click syntax (e.g. ``"DS65 + DS66"``).  Building a Math rewrites it
+        in the form CLICK shows, with one space between tokens, uppercase function names
+        and addresses in display form.  A formula that CLICK's Math dialog refuses raises
+        :class:`FieldError`.  So does a ``<nickname>``, because Math takes only addresses.
     dest:
         Destination register (e.g. ``"DS67"``).
     mode:
@@ -212,16 +220,17 @@ class Math(AfInstruction):
                     code=Code.MATH_NICKNAME,
                 )
             check.normalize("dest")
-            # The result's banks and the formula's reading depend on the mode.
+            # The banks allowed for the result, and how the formula is read, depend on the mode.
             if not check.refused("mode"):
                 extra = HEX_MATH_RESULT if self.mode == "hex" else {}
                 banks = RESULT_BANKS[self.mode]
                 dest = check("dest", check_address, banks, bank_id="OBJ-004", **extra)
                 if dest is not None:
-                    # A decimal result writes only the writable SD registers (OBJ-003).
+                    # A result in SD must be a writable SD register.  CLICK reports OBJ-003
+                    # for any other.
                     check.run(check_writable_sd, dest, check.field("dest"), click_id="OBJ-003")
                 if not check.refused("expression"):
-                    # Every refusal of the formula, each on Math.expression.
+                    # Each refusal of the formula is recorded on the field Math.expression.
                     formula = check.run(parse, self.expression, self.mode)
                     if formula is not None:
                         self.expression = formula.display
@@ -256,7 +265,8 @@ class Math(AfInstruction):
         out += _utf16le_null("Math")
         out += struct.pack("<I", 0x271A)  # type marker
         out += b"\x01\x00"  # part count
-        # The 500-slot form pastes into v3 and v4; only wider ranges need v4's capacity.
+        # A blob with 500 reserved slots pastes into CLICK v3 and v4.  Write v4's 5000 slots
+        # only when the ranges have more than 500 addresses between their ends.
         interiors = formula.range_interiors
         reserved_slots = RESERVED_SLOTS if len(interiors) <= RESERVED_SLOTS else _V4_RESERVED_SLOTS
         interiors = interiors[:reserved_slots]
@@ -309,15 +319,19 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Math | None:
-    """Construct a Math from tag data (shared by both decoders)."""
+    """Build a Math from tag data, or return None when laddercodec can't read it as one.
+
+    The clipboard decoder and the program-file decoder both call it.
+    """
     if class_name != "Math" or type_code != _MATH_TYPE_CODE:
         return None
 
     mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
-    # CLICK saves each address of the formula, and a hex Math's result, as typed (ds1,
-    # DS001, XD0U, YD00); they read in display form.  A decimal result is saved in it.
+    # CLICK saves each address in the formula, and the result of a hex Math, as the user
+    # typed it (ds1, DS001, XD0U, YD00).  read_as_typed() reads each into display form.
+    # CLICK saves the result of a decimal Math in display form already.
     stored_dest = tag_value(tags, 0x6065)
     dest = read_as_typed(stored_dest) if mode == "hex" else stored_dest
     stored_internal = tag_value(tags, 0x61FD)
@@ -327,8 +341,8 @@ def from_tags(
         internal,
     ) or tag_value(tags, 0x6228)
     if not dest or not expression or _holds_nickname(expression):
-        # The display text of CLICK's nickname view names no addresses: it is not a
-        # formula laddercodec can read, so the blob stays raw.
+        # In CLICK's nickname view, the display text shows nicknames, not addresses.
+        # laddercodec can't read that text as a formula, so the blob stays raw.
         return None
 
     try:
@@ -339,13 +353,16 @@ def from_tags(
             oneshot=oneshot,
         )
     except FieldError:
-        # A refusal no decoded instruction keeps (see laddercodec.operands.unchecked)
-        # leaves the blob raw; the decoders build the Math keeping any other.
+        # The decoders build the Math in a mode that keeps most refusals on the instruction
+        # (see laddercodec.operands.unchecked).  A refusal that no instruction can keep
+        # still raises, and then the blob stays raw.
         return None
     if dest != stored_dest or internal != stored_internal:
-        # Decoded, it writes the bytes CLICK stored, the text as typed.
+        # CLICK saved the result or an address in the formula as the user typed it, not in
+        # display form.  Mark the Math so that encoding it writes the bytes CLICK stored.
         read_in_another_form(math)
-    # Older laddercodec wrote H only for a decimal constant, which a hex Math refuses.
+    # Older laddercodec wrote the H prefix only on a decimal constant, and a hex Math
+    # refuses decimal constants.  So only a decimal Math is checked.
     findings = _legacy_findings(stored_internal) if mode == "decimal" else []
     if findings:
         math._legacy_findings = findings
@@ -353,16 +370,19 @@ def from_tags(
 
 
 def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
-    """List the 16-bit (``H``) constants outside 16 bits in a stored formula.
+    """Return a finding for each 16-bit (``H``) constant in a stored formula that overflows.
 
-    Older laddercodec wrote a decimal integer outside -32768..32767 as ``H70000``;
-    CLICK runs it as its low 16 bits, as a signed value.
+    An ``H`` constant overflows when its value is outside 16 bits.
+
+    Older laddercodec wrote a decimal integer outside -32768..32767 as ``H70000``.  CLICK
+    runs such a constant as its low 16 bits, read as a signed value.
     """
     found = []
     for token in formula_internal.split("#"):
         body = token[1:] if token.startswith("H") else ""
         digits = body[1:] if body.startswith("-") else body
-        # Older laddercodec wrote at most 11 characters (CLICK's %d length rule).
+        # Older laddercodec wrote at most 11 characters, the length of the longest integer
+        # that CLICK prints (-2147483648).
         if not digits or len(digits) > 11 or not all("0" <= c <= "9" for c in digits):
             continue
         if not INT16_MIN <= int(body) <= INT16_MAX:

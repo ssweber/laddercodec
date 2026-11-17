@@ -1,6 +1,6 @@
-"""Call — subroutine call instruction (type marker 0x2723).
+"""The Call instruction, which calls a subroutine.
 
-Binary class name: ``"Call"``.
+CLICK stores it with the binary class name ``"Call"`` and the type marker 0x2723.
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
 CALL_TYPE_MARKER = 0x2723
 CALL_FUNC_CODE = "9221"
-# 0x3219 is the dialog's drop-down index; the dialog saves its own on OK,
-# so it is written as 0 and ignored.
+# 0x3219 is an index into the dialog's drop-down list. The dialog saves its own index
+# when you click OK, so the encoder writes 0 and the decoder ignores the tag.
 _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 
 
@@ -76,7 +76,8 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Call | None:
-    """Construct a Call instruction from tag data (shared by both decoders)."""
+    """Construct a Call from the tags of a decoded blob, or return None if the blob is not a
+    Call that names a subroutine. The clipboard and program-file decoders both use it."""
     if class_name != "Call" or type_code != CALL_TYPE_MARKER:
         return None
     subroutine = tag_value(tags, 0x6208)

@@ -1,8 +1,11 @@
-"""Every refusal of a Math, and of its formula, with its field, reason and CLICK id.
+"""Test every refusal of a Math and of its formula, with its field, reason and CLICK id.
 
-A Math collects its own fields' refusals.  Its formula gives one refusal for each word,
-constant value, key of the other mode, bit and range it refuses, all on ``Math.expression``,
-and stops at an error in the characters, a bracket, the parentheses or the order.
+Building a Math raises one ``FieldError`` whose ``errors`` hold the refusals of all its
+fields. The formula adds one refusal on ``Math.expression`` for each problem it finds: each
+word it refuses, such as an unknown name or an address outside its bank, each constant's
+value, each operator or function from the other mode's keypad, each address in a bank that
+the mode does not accept, and each bad range. The reader stops at the first error in the
+characters, a bracket, the parentheses or the order of the tokens.
 """
 
 from __future__ import annotations
@@ -18,7 +21,8 @@ from laddercodec.operands.address import display_form_only
 from laddercodec.operands.unchecked import refusals
 
 _EXPR, _MODE = "Math.expression", "Math.mode"
-#: A sum of 69 addresses: 276 characters in CLICK's internal template.
+#: A sum of 69 addresses. CLICK's internal template of it is 273 characters, over the limit
+#: of 270.
 _LONG = " + ".join(f"DS{n}" for n in range(1, 70))
 
 
@@ -44,7 +48,11 @@ def _formula(expression: str, mode: str = "decimal") -> tuple[FieldError, ...]:
 
 
 def test_math_gives_every_refusal() -> None:
-    """A result in a bank Math does not write, a refused formula and a bad flag: three."""
+    """A Math with three refused fields raises three refusals.
+
+    The fields are a result in a bank that Math does not write, a refused formula and a
+    oneshot that is not a flag.
+    """
     errors = _refusals(lambda: Math("DS1 + DS0", "C1", oneshot=2))
     assert _shape(errors) == [
         ("Math.dest", "bank", "OBJ-004"),
@@ -56,7 +64,10 @@ def test_math_gives_every_refusal() -> None:
 
 
 def test_math_mode_refused_skips_what_depends_on_it() -> None:
-    """The result's banks and the formula's reading depend on the mode: neither is checked."""
+    """A refused mode skips the checks of the result's bank and of the formula.
+
+    Both checks depend on the mode. The other fields are still checked.
+    """
     errors = _refusals(lambda: Math("DS0", "C1", mode="bogus", oneshot=2))  # type: ignore[arg-type]
     assert _shape(errors) == [("Math.mode", "choice", None), ("Math.oneshot", "flag", None)]
     assert str(errors[0]) == "Math.mode: 'bogus' is not 'decimal' or 'hex'"
@@ -69,14 +80,18 @@ def test_math_nickname_is_not_read_as_a_formula() -> None:
 
 
 def test_hex_result_in_sd_is_outside_the_range() -> None:
-    """CLICK answers an SD, or a YD past YD8, as a hex result with OBJ-003; another bank is OBJ-004."""
+    """For a hex Math result, CLICK reports an SD register or a YD past YD8 with OBJ-003.
+
+    It reports any other bank that a hex result does not accept with OBJ-004.
+    """
     cases = (
         ("SD29", "bank", "OBJ-003"),
         ("SD31", "bank", "OBJ-003"),
         ("SD1000", "bank", "OBJ-003"),
         ("YD9", "address", "OBJ-003"),
         ("DS1", "bank", "OBJ-004"),
-        # An SD past its bank's range is no SD register: a bank the result does not take.
+        # SD0 and SD1001 are outside the SD range, so they are not SD registers. They are
+        # refused as a bank that the result does not accept.
         ("SD0", "bank", "OBJ-004"),
         ("SD1001", "bank", "OBJ-004"),
     )
@@ -95,7 +110,8 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
     )
     for result in ("YD0", "YD0u", "YD8"):
         Math("DH1", result, "hex")
-    # The decimal result takes SD, and a bank it does not take keeps OBJ-004.
+    # A decimal result accepts SD. A bank that it does not accept is still refused with
+    # OBJ-004.
     Math("DS1", "SD29")
     (error,) = _refusals(lambda: Math("DS1", "DH1"))
     assert error.click_id == "OBJ-004"
@@ -112,7 +128,12 @@ def test_math_result_and_formula_both_reported() -> None:
 
 
 def test_formula_gives_every_refusal() -> None:
-    """Two words, a constant's value, a key of the other mode, a range, two bits, a median."""
+    """A formula with eight problems raises eight refusals, in this order.
+
+    They are two refused words (DS0 and FFh), a constant's value (007), the hex operator AND,
+    a range that runs high to low, two bits (C5 and C1), and a median over more than 1024
+    bytes.
+    """
     errors = _formula("DS0 + FFh * 007 + MAX ( C5 : C1 ) AND MDN ( DS1 : DS900 )")
     assert _shape(errors) == [
         (_EXPR, "address", None),
@@ -138,7 +159,10 @@ def test_formula_gives_every_refusal() -> None:
 
 
 def test_formula_first_refusal_is_the_one_read_first() -> None:
-    """Steps run in their order, so the first refusal is the one a stop at it would give."""
+    """The first refusal is the error that the formula raises when that problem is its only one.
+
+    The reader runs its steps in order, so the earliest problem gives the first refusal.
+    """
     (alone,) = _formula("DS0 + DS2")
     errors = _formula("DS0 + FFh + DS2 + C1")
     assert str(errors[0]) == str(alone)
@@ -155,7 +179,11 @@ def test_formula_parse_gives_every_refusal() -> None:
 
 
 def test_formula_stops_at_the_parentheses() -> None:
-    """The words before are kept; a constant's value and what follows are not read."""
+    """Unbalanced parentheses end the reading.
+
+    The refusals of words, which the reader finds first, are kept (DS0). The constant's
+    value (007) and the bank of C1 are not checked.
+    """
     errors = _formula("DS0 + ( 007 + C1")
     assert _shape(errors) == [(_EXPR, "address", None), (_EXPR, "form", "OBJ-1005")]
 
@@ -173,7 +201,11 @@ def test_formula_stops_at_the_order() -> None:
 
 
 def test_formula_word_of_no_kind_skips_the_order_and_operands() -> None:
-    """FOO is no address, constant or name: neither the order nor the bits are checked."""
+    """FOO is not an address, a constant or a function name.
+
+    After such a word the reader does not check the order of the tokens or the bank of C1.
+    It still checks the constant's value (007) and the keys of the other mode (AND).
+    """
     errors = _formula("FOO + 007 C1 AND 2")
     assert _shape(errors) == [
         (_EXPR, "kind", "OBJ-1001"),
@@ -183,8 +215,13 @@ def test_formula_word_of_no_kind_skips_the_order_and_operands() -> None:
 
 
 def test_formula_refused_word_reads_on_as_what_it_looks_like() -> None:
-    """A refused constant joins its sign and fills RAND's argument; a refused address is an
-    address to a range function."""
+    """After the reader refuses a word, it reads on as if the word were what it looks like.
+
+    A refused constant (FFh in a decimal Math) joins the sign before it and fills a RAND
+    argument. A refused address (DS0) can still be one end of a SUM range. In a hex Math, the
+    refused decimal constants 5 and 1 are still read as constants. Each case gives no other
+    refusal.
+    """
     assert _shape(_formula("RAND ( - FFh , 5 )")) == [(_EXPR, "kind", "OBJ-1001")]
     assert _shape(_formula("SUM ( DS0 : DS5 )")) == [(_EXPR, "address", None)]
     assert _shape(_formula("DH1 + 5 + LSH ( DH2 , 1 )", "hex")) == [
@@ -194,8 +231,11 @@ def test_formula_refused_word_reads_on_as_what_it_looks_like() -> None:
 
 
 def test_formula_rand_refuses_each_bound_then_its_banks() -> None:
-    """A real bound and equal bounds come before a bound's bank; each is one refusal.  A bound
-    refused while it was read (DS0) is not checked again."""
+    """RAND's refusals of a real bound and of equal bounds come before a bound's bank.
+
+    Each problem is one refusal. A bound that was refused when it was read (DS0) is not
+    checked again, for equal bounds or for its bank.
+    """
     assert _shape(_formula("RAND ( DF1 , DF1 )")) == [
         (_EXPR, "form", "OBJ-1001"),
         (_EXPR, "bank", "OBJ-1002"),
@@ -247,8 +287,10 @@ def test_formula_decimal_sum_over_a_refused_bank_is_refused_once() -> None:
 
 
 def test_formula_sum_refusal_names_the_refused_end() -> None:
-    """A SUM over two banks is refused for the span first, as CLICK refuses it (OBJ-1015);
-    the bank refusal names the range and the end refused."""
+    """A SUM over two banks is first refused for spanning them (OBJ-1015), as CLICK refuses it.
+
+    The bank refusal that follows names the SUM and the end whose bank is refused (TXT2).
+    """
     errors = _formula("SUM ( X001 : TXT2 )")
     assert [str(e) for e in errors] == [
         "Math.expression: X001 : TXT2 spans two banks; a range stays in one (OBJ-1015)",
@@ -259,7 +301,7 @@ def test_formula_sum_refusal_names_the_refused_end() -> None:
 @pytest.mark.parametrize(
     ("expression", "mode", "first"),
     [
-        # CLICK's answers: the range's order or banks, ahead of a bank the mode refuses.
+        # CLICK reports the range's order or its two banks before a bank that the mode refuses.
         ("SUM ( DH2 : DH1 )", "decimal", "OBJ-1014"),
         ("SUM ( TXT2 : TXT1 )", "decimal", "OBJ-1014"),
         ("SUM ( DS2 : DS1 )", "hex", "OBJ-1014"),
@@ -270,7 +312,11 @@ def test_formula_sum_refusal_names_the_refused_end() -> None:
     ],
 )
 def test_formula_range_shape_comes_before_its_bank(expression: str, mode: str, first: str) -> None:
-    """A range is refused for its order or its banks first, then each refused bank once."""
+    """A range is first refused for its order or for spanning two banks.
+
+    Then the SUM is refused once for a bank that the mode does not accept, even when both
+    of its ends are in such a bank.
+    """
     errors = _formula(expression, mode)
     assert errors[0].click_id == first
     assert errors[0].reason == Reason.FORM
@@ -278,8 +324,12 @@ def test_formula_range_shape_comes_before_its_bank(expression: str, mode: str, f
 
 
 def test_formula_range_shapes_come_before_every_bank() -> None:
-    """Every range's order and banks are checked before any address's bank, then a median's
-    size: OBJ-1014 for the SUM, OBJ-1002 for DH1 and the SUM, OBJ-1013 for the median."""
+    """The refusals of every range's order and banks come first, then each address's bank,
+    then a median's size.
+
+    Here that is OBJ-1014 for the SUM, OBJ-1002 for DH1 and for the SUM, and OBJ-1013 for
+    the median.
+    """
     errors = _formula("DH1 + SUM ( DH5 : DH2 ) + MDN ( DS1 : DS900 )")
     assert [e.click_id for e in errors] == ["OBJ-1014", "OBJ-1002", "OBJ-1002", "OBJ-1013"]
 
@@ -347,16 +397,17 @@ def test_formula_bit_range_outside_sum_has_no_option_slot_refusal() -> None:
 def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
     (error,) = _formula(_LONG)
     assert (error.reason, error.click_id) == (Reason.RANGE, "OBJ-1008")
-    # A refused constant has no internal form: the length is not counted.
+    # A refused constant has no internal form, so the length is not counted.
     assert _shape(_formula(_LONG.replace("DS69", "FFh"))) == [(_EXPR, "kind", "OBJ-1001")]
-    # A refused address is still an @ in the template, and a refused bit keeps every
-    # token's form: the length is still counted.
+    # The length is still counted after a refused address or bit. A refused address is still
+    # an @ in the template, and a bit refused for its bank changes no token's internal form.
     for refused, shape in [("DS0", ("address", None)), ("C1", ("bank", "OBJ-1002"))]:
         assert _shape(_formula(_LONG.replace("DS69", refused))) == [
             (_EXPR, *shape),
             (_EXPR, "range", "OBJ-1008"),
         ]
-    # So is a name not in display form, read as its own text.
+    # It is also counted after a function name that is not in display form. The template
+    # counts that name as its own text.
     with display_form_only():
         errors = _formula(_LONG.replace("DS69", "sum ( DS70 : DS71 )"))
     assert _shape(errors) == [(_EXPR, "form", None), (_EXPR, "range", "OBJ-1008")]
@@ -370,12 +421,13 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
 @pytest.mark.parametrize(
     ("expression", "mode", "reason", "click_id"),
     [
-        # The characters, a bracket and the empty formula: the reading ends.
+        # An error in the characters, a bracket or an empty formula ends the reading.
         ('DS1 + "A"', "decimal", "kind", None),
         ("DS1 + ~", "decimal", "form", None),
         ("DS[DS1]", "decimal", "pointer", None),
         ("", "decimal", "missing", None),
-        # Words.
+        # Refused words. Each is a word that is not a name, an address or a constant, an
+        # address outside its bank's range, or a constant of the wrong mode or range.
         ("DS1 + ٣", "decimal", "form", None),
         ("DH1 + 1Eh", "hex", "form", None),
         ("DS1 + 1.5x", "decimal", "kind", "OBJ-1001"),
@@ -395,7 +447,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("-3.4028235E+38", "decimal", "range", "OBJ-1009"),
         ("123456789012", "decimal", "range", "OBJ-1009"),
         ("000000000005", "decimal", "form", "OBJ-1009"),
-        # Leading zeros are the form refused: 6000000000 alone is taken.
+        # CLICK accepts 6000000000, so 06000000000 is refused for its leading zero.
         ("06000000000", "decimal", "form", "OBJ-1009"),
         ("-03000000000", "decimal", "range", "OBJ-1009"),
         ("0" * 4301 + "1", "decimal", "form", "OBJ-1009"),
@@ -403,7 +455,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("0" * 5000 + "12345678901", "decimal", "range", "OBJ-1009"),
         ("3000000000", "decimal", "range", "OBJ-1009"),
         ("007", "decimal", "form", "OBJ-1009"),
-        # A key of the other mode.
+        # An operator or function from the other mode's keypad.
         ("DS1 AND DS2", "decimal", "conflict", "OBJ-1006"),
         ("SIN ( DH1 )", "hex", "conflict", "OBJ-1006"),
         # The order.
@@ -415,7 +467,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("SIN ( MAX ( DF1 : DF3 ) )", "decimal", "form", "OBJ-1001"),
         ("* DS1", "decimal", "form", "OBJ-1001"),
         ("DS1 +", "decimal", "form", "OBJ-1001"),
-        # Bits and ranges.
+        # Banks and ranges.
         ("C1 + DS1", "decimal", "bank", "OBJ-1002"),
         ("SUM ( CT1 : CT5 )", "decimal", "bank", "OBJ-1002"),
         ("DS1 + DH1", "decimal", "bank", "OBJ-1002"),
@@ -423,7 +475,7 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("SUM ( DS5 : DS1 )", "decimal", "form", "OBJ-1014"),
         ("MDN ( DS1 : DS900 )", "decimal", "range", "OBJ-1013"),
         ("SUM ( X001 : X036 )", "decimal", "range", None),
-        # A RAND bound: its bank, a real constant, equal bounds.
+        # A RAND bound in a refused bank, a real bound, and equal bounds.
         ("RAND ( DF1 , 10 )", "decimal", "bank", "OBJ-1002"),
         ("RAND ( XD0 , Ah )", "hex", "bank", "OBJ-1002"),
         ("RAND ( 1.5 , 10 )", "decimal", "kind", "OBJ-1001"),
@@ -442,7 +494,7 @@ def test_formula_reason(expression: str, mode: str, reason: str, click_id: str |
     assert error.fields == expected
 
 
-#: Constants of more than 4300 digits, which Python will not read as one number.
+#: Constants of more than 4300 digits. Python's int() refuses to read a number that long.
 _LONG_DIGITS = [
     "DS1 + " + "0" * 4301 + "1",
     "DS1 + -" + "0" * 5000 + "1",
@@ -459,7 +511,10 @@ def test_formula_long_digit_run_is_refused(expression: str) -> None:
 
 @pytest.mark.parametrize("expression", _LONG_DIGITS)
 def test_formula_long_digit_run_keeps_its_refusal(expression: str) -> None:
-    """A stored formula with such a constant decodes as that Math, keeping the refusals."""
+    """A Math blob whose formula holds such a constant decodes as that Math.
+
+    The Math keeps its refusals, and one of them is OBJ-1009.
+    """
     blob = Math("DS1 + 12345", "DS1").build_blob()
     assert parse_af_blob(blob) == Math("DS1 + 12345", "DS1")
     text = expression.removeprefix("DS1 + ")
@@ -474,7 +529,7 @@ def test_formula_long_digit_run_keeps_its_refusal(expression: str) -> None:
 @pytest.mark.parametrize(
     ("expression", "message"),
     [
-        # 6000000000 alone is taken, so the message names the leading zeros, not the range.
+        # CLICK accepts 6000000000, so the message names the leading zero, not the range.
         ("06000000000", "06000000000 is refused; an integer constant has no leading zeros"),
         (
             "3000000000",
@@ -499,7 +554,11 @@ def test_formula_display_form_refusal(expression: str) -> None:
 
 
 def test_formula_display_form_refusals_read_on() -> None:
-    """A name or an address not in display form is refused, and read on as what it is."""
+    """A function name or an address that is not in CLICK's display form is refused.
+
+    The reader still reads it as that function or address and goes on, so it also refuses
+    the bank of C1.
+    """
     with display_form_only():
         errors = _formula("sin ( ds1 ) + C1")
     assert _shape(errors) == [

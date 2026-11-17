@@ -1,45 +1,53 @@
-"""The Math formula reader: one parse, and every form a Math blob stores printed from it.
+"""Parse a Math formula once, and print from that parse each form that a Math blob stores.
 
-The reader follows the check CLICK v4's Math dialog runs on OK.  Its steps and rules are
-documented in ``docs/internals/instruction-blobs.md``, "Math formula grammar"; the step
-numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
-``Math.expression``, naming the token and the rule, with every refusal it found in
-:attr:`~FieldError.errors`:
+The parser follows the check that CLICK v4's Math dialog runs when you click OK.
+``docs/internals/instruction-blobs.md`` describes the steps and rules of that check, in the
+section "Math formula grammar". The step numbers below are the ones in that section. If the
+dialog would refuse the formula, :func:`parse` raises :class:`FieldError` on
+``Math.expression``. The error names the token and the rule, and its
+:attr:`~FieldError.errors` holds every refusal found. The parser works in these stages:
 
-1. :func:`_lex` splits the text as the dialog's tokenizer does (step 1): on spaces and
-   tabs, on ``+ - * / ^ ( ) , :`` and on ``[ ]``.  A run of digits followed by ``.``,
-   ``E`` or ``e`` is cut at the end of the longest real number it starts, so ``1.5E+10``
-   is one token and the hex ``1Eh`` is ``1`` then ``Eh``; a run cut that way is refused,
-   but for hex digits cut before a lone ``h``: ``1E3h`` is how CLICK stores a hex
-   constant typed ``1e3``, and is read as hex.
-2. :func:`_classify` names each word: a function or word operator, an address (which must
-   pass the full address check), a constant of the Math's mode (step 6), or else a word,
-   which is refused (step 7).  A hex constant is kept in CLICK's form, uppercase digits
-   without leading zeros then ``h``.
-3. Parentheses balance and nest at most 8 deep (step 3).
-4. In a decimal Math a ``-`` or ``+`` at the start, after ``(`` or after ``,`` joins the
-   decimal constant after it (step 5); in a hex Math a sign stays its own token.
-5. Each constant's value is checked (step 6), and a real is kept as CLICK prints it back
-   (``1.50`` is ``1.5``, ``1e3`` is ``1000.0``); then the keys of the other mode's keypad
-   are refused (step 8).
-6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
-   starts and ends (step 9).
-7. :func:`_check_rand`: a RAND bound is not a real constant, and its two bounds differ.
-8. :func:`_check_operands`: each range's banks and order, the banks each mode takes
-   (:data:`_OPERANDS`), a RAND bound's among them, a median's size and X/Y option-slot
-   ends, and then the 270-character cap of the internal template.
+1. :func:`_lex` splits the text as the dialog's tokenizer does (step 1). It splits on
+   spaces and tabs, on ``+ - * / ^ ( ) , :`` and on ``[ ]``. When a run of digits is
+   followed by ``.``, ``E`` or ``e``, the tokenizer cuts the run at the end of the longest
+   real number that it starts. For example, ``1.5E+10`` is one token, and the hex ``1Eh``
+   becomes ``1`` and then ``Eh``. A run cut this way is refused, with one exception. If
+   you type the hex constant ``1e3``, CLICK stores it as ``1E3h``. The parser reads a word
+   as hex if the cut leaves only a lone ``h`` after its hex digits.
+2. :func:`_classify` decides what each word is: a function or word operator, an address,
+   or a constant of the Math's mode (step 6). An address must pass the full address check.
+   Any other word is refused (step 7). The parser keeps a hex constant in CLICK's form:
+   uppercase digits with no leading zeros, and then ``h``.
+3. The parentheses must balance and nest at most 8 deep (step 3).
+4. In a decimal Math, a ``-`` or ``+`` joins the decimal constant after it if the sign is
+   at the start, after ``(`` or after ``,`` (step 5). In a hex Math, a sign is always a
+   token of its own.
+5. The parser checks the value of each constant (step 6). It keeps a real as CLICK prints
+   it back, so ``1.50`` becomes ``1.5`` and ``1e3`` becomes ``1000.0``. Then it refuses each
+   key of the other mode's keypad (step 8).
+6. :func:`_check_order` checks which token may follow each token, the form of each
+   function call, and how the formula starts and ends (step 9).
+7. :func:`_check_rand` refuses a RAND bound that is a real constant, and a RAND whose two
+   bounds are equal.
+8. :func:`_check_operands` checks the banks and the order of each range. It checks that
+   each address, a RAND bound included, is in a bank that the mode accepts
+   (:data:`_OPERANDS`). It checks the size of a median's range, and the ends of an X or Y
+   range that fall in the option slot. Last, :func:`parse` checks the internal template
+   against its limit of 270 characters.
 
-A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
-and a token out of order each end the reading there.  Every other refusal is one of many:
-each word refused, each constant's value, each key of the other mode, each RAND bound
-refused, each address in a bank its mode does not take and each range, and the reading goes
-on past it, taking a refused word as what it looks like (an address, a constant, a function
-name).  After a word that looks like none of those, the order is not checked, nor are the
-RAND bounds, the banks and the ranges.  The length is not checked after a refused constant
-or such a word, which have no internal form to count.
+Some refusals stop the parse at once. These are a character that a formula cannot hold, a
+bracket, parentheses that do not balance or nest too deep, and a token out of order. The
+parse collects every other refusal and goes on past it. These are a refused word, a
+constant's value, a key of the other mode, a refused RAND bound, an address in a bank that
+the mode does not accept, and a refused range. After a refused word, the parse goes on as
+if the word were what it looks like: an address, a constant or a function name. If a word
+looks like none of these, the parse does not check the order, the RAND bounds, the banks or
+the ranges. If a constant or such a word is refused, the parse does not check the length,
+because neither has an internal form to count.
 
-:class:`Formula` holds the tokens; its properties print the display formula, the template,
-the nickname display and the two internal ``#`` forms.
+:class:`Formula` holds the tokens. Its properties and :meth:`Formula.internal` print the
+display formula, the template, the nickname display, and the internal formula and internal
+template, whose tokens are joined with ``#``.
 """
 
 from __future__ import annotations
@@ -77,7 +85,9 @@ _NAME = "Math.expression"
 
 
 def _error(rule: str, reason: Reason, click_id: str | None = None, *, code: Code) -> FieldError:
-    """A refusal of the formula: ``Math.expression: rule``, ending with CLICK's id if known."""
+    """Return a refusal of the formula, with the message ``Math.expression: rule``.
+
+    If CLICK's id for the refusal is known, the message ends with it in parentheses."""
     tail = f" ({click_id})" if click_id else ""
     return FieldError(
         f"{_NAME}: {rule}{tail}", field=_NAME, reason=reason, code=code, click_id=click_id
@@ -100,13 +110,14 @@ TRIG = frozenset({"SIN", "COS", "TAN", "ASIN", "ACOS", "ATAN", "LOG", "LN", "SQR
 #: Functions over a range ``F ( a : b )``.
 RANGE_FUNCTIONS = frozenset({"SUM", "MAX", "MIN", "MDN", "AVG"})
 SHIFT = frozenset({"LSH", "RSH", "LRO", "RRO"})
-#: Two-argument functions ``F ( a , b )``, stored infix as ``a#F#b``.
+#: Two-argument functions, written ``F ( a , b )``. The internal formula stores them as
+#: ``a#F#b``.
 COMMA_FUNCTIONS = SHIFT | {"RAND"}
 FUNCTIONS = TRIG | RANGE_FUNCTIONS | COMMA_FUNCTIONS | {"ABS"}
 WORD_OPERATORS = frozenset({"MOD", "AND", "OR", "XOR"})
 #: Every name on CLICK's Math keypads.
 NAMES = FUNCTIONS | WORD_OPERATORS | {"PI"}
-#: Keys only the decimal keypad has, and only the hex keypad.
+#: The keys that only the decimal keypad has, and the keys that only the hex keypad has.
 DECIMAL_ONLY = TRIG | {"PI", "ABS", "^"}
 HEX_ONLY = SHIFT | {"AND", "OR", "XOR"}
 
@@ -117,17 +128,17 @@ _HEX_DIGITS = _DIGITS | frozenset("ABCDEFabcdef")
 
 #: Parentheses nest at most 8 deep (OBJ-1010).
 MAX_NESTING = 8
-#: Most characters of the internal template, ``@`` per address and ``#`` between tokens
-#: (OBJ-1008 "The Formula is too long"; a sum
-#: of 68 addresses fits, 69 does not).
+#: The most characters that the internal template may hold. The template has ``@`` for each
+#: address and ``#`` between tokens. CLICK refuses a longer one with OBJ-1008,
+#: "The Formula is too long". A sum of 68 addresses fits, and a sum of 69 does not.
 MAX_INTERNAL_LENGTH = 270
-#: :data:`FLOAT32_MAX` as a refusal names it: the shortest text, not above it, that float32
-#: reads back as it.
+#: The text that a refusal shows for :data:`FLOAT32_MAX`. It is the shortest text whose
+#: value is not above FLOAT32_MAX and that float32 reads back as FLOAT32_MAX.
 _FLOAT32_MAX_TEXT = "3.402823466E+38"
 #: The longest integer CLICK prints back: ``-2147483648``.
 _MAX_PRINTED = 11
-#: Registers of 2 and of 4 bytes, for the median's 1024-byte cap
-#: (OBJ-1013).
+#: The banks whose registers are 2 bytes wide and 4 bytes wide. A median may cover at most
+#: 1024 bytes (OBJ-1013).
 _TWO_BYTE_BANKS = banks(Bank.DS | Bank.DH | Bank.TD | Bank.SD)
 _FOUR_BYTE_BANKS = banks(Bank.DD | Bank.DF | Bank.CTD)
 _MEDIAN_MAX_BYTES = 1024
@@ -135,24 +146,29 @@ _MEDIAN_MAX_BYTES = 1024
 
 @dataclass(frozen=True)
 class _Operands:
-    """The banks a formula of one mode takes; an address of any other is refused (OBJ-1002)."""
+    """The banks that a formula of one mode accepts.
 
-    #: Registers taken anywhere in the formula.
+    An address in any other bank is refused with OBJ-1002.
+    """
+
+    #: The register banks accepted anywhere in the formula.
     anywhere: frozenset[str]
-    #: Bits taken only as the range of ``SUM ( a : b )``.
+    #: The bit banks accepted only as the range of ``SUM ( a : b )``.
     in_sum: frozenset[str]
     #: The rule, as each refusal states it.
     rule: str
-    #: Registers taken as a bound of ``RAND ( a , b )``; a bound takes no other bank.
+    #: The register banks accepted as a bound of ``RAND ( a , b )``. A bound in any other
+    #: bank is refused.
     in_rand: frozenset[str]
     #: RAND's rule, as each refusal of a bound states it.
     rand_rule: str
 
 
-#: The operand banks of each mode.  A decimal SUM takes no CT range.  An older CPU takes no
-#: bit range in a SUM at all; :func:`~laddercodec.compat.find_v4_only` reports those, and
-#: construction accepts them.  A RAND bound takes fewer banks than the rest of the formula,
-#: and a decimal one no real constant (:func:`_check_rand`).
+#: The operand banks of each mode. A decimal SUM accepts no CT range. An older CPU accepts
+#: no bit range in a SUM at all. Building a Math accepts such a range anyway, and
+#: :func:`~laddercodec.compat.find_v4_only` reports it. A RAND bound accepts fewer banks
+#: than the rest of the formula, and a decimal RAND bound cannot be a real constant
+#: (:func:`_check_rand`).
 _OPERANDS = {
     "decimal": _Operands(
         banks(Bank.DS | Bank.DD | Bank.DF | Bank.TD | Bank.CTD | Bank.SD),
@@ -170,11 +186,12 @@ _OPERANDS = {
         "a hex RAND bound is a DH register or a hex constant",
     ),
 }
-#: The register a RAND bound of each mode copies another register into, as the refusal
-#: says.
+#: For each mode, the registers that the refusal of a RAND bound tells you to copy the bound
+#: into.
 _RAND_COPY_INTO = {"decimal": "a DS or DD", "hex": "a DH"}
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
-#: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
+#: The numbers of the XD and YD addresses, in order. The addresses between the ends of
+#: ``MAX ( XD0 : XD3 )`` are XD0u, XD1 and XD2, and CLICK stores those.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
 _XY_BANKS = banks(Bank.X | Bank.Y)
 #: The CPU slot (1-16) and its option slot (21-36), and the 4 numbers between them (17-20).
@@ -189,13 +206,14 @@ _OPTION_GAP = _OPTION_SLOT[0] - _CPU_SLOT[1] - 1
 
 @dataclass(frozen=True)
 class Token:
-    """One formula token.
+    """One token of a formula.
 
     ``kind`` is ``(``, ``)``, ``,``, ``:``, ``op`` (``+ - * / ^`` and the word operators),
-    ``func``, ``pi``, ``const`` or ``addr``.  ``text`` is the token as the display formula
-    shows it; ``internal`` is a constant as the internal formula stores it (``H5``,
-    ``F1.5``, ``UH10``).  ``refused`` marks a word or constant already refused, read on as
-    the ``kind`` it looks like.
+    ``func``, ``pi``, ``const``, ``addr`` or ``word``. A ``word`` is a refused word that looks
+    like no other kind. ``text`` is the token as the display formula shows it. For a
+    constant, ``internal`` is the constant as the internal formula stores it (``H5``,
+    ``F1.5``, ``UH10``). ``refused`` is True for a word or constant that the parser has
+    already refused. The parser goes on as if such a token were the ``kind`` it looks like.
     """
 
     kind: str
@@ -205,10 +223,11 @@ class Token:
 
 
 def address_parts(text: str) -> tuple[str, str] | None:
-    """``(bank, number)`` of ``text`` in an address's shape, else ``None``.
+    """Return ``(bank, number)`` if ``text`` has the shape of an address, else ``None``.
 
-    The shape is an uppercase bank of :data:`ADDRESS_BANKS`, digits 0-9, and ``u`` after
-    XD or YD (``DS1``, ``X001``, ``XD0u``).  The number's range is not checked.
+    An address is an uppercase bank from :data:`ADDRESS_BANKS` followed by the digits 0-9.
+    After XD or YD, a ``u`` may follow the digits (``DS1``, ``X001``, ``XD0u``). This
+    function does not check that the number is in range.
     """
     i = 0
     while i < len(text) and "A" <= text[i] <= "Z":
@@ -223,17 +242,20 @@ def address_parts(text: str) -> tuple[str, str] | None:
 
 
 def _hex_digits(word: str) -> str | None:
-    """The digits of a hex constant, hex digits then one ``h`` or ``H``, else ``None``."""
+    """Return the digits of ``word`` if it is a hex constant, else ``None``.
+
+    A hex constant is one or more hex digits followed by one ``h`` or ``H``."""
     if len(word) < 2 or word[-1] not in "hH" or not all(c in _HEX_DIGITS for c in word[:-1]):
         return None
     return word[:-1]
 
 
 def _real_end(text: str, start: int) -> int:
-    """End of the longest real number at ``start`` (``wcstod``'s reach), or ``start``.
+    """Return the index where the longest real number that starts at ``start`` ends.
 
-    Digits with an optional ``.`` and fraction, or ``.`` and digits, then an optional
-    exponent ``E``/``e``, a sign and digits.
+    This is as far as ``wcstod`` would read. If no real number starts there, return
+    ``start``. A real number is digits with an optional ``.`` and fraction, or ``.`` and
+    digits. An exponent may follow: ``E`` or ``e``, an optional sign, and digits.
     """
     n = len(text)
     i = start
@@ -265,12 +287,16 @@ def _is_word_char(ch: str) -> bool:
 
 @dataclass(frozen=True)
 class _Raw:
-    """A token before classification: a symbol, a word, or a number the tokenizer cut."""
+    """A token as :func:`_lex` split it, before :func:`_classify` decides what it is.
+
+    It is a symbol, a word, or a real number that the tokenizer read as one token.
+    """
 
     text: str
     symbol: bool = False
     number: bool = False
-    #: For a word the tokenizer cuts after a leading number: where the number ends.
+    #: For a word that starts with a number that the tokenizer cut, the index in the word
+    #: where that number ends. 0 for any other token.
     cut: int = 0
 
 
@@ -303,7 +329,8 @@ def _lex(text: str) -> list[_Raw]:
         end = i
         while end < n and _is_word_char(text[end]):
             end += 1
-        # A run of digits (or none) then '.', 'E' or 'e' is read as a real number.
+        # Digits followed by '.', 'E' or 'e', or a '.' with no digits before it, start a
+        # real number.
         k = i
         while k < end and text[k] in _DIGITS:
             k += 1
@@ -327,7 +354,8 @@ def _lex(text: str) -> list[_Raw]:
 
 
 def _signed(raws: Sequence[_Raw], i: int, word: str) -> str:
-    """``word`` with the sign before it, where a sign stands (start, after ``(`` or ``,``)."""
+    """Return ``word`` with the ``+`` or ``-`` before it, if that sign is at the start of the
+    formula or after ``(`` or ``,``. Otherwise return ``word``."""
     if i > 0 and raws[i - 1].text in _SIGNS and (i == 1 or raws[i - 2].text in ("(", ",")):
         return f"{raws[i - 1].text}{word}"
     return word
@@ -354,10 +382,10 @@ def _word_refusal(word: str) -> FieldError:
 
 
 def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) -> Token | None:
-    """The token a raw word or symbol is (grammar steps 2 and 6), or a refusal (step 7).
+    """Return the token that ``raws[i]`` is (grammar steps 2 and 6).
 
-    A refused word is added to ``found`` and comes back as the token it looks like, marked
-    refused, or as ``None`` when it looks like no token.
+    If the word is refused (step 7), add the refusal to ``found``. Then return the token
+    that the word looks like, marked as refused, or ``None`` if it looks like no token.
     """
     raw = raws[i]
     word = raw.text
@@ -375,8 +403,9 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
             None,
         )
     hex_digits = _hex_digits(word)
-    # CLICK stores a hex Math constant typed as a real number without h, such as 1e3, as
-    # the digits then h (1E3h): the cut there leaves only the h, and the constant is read.
+    # If you type a hex Math constant with no h that looks like a real number, such as 1e3,
+    # CLICK stores it as the digits and then h (1E3h). The tokenizer cuts 1E3h after 1E3 and
+    # leaves only the h. The parser reads a word cut that way as a hex constant.
     stored_hex = raw.cut and hex_digits is not None and len(word) - raw.cut == 1
     if raw.cut and not stored_hex:
         if hex_digits is not None and mode == "hex":
@@ -434,14 +463,16 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
             return refuse(exc, "const")
         return Token("const", text, f"UH{int(hex_digits, 16)}")
     if mode == "hex" and 0 < len(word) <= 4 and all(c in _HEX_DIGITS for c in word):
-        # CLICK's hex Math reads up to 4 hex digits without h as hex (005 is 5h, FF is FFh,
-        # 1e3 is 1E3h; it refuses 5 digits, 00005 too); laddercodec refuses the text and
-        # names the h form, which says what it means, where that form is taken.
+        # CLICK's hex Math reads up to 4 hex digits with no h as hex: 005 is 5h, FF is FFh and
+        # 1e3 is 1E3h. It refuses 5 digits, even 00005. laddercodec refuses such text. Where
+        # the h form is accepted, the refusal names it, because the h form says plainly what
+        # the constant means.
         signed = _signed(raws, i, word)
         fixed = f"{signed[: len(signed) - len(word)]}{hex_display(word)}"
         rule = f"{signed} has no h; a hex Math takes hex constants such as 7h"
         if signed == word or not _in_call(raws, i - 1):
-            # A signed argument of RAND, LSH, RSH, LRO or RRO is refused with its h too.
+            # Name the h form only where it is accepted. A signed argument of RAND, LSH, RSH,
+            # LRO or RRO is refused even with its h.
             rule = f"{signed} has no h; a hex Math takes hex constants, and CLICK reads it as {fixed}: write {fixed}"
         return refuse(_error(rule, Reason.KIND, code=Code.MATH_CONSTANT_KIND), "const")
     if raw.number or (word and all(c in _DIGITS for c in word)):
@@ -463,7 +494,7 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
 
 
 def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None:
-    """The first refusal of the parentheses (grammar step 3), or ``None``."""
+    """Return the first refusal of the parentheses (grammar step 3), or ``None``."""
     depth = 0
     for token in tokens:
         if token.kind == "(":
@@ -495,9 +526,10 @@ def _check_parentheses(tokens: Sequence[Token], shown: str) -> FieldError | None
 
 
 def _merge_signs(tokens: list[Token]) -> list[Token]:
-    """Join a ``-`` or ``+`` and the decimal constant after it where a sign stands (step 5).
+    """Return *tokens* with each sign joined to the decimal constant after it (step 5).
 
-    Typed ``DS1 + ( +5 )`` is stored ``DS1#+#(#H+5#)``.
+    A ``-`` or ``+`` joins the constant only if the sign is at the start, after ``(`` or
+    after ``,``. If you type ``DS1 + ( +5 )``, CLICK stores ``DS1#+#(#H+5#)``.
     """
     out: list[Token] = []
     i = 0
@@ -511,7 +543,8 @@ def _merge_signs(tokens: list[Token]) -> list[Token]:
             and nxt.kind == "const"
             and not nxt.internal
         ):
-            # A refused constant joins its sign too, so the order reads as it would for 5.
+            # Join the sign to a refused constant too, so that the order check sees the same
+            # tokens as for a constant it accepts, such as 5.
             out.append(Token("const", f"{token.text}{nxt.text}", refused=nxt.refused))
             i += 2
             continue
@@ -521,18 +554,20 @@ def _merge_signs(tokens: list[Token]) -> list[Token]:
 
 
 def _decimal_internal(text: str) -> str | FieldError:
-    """The internal form of a decimal constant, or the refusal of its value (OBJ-1009).
+    """Return the internal form of a decimal constant, or the refusal of its value (OBJ-1009).
 
-    CLICK reads an integer with ``_wtoi64``, keeps the low 32 bits, prints them with ``%d``
-    and refuses the token when the printed length differs from the typed one, so
-    ``3000000000``, ``007`` and ``-0`` are refused and ``6000000000``, whose low 32 bits
-    print as ``1705032704``, passes; a typed ``+`` is put before the printed value
-    (``+5``).  It stores an int16 value as ``H`` and a wider one as ``W``,
-    keeping the typed text (``H+5``).  A real is stored as
-    ``F``; its value, read as a double, is at most float32's largest in size, so
-    ``3.4028235E+38``, which float32 rounds to that largest value, is refused.  CLICK
-    keeps 6 significant digits of a real (``0.33333334`` is saved as ``0.333333``), so
-    one typed with more is refused too, and the refusal names the constant to write.
+    CLICK reads an integer with ``_wtoi64`` and keeps the low 32 bits. It prints them with
+    ``%d``, with a ``+`` in front if one was typed (``+5``). If the printed text is not as
+    long as the typed text, CLICK refuses the token. For example, ``3000000000``, ``007``
+    and ``-0`` are refused. ``6000000000`` passes, because its low 32 bits print as
+    ``1705032704``, which has the same length. CLICK stores an int16 value as ``H`` and a
+    wider value as ``W``, each followed by the typed text (``H+5``).
+
+    A real is stored as ``F`` followed by the number. Its value, read as a double, may be no
+    larger in size than float32's largest value. So ``3.4028235E+38`` is refused, even
+    though float32 rounds it to that largest value. CLICK keeps 6 significant digits of a
+    real (``0.33333334`` is saved as ``0.333333``). laddercodec refuses a real typed with
+    more, and the refusal names the constant to write.
     """
     body = text[1:] if text[:1] in _SIGNS else text
     if not all(c in _DIGITS for c in body):
@@ -570,7 +605,7 @@ def _decimal_internal(text: str) -> str | FieldError:
         if not INT32_MIN <= value <= INT32_MAX:
             reason = _integer_reason(text, body)
             if reason is Reason.FORM:
-                # Its leading zeros are refused: the value without them is taken.
+                # The leading zeros are what is refused. Without them, the value is accepted.
                 rule = f"{text} is refused; an integer constant has no leading zeros"
             else:
                 rule = f"{text} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
@@ -585,16 +620,17 @@ def _decimal_internal(text: str) -> str | FieldError:
 
 
 def _integer_reason(text: str, body: str) -> Reason:
-    """Why an integer CLICK refuses is refused: RANGE when its value is, else FORM.
+    """Return the reason that CLICK refuses an integer: RANGE for its value, else FORM.
 
-    Leading zeros are a form: ``06000000000`` is refused where ``6000000000`` is taken, so
-    the value counts only when it is refused without its zeros too.  ``body`` is ``text``
-    without its sign.  The whole text is never read as a number, which Python refuses past
-    4300 digits.
+    Leading zeros are a matter of form. ``06000000000`` is refused, but ``6000000000`` is
+    accepted. So the value is the reason only if the integer is refused without its leading
+    zeros too. ``body`` is ``text`` without its sign. This function converts text to a
+    number only when the text is at most 11 characters long, because Python refuses to
+    convert a string of more than 4300 digits.
     """
     stripped = text[: len(text) - len(body)] + (body.lstrip("0") or "0")
     if len(stripped) > _MAX_PRINTED:
-        return Reason.RANGE  # 11 digits and a sign, or 12 digits: no 32-bit value
+        return Reason.RANGE  # 11 digits and a sign, or 12 digits, is too big for 32 bits
     if stripped != text:
         alone = _decimal_internal(stripped)
         refused = isinstance(alone, FieldError) and alone.reason is Reason.RANGE
@@ -603,9 +639,10 @@ def _integer_reason(text: str, body: str) -> Reason:
 
 
 def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldError]:
-    """A refusal for each key of the other mode's keypad (grammar step 8).
+    """Return a refusal for each key of the other mode's keypad in ``tokens`` (grammar step 8).
 
-    Each names ``Math.mode`` too: the key is taken in a Math of the other mode.
+    Each refusal names ``Math.mode`` as well, because a Math of the other mode accepts the
+    key.
     """
     other = HEX_ONLY if mode == "decimal" else DECIMAL_ONLY
     other_mode = "hex" if mode == "decimal" else "decimal"
@@ -626,7 +663,7 @@ _VALUES = ("func", "pi", "const", "addr")
 
 
 def _follow_refusal(a: Token, b: Token) -> str | None:
-    """Why ``b`` may not follow ``a`` (the follow table, grammar step 9), or ``None``."""
+    """Return why ``b`` may not follow ``a``, or ``None`` if it may (the table in step 9)."""
     if a.kind == "(":
         if b.kind == ")":
             return "the parentheses hold nothing"
@@ -658,7 +695,7 @@ def _follow_refusal(a: Token, b: Token) -> str | None:
 
 
 def _closing(tokens: Sequence[Token], i: int) -> int:
-    """Index of the ``)`` that closes the ``(`` at ``i``."""
+    """Return the index of the ``)`` that closes the ``(`` at ``i``, or the last index."""
     depth = 0
     for j in range(i, len(tokens)):
         if tokens[j].kind == "(":
@@ -671,9 +708,10 @@ def _closing(tokens: Sequence[Token], i: int) -> int:
 
 
 def _check_order(tokens: Sequence[Token]) -> FieldError | None:
-    """The first refusal of the grammar checker (step 9), or ``None``.
+    """Return the first refusal of the token order (grammar step 9), or ``None``.
 
-    It reads token by token, each call form at its name.
+    The check reads the tokens in order. It checks the form of each function call when it
+    reaches the function's name.
     """
     call_separators: set[int] = set()
     for i, token in enumerate(tokens):
@@ -684,9 +722,10 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 rule = f"{nxt.text!r} after {token.text!r}: {reason}"
                 return _error(rule, Reason.FORM, "OBJ-1001", code=Code.MATH_SYNTAX_ERROR)
         if token.kind == "," and i not in call_separators:
-            # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
-            # (OBJ-037: DS1 , DS2 is refused).  MAX ( DS1 , DS2 ) is refused too, by the
-            # range shape at MAX before its comma is read; its id is not known.
+            # CLICK reads a comma outside RAND ( a , b ) or LSH..RRO ( a , b ) as a decimal
+            # comma, and refuses DS1 , DS2 with OBJ-037. MAX ( DS1 , DS2 ) is refused too,
+            # but at MAX, because its arguments are not a range. That happens before the
+            # comma is read, and CLICK's id for that refusal is not known.
             return _error(
                 "',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); CLICK reads it as a "
                 "decimal comma: use a period (.) as the decimal point",
@@ -705,7 +744,8 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
         if token.kind != "func":
             continue
         if token.text in COMMA_FUNCTIONS:
-            # F ( a , b ), one token per argument; LSH..RRO take an address first.
+            # The form is F ( a , b ), with one token for each argument. For LSH..RRO, a
+            # must be an address.
             first = ("addr",) if token.text in SHIFT else ("addr", "const")
             shape = tokens[i + 1 : i + 6]
             if not (
@@ -724,8 +764,8 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 )
             call_separators.add(i + 3)
         elif token.text in RANGE_FUNCTIONS:
-            # F ( a : b ), two addresses (SUM ( DS1 + DS2 )
-            # is refused).
+            # The form is F ( a : b ), where a and b are addresses. SUM ( DS1 + DS2 ) is
+            # refused.
             shape = [t.kind for t in tokens[i + 1 : i + 6]]
             if shape != ["(", "addr", ":", "addr", ")"]:
                 return _error(
@@ -736,7 +776,8 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 )
             call_separators.add(i + 3)
         elif token.text in TRIG:
-            # A ',' or ':' inside a trig call must be matched by a SUM.
+            # Inside a trig call, there must be as many SUMs as ',' and ':' together. Each
+            # SUM accounts for the ':' of its range.
             body = tokens[i + 1 : _closing(tokens, i + 1) + 1]
             balance = sum(t.kind in (",", ":") for t in body) - sum(t.text == "SUM" for t in body)
             if balance:
@@ -772,21 +813,22 @@ def _range_position(bank: str, number: str) -> int:
 
 
 def _rand_calls(tokens: Sequence[Token]) -> list[int]:
-    """Where each ``RAND`` stands; its bounds are 2 and 4 tokens after it.
+    """Return the index of each ``RAND`` in ``tokens``. Its bounds are 2 and 4 tokens after it.
 
-    Only for tokens whose order passed :func:`_check_order`, which gives each RAND the
-    shape ``RAND ( a , b )``.
+    Call this only on tokens that passed :func:`_check_order`. That check makes sure that
+    each RAND has the form ``RAND ( a , b )``.
     """
     return [i for i, t in enumerate(tokens) if t.kind == "func" and t.text == "RAND"]
 
 
 def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
-    """Each RAND bound is not a real constant, and its two bounds differ (OBJ-1001).
+    """Return a refusal (OBJ-1001) for each RAND bound that is a real constant, and for each
+    RAND whose two bounds are equal.
 
-    The bounds are equal when they are the same text in display form (``RAND ( 1h , 01h )``
-    is ``RAND ( 1h , 1h )``); ``RAND ( 1 , +1 )`` is taken.  A bound refused while it was
-    read is not checked again.  The banks of a bound are checked with the other addresses
-    (:func:`_check_operands`).
+    Two bounds are equal when their display forms are the same text. ``RAND ( 1h , 01h )``
+    displays as ``RAND ( 1h , 1h )``, so it is refused. ``RAND ( 1 , +1 )`` is accepted. A
+    bound that was refused when it was read is not checked again. :func:`_check_operands`
+    checks the banks of a bound, along with the other addresses.
     """
     rule = _OPERANDS[mode].rand_rule
     found: list[FieldError] = []
@@ -812,20 +854,25 @@ def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
 
 
 def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
-    """A range stays in one bank and runs low : high; each address is in a bank its mode takes.
+    """Return the refusals of the ranges and of the address banks in ``tokens``.
 
-    :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, the
-    bits it takes only as the range of ``SUM ( a : b )``, and the registers a bound of
-    ``RAND ( a , b )`` takes.  An address of any other bank is refused with OBJ-1002.  An X
-    or Y range with an end in the option slot is refused too (:func:`_check_xy_range`).  One
-    refusal for each address refused outside a SUM, one for each SUM refused, and at most one
-    for each range.  An address refused while it was read (``DS0``) is not checked again; a
-    range with an end refused for its bank is still checked for its banks, its order and a
-    median's size, but not for its option-slot ends.
+    A range must stay in one bank and run from low to high. Each address must be in a bank
+    that the mode accepts. :data:`_OPERANDS` lists the banks of each mode: the registers it
+    accepts anywhere, the bits it accepts only as the range of ``SUM ( a : b )``, and the
+    registers it accepts as a bound of ``RAND ( a , b )``. An address in any other bank is
+    refused with OBJ-1002. An X or Y range with an end in the option slot is refused too
+    (:func:`_check_xy_range`).
 
-    CLICK refuses a range's banks (OBJ-1015) and its order (OBJ-1014) before the bank of an
-    address (OBJ-1002): ``SUM ( DH2 : DH1 )`` in a decimal Math is OBJ-1014.  So those come
-    first, then the banks, then a median's size and the option-slot ends.
+    There is one refusal for each address refused outside a SUM, one for each SUM refused,
+    and at most one for each range. An address refused when it was read (``DS0``) is not
+    checked again. If an end of a range is refused for its bank, the range is still checked
+    for its banks, its order and a median's size. It is not checked for ends in the option
+    slot.
+
+    CLICK checks a range's banks (OBJ-1015) and its order (OBJ-1014) before the bank of an
+    address (OBJ-1002). For example, it refuses ``SUM ( DH2 : DH1 )`` in a decimal Math with
+    OBJ-1014. So the refusals of a range's banks and order come first in the list. The bank
+    refusals come next, and then the refusals of a median's size and of option-slot ends.
     """
     in_banks, bank_refused = _check_banks(tokens, mode)
     shapes, sizes = _check_ranges(tokens, bank_refused)
@@ -833,15 +880,17 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
 
 
 def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], set[int]]:
-    """A refusal for each address in a bank its mode does not take, and where those stand.
+    """Return a refusal for each address in a bank that the mode does not accept, and the
+    indexes of those addresses.
 
-    One refusal for each address outside a SUM and one for each SUM; the set holds every
-    address refused for its bank, in a SUM or not.
+    An address outside a SUM gets a refusal of its own. A SUM gets one refusal, however many
+    of its ends are refused. The returned set holds the index of every address refused for
+    its bank, in a SUM or not. It leaves out a refused RAND bound.
     """
     operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
     found: list[FieldError] = []
-    sum_at: dict[int, int] = {}  # each end of a SUM range: where its SUM stands
+    sum_at: dict[int, int] = {}  # the index of each end of a SUM range -> index of its SUM
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
@@ -858,7 +907,8 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
                 continue
             rule = f"{token.text} is refused; {operands.rand_rule}"
             if bank in operands.anywhere:
-                # A register the rest of the formula takes: a Copy into the bound's bank works.
+                # The rest of the formula accepts this register, so the refusal tells you to
+                # copy it into a register that a bound accepts.
                 rule += f": copy {token.text} into {_RAND_COPY_INTO[mode]} register first"
             found.append(_error(rule, Reason.BANK, "OBJ-1002", code=Code.RANDOM_BOUND_TYPE))
             continue
@@ -879,11 +929,13 @@ def _check_banks(tokens: Sequence[Token], mode: str) -> tuple[list[FieldError], 
 def _check_ranges(
     tokens: Sequence[Token], bank_refused: set[int]
 ) -> tuple[list[FieldError], list[FieldError]]:
-    """The refusals of each ``a : b`` range: of its banks and order, and of its size and ends.
+    """Return the refusals of each ``a : b`` range, in two lists.
 
-    A range in two banks (OBJ-1015) or high to low (OBJ-1014) is not checked further.  A
-    median covers at most 1024 bytes (OBJ-1013), and an X or Y range whose ends are not
-    refused for their bank is checked for the option slot (:func:`_check_xy_range`).
+    The first list holds the refusals of ranges for their banks and order. The second holds
+    the refusals for a median's size and for ends in the option slot. A range in two banks
+    (OBJ-1015) or from high to low (OBJ-1014) is not checked further. A median covers at
+    most 1024 bytes (OBJ-1013). An X or Y range whose ends are not refused for their bank is
+    checked for the option slot (:func:`_check_xy_range`).
     """
     texts = [t.text for t in tokens]
     shapes: list[FieldError] = []
@@ -922,7 +974,8 @@ def _check_ranges(
                 )
             )
             continue
-        # Only a SUM gets here: a bit range anywhere else is refused already.
+        # Only a SUM accepts a bit range. A bit range anywhere else is already refused for
+        # its bank.
         if low[0] in _XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_range(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
@@ -931,11 +984,11 @@ def _check_ranges(
 
 
 def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldError | None:
-    """The refusal of an X/Y range with an end in the option slot, 21-36.
+    """Return the refusal of an X or Y range with an end in the option slot (21-36), or None.
 
     On a CPU with no I/O modules, CLICK stores the wrong points for such a range
-    (:func:`_xy_bound`), except for a range from the CPU slot to 21, a range of one point,
-    and a range of two points numbered one apart (X025 : X026), which are accepted.
+    (:func:`_xy_bound`). Three such ranges are accepted: a range from the CPU slot to 21, a
+    range of one point, and a range of two points numbered one apart (X025 : X026).
     """
     first, last = _OPTION_SLOT
     if not (first <= start <= last or first <= end <= last):
@@ -955,17 +1008,19 @@ def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldErro
 
 
 def _xy_points_between(low: int, high: int) -> list[int]:
-    """The numbers of the X/Y points of :data:`XY_SLOTS` strictly between ``low`` and ``high``."""
+    """Return the numbers of the X/Y points in :data:`XY_SLOTS` strictly between ``low``
+    and ``high``."""
     return [n for first, last in XY_SLOTS for n in range(first, last + 1) if low < n < high]
 
 
 def _xy_bound(number: int) -> int:
-    """The bound an X/Y range end sets on the point numbers its range lists.
+    """Return the number that an end of an X or Y range counts as when CLICK lists its points.
 
-    An end's own number, but an end in the option slot counts as numbered right after the
-    CPU slot (X021 is 17, X036 is 32).  So ``SUM ( X001 : X036 )`` lists the points
-    numbered 2 to 31, X002..X016 and X021..X031, and ``SUM ( X021 : X116 )`` lists X021
-    itself.  The rule is fitted for a C2-03CPU with no I/O modules.
+    An end counts as its own number, except an end in the option slot. That end counts as if
+    the option slot came right after the CPU slot, so X021 counts as 17 and X036 as 32. For
+    example, ``SUM ( X001 : X036 )`` lists the points numbered 2 to 31: X002..X016 and
+    X021..X031. ``SUM ( X021 : X116 )`` lists X021 itself, because X021 counts as 17. The
+    rule is fitted to a C2-03CPU with no I/O modules.
     """
     if _OPTION_SLOT[0] <= number <= _OPTION_SLOT[1]:
         return number - _OPTION_GAP
@@ -973,12 +1028,13 @@ def _xy_bound(number: int) -> int:
 
 
 def range_interiors(texts: Sequence[str]) -> list[str]:
-    """The addresses each ``A : B`` range of the display tokens lists, ranges in order.
+    """Return the addresses between the ends of each ``A : B`` range, one range after another.
 
-    CLICK lists them in the reserved slots (tag ``0x688C``): the endpoints are ordinary
-    operands, ``SUM ( DS201 : DS300 )`` stores DS202..DS299.  An X or Y range lists the
-    points of :data:`XY_SLOTS` whose number lies between the bounds of its ends
-    (:func:`_xy_bound`).
+    ``texts`` are the display tokens of a formula. CLICK stores these addresses in the
+    reserved slots (tag ``0x688C``), and stores the ends of each range as ordinary operands.
+    For example, ``SUM ( DS201 : DS300 )`` stores DS202..DS299 in the reserved slots. An X
+    or Y range lists the points of :data:`XY_SLOTS` whose numbers lie between the bounds of
+    its ends (:func:`_xy_bound`).
     """
     interiors: list[str] = []
     for i in range(1, len(texts) - 1):
@@ -1008,7 +1064,11 @@ def range_interiors(texts: Sequence[str]) -> list[str]:
 
 @dataclass(frozen=True)
 class Formula:
-    """A parsed Math formula; each property prints one of the forms a Math blob stores."""
+    """A parsed Math formula.
+
+    Its properties and :meth:`internal` return the forms of the formula that a Math blob
+    stores, and the addresses in it.
+    """
 
     tokens: tuple[Token, ...]
 
@@ -1024,12 +1084,15 @@ class Formula:
 
     @property
     def nickname_display(self) -> str:
-        """The display formula in nickname view: an address with no nickname is ``<?ADDR>``."""
+        """The display formula as nickname view shows it when no address has a nickname.
+
+        Each address is written ``<?ADDR>``."""
         return " ".join(f"<?{t.text}>" if t.kind == "addr" else t.text for t in self.tokens)
 
     @property
     def operands(self) -> list[str]:
-        """Each address, in order, duplicates kept: one operand slot each."""
+        """Each address in the formula, in order and with duplicates. Each fills one operand
+        slot."""
         return [t.text for t in self.tokens if t.kind == "addr"]
 
     @property
@@ -1037,13 +1100,15 @@ class Formula:
         return range_interiors([t.text for t in self.tokens])
 
     def internal(self, *, template: bool = False) -> str:
-        """The ``#`` form: the internal formula (tag 0x61FD) or template (tag 0x6229).
+        """Return the internal formula (tag 0x61FD), or the internal template (tag 0x6229) if
+        ``template`` is True.
 
         Each token is written in its internal form (``200`` is ``H200``, ``Ah`` is
-        ``UH10``) and the tokens are joined with ``#``.  ``F ( a , b )`` is written
-        ``a#F#b`` and leaves an empty slot for its ``( , )``; a ``#`` follows each token
-        but the last slot, so a formula that ends with one keeps a trailing ``#``
-        (``RAND ( 1 , 100 )`` is ``H1#RAND#H100#``).
+        ``UH10``), and the tokens are joined with ``#``. ``F ( a , b )`` is written
+        ``a#F#b``, followed by an empty slot that stands for its ``( , )``. An empty slot
+        writes nothing. A ``#`` follows each token, unless the token is in the last slot.
+        So if a formula ends with such a call, the empty slot is last, and the result ends
+        with ``#``: ``RAND ( 1 , 100 )`` is ``H1#RAND#H100#``.
         """
 
         def form(token: Token) -> str:
@@ -1070,19 +1135,22 @@ class Formula:
 
 
 def parse(text: str, mode: str) -> Formula:
-    """Read a Math formula as CLICK's Math dialog does; raise :class:`FieldError` if it refuses.
+    """Parse a Math formula as CLICK's Math dialog reads it, and return the :class:`Formula`.
 
-    ``mode`` is ``"decimal"`` or ``"hex"``.  The error raised is the first refusal; its
-    :attr:`~FieldError.errors` holds every refusal found (see the module docstring for
-    where the reading stops).
+    ``mode`` is ``"decimal"`` or ``"hex"``. If the dialog would refuse the formula, raise
+    :class:`FieldError`. The error is the first refusal found, and its
+    :attr:`~FieldError.errors` holds every refusal found. The module docstring says which
+    refusals stop the parse.
     """
     raws = _lex(text)
     if not raws:
-        # A Math blob with no formula decodes as raw(), so none is encoded.
+        # A Math blob with no formula decodes as raw(), so laddercodec never encodes a Math
+        # with no formula.
         raise _error("is blank; a Math needs a formula", Reason.MISSING, code=Code.BLANK_FIELD)
     for raw in raws:
         if raw.symbol and raw.text in ("[", "]"):
-            # A pointer such as DS[DS1]: refused before its bank name reads as a word.
+            # Refuse a pointer such as DS[DS1] here, before its bank name is refused as a
+            # word.
             raise _error(
                 f"{raw.text!r} is part of a pointer; Math takes no pointer",
                 Reason.POINTER,
@@ -1110,7 +1178,8 @@ def parse(text: str, mode: str) -> Formula:
                 found.append(internal)
                 tokens[k] = Token("const", t.text, refused=True)
             elif internal.startswith("F"):
-                # A real is stored as CLICK prints it back, in both forms (1.50 is F1.5).
+                # Store a real as CLICK prints it back, in both the display and the internal
+                # form (1.50 becomes 1.5 and F1.5).
                 printed = real_display(t.text)
                 tokens[k] = Token("const", printed, f"F{printed}")
             else:
@@ -1124,10 +1193,11 @@ def parse(text: str, mode: str) -> Formula:
     found += _check_rand(tokens, mode)
     found += _check_operands(tokens, mode)
     formula = Formula(tuple(tokens))
-    # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At
-    # 270 characters it holds at most 68 operands, so the 500 operand slots never overflow.
-    # A refused constant, or a word that looks like no token, has no internal form to count;
-    # a refused address is still an @ and a refused name its own text.
+    # The length limit applies to CLICK's internal template, which the blob stores in tag
+    # 0x6229. A template of 270 characters holds at most 68 operands, so the 500 operand
+    # slots never overflow. A refused constant, or a word that looks like no token, has no
+    # internal form to count. A refused address still counts as an @, and a refused name as
+    # its own text.
     uncounted = any(t.refused and t.kind in ("const", "word") for t in tokens)
     if not uncounted and (length := len(formula.internal(template=True))) > MAX_INTERNAL_LENGTH:
         found.append(

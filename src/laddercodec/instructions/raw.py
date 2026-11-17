@@ -1,25 +1,31 @@
-"""Raw — opaque instruction passthrough for unrecognised class names.
+"""Raw: an AF instruction that laddercodec keeps as bytes.
 
-Preserves the full instruction blob (from cell offset +0x25 to before
-the tail) as hex.  The encoder reconstructs header and tail from grid
-context; the blob is pasted verbatim.
+The decoders return one for a class name that no family recognises.  They also return one
+for a box that its family cannot read, and for a box whose cell stores a row span other
+than the span the decoded box would have.
+
+``RawInstruction`` keeps the whole instruction blob, from cell offset +0x25 up to
+the tail.  The encoder builds the cell header and the tail from the position of
+the box in the grid, and writes the blob unchanged.
 
 CSV token format (decoded fields)::
 
-    raw(ClassName,0xTTTT,N,tag=val,tag=val,...,tag[250]=,...)
+    raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,tag=val,tag=val,...,tag[250]=,...)
 
 Where:
 - ``0xTTTT`` is the type marker (hex).
 - ``N`` is the part count (1 for single-row, 2+ for multi-row).
-- ``tag=val`` is a standard-sentinel (FFFFFFFF) tagged field.
+- ``rows=R`` and ``sub=S`` are the cell's row span and sub-rows.  ``pins=P``
+  appears only for a box of 2 or more parts.  See :meth:`RawInstruction.from_csv_token`.
+- ``tag=val`` is a tagged field with the standard sentinel (FFFFFFFF).
 - ``tag[N]=`` is an array run: N entries with sequential index sentinels,
   all empty.
-- ``tag:SSSSSSSS=val`` is a variant-sentinel tagged field (explicit
-  sentinel hex).
+- ``tag:SSSSSSSS=val`` is a tagged field with a variant sentinel, given in hex.
 
-Legacy hex format is still accepted on read::
+When the decoded-fields form cannot hold a blob, the token holds the blob as hex.
+The reader accepts this form too::
 
-    raw(ClassName,hex_blob)
+    raw(ClassName,hex_blob,rows=R,sub=S)
 """
 
 from __future__ import annotations
@@ -52,9 +58,10 @@ _STANDARD_SENTINEL = b"\xff\xff\xff\xff"
 
 
 def _read_utf16le_boundary(raw: bytes, offset: int) -> tuple[str, int]:
-    """Read a null-terminated UTF-16LE string, return (string, pos_after_null).
+    """Read a null-terminated UTF-16LE string that starts at *offset* in *raw*.
 
-    Raises ``ValueError`` if the string is unterminated within *raw*.
+    Return ``(string, pos_after_null)``.  Raise ``ValueError`` if the string has no
+    terminator within *raw*.
     """
     i = offset
     while i + 1 < len(raw):
@@ -149,17 +156,18 @@ def _fields_to_tag_dicts(
     dict[int, dict[int, int]],
     dict[int, dict[int, str]],
 ]:
-    """Convert verbose tagged-field list to SCR-style tag dicts.
+    """Convert a verbose tagged-field list to the tag dicts that the program-file decoder builds.
 
-    Normalises clipboard conventions to match the SCR representation:
+    A program file (``Scr*.tmp``) writes some values differently from the clipboard.
+    This function converts the clipboard's values to the program file's:
 
     * **Flag tags** (``0x11xx``/``0x12xx``): clipboard value ``"-1"``
       or ``"1"`` → present in *tags*; ``"0"`` → absent.  An empty value is
-      present too: CLICK writes ``"-1"``, ``"1"`` or ``"0"``, and a blob
-      composed from a program file's tags writes a set flag as the empty
-      value the program file holds.
-    * **Value tags** (byte, u16, string): their string value in *tags*;
-      read them through ``binary_helpers.tag_value`` / ``tag_int``.
+      present too.  CLICK writes ``"-1"``, ``"1"`` or ``"0"``, but a blob
+      composed from the tags of a program file writes a set flag as an empty
+      value, as the program file does.
+    * **Value tags** (byte, u16, string) keep their string value in *tags*.
+      Read them with ``binary_helpers.tag_value`` or ``tag_int``.
     * **Variant-sentinel fields**: ``0x3Axx`` → *variant_u16_tags*,
       ``0x68xx`` → *variant_string_tags*.
 
@@ -174,7 +182,7 @@ def _fields_to_tag_dicts(
             if _tag_wire_type(tag) == "flag":
                 if value in ("-1", "1", ""):
                     tags[tag] = ""
-                # "0" → absent (disabled)
+                # A "0" flag is off, and is left out of tags.
             else:
                 tags[tag] = value
         else:
@@ -272,7 +280,10 @@ _FIELD_SPEC_RE = re.compile(
 
 
 def _token_error(message: str) -> FieldError:
-    """A raw token that does not follow the token syntax: no field, the reason form."""
+    """Return the error for a raw token that does not follow the token syntax.
+
+    The ``FieldError`` names no field, and its reason is ``Reason.FORM``.
+    """
     return FieldError(message, field=None, reason=Reason.FORM, code=Code.INVALID_TOKEN)
 
 
@@ -334,37 +345,43 @@ def _split_raw_args(text: str) -> list[str]:
 
 @dataclass
 class RawInstruction(AfInstruction):
-    """Opaque AF instruction — blob preserved for byte-exact round-trip.
+    """An AF instruction kept as its blob, so that it is written back byte for byte.
 
     Attributes
     ----------
     class_name:
-        Binary class name (e.g. ``"Copy"``, ``"Cnt"``).  Extracted from
-        the blob for CSV readability; also present inside *blob*.
+        The class name in the blob, such as ``"Copy"`` or ``"Cnt"``.  The
+        CSV token shows it so that a person can read it.  It is also inside
+        *blob*.
     blob:
         Full instruction blob bytes (from cell offset +0x25 to the end
         of tagged fields, excluding tail).
     part_count:
-        Number of parts (1 = single-row, >1 = multi-row).  Derived from
-        the blob during construction.
+        The number of parts: 1 for a single-row box, more for a multi-row
+        box.  The clipboard decoder reads it from the blob.  So does the CSV
+        reader for the hex form of the token, which uses 1 if the blob does
+        not parse.  The program file decoder counts the part rows of the
+        entry, and the CSV reader takes it from the decoded-fields form of
+        the token.  Each of those two builds the blob with that count.
     rows, sub:
-        The box's cell header row bytes: ``rows`` is the row span
-        (+0x09), ``sub`` the sub-rows (+0x0A).  The decoders keep the
-        native cell's bytes, and leave a typed box raw when its stored row
-        span is not its class's.  ``None`` takes the height from the class:
-        the typed family's height when its blob alone gives it (Copy family,
-        Search, Send, Receive, Out variants, and 3 rows for Email, Home,
-        Position and Velocity), otherwise one row below its last part's
-        row (the blob's extra part bytes; 1 row for a 1-part box).  Boxes the
-        editor creates may store other sub-rows (Math ``01 03``, some
-        Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``); for
-        those classes CLICK keeps the height laddercodec writes.  With
-        ``rows`` set and ``sub`` None, the sub-rows equal the row
-        span.  The CSV token holds the two bytes the box encodes
-        (``rows=``, ``sub=``) and, for a box of 2 or more parts, the extra
-        part bytes (``pins=``).  Two boxes are equal when they encode the
-        same bytes: a box with ``None`` equals one that states its class's
-        height.
+        The row bytes of the box's cell header.  ``rows`` is the row span
+        (+0x09), and ``sub`` is the sub-rows (+0x0A).  The decoders keep the
+        bytes of the cell that CLICK wrote.  They leave a typed box raw when
+        its stored row span is not the row span of its class.  ``None`` takes
+        the height from the class.  If the blob alone gives the height of the
+        typed family, the box takes that height: the Copy family, Search,
+        Send, Receive, Out variants, and 3 rows for Email, Home, Position and
+        Velocity.  Otherwise the box ends one row below the row of its last
+        part, as the extra part bytes of the blob give it.  A 1-part box is 1
+        row.  Boxes made in CLICK's editor may store other sub-rows: Math
+        ``01 03``, some Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR
+        ``03 02``.  For those classes CLICK keeps the height that laddercodec
+        writes.  If ``rows`` is set and ``sub`` is None, the sub-rows equal
+        the row span.  The CSV token holds the two bytes that the box encodes
+        (``rows=``, ``sub=``).  For a box of 2 or more parts, it also holds
+        the extra part bytes (``pins=``).  Two boxes are equal when they
+        encode the same bytes, even if one has ``None`` and the other states
+        the height of its class.
     """
 
     class_name: str
@@ -384,13 +401,15 @@ class RawInstruction(AfInstruction):
         )
 
     def _cell_rows(self) -> tuple[int, int]:
-        """The row span (+0x09) and sub-rows (+0x0A) this box encodes."""
+        """Return the row span (+0x09) and sub-rows (+0x0A) that this box encodes."""
         params = self.cell_params()
         span = int(params.get("visual_rows", 1))
         return span, int(params.get("sub_rows", span))
 
     def __post_init__(self) -> None:
-        # A decoded blob gives any class name and a 16-bit part count; check only the types.
+        # A decoded blob can hold any class name and any 16-bit part count.  The checks here
+        # refuse a value of the wrong type, a part count outside 0 to 65535, and a row span or
+        # sub-rows outside 1 to 255.
         with Refusals(self) as check:
             if not isinstance(self.class_name, str):
                 check.refuse(
@@ -445,11 +464,12 @@ class RawInstruction(AfInstruction):
         return {"visual_rows": span} if sub == span else {"visual_rows": span, "sub_rows": sub}
 
     def _class_cell_params(self) -> dict:
-        """Height of a box of this class with no native cell header.
+        """Return the cell kwargs for the height of this box's class, used when ``rows`` is None.
 
-        The first family whose ``cell_params_from_tags`` knows the blob gives it; any
-        other box (the pinned families among them) ends one row below its last
-        part's row, or spans ``part_count`` rows when its part bytes are no pin rows.
+        The first family whose ``cell_params_from_tags`` hook recognises the blob gives
+        the height.  Any other box, the boxes of the pinned families among them, ends one
+        row below the row of its last part.  If its part bytes are not valid pin rows, or
+        the blob does not parse, the box spans ``part_count`` rows.
         """
         from . import AF_FAMILY_SPECS  # the registry imports this module
 
@@ -467,10 +487,11 @@ class RawInstruction(AfInstruction):
         return {"visual_rows": self.part_count} if self.part_count > 1 else {}
 
     def part_rows(self) -> tuple[int, ...]:
-        """Each later part's row below the main row: the blob's part bytes.
+        """Return the row of each later part, counted from the main row.
 
-        Empty for a 1-part box, and when the part bytes are not one ascending row from 1
-        to 31 per later part.
+        These rows are the part bytes of the blob.  Return an empty tuple for a 1-part box,
+        when the blob does not parse, and when the part bytes are not one ascending row
+        from 1 to 31 for each later part.
         """
         try:
             _cn, _tm, pc, eb, _fields = _decompose_blob(self.blob)
@@ -483,13 +504,18 @@ class RawInstruction(AfInstruction):
         return self.blob
 
     def to_csv(self) -> str:
-        """Serialize to decoded-fields ``raw(ClassName,0xTTTT,N,rows=R,sub=S,...)`` token.
+        """Return the decoded-fields token ``raw(ClassName,0xTTTT,N,rows=R,sub=S,...)``.
 
-        ``rows`` and ``sub`` are the cell bytes the box encodes (+0x09, +0x0A); a box of
-        2 or more parts adds ``pins=``, its extra part bytes.  Falls back to the legacy
-        hex format, with ``rows`` and ``sub``, if decomposition fails, or if the part
-        bytes are no ascending rows 1 to 31 or the span is not the last one + 1, or if
-        the fields text does not read back as this box (a field value the token can't carry).
+        ``rows`` and ``sub`` are the cell bytes that the box encodes (+0x09, +0x0A).  A
+        box of 2 or more parts adds ``pins=``, its extra part bytes.
+
+        The method returns the hex form, with ``rows`` and ``sub``, in these cases:
+
+        - The blob does not parse into fields.
+        - The part bytes are not ascending rows from 1 to 31, or the row span is not one
+          more than the last of them.
+        - The decoded-fields token does not read back as this box, because it can't hold
+          one of the field values.
         """
         params = self.cell_params()
         rows = cell_rows_spec(params)
@@ -500,22 +526,23 @@ class RawInstruction(AfInstruction):
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
         pins = _pins_spec(eb, pc)
         if pins is None or (eb and params.get("visual_rows", 1) != eb[-1] + 1):
-            # Part bytes or a height the fields form refuses: the hex keeps them.
+            # The fields form can't state these part bytes or this height.  The hex keeps them.
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
         parts = [cn, f"0x{tm:04x}", str(pc), rows, *([pins] if pins else []), *specs]
         token = f"raw({','.join(parts)})"
         if not self._reads_back(token):
-            # A field value the token can't carry: the hex keeps it.
+            # The fields form can't hold one of the field values.  The hex keeps it.
             return f"raw({self.class_name},{self.blob.hex()},{rows})"
         return token
 
     def _reads_back(self, token: str) -> bool:
-        """Whether *token* reads back as this box, bytes and height."""
+        """Return True if *token* reads back as this box, with the same bytes and height."""
         from ..csv.ast import AfCall
         from ..csv.token_parser import parse_af_token  # the csv package imports this module
 
         try:
-            # The CSV reader's path: the token parser first, then the token it hands on.
+            # Read the token as the CSV reader does: parse it, then build the box from the
+            # token that the parser returns.
             node = parse_af_token(token)
             return isinstance(node, AfCall) and self.from_csv_token(node.to_token()) == self
         except ValueError:
@@ -523,21 +550,23 @@ class RawInstruction(AfInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> RawInstruction:
-        """Parse a raw CSV token (decoded-fields or legacy hex).
+        """Parse a raw CSV token in the decoded-fields form or the hex form.
 
         Decoded-fields format::
 
             raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,field_specs...)
 
-        Legacy hex format::
+        Hex format::
 
             raw(ClassName,hex_blob,rows=R,sub=S)
 
         ``rows`` (row span) and ``sub`` (sub-rows) come right after the part count, or
-        after the hex.  Each is optional: an absent one is ``rows`` or
-        ``sub`` None, which takes the class's height.  ``pins`` (fields format
-        only, 2 or more parts) is the extra part bytes joined by ``/``; without it they
-        are ``01 02 ...``.  A stated ``rows`` must be the last pin + 1.
+        right after the hex.  Each is optional, and an absent one is None.  If both are
+        absent, the box takes the height of its class.  If only ``sub`` is absent, the
+        sub-rows equal ``rows``.  ``pins`` is the extra part bytes joined by ``/``.  It is
+        allowed only in the decoded-fields form, for a box of 2 or more parts.  Without
+        it, the part bytes are ``01 02 ...``.  If ``rows`` is given, it must be one more
+        than the last pin.
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):
@@ -551,11 +580,11 @@ class RawInstruction(AfInstruction):
         class_name = inner[:first_comma].strip()
         rest = inner[first_comma + 1 :].strip()
 
-        # Detect format: decoded-fields (starts with 0x) vs legacy hex.
+        # After the class name, the decoded-fields form starts with 0x.  Anything else is hex.
         if rest.startswith("0x"):
             return cls._from_fields_token(class_name, rest)
 
-        # Legacy hex format.
+        # The hex form.
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
         rows, sub, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
         if pins is not None:
@@ -622,7 +651,7 @@ class RawInstruction(AfInstruction):
 def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int | None, list[str]]:
     """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
 
-    Returns ``(rows, sub, remaining parts)``; an absent field is None.
+    Returns ``(rows, sub, remaining parts)``.  An absent field is None.
     A ``pins=`` among the parts raises FieldError (see :func:`_take_box_rows`).
     """
     rows, sub, pins, rest = _take_box_rows(class_name, parts, raw_token=False)
@@ -641,12 +670,13 @@ def _take_box_rows(
 ) -> tuple[int | None, int | None, str | None, list[str]]:
     """Read the leading ``rows=``, ``sub=`` and ``pins=`` of a raw token's *parts*.
 
-    Returns ``(rows, sub, pins text, remaining parts)``; an absent
-    field is None.  A box spans at most a rung's rows; its sub-rows byte may
-    exceed its span (a native Drum stores ``04 05``).
+    Returns ``(rows, sub, pins text, remaining parts)``.  An absent field is None.
+    ``rows`` is at most the number of rows in a rung.  The sub-rows byte can be larger
+    than the row span, up to 255.  A Drum that CLICK made stores ``04 05``.
 
-    A refused ``rows=`` or ``sub=`` names the RawInstruction field only when the token is a
-    ``raw(...)`` token (*raw_token*); a typed class's token has no such field.
+    When *raw_token* is true, the token is a ``raw(...)`` token, and a refused ``rows=``
+    or ``sub=`` names the ``RawInstruction`` field.  The token of a typed class has no
+    such field, so then the refusal names no field.
     """
     from ..encode import MAX_ROWS
 
@@ -666,7 +696,8 @@ def _take_box_rows(
                         if raw_token
                         else None
                     ),
-                    # A refused number of a field is a range; any other text is no number.
+                    # In a raw token, a number out of range has reason RANGE.  Text that is
+                    # not a number, or any refusal in a typed class's token, has reason FORM.
                     reason=Reason.RANGE if raw_token and digits else Reason.FORM,
                     code=Code.INVALID_RAW if raw_token else Code.INVALID_TOKEN,
                 )
@@ -689,10 +720,11 @@ def _take_box_rows(
 
 
 def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
-    """The extra part bytes of a box of *part_count* parts, from a token's ``pins=``.
+    """Return the extra part bytes of a box of *part_count* parts, from a token's ``pins=``.
 
-    Each later part's row below the main row, ascending, 1 to 31 (a box ends inside
-    a rung).  Without ``pins=`` the parts sit on rows 1, 2, ...
+    Each byte is the row of a later part, counted from the main row.  The rows ascend
+    and run from 1 to 31, because a box ends inside a rung.  Without ``pins=``, the
+    parts sit on rows 1, 2, and so on.
     """
     want = max(0, part_count - 1)
     if text is None:
@@ -741,7 +773,10 @@ def _pin_rows(class_name: str, part_count: int, text: str | None) -> bytes:
 
 
 def _pins_spec(extra_bytes: bytes, part_count: int) -> str | None:
-    """The ``pins=`` field for *extra_bytes*, or None when a token can't state them."""
+    """Return the ``pins=`` field for *extra_bytes*, or None when a token can't state them.
+
+    Return an empty string for a box of fewer than 2 parts with no extra bytes.
+    """
     if part_count < 2:
         return None if extra_bytes else ""
     rows = list(extra_bytes)
@@ -784,11 +819,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> RawInstruction | None:
-    """Raw from_tags always returns None.
+    """Return None for every blob.
 
-    All previously-handled families (Email, Home, Velocity, Position)
-    now have their own modules.  Genuinely unrecognised class names
-    fall through to the caller's ``RawInstruction`` fallback.
+    The raw family recognises no class name.  For a class name that no family
+    recognises, the caller builds a ``RawInstruction`` itself.
     """
     return None
 

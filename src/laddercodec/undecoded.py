@@ -1,11 +1,12 @@
-"""Marker rungs: what the decoders and ``write_csv`` put in place of a rung they can't read.
+"""Marker rungs, which stand in for a rung that a decoder cannot decode or ``write_csv``
+cannot write.
 
-The unit is the rung, because its rows share wires.  A rung that fails becomes one marker
-rung (:func:`marker_rung`), and the decoder warns with :class:`UndecodedRungWarning`.  A
-comment that fails, on a rung whose logic decodes, is not a marker: the rung keeps its
-logic, its comment becomes :func:`comment_note` followed by the text
-:func:`recover_text` finds in the comment's bytes, and the decoder warns with
-:class:`UndecodedCommentWarning`.
+A marker always replaces a whole rung, because the rows of a rung share wires. If a rung
+fails, the decoder puts one marker rung (:func:`marker_rung`) in its place and warns with
+:class:`UndecodedRungWarning`. If only the comment fails and the rung's logic decodes, the
+rung keeps its logic and is not a marker. Its comment becomes :func:`comment_note`,
+followed by the text that :func:`recover_text` finds in the comment's bytes. The decoder
+then warns with :class:`UndecodedCommentWarning`.
 """
 
 from __future__ import annotations
@@ -25,14 +26,19 @@ if TYPE_CHECKING:
 
 
 class UndecodedRungWarning(UserWarning):
-    """A rung could not be decoded, and an undecoded marker stands in its place.
+    """Issued when an undecoded marker rung stands in place of a rung.
+
+    A decoder issues it for a rung that it cannot decode, and ``write_csv`` for a rung that
+    it cannot write.
 
     Attributes
     ----------
     marker:
-        The :class:`~laddercodec.instructions.Undecoded` marker: why, and where.
+        The :class:`~laddercodec.instructions.Undecoded` marker. It says where the rung is
+        and what went wrong.
     program:
-        Program name for :func:`laddercodec.decode_program`, else ``None``.
+        The name of the program when the warning comes from
+        :func:`laddercodec.decode_program`, else ``None``.
     """
 
     def __reduce__(self):
@@ -49,12 +55,12 @@ class UndecodedRungWarning(UserWarning):
 
 
 class UndecodedCommentWarning(UserWarning):
-    """A rung's comment could not be decoded; the rung keeps its logic.
+    """Issued when a rung's comment cannot be decoded. The rung keeps its logic.
 
-    The rung's comment is ``UNDECODED comment: <error>``, then on a new line the plain text
-    that can be read out of the comment's bytes (nothing, when none can be; cut short and
-    ended with ``...`` when it would make the comment too long to encode).  Its
-    ``comment_rtf`` keeps the comment's bytes.  The rung is not a marker, so
+    The rung's comment becomes ``UNDECODED comment: <error>``. The next line holds the
+    plain text that can be read out of the comment's bytes, if there is any. If that text
+    would make the comment too long to encode, it is cut short and ends with ``...``. The
+    rung's ``comment_rtf`` keeps the comment's bytes. The rung is not a marker, so
     ``Program.undecoded`` does not list it.
 
     Attributes
@@ -64,7 +70,8 @@ class UndecodedCommentWarning(UserWarning):
     error:
         Why the comment could not be decoded, on one line.
     program:
-        Program name for :func:`laddercodec.decode_program`, else ``None``.
+        The name of the program when the warning comes from
+        :func:`laddercodec.decode_program`, else ``None``.
     """
 
     def __reduce__(self):
@@ -81,27 +88,32 @@ class UndecodedCommentWarning(UserWarning):
         )
 
 
-#: What a decoder catches as bytes it can't read: a malformed value, or a read past the end.
+#: The exceptions that a decoder catches as a sign of bytes it cannot read, such as a
+#: malformed value or a read past the end.
 BAD_BYTES: tuple[type[Exception], ...] = (ValueError, IndexError, KeyError, struct.error)
 
 
 def one_line(text: str) -> str:
-    """*text* with its line breaks as spaces, for :attr:`Undecoded.error`."""
+    """Return *text* on one line, each run of white space as one space, for
+    :attr:`Undecoded.error`."""
     return " ".join(text.split())
 
 
 def reason(exc: BaseException) -> str:
-    """The error an exception gives, on one line, for :attr:`Undecoded.error`."""
+    """Return the message of *exc* on one line, for :attr:`Undecoded.error`.
+
+    If the message is empty, return the name of the exception's type."""
     return one_line(str(exc)) or type(exc).__name__
 
 
 def to_the_end(error: str, rung: int) -> str:
-    """*error* for a marker that stands for rung *rung* and every rung after it."""
+    """Return *error* with a note that decoding stopped, for a marker that stands for rung
+    *rung* and every rung after it."""
     return f"{error}; decoding stopped, so this marker stands for rung {rung} to the end"
 
 
 def comment_note(error: str) -> str:
-    """The comment a rung gets in place of one that could not be decoded."""
+    """Return the note that starts the comment of a rung whose comment could not be decoded."""
     return f"UNDECODED comment: {error}"
 
 
@@ -150,7 +162,7 @@ _HEX_PAIR = re.compile(r"[0-9A-Fa-f]{2}")
 
 
 def _rtf_text(payload: bytes) -> str:
-    """The text runs of RTF *payload*, with no styling."""
+    """Return the text of RTF *payload*, with no styling."""
     encoding = "cp1252"
     match = _RTF_CODE_PAGE.search(payload)
     if match is not None:
@@ -239,29 +251,32 @@ def _rtf_text(payload: bytes) -> str:
 
 
 def recover_text(payload: bytes) -> str:
-    """The plain text that can be read out of the comment bytes *payload*.
+    """Return the plain text that can be read out of the comment bytes *payload*.
 
-    Best effort, and it never raises.  Control words, control symbols and destination
-    groups (the font and colour tables, ``\\*`` groups) are dropped; text runs are kept,
-    paragraph breaks become line breaks, and well-formed ``\\'hh`` and ``\\uN`` escapes are
-    read.  Non-ASCII characters are kept, as in a comment that decodes; ``encode()`` reduces
-    them to ASCII when it writes.  It is ``""`` when nothing is left.
+    The function makes a best effort and never raises. It drops control words, control
+    symbols and destination groups (the font and colour tables, ``\\*`` groups). It keeps
+    the text, turns paragraph breaks into line breaks, and reads well-formed ``\\'hh`` and
+    ``\\uN`` escapes. It keeps non-ASCII characters, as the decoder does for a comment that
+    decodes. ``encode()`` reduces them to ASCII when it writes. If no text is left, the
+    function returns ``""``.
     """
     try:
         text = _rtf_text(payload)
-    except Exception:  # best effort: whatever went wrong, there is no text to give
+    except Exception:  # whatever went wrong, return no text rather than raise
         return ""
     return "\n".join(line.rstrip() for line in text.strip().split("\n"))
 
 
 def recovered_comment(error: str, payload: bytes) -> str:
-    """:func:`comment_note` for *error*, then the text :func:`recover_text` finds in *payload*.
+    """Return :func:`comment_note` for *error*, then the text that :func:`recover_text` finds
+    in *payload*.
 
-    The text starts on its own line, so the note's error does not run into it.  It is cut,
-    and ended with ``...``, where the whole comment would be too long for ``encode()``,
-    which refuses an RTF body over ``COMMENT_MAX_BYTES`` bytes whatever the rung's rows.
-    The styling characters ``*`` and ``_`` in the text are not escaped, since the encoder
-    has no escape for them.
+    The text starts on its own line, so that the note's error does not run into it.
+    ``encode()`` refuses an RTF body over ``COMMENT_MAX_BYTES`` bytes, however many rows the
+    rung has. If the whole comment would be longer than that, the text is cut and ends with
+    ``...``. If the note alone is too long, its error is cut in the same way. The styling
+    characters ``*`` and ``_`` in the text are not escaped, because the encoder has no
+    escape for them.
     """
     from .encode import COMMENT_MAX_BYTES, _build_rtf_body
 
@@ -269,7 +284,9 @@ def recovered_comment(error: str, payload: bytes) -> str:
         return len(_build_rtf_body(comment).encode("cp1252"))
 
     def longest(fits: Callable[[int], bool], high: int) -> int:
-        """The largest k in 0..high for which *fits* holds, by bisection; 0 if none."""
+        """Return the largest k in 0..high for which *fits* is true, found by bisection.
+
+        Return 0 if there is none."""
         low = 0
         while low < high:
             mid = (low + high + 1) // 2
@@ -301,9 +318,11 @@ def recovered_comment(error: str, payload: bytes) -> str:
 
 
 def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
-    """Rung *rung*'s comment from *rtf*, or :func:`recovered_comment` when it can't be decoded.
+    """Return the comment of rung *rung*, decoded from *rtf*.
 
-    A failure is added to *failed* as ``(rung, error)`` for :func:`warn_comments`.
+    Return None if *rtf* is None. If *rtf* cannot be decoded, return
+    :func:`recovered_comment` and add ``(rung, error)`` to *failed* for
+    :func:`warn_comments`.
     """
     if rtf is None:
         return None
@@ -324,10 +343,11 @@ def warn_comments(failed: Iterable[tuple[int, str]], *, program: str | None = No
 
 
 def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:
-    """The one-row rung that stands for a rung that could not be decoded.
+    """Return the one-row rung that stands for a rung that could not be decoded.
 
-    Its comment is the marker's headline, then *comment* (the rung's own, when that
-    decoded).  Its one row is wired from the rail, unconditional, into the marker.
+    Its comment is the marker's headline, followed by *comment* if one is given. A caller
+    passes the rung's own comment when that comment decoded. The one row is a wire from
+    the rail straight into the marker, with no conditions.
     """
     from .decode import Rung
 
@@ -341,7 +361,7 @@ def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:
 
 
 def markers(rungs: Iterable[Rung]) -> list[Undecoded]:
-    """Every undecoded marker in *rungs*, in rung order."""
+    """Return every undecoded marker in *rungs*, in rung order."""
     return [af for rung in rungs for af in rung.instructions if isinstance(af, Undecoded)]
 
 

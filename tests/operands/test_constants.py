@@ -1,4 +1,4 @@
-"""classify(): each constant kind's accepted and refused forms."""
+"""The forms that classify() accepts and refuses for each kind of constant."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from laddercodec.operands.constants import (
 N, F, H, T, C = Kind.INTEGER, Kind.FLOAT, Kind.HEX, Kind.TEXT, Kind.CHAR
 
 ACCEPTED: list[tuple[str, Constant]] = [
-    # Decimal integers: int16, then int32 (wide).
+    # Decimal integers. A value outside int16 is int32, and classify() marks it wide.
     ("0", Constant(N, 0)),
     ("42", Constant(N, 42)),
     ("-0", Constant(N, 0)),
@@ -30,7 +30,7 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("-2147483648", Constant(N, -2147483648, wide=True)),
     ("+2147483647", Constant(N, 2147483647, wide=True)),
     ("0000000000002147483647", Constant(N, 2147483647, wide=True)),
-    # Floating point: a '.' or an exponent, either case.
+    # Floating point. A float has a '.' or an exponent, in either case.
     ("1.5", Constant(F, 1.5)),
     ("-1.5", Constant(F, -1.5)),
     (".5", Constant(F, 0.5)),
@@ -45,7 +45,8 @@ ACCEPTED: list[tuple[str, Constant]] = [
     # rounds to float32's largest finite value
     ("3.40282356E+38", Constant(F, 3.40282356e38)),
     ("-3.40282356E+38", Constant(F, -3.40282356e38)),
-    # Hex: 16-bit by value, 32-bit up to eight digits; either case of letter and h.
+    # Hex. A value up to FFFFh is 16-bit, however many zeros pad it. A larger value is
+    # 32-bit and has at most eight digits. Letters and the h may be in either case.
     ("0h", Constant(H, 0)),
     ("0H", Constant(H, 0)),
     ("0000h", Constant(H, 0)),
@@ -64,7 +65,7 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ("10000h", Constant(H, 0x10000, wide=True)),
     ("FFFFFFFFh", Constant(H, 0xFFFFFFFF, wide=True)),
     ("0001FFFFh", Constant(H, 0x1FFFF, wide=True)),
-    # Text: 1 to 128 characters between quotes, any character but the quote, as written.
+    # Text. Between the quotes are 1 to 128 characters, any but the quote, kept as written.
     ('"A"', Constant(T, "A")),
     ('"ab"', Constant(T, "ab")),
     ('" "', Constant(T, " ")),
@@ -72,12 +73,13 @@ ACCEPTED: list[tuple[str, Constant]] = [
     ('"$41"', Constant(T, "$41")),
     ('"~"', Constant(T, "~")),
     ('"' + "A" * TEXT_MAX + '"', Constant(T, "A" * TEXT_MAX)),
-    # The shared check takes non-ASCII and control characters; printable() is a field limit.
+    # classify() accepts non-ASCII and control characters. printable() is a separate check
+    # that a field can apply.
     ('"\u00e9"', Constant(T, "\u00e9")),
     ('"\t"', Constant(T, "\t")),
     ('"\x7f"', Constant(T, "\x7f")),
     ('"\u0663"', Constant(T, "\u0663")),
-    # Character codes: $ and two hex digits.
+    # Character codes are $ and two hex digits.
     ("$00", Constant(C, 0)),
     ("$41", Constant(C, 0x41)),
     ("$0d", Constant(C, 0x0D)),
@@ -86,21 +88,21 @@ ACCEPTED: list[tuple[str, Constant]] = [
 ]
 
 REFUSED: list[str] = [
-    # Empty and whitespace: nothing is trimmed.
+    # Empty text and whitespace. classify() trims nothing.
     "",
     " ",
     " 5",
     "5 ",
     "1 0",
     '"A" ',
-    # Addresses are no constants.
+    # Addresses are not constants.
     "DS1",
     "ds1",
     "X001",
     "TXT1",
     "XD0u",
     "DS[DS1]",
-    # Integers outside int32, and signs that don't lead.
+    # Integers outside int32, and a sign anywhere but at the start.
     "2147483648",
     "-2147483649",
     "3000000000",
@@ -110,7 +112,8 @@ REFUSED: list[str] = [
     "+-5",
     "+",
     "-",
-    # Hex: no sign, no 0x, at least one digit, at most eight digits above FFFFh.
+    # Hex. A hex constant has no sign and no 0x, and it has at least one digit. Above FFFFh
+    # it has at most eight digits.
     "+1h",
     "-1h",
     "0x10",
@@ -122,7 +125,8 @@ REFUSED: list[str] = [
     "0FFFFFFFFh",
     "1Gh",
     "FF h",
-    # Floating point: no comma, no bare exponent, nothing that is not finite.
+    # Floating point. A float has no comma, an exponent needs digits on both sides of the E,
+    # and the value must be finite.
     "1,5",
     "1,000",
     "E5",
@@ -134,7 +138,8 @@ REFUSED: list[str] = [
     "-inf",
     "1E999",
     "-1E999",
-    # above float32 (dialog); a value rounding to its largest passes
+    # Values above the float32 range, which CLICK's dialog refuses. A value that rounds to
+    # the largest float32 is accepted.
     "3.5E+38",
     "-3.5E+38",
     "3.4028236E+38",
@@ -143,7 +148,7 @@ REFUSED: list[str] = [
     "1_000",
     "1'000",
     "'A'",
-    # Text: empty, unterminated, a quote inside, too long.
+    # Text that is empty, unterminated, too long, has a quote inside, or has no quotes.
     '""',
     '"""',
     '"A',
@@ -162,7 +167,7 @@ REFUSED: list[str] = [
     "$4142",
     "$GG",
     "$-1",
-    # Unicode digits are no digits.
+    # classify() accepts only ASCII digits.
     "٣",
     "1٣",
     "٣h",
@@ -199,7 +204,7 @@ def test_kinds_are_strings() -> None:
     assert [str(k) for k in Kind] == ["integer", "float", "hex", "text", "char"]
 
 
-#: More leading zeros than int() converts (it refuses text over 4300 digits).
+#: More leading zeros than int() converts. int() refuses text of more than 4300 digits.
 ZEROS = "0" * 5000
 
 

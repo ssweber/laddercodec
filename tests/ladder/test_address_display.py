@@ -1,9 +1,9 @@
 """Every address an instruction holds is in CLICK's display form.
 
-CLICK normalizes an address as it is typed: C001 becomes C1, and X1 becomes X001 (dialog
-check).  laddercodec follows
-pyclickplc's display form: X and Y pad to 3 digits, every other bank is unpadded, the bank
-is uppercase, and XD0u keeps its lowercase ``u``.
+CLICK rewrites an address as you type it: C001 becomes C1, and X1 becomes X001. laddercodec
+writes the display form that pyclickplc uses. X and Y addresses have 3 digits, and the
+addresses of every other bank have no leading zeros. The bank is in uppercase, and XD0u
+keeps its lowercase ``u``.
 """
 
 from __future__ import annotations
@@ -69,7 +69,7 @@ class TestNormalizeAddress:
             ("CTD0250", "CTD250"),
             ("sd01", "SD1"),
             ("txt0001", "TXT1"),
-            # XD and YD: XD0, XD0u, XDn.
+            # The XD and YD banks hold XD0, XD0u and XDn, and n has no leading zero.
             ("XD0", "XD0"),
             ("XD00", "XD0"),
             ("xd0u", "XD0u"),
@@ -138,7 +138,8 @@ class TestNormalizeAddress:
             Copy(typed, "DS2")
 
     def test_two_spellings_of_one_address_quote_the_display_form(self) -> None:
-        # The message names two fields, so it cannot say which text was typed.
+        # The message is about two fields. If they were typed differently, it cannot quote
+        # one typed text, so it quotes the display form.
         with pytest.raises(FieldError, match=r"^Shift\.end_bit: 'C1' is the same address"):
             Shift("C1", "c001")
         with pytest.raises(FieldError, match=r"^Shift\.end_bit: 'c001' \(C1\) is the same"):
@@ -329,10 +330,11 @@ def _swap(data: bytes, old: str, new: str) -> bytes:
 
 
 class TestDecodeKeepsText:
-    """A blob whose text is not in display form stays raw; decoding never rewrites it.
+    """A blob whose text is not in display form does not parse, and decode keeps its bytes.
 
-    The fields CLICK saves as typed are read in display form instead
-    (``tests/test_typed_addresses.py``).
+    The parse functions return None for such a blob, and decode never rewrites the text. The
+    fields that CLICK saves as typed are read in display form instead, and
+    ``tests/test_typed_addresses.py`` tests them.
     """
 
     @pytest.mark.parametrize("text", ["X1", "x1", "x001"])
@@ -383,7 +385,7 @@ class TestDecodeKeepsText:
 
     @pytest.mark.parametrize(("index", "old", "new"), [(-3, "DS2", "ds2"), (-1, "X001", "x001")])
     def test_send_receive(self, tmp_path: Path, index: int, old: str, new: str) -> None:
-        # Send's Slave ID address; Receive's remote_start.
+        # The cases change Send's Slave ID address and Receive's remote_start.
         (rung,) = read_csv(_rung_csv(tmp_path / "r.csv", "X001", INSTRUCTIONS[index][1]))
         blob = rung.instructions[0].build_blob()
         assert parse_af_blob(blob) == rung.instructions[0]
@@ -407,7 +409,10 @@ _OPAQUE = ("raw(", "email(", "home(", "position(", "velocity(")
 
 
 def _loosen(cell: str) -> str:
-    """Write each address outside quotes in lowercase with a leading zero."""
+    """Return *cell* with each address outside quotes in lowercase with an extra leading zero.
+
+    A ``u`` suffix becomes ``U``. A cell that holds an opaque token comes back unchanged.
+    """
     if cell.startswith(_OPAQUE):
         return cell
 

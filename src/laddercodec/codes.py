@@ -17,8 +17,9 @@ class Code(StrEnum):
     """The name of the rule that a refusal, a finding or a layout error reports.
 
     Each member compares equal to its text: ``Code.NO_COIL == "no-coil"`` is true.  One code
-    can come with several CLICK ids, or with none.  The ``click_id`` beside the code says
-    which id CLICK gave.  The error codes page in the docs lists every code.
+    can come with several CLICK ids, or with none.  The ``click_id`` of the refusal, finding
+    or layout error says which id CLICK gave.  The error codes page in the docs lists every
+    code.
     """
 
     # Operand rules: these rules are the same in every instruction. ``field`` names the field.

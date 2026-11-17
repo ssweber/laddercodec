@@ -1,17 +1,19 @@
 """Odd field values give an outcome no worse than the recorded one.
 
-``devtools/field_sweep.py`` rebuilds every golden instruction with odd values in its fields
-and ``tests/fixtures/field_sweep/outcomes.json`` records, per rebuild, whether it was
-accepted (``a``), refused with ``FieldError`` (``F``) or ``AddressError`` (``A``), or failed
-with another exception (``X``), as the code gave it before any instruction collected its
-refusals (a golden added later is recorded from the code of its day).  Now each rebuild must give the same outcome, except that a crash may become a
-refusal: what was accepted stays accepted, what was refused stays refused with the same
-class, and a refusal never becomes a crash.
+``devtools/field_sweep.py`` rebuilds every golden instruction with odd values in its fields.
+``tests/fixtures/field_sweep/outcomes.json`` records one outcome for each rebuild. The rebuild
+was accepted (``a``), refused with ``FieldError`` (``F``) or ``AddressError`` (``A``), or
+failed with another exception (``X``). Each instruction's outcomes were recorded when it was
+added to the record, and they are not recorded again.
 
-The record is keyed by a digest of the instruction's class name and CSV text, which a field
-rename does not change: after a pure rename the keys are the same and, if the field order and
-types are unchanged, so are the outcome strings.  The record changes only with the golden set:
-``make field-sweep``.
+Each rebuild must give its recorded outcome, with one exception: a crash may become a
+refusal. A rebuild that was accepted must still be accepted. A rebuild that was refused must
+still be refused with the same exception class. A refusal must never become a crash.
+
+The record is keyed by a digest of the instruction's class name and its CSV text. Renaming a
+field changes neither, so the keys stay the same. If the fields also keep their order and
+types, the outcome strings stay the same too. Only a change to the set of golden
+instructions changes the record. ``make field-sweep`` applies that change.
 """
 
 from __future__ import annotations
@@ -38,7 +40,10 @@ SWEEP = _sweep()
 
 
 def allowed(recorded: str, now: str) -> bool:
-    """Whether outcome ``now`` may follow ``recorded``: the same, or a crash become a refusal."""
+    """Return whether outcome ``now`` may replace the outcome ``recorded``.
+
+    It may if the two are the same, or if a crash (``X``) became a refusal (``F`` or ``A``).
+    """
     return recorded == now or (recorded == "X" and now in "FA")
 
 

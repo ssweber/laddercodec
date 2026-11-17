@@ -1,8 +1,11 @@
-"""Undecoded markers: a rung the decoders can't read becomes one marker rung, not an error.
+"""Tests of undecoded markers.
 
-The buffers here are encoded from goldens and then corrupted, so no test needs a capture of
-its own.  A buffer the decoders can't read at all (its magic, size or SCR header) still
-raises.
+When a decoder cannot read a rung, it returns one marker rung in its place and warns. It
+does not raise. A buffer that the decoders cannot read at all still raises. Such a buffer
+has a bad magic, size or SCR header.
+
+Most buffers here are golden fixtures that were encoded and then damaged, so most tests
+need no capture of their own.
 """
 
 from __future__ import annotations
@@ -59,12 +62,12 @@ RUNGS = [
     replace(_decoded("instr-3row-branch.bin"), comment="third"),
 ]
 DATA = encode(RUNGS)
-#: The rungs as decode() gives them back: with each comment's RTF.
+#: The rungs as decode() returns them, each with the RTF of its comment.
 DECODED = decode(DATA)
 
 
 def _decode(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
-    """Decode a multi-rung buffer; return its rungs and the markers its warnings carry."""
+    """Decode a multi-rung buffer. Return its rungs and the marker of each UndecodedRungWarning."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         rungs = decode(data)
@@ -72,7 +75,10 @@ def _decode(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
 
 
 def _only_marker(rungs: list[Rung], index: int) -> Undecoded:
-    """The marker at rung *index*, after checking every other rung decodes as encoded."""
+    """Check that rung *index* is a marker rung and that every other rung decodes as encoded.
+
+    Return the marker.
+    """
     assert len(rungs) == len(RUNGS)
     for i, rung in enumerate(rungs):
         if i != index:
@@ -83,7 +89,9 @@ def _only_marker(rungs: list[Rung], index: int) -> Undecoded:
     assert rung.logical_rows == 1
     assert rung.conditions == [["-"] * 31]
     assert marker.rung == index
-    assert marker.stop == "end"  # decode() has no program: the marker acts as end()
+    # decode() does not know whether the rungs come from a subroutine, so the marker acts as
+    # end().
+    assert marker.stop == "end"
     return marker
 
 
@@ -113,7 +121,7 @@ def test_down_wire_in_the_output_column(index: int) -> None:
     assert markers == [marker]
     assert (marker.row, marker.column) == (0, 31)
     assert marker.error.startswith("the output column has a down wire")
-    # The marker's comment leads with its headline, then the rung's own comment.
+    # The marker rung's comment is the marker's headline, then the rung's own comment.
     assert rungs[index].comment == f"{marker.headline}\n{RUNGS[index].comment}"
 
 
@@ -129,7 +137,8 @@ def test_unknown_wire_flags_name_the_cell(index: int) -> None:
 
 
 def _instruction_cell(rung: Rung) -> tuple[int, int]:
-    """The first condition instruction in *rung* that has a condition cell after it."""
+    """Return the (row, column) of the first condition instruction in *rung* that has a
+    condition cell after it."""
     return next(
         (row, column)
         for row, tokens in enumerate(rung.conditions)
@@ -139,7 +148,10 @@ def _instruction_cell(rung: Rung) -> tuple[int, int]:
 
 
 def _rungs_and_markers(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
-    """Decode *data* (one rung or several); return its rungs and its warnings' markers."""
+    """Decode *data*, which holds one rung or several.
+
+    Return its rungs and the marker of each UndecodedRungWarning.
+    """
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         rungs = decode(data)
@@ -147,7 +159,10 @@ def _rungs_and_markers(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
 
 
 def _stopped_at(rungs: list[Rung], markers: list[Undecoded], index: int) -> Undecoded:
-    """The one marker, at rung *index*: decoding stopped there, so no rung comes after it."""
+    """Check that decoding stopped at rung *index*, and return the marker there.
+
+    That marker must be the only one, and no rung may come after it.
+    """
     assert len(rungs) == index + 1
     (marker,) = rungs[index].instructions
     assert isinstance(marker, Undecoded)
@@ -159,9 +174,10 @@ def _stopped_at(rungs: list[Rung], markers: list[Undecoded], index: int) -> Unde
 
 @pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
 def test_a_row_the_walk_cannot_read_stops_decoding(index: int) -> None:
-    """With the cell after an instruction unfindable, where the next row starts is unknown.
+    """Decoding stops when the decoder cannot find the cell after an instruction.
 
-    The rungs before decode, and one marker stands for that rung and every rung after it.
+    Without that cell, the decoder cannot tell where the next row starts. The rungs before
+    that rung decode, and one marker stands for that rung and every rung after it.
     """
     row, column = _instruction_cell(RUNGS[index])
     rungs, markers = _rungs_and_markers(_patched((_cell(index, row, column + 1) + 0x01, b"\x7f")))
@@ -172,7 +188,11 @@ def test_a_row_the_walk_cannot_read_stops_decoding(index: int) -> None:
 
 
 def test_a_lost_first_rung_is_one_marker_from_every_decoder() -> None:
-    """The walk stops before any preamble row, so it can't tell one rung from several."""
+    """decode, decode_rung and decode_rungs each return one marker rung for a lost first rung.
+
+    The decoder's walk of the grid stops before it reaches any preamble row, so it cannot
+    tell whether the buffer holds one rung or several.
+    """
     row, column = _instruction_cell(RUNGS[0])
     data = _patched((_cell(0, row, column + 1) + 0x01, b"\x7f"))
     with pytest.warns(UndecodedRungWarning):
@@ -187,13 +207,13 @@ def test_a_lost_first_rung_is_one_marker_from_every_decoder() -> None:
     assert (marker.rung, marker.row) == (0, row)
 
 
-#: A native copy of four one-row rungs from the middle of a program: its rows are numbered
-#: from 0x24, not from the encoder's 0x01.
+#: Four one-row rungs that CLICK copied from the middle of a program. Their rows are numbered
+#: from 0x24. The encoder numbers rows from 0x01.
 LOOP_EXITS = FIXTURES / "v4_captures" / "loop_exits.bin"
 
 
 def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
-    """Rung 1 of 4 fails: rung 0 decodes, and one marker stands for rungs 1 to 3."""
+    """When rung 1 of 4 cannot be read, rung 0 decodes and one marker stands for rungs 1 to 3."""
     data = LOOP_EXITS.read_bytes()
     want = decode(data)
     assert len(want) == 4
@@ -209,11 +229,12 @@ def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
 
 
 def test_a_rung_with_no_data_rows_stops_decoding() -> None:
-    """A data row with the preamble flag (+0x30) set where cells 0 and 1 of a preamble row
-    with no comment would hold it reads as a preamble row.
+    """Decoding stops at a rung that has no data rows.
 
-    The rung before it then has no data rows: one marker stands for it and every rung
-    after it, and no later rung comes back under its index.
+    The test sets the preamble flag (+0x30) on cells 0 and 1 of rung 1's first data row,
+    at the places where a preamble row with no comment holds it. That row then reads as a
+    preamble row, so rung 1 has no data rows. One marker stands for rung 1 and every rung
+    after it, and decode returns no rung after the marker.
     """
     row0 = _cell(1, 0, 0)
     rungs, markers = _rungs_and_markers(
@@ -227,10 +248,11 @@ def test_a_rung_with_no_data_rows_stops_decoding() -> None:
 
 @pytest.mark.parametrize("row", [0, 1, 2], ids=["first", "middle", "last"])
 def test_a_preamble_flag_on_cell_0_only_stops_decoding(row: int) -> None:
-    """A data row of rung 1 with the preamble flag on its cell 0 only is not a preamble row.
+    """A data row of rung 1 with the preamble flag on cell 0 only is not a preamble row.
 
-    Its cell 1 has the flag clear, as every data row's does, so where the rung's rows end
-    is unknown: rung 0 decodes, and one marker stands for rung 1 and every rung after it.
+    Its cell 1 has the flag clear, as cell 1 of every data row does. The decoder then cannot
+    tell where the rows of rung 1 end. Rung 0 decodes, and one marker stands for rung 1 and
+    every rung after it.
     """
     three = _decoded("nc-3row-t-junction.bin")
     data = encode([replace(three, comment=f"c{i}") for i in range(3)])
@@ -250,7 +272,9 @@ def test_a_preamble_flag_on_cell_0_only_stops_decoding(row: int) -> None:
 
 @pytest.mark.parametrize(("offset", "value"), [(0x01, 0x05), (0x05, 0x09)], ids=["column", "row"])
 def test_a_preamble_row_with_no_cell_0_stops_decoding(offset: int, value: int) -> None:
-    """Rung 1's preamble row loses its cell 0 signature: rung 0 may have had more rows.
+    """Decoding stops at rung 0 when the cell 0 signature of rung 1's preamble row is damaged.
+
+    The decoder cannot tell whether rung 0 has more rows.
 
     Rung 0's last row has no output, so the walk steps to the preamble row without
     checking it, as it does after a row whose last cell holds an instruction.
@@ -273,7 +297,7 @@ def test_a_preamble_row_with_no_cell_0_stops_decoding(offset: int, value: int) -
 
 
 def _with_code_page(data: bytes, index: int, page: bytes = b"ansicpg1251") -> bytes:
-    """*data* with the code page of its comment number *index* (from 0) changed to *page*."""
+    """Return *data* with the code page of comment *index*, counted from 0, changed to *page*."""
     at = -1
     for _ in range(index + 1):
         at = data.index(b"ansicpg1252", at + 1)
@@ -282,7 +306,10 @@ def _with_code_page(data: bytes, index: int, page: bytes = b"ansicpg1251") -> by
 
 @pytest.mark.parametrize("index", [0, 1, 2], ids=["first", "middle", "last"])
 def test_a_comment_that_does_not_decode_keeps_the_rung(index: int) -> None:
-    """A comment in a code page other than 1252 is noted, and the rung keeps its logic."""
+    """A comment in a code page other than 1252 is not decoded, and the rung keeps its logic.
+
+    decode warns, and puts a note at the start of the rung's comment.
+    """
     with pytest.warns(UndecodedCommentWarning) as caught:
         rungs = decode(_with_code_page(DATA, index))
     (warning,) = [w.message for w in caught]
@@ -299,7 +326,10 @@ def test_a_comment_that_does_not_decode_keeps_the_rung(index: int) -> None:
 
 
 def test_a_comment_that_does_not_decode_on_a_marker_rung() -> None:
-    """A rung whose cells and comment both fail is a marker whose comment holds the note."""
+    """When neither the cells nor the comment of a rung decode, the rung becomes a marker rung.
+
+    The marker rung's comment holds the marker's headline and then the comment's note.
+    """
     data = _with_code_page(_patched((_cell(1, 0, 31) + 0x21, b"\x01")), 1)
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -315,9 +345,10 @@ def test_a_comment_that_does_not_decode_on_a_marker_rung() -> None:
 @pytest.mark.parametrize("cut", [False, True], ids=["zeroed", "cut"])
 @pytest.mark.parametrize(("index", "row"), [(1, 0), (2, 1)])
 def test_rows_lost_to_the_end_make_one_marker(index: int, row: int, cut: bool) -> None:
-    """A row with no cell 0, or past the buffer's end, ends the walk.
+    """A row that has no cell 0, or that starts past the end of the buffer, ends the walk of
+    the grid.
 
-    One marker stands for that rung and every later one.
+    One marker stands for that row's rung and every later rung.
     """
     start = _cell(index, row, 0)
     data = DATA[:start] if cut else DATA[:start] + bytes(len(DATA) - start)
@@ -378,8 +409,11 @@ SCR_MAIN = FIXTURES / "scr_captures" / "coverage.scr"
 
 
 def _scr_with(monkeypatch: pytest.MonkeyPatch, change) -> tuple[Program, Program]:
-    """coverage.scr decoded as is, then with *change* applied to its first record that has
-    an instruction (the instruction list is passed in, and the list returned replaces it)."""
+    """Return coverage.scr decoded as it is, and decoded again with *change* applied.
+
+    *change* receives the instruction list of the first record that has instructions. The
+    list that *change* returns replaces it.
+    """
     data = SCR_MAIN.read_bytes()
     want = decode_program(data)
     real = decode_program_module._walk_until_framing_error
@@ -397,7 +431,10 @@ def _scr_with(monkeypatch: pytest.MonkeyPatch, change) -> tuple[Program, Program
 
 
 def _first_marker(want: Program, got: Program) -> Undecoded:
-    """The one marker in *got*; every other rung is as in *want*."""
+    """Check that *got* has one marker and that every other rung matches *want*.
+
+    Return the marker.
+    """
     (marker,) = got.undecoded
     assert marker.stop == "end"  # coverage.scr is the main program
     assert len(got.rungs) == len(want.rungs)
@@ -437,7 +474,10 @@ def test_scr_two_instructions_in_one_cell(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_scr_bytes_a_rung_cannot_be_built_from(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A rung whose record frames but whose cells don't build is a marker, with its comment."""
+    """A rung whose SCR record reads whole but whose cells cannot be built becomes a marker.
+
+    The marker rung keeps the rung's comment after the marker's headline.
+    """
 
     def build(**kwargs):
         raise ValueError("no such row")
@@ -583,7 +623,10 @@ def test_write_csv_refuses_an_unknown_stop_before_writing(tmp_path: Path) -> Non
 
 
 def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> None:
-    """Only a cell with no token makes a marker; a rung of known tokens CSV can't hold raises."""
+    """write_csv writes a marker only for a cell that has no CSV token.
+
+    A rung whose tokens are all known, but in a shape that CSV cannot hold, still raises.
+    """
     blank = [""] * 31
     rung = Rung(
         logical_rows=2,
@@ -629,7 +672,7 @@ def test_check_reports_the_marker_and_nothing_else() -> None:
 
 
 def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> None:
-    """A hand-built rung that holds a marker and other content gets every finding."""
+    """check() runs every layout check on a hand-built rung that holds a marker and more."""
     marker = Undecoded("why", 3, 1)
     contacts = ["", *RUNGS[1].conditions[0][1:]]  # the contacts with no line from the rail
     rung = Rung(
@@ -651,7 +694,10 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
 
 
 def test_no_fixture_decodes_to_a_marker() -> None:
-    """Every clipboard and SCR fixture decodes with no marker, but the one decode refuses."""
+    """Every clipboard and SCR fixture decodes with no marker, except WINDY_ROAD.
+
+    decode refuses the down wire in WINDY_ROAD's output column.
+    """
     clipboard = [
         path
         for folder in ("ladder_captures", "coverage", "scr_captures", "tumbler", "v4_captures")
@@ -681,7 +727,10 @@ def test_windy_road_decodes_to_a_marker() -> None:
 
 
 def test_a_truncated_scr_record_stops_decoding_at_a_marker() -> None:
-    """A record cut off mid-comment is a framing error: the rungs before it decode."""
+    """An SCR record cut off in the middle of its comment is a framing error.
+
+    Decoding stops at a marker there, and the rungs before it decode.
+    """
     data = _synthetic_scr(["first", "second"])
     cut = data.index(b"second") - 4
     with pytest.warns(UndecodedRungWarning, match="rung 1 to the end"):

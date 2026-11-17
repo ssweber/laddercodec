@@ -1,45 +1,52 @@
-"""CLICK v4 captures: every labelled rung's comment says what it should decode to.
+"""Test the CLICK v4 captures against the comments of their labelled rungs.
 
-Each ``fixtures/v4_captures/<group>.bin`` is a multi-rung copy-back from CLICK v4.
-The stubs are built with pyrung by ``scratchpad/click-v4/captures/v4_capture.py``;
-a labelled rung's comment is
+Each ``fixtures/v4_captures/<group>.bin`` holds several rungs copied back from CLICK v4.
+``scratchpad/click-v4/captures/v4_capture.py`` uses pyrung to build the stubs, the CSV
+files that are pasted into CLICK. A labelled rung's comment has this form:
 
     line 1      the rung id
     line 2..n   every non-empty AF cell, in row order, as laddercodec should decode it
 
-A rung whose AF still decodes to ``raw(...)`` is an expected failure (not supported yet).
-Any other difference fails.  Rungs without a two-line comment (formulas typed straight
-into CLICK, ``math_typed.bin``, ``math_hex_upper_h.bin``, ``math_hex_signed.bin``,
-``math_nickname_display.bin``, ``math_unary_plus_pi.bin``,
-``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``, ``math_ranges_xy_slots.bin``,
-``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``; text constants typed
-in CLICK v4, ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``, ``text_abc.bin``,
-``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
-``text_compare.bin``; one-phase debounces saved in CLICK v4, ``debounce_one_phase.bin``;
-Send and Receive hex addresses typed in CLICK v4, ``comm_hex_address.bin``;
-a Call pasted from laddercodec, then saved by its dialog,
-``call_index_pasted.bin`` and ``call_index_dialog_ok.bin``; fourteen coverage goldens
-pasted from laddercodec, then saved by their dialogs, ``box_height_pasted.bin`` and
-``box_height_dialog_ok.bin``; OR legs under a tall box pasted from laddercodec's
-padded layout, then rewritten by CLICK's syntax check, ``or_compact_pasted.bin`` and
-``or_compact_checked.bin`` (from ``or_compact_stub.csv``), ``r30_tallbox_pasted.bin``
-and ``r30_tallbox_checked.bin`` (from pyrung's ``r30_tallbox.csv``); a path drawn
-down the output column in CLICK v4, copied back before and after its syntax check,
-``windy_road_pasted.bin`` and ``windy_road_checked.bin``; a 24-rung layout stub
-pasted from laddercodec, copied back before and after CLICK's syntax check, which
-refused rung 23 and deleted it from the checked copy, ``layoutthy_pasted.bin`` and
-``layoutthy_checked.bin``; the 21-rung layoutq stub ``layoutq_stub.csv`` pasted and
-copied back before and after CLICK's syntax check, which refused 9 rungs (the
-errors are in ``tests/test_layout_check.py``) that were deleted from the checked
-copy, ``layoutq_pasted.bin`` and ``layoutq_checked.bin``, each ending with the
-subroutine's own ``return()`` rung; a 20-rung stub of pinned boxes drawn off CLICK's
-layout, copied back before and after a syntax check that accepted every rung,
-``layoutq2_pasted.bin`` and ``layoutq2_checked.bin``; ``unpowered_nop_checked.bin``:
-the ladder golden ``mr-cmt-3rung-multirow`` copied back after a syntax check that
-reported nothing; its middle rung (``~X002`` to ``latch(Y002)``, stubs at A and C, an
-unwired NOP, a blank row) came back one row; the layoutthy and layoutq
-captures are used by ``tests/test_layout_check.py``) are only used by the blob and
-layout tests below.
+A rung whose AF still decodes to ``raw(...)`` is an expected failure, because laddercodec
+does not support it yet. Any other difference fails.
+
+The rungs in these captures have no such comment, and only the blob and layout tests use
+them:
+
+- formulas typed straight into CLICK: ``math_typed.bin``, ``math_hex_upper_h.bin``,
+  ``math_hex_signed.bin``, ``math_nickname_display.bin``, ``math_unary_plus_pi.bin``,
+  ``math_unary_plus_real.bin``, ``math_ranges_x_t.bin``, ``math_ranges_xy_slots.bin``,
+  ``math_ranges_xy_slots2.bin`` and ``math_ranges_x25_x101.bin``
+- text constants typed in CLICK v4: ``text_blank.bin``, ``text_q.bin``, ``text_tt.bin``,
+  ``text_abc.bin``, ``text_dollar_quoted.bin``, ``text_128.bin``, ``text_pointer.bin`` and
+  ``text_compare.bin``
+- debounces with one phase, saved in CLICK v4: ``debounce_one_phase.bin``
+- Send and Receive hex addresses typed in CLICK v4: ``comm_hex_address.bin``
+- a Call pasted from laddercodec and then saved by its dialog: ``call_index_pasted.bin``
+  and ``call_index_dialog_ok.bin``
+- fourteen coverage goldens pasted from laddercodec and then saved by their dialogs:
+  ``box_height_pasted.bin`` and ``box_height_dialog_ok.bin``
+- OR legs under a tall box, pasted from laddercodec's padded layout and then rewritten by
+  CLICK's syntax check: ``or_compact_pasted.bin`` and ``or_compact_checked.bin`` (from
+  ``or_compact_stub.csv``), and ``r30_tallbox_pasted.bin`` and ``r30_tallbox_checked.bin``
+  (from pyrung's ``r30_tallbox.csv``)
+- a path drawn down the output column in CLICK v4, copied back before and after its syntax
+  check: ``windy_road_pasted.bin`` and ``windy_road_checked.bin``
+- a 24-rung layout stub pasted from laddercodec, copied back before and after CLICK's
+  syntax check: ``layoutthy_pasted.bin`` and ``layoutthy_checked.bin``. The check refused
+  rung 23 and deleted it from the checked copy.
+- the 21-rung stub ``layoutq_stub.csv``, pasted and copied back before and after CLICK's
+  syntax check: ``layoutq_pasted.bin`` and ``layoutq_checked.bin``. The check refused 9
+  rungs and deleted them from the checked copy, and ``tests/test_layout_check.py`` holds
+  the errors. Each copy ends with the subroutine's own ``return()`` rung.
+- a 20-rung stub of pinned boxes drawn off CLICK's layout, copied back before and after a
+  syntax check that accepted every rung: ``layoutq2_pasted.bin`` and
+  ``layoutq2_checked.bin``
+- ``unpowered_nop_checked.bin``: the ladder golden ``mr-cmt-3rung-multirow``, copied back
+  after a syntax check that reported nothing. Its middle rung (``~X002`` to
+  ``latch(Y002)``, stubs at A and C, an unwired NOP, a blank row) came back as one row.
+
+``tests/test_layout_check.py`` also uses the layoutthy and layoutq captures.
 """
 
 from __future__ import annotations
@@ -81,7 +88,7 @@ COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
 def _decode_file(path: Path | bytes) -> list[Rung]:
-    """The rungs of a capture file, or of a buffer already read."""
+    """Decode and return the rungs of a capture file, or of bytes already read."""
     return decode(path if isinstance(path, bytes) else path.read_bytes())
 
 
@@ -111,18 +118,19 @@ def test_rung_decodes_to_its_comment(rung: Rung) -> None:
     assert af_tokens == [_current_spelling(token) for token in expected]
 
 
-#: Build rungs CLICK was given other settings than their comment names: (comment text, built).
+#: Rungs that were built in CLICK with other settings than their comment names. Each rung id
+#: maps to (text in the comment, text as built).
 _BUILT_DIFFERENTLY: dict[str, tuple[str, str]] = {
     "send__slave_id_ds": ('com_port="cpu2"', 'com_port="cpu3"'),  # built on CPU Port 3
 }
 
 
 def _current_spelling(token: str) -> str:
-    """A comment token as write_csv spells it now.
+    """Return the comment token *token* as write_csv spells it.
 
-    Comments are baked into captures.  ``to_text`` used to carry both
-    ``suppress_zero`` and ``exponential``; it now writes only the source's own, and a DF
-    source refuses ``suppress_zero``.
+    The comments are part of the captures, so they keep an older spelling. In it, a
+    ``to_text`` Copy names both ``suppress_zero`` and ``exponential``. write_csv writes only
+    the option that the source has, and a DF source refuses ``suppress_zero``.
     """
     if token.startswith("copy(") and "to_text(" in token:
         try:
@@ -134,12 +142,16 @@ def _current_spelling(token: str) -> str:
 
 @pytest.mark.parametrize("bin_path", _DECODABLE, ids=lambda p: p.stem)
 def test_capture_writes_csv(bin_path: Path, tmp_path: Path) -> None:
-    """write_csv's round-trip check passes, raw(...) rungs included (multi-part raw extras)."""
+    """write_csv's round-trip check passes on every capture without an undecoded marker.
+
+    That includes rungs with ``raw(...)`` boxes of several parts.
+    """
     write_csv(tmp_path / f"{bin_path.stem}.csv", _decode_file(bin_path))
 
 
 def test_drum_pins_below_blank_rows_write_as_checked(tmp_path: Path) -> None:
-    """A drum at pins (1, 5, 6), Jump and Jog unused, writes as CLICK checks it."""
+    """A drum with pins on rows 1, 5 and 6, and with Jump and Jog unused, writes as CLICK's
+    syntax check draws it, with pins on rows 1, 2 and 3."""
     rung = _decode_file(CAPTURE_DIR / "layoutq2_pasted.bin")[13]
     checked = _decode_file(CAPTURE_DIR / "layoutq2_checked.bin")[13]
     assert isinstance(rung.instructions[0], Drum)
@@ -151,7 +163,10 @@ def test_drum_pins_below_blank_rows_write_as_checked(tmp_path: Path) -> None:
 
 
 def test_drum_leg_on_unused_pin_row_writes_as_checked(tmp_path: Path) -> None:
-    """A Reset leg on unused Jump's row: CLICK's check moves Jump and Jog down."""
+    """A Reset OR leg on the row of the unused Jump pin writes as CLICK's check draws it.
+
+    The check moves Jump and Jog down one row.
+    """
     (rung,) = [r for c, r in _LABELLED if c == "pins:pins__drum_reset_or3"]
     assert rung.instructions[0].pin_rows == (1, 2, 3)
     write_csv(tmp_path / "or3.csv", [rung])
@@ -162,10 +177,11 @@ def test_drum_leg_on_unused_pin_row_writes_as_checked(tmp_path: Path) -> None:
 
 
 def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
-    """A box stored at 1 row decodes raw, writes ``rows=1,sub=1`` and re-encodes as stored.
+    """A box stored 1 row tall decodes as raw, writes ``rows=1,sub=1`` to CSV and re-encodes
+    as stored.
 
-    CLICK copies back a 1-row Email, Home, Position or Velocity pasted from an earlier
-    laddercodec at 1 row (``box_height_pasted.bin`` rungs 11-14).
+    An earlier laddercodec pasted Email, Home, Position and Velocity boxes 1 row tall, and
+    CLICK copies them back 1 row tall (``box_height_pasted.bin`` rungs 11-14).
     """
     data = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
     rungs = _decode_file(data)
@@ -188,7 +204,8 @@ def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
     assert again == encode(rungs)
     for i, box in zip(range(10, 14), boxes, strict=True):
         assert _af_box(again, i) == _af_box(data, i) == (1, 1, 1)
-        # Cell header and blob; the last cell's dump runs on into the capture's trailer.
+        # Compare only the cell header and the blob. The dump of the last cell runs on into
+        # the capture's trailing bytes.
         end = 0x25 + len(box.build_blob())
         (ours,) = inspect_cells(again, [(i, 0, "AF")])
         (native,) = inspect_cells(data, [(i, 0, "AF")])
@@ -201,28 +218,30 @@ def test_short_box_round_trips_through_csv(tmp_path: Path) -> None:
 
 _SLOT_TAGS = (0x6888, 0x688C)
 
-#: (file, rung index) of formulas whose blob CLICK's editor wrote.  The other rungs of
-#: math.bin still carry the text laddercodec pasted.
+#: (file, rung index) of each Math whose blob CLICK's editor wrote. The other rungs of
+#: math.bin still hold the text that laddercodec pasted.
 _NATIVE_MATH = [
     *(("math.bin", i) for i in range(17, 23)),  # math__abs_ds .. math__rand_hex
     ("math_typed.bin", 0),  # RAND ( 1 , 10 ) + DS1
     ("math_typed.bin", 1),  # MAX ( DS1 : DS3 ) + SUM ( DS5 : DS8 )
-    # Negative operands, all typed: ( -5 ) is stored H-5 and ( -2.5 ) F-2.5.  Rung 8,
-    # DS401 * ( - DS402 ), fails CLICK's check even typed; its fields still match.
-    # In retyped/ because retyping changed some results and comments, so the rung
-    # comments no longer name the token.
+    # Negative operands, all typed in CLICK. CLICK stores ( -5 ) as H-5 and ( -2.5 ) as
+    # F-2.5. Rung 8, DS401 * ( - DS402 ), fails CLICK's check even when typed, but its
+    # fields still match. The file is in retyped/, outside the labelled-rung test, because
+    # retyping changed some results and comments. Its rung comments do not name the token.
     *(("retyped/math_neg.bin", i) for i in range(12)),
     # Typed XD/YD operands: XD0, XD0u, YD1, then MAX ( XD0 : XD3 ).
     *(("retyped/math_xd.bin", i) for i in range(4)),
-    # Copy-back of the math_operands stub; only these rungs were typed.  Past 500
-    # interiors, up to the 5496 of SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ).
+    # The copy-back of the math_operands stub. Only these rungs were typed. They have more
+    # than 500 range interiors (the addresses between a range's ends), up to the 5496 of
+    # SUM ( DS1 : DS4500 ) + SUM ( DD1 : DD1000 ).
     *(("retyped/math_wide.bin", i) for i in range(17, 21)),
-    # Typed DS1 + ( +5 ) and PI ( 2 ); the rungs after them name formulas the dialog refused.
+    # Typed DS1 + ( +5 ) and PI ( 2 ). The comments of the rungs after them name formulas
+    # that the dialog refused.
     ("math_unary_plus_pi.bin", 0),
     ("math_unary_plus_pi.bin", 1),
     ("math_unary_plus_real.bin", 0),  # DS1 + ( +2.5 ), result DF1: stored F+2.5
-    # Typed T, TD, X and Y ranges, the X and Y ones across the slot gaps (C2-03CPU, no I/O
-    # modules).
+    # Typed T, TD, X and Y ranges. The X and Y ranges cross the gaps in the point numbers
+    # between slots (C2-03CPU, no I/O modules).
     # The other rungs of these files hold ranges laddercodec refuses (REFUSED_XY_RANGES).
     ("math_ranges_x_t.bin", 0),  # SUM ( T1 : T5 )
     ("math_ranges_x_t.bin", 1),  # MAX ( TD1 : TD5 )
@@ -236,7 +255,7 @@ _NATIVE_MATH = [
 
 
 def _blob_fields(blob: bytes) -> tuple[list[tuple[int, str]], dict[tuple[int, int], str]]:
-    """Header fields in order, and filled indexed slots, of a Math blob."""
+    """Return a Math blob's header fields in order, and its filled slots keyed by tag and index."""
     start = blob.index("Math".encode("utf-16-le") + b"\x00\x00") + 10
     count = struct.unpack_from("<I", blob, start + 6)[0]
     fields, _ = _parse_tagged_fields_verbose(blob, start + 10, count)
@@ -263,7 +282,10 @@ def _native_math_blobs(path: Path) -> list[bytes]:
 
 @pytest.mark.parametrize(("file", "index"), _NATIVE_MATH, ids=[f"{f}:{i}" for f, i in _NATIVE_MATH])
 def test_math_blob_fields_match_native(file: str, index: int) -> None:
-    """Every field Click writes matches, slot capacity aside (v4 copies back 5000 reserved)."""
+    """Every field that CLICK writes matches, except the number of empty slots.
+
+    CLICK v4 copies back 5000 reserved slots.
+    """
     path = CAPTURE_DIR / file
     rung = _decode_file(path)[index]
     math = next(token for token in rung.instructions if isinstance(token, Math))
@@ -274,9 +296,10 @@ def test_math_blob_fields_match_native(file: str, index: int) -> None:
 
 
 def test_math_hex_upper_h_capture() -> None:
-    """``math_hex_upper_h.bin``: hex ``DH1 + 7H`` typed in CLICK v4, which stores ``7h``.
+    """The hex formula ``DH1 + 7H`` typed in CLICK v4 decodes to ``7h``, as CLICK stores it.
 
-    The capture decodes to ``7h``, and ``7H`` built by hand writes the native blob.
+    The capture is ``math_hex_upper_h.bin``. A Math built by hand from ``7H`` equals the
+    decoded one and writes CLICK's blob.
     """
     path = CAPTURE_DIR / "math_hex_upper_h.bin"
     (rung,) = _decode_file(path)
@@ -304,12 +327,13 @@ _HEX_ADDRESS_TAGS = (0x6085, 0x320F)
     ],
 )
 def test_comm_hex_address_capture(index: int, typed: str, stored: str) -> None:
-    """``comm_hex_address.bin``: hex remote addresses typed in CLICK v4 for Send and Receive.
+    """Hex remote addresses typed in CLICK v4 for Send and Receive decode as CLICK stores them.
 
-    CLICK stores uppercase digits without leading zeros and a lowercase ``h``.  The
-    instruction built from the typed text writes the native address fields.  The rest of
-    the blob is not compared: CLICK keeps a stale TCP IP in an RTU target and writes one
-    0x6889 field per pin row, which the encoder does not (the box-height question).
+    The capture is ``comm_hex_address.bin``. CLICK stores uppercase digits without leading
+    zeros and a lowercase ``h``. The instruction built from the typed text equals the
+    decoded one and writes CLICK's address fields. The test does not compare the rest of
+    the blob. CLICK keeps an old TCP IP address in an RTU target, and it writes one 0x6889
+    field for each pin row. The encoder does neither.
     """
     path = CAPTURE_DIR / "comm_hex_address.bin"
     rung = _decode_file(path)[index]
@@ -331,11 +355,12 @@ def test_comm_hex_address_capture(index: int, typed: str, stored: str) -> None:
 
 
 def test_math_unary_plus_and_pi_capture() -> None:
-    """``math_unary_plus_pi.bin``: ``DS1 + ( +5 )`` and ``PI ( 2 )`` typed in CLICK v4.
+    """``DS1 + ( +5 )`` and ``PI ( 2 )``, typed in CLICK v4, decode as typed.
 
-    CLICK joins the ``+`` to its constant (``H+5``) and keeps ``PI ( 2 )`` in call form
-    (``PI#(#H2#)``).  The later rungs are NOPs whose comments name formulas the dialog
-    refused; ``tests/ladder/test_math_grammar.py`` refuses each.
+    The capture is ``math_unary_plus_pi.bin``. CLICK joins the ``+`` to its constant
+    (``H+5``) and keeps ``PI ( 2 )`` in call form (``PI#(#H2#)``). The later rungs are NOPs
+    whose comments name formulas that the dialog refused. ``tests/ladder/test_math_grammar.py``
+    checks that laddercodec refuses each one.
     """
     rungs = _decode_file(CAPTURE_DIR / "math_unary_plus_pi.bin")
     afs = [
@@ -350,10 +375,11 @@ def test_math_unary_plus_and_pi_capture() -> None:
 
 
 def test_math_nickname_display_capture() -> None:
-    """``math_nickname_display.bin``: ``<Test Nickname> + 1`` typed in CLICK v4 for DS3.
+    """``<Test Nickname> + 1``, typed in CLICK v4 with that nickname on DS3, decodes to
+    ``DS3 + 1``.
 
-    CLICK keeps the nickname in the display text only; the formula holds ``DS3``, so the
-    capture decodes to the address form.
+    The capture is ``math_nickname_display.bin``. CLICK keeps the nickname only in the
+    display text. The formula holds ``DS3``, so the capture decodes to the address.
     """
     (rung,) = _decode_file(CAPTURE_DIR / "math_nickname_display.bin")
     rows = decoded_rung_to_rows(rung)
@@ -363,9 +389,11 @@ def test_math_nickname_display_capture() -> None:
 
 
 def test_math_hex_signed_capture() -> None:
-    """``math_hex_signed.bin``: ``DH1 + ( -Ah )`` typed in a hex Math in CLICK v4.
+    """``DH1 + ( -Ah )``, typed in a hex Math in CLICK v4, decodes to ``DH1 + ( - Ah )``.
 
-    CLICK redisplays ``( - Ah )`` and stores ``DH1#+#(#-#UH10#)``: the sign is its own token.
+    The capture is ``math_hex_signed.bin``. CLICK shows the formula again as ``( - Ah )``
+    and stores ``DH1#+#(#-#UH10#)``, with the sign as its own token. A Math built from the
+    typed text equals the decoded one, and its blob fields match CLICK's.
     """
     path = CAPTURE_DIR / "math_hex_signed.bin"
     (rung,) = _decode_file(path)
@@ -375,7 +403,7 @@ def test_math_hex_signed_capture() -> None:
     ]
     typed = Math("DH1 + ( -Ah )", "DH1", "hex")
     assert rung.instructions[0] == typed
-    # CLICK v4 copies back 5000 reserved slots; the fields are what must match.
+    # CLICK v4 copies back 5000 reserved slots, so compare the fields and filled slots only.
     native_header, native_slots = _blob_fields(_native_math_blobs(path)[0])
     header, slots = _blob_fields(typed.build_blob())
     assert header == native_header
@@ -388,7 +416,11 @@ def test_math_hex_constant_display_form(typed: str, display: str) -> None:
 
 
 def test_math_with_nickname_display_text_decodes_as_raw() -> None:
-    """Empty template and internal formula leave only the display text, which holds a nickname."""
+    """A Math blob with an empty template and internal formula decodes as raw.
+
+    Only its display text is left, and that text holds a nickname. Both ``from_tags``
+    functions return None for it.
+    """
     tags = {0x6065: "DS1", 0x61FF: "", 0x61FD: "", 0x6228: "<Test Nickname> + 1", 0x3218: "8451"}
     assert from_tags_math("Math", 0x271A, tags) is None
     assert from_tags_af("Math", 0x271A, tags) is None
@@ -404,12 +436,12 @@ def _points(bank: str, *runs: tuple[int, int]) -> list[str]:
     return [f"{bank}{n:03d}" for first, last in runs for n in range(first, last + 1)]
 
 
-#: Each X and Y range of the three range captures (typed in CLICK v4, C2-03CPU, no I/O
-#: modules, each into DS1): (file, rung, formula, the reserved slots (tag 0x688C) CLICK
-#: wrote).  The slots are filled from index 0 with no empty slot between, and the slots
-#: after them are empty.  None lists X017..X020 or X037..X100.  An end in the option slot
-#: (21-36) stops the list early (X001 : X036 ends at X031), a start at X021 lists
-#: X021 itself, and X025 : X027 lists X022.
+#: Each X and Y range in the range captures, as (file, rung, formula, the reserved slots
+#: (tag 0x688C) that CLICK wrote). Each was typed in CLICK v4 on a C2-03CPU with no I/O
+#: modules, with DS1 as the result. CLICK fills the slots from index 0 with no empty slot
+#: between them, and leaves the slots after them empty. No list holds X017..X020 or
+#: X037..X100. An end in the option slot (21-36) stops the list early (X001 : X036 ends at
+#: X031). A range that starts at X021 lists X021 itself, and X025 : X027 lists X022.
 _NATIVE_XY_LISTS = [
     ("math_ranges_x_t.bin", 2, "SUM ( X001 : X036 )", _points("X", (2, 16), (21, 31))),
     ("math_ranges_x_t.bin", 3, "SUM ( X001 : X101 )", _points("X", (2, 16), (21, 36))),
@@ -442,10 +474,11 @@ _NATIVE_XY_LISTS = [
 ]
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
-#: The ranges among them laddercodec refuses: an end in the option slot (21-36), except a
-#: range from the CPU slot to 21, a range of one point and one of two points numbered one
-#: apart.  These are the ones whose stored list is not the points between the ends.
-#: test_math_grammar.py reads it for the stored formulas it expects refused.
+#: The ranges above that laddercodec refuses. A range is refused if an end is in the option
+#: slot (21-36), unless it runs from the CPU slot to 21, covers one point, or covers two
+#: points numbered one apart. These are the ranges whose stored list is not the points
+#: between their ends. tests/ladder/test_math_grammar.py reads this set for the stored
+#: formulas that it expects laddercodec to refuse.
 REFUSED_XY_RANGES = frozenset(
     {
         "SUM ( X001 : X036 )",
@@ -460,8 +493,10 @@ REFUSED_XY_RANGES = frozenset(
 
 
 def xy_range_message(formula: str) -> str:
-    """What a refusal says after the range: the ends in 021-036, and that CLICK sums the wrong
-    bits."""
+    """Return the text of a refusal that follows the range.
+
+    The text names the ends in 021-036 and says that CLICK sums the wrong bits.
+    """
     start, end = formula.split()[2], formula.split()[4]
     bank = start[0]
     ends = [e for e in (start, end) if 21 <= int(e[1:]) <= 36]
@@ -473,7 +508,7 @@ def xy_range_message(formula: str) -> str:
 
 
 def _points_between(formula: str) -> list[str]:
-    """The X/Y points strictly between the ends of ``SUM ( A : B )``."""
+    """Return the X or Y points strictly between the ends of ``SUM ( A : B )``."""
     start, end = formula.split()[2], formula.split()[4]
     low, high = int(start[1:]), int(end[1:])
     return [
@@ -488,7 +523,7 @@ def _points_between(formula: str) -> list[str]:
 def test_math_xy_range_lists_in_capture(
     file: str, index: int, formula: str, expected: list[str]
 ) -> None:
-    """The stored list is as recorded, and the encoder's rule for X/Y ranges gives it."""
+    """CLICK's stored slot list matches the recorded list, and ``range_interiors`` gives it."""
     header, slots = _blob_fields(_native_math_blobs(CAPTURE_DIR / file)[index])
     assert dict(header)[0x6228] == formula
     listed = [value for (tag, _), value in sorted(slots.items()) if tag == 0x688C]
@@ -501,10 +536,13 @@ def test_math_xy_range_lists_in_capture(
 def test_math_xy_range_refused_for_an_option_slot_end(
     file: str, index: int, formula: str, expected: list[str]
 ) -> None:
-    """The rule refuses each captured range whose stored list is not the points between its
-    ends, and no other.  A refused range's rung decodes as that Math, keeping the refusal,
-    and writes the blob CLICK stored until a field changes, when encode() refuses it; the
-    others are Math."""
+    """laddercodec refuses exactly the captured ranges whose stored list is not the points
+    between their ends.
+
+    A rung with a refused range decodes as that Math, and the Math keeps the refusal. It
+    writes the blob that CLICK stored until a field changes. After that, encode() raises the
+    refusal. A range that is not refused decodes as a Math with no refusal.
+    """
     assert (formula in REFUSED_XY_RANGES) == (expected != _points_between(formula))
     path = CAPTURE_DIR / file
     rung = _decode_file(path)[index]
@@ -533,7 +571,10 @@ def test_math_xy_range_refused_for_an_option_slot_end(
 
 @pytest.mark.parametrize("index", range(17, 21))
 def test_math_wider_than_500_interiors_uses_clicks_capacity(index: int) -> None:
-    """Past 500 interiors the whole blob matches, capacity included; CLICK stops at 5000."""
+    """A Math with more than 500 range interiors writes CLICK's whole blob, slot count included.
+
+    CLICK's limit is 5000 slots.
+    """
     path = CAPTURE_DIR / "retyped" / "math_wide.bin"
     math = next(t for t in _decode_file(path)[index].instructions if isinstance(t, Math))
     blob = math.build_blob()
@@ -592,11 +633,12 @@ def test_time_event_drum_blobs_match_native() -> None:
 
 
 def test_drum_func_codes_match_native() -> None:
-    """Drum func codes run consecutively over the enabled pins.
+    """A drum numbers the function codes of its enabled pins one after another.
 
-    ``drum_jog.bin``: event Reset + Jog, time (ms) Reset + Jog, event Reset + Jump, each
-    reopened and OK'd in CLICK v4.  With Jump off, Jog takes Jump's code (8496, 8460);
-    the next code up passes a paste but fails v4's check with C000A.
+    ``drum_jog.bin`` holds three drums, each reopened and closed with OK in CLICK v4: an
+    event drum with Reset and Jog, a time drum (ms) with Reset and Jog, and an event drum
+    with Reset and Jump. With Jump off, Jog gets the code that Jump would have had (8496,
+    8460). The next code up passes a paste but fails v4's check with C000A.
     """
     buf = (CAPTURE_DIR / "drum_jog.bin").read_bytes()
     drums = [r.instructions[0] for r in _decode_file(CAPTURE_DIR / "drum_jog.bin")]
@@ -620,8 +662,9 @@ def test_drum_func_codes_match_native() -> None:
     ]
 
 
-#: Each pin's row in pins.bin, built in CLICK from ``stubs/pins.csv``.  drum_reset_or3 was
-#: built as C1059 OR (C1060 AND C1061): its one leg row sits on the unused jump pin's row.
+#: The row of each pin in pins.bin, which was built in CLICK from ``stubs/pins.csv``.
+#: drum_reset_or3 was built as C1059 OR (C1060 AND C1061). Its one leg row is the row of the
+#: unused Jump pin.
 _PIN_ROWS = {
     "pins__drum_reset_or": (1, 3, 4),
     "pins__drum_reset_or3": (1, 2, 3),
@@ -633,15 +676,18 @@ _PIN_ROWS = {
 
 
 def _af_cell_shape(data: bytes, rung: int) -> tuple[int, int, bytes]:
-    """Row 0 AF cell of a rung: ``(+0x09 rows spanned, +0x0A sub-rows, part bytes)``."""
+    """Return ``(+0x09 rows spanned, +0x0A sub-rows, part bytes)`` of *rung*'s row 0 AF cell."""
     cell = inspect_cells(data, [(rung, 0, "AF")])[0]
     _, _, _, extra, _ = _decompose_blob(cell.raw[0x25:-0x10])
     return cell.raw[0x09], cell.raw[0x0A], extra
 
 
 def test_pin_rows_reencode_like_native() -> None:
-    """OR legs under a pin push the later pins down: the part bytes hold each pin's row,
-    +0x09 grows to the last pin's row + 1, and +0x0A keeps the base height."""
+    """OR legs under a pin push the later pins down, and the AF cell encodes as CLICK's.
+
+    The part bytes hold each pin's row, +0x09 grows to the last pin's row + 1, and +0x0A
+    keeps the box's base height.
+    """
     native = (CAPTURE_DIR / "pins.bin").read_bytes()
     rungs = _decode_file(CAPTURE_DIR / "pins.bin")
     assert len(rungs) == len(_PIN_ROWS)
@@ -655,7 +701,7 @@ def test_pin_rows_reencode_like_native() -> None:
 
 
 def test_pin_rows_from_pyrung_csv() -> None:
-    """pyrung's export (pin under its legs) reads back to the rows CLICK gave them."""
+    """pyrung's export puts each pin under its legs, and it reads back with CLICK's pin rows."""
     rungs = read_csv(COVERAGE_GOLDEN / "pins__v4.csv")
     for rung in rungs:
         rung_id = (rung.comment or "").split("\n")[0]
@@ -667,8 +713,8 @@ def test_pin_rows_from_pyrung_csv() -> None:
 
 
 #: ``(rows, pin_rows)`` of each rung in count_down_or.bin, CLICK 4.00's copy-back of
-#: ``pinned_or/count_down_or.csv``.  Only nop_control_3row has anything on the box's
-#: unused top row; CLICK draws C21's wire stopping at the box.
+#: ``pinned_or/count_down_or.csv``. Only nop_control_3row has anything on the box's
+#: unused top row, and CLICK draws the wire from C21 as stopping at the box.
 _COUNT_DOWN_SHAPES = {
     "or2_wired": (4, (1, 3)),
     "or3_wired": (5, (1, 4)),
@@ -682,10 +728,10 @@ _COUNT_DOWN_SHAPES = {
 
 
 def test_count_down_or_layouts_survive_click() -> None:
-    """CLICK keeps a pasted count_down as drawn: legs under Down push Reset down.
+    """CLICK keeps a pasted count_down as drawn, with OR legs under Down pushing Reset down.
 
-    read_csv lays the CSV out as CLICK's syntax check draws it, which drops empty_row's
-    blank row; the capture, taken before a check, keeps it.
+    read_csv lays the CSV out as CLICK's syntax check draws it, and that drops the blank row
+    of empty_row. The capture was taken before a syntax check, so it keeps that row.
     """
     native = (CAPTURE_DIR / "count_down_or.bin").read_bytes()
     rungs = _decode_file(CAPTURE_DIR / "count_down_or.bin")
@@ -778,7 +824,7 @@ def test_one_phase_debounce_capture(tmp_path: Path) -> None:
 
 
 def _call_blob_fields(buf: bytes, length: int) -> tuple[bytes, dict[int, str]]:
-    """The one Call blob of a capture, and its tag -> value map."""
+    """Return the one Call blob in *buf* and a map from its tags to their values."""
     needle = "Call".encode("utf-16-le") + bytes(2)
     assert buf.count(needle) == 1
     blob = _native_blob(buf, "Call", length)
@@ -789,7 +835,11 @@ def _call_blob_fields(buf: bytes, length: int) -> tuple[bytes, dict[int, str]]:
 
 
 def test_call_index_captures() -> None:
-    """Tag 0x3219 is the dialog's drop-down index: a pasted 0 stays, the dialog saves its own (3)."""
+    """Tag 0x3219 holds the drop-down index of the Call dialog.
+
+    A pasted 0 stays 0 until the dialog saves its own index (3). The two blobs differ only
+    in that byte.
+    """
     from laddercodec.instructions.call import Call
 
     expected = Call("Conf_RtcSet").build_blob()
@@ -840,7 +890,7 @@ _RAW_BOX_GOLDENS = _BOX_HEIGHT_GOLDENS[10:]
 
 
 def _af_box(data: bytes, rung: int) -> tuple[int, int, int]:
-    """``(rung rows, +0x09, +0x0A)`` of the AF box on *rung*'s first row."""
+    """Return ``(rung rows, +0x09, +0x0A)`` of the AF box on *rung*'s first row."""
     rows = len(_decode_file(data)[rung].conditions)
     (dump,) = inspect_cells(data, [(rung, 0, "AF")])
     assert dump.size > 0x40, f"rung {rung + 1}: no AF box on its first row"
@@ -848,11 +898,12 @@ def _af_box(data: bytes, rung: int) -> tuple[int, int, int]:
 
 
 def test_box_height_captures() -> None:
-    """CLICK keeps a typed box's height through paste and dialog OK; it grows the raw four.
+    """CLICK keeps the height of a typed box through a paste and a dialog OK.
 
-    A pasted 1-row Email, Home, Position or Velocity copies back as ``01 01``; saving its
-    dialog rewrites +0x09 to 3 and grows the rung to 3 rows (``03 01``).  CLICK v4 rewrites
-    a pasted Math or Drum blob in its own form, so the boxes compare decoded.
+    The four boxes that laddercodec reads raw from CSV are the exception. A pasted 1-row
+    Email, Home, Position or Velocity copies back as ``01 01``. Saving its dialog rewrites
+    +0x09 to 3 and makes the rung 3 rows tall (``03 01``). CLICK v4 rewrites a pasted Math
+    or Drum blob in its own form, so the test compares the other boxes after decoding them.
     """
     pasted = (CAPTURE_DIR / "box_height_pasted.bin").read_bytes()
     dialog = (CAPTURE_DIR / "box_height_dialog_ok.bin").read_bytes()
@@ -889,7 +940,8 @@ def test_csv_raw_box_is_3_rows(name: str) -> None:
 
 
 def test_dialog_saved_box_reencodes_at_3_rows() -> None:
-    """The dialog-saved boxes decode typed and re-encode as ``03 03`` over their 3 rows."""
+    """The boxes that their dialogs saved decode as typed instructions and re-encode as
+    ``03 03`` over 3 rows."""
     rungs = _decode_file(CAPTURE_DIR / "box_height_dialog_ok.bin")[10:14]
     assert [type(r.instructions[0]).__name__ for r in rungs] == [
         "Email",
@@ -925,8 +977,9 @@ _TEXT_CAPTURES = {
     "text_pointer.bin": ("-", 'copy("AB",TXT[DS1])'),
 }
 
-#: What CLICK stores as the destination end (0x6077) of each capture's Copy: the last TXT a
-#: text of two or more characters fills, and nothing for one character or a ``$hh`` code.
+#: What CLICK stores as the destination end (0x6077) of each capture's Copy. For a text of
+#: two or more characters, it is the last TXT that the text fills. For one character, a
+#: ``$hh`` code or a pointer destination, it is empty.
 _TEXT_DESTINATION_ENDS = {
     "text_blank.bin": (Copy("$00", "TXT1"), ""),
     "text_q.bin": (Copy('"Q"', "TXT2"), ""),
@@ -956,7 +1009,8 @@ def _native_blob(buf: bytes, class_name: str, length: int) -> bytes:
 
 @pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
 def test_text_constant_capture_decodes(file: str, tmp_path: Path) -> None:
-    """Decodes to the typed rung, with no termination code, and the CSV round-trips."""
+    """Each capture decodes to the rung as typed, with no termination code
+    (``termination_code`` is ``"0"``), and the rung survives a CSV round-trip."""
     rung = _decode_file(CAPTURE_DIR / file)[0]
     rows = decoded_rung_to_rows(rung)
     assert [(row[1], row[-1]) for row in rows if row[0] != "#" and row[-1]] == [
@@ -970,7 +1024,10 @@ def test_text_constant_capture_decodes(file: str, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
 def test_text_constant_blobs_match_native(file: str) -> None:
-    """A text-constant Copy source sets 0x1201 = -1, as CLICK writes; the blobs match."""
+    """A Copy with a text-constant source writes 0x1201 as -1, as CLICK does.
+
+    The Copy blob matches CLICK's, and so does the Compare blob where the rung has one.
+    """
     path = CAPTURE_DIR / file
     buf = path.read_bytes()
     rung = _decode_file(path)[0]
@@ -987,9 +1044,9 @@ def test_text_constant_blobs_match_native(file: str) -> None:
         assert _native_blob(buf, "Compare", len(blob)) == blob
 
 
-#: ``text_compare.bin``: TXT1 compared, as typed, against an ASCII-code constant and a
-#: quoted text constant.  CLICK stores each operand as its text ($0D two digits, "A"
-#: with its quotes), and laddercodec passes it through: nothing is formatted.
+#: ``text_compare.bin`` compares TXT1, as typed, with an ASCII-code constant and with a
+#: quoted text constant. CLICK stores each operand as its text ($0D with two digits, "A"
+#: with its quotes). laddercodec reads and writes that text unchanged.
 _TEXT_COMPARES = [("TXT1", "$0D"), ("TXT1", '"A"')]
 
 
@@ -1027,16 +1084,16 @@ def test_text_compare_blobs_match_native(tmp_path: Path) -> None:
 
 #: Tags CLICK writes but doesn't read back, per class name.
 _SWEEP_IGNORED_TAGS: dict[str, frozenset[int]] = {
-    # Drop-down position; the dialog reselects the subroutine by name and saves its own index
-    # (call_index_pasted.bin keeps the pasted 0, call_index_dialog_ok.bin has 3).
+    # The drop-down position. The dialog selects the subroutine again by name and saves its
+    # own index. call_index_pasted.bin keeps the pasted 0, and call_index_dialog_ok.bin has 3.
     "Call": frozenset({0x3219}),
-    # v4's dialog writes -1 on every save and ignores it on load;
-    # the encoder keeps the pre-v4 rule that native v3 captures match.
+    # v4's dialog writes -1 on every save and ignores the tag on load. The encoder keeps the
+    # pre-v4 rule, which the v3 captures follow.
     "Copy": frozenset({0x1201}),
 }
 
-#: Per rung: fields where CLICK v4's dialog and the pre-v4 native capture we match
-#: disagree, and v4 ignores the field on load.  The encoder keeps the v3 value.
+#: For each rung id, the fields where CLICK v4's dialog and the pre-v4 capture that the
+#: encoder matches disagree. v4 ignores these fields on load. The encoder keeps the v3 value.
 _SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
     "blockcopy__to_ascii_v4": frozenset({0x2206}),  # v4 dialog 1, coverage.bin 0
     # IP of a serial target: v4 '' (saved only for Ethernet/WLAN), coverage.bin '...'
@@ -1044,22 +1101,23 @@ _SWEEP_V3_VALUES: dict[str, frozenset[int]] = {
     "send__slave_id_ds": frozenset({0x622B}),
 }
 
-#: Fields v4 adds to a blob we keep in v3's form (v4 takes both on paste).
+#: Fields that v4 adds to a blob that the encoder writes in v3's form. v4 accepts both forms
+#: on paste.
 _V4_ADDED_TAGS: dict[str, frozenset[int]] = {
     "Drum": frozenset({0x6891, 0x428A, 0x6068}),
     # v4 writes every Out in its OutVariant shape: pulse/timer fields, all blank or 0.
     "Out": frozenset({0x60B3, 0x60B4, 0x60B5, 0x60B6, 0x1246, 0x1247, 0x21F9, 0x2248, 0x20CA}),
 }
 
-#: Slot tables v4 pads further than v3 (Math: 5000 range-interior slots, not 500);
-#: only the filled slots are compared.
+#: Slot tables that v4 pads further than v3. A Math has 5000 range-interior slots, not 500.
+#: The test compares only the filled slots.
 _PADDED_TAGS: dict[str, frozenset[int]] = {
     "Math": frozenset({0x688C}),
 }
 
-#: Array slots whose sentinel CLICK writes as the slot index (0, 1, ...) and we write as
-#: FFFFFFFF.  CLICK accepts both (every send/receive coverage golden is paste-verified),
-#: so only the slot values are compared.
+#: Array slots whose sentinel CLICK writes as the slot index (0, 1, ...) and the encoder
+#: writes as FFFFFFFF. CLICK accepts both: every Send and Receive coverage golden has been
+#: checked by pasting it into CLICK. The test compares only the slot values.
 _INDEX_SENTINEL_TAGS: dict[str, frozenset[int]] = {
     "SD": frozenset({0x6889, 0x688F}),
     "RD": frozenset({0x688F}),
@@ -1087,7 +1145,7 @@ def _af_blob(
 def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> None:
     """Every field CLICK wrote, in order, comes back from encode(decode(...)).
 
-    The decode check above can't see func codes: the decoder ignores 0x3218.
+    The decode test above cannot see function codes, because the decoder ignores tag 0x3218.
     """
     if any(isinstance(token, str) and token.startswith("raw(") for token in rung.instructions):
         pytest.xfail("not decoded yet")
@@ -1129,7 +1187,10 @@ _OR_COMPACT = [
 
 
 def _wire_flags(data: bytes, rung: int) -> list[list[tuple[int, int]]]:
-    """The (right, down) flags of every cell of *rung*; segment flags keep editing history."""
+    """Return the (right, down) flags of every cell of *rung*.
+
+    Leave out the segment flag, which records editing history.
+    """
     rows = len(_decode_file(data)[rung].conditions)
     return [
         [d.flags[1:] for d in inspect_cells(data, [(rung, r, c) for c in _GRID_COLUMNS])]
@@ -1149,9 +1210,9 @@ def _assert_same_layout(ours: bytes, ours_rung: int, native: bytes, native_rung:
 def test_or_legs_encode_as_checked(csv_name: str, bin_name: str) -> None:
     """OR legs under a tall box read and encode as CLICK's syntax check leaves them.
 
-    The legs keep their rows, each Copy takes the first row below the box above it,
-    and the right vertical reaches both.  Stub rung 3 (C2 hangs off X1's vertical,
-    not an OR leg) keeps its padding, as CLICK does.
+    The legs keep their rows, each Copy moves to the first row below the box above it, and
+    the vertical wire on the right reaches both. In stub rung 3, C2 hangs off X1's vertical
+    wire and is not an OR leg. That rung keeps its padding, as it does in CLICK.
     """
     rungs = read_csv(CAPTURE_DIR / csv_name)
     native = (CAPTURE_DIR / bin_name).read_bytes()
@@ -1182,7 +1243,8 @@ def test_checked_or_legs_round_trip_through_csv(bin_name: str, tmp_path: Path) -
 def test_pasted_or_legs_write_as_checked(
     pasted_name: str, checked_name: str, tmp_path: Path
 ) -> None:
-    """The padded layout CLICK took on paste writes, and reads back, as its checked drawing."""
+    """The padded layout that CLICK accepted on paste writes to CSV, and reads back, as CLICK's
+    syntax check draws it."""
     rungs = _decode_file(CAPTURE_DIR / pasted_name)
     checked = (CAPTURE_DIR / checked_name).read_bytes()
     assert rungs[0].conditions != _decode_file(checked)[0].conditions
@@ -1195,7 +1257,7 @@ def test_pasted_or_legs_write_as_checked(
 
 
 def test_down_wire_in_the_output_column_is_refused() -> None:
-    """CLICK keeps a path drawn down the AF column until its syntax check; CSV can't hold it.
+    """CLICK keeps a path drawn down the AF column until its syntax check. CSV cannot hold it.
 
     The rung decodes as an undecoded marker, with a warning.
     """
@@ -1220,7 +1282,7 @@ def test_checked_windy_road_is_one_straight_row() -> None:
 
 
 def _with_af_down(data: bytes, rung: int, row: int) -> bytes:
-    """*data* with the down flag (+0x21) set on the AF cell of the given rung and row."""
+    """Return *data* with the down flag (+0x21) set on the AF cell at *rung* and *row*."""
     (dump,) = inspect_cells(data, [(rung, row, "AF")])
     patched = bytearray(data)
     patched[dump.offset + 0x21] = 1
@@ -1228,7 +1290,10 @@ def _with_af_down(data: bytes, rung: int, row: int) -> bytes:
 
 
 def test_down_wire_in_the_output_column_names_the_rung() -> None:
-    """In a multi-rung buffer the marker names the rung that holds the wire; rung 0 decodes."""
+    """In a buffer of several rungs, the marker names the rung that holds the wire.
+
+    Rung 0 still decodes as it did without the wire.
+    """
     data = (
         COVERAGE_GOLDEN.parent.parent / "ladder_captures" / "golden" / "mr-2rung-wire.bin"
     ).read_bytes()

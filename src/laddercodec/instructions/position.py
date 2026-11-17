@@ -1,6 +1,7 @@
-"""Position — position instruction (type marker 0x2736).
+"""The ``Position`` instruction.
 
-Binary class name: ``"Position"``.
+Its binary class name is ``"Position"`` and its type marker is 0x2736. laddercodec keeps its
+fields as text by tag id, and writes it to CSV as a ``raw(...)`` token.
 """
 
 from __future__ import annotations
@@ -65,12 +66,12 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 @dataclass
 class Position(AfInstruction):
-    """Position instruction — opaque fields stored as tag-keyed strings.
+    """The Position instruction, with each field kept as the text that its tag stores.
 
-    Provisional: the fields are named after CLICK's tag ids (``tag_3218``). A later release
-    will rename them.
+    laddercodec does not interpret the fields. Each field is named after CLICK's tag id
+    (``tag_3218``). These names are provisional, and a later release will rename them.
 
-    Binary class name ``"Position"`` (type marker 0x2736).
+    Its binary class name is ``"Position"`` and its type marker is 0x2736.
     """
 
     tag_222d: str = "0"
@@ -181,14 +182,18 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Position | None:
-    """Construct a Position from tag data (shared by both decoders)."""
+    """Build a ``Position`` from the tags of an instruction blob, or return None.
+
+    Return None if the blob is not a Position. The clipboard decoder and the program-file
+    decoder both call this.
+    """
     if class_name != _CLASS_NAME or type_code != _TYPE_CODE:
         return None
     return Position(**_extract_fields(tags))
 
 
 def parse_af_call(call: AfCall) -> Position:
-    """Parse an AF AST call into a Position."""
+    """Parse a ``raw(Position,...)`` call from a CSV rung's AF (output) column."""
     return Position.from_csv_token(call.to_token())
 
 

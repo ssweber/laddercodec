@@ -10,9 +10,9 @@ All five variants share the same binary class, discriminated by field[6]:
 - ``3`` → pack (``Pack``)
 - ``4`` → unpack (``Unpack``)
 
-Quirk: in the ``to_text_term`` variant (termination checkbox enabled) the Click UI
-greys out the termination value, yet the binary stores the flag and character code
-normally.
+The fixture ``tests/fixtures/coverage/golden/copy__to_text_term.csv`` holds a copy to text
+with the termination checkbox ticked. For that copy, CLICK's dialog greys out the termination
+value. The blob still stores the flag and the character code as usual.
 """
 
 from __future__ import annotations
@@ -67,7 +67,8 @@ from .family import AfInstructionFamilySpec, fixed_cell_params
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
-#: Cell kwargs of every Copy-family box: two rows (cell header +0x09 = +0x0A = 2).
+#: Cell keyword arguments of every Copy-family box. The box is two rows tall, and the cell
+#: header stores 2 at +0x09 and at +0x0A.
 _CELL_PARAMS: dict = {"visual_rows": 2}
 
 # ---------------------------------------------------------------------------
@@ -93,11 +94,12 @@ _FUNC_TO_COPY_TYPE: dict[str, str] = {v: k for k, v in COPY_FUNC_CODES.items()}
 _VALID_CONVERTS = frozenset({None, "to_value", "to_text", "to_binary", "to_ascii"})
 
 #: field[8] conversion_type → (convert, suppress_zero, exponential).
-#: Text sub-options are encoded in the conversion_type value itself: an integer
-#: source has suppress zero (1) or not (2); a DF source (a pointer too) or a real
-#: constant has real (3) or exponential (4) numbering and no suppress zero, which decode
-#: holds as None.  7 converts a value between a real and a 32-bit integer
-#: (:func:`_converts_value`), a plain copy in CSV.
+#: The conversion type also stores the options of a copy to text. An integer source is
+#: type 1 with suppress zero or type 2 without it. A DF address, a DF pointer or a real
+#: constant is type 3 with real numbering or type 4 with exponential numbering. Such a
+#: source has no suppress zero option, and the decoder sets suppress_zero to None for it.
+#: Type 7 converts a value between a real and a 32-bit integer (:func:`_converts_value`).
+#: The CSV writes a type 7 copy as a plain copy.
 _CONVTYPE_TO_OPTS: dict[str, tuple[str | None, bool, bool]] = {
     "0": (None, False, False),
     "1": ("to_text", True, False),  # integer source, suppress zeros
@@ -119,8 +121,9 @@ def _is_df(operand: str) -> bool:
 
 
 def _real_text_source(source: str) -> bool:
-    """Whether CLICK's dialog offers real and exponential numbering for ``source`` copied
-    to text, and no suppress zero: a DF address or pointer, or a real constant."""
+    """Return whether CLICK's dialog offers real and exponential numbering, and no suppress
+    zero, when ``source`` is copied to text. It does for a DF address or pointer and for a
+    real constant."""
     return (
         _operand_bank(source, pointer=True) == "DF"
         or constant_shape(source, _CONSTANTS) is Kind.FLOAT
@@ -128,7 +131,11 @@ def _real_text_source(source: str) -> bool:
 
 
 def _is_dd_df_pair(source: str, destination: str) -> bool:
-    """A single copy between DD and DF, either way: CLICK's Copy Value / Copy Binary choice."""
+    """Return whether ``source`` and ``destination`` are a DD address and a DF address, in
+    either order.
+
+    For a single copy between these two, CLICK's dialog offers Copy Value or Copy Binary.
+    """
     src, dst = source.strip(), destination.strip()
     return (_DD_RE.fullmatch(src) is not None and _is_df(dst)) or (
         _is_df(src) and _DD_RE.fullmatch(dst) is not None
@@ -136,8 +143,9 @@ def _is_dd_df_pair(source: str, destination: str) -> bool:
 
 
 def _operand_bank(operand: str, *, pointer: bool = False) -> str | None:
-    """The bank of ``operand`` read as an address (with ``pointer``, a pointer's bank too);
-    None for a constant or text that is neither."""
+    """Return the bank of ``operand`` read as an address, or None if it is not an address.
+
+    With ``pointer``, also return the bank of a pointer such as ``DD[DS1]``."""
     try:
         return check_operand(operand, "Copy.source", pointer=pointer).bank
     except FieldError:
@@ -145,12 +153,15 @@ def _operand_bank(operand: str, *, pointer: bool = False) -> str | None:
 
 
 def _converts_value(source: str, destination: str) -> bool:
-    """Whether a single Copy of ``source`` into ``destination`` converts a value between a
-    real and a 32-bit integer, which CLICK saves as conversion type 7.
+    """Return whether a single Copy of ``source`` into ``destination`` converts a value
+    between a real and a 32-bit integer. CLICK saves such a copy as conversion type 7.
 
-    That is a copy between DF and DD or CTD, either way, an address or a pointer on either
-    side (``DD[DS1]`` into DF1, DF1 into ``CTD[DS1]``), and a real constant into DD or CTD,
-    an address or a pointer (``1.5`` into ``DD[DS1]``).
+    This is true in two cases:
+
+    - A copy from DF into DD or CTD, or from DD or CTD into DF. Either side may be an
+      address or a pointer (``DD[DS1]`` into DF1, DF1 into ``CTD[DS1]``).
+    - A real constant copied into DD or CTD, as an address or a pointer (``1.5`` into
+      ``DD[DS1]``).
     """
     src, dst = _operand_bank(source, pointer=True), _operand_bank(destination, pointer=True)
     if (src == "DF" and dst in _INT32_BANKS) or (src in _INT32_BANKS and dst == "DF"):
@@ -159,11 +170,12 @@ def _converts_value(source: str, destination: str) -> bool:
 
 
 def _wide_into_df(source: str, destination: str) -> bool:
-    """Whether ``source`` is a decimal integer outside int16 copied into a DF address or
-    pointer, which CLICK saves as conversion type 7.
+    """Return whether ``source`` is a decimal integer outside the int16 range and
+    ``destination`` is a DF address or pointer. CLICK saves such a copy as conversion type 7.
 
-    CLICK saves ``32768``, ``-32769``, ``65535`` and ``65536`` into DF1, and ``2147483647``
-    into DF1 and ``DF[DS1]``, as type 7; ``32767`` and ``-32768`` as type 0.
+    CLICK saves ``32768``, ``-32769``, ``65535`` and ``65536`` into DF1 as type 7. It saves
+    ``2147483647`` into DF1 and into ``DF[DS1]`` as type 7. It saves ``32767`` and
+    ``-32768`` as type 0.
     """
     const = classify(source)
     return (
@@ -175,8 +187,9 @@ def _wide_into_df(source: str, destination: str) -> bool:
 
 
 def _saves_type_7(source: str, destination: str) -> bool:
-    """Whether CLICK saves a plain single Copy of ``source`` into ``destination`` as
-    conversion type 7, Copy Value, and Copy Binary of it as type 8."""
+    """Return whether CLICK saves a plain single Copy of ``source`` into ``destination`` as
+    conversion type 7, which is Copy Value. For the same pair, CLICK saves Copy Binary as
+    type 8."""
     return (
         _is_dd_df_pair(source, destination)
         or _converts_value(source, destination)
@@ -185,8 +198,11 @@ def _saves_type_7(source: str, destination: str) -> bool:
 
 
 def _other_type_7(source: str, destination: str) -> bool:
-    """Whether CLICK saves type 7 for the pair, and it is not a DD address to or from a DF
-    address: a decoded save of type 7 or 8 for it keeps its blob."""
+    """Return whether CLICK saves type 7 for the pair and the pair is not a DD address and a
+    DF address.
+
+    The decoder marks a Copy of type 7 or 8 for such a pair so that, while it is unchanged,
+    it encodes as the blob it was decoded from."""
     return _saves_type_7(source, destination) and not _is_dd_df_pair(source, destination)
 
 
@@ -217,7 +233,7 @@ _COPY_TAGS = (
     0x6077,  # [3]  destination_end (block copy; a single copy of text: its last TXT)
     0x2206,  # [4]  format_option (0=default, 1=text-modified/ascii, 2=binary)
     0x11F8,  # [5]  oneshot (-1 = enabled)
-    0x2223,  # [6]  copy_type_idx (0=single, 1=block, 2=fill, 3=pack)
+    0x2223,  # [6]  copy_type_idx (0=single, 1=block, 2=fill, 3=pack, 4=unpack)
     0x3218,  # [7]  func_code
     0x2227,  # [8]  conversion_type (0=none, 1-4=text variants, 5=value, 6=ascii, 8=binary)
     0x1221,  # [9]  termination_flag (-1 = termination enabled)
@@ -228,9 +244,10 @@ _COPY_TAGS = (
 
 
 def _is_text_constant(operand: str) -> bool:
-    """True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``).
+    """Return True for a quoted text constant (``"Q"``) or an ASCII-code constant (``$00``).
 
-    ``operand`` is a checked source: a ``$`` value in one is ``$hh``.
+    ``operand`` is a source that has already been checked, so a value in it that starts
+    with ``$`` is a ``$hh`` code.
     """
     return operand.strip().startswith(('"', "$"))
 
@@ -251,20 +268,24 @@ _HEX_DIGITS = frozenset("0123456789ABCDEFabcdef")
 
 
 def _is_one_digit_code(source: str) -> bool:
-    """Whether ``source`` is ``$`` and one hex digit (``$1``)."""
+    """Return whether ``source`` is ``$`` and one hex digit (``$1``)."""
     return len(source) == 2 and source[0] == "$" and source[1] in _HEX_DIGITS
 
 
 def _source_display(source: str, kind: Kind) -> str:
-    """CLICK's form of a single Copy's constant source, one it takes.
+    """Return ``source`` in the form CLICK shows it, for a constant that a single Copy
+    accepts as its source.
 
-    A decimal integer keeps its sign, typed ``+`` too, and loses its leading zeros
-    (``005`` is ``5``, ``+5`` and ``+0`` stay); zero loses a ``-`` (``-0`` is ``0``).  A hex
-    constant has its digits uppercased, leading zeros kept, then a lowercase ``h`` (``0ffh``
-    is ``0FFh``).  A real of at most 7 significant digits is printed back without a typed
-    ``+`` (``1.50`` is ``1.5``, ``+1.5`` is ``1.5``, ``1E5`` is ``100000.0``; see
-    :func:`~laddercodec.operands.constants.copy_real_display`); one of more is refused
-    before this.  Text and a character code come back as given.
+    - A decimal integer keeps its sign, including a typed ``+``, and loses its leading
+      zeros. ``005`` becomes ``5``, and ``+5`` and ``+0`` stay as they are. Zero loses a
+      ``-``, so ``-0`` becomes ``0``.
+    - A hex constant has its digits in uppercase and keeps its leading zeros, followed by
+      a lowercase ``h``. ``0ffh`` becomes ``0FFh``.
+    - A real of at most 7 significant digits is printed back without a typed ``+``.
+      ``1.50`` becomes ``1.5``, ``+1.5`` becomes ``1.5`` and ``1E5`` becomes
+      ``100000.0``. See :func:`~laddercodec.operands.constants.copy_real_display`. The
+      caller refuses a real with more digits before it calls this function.
+    - Text and a character code are returned unchanged.
     """
     if kind is Kind.INTEGER:
         sign = source[:1] if source[:1] in ("+", "-") else ""
@@ -279,13 +300,15 @@ def _source_display(source: str, kind: Kind) -> str:
     return source
 
 
-#: Hex words a single Copy reads as a real, uppercased, with the real CLICK stores for each.
-#: Whether CLICK reads any other hex word with an E (0EH, 01EH, E0H) as a real is not known.
+#: Hex constants that a single Copy reads as a real, in uppercase, each mapped to the real
+#: that CLICK stores for it. It is not known whether CLICK reads any other hex constant
+#: with an E (0EH, 01EH, E0H) as a real.
 _REAL_HEX_WORDS = {"EH": "0.0", "1EH": "1.0"}
 
 
 def _real_hex_refusal(source: str) -> str | None:
-    """Why a single Copy refuses ``source``, a hex word CLICK reads as a real, or None."""
+    """Return the reason a single Copy refuses ``source`` if it is a hex constant that CLICK
+    reads as a real. Return None for any other ``source``."""
     real = _REAL_HEX_WORDS.get(source.upper())
     if real is None:
         return None
@@ -302,15 +325,17 @@ def _real_hex_refusal(source: str) -> str | None:
 
 #: Registers that hold a number.
 NUMERIC_BANKS = REGISTER_BANKS - {"TXT"}
-#: Registers a copy writes: every register but XD.
+#: Registers that a copy can write to. That is every register except XD.
 _REGISTER_DEST_BANKS = REGISTER_BANKS - {"XD"}
 _NUMERIC_DEST_BANKS = _REGISTER_DEST_BANKS - {"TXT"}
 _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
-#: A Copy source or Fill value takes a constant of any kind; a signed hex text reads as a hex
-#: constant, which the field then refuses.
+#: A Copy source or a Fill value accepts a constant of any kind. Hex digits with a sign
+#: before them (``+1h``) are read as a hex constant, and the field then refuses that
+#: constant.
 _CONSTANTS = Constants(ALL_KINDS, hex_sign=True)
-#: The same, with text of any characters: a single Copy checks its source's characters after
-#: the pairing with the destination (:func:`_check_source_text`).
+#: The same constants, but a text may hold any character. A single Copy checks the
+#: characters of its source after it checks the source against the destination
+#: (:func:`_check_source_text`).
 _ANY_TEXT = replace(_CONSTANTS, printable=False)
 #: A termination code is a ``$hh`` character code.
 _TERMINATION = Constants(frozenset({Kind.CHAR}))
@@ -326,7 +351,9 @@ _KIND_TEXT = {
 
 
 def _bank_prefix(operand: str) -> str:
-    """The bank letters an address starts with (``CTD`` for ``CTD5``), checked or not."""
+    """Return the bank letters that ``operand`` starts with (``CTD`` for ``CTD5``).
+
+    The address does not have to be valid."""
     m = re.match(r"[A-Z]*", operand)
     return m.group(0) if m else ""
 
@@ -349,10 +376,12 @@ def check_box_operand(
     *,
     bank_id: str | None = None,
 ) -> Operand:
-    """The shared ``check_operand`` for a field that takes no pointer: every Copy-family field
-    but a single Copy's source and destination.
+    """Check ``value`` with ``check_operand`` for a field that does not accept a pointer, and
+    return the checked operand.
 
-    A pointer is refused in the Copy family's words, "only a single Copy takes one".
+    Every Copy-family field except the source and destination of a single Copy uses this
+    check. A pointer raises ``AddressError`` with a message that says only a single Copy
+    takes one.
     """
     bank, _, rest = value.partition("[")
     if (
@@ -381,8 +410,11 @@ def _refusal(
     *,
     code: Code,
 ) -> FieldError:
-    """A refusal of ``cls.attrs[0]`` (a pair or more, when the rule is about several
-    fields): ``Class.attr: rule``, with CLICK's id at the end."""
+    """Return an ``error`` that refuses the field ``cls.attrs[0]``.
+
+    The message is ``Class.attr: rule``, with CLICK's id in parentheses at the end when there
+    is one. When the rule is about several fields, ``attrs`` lists them all, and the error's
+    ``fields`` holds them all."""
     fields = tuple(f"{cls}.{attr}" for attr in attrs)
     tail = f" ({click_id})" if click_id else ""
     return error(
@@ -391,12 +423,13 @@ def _refusal(
 
 
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
-    """The kind of a Copy source or Fill value: ``bit``, ``word``, ``txt``, ``number`` or
-    ``text``.
+    """Return the kind of a Copy source or a Fill value: ``bit``, ``word``, ``txt``,
+    ``number`` or ``text``.
 
-    An address or pointer is checked here.  A constant's limits wait for the caller: a Fill
-    pairs the value with its range first, and a single Copy checks the constant's value
-    after the destination (a ``$hh`` code is read at once).
+    This function checks an address or a pointer. It leaves the limits of a constant to the
+    caller. A Fill checks the value against its range first, and a single Copy checks the
+    value of a constant after the destination. A ``$hh`` code is the exception, and this
+    function checks it at once.
     """
     shape = constant_shape(value, _CONSTANTS)
     if shape is Kind.CHAR:
@@ -413,16 +446,19 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
 
 
 def _position(address: Address) -> int:
-    """Order of an address in its bank: ``XD0``, ``XD0u``, ``XD1`` ... count 0, 1, 2 ..."""
+    """Return the position of ``address`` in its bank. ``XD0``, ``XD0u``, ``XD1`` ... are at
+    positions 0, 1, 2 ..."""
     if address.bank in ("XD", "YD"):
         return 1 if address.upper else address.number + (address.number > 0)
     return address.number
 
 
 def _span(first: Address, last: Address) -> int | None:
-    """Addresses from ``first`` to ``last`` in one bank; ``None`` for XD/YD.
+    """Return the number of addresses from ``first`` to ``last`` in one bank, or ``None`` for
+    XD and YD.
 
-    How CLICK counts across ``XD0u`` is not checked, so XD/YD ranges get no count.
+    How CLICK counts across ``XD0u`` has not been checked, so an XD or YD range gets no
+    count.
     """
     if first.bank in ("XD", "YD"):
         return None
@@ -432,7 +468,7 @@ def _span(first: Address, last: Address) -> int | None:
 def _range_end(
     value: str, field: str, banks: Collection[str] | None, bank_id: str | None
 ) -> Address:
-    """One end of a range: an address, never a pointer."""
+    """Check one end of a range and return its address. A pointer is refused."""
     address = check_box_operand(value, field, banks, bank_id=bank_id).address
     assert address is not None
     return address
@@ -452,8 +488,11 @@ def _check_relation(
     module_id: str | None,
     ids: bool,
 ) -> None:
-    """Refuse an end that does not fit its start: another bank, not after it, or in another
-    X or Y slot.  A refusal of the pair, the end's field first."""
+    """Refuse an end that does not fit its start.
+
+    The end must be in the bank of the start. With ``ordered`` it must come after the
+    start, and with ``one_module`` it must be in the same X or Y slot. The refusal names
+    both fields, the end's field first."""
     pair = (end_field, start_field)
     if first.bank != last.bank:
         raise _refusal(
@@ -503,16 +542,19 @@ def check_range(
 ) -> tuple[Address, Address]:
     """Check a ``start..end`` range and return its two ends.
 
-    Both ends are addresses in one bank (OBJ-008), never pointers.  With ``ordered``, the end
-    comes after the start: an end before it is OBJ-009 and the same address OBJ-012
-    (Search repeats this range check).
-    With ``one_module``, an X or Y range stays inside one 16-point slot of
-    :data:`~laddercodec.model.XY_SLOTS` (``module_id`` is CLICK's id for the refusal); the
-    dual option slot, 21-36, is a slot of its own.  The module check applies to the
-    Pack source, the Block Copy source and the Unpack destination.  ``bank_id`` is CLICK's id
-    for an end in a bank the field does not take.  A refusal of how the ends fit is a refusal
-    of the pair, the end's field first.  ``ids=False`` leaves out OBJ-008, OBJ-009 and
-    OBJ-012, for a dialog whose ids are not known.
+    Both ends must be addresses in one bank (OBJ-008), and neither may be a pointer. With
+    ``ordered``, the end must come after the start. An end before the start is OBJ-009,
+    and an end at the start is OBJ-012. The Search instruction uses the same range check.
+
+    With ``one_module``, an X or Y range must stay inside one 16-point slot of
+    :data:`~laddercodec.model.XY_SLOTS`. ``module_id`` is CLICK's id for that refusal. The
+    dual option slot, 21-36, counts as a slot of its own. The Pack source, the Block Copy
+    source and the Unpack destination use this check.
+
+    ``bank_id`` is CLICK's id for an end in a bank that the field does not accept. When the
+    ends do not fit each other, the refusal names both fields, the end's field first. With
+    ``ids=False`` the refusals leave out OBJ-008, OBJ-009 and OBJ-012. Use it for a dialog
+    whose ids are not known.
     """
     first = _range_end(start, f"{cls}.{start_field}", banks, bank_id)
     last = _range_end(end, f"{cls}.{end_field}", banks, bank_id)
@@ -537,10 +579,12 @@ def _check_range(
     module_id: str | None = None,
     ids: bool = True,
 ) -> tuple[Address | None, Address | None]:
-    """:func:`check_range` keeping every refusal: each end on its own, then the pair.
+    """Do the checks of :func:`check_range` through ``check`` and keep every refusal. Check
+    each end on its own, and then the two ends together.
 
-    The ends come back, None for a refused one, even when the relation between them was
-    refused (the end's field leads that refusal).
+    Return both ends, with None for an end that was refused. The ends are returned even
+    when the check of the two together refused them. That refusal names the end's field
+    first.
     """
     cls = check.field(start_attr).partition(".")[0]
     first = check(start_attr, _range_end, banks, bank_id)
@@ -566,8 +610,8 @@ def _check_pair(
     *,
     code: Code,
 ) -> None:
-    """Refuse a destination bank the source kind can't copy into: a refusal of the
-    destination with the source."""
+    """Refuse ``dest_bank`` if a source of kind ``kind`` cannot be copied into it. The
+    refusal names the destination field first and the source field second."""
     allowed = pairs[kind]
     if dest_bank not in allowed:
         raise _refusal(
@@ -584,10 +628,11 @@ def _check_pair(
 def _check_kind(
     cls: str, field_name: str, value: str, bank: str, kind: str, kind_field: str
 ) -> None:
-    """Pack/unpack ``bits`` takes a bit range and ``words`` a register range.
+    """Refuse ``bank`` if it does not suit ``kind``. A pack or unpack of ``bits`` needs a bit
+    range, and one of ``words`` needs a register range.
 
-    The blob stores no bits/words flag; the decoder reads it from this bank.  A refusal of
-    the range's start with ``kind_field``.
+    The blob stores no flag for bits or words. The decoder works out the kind from this
+    bank. The refusal names the start of the range first and ``kind_field`` second.
     """
     if (kind == "bits") != (bank in BIT_BANKS):
         what = "a register" if kind == "bits" else "a bit"
@@ -607,7 +652,8 @@ _BITS_PER_REGISTER = {"DS": 16, "DH": 16, "DD": 32, "DF": 32}
 _MAX_BITS = max(_BITS_PER_REGISTER.values())
 #: Most words one pack or unpack moves.
 _MAX_WORDS = 2
-#: Most TXT characters a pack of text reads into a DH.  Only DH has a limit yet.
+#: Most TXT characters that a pack of text can put into one DH. DH is the only destination
+#: with a known limit.
 _DH_TEXT_CHARS = 4
 #: How a count of each kind reads in a message.
 _UNITS = {"bits": "bits", "words": "words", "text": "characters"}
@@ -621,8 +667,8 @@ _COUNT_IDS: dict[tuple[str, int], tuple[str, str | None]] = {
 
 
 def _count_limit(kind: str, bank: str | None) -> int | None:
-    """Most bits, words or characters one register of ``bank`` packs or unpacks; None for
-    no limit."""
+    """Return the most bits, words or characters that one register of ``bank`` packs or
+    unpacks, or None if there is no limit."""
     if kind == "bits":
         return _BITS_PER_REGISTER.get(bank or "")
     if kind == "text":
@@ -631,18 +677,21 @@ def _count_limit(kind: str, bank: str | None) -> int | None:
 
 
 def _pack_kind(bank: str) -> str:
-    """The pack a source bank makes: ``bits``, ``words``, or ``text`` from TXT."""
+    """Return the kind of pack that a source in ``bank`` makes: ``text`` for TXT, ``bits``
+    for a bit bank and ``words`` for any other bank."""
     if bank == "TXT":
         return "text"
     return "bits" if bank in BIT_BANKS else "words"
 
 
 def _pack_limit(kind: str, source_bank: str, dest_bank: str, paired: bool) -> int | None:
-    """Most a Pack source of ``kind`` holds, checked before the pairing.
+    """Return the largest count that a Pack source of ``kind`` may have, or None for no
+    limit. A Pack checks this count before it checks the pairing of source and destination.
 
-    Where the source packs into the destination (``paired``), the destination's room. Where
-    it doesn't, bits are held to 32, the most any destination takes, and a DH source to two
-    words; a DS source is not counted then.
+    If the source can pack into the destination (``paired``), the limit is what the
+    destination holds. If it cannot, a source of bits is limited to 32, the most that any
+    destination holds, and a DH source is limited to two words. Any other source, such as
+    DS, then has no limit.
     """
     if paired:
         return _count_limit(kind, dest_bank)
@@ -662,11 +711,13 @@ def _check_count(
     limit: int | None,
     single: str | None,
 ) -> None:
-    """Refuse a pack source or unpack destination longer than ``limit``: a refusal of the
-    range's end with its start and the single register's field.
+    """Refuse a Pack source or an Unpack destination whose ``count`` is more than ``limit``.
+    The refusal names the end of the range, then its start, then the field of the single
+    register.
 
-    ``single`` names the register in the message; None states the limit of every pack of
-    ``kind`` (for a Pack whose source does not pack into its destination).
+    ``single`` is the single register, and the message names it. If ``single`` is None,
+    the message states the limit for every pack of ``kind``. A Pack passes None when its
+    source cannot pack into its destination.
     """
     if limit is not None and count is not None and count > limit:
         unit = _UNITS[kind]
@@ -696,7 +747,9 @@ _COPY_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-#: Source kind -> destination banks of a Fill, which agree with a single Copy for registers.
+#: Source kind -> destination banks of a Fill. For a constant, the banks are the same as in
+#: ``_COPY_PAIRS``. A numeric register fills only numeric registers, and a TXT register fills
+#: only TXT.
 _FILL_PAIRS: dict[str, frozenset[str]] = {
     "word": _NUMERIC_DEST_BANKS,
     "txt": frozenset({"TXT"}),
@@ -706,25 +759,31 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 
 
 def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[str | None, Code]:
-    """CLICK's id and the code for a single Copy destination in a bank a Copy does not write.
+    """Return CLICK's id and the code for a single Copy destination in a bank that a Copy
+    does not write.
 
-    A ``$hh`` character code copies to TXT only, and CLICK refuses it anywhere else as an
-    address the instruction can't use (OBJ-004: ``$41`` into X001 or XD0), as its pairing
-    with a register is.  In a bit bank a Copy does not write (X, T, CT and SC: it writes no
-    bit bank but Y and C), an address outside its bank is OBJ-004 from any source (DS2 into
-    X017, T501, CT251 or SC1001).  Inside it, CLICK refuses a bit as an address the
-    instruction can't use (OBJ-004: X001 into X001, C1 into SC50 and SC303), and anything
-    else as a pairing of kinds (OBJ-024: DS2 and 5 into X001), the id of every other pairing
-    a single Copy refuses.  XD, the one register bank a Copy does not write, has no id from
-    another source.
+    A ``$hh`` character code copies to TXT only. CLICK refuses it in any other bank as an
+    address that the instruction cannot use (OBJ-004), for example ``$41`` into X001 or
+    XD0. CLICK gives the same id when it refuses a ``$hh`` code paired with a register.
 
-    A source that is refused has no id here: an address ``_source_kind`` refuses (``kind``
-    None), and a constant the source's own check refuses later (out of range, or text it
-    can't hold); that refusal stays after the destination's.
+    The only bit banks that a Copy writes are Y and C. In X, T, CT and SC, an address
+    outside the range of its bank is OBJ-004 from any source (DS2 into X017, T501, CT251 or
+    SC1001). For an address inside the range, CLICK refuses a bit source as an address that
+    the instruction cannot use (OBJ-004), for example X001 into X001, or C1 into SC50 or
+    SC303. It refuses any other source as a pairing of kinds (OBJ-024), for example DS2 or
+    5 into X001. OBJ-024 is also the id of every other pairing that a single Copy refuses.
+    XD is the one register bank that a Copy does not write. For a source other than a ``$hh``
+    code, CLICK's id depends on the source (OBJ-004 for most, OBJ-024 for a bit, a text or
+    10000h), and this function returns no id.
 
-    The code is ``bank-not-allowed`` but for a pairing: a constant into a bit
-    (``constant-into-bit``, a ``$hh`` code too), and a register into a bit
-    (``copy-bank-incompatible``).
+    If the source is refused, this function returns no id. That happens for an address
+    that ``_source_kind`` refuses (``kind`` is None). It also happens for a constant that
+    the source's own check refuses later, because it is out of range or holds characters
+    that CLICK does not keep. That refusal comes after the destination's.
+
+    The code is ``bank-not-allowed``, except for two pairings. A constant into a bit,
+    including a ``$hh`` code, is ``constant-into-bit``. A register into a bit is
+    ``copy-bank-incompatible``.
     """
     if kind is None:
         return None, Code.BANK_NOT_ALLOWED
@@ -746,11 +805,12 @@ def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[st
 
 
 def _check_copy_destination(destination: str, field: str, source: str, kind: str | None) -> Operand:
-    """A single Copy destination: an address or pointer of a bank a Copy writes.
+    """Check a single Copy destination and return it. It must be an address or a pointer in
+    a bank that a Copy writes.
 
-    A ``$hh`` code copies to TXT only: CLICK refuses it into a pointer of any other bank
-    (``X[DS1]``, ``XD[DS1]``, ``SD[DS1]``) as an address the instruction can't use (OBJ-004),
-    as into an address.
+    A ``$hh`` code copies to TXT only. CLICK refuses it into a pointer of any other bank
+    (``X[DS1]``, ``XD[DS1]``, ``SD[DS1]``) as an address that the instruction cannot use
+    (OBJ-004). It refuses it into an address of another bank in the same way.
     """
     bank_id, bank_code = _copy_dest_bank(kind, source, destination)
     try:
@@ -777,7 +837,8 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
 
 
 def _is_pointer(value: str, field: str) -> bool:
-    """Whether ``value`` is ``BANK[DSn]``: a bank's name and a DS address in brackets."""
+    """Return whether ``value`` is a pointer ``BANK[DSn]``, a bank name with a DS address in
+    brackets."""
     bank, bracket, index = value.partition("[")
     if not bracket or bank not in ADDRESS_BANKS or not index.endswith("]"):
         return False
@@ -788,7 +849,8 @@ def _is_pointer(value: str, field: str) -> bool:
 
 
 def _in_its_bank(address: str) -> bool:
-    """Whether ``address`` is a CLICK address: its number inside its bank's range."""
+    """Return whether ``address`` is a valid CLICK address, with its number inside the range
+    of its bank."""
     try:
         check_address(address, "Copy.dest")
     except AddressError:
@@ -797,11 +859,19 @@ def _in_its_bank(address: str) -> bool:
 
 
 def _check_source_value(source: str, field: str) -> Constant:
-    """A single Copy source constant's own value, its characters aside.
+    """Check the value of a single Copy's constant source and return it. This check does not
+    look at the characters of a text.
 
-    CLICK refuses as values, with OBJ-005 as for a hex constant above FFFFFFFFh: an empty
-    text, a text of more than 128 characters, a signed hex constant (``-FFh``) and one of
-    more than 8 digits (``0FFFFFFFFh``).  A quote inside the text has no answer and no id.
+    CLICK refuses these as values, with OBJ-005, the id it gives a hex constant above
+    FFFFFFFFh:
+
+    - an empty text;
+    - a text of more than 128 characters;
+    - a signed hex constant (``-FFh``);
+    - a hex constant of more than 8 digits (``0FFFFFFFFh``).
+
+    No CLICK answer covers a text that has a quote inside it. This function raises that
+    refusal without an id.
     """
     try:
         return check_constant(source, field, _ANY_TEXT)
@@ -821,8 +891,9 @@ def _check_source_value(source: str, field: str) -> Constant:
 
 
 def _check_source_text(source: str, field: str) -> Constant:
-    """A single Copy source constant with its characters: text holds the characters CLICK
-    keeps (:func:`~laddercodec.operands.checks.check_kept_text`)."""
+    """Check a single Copy's constant source, including the characters of a text, and
+    return it. A text may hold only characters that CLICK keeps
+    (:func:`~laddercodec.operands.checks.check_kept_text`)."""
     const = check_constant(source, field, _ANY_TEXT)
     if const.kind is Kind.TEXT:
         check_kept_text(source, str(const.value), field)
@@ -831,13 +902,14 @@ def _check_source_text(source: str, field: str) -> Constant:
 
 #: The 32-bit integer registers.
 _INT32_BANKS = frozenset({"DD", "CTD"})
-#: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
-#: (OBJ-024).
+#: The banks that a single Copy can copy a hex constant above FFFFh into: the 32-bit
+#: integer registers. CLICK refuses any other bank with OBJ-024.
 _HEX32_DEST_BANKS = _INT32_BANKS
 
 
 def _check_hex32(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse a hex constant above FFFFh that ``dest_bank`` can't take."""
+    """Refuse a hex constant above FFFFh if ``dest_bank`` is not a 32-bit integer
+    register."""
     shape = constant_shape(source, _CONSTANTS)
     if shape is Kind.HEX and int(source[:-1], 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise _refusal(
@@ -856,17 +928,17 @@ _TXT_LAST = ADDRESS_BANKS["TXT"][1]
 
 
 def _text_fill_end(source: str, destination: str) -> Address | None:
-    """The last TXT a single Copy of quoted text fills; the blob stores it as the
-    destination end (tag 0x6077).
+    """Return the last TXT register that a single Copy of quoted text fills. The blob
+    stores it as the destination end (tag 0x6077).
 
-    CLICK stores it for two or more characters (``"TT"`` into TXT1 stores TXT2) and
+    CLICK stores the end for two or more characters: ``"TT"`` into TXT1 stores TXT2. It
     leaves the end empty for one character (``"Q"`` into TXT2) and for a ``$hh`` code.
-    ``None`` for those, and for a pointer destination, where CLICK stores no end whatever
-    the length (``copy("AB",TXT[DS1])``).
+    Return ``None`` for those. Also return ``None`` for a pointer destination, because
+    CLICK stores no end for a pointer, whatever the length (``copy("AB",TXT[DS1])``).
     """
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
-    # A TXT: text copies only there.
+    # The destination is a TXT address or pointer, because text copies only to TXT.
     first = check_operand(destination, "Copy.dest", pointer=True)
     if first.address is None:
         return None
@@ -878,15 +950,19 @@ _NUMBER_KINDS = frozenset({Kind.INTEGER, Kind.HEX, Kind.FLOAT})
 
 
 def _number_fill_end(source: str, destination: str) -> Address | None:
-    """The last TXT a single Copy of a number constant into a TXT address fills with the
-    constant's text, which CLICK saves as the destination end (tag 0x6077).
+    """Return the last TXT register that a single Copy fills when it copies a number constant
+    into a TXT address as text. CLICK saves this register as the destination end (tag
+    0x6077).
 
-    The text is the constant as stored, ``h`` and a ``+`` included, one TXT a character:
-    ``-5``, ``1h`` and ``+5`` into TXT1 end in TXT2, ``10h`` and ``1.5`` in TXT3, ``0FFh`` in
-    TXT4, ``FFFFh`` in TXT5, ``2147483647`` in TXT10.  An end past TXT1000 is returned too:
-    CLICK refuses it (``-5`` into TXT1000 ends in TXT1001, OBJ-003).  ``None`` for one
-    character (``5`` into TXT1, saved with no end), for a pointer (``1.5`` into ``TXT[DS1]``,
-    saved with no end), and for any other source or destination.
+    The text is the constant as stored, including an ``h`` and a ``+``, and each character
+    fills one TXT register. Copied into TXT1, ``-5``, ``1h`` and ``+5`` end in TXT2, ``10h``
+    and ``1.5`` in TXT3, ``0FFh`` in TXT4, ``FFFFh`` in TXT5 and ``2147483647`` in TXT10.
+    The function also returns an end past TXT1000, which CLICK refuses: ``-5`` into TXT1000
+    ends in TXT1001, and CLICK gives OBJ-003.
+
+    Return ``None`` for a constant of one character (``5`` into TXT1, which CLICK saves with
+    no end) and for a pointer (``1.5`` into ``TXT[DS1]``, also saved with no end). Also
+    return ``None`` for any other source or destination.
     """
     if len(source) < 2 or constant_shape(source, _CONSTANTS) not in _NUMBER_KINDS:
         return None
@@ -900,9 +976,9 @@ def _number_fill_end(source: str, destination: str) -> Address | None:
 
 
 def _number_text_types(source: str) -> frozenset[int]:
-    """The conversion types a number constant's end is saved with: 3 or 4 (real or
-    exponential numbering) for a real, 1 or 2 (zeros suppressed or not) for an integer or
-    hex constant."""
+    """Return the conversion types that CLICK saves with the end of a number constant copied
+    into TXT: 3 or 4 (real or exponential numbering) for a real, and 1 or 2 (zeros
+    suppressed or not) for an integer or hex constant."""
     if constant_shape(source, _CONSTANTS) is Kind.FLOAT:
         return frozenset({3, 4})
     return frozenset({1, 2})
@@ -912,20 +988,23 @@ def _number_text_types(source: str) -> frozenset[int]:
 # Block, Pack and Unpack pairs (pairing table)
 # ---------------------------------------------------------------------------
 
-#: One pairing row: source banks and the destination banks they copy to.  The first row
-#: holding the source bank applies; a destination outside it is refused.
+#: A table of pairing rows. Each row holds source banks and the destination banks they copy
+#: to. The first row that holds the source bank applies, and a destination outside that row
+#: is refused.
 _Rows = tuple[tuple[frozenset[str], frozenset[str]], ...]
 
 _NUMERIC_BITS = frozenset({"X", "Y", "T", "CT", "SC"})
 
-#: Block Copy rows.  Its source and destination edits refuse every other bank
-#: (OBJ-004): XD, YD, TD and CTD are no source, and X, T, CT, SC, XD and YD no destination.
+#: Block Copy rows. CLICK's source and destination fields refuse every bank that is not in
+#: these rows (OBJ-004). XD, YD, TD and CTD cannot be a source, and X, T, CT, SC, XD and YD
+#: cannot be a destination.
 _BLOCK_ROWS: _Rows = (
     (BIT_BANKS, frozenset({"Y", "C"})),
     (frozenset({"DS", "DD", "DH", "DF", "SD"}), frozenset({"DS", "DD", "DH", "DF", "TD", "CTD", "SD"})),
     (frozenset({"TXT"}), frozenset({"DS", "DD", "DH", "TXT"})),
 )  # fmt: skip
-#: Pack rows: X/Y/T/CT/SC bits pack into DH only; C into any 16- or 32-bit word.
+#: Pack rows. X, Y, T, CT and SC bits pack into DH only. C bits pack into any 16-bit or
+#: 32-bit word.
 _PACK_ROWS: _Rows = (
     (_NUMERIC_BITS, frozenset({"DH"})),
     (frozenset({"C"}), frozenset({"DS", "DD", "DH", "DF"})),
@@ -949,16 +1028,17 @@ def _destinations(rows: _Rows) -> frozenset[str]:
     return frozenset().union(*(dst for _, dst in rows))
 
 
-#: CLICK's id for a destination bank the source's row leaves out: an Unpack's destination
-#: field gives OBJ-004 for every bank its source greys out but Y (:data:`_UNPACK_Y_ID`);
-#: Block Copy and Pack give OBJ-024 for a pairing.
+#: CLICK's id for a destination bank that the source's row leaves out. For an Unpack, the
+#: destination field gives OBJ-004 for every bank that the source greys out, except Y
+#: (:data:`_UNPACK_Y_ID`). Block Copy and Pack give OBJ-024, the id for a pairing of kinds.
 _ROW_IDS = {"BlockCopy": "OBJ-024", "Pack": "OBJ-024", "Unpack": "OBJ-004"}
-#: CLICK's id for an Unpack into Y from a source other than DH: a pairing of kinds.
+#: CLICK's id for an Unpack into Y from a source other than DH. CLICK refuses it as a
+#: pairing of kinds.
 _UNPACK_Y_ID = "OBJ-024"
 
 
 def _source_row(rows: _Rows, source_bank: str) -> frozenset[str]:
-    """The destination banks of the first row holding ``source_bank``."""
+    """Return the destination banks of the first row that holds ``source_bank``."""
     return next(dst for src, dst in rows if source_bank in src)
 
 
@@ -972,8 +1052,8 @@ def _check_row(
     destination: str,
     dest_bank: str,
 ) -> None:
-    """Refuse a destination bank the source bank's pairing row leaves out: a refusal of the
-    destination with the source."""
+    """Refuse ``dest_bank`` if the pairing row of ``source_bank`` leaves it out. The refusal
+    names the destination field first and the source field second."""
     allowed = _source_row(rows, source_bank)
     if dest_bank not in allowed:
         what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
@@ -993,11 +1073,13 @@ _LAST_WRITABLE_SD = max(WRITABLE_SD)
 
 
 def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
-    """Refuse a Block Copy into SD whose range, after its writable start, holds an SD that
-    is not writable: a refusal of the destination with the source, whose length sets the end.
+    """Refuse a Block Copy into SD whose range holds an SD register that is not writable.
 
-    CLICK's id: OBJ-018 when every unwritable SD in the range lies below SD215, OBJ-004 when
-    every one lies past it, no id when it has both.
+    The start ``dest`` is writable, and ``end`` is the last register that the source's
+    length fills. The refusal names the destination start, then the source start and end.
+
+    CLICK gives OBJ-018 when every unwritable SD in the range is below SD215, and OBJ-004
+    when every one is above it. It gives no id when the range holds both.
     """
     unwritable = [n for n in range(dest.number, end + 1) if n not in WRITABLE_SD]
     if not unwritable:
@@ -1098,10 +1180,11 @@ def _parse_range(arg: str) -> tuple[str, str]:
 
 
 def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
-    """Spell ``inst.termination_code`` one way, whichever way it came in (``$0d`` from CSV,
-    13 from a blob): ``$`` and two uppercase hex digits, or ``"0"`` for no code.
+    """Rewrite ``inst.termination_code`` in one form: ``$`` and two uppercase hex digits, or
+    ``"0"`` for no code. A code may arrive in another form, such as ``$0d`` from CSV.
 
-    ``"none"`` is the CSV spelling of no code, which ``to_csv`` writes; a blank is refused.
+    ``"none"`` is the CSV form of no code, and ``to_csv`` writes it. A blank code is
+    refused.
     """
     if inst.termination_code == "":
         check.refuse(
@@ -1121,7 +1204,8 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
 
 
 def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
-    """Refuse a termination code that is no character code: the blob stores only those."""
+    """Refuse a termination code that is neither a character code nor ``"0"``. The blob can
+    store only a character code."""
     if not inst.termination_code.startswith("$") and inst.termination_code != "0":
         check.refuse(
             "termination_code",
@@ -1134,18 +1218,20 @@ def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
 
 
 def _termination_tags(termination_code: str) -> tuple[str, str]:
-    """Tags 0x1221 (termination flag) and 0x3216 (the code in decimal) for a code."""
+    """Return the values of tags 0x1221 (the termination flag) and 0x3216 (the code in
+    decimal) for ``termination_code``."""
     if termination_code != "0" and termination_code.startswith("$"):
         return "-1", str(int(termination_code[1:], 16))
     return "0", "0"
 
 
 def _read_termination_tags(tags: dict[int, str]) -> str | None:
-    """The termination code a blob stores: ``"0"`` for none, or ``$hh``; None for a code
-    that is no decimal number.
+    """Return the termination code that a blob stores: ``"0"`` for none, or ``$hh``. Return
+    None if the stored code is not a decimal number.
 
-    0x1221 alone marks termination; 0x1201 is also set for a text constant source, so it
-    does not imply a code.  CLICK leaves 0x3216 out for the code ``$00``.
+    Only tag 0x1221 shows that termination is on. Tag 0x1201 is also set for a text
+    constant source, so it does not mean that there is a code. CLICK leaves 0x3216 out for
+    the code ``$00``.
     """
     term_char = tag_value(tags, 0x3216)
     if not (tag_flag(tags, 0x1221) and term_char):
@@ -1156,8 +1242,8 @@ def _read_termination_tags(tags: dict[int, str]) -> str | None:
 
 
 def _termination_csv(termination_code: str) -> list[str]:
-    """The ``termination_code=`` kwarg of a Copy with no converter or a Block Copy: none
-    for no code."""
+    """Return the ``termination_code=`` keyword of a Copy with no converter or of a Block
+    Copy, as a list. Return an empty list for no code."""
     return [] if termination_code == "0" else [f"termination_code={termination_code}"]
 
 
@@ -1177,25 +1263,28 @@ class Copy(AfInstruction):
     dest:
         Destination operand (e.g. ``"DS8"``).
     convert:
-        The converter, as the CSV names it — ``None`` (a plain copy), ``"to_value"``,
-        ``"to_text"``, ``"to_binary"`` or ``"to_ascii"``.  A TXT register copied into a
-        numeric register other than DF takes ``"to_value"`` or ``"to_ascii"``, and refuses
-        ``None``.
+        The converter, by its CSV name: ``None`` (a plain copy), ``"to_value"``,
+        ``"to_text"``, ``"to_binary"`` or ``"to_ascii"``. A TXT register copied into a
+        numeric register other than DF needs ``"to_value"`` or ``"to_ascii"``, and ``None``
+        is refused for it.
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
-        Text option for an integer, hex or register source — ``False`` (don't suppress) or
-        ``True`` (suppress); ``None`` reads as ``False``.  A DF source or a real constant
-        copied with ``"to_text"`` has no such option: it holds ``None``, and refuses a
-        value.  A TXT source refuses ``True``.
+        The suppress zero option of a copy to text, for an integer, hex or register
+        source. ``True`` suppresses zeros and ``False`` does not. ``None`` is read as
+        ``False``. A DF source or a real constant copied with ``"to_text"`` has no such
+        option. For it the attribute holds ``None``, and any other value is refused. A TXT
+        source refuses ``True``.
     exponential:
-        Text option for a DF source or a real constant — ``False`` (real) or ``True``
-        (exponential).  Any other source has no such option and refuses ``True``.
+        The numbering option of a copy to text, for a DF source or a real constant:
+        ``False`` for real numbering and ``True`` for exponential. Any other source has no
+        such option and refuses ``True``.
     termination_code:
-        For a number register copied to text (``"to_text"`` or ``"to_binary"``) or a TXT
-        register copied to TXT (``None``) — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or
-        ``"$HH"`` hex ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is
-        refused).  A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
+        The termination code. Only a number register copied to text (with ``"to_text"`` or
+        ``"to_binary"``) and a TXT register copied to TXT (with ``None``) accept one. The
+        value is ``"0"`` or ``"none"`` for no code, stored as ``"0"``. Otherwise it is a hex
+        ASCII code ``"$HH"`` with exactly two digits: ``"$0D"`` is 0x0D, and ``"$D"`` is
+        refused. A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
     """
 
     source: str
@@ -1208,11 +1297,11 @@ class Copy(AfInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            # A constant comes back from normalize_address as written.
+            # normalize_address returns a constant as it was written.
             check.normalize("source", "dest")
             if _is_one_digit_code(self.source):
-                # A single Copy takes $ and one hex digit as a character code; CLICK stores
-                # it with two ($1 is $01).
+                # A single Copy accepts $ and one hex digit as a character code. CLICK
+                # stores it with two digits, so $1 becomes $01.
                 self.source = f"$0{self.source[1]}"
             elif (why := _real_hex_refusal(self.source)) is not None:
                 check.refuse("source", why, Reason.FORM, code=Code.COPY_HEX_READS_AS_REAL)
@@ -1225,7 +1314,8 @@ class Copy(AfInstruction):
                     code=Code.INVALID_CHOICE,
                 )
             _read_termination(check, self)
-            # No suppress_zero is False, but for a real source copied to text, which has none.
+            # A suppress_zero of None means False, except for a real source copied to text,
+            # which has no suppress zero option.
             if self.suppress_zero is None and not (
                 self.convert == "to_text" and _real_text_source(self.source)
             ):
@@ -1234,18 +1324,21 @@ class Copy(AfInstruction):
                 check.flag("exponential")
             else:
                 check.flag("suppress_zero", "exponential")
-            # CLICK's order: the source's address, the destination's, the source constant's
-            # own value, the pairing of the two, then an SD the Copy does not write.
+            # Check in CLICK's order: the source address, the destination address, the value
+            # of a source constant, the pairing of source and destination, and then an SD
+            # register that a Copy does not write.
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
             dst = check("dest", _check_copy_destination, self.source, kind)
             const = None
             if kind in ("number", "text"):
-                # Before the pairing: "" and 100000000h into DS1 are refused values (OBJ-005).
-                # Text's characters are checked at the end ("é" into DS1 is OBJ-024).
+                # Check the value before the pairing. CLICK refuses "" and 100000000h into
+                # DS1 as values (OBJ-005). The characters of a text are checked at the end.
+                # CLICK refuses "é" into DS1 with OBJ-024.
                 const = check("source", _check_source_value)
             if kind is not None and dst is not None:
                 assert dst.bank is not None
-                # A $hh code into any bank but TXT is OBJ-004; any other pairing, OBJ-024.
+                # CLICK refuses a $hh code into any bank except TXT with OBJ-004, and any
+                # other pairing with OBJ-024.
                 pair_id = "OBJ-004" if self.source.startswith("$") else "OBJ-024"
                 into_bit = kind in ("number", "text") and dst.bank in BIT_BANKS
                 pair_code = Code.CONSTANT_INTO_BIT if into_bit else Code.COPY_BANK_INCOMPATIBLE
@@ -1256,8 +1349,9 @@ class Copy(AfInstruction):
                 if kind == "number":
                     check.run(_check_hex32, self.source, "dest", self.dest, dst.bank)
             if dst is not None and dst.address is not None:
-                # A Copy writes only the writable SD registers (OBJ-004), after the pairing:
-                # a bit, quoted text or 10000h into SD1 is OBJ-024.
+                # A Copy writes only the writable SD registers (OBJ-004). This check comes
+                # after the pairing: CLICK gives OBJ-024, not OBJ-004, for a bit, quoted
+                # text or 10000h into SD1.
                 check.run(check_writable_sd, dst.address, check.field("dest"), click_id="OBJ-004")
             if kind is not None and dst is not None:
                 assert dst.bank is not None
@@ -1271,7 +1365,7 @@ class Copy(AfInstruction):
                     or (self.convert is None and kind == "txt" and dst.bank == "TXT")
                 ):
                     # CLICK's dialog offers Termination Code for a number register copied to
-                    # text and for a TXT register copied to TXT; it greys the box for a
+                    # text and for a TXT register copied to TXT. It greys out the box for a
                     # constant copied to TXT.
                     check.refuse(
                         ("termination_code", "convert", "source", "dest"),
@@ -1282,7 +1376,8 @@ class Copy(AfInstruction):
                         code=Code.OPTION_NOT_OFFERED,
                     )
             if kind == "txt" and self.suppress_zero is True:
-                # CLICK's dialog greys Suppress zero for a TXT source, into a number or TXT.
+                # CLICK's dialog greys out Suppress zero for a TXT source, whether the
+                # destination is a number register or TXT.
                 check.refuse(
                     ("suppress_zero", "source"),
                     f"suppress_zero=1 is not an option for {self.source!r}; suppress zero is "
@@ -1318,7 +1413,8 @@ class Copy(AfInstruction):
             if const is not None and const.kind is Kind.FLOAT:
                 kept = real_beyond_kept_digits(self.source)
             if kept is not None:
-                # CLICK keeps 7 significant digits of a real, and saves one of more cut.
+                # CLICK keeps 7 significant digits of a real. It cuts a real with more
+                # digits when it saves it.
                 check.refuse(
                     "source",
                     f"{self.source!r} has {significant_digits(self.source)} significant "
@@ -1327,11 +1423,11 @@ class Copy(AfInstruction):
                     code=Code.INVALID_CONSTANT,
                 )
             elif const is not None:
-                # Written as CLICK stores it.
+                # Write the source in the form that CLICK stores.
                 self.source = _source_display(self.source, const.kind)
             if not check.refused("source", "dest"):
-                # CLICK's dialog shows the end a text fills (TXT1001) and refuses one past
-                # TXT1000 as out of range.
+                # CLICK's dialog shows the last TXT that a text fills, such as TXT1001. It
+                # refuses an end past TXT1000 as out of range.
                 end = _text_fill_end(self.source, self.dest)
                 if end is not None and end.number > _TXT_LAST:
                     check.add(
@@ -1362,11 +1458,13 @@ class Copy(AfInstruction):
             check.flag("oneshot")
 
     def _destination_end(self) -> str:
-        """Tag 0x6077: the last TXT a text of two or more characters fills, else empty.
+        """Return the value of tag 0x6077: the last TXT that a text of two or more characters
+        fills, or an empty string.
 
-        A number constant copied to text fills TXT with its own text, as CLICK saves it:
-        the end counts the constant as stored, ``h`` and a ``+`` included (``-5`` into TXT1
-        ends in TXT2, ``0FFh`` in TXT4, ``1.5`` in TXT3).
+        A number constant copied with ``"to_text"`` fills TXT registers with its own text,
+        as CLICK saves it. The end counts the characters of the constant as stored,
+        including an ``h`` and a ``+``. ``-5`` into TXT1 ends in TXT2, ``0FFh`` in TXT4 and
+        ``1.5`` in TXT3.
         """
         end = _text_fill_end(self.source, self.dest)
         if end is None and self.convert == "to_text":
@@ -1374,9 +1472,10 @@ class Copy(AfInstruction):
         return "" if end is None else end.display
 
     def _conversion(self) -> tuple[str, str]:
-        """Tags 0x2227 (conversion type) and 0x2206 (format option) as the encoder writes
-        them for these fields."""
-        # field[4] is the dialog's radio index; CLICK v4 ignores it on load.
+        """Return the values that the encoder writes for tags 0x2227 (conversion type) and
+        0x2206 (format option), given the fields of this Copy."""
+        # field[4] is the index of the radio button chosen in the dialog. CLICK v4 ignores
+        # it when it loads the blob.
         if self.convert == "to_text":
             if _real_text_source(self.source):
                 exp = int(self.exponential)
@@ -1392,10 +1491,10 @@ class Copy(AfInstruction):
         """Refuse a converter the source and destination kinds don't offer."""
         convert = self.convert
         if convert == "to_binary" and _saves_type_7(self.source, self.dest):
-            return  # Copy Binary of a value converted between a real and a 32-bit integer.
+            return  # Copy Binary is allowed for a copy between a real and a 32-bit integer.
         if convert is None and kind in ("word", "number") and dest_bank == "TXT":
-            # CLICK's dialog saves a number copied to TXT as its text (Copy Value, Suppress
-            # zero by default) or as binary; a plain copy is not one it saves.
+            # CLICK's dialog saves a number copied to TXT either as its text (Copy Value,
+            # with Suppress zero by default) or as binary. It never saves a plain copy here.
             option = "exponential=0" if _real_text_source(self.source) else "suppress_zero=1"
             check.refuse(
                 ("convert", "source", "dest"),
@@ -1418,7 +1517,7 @@ class Copy(AfInstruction):
             return
         if convert is None and kind == "txt" and _asks_txt_choice(dest_bank):
             # CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value, and
-            # saves one of them; a plain copy is not one it saves.
+            # saves one of them. It never saves a plain copy here.
             check.refuse(
                 ("convert", "source", "dest"),
                 f"{self.source!r} -> {self.dest!r} needs convert=to_value (the "
@@ -1462,7 +1561,6 @@ class Copy(AfInstruction):
         if not m:
             raise CsvError(f"Cannot parse copy: {token!r}")
 
-        # Paren-aware split of copy() arguments
         segments = _split_paren_aware(m.group(1))
 
         args: list[str] = []
@@ -1493,7 +1591,7 @@ class Copy(AfInstruction):
             kw.append("oneshot=1")
 
         if self.convert == "to_text":
-            # Only the option the source has.
+            # Write only the option that this source offers.
             option = (
                 f"exponential={1 if self.exponential else 0}"
                 if _real_text_source(self.source)
@@ -1509,7 +1607,8 @@ class Copy(AfInstruction):
         elif self.convert in ("to_value", "to_binary", "to_ascii"):
             kw.append(f"convert={self.convert}")
         elif self.convert is None:
-            # A TXT register copied to TXT: the code stands alone, with no converter.
+            # Only a TXT register copied to TXT has a code here. The code is written as its
+            # own keyword, with no converter.
             kw.extend(_termination_csv(self.termination_code))
         else:
             raise WriterError(f"Unknown convert: {self.convert!r}")
@@ -1529,15 +1628,15 @@ class Copy(AfInstruction):
         return _build_blob("Copy", 0x2721, _COPY_TAGS, self._tag_values())
 
     def _tag_values(self) -> list[str]:
-        """The value of each tag in :data:`_COPY_TAGS`, as the encoder writes them."""
+        """Return the value of each tag in :data:`_COPY_TAGS`, as the encoder writes it."""
         # conversion_type (field[8]) and format_option (field[4]).
         conv_type, field4 = self._conversion()
 
         # Termination encoding: $hex → decimal for field[10], flag for [9].
         term_flag, term_char = _termination_tags(self.termination_code)
-        # field[11]: CLICK v4's dialog writes -1 on every save and ignores it on
-        # load; earlier versions set it only for a termination code.  We write -1 for
-        # those and for a text constant source.
+        # field[11]: CLICK v4's dialog writes -1 on every save and ignores the field when
+        # it loads the blob. Earlier versions set it only for a termination code. The
+        # encoder writes -1 for a termination code and for a text constant source.
         text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
 
         return [
@@ -1563,11 +1662,12 @@ class Copy(AfInstruction):
 
 
 def _asks_txt_choice(dest_bank: str) -> bool:
-    """Whether a single Copy of a TXT register into ``dest_bank`` writes the character's
-    value (to_value) or its ASCII code (to_ascii), one of which CLICK's dialog saves.
+    """Return whether CLICK's dialog asks what a single Copy of a TXT register into
+    ``dest_bank`` writes: the character's value (``to_value``) or its ASCII code
+    (``to_ascii``). The dialog saves one of the two.
 
-    That is every numeric register but DF: CLICK saves a TXT register into DF as a plain
-    copy.
+    It asks for every numeric register except DF. CLICK saves a TXT register copied into
+    DF as a plain copy.
     """
     return dest_bank in _NUMERIC_DEST_BANKS and dest_bank != "DF"
 
@@ -1594,8 +1694,9 @@ class BlockCopy(AfInstruction):
     oneshot:
         Execute once on OFF→ON transition.
     termination_code:
-        For a TXT range copied to TXT — ``"0"`` or ``"none"`` (no code; stored as ``"0"``),
-        or ``"$HH"`` hex ASCII code, as a single Copy's.
+        The termination code. Only a TXT range copied to TXT accepts one. The value is
+        ``"0"`` or ``"none"`` for no code, stored as ``"0"``, or a hex ASCII code
+        ``"$HH"``, the same as for a single Copy.
     """
 
     source_start: str
@@ -1622,8 +1723,9 @@ class BlockCopy(AfInstruction):
                 check, "source_start", self.source_start, "source_end", self.source_end,
                 _sources(_BLOCK_ROWS), one_module=True, bank_id="OBJ-004",
             )  # fmt: skip
-            # CLICK fills in the destination end itself, so a one-address destination stays
-            # unordered here and is refused below as an end that doesn't match.
+            # CLICK fills in the destination end itself, so the order of the ends is not
+            # checked here. A destination whose end is its start is refused below, as an
+            # end that does not match the source.
             dest, dest_last = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
                 _destinations(_BLOCK_ROWS), ordered=False, bank_id="OBJ-004",
@@ -1640,13 +1742,13 @@ class BlockCopy(AfInstruction):
                 and dest is not None and dest_last is not None
                 and not check.refused("source_end", "dest_end")
             ):  # fmt: skip
-                # The destination end is the start plus the source's
-                # element count (GetNextAddress), whatever the two banks.
+                # The destination range holds as many addresses as the source range,
+                # whatever the two banks are. CLICK computes the end the same way.
                 end = dest.number + src_last.number - src.number
                 spans = ("source_start", "source_end")
                 if dest.bank == "Y" and xy_slot(end) != xy_slot(dest.number):
-                    # GetNextAddress steps a Y run on into the next slot; what CLICK then
-                    # stores for the destination is not captured.
+                    # When CLICK computes the end, a Y range runs on into the next slot. No
+                    # recorded CLICK save shows what CLICK then stores for the destination.
                     check.add(
                         _refusal(
                             cls,
@@ -1685,7 +1787,8 @@ class BlockCopy(AfInstruction):
                 src is not None and src.bank == "TXT" and dest is not None and dest.bank == "TXT"
             )
             if self.convert is not None and txt_to_txt:
-                # CLICK's dialog offers TXT into TXT only Termination Code.
+                # For TXT into TXT, CLICK's dialog offers only Termination Code, and no
+                # converter.
                 check.refuse(
                     ("convert", "dest_start"),
                     f"{self.convert} copies TXT to a number, not {source} -> "
@@ -1792,7 +1895,7 @@ class Fill(AfInstruction):
     Attributes
     ----------
     value:
-        Source value — literal (``"0"``) or tag (``"DS56"``).
+        The value to fill with: a constant (``"0"``) or an address (``"DS56"``).
     dest_start, dest_end:
         Destination range.
     oneshot:
@@ -1808,7 +1911,6 @@ class Fill(AfInstruction):
         with Refusals(self) as check:
             check.normalize("value", "dest_start", "dest_end")
             kind = check("value", _source_kind, REGISTER_BANKS)
-            # Fill runs the range check on the destination.
             dest, _ = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
                 _REGISTER_DEST_BANKS, ids=False,
@@ -1863,7 +1965,7 @@ class Fill(AfInstruction):
                 "0",  # [8] conversion_type
                 "0",  # [9] termination_flag
                 "0",  # [10] termination_char
-                "0",  # [11] text_flag (no capture of a Fill with a text constant yet)
+                "0",  # [11] text_flag (no recorded CLICK save shows a Fill with a text constant)
                 "",  # [12] terminator
             ],
         )
@@ -1910,7 +2012,7 @@ class Pack(AfInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("source_start", "source_end", "dest")
-            # The checks and messages name a kind bits, words or text.
+            # The checks and messages use the short name of the kind: bits, words or text.
             short = str(self.kind).removeprefix("pack_")
             if self.kind not in _PACK_KINDS:
                 check.refuse(
@@ -1923,13 +2025,14 @@ class Pack(AfInstruction):
                 check, "source_start", self.source_start, "source_end", self.source_end,
                 _sources(_PACK_ROWS), one_module=True, module_id="OBJ-033",
             )  # fmt: skip
-            # A bank no source packs into is one the field can't use (OBJ-004: X001, SD29 and
-            # SD31 after C1..C16); a bank another source packs into is a pairing (OBJ-024).
+            # CLICK refuses a bank that no source packs into as a bank the field cannot use
+            # (OBJ-004), for example X001, SD29 or SD31 after C1..C16. It refuses a bank that
+            # some other source packs into as a pairing of kinds (OBJ-024).
             dest = check("dest", check_box_operand, _destinations(_PACK_ROWS), bank_id="OBJ-004")
             if first is not None and dest is not None:
                 assert dest.bank is not None
                 source = f"{self.source_start}..{self.source_end}"
-                # The source's length comes before the pairing (_pack_limit).
+                # Check the length of the source before the pairing (see _pack_limit).
                 if (
                     last is not None
                     and not check.refused("kind")
@@ -2071,7 +2174,7 @@ class Unpack(AfInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("source", "dest_start", "dest_end")
-            # The checks and messages name a kind bits or words.
+            # The checks and messages use the short name of the kind: bits or words.
             short = str(self.kind).removeprefix("unpack_to_")
             if self.kind not in _UNPACK_KINDS:
                 check.refuse(
@@ -2080,13 +2183,15 @@ class Unpack(AfInstruction):
                     Reason.CHOICE,
                     code=Code.INVALID_CHOICE,
                 )
-            # A bank no row holds is one the field can't use (OBJ-004): answered for an X
-            # source, and for X, SC and SD destinations, as for a bank the source's row
-            # leaves out (_ROW_IDS).
+            # CLICK refuses a bank that no row holds as a bank the field cannot use
+            # (OBJ-004). CLICK gives this answer for an X source and for X, SC and SD
+            # destinations. It is the same id that an Unpack gives for a bank that the
+            # source's row leaves out (_ROW_IDS).
             src = check("source", check_box_operand, _sources(_UNPACK_ROWS), bank_id="OBJ-004")
-            # The destination's start is paired with the source before the range's end is
-            # read, so a pairing refusal comes ahead of the end's (OBJ-008, OBJ-009, OBJ-012,
-            # the Y slot), and the end's fit with a refused start is not checked.
+            # Check the destination start against the source before reading the end of the
+            # range. A pairing refusal then comes before any refusal of the end (OBJ-008,
+            # OBJ-009, OBJ-012 or the Y slot). If the start is refused, the end is not
+            # checked against it.
             banks = _destinations(_UNPACK_ROWS)
             first = check("dest_start", _range_end, banks, "OBJ-004")
             if src is not None and first is not None:
@@ -2175,26 +2280,32 @@ def from_tags(
     """Construct a Copy-family instruction from tag data (shared by both decoders)."""
     built = _from_tags(class_name, type_code, tags)
     if built is not None and _read_destination(tags) != tag_value(tags, 0x6076):
-        # Decoded, it writes the bytes CLICK stored: the space, the text as typed.
+        # The destination was read in a different form from the stored text: without a
+        # space at its edge, or in display form. Mark the instruction so that, while it is
+        # unchanged, it encodes as the bytes CLICK stored, with the space and the text as
+        # typed.
         read_in_another_form(built)
     return built
 
 
 def _edge_trimmed(tags: dict[int, str]) -> bool:
-    """Whether the blob is a single Copy or a Pack, whose destination is read trimmed.
+    """Return whether the blob is a single Copy or a Pack. The decoder strips spaces from
+    the ends of the destination of these two.
 
-    CLICK saves a single Copy's and a Pack's destination with a space typed at its edge
-    kept (" DS1", "DS1 "), and every other field trimmed: the address is read without it.
+    CLICK saves the destination of a single Copy or a Pack with any space typed at its
+    start or end (" DS1", "DS1 "). It trims every other field. The decoder reads the
+    address without the space.
     """
     return tag_int(tags, 0x2223) in (0, 3)
 
 
 def _read_destination(tags: dict[int, str]) -> str:
-    """The destination (start) as it is read: trimmed (:func:`_edge_trimmed`), and for a
-    single Copy, a Block Copy or a Pack, in display form.
+    """Return the destination, or the start of the destination range, as the decoder reads
+    it. For a single Copy or a Pack, spaces at its ends are removed (:func:`_edge_trimmed`).
+    For a single Copy, a Block Copy or a Pack, it is put in display form.
 
-    CLICK saves those destinations as typed (``DS001``, ``ds1``, ``YD0U``, ``DS[ds1]``)
-    and every other address in display form.
+    CLICK saves those three destinations as they were typed (``DS001``, ``ds1``, ``YD0U``,
+    ``DS[ds1]``). It saves every other address in display form.
     """
     destination = tag_value(tags, 0x6076)
     if _edge_trimmed(tags):
@@ -2221,26 +2332,27 @@ def _from_tags(
     if copy_type == 0:
         if not source or not destination:
             return None
-        # A single copy has no source end, and a destination end only for text (checked
-        # below); a blob that carries others isn't a shape CLICK writes, so leave it to
-        # raw() rather than drop them.
+        # A single copy has no source end. It has a destination end only for text, which
+        # is checked below. CLICK writes no single copy with any other end. Return None so
+        # that the blob stays raw() and its ends are not dropped.
         if source_end:
             return None
         opts = _CONVTYPE_TO_OPTS.get(str(conv_type))
         if opts is None:
             return None
-        # Types that only exist for one source kind; anything else isn't a blob
-        # CLICK writes, so leave it to raw() rather than re-encode it differently.
+        # Type 7 exists only for certain pairs, and types 3 and 4 only for a real source.
+        # CLICK does not write them for anything else. Return None so that the blob stays
+        # raw(), because a Copy built from it would encode different bytes.
         if conv_type == 7 and not _saves_type_7(source, destination):
             return None
         if conv_type in (3, 4) and not _real_text_source(source):
             return None
         if conv_type != 0 and constant_shape(source, _ANY_TEXT) in (Kind.TEXT, Kind.CHAR):
-            # Text and a character code copy with no conversion type.
+            # A copy of text or of a character code has no conversion type.
             return None
         convert, suppress_zero, exponential = opts
         if convert == "to_text" and _real_text_source(source):
-            # No such option for a real source.
+            # A real source has no suppress zero option.
             suppress_zero = None
 
         termination_code = _read_termination_tags(tags)
@@ -2256,10 +2368,12 @@ def _from_tags(
             exponential=exponential,
             termination_code=termination_code,
         )
-        # The destination end follows from the text; an end that disagrees with it is
-        # not a blob CLICK writes.  A number into a TXT address has either the end its text
-        # fills, with the conversion type of its kind, or no end.  Quoted text has the end
-        # it fills or none: CLICK's paste drops the end, even from its own clipboard.
+        # The text decides the destination end. CLICK does not write a blob whose end
+        # disagrees with its text, so return None for one. A number copied into a TXT
+        # address has either no end, or the end that its text fills together with the
+        # conversion type for its kind of number. Quoted text has either no end or the end
+        # that it fills. It can have no end because CLICK's paste drops the end, even from
+        # CLICK's own clipboard.
         number_end = _number_fill_end(copy.source, copy.dest)
         if number_end is not None and destination_end:
             if destination_end != number_end.display or conv_type not in _number_text_types(
@@ -2274,9 +2388,11 @@ def _from_tags(
             or (conv_type in (7, 8) and _other_type_7(source, destination))
             or (number_end is not None and destination_end)
         ):
-            # The encoder writes another conversion type or end for these fields, or the
-            # save is a type 7 or 8 other than DD to or from DF, or a number's end:
-            # unchanged, the Copy writes the blob it was decoded from.
+            # Mark the Copy so that, while it is unchanged, it encodes as the blob it was
+            # decoded from. This is needed in three cases:
+            # - the encoder writes another conversion type or end for these fields;
+            # - the save is type 7 or 8, and the pair is not a DD address and a DF address;
+            # - the save stores the end of a number copied into TXT.
             read_in_another_form(copy)
         return copy
 
@@ -2352,7 +2468,7 @@ def _from_tags(
 # ---------------------------------------------------------------------------
 
 
-#: The keywords each Copy-family CSV call takes besides its operands.
+#: The keywords that each Copy-family CSV call accepts besides its operands.
 _CSV_KWARGS: dict[str, frozenset[str]] = {
     "copy": frozenset({"convert", "oneshot", "termination_code"}),
     "blockcopy": frozenset({"convert", "oneshot", "termination_code"}),
@@ -2366,15 +2482,17 @@ _CSV_KWARGS: dict[str, frozenset[str]] = {
 
 
 def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
-    """Refuse a keyword the CSV call ``name`` does not take, so a misspelt one
-    (``terminaton_code=``) is not dropped."""
+    """Raise ``CsvError`` for a keyword that the CSV call ``name`` does not accept. A
+    misspelt keyword (``terminaton_code=``) is then reported, not silently ignored."""
     unknown = set(kwargs) - _CSV_KWARGS[name]
     if unknown:
         raise CsvError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
 
 
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
-    """Build a Copy from ``copy(source, dest, ...)`` arguments (both CSV paths)."""
+    """Build a Copy from the arguments of ``copy(source, dest, ...)``.
+
+    :meth:`Copy.from_csv_token` and :func:`parse_af_call` both call it."""
     _refuse_unknown_kwargs("copy", kwargs)
     source, dest = args
     convert_raw = kwargs.get("convert", "")
@@ -2384,8 +2502,9 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
         convert, text_opts = None, {}
     termination_code = text_opts.get("termination_code", "0")
     if kwargs.get("termination_code", "none") not in ("none", "0"):
-        # A TXT register copied to TXT: the code stands alone, with no converter.  "none"
-        # and "0" are no code, which any copy takes.
+        # A termination code given as its own keyword is for a TXT register copied to
+        # TXT, with no converter. "none" and "0" both mean no code, and every copy
+        # accepts them.
         if convert_raw:
             raise FieldError(
                 f"Copy.termination_code: {kwargs['termination_code']!r} stands alone only "

@@ -1,13 +1,15 @@
-"""Coverage test harness -- per-rung byte-exact comparison against Click golden binaries.
+"""Encode each coverage CSV and compare the bytes with its golden .bin file.
 
-Workflow:
-    1. Create golden/<rung_id>.csv by hand (33-column canonical format)
-    2. Paste CSV into Click, copy each rung back -> golden/<rung_id>.bin
-    3. make test -> this file runs, comparing encoded output to golden binaries
+To add a fixture:
+    1. Write golden/<rung_id>.csv by hand, in the 33-column canonical format.
+    2. Run ``make coverage-golden`` to generate golden/<rung_id>.bin from the CSV.
+    3. Paste the fixture into CLICK with ``clicknick-rung guided`` to verify it.
+    4. Run ``make test``. This file encodes each CSV and compares the bytes with its .bin.
 
-Pipeline: parse_csv_file() -> convert_rung() -> encode_rung() -> compare bytes.
+The test runs parse_csv_file(), then convert_rung(), then encode_rung() or encode_rungs().
 
-Standalone report:  uv run python -m pytest tests/test_coverage.py -v
+To see the result for each fixture:  uv run python -m pytest tests/test_coverage.py -v
+Run this file as a script to print a summary report instead.
 """
 
 from __future__ import annotations
@@ -32,9 +34,8 @@ GOLDEN_DIR = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 
 def _load_golden_pairs() -> list[tuple[str, Path, Path]]:
-    """Scan golden dir for CSV files with matching .bin files.
-
-    Returns list of (rung_id, csv_path, bin_path).
+    """Return (rung_id, csv_path, bin_path) for each golden CSV that has a .bin file
+    beside it.
     """
     pairs = []
     for csv_path in sorted(GOLDEN_DIR.glob("*.csv")):
@@ -117,7 +118,9 @@ def test_rung_byte_exact(pair_index):
 
 @pytest.mark.parametrize("pair_index", range(len(_GOLDEN_PAIRS)), ids=_IDS)
 def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
-    """Ensure coverage CSV fixtures survive csv->encode->decode->csv semantically."""
+    """Each coverage CSV keeps its meaning through encode, decode and write_csv.
+
+    The test compares the converted rungs, not the CSV text."""
     rid, csv_path, _ = _GOLDEN_PAIRS[pair_index]
     try:
         rungs, converted = _convert_program(csv_path)
@@ -136,9 +139,9 @@ def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
     out_csv = tmp_path / f"{rid}.roundtrip.csv"
     write_csv(out_csv, list(decoded_rungs))
 
-    # Compare normalized convert signatures (robust to equivalent token spellings
-    # like immediate(X1) vs X1.immediate).  ``converted`` holds the rungs as laid out, one
-    # per CLICK rung, and write_csv writes one CSV rung for each.
+    # Compare the converted rungs, not the text, so that two spellings of one token match,
+    # such as immediate(X1) and X1.immediate. ``converted`` holds one laid-out rung per
+    # CLICK rung, and write_csv writes one CSV rung for each, so the counts must match.
     out_rungs = list(parse_csv_file(out_csv).rungs)
     if len(out_rungs) != len(converted):
         pytest.fail(

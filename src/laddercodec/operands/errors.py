@@ -1,4 +1,4 @@
-"""Field errors: a value CLICK's dialog refuses."""
+"""The error raised for an instruction field whose value CLICK's dialog refuses."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from ..errors import LaddercodecError
 
 
 class Reason(StrEnum):
-    """Why a field refused its value: :attr:`FieldError.reason`.
+    """Why a field refused its value.  :attr:`FieldError.reason` holds one of these.
 
     The set is fixed.  Each value compares equal to its text (``Reason.BANK == "bank"``).
     """
@@ -43,33 +43,38 @@ class Reason(StrEnum):
 
 
 class FieldError(LaddercodecError):
-    """An instruction field holds a value CLICK's dialog refuses.
+    """Raised when an instruction field holds a value that CLICK's dialog refuses.
 
-    An instruction runs its checks when it is built and raises one error for every value
-    refused: the first refusal, whose :attr:`errors` holds them all.  The decoders'
-    ``from_tags`` dispatchers catch it and leave the blob unparsed.  The message is for
-    people and may change; read the attributes.
+    An instruction runs its checks when it is built.  If its checks refuse any values, it
+    raises one error for the first refusal, and the :attr:`errors` of that error holds
+    every refusal.  A decoder that meets this error keeps the instruction and its
+    refusal.  A blob that no stored instruction holds, such as an address not in display
+    form, stays unparsed.  The message is for people and may change.  Read the attributes
+    instead.
 
     Attributes
     ----------
     field:
-        The field refused, as ``Class.attr``, with ``[i]`` for an item of a list field:
-        ``Coil.range_end``, ``Drum.outputs[2]``.  ``Class`` is the class whose checks refused
-        the value, an instruction or a Modbus target (``ModbusTcpTarget.port``), and ``attr``
-        one of its dataclass fields.  None only for a CSV token that does not
-        follow its instruction's syntax.
+        The refused field, written as ``Class.attr``, with ``[i]`` for an item of a list
+        field, such as ``Coil.range_end`` or ``Drum.outputs[2]``.  ``Class`` is the class
+        whose checks refused the value.  It is an instruction or a Modbus target
+        (``ModbusTcpTarget.port``).  ``attr`` is one of its dataclass fields.  ``field``
+        is None only for a CSV token that does not follow its instruction's syntax.
     fields:
-        Every field the refusal is about, :attr:`field` first: ``(field,)`` for one field,
-        and both for a pair (``CompareContact.left`` with ``CompareContact.right``).
+        Every field that the refusal is about, with :attr:`field` first.  It is
+        ``(field,)`` for one field, and holds both fields for a pair, such as
+        ``CompareContact.left`` with ``CompareContact.right``.
     reason:
-        Why, a :class:`Reason`; None where a check names no reason yet.
+        Why the field refused the value, as a :class:`Reason`.  None when the check
+        names no reason.
     code:
-        The rule refused, a :class:`~laddercodec.Code` (``"bank-not-allowed"``).  Each
-        refusal in :attr:`errors` has its own.
+        The rule that refused the value, as a :class:`~laddercodec.Code`, such as
+        ``"bank-not-allowed"``.  Each refusal in :attr:`errors` has its own code.
     click_id:
         CLICK's id for the error (``"OBJ-005"``), or None where CLICK has none.
     errors:
-        Every refusal of one construction, this one first; ``(self,)`` for one refusal.
+        Every refusal from one construction, with this one first.  It is ``(self,)``
+        when there is one refusal.
     obj:
         The instruction being built when its checks refused the value, or None.
     """
@@ -91,7 +96,7 @@ class FieldError(LaddercodecError):
         click_id: str | None = None,
         obj: Any = None,
     ) -> None:
-        """``field`` is one field, or a tuple of the fields a refusal of a pair names."""
+        """Build the error.  ``field`` is one field, or a tuple of the fields of a pair."""
         super().__init__(*args)
         self.fields = (field,) if isinstance(field, str) else tuple(field or ())
         self.field = self.fields[0] if self.fields else None
@@ -107,9 +112,10 @@ class FieldError(LaddercodecError):
 
 
 def _rebuild(cls: type[FieldError], args: tuple[object, ...], code: Code) -> FieldError:
-    """Rebuild a pickled :class:`FieldError`; its other attributes come from its state."""
+    """Rebuild a pickled :class:`FieldError`.  Its other attributes come from its state."""
     return cls(*args, code=code)
 
 
 class AddressError(FieldError):
-    """A field holds an address outside CLICK's banks, ranges or allowed banks."""
+    """Raised when a field holds an address outside CLICK's banks or ranges, or in a bank
+    that the field does not allow."""

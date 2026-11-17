@@ -1,4 +1,4 @@
-"""Tests for clicknick.csv.contract."""
+"""Tests for laddercodec.csv.contract."""
 
 import pytest
 

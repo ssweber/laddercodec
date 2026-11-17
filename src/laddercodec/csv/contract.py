@@ -1,4 +1,4 @@
-"""Click Ladder CSV contract constants and validators."""
+"""Constants and checks for the layout of the Click ladder CSV: its header and markers."""
 
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ MARKER_COLUMN = "marker"
 OUTPUT_COLUMN = "AF"
 COMMENT_MARKER = "#"
 
-# Rung-start marker: ``R`` optionally followed by a 1-based decimal index
-# (``R``, ``R1``, ``R2``, ...).  The index is decorative and ignored on read.
+# A rung starts with the marker ``R``, which a 1-based decimal index may follow
+# (``R``, ``R1``, ``R2``, ...). The index is only for people, and the reader ignores it.
 _RUNG_MARKER_RE = re.compile(r"R[0-9]*")
 
 

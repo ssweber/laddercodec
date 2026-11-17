@@ -1,10 +1,11 @@
-"""Byte-exact golden-file tests for encode_rung().
+"""Tests for encode() and encode_rung(), with byte-exact golden files.
 
-Each golden fixture is a CSV/BIN pair in tests/fixtures/ladder_captures/golden/.
-The CSV defines the canonical rung layout (source of truth); the BIN is the
-expected encode_rung() output, verified through Click paste round-trip.
+Each golden fixture is a CSV and BIN pair in tests/fixtures/ladder_captures/golden/.
+The CSV is the source of truth for the rung's layout. The BIN holds the bytes that the
+encoder must produce, and they were checked by pasting them into CLICK and copying the
+rung back.
 
-Regenerate BIN files:  make golden
+To regenerate the BIN files, run ``make golden``.
 """
 
 from __future__ import annotations
@@ -47,7 +48,7 @@ _GOLDEN_CSVS = sorted(p for p in GOLDEN_DIR.glob("*.csv") if not p.stem.startswi
 
 @pytest.mark.parametrize("csv_path", _GOLDEN_CSVS, ids=[p.stem for p in _GOLDEN_CSVS])
 def test_golden_encode(csv_path: Path) -> None:
-    rungs = read_csv(csv_path)  # several rungs when CLICK splits the CSV's one
+    rungs = read_csv(csv_path)  # several rungs when CLICK would split the CSV's rung
     result = encode(rungs if len(rungs) > 1 else rungs[0])
     bin_path = csv_path.with_suffix(".bin")
     assert bin_path.exists(), f"Missing golden .bin: {bin_path.name}"
@@ -89,7 +90,7 @@ def test_encode_rung_rejects_out_of_range_rows() -> None:
 
 
 def test_encode_rung_buffer_sizes() -> None:
-    """Verify buffer sizing formula across key row counts."""
+    """The size of encode_rung's buffer follows the sizing formula across key row counts."""
     cases = [
         (1, 0x2000),
         (2, 0x2000),
@@ -118,7 +119,7 @@ def _wire_row(contact: Contact, col: int = 0) -> list[str | Contact]:
 
 
 class TestInstructionRoundTrip:
-    """Encode a rung with Contact + Coil, decode, verify identity."""
+    """A rung that encode_rung writes decodes to the same contacts and AF instructions."""
 
     def test_no_contact_out_coil(self) -> None:
         contact = Contact("X001")
@@ -232,9 +233,9 @@ class TestInstructionRoundTrip:
         assert isinstance(a, Return)
 
     def test_mixed_wire_and_instruction(self) -> None:
-        """Existing wire-only golden fixtures are not affected."""
+        """encode_rung encodes a one-row rung that holds nothing."""
         result = encode_rung(1, [_empty()], [""])
-        # Just verify no crash; golden tests cover exact bytes.
+        # The golden tests check the exact bytes. This test checks only that bytes come back.
         assert len(result) > 0
 
     # -- CompareContact round-trips --
@@ -284,7 +285,7 @@ class TestInstructionRoundTrip:
         assert isinstance(c, CompareContact) and c.op == "<="
 
     def test_compare_with_contact_and_coil(self) -> None:
-        """CompareContact alongside a regular Contact and Coil."""
+        """A Contact, a CompareContact and a Coil in one row decode to the same types."""
         contact = Contact("X001")
         compare = CompareContact(op="==", left="DS1", right="5")
         coil = Coil("Y001")
@@ -347,7 +348,7 @@ class TestInstructionRoundTrip:
         assert t.unit == "Tm"
 
     def test_timer_all_units(self) -> None:
-        """Verify all 5 time units round-trip correctly."""
+        """Each of the 5 time units comes back from decode as it was encoded."""
         for unit in ("Tms", "Ts", "Tm", "Th", "Td"):
             contact = Contact("X001")
             timer = Timer(
@@ -367,7 +368,10 @@ class TestInstructionRoundTrip:
 
 
 def _one_row_csv(tmp_path: Path, condition: str, af: str) -> Path:
-    """Write a one-row rung: *condition* in column A, wire to *af*."""
+    """Write a CSV of one one-row rung and return its path.
+
+    The rung has *condition* in column A and wires from there to *af*.
+    """
     path = tmp_path / "rung.csv"
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -393,8 +397,8 @@ def test_read_csv_refuses_empty_text_constant(
 
 
 def test_encode_refuses_empty_text_constant_set_after_build(tmp_path: Path) -> None:
-    # encode() checks again, for an instance changed after it was built, and raises
-    # the FieldError building it with that value raises.
+    # encode() checks an instance again, in case it changed after it was built. It raises
+    # the same FieldError that building the instance with that value raises.
     ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
     bad = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))[0]
     bad.instructions[0].source = '""'  # type: ignore[union-attr]
@@ -412,7 +416,7 @@ def test_encode_refuses_empty_text_constant_in_objects() -> None:
 
 @pytest.mark.parametrize("condition", ['TXT842==""', '""!=TXT842', 'T:TXT842==""'])
 def test_compare_refuses_empty_text_constant_on_read(tmp_path: Path, condition: str) -> None:
-    # A compare refuses "" when it is built (CLICK's dialog refuses it, OBJ-005).
+    # A compare refuses "" when it is built. CLICK's dialog refuses it too, with OBJ-005.
     with pytest.raises(FieldError, match="a text constant is 1 to 128 characters"):
         read_csv(_one_row_csv(tmp_path, condition, "out(Y001)"))
     with pytest.raises(FieldError):
@@ -439,8 +443,11 @@ def test_encode_accepts_nul_and_nonempty_text_constants(
 
 
 def test_decoded_empty_text_constant_is_refused_by_encode() -> None:
-    """A Copy, Fill or compare blob holding "" decodes keeping the refusal building it
-    raises, and encode() raises it."""
+    """A Copy, Fill or compare blob that holds "" decodes, and encode() then raises.
+
+    The decoded instruction holds the refusal that building it with "" raises, and encode()
+    raises that refusal.
+    """
     copy_tags = {0x6074: '""', 0x6076: "TXT1"}
     copy = kept(from_tags_af("Copy", 0x2721, copy_tags), "Copy.source")
     fill_tags = {0x6074: '""', 0x6076: "TXT1", 0x6077: "TXT4", 0x2223: "2"}
@@ -488,7 +495,7 @@ class TestSanitizeToAscii:
         assert _sanitize_to_ascii("\u201cval\u201d \u2265 10") == '"val" >= 10'
 
     def test_comment_round_trip(self) -> None:
-        """Encode a rung with non-ASCII comment, decode, verify sanitized."""
+        """encode_rung writes a non-ASCII comment as ASCII, and decode reads the ASCII back."""
         buf = encode_rung(1, [_empty()], [""], comment="\u201chello\u201d \u2014 world")
         [d] = decode(buf)
         assert d.comment == '"hello" - world'

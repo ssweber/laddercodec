@@ -47,12 +47,13 @@ def _load(name: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, DEVTOOLS / f"{name}.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module  # dataclasses look their module up there
+    sys.modules[name] = module  # @dataclass looks the module up in sys.modules
     spec.loader.exec_module(module)
     return module
 
 
-#: Case keys and the expected-diff file, as operand_probe.py and identity_diff.py read them.
+#: Two sibling scripts, loaded as modules. operand_probe.py supplies the baselines and the case
+#: keys. identity_diff.py reads the expected-diff file and judges its entries.
 PROBE: Any = _load("operand_probe")
 IDENTITY: Any = _load("identity_diff")
 
@@ -61,8 +62,8 @@ def _text(n: int) -> str:
     return '"' + "A" * n + '"'
 
 
-#: The values tried: the constant values of operand_probe.OPERANDS, then edges of each kind,
-#: then addresses.
+#: The values tried on each field. The list starts with the constant values of
+#: operand_probe.OPERANDS, then adds edge cases of each kind, then addresses.
 VALUES: list[str] = [
     *["", "0", "-0", "007", "+1", "1", "-1", "10", "100", "9999"],
     *["32767", "32768", "-32768", "-32769", "65535", "65536"],
@@ -75,12 +76,13 @@ VALUES: list[str] = [
     *["1.5", "1E5", ".5", "-1.5e-3", "1.", "3.4028235E+38", "3.5E+38", "nan", "inf"],
     *[" DS1", "DS1 ", "DS 1", " 5", "5 ", "1 0", " ", "DS1, DS2"],
     *["Q1", "DSX1", "DS1..DS5", "DS-1", "DS1.5", "Tms", "none", "abc"],
-    # Edges beyond the probe's list.
+    # Edge cases that operand_probe.OPERANDS does not hold.
     *["+2147483647", "1-2", "--5", "000000000005", "0000000000005", "-0.0", "1e5"],
     *["0x10", "1_000", "1,5", "１", "-1h", "1Gh", "1HH", "FFFEh", "FFFDh", "0FFFEh", "0000Fh"],
     *["FFFFFh", "0FFFFFFFFh", "$00", "$FF", "$ff", "$0d", "$0D", "$D", "$22", "$4142"],
     *['"a"b"', '"é"', '" "', '"~"', "1E999", "-1E999", "000000001h", "+1.5", "DH"],
-    # Digits beyond Python's int() string limit (4300): one significant digit, and 5000.
+    # Two strings longer than the 4300 digits that Python's int() accepts: 5000 zeros and
+    # a 1, and 5000 ones.
     *["0" * 5000 + "1", "1" * 5000],
     # Addresses.
     *["DS1", "ds1", "DH1", "TXT1", "DS[DS1]", "DD[DS1]", "TXT[DS1]", "DS[DD1]", "DS0"],
@@ -88,7 +90,7 @@ VALUES: list[str] = [
     *["C1", "T1", "CT1", "SC1", "SC50", "SC326"],
 ]
 
-#: Verdicts.
+#: The two verdicts that a value can get.
 ACCEPT, REFUSE = "accept", "refuse"
 
 
@@ -102,12 +104,13 @@ class Field:
     key: str
     build: Callable[[Any, str], Any]  # (namespace, value) -> instance
     rule: Callable[[Any, str], Any]  # (namespace, value) -> raises if refused
-    #: The field's value in the case key, as the probe varies it.
+    #: Turn a value into the field value that the case key holds. For Drum presets, the key
+    #: holds the whole tuple of presets.
     keyed: Callable[[str], Any] = lambda value: value
 
 
 class Namespace:
-    """laddercodec names from the tree under test."""
+    """The laddercodec names that the rules use, imported from the source tree under test."""
 
     def __init__(self, src_dir: str) -> None:
         src = Path(src_dir).resolve()
@@ -136,19 +139,22 @@ class Namespace:
         self.normalize: Any = normalize_address
         self.search_tables: Any = SEARCH_TABLE_BANKS
         self.real_beyond_kept_digits: Any = real_beyond_kept_digits
-        # Shared banks come from checks; the family-only ones from their family.
+        # The shared checks hold their own banks. The banks below belong to one instruction
+        # family each, and come from that family's module.
         self.compare_groups: Any = _GROUP_BANKS
         self.compare_banks: Any = frozenset().union(*_GROUP_BANKS.values())
         self.for_limit_banks: Any = FOR_LIMIT_BANKS
 
     def constants(self, kinds: Any = None, **limits: Any) -> Any:
-        """``Constants`` of ``kinds`` (default: every kind) with ``limits``."""
+        """Return ``Constants`` for ``kinds`` with ``limits``. None means every kind."""
         k = self.checks.ALL_KINDS if kinds is None else frozenset(kinds)
         return self.checks.Constants(k, **limits)
 
     def refuse(self, message: str, *, code: str, address: bool = False) -> None:
-        """A refusal the family keeps for itself (a pairing), in the family's class, with
-        the family's code (a ``Code`` member's name)."""
+        """Raise a refusal that the instruction family makes itself, such as a refused pairing.
+
+        Raise AddressError if ``address`` is true, and FieldError if it is not. ``code`` is
+        the name of a ``Code`` member."""
         raise (self.AddressError if address else self.FieldError)(message, code=self.Code[code])
 
 
@@ -158,12 +164,13 @@ class Namespace:
 
 
 def compare_rule(other_group: str) -> Callable[[Any, str], None]:
-    """Compare operand opposite one of ``other_group``.
+    """Return the rule for a Compare operand whose other side is in ``other_group``.
 
-    Every kind; hex is 16-bit; a real is any spelling (a value beyond float32, such as
-    ``3.5E+38``, is accepted until CLICK's edge is checked).  The family keeps the group
-    pairing: a numeric operand takes an integer or a real, a hex one a hex constant, a text
-    one quoted text or ``$hh``.
+    The rule accepts a constant of every kind. A hex constant is at most FFFFh. A real may
+    have any spelling, and a value beyond float32, such as ``3.5E+38``, is accepted until
+    someone checks where CLICK's limit is. The Compare family checks the group pairing
+    itself. Opposite a numeric operand the rule accepts an integer or a real, opposite a hex
+    operand a hex constant, and opposite a text operand quoted text or ``$hh``.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -182,30 +189,43 @@ def compare_rule(other_group: str) -> Callable[[Any, str], None]:
 
 
 def _wide_hex(text: str) -> bool:
-    """Whether hex-shaped ``text`` is above FFFFh."""
+    """Return True if the hex constant ``text`` is above FFFFh."""
     return int(text.upper().rstrip("H").lstrip("+-") or "0", 16) > 0xFFFF
 
 
 #: The constant kinds that are numbers, by their ``Kind`` value.
 _NUMBER_KINDS = frozenset({"integer", "hex", "float"})
-#: The characters a single Copy's quoted text holds: U+0001 to U+FFFF but a surrogate.
+#: The characters allowed in the quoted text of a single Copy. They are U+0001 to U+FFFF,
+#: without the surrogates.
 _COPY_TEXT_CHARS = frozenset(chr(c) for c in (*range(0x01, 0xD800), *range(0xE000, 0x10000)))
 
 
 def copy_rule(dest: str) -> Callable[[Any, str], None]:
-    """Single Copy source into ``dest``.
+    """Return the rule for the source of a single Copy into a ``dest`` register.
 
-    Every kind at the shared check's limits; a signed hex text reads as a (refused) hex
-    constant.  The family keeps the pairing, in its own class (AddressError): text and
-    ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
-    number constant goes to every register; into TXT it, and a number register, needs a
-    converter, a refusal of the format (FieldError), and the baseline copies with none.  A
-    TXT register into a number register but DF needs to_value or to_ascii, a refusal of the
-    format too.  A constant's own limits come before the pairing (``""`` and
-    ``100000000h`` into DS1 are refused values), except text with a character outside
-    U+0001 to U+FFFF but a surrogate, refused after it, and a real of more than
-    7 significant digits, refused after the format.  The family writes ``$`` and one hex
-    digit with two first (``$1`` is ``$01``), as CLICK stores it.
+    The rule accepts a constant of every kind within the shared check's limits. Text with a
+    sign before hex digits, such as ``+1h``, is read as a hex constant and refused as one.
+
+    The Copy family checks the pairing of source and destination itself, and raises
+    AddressError when it refuses one:
+
+    - Text and ``$hh`` copy to TXT only.
+    - Hex above FFFFh copies to DD or CTD only.
+    - A bit copies to Y or C only.
+
+    A number constant copies to every register. A number constant or a number register
+    copied into TXT needs a converter. The baseline Copy sets none, so the rule refuses
+    these copies. It raises FieldError, because this is a refusal of the format. A TXT
+    register copied into a number register other than DF needs to_value or to_ascii. That
+    is also a refusal of the format.
+
+    The rule checks a constant's own limits before the pairing, so ``""`` and
+    ``100000000h`` into DS1 are refused as bad values. Two refusals come later. Text with a
+    character outside U+0001 to U+FFFF, or with a surrogate, is refused after the pairing.
+    A real of more than 7 significant digits is refused after the format.
+
+    Before any check, the family writes ``$`` and one hex digit with two digits (``$1``
+    becomes ``$01``), as CLICK stores it.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -253,20 +273,21 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
 
 
 def termination_rule(ns: Any, value: str) -> None:
-    """Copy termination code: the keyword ``0`` or ``none`` (no code), or ``$hh``."""
+    """Check a Copy termination code. Accept ``0`` or ``none``, which mean no code, or ``$hh``."""
     if value in ("0", "none"):
         return
     ns.checks.check_constant(value, "Copy.termination_code", ns.constants({ns.Kind.CHAR}))
 
 
 def fill_rule(dest: str) -> Callable[[Any, str], None]:
-    """Fill value into a ``dest`` range.
+    """Return the rule for the value of a Fill into a ``dest`` range.
 
-    Every kind at the shared check's limits, hex above FFFFh included; a Fill into TXT
-    takes one character of text.  The family keeps the pairing, in its own class
-    (AddressError): text goes to TXT only, a numeric register to the numeric banks, a TXT
-    to TXT.  A number constant goes to every register, TXT included.  The pairing comes
-    before a constant's limits (``constant_shape``), except that a ``$hh`` code is read
+    The rule accepts a constant of every kind within the shared check's limits, including
+    hex above FFFFh. A Fill into TXT accepts text of one character. The Fill family checks
+    the pairing itself, and raises AddressError when it refuses one. Text fills TXT only. A
+    numeric register fills the numeric banks only, and a TXT register fills TXT only. A
+    number constant fills every register, TXT included. The rule checks the pairing
+    (``constant_shape``) before a constant's limits, except that it reads a ``$hh`` code
     first.
     """
 
@@ -291,11 +312,13 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
 
 
 def search_rule(table: str) -> Callable[[Any, str], None]:
-    """Search value against a ``table`` range (``==``).
+    """Return the rule for the value of a Search with ``==`` in a ``table`` range.
 
-    Every kind; hex is 16-bit.  The family keeps the pairing of a constant's kind with the
-    table banks: an integer or a real searches DS, DD, DF, TD and CTD, hex DH, text or
-    ``$hh`` TXT.  Text takes what a single Copy's takes, U+0001 to U+FFFF but a surrogate.
+    The rule accepts a constant of every kind. A hex constant is at most FFFFh. The Search
+    family itself checks which table banks each kind of constant may search. An integer or
+    a real searches DS, DD, DF, TD and CTD. Hex searches DH, and text or ``$hh`` searches
+    TXT. Text may hold the same characters as the text of a single Copy: U+0001 to U+FFFF,
+    without the surrogates.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -322,7 +345,9 @@ def digits_rule(
     *,
     letter_first: bool,
 ) -> Callable[[Any, str], None]:
-    """A digits-only constant from ``low`` to ``high``, or a register of ``banks``."""
+    """Return a rule that accepts a constant of digits only, from ``low`` to ``high``.
+
+    The rule also accepts a register in ``banks``."""
 
     def rule(ns: Any, value: str) -> None:
         text = ns.normalize(value)
@@ -333,9 +358,9 @@ def digits_rule(
 
 
 def for_limit_rule(ns: Any, value: str) -> None:
-    """For count: outer spaces stripped; digits only, 0 to 2147483647; or a register of
-    DS, DD, TD, CTD or SD.  The family keeps two refusals of its own: a blank count, and
-    digits with a space inside."""
+    """Check a For count. Strip spaces from both ends, then accept digits only from 0 to
+    2147483647, or a register in DS, DD, TD, CTD or SD. The For family makes two refusals
+    itself: a blank count, and digits with a space between them."""
     text = value.strip()
     if not text:
         ns.refuse("a For count is not blank", code="BLANK_FIELD")
@@ -346,8 +371,9 @@ def for_limit_rule(ns: Any, value: str) -> None:
 
 
 def counter_rule(ns: Any, value: str) -> None:
-    """Counter preset: an int32 integer, a leading ``-`` only, at most 12 characters; or a
-    DS or DD register.  Text that starts with a letter is an address."""
+    """Check a Counter preset. Accept an int32 integer of at most 12 characters whose only
+    sign is a leading ``-``, or a DS or DD register. Read text that starts with a letter as
+    an address."""
     constants = ns.constants({ns.Kind.INTEGER}, signs="-", max_length=12)
     ns.checks.check_operand(
         ns.normalize(value), "Counter.preset", {"DS", "DD"}, constants, letter_first=True
@@ -355,10 +381,12 @@ def counter_rule(ns: Any, value: str) -> None:
 
 
 def modbus_hex_rule(ns: Any, value: str) -> None:
-    """Remote address: a MODBUS 984 number (digits), or hex from 0h to FFFEh.
+    """Check a Modbus remote address. Accept a MODBUS 984 number in digits, or hex from 0h
+    to FFFEh.
 
-    The family keeps the digits branch: it takes any string of ASCII digits of up to 4300,
-    beyond int32 too (int() refuses more), and calls no shared check.
+    The ModbusAddress family checks the digits itself and calls no shared check. It accepts
+    any string of up to 4300 ASCII digits, even a value beyond int32. Python's int()
+    refuses a longer string.
     """
     if value.endswith(("h", "H")):
         constants = ns.constants({ns.Kind.HEX}, hex_high=0xFFFE)
@@ -368,7 +396,7 @@ def modbus_hex_rule(ns: Any, value: str) -> None:
 
 
 def out_target_rule(immediate: bool) -> Callable[[Any, str], None]:
-    """Coil target: Y, C or a writable SC bit; immediate takes Y only."""
+    """Return the rule for a coil target: Y, C or a writable SC bit, or Y only if ``immediate``."""
 
     def rule(ns: Any, value: str) -> None:
         ns.checks.check_out_target(ns.normalize(value), "Coil.operand", immediate=immediate)
@@ -391,7 +419,8 @@ def _make(cls: str, **base: Any) -> Callable[[str], Callable[[Any, str], Any]]:
     return field
 
 
-#: The probe's Compare baselines, one per compare group; both sides of each are in it.
+#: The probe's Compare baselines, one for each compare group. Both operands of each baseline
+#: are in that group.
 _COMPARE_BASELINES = {"ds": "numeric", "dh": "hex", "txt": "text"}
 
 
@@ -416,7 +445,8 @@ def _bits() -> list[Field]:
         "timed": dict(on_acc="TD18", on_preset="1000"),
     }
     for kind, base in out_variants.items():
-        # 0 to 32767 for debounce, 1 to 32767 for flasher and timed; digits only.
+        # A preset is digits only. Debounce accepts 0 to 32767, and flasher and timed
+        # accept 1 to 32767.
         floor = 0 if kind == "debounce" else 1
         make = _make("OutVariant", kind=kind, operand="C1", unit="Tms", **base)
         for phase in ("on", "off") if kind != "timed" else ("on",):
@@ -503,7 +533,8 @@ def _data_flow_comm() -> list[Field]:
             "Timer.preset (on_delay)",
             "Timer/on/setpoint",
             _make("Timer", kind="on_delay", done="T1", accumulator="TD1", unit="Tms")("preset"),
-            # Digits only, 0 to 32767 for every unit; any other text is an address.
+            # The preset is digits only, from 0 to 32767 for every unit. Any other text is
+            # read as an address.
             digits_rule("Timer.preset", frozenset({"DS"}), 0, 32767, letter_first=False),
         ),
         Field(
@@ -533,9 +564,10 @@ def _data_flow_comm() -> list[Field]:
             unit="Tms",
         )
 
-    # Digits only, 0 to 32767 for every unit; text that starts with a letter is an address.
-    # The family keeps its own test of a register preset (letters, then digits) for the
-    # blob's constant mask.
+    # The preset is digits only, from 0 to 32767 for every unit. Text that starts with a
+    # letter is read as an address. The Drum family has its own test of whether a preset is
+    # a register (letters, then digits). It uses that test for the constant mask in the
+    # encoded blob.
     out.append(
         Field(
             "data",
@@ -551,9 +583,10 @@ def _data_flow_comm() -> list[Field]:
             "flow", "ForLoop.count", "ForLoop/int/count", _make("ForLoop")("count"), for_limit_rule
         )
     )
-    # Not here: the Modbus target's device_id, a number or a DS address.  The family keeps
-    # its check, which refuses a bad DS address with a FieldError rather than the shared
-    # AddressError, and today crashes on DS and more than 4300 digits (int()).
+    # This list leaves out the device_id of a Modbus target. A device_id is a number or a
+    # DS address, and the Modbus family keeps its own check of it. That check raises FieldError
+    # for a bad DS address, where the shared check raises AddressError. Today's check also
+    # crashes in int() on DS and on more than 4300 digits.
     out.append(
         Field(
             "comm",
@@ -576,36 +609,39 @@ def _fields() -> list[Field]:
 
 
 def _show(value: Any) -> str:
-    """A value as ASCII, long text shortened."""
+    """Return ``value`` as ASCII, and shorten a string of more than 24 characters."""
     if isinstance(value, str) and len(value) > 24:
         return f"{ascii(value[:8])}...({len(value)} chars)"
     return ascii(value)
 
 
 def _verdict(call: Callable[[], Any]) -> tuple[str, str, str]:
-    """``(verdict, exception class, message)`` of ``call``."""
+    """Run ``call`` and return ``(verdict, exception class, message)``."""
     try:
         call()
-    except Exception as exc:  # any refusal counts
+    except Exception as exc:  # count any exception as a refusal
         return REFUSE, type(exc).__name__, str(exc)
     return ACCEPT, "", ""
 
 
 def _skip(field: Field, value: str) -> bool:
-    # An empty Out variant preset is the phase rule, not a constant.
+    # OutVariant checks an empty preset by its rules for which phases are filled, not as a
+    # constant.
     return field.label.startswith("OutVariant") and value == ""
 
 
 def _new(verdict: str, cls: str) -> str:
-    """A verdict as the probe records ``new``: ``ok`` or ``!<ExceptionClass>``."""
+    """Return a verdict as the probe records ``new``: ``ok`` or ``!<ExceptionClass>``."""
     return "ok" if verdict == ACCEPT else f"!{cls}"
 
 
 def _run(
     ns: Any, field: Field, entries: list[Any], problems: list[str]
 ) -> tuple[list[int], list[str]]:
-    """``([compared, differ, class, expected], lines)`` for one field; an entry misused on
-    one of its cases goes to ``problems``."""
+    """Try every value on one field and return ``([compared, differ, class, expected], lines)``.
+
+    If an expected-diff entry is misused on one of the field's cases, append the problem to
+    ``problems``."""
     counts = [0, 0, 0, 0]
     lines: list[str] = []
     for value in VALUES:

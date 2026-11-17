@@ -1,4 +1,4 @@
-"""Diagnostic: show what follows every instruction section to find the rung boundary pattern."""
+"""Print the bytes after each instruction section of a .scr file, to find where a rung ends."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ def read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
 
 
 def parse_blob(data: bytes, pos: int) -> tuple[str, int, int] | None:
-    """Returns (class_name, end_offset, next_pos) or None."""
+    """Return (class_name, end_offset, next_pos) for the blob at pos, or None if none parses."""
     if pos >= len(data) - 20:
         return None
     sl = data[pos]
@@ -72,7 +72,8 @@ def main() -> None:
 
     print(f"Found {len(sections)} sections\n")
 
-    # For each section, show the bytes at end_offset and the 16 bytes after sec_end
+    # For each of the first 20 sections, print the 2 bytes at the end offset of its last blob
+    # and the 16 bytes after the section.
     for idx, (sec_off, count, sec_end) in enumerate(sections[:20]):
         # Get last blob's end_offset
         cursor = sec_off + 6

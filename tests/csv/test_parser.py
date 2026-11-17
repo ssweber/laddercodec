@@ -1,4 +1,4 @@
-"""Tests for clicknick.csv.parser."""
+"""Tests for laddercodec.csv.parser."""
 
 from __future__ import annotations
 
@@ -189,7 +189,8 @@ def test_token_typing_and_unknown_fallbacks(tmp_path: Path) -> None:
 
 
 def test_comment_preserves_leading_whitespace(tmp_path: Path) -> None:
-    """Column A whitespace in comment rows is preserved (code-style indentation)."""
+    """The parser keeps the leading spaces of a comment row's text in column A, so a comment
+    can be indented like code."""
     csv_path = tmp_path / "main.csv"
     _write_canonical(
         csv_path,

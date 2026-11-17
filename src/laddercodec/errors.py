@@ -1,10 +1,10 @@
-"""The errors laddercodec raises: one tree under :class:`LaddercodecError`.
+"""The exceptions that laddercodec raises. Each one is a subclass of :class:`LaddercodecError`.
 
 ``decode()``, ``decode_program()``, ``encode()``, ``read_csv()``, ``write_csv()`` and
 ``check()`` raise a ``LaddercodecError`` for input they can't read or write.  Each class
 is a ``ValueError``, so ``except ValueError`` catches every one of them.
-``FieldError`` and ``AddressError`` (:mod:`laddercodec.operands.errors`) join the tree
-under :class:`LaddercodecError` too.
+``FieldError`` and ``AddressError`` are defined in :mod:`laddercodec.operands.errors`, and
+they are subclasses of :class:`LaddercodecError` too.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class LaddercodecError(ValueError):
-    """The base of the errors laddercodec raises for input it can't read or write.
+    """The base class of every error that laddercodec raises for input it can't read or write.
 
     ``except LaddercodecError`` catches all of them, and so does ``except ValueError``.
     """
@@ -27,36 +27,42 @@ class LaddercodecError(ValueError):
 class DecodeError(LaddercodecError):
     """Raised when a clipboard binary or a program file cannot be decoded.
 
-    ``decode()`` raises it for a bad envelope (magic or size), and ``decode_program()``
-    for a file header it can't read.
+    For example, ``decode()`` raises it when the binary does not start with the expected
+    magic bytes or is too short.  ``decode_program()`` raises it when it can't read
+    the file header.
     """
 
 
 class EncodeError(LaddercodecError):
     """Raised when ``encode()`` is given a rung it can't write.
 
-    For example: a grid of the wrong size, a wire token where CLICK can't draw one,
-    more than one ``NOP``, an undecoded marker, or a comment too long once written as
-    RTF.  A value CLICK's dialog refuses raises :class:`~laddercodec.FieldError` instead.
+    Examples are a grid of the wrong size, a vertical wire token in a cell where CLICK
+    can't draw one, more than one ``NOP``, an undecoded marker, and a comment that is too
+    long once it is written as RTF.  A value that CLICK's dialog refuses raises
+    :class:`~laddercodec.FieldError` instead.
     """
 
 
 class CsvError(LaddercodecError):
-    """Raised when ``read_csv`` cannot read a CSV: a file that isn't UTF-8 text, or a row,
-    a token or a rung it can't read.
+    """Raised when ``read_csv`` cannot read a CSV.
 
-    Like every error ``read_csv`` raises for a bad CSV, it carries a
-    :class:`~laddercodec.CsvLocation` as its ``location``.
+    ``read_csv`` raises it for a file that isn't UTF-8 text, and for a row, a token or a
+    rung that it can't read.  Like every error that ``read_csv`` raises for a bad CSV, it
+    has a :class:`~laddercodec.CsvLocation` as its ``location`` attribute.
 
-    A ``FieldError`` refused while a box takes its pin rows is still wrapped: it arrives as
-    a ``CsvError`` (not a ``FieldError``, so ``except FieldError`` does not catch it),
-    now carrying the refusal's data.  ``field``, ``fields``, ``reason``, ``code`` and
-    ``click_id`` are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
-    refusal of the box, each a ``FieldError`` with its own ``location``; ``errors[0]`` is the
-    wrapped ``FieldError`` (also ``__cause__``), not this exception.  A refusal a pin row's
-    value causes is located at that pin's row, any other at the box's own row.  An error that is
-    no field refusal (a pin token that does not parse, a rung with no rows) has ``field``,
-    ``reason``, ``code`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
+    Some boxes, such as a counter, take inputs from pin rows below the box's own row.
+    ``read_csv`` builds such a box from all of its rows.  If the box refuses a value at that
+    step, the ``FieldError`` reaches you wrapped in a ``CsvError``, and ``except FieldError``
+    does not catch it.  The ``CsvError`` copies the refusal's data.  ``field``, ``fields``,
+    ``reason``, ``code`` and ``click_id`` are those of the first refusal, with the meanings
+    they have on ``FieldError``.  ``errors`` holds every refusal for the box, and each is a
+    ``FieldError`` with its own ``location``.  ``errors[0]`` is the wrapped ``FieldError``,
+    which is also ``__cause__``.  It is not this exception.  A refusal of a value that a pin
+    row sets is located at that pin's row.  Any other refusal is located at the box's own row.
+
+    A ``CsvError`` that is not about a refused field has ``field``, ``reason``, ``code`` and
+    ``click_id`` set to ``None``, an empty ``fields``, and ``errors == (self,)``.  A pin
+    token that does not parse and a rung with no rows are two examples.
     """
 
     field: str | None
@@ -90,18 +96,20 @@ class CsvError(LaddercodecError):
 
 
 class WriterError(LaddercodecError):
-    """Raised by ``write_csv`` for a rung the CSV can't hold, or for a bad ``stop=``.
+    """Raised when ``write_csv`` is given a rung it can't write as CSV, or a bad ``stop=``.
 
-    A bad ``stop=`` is neither ``"end"`` nor ``"return"``; it is refused before anything is
-    written.
+    ``stop=`` must be ``"end"`` or ``"return"``.  ``write_csv`` checks it before it writes
+    anything.
     """
 
 
 class LayoutError(LaddercodecError):
-    """A rung CLICK's syntax check refuses, or one this layout cannot draw.
+    """Raised when a rung has a shape that CLICK's syntax check refuses, or one that
+    laddercodec's layout cannot draw.
 
-    ``code`` names the shape, a Code such as ``"not-series-parallel"``.  ``click_id`` is
-    CLICK's id when CLICK is known to refuse the shape (``C0001``, ``C0202``), else ``None``.
+    ``code`` names the shape.  It is a Code such as ``"not-series-parallel"``.  ``click_id``
+    is CLICK's error id when CLICK is known to refuse the shape (``C0001``, ``C0202``).
+    Otherwise it is ``None``.
     """
 
     def __init__(self, message: str, click_id: str | None = None, *, code: Code) -> None:
@@ -121,5 +129,8 @@ class LayoutError(LaddercodecError):
 def _rebuild_layout(
     cls: type[LayoutError], message: str, click_id: str | None, code: Code
 ) -> LayoutError:
-    """Rebuild a pickled :class:`LayoutError`; its other attributes come from its state."""
+    """Rebuild a pickled :class:`LayoutError` from its message, CLICK id and code.
+
+    Pickle then restores the error's other attributes from its saved ``__dict__``.
+    """
     return cls(message, click_id=click_id, code=code)

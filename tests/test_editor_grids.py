@@ -1,10 +1,10 @@
-"""The editor grids under tests/fixtures/editor_grids match what devtools/editor_grids.py writes.
+"""Test that the grids in tests/fixtures/editor_grids match what devtools/editor_grids.py writes.
 
-The grids are the cases ClickNick's runner types into CLICK's dialogs; the verdicts files hold
-what laddercodec's field rules say about each case. A rule that changes moves a verdict, and a
-bank or constant kind that changes moves the cases: regenerate with
+Each grid lists cases that ClickNick's runner types into CLICK's dialogs. Each verdicts file
+records whether laddercodec's field rules accept or refuse each case. When a rule changes, a
+verdict changes. When a bank or a kind of constant changes, the cases change. Then run
 ``uv run devtools/editor_grids.py`` and commit the files. CLICK's own answers are not tested
-here and are never edited to fit the code.
+here, and nobody edits them to fit the code.
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
 
-#: The runner's dialogs: each field's name, and the modes (none for Out).
+#: Each dialog that the runner fills, mapped to the names of its fields and to its modes.
+#: Out has no modes.
 DIALOGS = {
     "math": ({"result", "formula"}, {"decimal", "hex"}),
     "copy": (
@@ -30,8 +31,9 @@ DIALOGS = {
 }
 #: The runner takes these keys of a case and no others.
 CASE_KEYS = {"row", "case", "instruction", "mode", "fields"}
-#: Cases per row over the dialog grids and the risky file, as written. A loop that loses cases moves a
-#: count here, which the match with the generator cannot see; a deliberate change moves it too.
+#: The number of cases in each row, over the dialog grids and risky.json, as committed. If a
+#: generator loop drops cases, the files still match the generator, but a count here changes.
+#: A deliberate change to the cases also changes a count here.
 ROW_COUNTS = {
     "copy.block.control": 1,
     "copy.block.destination.banks": 95,
@@ -127,7 +129,8 @@ ROW_COUNTS = {
     "out.ranges.mixed": 60,
 }
 
-#: A file longer than this is split: the runner takes about 4 seconds a case.
+#: The most cases that one grid file may hold. devtools/editor_grids.py splits a longer file,
+#: because the runner takes about 4 seconds a case.
 MAX_CASES = 2000
 
 
@@ -148,7 +151,8 @@ def built(generator: Any) -> dict[str, str]:
 
 
 def _verdict_core(text: str) -> dict[str, Any]:
-    """The verdicts without their messages: wording is not part of what is compared."""
+    """Return the verdicts in *text* without their messages, so that the wording is not
+    compared."""
     return {
         label: {k: v for k, v in verdict.items() if k != "message"}
         for label, verdict in json.loads(text).items()
@@ -156,7 +160,8 @@ def _verdict_core(text: str) -> dict[str, Any]:
 
 
 def _grid_files() -> list[Path]:
-    """The grids: not the verdicts, and not CLICK's answers (``<grid>.answers.json``)."""
+    """Return the grid files, leaving out the verdicts files and CLICK's answers
+    (``<grid>.answers.json``)."""
     return sorted(
         p for p in GRIDS.glob("*.json") if not p.name.endswith((".verdicts.json", ".answers.json"))
     )

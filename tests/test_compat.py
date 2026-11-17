@@ -1,4 +1,4 @@
-"""find_v4_only(): flags exactly the instructions an older CLICK would mangle."""
+"""find_v4_only() and is_v4_only() flag exactly the instructions that an older CLICK mangles."""
 
 from __future__ import annotations
 
@@ -58,12 +58,12 @@ def test_v4_captures_are_flagged() -> None:
         ("SUM ( CTD1 : CTD5 )", False),
         ("SUM ( C1 : C16 )", True),
         ("SUM ( X001 : X008 ) + 1", True),
-        ("SUM ( SC1 : SC4 )", True),  # SUM over CT is refused
+        ("SUM ( SC1 : SC4 )", True),  # Math refuses a SUM over CT bits, so this uses SC
         ("MAX ( DS1 : DS3 )", True),
         ("ABS ( DS1 )", True),
         ("RAND ( 1 , 100 )", True),
         ("DS1 + SQRT ( DS2 )", False),
-        ("SUM ( DS1 : DS502 )", False),  # 500 interiors fit v3's capacity
+        ("SUM ( DS1 : DS502 )", False),  # the 500 addresses between the ends fit in v3
         ("SUM ( DS1 : DS503 )", True),
     ],
 )
@@ -81,7 +81,10 @@ def test_math_v4_functions(expression: str, v4_only: bool) -> None:
     ],
 )
 def test_math_with_a_refused_range_is_still_checked(file: str, flagged: list[int]) -> None:
-    """SUM over bits is v4-only, in the X/Y ranges that decode keeping a refusal too."""
+    """SUM over bits is v4-only even where decode keeps a refusal of the X or Y range.
+
+    Each capture still decodes to Math, not to a raw instruction.
+    """
     rungs = _rungs(FIXTURES / "v4_captures" / file)
     assert [index for index, _ in find_v4_only(rungs)] == flagged
     assert not any(isinstance(rung.instructions[0], RawInstruction) for rung in rungs)
@@ -101,7 +104,10 @@ def test_raw_math_past_500_interiors_or_with_rand_is_v4_only() -> None:
     "blob", [b"\x00", b"", "Math".encode("utf-16-le") + b"\x00\x00"], ids=["00", "empty", "name"]
 )
 def test_raw_math_whose_fields_do_not_parse_is_not_flagged(blob: bytes) -> None:
-    """``raw(Math,00)`` reads from CSV into such a blob; the check returns False, not raises."""
+    """A raw Math whose blob does not parse is not v4-only, and the check does not raise.
+
+    Reading ``raw(Math,00)`` from CSV gives such a blob.
+    """
     raw = RawInstruction("Math", blob)
     assert not is_v4_only(raw)
     rung = Rung(logical_rows=1, conditions=[["-"] * 31], instructions=[raw], comment=None)

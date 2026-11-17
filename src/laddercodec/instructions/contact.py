@@ -1,6 +1,7 @@
 """Contact — NO/NC/edge contacts (type markers 0x2711, 0x2712, 0x2713).
 
-Binary class names: ``"ContactNO"`` (for NO and NC), ``"Edge"`` (for rise/fall).
+In the binary, an NO or NC contact has the class name ``"ContactNO"``, and a rise or fall
+contact has the class name ``"Edge"``.
 """
 
 from __future__ import annotations
@@ -21,8 +22,8 @@ from ..model import (
 from ..operands.checks import BIT_BANKS, Refusals
 from .family import ConditionInstructionFamilySpec
 
-#: A contact's kind, as its CSV token reads: ``X001``, ``~X001``, ``rise(X001)``,
-#: ``fall(X001)``.
+#: A contact's kind.  The CSV tokens of the four kinds are ``X001``, ``~X001``,
+#: ``rise(X001)`` and ``fall(X001)``.
 ContactKind = Literal["no", "nc", "rise", "fall"]
 
 # ---------------------------------------------------------------------------
@@ -94,7 +95,7 @@ class Contact(ConditionInstruction):
                     code=Code.IMMEDIATE_CONTACT_NOT_X,
                 )
             # The kind is checked last, so a refused operand is reported first.
-            if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
+            if self.kind not in tuple(_KIND_TO_ITYPE):  # a dict would raise for an unhashable kind
                 check.refuse(
                     "kind",
                     f"{self.kind!r} is not a contact kind (no, nc, rise or fall)",
@@ -106,7 +107,8 @@ class Contact(ConditionInstruction):
     def from_csv_token(cls, token: str) -> Contact:
         """Parse NO/NC/immediate forms plus edge forms `rise(...)`/`fall(...)`.
 
-        Also accepts wire-down prefix: ``T:X001``, ``T:rise(X002)``.
+        It also accepts the wire-down prefix ``T:`` or ``|:``, as in ``T:X001`` and
+        ``T:rise(X002)``.
         """
 
         token = token.strip()
@@ -157,7 +159,8 @@ class Contact(ConditionInstruction):
     def to_csv(self) -> str:
         suffix = ".immediate" if self.immediate else ""
         if self.kind in _EDGE_KINDS:
-            # An immediate edge contact is only ever held as a refusal (read unchecked).
+            # An immediate edge contact exists only when a read with unchecked=True kept
+            # the refusal instead of raising it.
             inner = f"{self.kind}({self.operand}){suffix}"
         else:
             prefix = "~" if self.kind == "nc" else ""
@@ -167,7 +170,7 @@ class Contact(ConditionInstruction):
         return inner
 
     def cell_params(self) -> dict:
-        """Return ClickCell kwargs intrinsic to this instruction."""
+        """Return the ClickCell keyword arguments that this instruction sets."""
         return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
 
     def build_blob(self) -> bytes:
@@ -205,7 +208,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Contact | None:
-    """Construct a Contact from tag data (shared by both decoders)."""
+    """Build a Contact from tag data, or return None if the tags are not a contact's.
+
+    The clipboard decoder and the program-file decoder both call it.
+    """
     itype = TYPE_CODE_TO_ITYPE.get(type_code)
 
     if class_name == "ContactNO" and itype in (

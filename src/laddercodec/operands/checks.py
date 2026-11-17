@@ -1,4 +1,4 @@
-"""Shared field checks: one call per instruction field, with that field's parameters.
+"""The checks that instruction fields share.  Each field makes one call, with its own parameters.
 
 - :func:`~laddercodec.operands.address.check_address`: an address in the field's banks.
 - :func:`check_constant`: a constant of the kinds and limits a :class:`Constants` names.
@@ -13,9 +13,9 @@
 
 :data:`BIT_BANKS` and :data:`REGISTER_BANKS` are the bank sets more than one family uses.
 
-Every refusal is a :class:`~laddercodec.operands.errors.FieldError` (an
-:class:`~laddercodec.operands.errors.AddressError` for an address or a pointer) whose
-``field`` is the ``field`` the caller gave, as ``Class.attr``, and whose ``reason`` is a
+Every refusal is a :class:`~laddercodec.operands.errors.FieldError`, or an
+:class:`~laddercodec.operands.errors.AddressError` for an address or a pointer.  Its
+``field`` is the ``field`` the caller gave, as ``Class.attr``, and its ``reason`` is a
 :class:`~laddercodec.operands.errors.Reason`.  The message names ``label``, or the field
 when no label is given.  The constant checks build on
 :func:`~laddercodec.operands.constants.classify`.
@@ -101,10 +101,11 @@ class Constants:
     #: The highest hex value: ``0xFFFF`` where a field takes 16-bit hex only.
     hex_high: int = _HEX32_HIGH
     #: Whether a sign before hex digits (``+1h``) reads as a hex constant.  Such text is
-    #: refused either way: this decides whether :func:`check_operand` refuses it as a
+    #: refused either way.  This flag decides whether :func:`check_operand` refuses it as a
     #: constant (:class:`FieldError`) or as an address (:class:`AddressError`).
     hex_sign: bool = False
-    #: Whether a real is within float32.  ``False`` takes any real spelling.
+    #: Whether a real must be within float32.  With ``False``, any spelling of a real is
+    #: read.
     float32: bool = True
     #: The most characters between the quotes of a text constant.
     text_max: int = TEXT_MAX
@@ -117,10 +118,6 @@ class Constants:
     range_id: str | None = "OBJ-005"
 
 
-#: The ids and wording CLICK gives a hex Math result outside its range: an SD in SD1-SD1000,
-#: or a YD past YD8, is outside the range (OBJ-003); an SD past that range (SD0, SD1001) and
-#: another bank it does not take are OBJ-004.  Pass as keyword arguments to
-#: :func:`check_address`.
 class _ResultIds(TypedDict):
     """The keyword arguments of :func:`check_address` that carry a field's error ids."""
 
@@ -129,6 +126,11 @@ class _ResultIds(TypedDict):
     outside_range_of: str
 
 
+#: ``HEX_MATH_RESULT`` holds the ids and wording that CLICK gives for a hex Math result it
+#: refuses.  CLICK calls an SD in SD1-SD1000, or a YD past YD8, outside the range (OBJ-003).
+#: It gives OBJ-004 for an SD outside SD1-SD1000, such as SD0 or SD1001, and for any other
+#: bank the result does not take.  Pass ``HEX_MATH_RESULT`` as keyword arguments to
+#: :func:`check_address`.
 HEX_MATH_RESULT: _ResultIds = {
     "bank_ids": {"SD": "OBJ-003"},
     "range_ids": {"YD": "OBJ-003"},
@@ -166,8 +168,8 @@ class _At(NamedTuple):
         code: Code,
         also: str | None = None,
     ) -> FieldError:
-        """``label: 'value' rule``, with CLICK's id at the end; ``also`` is the other field
-        of a refused pair."""
+        """Build the error ``label: 'value' rule``, with CLICK's id at the end.  ``also``
+        names the other field of a refused pair."""
         tail = f" ({click_id})" if click_id else ""
         return cls(
             f"{self.label}: {value!r} {rule}{tail}",
@@ -193,7 +195,8 @@ _FLOAT_SHAPE = re.compile(r"([+-]?)(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:E[+-]?[0-9]+)?
 
 
 def constant_shape(value: str, constants: Constants) -> Kind | None:
-    """The kind of constant ``value`` is spelled as, limits aside; ``None`` for other text.
+    """Return the kind of constant that ``value`` is spelled as, ignoring limits, or ``None``
+    for other text.
 
     The kinds are tried in :func:`classify`'s order.  A sign the field does not take
     makes a number no constant, and so does a sign before hex digits unless
@@ -228,7 +231,7 @@ def _kinds_text(kinds: Collection[Kind]) -> str:
 
 
 def _kind_refusal(value: str, at: _At, kind: Kind, constants: Constants) -> FieldError:
-    """The refusal of a constant of a kind the field does not take."""
+    """Return the refusal of a constant of a kind that the field does not take."""
     return at.error(
         value,
         f"is {_kinds_text([kind])}; {at.label} takes {_kinds_text(constants.kinds)}",
@@ -238,7 +241,7 @@ def _kind_refusal(value: str, at: _At, kind: Kind, constants: Constants) -> Fiel
 
 
 def _hex_above(value: str, at: _At, constants: Constants) -> FieldError:
-    """The refusal of a hex constant above the field's highest."""
+    """Return the refusal of a hex constant above the field's highest value."""
     high = f"{constants.hex_high:X}h"
     return at.error(
         value,
@@ -250,8 +253,8 @@ def _hex_above(value: str, at: _At, constants: Constants) -> FieldError:
 
 
 def _unread(value: str, at: _At, constants: Constants) -> FieldError:
-    """The refusal of text :func:`classify` reads no constant in, worded by the field's own
-    kinds and limits."""
+    """Return the refusal of text in which :func:`classify` reads no constant, worded by the
+    field's own kinds and limits."""
     kinds = constants.kinds
     if len(value) >= 2 and value[0] == value[-1] == '"':
         if Kind.TEXT not in kinds:
@@ -260,7 +263,8 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
             rule = "a text constant is one character in quotes"
         else:
             rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
-        # classify() refuses a quote inside, an empty text and a longer one.
+        # classify() refuses a quote inside the text, an empty text and a text longer than
+        # TEXT_MAX.
         quoted = '"' in value[1:-1]
         return at.error(
             value,
@@ -282,7 +286,8 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
             )
         if int(upper[:-1], 16) > constants.hex_high:
             return _hex_above(value, at, constants)
-        # Past FFFFh only the digit count refuses: 0FFFFFFFFh is no 32-bit constant.
+        # Only the digit count is left to refuse a value above FFFFh.  0FFFFFFFFh has nine
+        # digits, so it is no 32-bit constant.
         return at.error(
             value,
             "is refused; a hex constant above FFFFh has at most 8 digits",
@@ -290,8 +295,8 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
             code=Code.CONSTANT_OUT_OF_RANGE,
         )
     if _INTEGER_SHAPE.fullmatch(upper):
-        # check_constant words an integer for a field that takes integers, so only a field
-        # that does not take them gets here.
+        # check_constant words its own refusal of an integer for a field that takes integers.
+        # Only a field that does not take them gets here.
         return _kind_refusal(value, at, Kind.INTEGER, constants)
     if _FLOAT_SHAPE.fullmatch(upper):
         if Kind.FLOAT not in kinds:
@@ -320,11 +325,11 @@ def check_constant(
     label: str | None = None,
     char_id: str | None = None,
 ) -> Constant:
-    """Return the constant ``value`` spells; raise :class:`FieldError` naming ``field``
-    unless it is one ``constants`` takes.  ``char_id`` is CLICK's id for a ``$`` text that
-    is no character code, where the field's dialog gives one.
+    """Return the constant that ``value`` spells, if ``constants`` takes it.  Otherwise raise
+    :class:`FieldError` naming ``field``.  ``char_id`` is CLICK's id for a ``$`` text that is
+    no character code, where the field's dialog gives one.
 
-    :func:`~laddercodec.operands.constants.classify` reads the text; ``constants`` then
+    :func:`~laddercodec.operands.constants.classify` reads the text, and then ``constants``
     applies the field's kinds and limits.  A real beyond float32 is read only when
     :attr:`Constants.float32` is off.
     """
@@ -354,7 +359,8 @@ def check_constant(
             const = Constant(Kind.FLOAT, float(value))
         if const is None:
             if Kind.INTEGER in constants.kinds and _INTEGER_SHAPE.fullmatch(value.upper()):
-                # An integer beyond int32: the field's own sign and limits word the refusal.
+                # The text is an integer beyond int32.  The field's own sign rule and limits
+                # word the refusal.
                 _check_sign(value, at, constants)
                 raise _outside(value, at, constants)
             raise _unread(value, at, constants)
@@ -365,7 +371,7 @@ def check_constant(
 
 
 def _blank(at: _At, cls: type[FieldError] = FieldError) -> FieldError:
-    """The refusal of a blank field: reason ``missing``, and no CLICK id."""
+    """Return the refusal of a blank field, with the reason ``missing`` and no CLICK id."""
     return cls(
         f"{at.label}: is blank; it needs a value",
         field=at.field,
@@ -375,7 +381,7 @@ def _blank(at: _At, cls: type[FieldError] = FieldError) -> FieldError:
 
 
 def _outside(value: str, at: _At, constants: Constants) -> FieldError:
-    """The refusal of a decimal integer outside the field's limits."""
+    """Return the refusal of a decimal integer outside the field's limits."""
     # Without a '-' the lowest value a field can take is 0.
     low = constants.low if "-" in constants.signs else max(constants.low, 0)
     return at.error(
@@ -390,7 +396,8 @@ def _outside(value: str, at: _At, constants: Constants) -> FieldError:
 def _check_sign(value: str, at: _At, constants: Constants) -> None:
     """Refuse a leading sign the field does not take."""
     if value[:1] in "+-" and value[0] not in constants.signs:
-        # Name the sign the field refuses: "no plus sign" where a minus sign stands.
+        # A field that takes one sign names the other in the message, as in "no plus sign".
+        # A field that takes no sign says "no sign".
         refused = {"+": "plus ", "-": "minus "}[value[0]] if constants.signs else ""
         # A minus sign where the field's lowest value is 0 or more is out of range.
         code = Code.CONSTANT_OUT_OF_RANGE if value[0] == "-" else Code.INVALID_CONSTANT
@@ -452,9 +459,9 @@ _TEXT_CHARS = range(0x20, 0x7F)
 
 
 def check_kept_text(value: str, text: str, field: str, *, label: str | None = None) -> None:
-    """Refuse the text ``text`` of the constant ``value`` where CLICK does not keep a
-    character of it (:func:`~laddercodec.operands.constants.kept_text`): a single Copy
-    source and a Search text value take the characters CLICK keeps."""
+    """Refuse the constant ``value`` when CLICK does not keep a character of its text
+    ``text`` (:func:`~laddercodec.operands.constants.kept_text`).  A single Copy source and
+    a Search text value take only the characters that CLICK keeps."""
     if not kept_text(text):
         raise _at(field, label).error(
             value, f"is refused; {KEPT_TEXT_RULE}", Reason.FORM, code=Code.INVALID_TEXT_CONSTANT
@@ -464,13 +471,13 @@ def check_kept_text(value: str, text: str, field: str, *, label: str | None = No
 def check_quoted_text(
     value: str, field: str, *, label: str | None = None, kept: bool = False
 ) -> None:
-    """Refuse a quoted text constant Compare and Search refuse.
+    """Refuse a quoted text constant that Compare and Search refuse.
 
-    The text between the quotes is 1 to :data:`TEXT_MAX` printable ASCII characters,
-    with no quote inside: a quote would end the text in the CSV token, so it is written
-    ``$22``.  With ``kept`` (a Search value), it takes any character CLICK keeps
-    (:func:`check_kept_text`) instead of printable ASCII.  On hardware the text is compared
-    against consecutive TXT registers from the named one.
+    The text between the quotes must be 1 to :data:`TEXT_MAX` printable ASCII characters,
+    with no quote inside.  A quote would end the text in the CSV token, so you write it as
+    ``$22``.  With ``kept``, for a Search value, the text may hold any character that CLICK
+    keeps (:func:`check_kept_text`), not only printable ASCII.  On the PLC, the text is
+    compared against consecutive TXT registers, starting from the one the instruction names.
     """
     at = _at(field, label)
     if value == "":
@@ -519,16 +526,18 @@ def check_operand(
     bank_id: str | None = None,
     bank_code: Code = Code.BANK_NOT_ALLOWED,
 ) -> Operand:
-    """Check one operand; raise :class:`FieldError` naming ``field`` if it is refused.
+    """Check one operand and return it as an :class:`Operand`.  Raise :class:`FieldError`
+    naming ``field`` if it is refused.
 
-    An address goes through :func:`check_address`, narrowed to ``banks`` (``None``: any
-    bank).  With ``pointer``, ``BANK[DSn]`` passes: ``BANK`` is in ``banks`` and in
-    :data:`POINTER_BANKS`, and the index is a DS address.  With ``constants``, a constant
-    goes through :func:`check_constant`.  Every refusal of a pointer, its index's included,
-    has the reason ``pointer``.  ``bank_id`` and ``bank_code`` are CLICK's id and the code
-    for an address in a bank the field does not take, as for :func:`check_address`.
+    An address goes through :func:`check_address`, narrowed to ``banks``, where ``None``
+    allows any bank.  With ``pointer``, a pointer ``BANK[DSn]`` passes when ``BANK`` is in
+    ``banks`` and in :data:`POINTER_BANKS` and the index is a DS address.  With
+    ``constants``, a constant goes through :func:`check_constant`.  Every refusal of a
+    pointer, including a refusal of its index, has the reason ``pointer``.  ``bank_id`` and
+    ``bank_code`` are CLICK's id and the code for an address in a bank the field does not
+    take, as for :func:`check_address`.
 
-    Which of the two checks reads the text:
+    These rules decide which of the two checks reads the text:
 
     - by default, text spelled as a constant of a kind ``constants`` takes is a constant,
       and any other text is an address (refused with :class:`AddressError`);
@@ -636,9 +645,10 @@ def check_out_target(
 ) -> Address:
     """Check an address a coil writes; return it.
 
-    The bank is one of ``banks`` (Y, C and SC for Out, Set, Reset and the Out variants),
-    an immediate target is Y, and an SC bit is one of :data:`WRITABLE_SC`.  A target the
-    immediate box refuses is a conflict of ``field`` with the instruction's ``immediate``.
+    The bank must be one of ``banks`` (Y, C and SC for Out, Set, Reset and the Out
+    variants), an immediate target must be Y, and an SC bit must be one of
+    :data:`WRITABLE_SC`.  When the instruction is immediate and the target is not Y, the
+    refusal is a conflict between ``field`` and the instruction's ``immediate`` field.
     ``bank_id`` and ``not_writable_id`` are the ids CLICK's dialog gives for a bank the field
     does not take and for an SC bit it can't write, where they are known.
     """
@@ -680,10 +690,12 @@ def check_flag(value: object, field: str) -> bool:
 
 
 def check_csv_flag(kwargs: Mapping[str, str], name: str, field: str) -> bool:
-    """Read the CSV flag keyword ``name`` (``oneshot=1``) from ``kwargs``: ``1`` or ``0``,
-    off when absent.  A blank one (``oneshot=``) is refused as missing, and any other text
-    as no flag; each refusal names ``field``.  Every CSV parser reads its 0/1 keywords
-    with it."""
+    """Read the CSV flag keyword ``name`` (``oneshot=1``) from ``kwargs`` as a bool.
+
+    The keyword is ``1`` or ``0``, and the flag is off when the keyword is absent.  A blank
+    keyword (``oneshot=``) is refused as missing, and any other text is refused as not a
+    flag.  Each refusal names ``field``.  Every CSV parser reads its 0/1 keywords with this
+    function."""
     value = kwargs.get(name, "0")
     if value in ("0", "1"):
         return value == "1"
@@ -709,8 +721,9 @@ _T = TypeVar("_T")
 class Refusals:
     """Run one instruction's checks and raise every refusal as one :class:`FieldError`.
 
-    ``__post_init__`` runs its checks inside the block; on leaving it, the first refusal
-    is raised with :attr:`~FieldError.errors` holding them all::
+    An instruction's ``__post_init__`` runs its checks inside the ``with`` block.  When the
+    block ends, the first refusal is raised, and its :attr:`~FieldError.errors` holds them
+    all::
 
         with Refusals(self) as check:
             check.flag("retained")
@@ -722,16 +735,19 @@ class Refusals:
                     ("accumulator", "done"), "...", Reason.CONFLICT, code=Code.TIMER_PAIR_MISMATCH
                 )
 
-    A field is named by its attribute (``"outputs[2]"`` for an item); the error names
-    ``Class.attr``.  Once a field is refused, a later check or refusal that names it is
-    skipped: what depends on a refused value is not checked.  A refusal of a pair refuses
-    its leading field only, so its partner is still checked.  A refusal of a list field
-    counts for each of its items, and a refusal of an item for the list.  A
-    :class:`FieldError` raised straight out of the block ends it and joins the refusals the
-    same way, each of its :attr:`~FieldError.errors` (an instruction built inside the block
-    brings all of its own).  Any other exception ends the block too; with refusals already
-    kept, the first is raised from it, so a value that crashes a later check (None where
-    text belongs) does not hide them.
+    You name a field by its attribute, such as ``"outputs[2]"`` for an item, and the error
+    names it as ``Class.attr``.  Once a field is refused, a later check or refusal that
+    names it is skipped, so nothing that depends on a refused value is checked.  A refusal
+    of a pair refuses only its leading field, and its partner is still checked.  A refusal
+    of a list field counts for each of its items, and a refusal of an item counts for the
+    list.
+
+    A :class:`FieldError` raised straight out of the block ends the block.  Each of its
+    :attr:`~FieldError.errors` joins the refusals by the same rules.  An instruction built
+    inside the block brings all of its own refusals this way.  Any other exception also
+    ends the block.  If refusals were already kept, the first of them is raised from that
+    exception.  A value that crashes a later check, such as None where text belongs,
+    therefore does not hide the refusals before it.
     """
 
     def __init__(self, inst: object) -> None:
@@ -749,7 +765,7 @@ class Refusals:
         tb: TracebackType | None,
     ) -> bool:
         if exc is not None and not isinstance(exc, Exception):
-            return False  # KeyboardInterrupt, SystemExit: not ours to replace
+            return False  # let KeyboardInterrupt and SystemExit through unchanged
         if isinstance(exc, FieldError):
             self.add(exc)
         if not self._errors:
@@ -763,7 +779,7 @@ class Refusals:
         raise first
 
     def field(self, attr: str) -> str:
-        """The field name of attribute ``attr``: ``Class.attr``."""
+        """Return the field name of attribute ``attr``, as ``Class.attr``."""
         return f"{self._cls}.{attr}"
 
     def refused(self, *attrs: str) -> bool:
@@ -771,11 +787,11 @@ class Refusals:
         return self._names_refused(tuple(self.field(attr) for attr in attrs))
 
     def _names_refused(self, fields: tuple[str, ...], kept: int | None = None) -> bool:
-        """Whether one of ``fields`` leads a kept refusal (its list or an item of it too).
+        """Return whether one of ``fields``, its list or an item of it leads a kept refusal.
 
-        Only the leading field counts: a refusal of a pair refuses its first field, and its
-        partner is still checked on its own.  Given ``kept``, only the first ``kept``
-        refusals count."""
+        Only the leading field of a refusal counts.  A refusal of a pair refuses its first
+        field, and its partner is still checked on its own.  Given ``kept``, only the first
+        ``kept`` refusals count."""
 
         def overlap(a: str, b: str) -> bool:
             return a == b or a.startswith(f"{b}[") or b.startswith(f"{a}[")
@@ -785,9 +801,10 @@ class Refusals:
         )
 
     def add(self, error: FieldError) -> None:
-        """Keep each of ``error``'s :attr:`~FieldError.errors`, unless it names a field
-        refused before ``error`` came: the refusals of one check (every refusal of a Math
-        formula, all on ``Math.expression``) are kept together."""
+        """Keep each of ``error``'s :attr:`~FieldError.errors`, unless it names a field that
+        was refused before ``error`` arrived.  The refusals from one check therefore stay
+        together, such as every refusal of a Math formula, which all name
+        ``Math.expression``."""
         before = len(self._errors)
         for each in error.errors:
             if not self._names_refused(each.fields, before):
@@ -798,9 +815,10 @@ class Refusals:
         """Give a refusal of a blank field of this instruction the reason ``missing`` and the
         code ``blank-field``.
 
-        A check of a field's own (a choice, a number) words a blank as a bad value; whatever
-        refused it, the caller reads a blank as :attr:`Reason.MISSING`.  Only a refusal,
-        never an accepted blank, gets here.  Its CLICK id stays.
+        A field's own check, such as for a choice or a number, words a blank as a bad value.
+        Whatever check refused it, the caller sees a blank as :attr:`Reason.MISSING`.  Only
+        refusals reach this method, never an accepted blank.  The refusal keeps its CLICK
+        id.
         """
         field = error.field
         prefix = f"{self._cls}."
@@ -816,12 +834,14 @@ class Refusals:
         if isinstance(value, str) and value == "":
             error.reason = Reason.MISSING
             error.code = Code.BLANK_FIELD
-            # The message says what is wrong with the value; a blank is wrong the same way
-            # wherever it is refused.  CLICK's id, if any, stays on the error.
+            # The message says what is wrong with the value.  A blank is wrong the same way
+            # wherever it is refused, so every blank gets this one message.  CLICK's id, if
+            # any, stays on the error.
             error.args = (f"{field}: is blank; it needs a value",)
 
     def run(self, check: Callable[..., _T], *args: Any, **kwargs: Any) -> _T | None:
-        """``check(*args, **kwargs)``; None when it raises :class:`FieldError`, kept."""
+        """Return ``check(*args, **kwargs)``.  If it raises :class:`FieldError`, keep the
+        refusal and return None."""
         try:
             return check(*args, **kwargs)
         except FieldError as exc:
@@ -829,9 +849,10 @@ class Refusals:
             return None
 
     def __call__(self, attr: str, check: Callable[..., _T], *args: Any, **kwargs: Any) -> _T | None:
-        """``check(value, field, *args, **kwargs)`` on attribute ``attr``.
+        """Run ``check(value, field, *args, **kwargs)`` on attribute ``attr`` and return the
+        result.
 
-        None when the check refuses the value or ``attr`` was refused before.
+        Return None when the check refuses the value, or when ``attr`` was refused before.
         """
         if self.refused(attr):
             return None
@@ -850,7 +871,10 @@ class Refusals:
         *,
         code: Code,
     ) -> None:
-        """Refuse ``attrs``, one field or a pair, the first leading: ``Class.attr: rule``."""
+        """Refuse ``attrs``, one field or a pair, with the message ``Class.attr: rule``.
+
+        In a pair, the first field leads, and the message names it.
+        """
         fields = tuple(map(self.field, (attrs,) if isinstance(attrs, str) else attrs))
         tail = f" ({click_id})" if click_id else ""
         self.add(

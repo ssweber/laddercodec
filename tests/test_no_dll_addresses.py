@@ -1,7 +1,8 @@
-"""Committed files carry no CLICK DLL addresses.
+"""Test that no tracked file holds an address inside a CLICK DLL.
 
-Text says what a CLICK rule is, never a location inside a CLICK DLL.  The rule is
-:func:`dll_address`, which the scan of every tracked file applies line by line.
+The repo says what a CLICK rule is, and never where its code sits inside a CLICK DLL.
+:func:`dll_address` decides what counts as such an address. The test applies it to each
+line of every tracked file.
 """
 
 from __future__ import annotations
@@ -36,8 +37,8 @@ _DLL_ADDRESS_RE = re.compile(
     re.IGNORECASE,
 )
 
-#: ``0x`` values of six or more hex digits that are data, not locations: exact values,
-#: upper-cased, each with its reason.
+#: ``0x`` values of six or more hex digits that are data, not locations. Each key is an
+#: exact value in upper case, and each value is the reason that it is allowed.
 ALLOWED_LONG_HEX: dict[str, str] = {
     "FFFFFFFF": "all-ones 32-bit mask or sentinel",
     "80000000": "int32 sign bit (counter span check)",
@@ -57,7 +58,8 @@ def dll_address(text: str) -> str | None:
     return None
 
 
-# path -> reason.  Only files a tool generates, which can't hold a DLL address.
+# Each key is a path and each value the reason. List only files that a tool generates,
+# which cannot hold a DLL address.
 ALLOWED: dict[str, str] = {
     "uv.lock": "written by uv: package URLs and hashes, whose hex runs can look like an address",
 }
@@ -114,7 +116,8 @@ _FAKE = f"{(0x1000 << 16) + 0x1234:08x}"
 _BASE = f"{0x1000 << 16:x}"
 _DLL = "Inst_SD.dll"
 
-#: (text, refused): each form the rule knows, and text that only looks like one.
+#: Each case is (text, refused). The list holds each form that :func:`dll_address` matches,
+#: and text that only looks like one.
 FORMS = [
     (f"Inst_SD.dll 0x{_FAKE}", True),
     (f"Inst_SD.dll 0X{_FAKE.upper()}", True),

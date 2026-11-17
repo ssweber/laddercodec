@@ -1,4 +1,8 @@
-"""A flag keyword is ``1`` or ``0``: another text is refused, never read as off."""
+"""Tests that a flag keyword in an AF token must be ``1`` or ``0``.
+
+The reader refuses any other text and does not read it as off. It refuses a blank flag as
+missing.
+"""
 
 from __future__ import annotations
 

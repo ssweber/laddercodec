@@ -1,10 +1,13 @@
-"""Generate modbus send/receive coverage CSV fixtures.
+"""Write the Modbus Send and Receive coverage fixtures to ``tests/fixtures/coverage/golden``.
 
-Minimal set to cover all Click UI dropdown/checkbox options:
-- 8 RTU register fixtures (4 com_port variants x click/modbus remote x single/block)
-- 5 TCP coil/input fixtures (FC 01/02/04/05/15 — FCs not covered by register fixtures)
-- 2 word_swap fixtures (send + receive with 32-bit DD addresses)
-= 15 total
+The 15 CSV fixtures are the fewest that cover every dropdown and checkbox option of CLICK's
+Send and Receive dialogs:
+
+- 8 RTU register fixtures. They cover send and receive, a CLICK or a Modbus remote address,
+  and one register or a block. Each pair of remote kind and data size uses its own COM port.
+- 5 TCP fixtures for coils and inputs. They cover FC 01, 02, 04, 05 and 15, which the
+  register fixtures do not.
+- 2 Word Swap fixtures, a send and a receive of 32-bit DD addresses.
 """
 
 import os
@@ -14,7 +17,8 @@ DASHES = ",".join(["-"] * 30)  # B through AE
 
 TCP = 'ModbusTcpTarget(name=""plc2"",ip=""192.168.1.10"",port=502,device_id=1)'
 
-# Each RTU combo gets a different com_port to cover all port formats
+# Each pair of remote kind and data size uses its own com_port, so that the RTU fixtures
+# cover every port format.
 RTU_PORTS = {
     ("click", "single"): ("cpu1", 5),
     ("click", "block"): ("cpu2", 5),
@@ -78,7 +82,7 @@ for direction in ("send", "receive"):
 
 
 # --- 5 TCP coil/input fixtures: remaining FC dropdown options ---
-# All TCP + Click addressing (dialog shared with RTU).
+# All five use a TCP target and a CLICK remote address. TCP and RTU share the dialog.
 
 COIL_FIXTURES = [
     (

@@ -1,11 +1,11 @@
-"""A blank required field is refused as ``missing``, never as a bad value.
+"""A blank required field is refused with the reason ``missing``, never as a bad value.
 
-pyrung tells a blank field from a bad one by the refusal's reason.  This takes every
-instruction the golden CSVs read to (see ``devtools/field_sweep.py``), blanks each text
-field and each text item of a list field in turn, and checks every refusal that names the
-blanked field: its reason is ``missing``.  A field that may be blank is accepted and
-passes.  The instructions come from the goldens, so a new instruction class or field is
-covered once a golden uses it.
+pyrung tells a blank field from a bad one by the reason on the refusal.  These tests take
+every instruction that the golden CSV files decode to (see ``devtools/field_sweep.py``).  They
+blank each text field, and each text item of a list field, one at a time.  Every refusal that
+names the blanked field must have the reason ``missing``.  A field that may be blank must be
+accepted and listed in ``ACCEPTS_BLANK``.  The instructions come from the golden files, so the
+tests cover an instruction class or field as soon as a golden file uses it.
 """
 
 from __future__ import annotations
@@ -38,8 +38,10 @@ INSTRUCTIONS = _sweep().golden_instructions()
 
 
 def _set(name: str, value: Any, *, nested: bool = False) -> Callable[[Any], Any]:
-    """Rebuild an instruction with ``name`` set to ``value``, or to what ``value`` (a rebuild)
-    makes of the object ``name`` holds."""
+    """Return a function that rebuilds an instruction with the field ``name`` set to ``value``.
+
+    With ``nested``, ``value`` is itself a rebuild function, and the field is set to what it
+    returns for the object that the field holds."""
 
     def rebuild(inst: Any) -> Any:
         new = value(getattr(inst, name)) if nested else value
@@ -49,8 +51,10 @@ def _set(name: str, value: Any, *, nested: bool = False) -> Callable[[Any], Any]
 
 
 def _blanks(inst: Any) -> list[tuple[str, Callable[[Any], Any]]]:
-    """``(field, rebuild)`` for each text field and each text item of ``inst`` blanked, and
-    of a target or remote address it holds: ``rebuild(inst)`` builds ``inst`` with it blank."""
+    """Return a ``(field, rebuild)`` pair for each text field and each text item of a list
+    field of ``inst``, and of a target or remote address that ``inst`` holds.
+
+    ``rebuild(inst)`` builds ``inst`` again with that field or item blank."""
     found: list[tuple[str, Callable[[Any], Any]]] = []
     cls = type(inst).__name__
     for f in dataclasses.fields(inst):
@@ -60,7 +64,7 @@ def _blanks(inst: Any) -> list[tuple[str, Callable[[Any], Any]]]:
         if isinstance(value, str):
             found.append((f"{cls}.{f.name}", _set(f.name, "")))
         elif dataclasses.is_dataclass(value) and not isinstance(value, type):
-            # A target or a remote address: blank its own text fields too.
+            # The field holds a target or a remote address.  Blank its text fields too.
             for inner, rebuild in _blanks(value):
                 found.append((inner, _set(f.name, rebuild, nested=True)))
         elif isinstance(value, (list, tuple)):
@@ -72,22 +76,23 @@ def _blanks(inst: Any) -> list[tuple[str, Callable[[Any], Any]]]:
     return found
 
 
-#: What each kind of instruction accepts blank, as ``(class, kind, field)`` (an item of a list as
-#: its list).  ``kind`` is the OutVariant or Drum kind, ``None`` for a class without one.  A blank
-#: anywhere else must be refused as ``missing``; one accepted that is not here fails, and an
-#: entry no blank reaches fails too.
+#: The fields that each kind of instruction accepts blank, as ``(class, kind, field)``.  An item
+#: of a list is keyed by its list.  ``kind`` is the value that ``kind_of`` returns.  A blank in
+#: any other field must be refused as ``missing``.  A test fails if an instruction accepts a
+#: blank that is not listed here, and also if no accepted blank matches an entry listed here.
 ACCEPTS_BLANK = frozenset(
     {
         ("Drum", "event_drum", "accumulator"),  # an event drum has none
         ("Drum", "event_drum", "unit"),
         ("Drum", "time_event_drum", "events"),  # a step with a duration needs no event
         ("Drum", "time_event_drum", "presets"),  # and one with an event needs no duration
-        # no jump: with the jump on, the target is checked
+        # A drum accepts a blank jump step only with the jump off.  With the jump on, the
+        # drum checks the jump step.
         *(
             ("Drum", f"{kind}, jump off", "jump_step")
             for kind in ("event_drum", "time_drum", "time_event_drum")
         ),
-        ("ModbusRtuTarget", None, "name"),  # a label, not in the binary
+        ("ModbusRtuTarget", None, "name"),  # the name is a label and is not in the binary
         ("ModbusTcpTarget", None, "name"),
         ("OutVariant", "toggle", "on_acc"),  # a toggle has none of the five
         ("OutVariant", "toggle", "on_preset"),
@@ -98,7 +103,7 @@ ACCEPTS_BLANK = frozenset(
         ("OutVariant", "timed", "off_preset"),
         ("RawInstruction", None, "class_name"),
         *(
-            (cls, None, field)  # an optional status bit
+            (cls, None, field)  # each is an optional status bit
             for cls, fields in {
                 "Receive": ("error", "exception_response", "receiving", "success"),
                 "Send": ("error", "exception_response", "sending", "success"),
@@ -110,7 +115,9 @@ ACCEPTS_BLANK = frozenset(
 
 
 def _key(inst: Any, field: str) -> tuple[str, str | None, str]:
-    """The ``ACCEPTS_BLANK`` key of the blank ``field`` (``Class.attr`` or ``Class.attr[i]``)."""
+    """Return the ``ACCEPTS_BLANK`` key for blanking ``field`` of ``inst``.
+
+    ``field`` is ``Class.attr`` or ``Class.attr[i]``."""
     cls, _, attr = field.partition(".")
     attr = attr.split("[")[0]
     return cls, kind_of(inst, attr), attr
@@ -140,7 +147,7 @@ def test_a_blank_field_is_missing(inst: Any, field: str, rebuild: Callable[[Any]
             f"{e.reason}: {e}" for e in wrong
         )
         for e in exc.errors:
-            if e.field == field and len(e.fields) == 1:  # a pair is a rule of two fields
+            if e.field == field and len(e.fields) == 1:  # a pair's message names both fields
                 assert ": is blank" in str(e), str(e)
     else:
         assert _key(inst, field) in ACCEPTS_BLANK, f"{inst!r} accepts {field} blank"

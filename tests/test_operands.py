@@ -1,4 +1,4 @@
-"""Tests for laddercodec.operands: bank flags, field errors."""
+"""Tests of the bank flags and the field errors in laddercodec.operands."""
 
 from __future__ import annotations
 
@@ -30,7 +30,8 @@ def test_bank_order_is_address_bank_order() -> None:
     assert [bank.value for bank in Bank] == [1 << n for n in range(16)]
 
 
-# (mask the dialog checks, the set the code holds, the field).
+# Each entry is (the bank mask that CLICK's dialog checks, the bank set in laddercodec's
+# code, the field).
 _MASKS = [
     (0x3F, send_receive.BIT_BANKS, "Send local bits FC01-FC05"),
     (0xDD40, send_receive._SEND_LOCAL_REGS_FC06, "Send local registers FC06"),
@@ -46,9 +47,12 @@ _MASKS = [
 
 
 def _literal_banks(module: str, field: str) -> frozenset[str]:
-    """The literal banks of the ``check_address(..., field, banks=...)`` or
-    ``check_operand(value, field, banks, ...)`` call in ``module``, or of the same check run
-    through ``Refusals``: ``check(attr, check_operand, banks, ...)``."""
+    """Return the literal bank set of the call in ``module`` that checks ``field``.
+
+    The call is ``check_address(..., field, banks=...)`` or
+    ``check_operand(value, field, banks, ...)``, or the same check run through ``Refusals``
+    as ``check(attr, check_operand, banks, ...)``.
+    """
     tree = ast.parse((INSTRUCTIONS / module).read_text(encoding="utf-8"))
     attr = field.split(".", 1)[1]
     for node in ast.walk(tree):
@@ -97,9 +101,10 @@ def test_groups_are_the_copy_sets() -> None:
 
 
 def test_every_bank_set_names_only_banks() -> None:
-    """A hand-typed bank set or bank-keyed dict in instructions/ holds no misspelled bank.
+    """Every bank set and bank-keyed dict typed out in instructions/ names only real banks.
 
-    Tuples and lists are left out: ``("T", "|")`` is a pair of wire tokens.
+    The test skips tuples and lists, because a tuple such as ``("T", "|")`` is a pair of wire
+    tokens, not banks.
     """
     checked = 0
     for path in sorted(INSTRUCTIONS.glob("*.py")):
@@ -114,7 +119,8 @@ def test_every_bank_set_names_only_banks() -> None:
             assert items is not None, ast.unparse(node)
             assert set(items) <= set(Bank.__members__), (path.name, ast.unparse(node))
             checked += 1
-    # Each set and dict the ratchet lists, counted once (``frozenset({...})`` is one).
+    # The number of sets and dicts that BANK_NAMES_ALLOWED lists, with its tuples and lists left
+    # out. ``frozenset({...})`` counts as one.
     listed = sum(n for (_, key), n in BANK_NAMES_ALLOWED.items() if not key.startswith(("(", "[")))
     assert checked == listed
 

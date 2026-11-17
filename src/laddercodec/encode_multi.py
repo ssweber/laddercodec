@@ -1,6 +1,4 @@
-"""Multi-rung buffer encoder.
-
-Combines N pre-specified rungs into one multi-rung clipboard buffer.
+"""Encode several rungs into one multi-rung clipboard buffer.
 
 Pipeline
 --------
@@ -15,19 +13,20 @@ Pipeline
 Rung preamble
 -------------
 
-Each rung has a 0x40-byte preamble that precedes its data rows.
-Rung 0's preamble starts at 0x0260, immediately after the program
-header (0x0254–0x025F).  It is copied from the template, not in the
-cell grid.  Rung N>0's preamble is cell 0 of its preamble row in
-the grid.
+Each rung has a 0x40-byte preamble before its data rows.  The preamble
+of rung 0 starts at 0x0260, right after the program header
+(0x0254–0x025F).  It is copied from the template and is not part of the
+cell grid.  The preamble of each later rung is cell 0 of its preamble
+row in the grid.
 
-Both share the same comment layout at fixed offsets from preamble base:
+Both kinds of preamble hold the comment at the same offsets from the
+start of the preamble:
 
     +0x30   comment flag (0x01 = has comment data)
     +0x34   comment payload length (4 bytes LE)
     +0x38   comment payload body (RTF bytes)
 
-For single-rung encoding, these correspond to the existing constants
+For single-rung encoding, ``encode.py`` has these offsets as the constants
 PAYLOAD_LENGTH_OFFSET (0x0294 = 0x0260+0x34) and
 PAYLOAD_BYTES_OFFSET  (0x0298 = 0x0260+0x38).
 
@@ -53,13 +52,15 @@ Key cell field differences from single-rung
               preamble rows   all cols:  rung_idx+1
     +0x3D   0 on data row col31; 1 on preamble col31  (untested, kept)
 
-Fields CLICK writes that are cosmetic (not written):
+CLICK also writes these fields.  They are cosmetic, and the encoder does
+not write them:
     +0x0B = 0x30   multi-rung marker on every cell
     +0x15 = 1      rung-start flag on col0 of rung rows
     PH+0x17 = 0x30 multi-rung type flag in program header
 
-Terminal row bytes +0x01..+0x04 match CLICK's but are untested;
-kept for fidelity. +0x05=0xFF is the sentinel Click uses to detect the row.
+The encoder writes bytes +0x01..+0x04 of the terminal row to match
+CLICK's, although no test shows whether CLICK needs them.  CLICK finds
+the terminal row by its sentinel, +0x05=0xFF.
 """
 
 from __future__ import annotations
@@ -112,9 +113,9 @@ def encode_rungs(
     Parameters
     ----------
     rungs:
-        Sequence of ``(logical_rows, condition_rows, af_tokens)`` tuples,
-        one per rung — the same arguments as ``encode_rung()``.
-        Minimum 2 rungs required.
+        One ``(logical_rows, condition_rows, af_tokens)`` tuple per rung,
+        with the same arguments as ``encode_rung()``.  At least 2 rungs
+        are required.
     comments:
         Optional sequence of per-rung comments, one per rung.  Each entry
         is either a comment string or ``None`` / ``""`` for no comment.
@@ -166,7 +167,8 @@ def encode_rungs(
 
     template = synthesize_empty_multirow(1)
     out = bytearray(template[:GRID_FIRST_ROW_START])
-    # uint32 LE: a native copy of 1049 rungs and 2938 grid rows carries into the third byte.
+    # Write row_word as a uint32 LE.  In a copy that CLICK made of 1049 rungs and 2938 grid
+    # rows, the row word carries into the third byte.
     out[PROGRAM_HEADER_BASE : PROGRAM_HEADER_BASE + 4] = row_word.to_bytes(4, "little")
 
     # --- Step 2: Grid — build cell objects, concatenate ---

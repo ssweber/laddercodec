@@ -1,5 +1,6 @@
-"""What the field sweeps key their exemptions on, shared by ``test_blank_missing`` and
-``test_long_digits``."""
+"""The kind that the field sweeps use in the keys of their exemption tables.
+
+``test_blank_missing``, ``test_long_digits`` and ``csv/test_blank_args`` share it."""
 
 from __future__ import annotations
 
@@ -7,10 +8,10 @@ from typing import Any
 
 
 def kind_of(inst: Any, attr: str) -> str | None:
-    """The OutVariant or Drum kind of ``inst``, ``None`` for a class without one.
+    """Return the ``kind`` field of ``inst``, or ``None`` if its class has no ``kind``.
 
-    A drum's ``jump_step`` is checked only while its jump is on, so its kind carries the
-    jump: ``"event, jump off"``.
+    For the ``jump_step`` field, the returned kind also says whether the jump is on, as in
+    ``"event_drum, jump off"``.  A drum checks its ``jump_step`` only while its jump is on.
     """
     kind = getattr(inst, "kind", None)
     if kind is not None and attr == "jump_step":

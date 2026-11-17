@@ -1,6 +1,7 @@
-"""Analyze SC-SCR temp file format by extracting rung boundaries and instruction blobs.
+"""Print the header, row headers and instruction blobs of a CLICK SCR file.
 
-Uses the known CSV as ground truth to validate structural findings.
+An SCR file is one of the temp files (``Scr*.tmp``) in which CLICK writes a program. The
+script finds the structures by scanning for byte patterns. It reads no CSV and checks nothing.
 """
 
 from __future__ import annotations
@@ -18,7 +19,10 @@ def read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
 
 
 def find_row_headers(data: bytes, start: int = 0) -> list[int]:
-    """Find all row header markers: XX 00 03 00 00 01 20 00."""
+    """Return the offset of every row header from *start* on.
+
+    A row header starts with the bytes XX 00 03 00 00 01 20 00, where XX is any byte.
+    """
     results = []
     for i in range(start, len(data) - 7):
         if (
@@ -35,7 +39,10 @@ def find_row_headers(data: bytes, start: int = 0) -> list[int]:
 
 
 def find_instruction_sections(data: bytes, start: int = 0) -> list[tuple[int, int]]:
-    """Find instruction section headers: [u16 count] [90 00] [00 00]."""
+    """Return (offset, count) for every instruction section header from *start* on.
+
+    A section header is a u16 count from 1 to 10, then the bytes 90 00 00 00.
+    """
     results = []
     for i in range(start, len(data) - 5):
         count = struct.unpack_from("<H", data, i)[0]
@@ -51,7 +58,11 @@ def find_instruction_sections(data: bytes, start: int = 0) -> list[tuple[int, in
 
 
 def find_instruction_blobs(data: bytes, start: int, end: int) -> list[dict]:
-    """Find instruction blobs between start and end offsets."""
+    """Return a dict for each instruction blob between the offsets *start* and *end*.
+
+    A blob starts with a length byte, a UTF-16LE class name and a u16 type marker from 0x2700
+    to 0x2800.
+    """
     blobs = []
     pos = start
     while pos < end - 10:
@@ -102,34 +113,32 @@ def main() -> None:
     print(f"Program: {name!r} (index={prog_idx})")
     print(f"Header ends at: {cursor:#x}")
 
-    # Bytes between header and first column-type block
+    # These bytes lie between the header and the first block of column types. The script
+    # reads their first u16 as the number of columns per row.
     print(f"\nPost-header bytes: {data[cursor : cursor + 6].hex(' ')}")
     cols_per_row = struct.unpack_from("<H", data, cursor)[0]
     print(f"  Cols per row: {cols_per_row}")
 
-    # Find row headers
     row_headers = find_row_headers(data, cursor)
     print(f"\nFound {len(row_headers)} row headers")
 
-    # Find instruction sections
     instr_sections = find_instruction_sections(data, cursor)
     print(f"Found {len(instr_sections)} instruction sections")
 
-    # Build rung map: each rung is a row header + instruction section
-    # Row headers contain column flags; instruction sections have the blobs
+    # A row header holds the flags of the row's columns. An instruction section holds the
+    # instruction blobs.
     print(f"\n{'=' * 72}")
     print("RUNG MAP")
     print(f"{'=' * 72}")
 
-    # Group row headers and instruction sections into rungs
-    # Strategy: each rung has 1+ row headers (for multi-row rungs) followed by
-    # an instruction section for each row.
-
-    # Let's look at the relationship between row headers and instruction sections
-    # For each row header, find the next instruction section
-    for i, rh_off in enumerate(row_headers[:10]):  # First 10
+    # The script does not group the headers into rungs. The guess behind this printout is that
+    # a rung has a row header for each row, followed by an instruction section for each row.
+    # For each of the first 10 row headers, the loop prints what lies between it and the next
+    # row header.
+    for i, rh_off in enumerate(row_headers[:10]):
         row_word = struct.unpack_from("<H", data, rh_off)[0]
-        # Read column flags
+        # The 32 column flags follow the header. Each is a flag byte and then a column index
+        # byte. Flag 01 marks a wire.
         flags_start = rh_off + 8  # after the 8-byte header
         non_wire = []
         for c in range(32):
@@ -142,7 +151,6 @@ def main() -> None:
         rh_end = flags_start + 64 + 2  # 32 flags + trailing u16
         next_rh = row_headers[i + 1] if i + 1 < len(row_headers) else len(data)
 
-        # Find instruction blobs in this span
         blobs = find_instruction_blobs(data, rh_end, next_rh)
         blob_names = [b["class_name"] for b in blobs]
 
@@ -166,12 +174,12 @@ def main() -> None:
             text = body[fs_idx + 6 : par_idx] if fs_idx >= 0 and par_idx >= 0 else "?"
             print(f"    RTF comment: {text[:50]!r}")
 
-    # Now show the column flag pattern for multi-row rungs
     print(f"\n{'=' * 72}")
     print("MULTI-ROW RUNG ANALYSIS")
     print(f"{'=' * 72}")
 
-    # Find rows where col A has flag != 01 (potential multi-row pin rows)
+    # Print the column flags of each row whose column A flag is not 01 (a wire). Such a row
+    # may be a pin row of a multi-row rung, that is, a row that feeds an extra input of a box.
     for i, rh_off in enumerate(row_headers):
         flags_start = rh_off + 8
         col_a_flag = data[flags_start]
@@ -210,26 +218,24 @@ def main() -> None:
             print(
                 f"    Instr {j}: flag={flag:#x} col={col_name}({col_idx}) header={header.hex(' ')}"
             )
-            # Find the next blob
             blob = find_instruction_blobs(data, pos + 8, pos + 200)
             if blob:
                 b = blob[0]
                 print(f"      -> {b['class_name']} (type={b['type']:#x}) @ {b['offset']:#x}")
                 pos = b["type_offset"] + 2
-                # Skip past blob data to next instruction header
-                # Look for the next instruction header pattern or row header
-                # The blob ends before the next flag+col pair
+                # Scan over the rest of the blob to the next instruction header. The blob ends
+                # where that header starts. The script takes a header to start with the bytes
+                # 01, a column index from 0 to 31, 01 and 01.
                 while pos < len(data) - 2:
-                    # Check if this could be an instruction header (flag=01, col=valid)
                     if data[pos] == 0x01 and 0 <= data[pos + 1] <= 31:
-                        # Could be next instruction header - verify with 01 01 pattern
                         if pos + 4 <= len(data) and data[pos + 2] == 0x01 and data[pos + 3] == 0x01:
                             break
-                    # Check for rung boundary (u16 rung_idx)
+                    # A rung boundary may also end the blob. The guess is that a boundary is a
+                    # u16 rung index and then a u32 length of the rung's RTF comment. The scan
+                    # does not stop at one.
                     if pos + 6 <= len(data):
                         maybe_rtf_len = struct.unpack_from("<I", data, pos + 2)[0]
                         if maybe_rtf_len == 0 or (maybe_rtf_len > 50 and maybe_rtf_len < 2000):
-                            # Could be rung boundary
                             pass
                     pos += 1
             else:

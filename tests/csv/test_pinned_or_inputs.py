@@ -1,14 +1,17 @@
-"""OR legs on a pinned box's main input push its pins down, for every pinned box.
+"""For every pinned box, OR legs on the box's main input push its pins down.
 
-Each case builds a rung whose main input is an OR of N rows (1, 2, 3, 8),
-then checks the pin rows the converter lays out, that encode → decode gives
-the rung back, and that the writer emits the same CSV rows.
+A pinned box is an instruction box with inputs besides its main input, such as a counter's
+reset. An OR leg is one row of an OR on an input. Each case builds a rung whose main input
+is an OR of N rows, for N of 1, 2, 3 and 8. It checks the rows on which the converter places
+the pins. It also checks that encoding and then decoding gives the rung back, and that the
+writer produces the same CSV rows.
 
-The N=1 shapes are the coverage goldens (tests/test_coverage.py, byte for byte).
-A timer without ``.reset()`` keeps its 2-row box beside a tall OR, and
-count_down's tall OR is pinned in tests/test_v4_captures.py.  The other tall-OR
-shapes follow the rule for legs under a later pin and are not checked against
-CLICK.
+The N=1 shapes are those of the coverage golden files, which tests/test_coverage.py compares
+byte for byte. A tall OR is an OR of more than one row. Two tall-OR shapes are checked
+against CLICK. A timer without ``.reset()`` keeps its 2-row box beside a tall OR, and
+tests/test_v4_captures.py checks count_down's tall OR. The other tall-OR shapes follow
+laddercodec's rule that a leg under one input pushes every later pin down. They are not
+checked against CLICK.
 """
 
 from __future__ import annotations
@@ -46,9 +49,10 @@ TIME_EVENT_DRUM = (
 
 
 def _or_input(n: int) -> list[list[str]]:
-    """Condition rows of an input gated by X001 and ORed over ``n`` rows (as pyrung writes it).
+    """Return the condition rows of X001 in series with an OR of ``n`` rows.
 
-    The addresses are in display form, which is what the writer gives back.
+    The rows are laid out as pyrung writes them. The addresses are in display form, because
+    the writer writes that form.
     """
     if n == 1:
         return [["X001", "X002"] + ["-"] * (COLUMNS - 2)]
@@ -123,7 +127,8 @@ def test_or_input_pushes_pins_down(
     box = rung.instructions[0]
     assert isinstance(box, PinnedInstruction)
     assert box.pin_rows == expected(n)
-    # The box ends at its last pin; a 2-row timer's further legs sit below it.
+    # The box ends at its last pin. A timer without .reset() is 2 rows tall, so the rest of
+    # its OR's rows sit below the box.
     assert rung.logical_rows == max(box.pin_rows[-1] + 1, len(rows))
     assert all(af in ("", "NOP") for af in rung.instructions[1:])
     if box.lead_rows:
@@ -135,10 +140,12 @@ def test_or_input_pushes_pins_down(
 
 @pytest.mark.parametrize("n", [2, 3, 8])
 def test_count_down_bridge_and_lead_row_forms(tmp_path: Path, n: int) -> None:
-    """count_down's NOP-bridge and lead-row CSV forms take OR legs too.
+    """count_down's NOP-bridge and lead-row CSV forms both accept OR legs on Down's input.
 
-    C1 on the token row is one more leg of Down's input; the layout draws it on
-    the Down row, as CLICK's check does, with the OR below it.
+    In the NOP-bridge form, the token is on the first row and a NOP marks Down's row under
+    it. In the lead-row form, the first row has no AF and the token is on Down's row. In both
+    forms, C1 on the first row is one more leg of Down's input. The layout draws C1 on the
+    Down row, as CLICK's syntax check does, with the rest of the OR below it.
     """
     conds = _or_input(n)
     lead = ["C1"] + ["-"] * 6 + ["T"] + [""] * (COLUMNS - 8)
@@ -179,7 +186,7 @@ def test_timer_rejects_foreign_pin(tmp_path: Path) -> None:
 
 
 def test_conformance_count_down_rungs() -> None:
-    """pyrung's Conf_Counters count_down cases (ClickNick Guided Paste failures)."""
+    """Three count_down rungs with a tall OR on Down read with the expected pin rows."""
     rungs = read_csv(FIXTURES / "pinned_or" / "conf_counters_count_down.csv")
     expected = {
         "counters/count_down_negative": (1, 4),
@@ -249,18 +256,20 @@ def _drum(pin_rows: tuple[int, int, int] = (1, 2, 3)) -> Drum:
 
 
 WRITER_CASES = {
-    # An empty unused-pin row stays when a floating blank-AF row follows the box.
+    # The writer keeps the empty row of an unused pin when a row with a blank AF follows
+    # the box.
     "timer_then_floating_row": ([_wire("X1"), _empty(), _wire("X2")], [_timer(), "", ""]),
     "drum_then_floating_row": (
         [_wire("X1"), _wire("X9"), _empty(), _empty(), _wire("X2")],
         [_drum(), "", "", "", ""],
     ),
-    # count_down's empty lead row is written when a blank-AF row sits above it.
+    # The writer writes count_down's empty lead row when a row with a blank AF is above it.
     "count_down_under_or_leg": (
         [_wire("X1"), _wire("X2"), _empty(), _wire("X3"), _wire("X4")],
         [Coil("Y1"), "", _count_down(), "NOP", ""],
     ),
-    # A box above count_down keeps its padding, so the lead row stays the lead row.
+    # The writer keeps the empty row of the timer box above count_down, so that count_down's
+    # lead row reads back as its lead row.
     "timer_then_count_down_lead": (
         [_wire("X1"), _empty(), _wire("X2"), _wire("X3"), _wire("X4")],
         [_timer(), "", _count_down(), "NOP", ""],
@@ -279,7 +288,11 @@ def test_writer_keeps_box_rows_in_place(name: str) -> None:
 
 @pytest.mark.filterwarnings("ignore:CSV round-trip lost")
 def test_writer_names_pin_rows_csv_cannot_express() -> None:
-    """A leg on the row of an unused trailing pin (drum 01 03 04, jump/jog off)."""
+    """The writer names the pin rows when the CSV cannot place the pins where they are.
+
+    The drum's pins are on rows 1, 3 and 4, its jump and jog pins are off, and X8 is a leg
+    on row 2. The CSV reads back with the pins on rows 1, 2 and 3.
+    """
     conds = [_wire("X1"), _wire("X9"), _wire("X8"), _empty(), _empty()]
     rung = Rung(
         logical_rows=5,
