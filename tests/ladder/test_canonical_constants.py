@@ -28,6 +28,9 @@ _MATH_INTERNAL = 0x61FD
 _COPY_ANSWERED = [
     ("005", "DS1", "5"),
     ("+5", "DS1", "+5"),
+    ("+0", "DS1", "+0"),
+    ("-0", "DS1", "0"),
+    ("-005", "DS1", "-5"),
     ("0ffh", "DH1", "0FFh"),
     ("ffh", "DH1", "FFh"),
     ("ABCH", "DH1", "ABCh"),
@@ -38,6 +41,11 @@ _COPY_ANSWERED = [
     ("1e3", "DF1", "1000.0"),
     (".5", "DF1", "0.5"),
     ("1E5", "DF1", "100000.0"),
+    ("+1.5", "DS1", "1.5"),
+    ("3.4028235E+38", "DS1", "3.402823E+38"),
+    ("1E-45", "DS1", "1E-45"),
+    ("1E-50", "DS1", "1E-50"),
+    ("1.5e-3", "DS1", "0.0015"),
     ("70000", "DD1", "70000"),
     ("$1", "TXT1", "$01"),
     ("$41", "TXT1", "$41"),
@@ -45,6 +53,9 @@ _COPY_ANSWERED = [
 #: The same rules on spellings CLICK was not asked about.
 _COPY_DERIVED = [
     ("-007", "DS1", "-7"),
+    ("-00", "DS1", "0"),
+    ("+2.50", "DF1", "2.5"),
+    ("3.40282355E+38", "DF1", "3.402823E+38"),
     ("0abch", "DD1", "0ABCh"),
     ('"AB"', "TXT1", '"AB"'),
 ]
@@ -127,10 +138,24 @@ def test_math_constant_every_writer_writes_clicks_form(
     assert decode(encode(_rung(math))).instructions[0] == math
 
 
-@pytest.mark.parametrize("source", ["EH", "eh", "Eh"])
-def test_copy_source_eh_is_refused_naming_both_meanings(source: str) -> None:
-    # CLICK stores a Copy typed EH as the real 0.0, not as hex E.
-    with pytest.raises(FieldError, match="write 0Eh for hex E or 0.0 for the real") as caught:
+_E_FIX = "write 0.0 for the real, or 14 for the value of hex E"
+_1E_FIX = "write 1.0 for the real, or 30 for the value of hex 1E"
+
+
+@pytest.mark.parametrize(
+    ("source", "fix"),
+    [
+        ("EH", _E_FIX),
+        ("eh", _E_FIX),
+        ("Eh", _E_FIX),
+        ("1Eh", _1E_FIX),
+        ("1EH", _1E_FIX),
+        ("1eh", _1E_FIX),
+    ],
+)
+def test_copy_source_hex_word_read_as_a_real_is_refused(source: str, fix: str) -> None:
+    # CLICK stores a Copy typed EH as the real 0.0 and 1Eh as 1.0, not as hex.
+    with pytest.raises(FieldError, match=fix) as caught:
         Copy(source, "DH1")
     assert caught.value.field == "Copy.source"
 

@@ -703,24 +703,33 @@ currently emit:
 - A single `copy` source and a `math` constant are written as CLICK stores them,
   in `to_csv()`, `write_csv` and the encoded rung alike:
   - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
-    `0.5`, `1E5` is `100000.0`, and a typed `+2.5` stays. laddercodec prints a
-    real with 7 significant digits, which fits those answers, and keeps a typed
-    `+` (`+2.50` is written `+2.5`); CLICK has not answered for the rest. A real
+    `0.5`, `1E5` is `100000.0`, and in a `math` a typed `+2.5` stays.
+    laddercodec prints a real with 7 significant digits, which fits those
+    answers, and keeps a typed `+` in a `math` (`+2.50` is written `+2.5`); CLICK
+    has not answered for the rest. A real
     that 7 significant digits would print in exponent form (from `1E+07` up and
     below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
     7-digit print is another float32 value (`1234567.89`);
+  - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), and a real typed
+    in exponent form that 7 significant digits don't print exactly in 7
+    (`3.4028235E+38` is `3.402823E+38`, a slightly smaller value), as CLICK's
+    Copy stores them; one that 7 digits print exactly is kept as typed (`1E-45`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
-    stays), and a hex constant with uppercase digits, its leading zeros and a
-    lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
+    and `+0` stay, `-0` is `0`), and a hex constant with uppercase digits, its
+    leading zeros and a lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
   - in a `math`, a hex constant with uppercase digits and no leading zeros
     (`0ffh` is `FFh`, `0000h` is `0h`);
   - in a `copy` to TXT, `$` and one hex digit as the code with two (`$1` is
     `$01`); a `fill`, a compare and a search still refuse `$1`.
 
-  `copy(EH,DH1)` is refused: CLICK's Copy stores `EH` as the real `0.0`, so write
-  `0Eh` for hex E or `0.0` for the real. `constant_text()` writes a Python int,
-  float or str as building the instruction stores it (`constant_text(255, hex=True)`
-  is `FFh`).
+  `copy(EH,DH1)` and `copy(1Eh,DH1)` are refused: CLICK's Copy stores `EH` as
+  the real `0.0` and `1Eh` as `1.0`, not as hex. Write the real, or the hex
+  value as a decimal integer (`14` for `Eh`, `30` for `1Eh`). `constant_text()`
+  writes a Python int, float or str as text that builds a `math` or a `copy`
+  holding that value (`constant_text(255, hex=True)` is `FFh`), but a `copy`
+  writes a real in exponent form that 7 significant digits don't print exactly
+  in 7, which is not the value: the largest float32 value is `3.402823466E+38`,
+  which a `copy` stores as `3.402823E+38`.
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a

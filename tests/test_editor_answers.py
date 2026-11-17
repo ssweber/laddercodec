@@ -111,8 +111,8 @@ E_REAL = (
     "0.0 into DS becomes 0 (settled)"
 )
 COPY_EH = (
-    "kept: CLICK stores EH as the real 0.0; laddercodec refuses it and names the forms to write, "
-    "0Eh for hex or 0.0 for the real (settled)"
+    "kept: CLICK stores EH and 1Eh as the reals 0.0 and 1.0; laddercodec refuses them and names "
+    "the forms to write, the real or the hex value as a decimal integer (settled)"
 )
 TEXT_AS_REAL = (
     'to do (roadmap item 4): CLICK stores quoted text with an E ("HELLO") into TXT as its float '
@@ -398,7 +398,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "single E5 -> DS1",
         ),
     ),
-    (COPY_EH, "copy_single", "outcome", ("single EH -> DS1",)),
+    (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
     (TEXT_AS_REAL, "copy_single", "stored", ('single "HELLO" -> TXT1',)),
     (
         ASCII_SOURCE,

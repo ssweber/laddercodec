@@ -12,8 +12,8 @@ are constants.  It tries, in order:
 
 - hex: hex digits then ``H``.  At most FFFFh is 16-bit; above that, at most eight digits
   is 32-bit (:attr:`Constant.wide`); longer text is no constant.  Hex comes before an
-  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants (a single Copy refuses ``EH``,
-  which CLICK's Copy stores as the real 0.0).
+  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants (a single Copy refuses ``EH``
+  and ``1EH``, which CLICK's Copy stores as the reals 0.0 and 1.0).
 - text: ``"..."``, the text between the quotes (see :data:`TEXT_MAX`).
 - an address, which is no constant (:func:`classify` returns ``None``).
 - a decimal integer: an int16 value, or an int32 value (wide); outside int32, no constant.
@@ -177,6 +177,30 @@ def real_display(text: str) -> str:
     return f"+{printed}" if text.startswith("+") else printed
 
 
+def copy_real_display(text: str) -> str:
+    """A real constant as a single Copy source stores it.
+
+    As :func:`real_display`, with two differences CLICK's Copy answers show: a typed ``+``
+    is dropped (``+1.5`` is ``1.5``), and a real typed in exponent form whose float32 value
+    7 significant digits print in exponent form, but not exactly, is written in that print
+    (``3.4028235E+38`` is ``3.402823E+38``, a slightly smaller float32 value).  One that 7
+    digits print exactly is kept as typed (``1E-45``, ``1E-50``); CLICK's form for one typed
+    otherwise (``1e7``, ``1.0E-10``) is not known.  ``text`` is a real :func:`classify`
+    reads: finite and within float32.
+    """
+    text = text.removeprefix("+")
+    value = _float32(float(text))
+    printed = f"{value:.{REAL_DIGITS}G}"
+    if "E" in text.upper() and "E" in printed and _float32(float(printed)) != value:
+        return printed
+    return real_display(text)
+
+
+def _float32(value: float) -> float:
+    """The float32 value nearest ``value``, which is within float32."""
+    return struct.unpack("<f", struct.pack("<f", value))[0]
+
+
 #: The largest finite float32 value.
 _FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
 #: Enough significant digits to write any float32 value at or below its exact value.
@@ -196,10 +220,15 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
       ASCII is its code, ``$`` and two hex digits (``$0D``).
 
+    The text builds a Math or a single Copy holding that value, but for one kind of real: a
+    Copy writes a real in exponent form that 7 significant digits don't print exactly in
+    CLICK's 7 digits, which is not the value.  The largest float32 value is
+    ``3.402823466E+38``, which a Copy stores as ``3.402823E+38``, a slightly smaller value.
+
     Provisional until CLICK answers: a real that 7 significant digits print in exponent
     form (from 1E+07 up and below 1E-04) is written in Python's ``G`` form (``1.5E+10``),
     and one that needs more than 7 digits keeps them (``0.33333334``); how CLICK writes
-    either is not known.
+    either in a Math is not known.
 
     Whether a field takes the text (an int above int16, a hex value above FFFFh, a real in
     a hex Math) is the field's check, made when the instruction is built.  A value no

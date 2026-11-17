@@ -45,7 +45,7 @@ from ..operands.checks import (
     check_writable_sd,
     constant_shape,
 )
-from ..operands.constants import TEXT_MAX, Kind, real_display
+from ..operands.constants import TEXT_MAX, Kind, copy_real_display
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -178,19 +178,41 @@ def _source_display(source: str, kind: Kind) -> str:
     """CLICK's form of a single Copy's constant source, one it takes.
 
     A decimal integer keeps its sign, typed ``+`` too, and loses its leading zeros
-    (``005`` is ``5``, ``+5`` stays ``+5``); a hex constant has its digits uppercased,
-    leading zeros kept, then a lowercase ``h`` (``0ffh`` is ``0FFh``); a real is printed
-    back (``1.50`` is ``1.5``, ``1E5`` is ``100000.0``).  Text and a character code come
-    back as given.
+    (``005`` is ``5``, ``+5`` and ``+0`` stay); zero loses a ``-`` (``-0`` is ``0``).  A hex
+    constant has its digits uppercased, leading zeros kept, then a lowercase ``h`` (``0ffh``
+    is ``0FFh``).  A real is printed back without a typed ``+`` (``1.50`` is ``1.5``,
+    ``+1.5`` is ``1.5``, ``1E5`` is ``100000.0``, ``3.4028235E+38`` is ``3.402823E+38``;
+    see :func:`~laddercodec.operands.constants.copy_real_display`).  Text and a character
+    code come back as given.
     """
     if kind is Kind.INTEGER:
         sign = source[:1] if source[:1] in ("+", "-") else ""
-        return sign + (source[len(sign) :].lstrip("0") or "0")
+        digits = source[len(sign) :].lstrip("0") or "0"
+        if sign == "-" and digits == "0":
+            sign = ""
+        return sign + digits
     if kind is Kind.HEX:
         return f"{source[:-1].upper()}h"
     if kind is Kind.FLOAT:
-        return real_display(source)
+        return copy_real_display(source)
     return source
+
+
+#: Hex words a single Copy reads as a real, uppercased, with the real CLICK stores for each.
+#: Whether CLICK reads any other hex word with an E (0EH, 01EH, E0H) as a real is not known.
+_REAL_HEX_WORDS = {"EH": "0.0", "1EH": "1.0"}
+
+
+def _real_hex_refusal(source: str) -> str | None:
+    """Why a single Copy refuses ``source``, a hex word CLICK reads as a real, or None."""
+    real = _REAL_HEX_WORDS.get(source.upper())
+    if real is None:
+        return None
+    digits = source[:-1].upper()
+    return (
+        f"{source!r} is refused; CLICK's Copy reads it as the real {real}, not as hex "
+        f"{digits}: write {real} for the real, or {int(digits, 16)} for the value of hex {digits}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -833,13 +855,8 @@ class Copy(AfInstruction):
                 # A single Copy takes $ and one hex digit as a character code; CLICK stores
                 # it with two ($1 is $01).
                 self.source = f"$0{self.source[1]}"
-            elif self.source.upper() == "EH":
-                check.refuse(
-                    "source",
-                    f"{self.source!r} is refused; CLICK's Copy reads it as the real 0.0, not "
-                    "as hex E: write 0Eh for hex E or 0.0 for the real",
-                    Reason.FORM,
-                )
+            elif (why := _real_hex_refusal(self.source)) is not None:
+                check.refuse("source", why, Reason.FORM)
             if self.format not in _VALID_FORMATS:
                 check.refuse(
                     "format",
