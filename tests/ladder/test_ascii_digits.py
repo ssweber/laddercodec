@@ -39,7 +39,7 @@ UNICODE = "٣"
 
 
 def _termination(code: str) -> Copy:
-    return Copy("DS1", "TXT1", format="binary", termination_code=code)
+    return Copy("DS1", "TXT1", convert="to_binary", termination_code=code)
 
 
 def _time_drum(preset: str) -> Drum:

@@ -594,3 +594,27 @@ class TestHeldRefusals:
         assert str(warning).endswith(
             f" (at {path}, line 3, rung at line 3, row 0 from 0, column AF)"
         )
+
+
+@pytest.mark.parametrize(
+    ("token", "message"),
+    [
+        (
+            "copy(DS1,TXT1,convert=to_text(suppress_zero=2))",
+            "Copy.suppress_zero: '2' is not 1 or 0",
+        ),
+        ("copy(DF1,TXT1,convert=to_text(exponential=x))", "Copy.exponential: 'x' is not 1 or 0"),
+        ("copy(DS1,TXT1,convert=to_text(suppress_zero=))", "Copy.suppress_zero: is blank"),
+    ],
+)
+@pytest.mark.parametrize("unchecked", [False, True])
+def test_a_bad_text_option_raises_located_while_the_token_is_read(
+    tmp_path: Path, token: str, message: str, unchecked: bool
+) -> None:
+    """A text option that is no flag raises at parse, as ``oneshot=2`` does, even read with
+    ``unchecked=True``, which only keeps what the instruction's own checks refuse."""
+    path = _write(tmp_path / "main.csv", [("R", _wired("X001"), token)])
+    with pytest.raises(FieldError, match=message) as info:
+        read_csv(path, unchecked=unchecked)
+    want = CsvLocation(file=path, line=2, rung_line=2, row=0, column=AF)
+    assert CsvLocation.of(info.value) == want

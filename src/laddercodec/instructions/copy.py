@@ -89,24 +89,24 @@ _FUNC_TO_COPY_TYPE: dict[str, str] = {v: k for k, v in COPY_FUNC_CODES.items()}
 # Conversion type mapping (field[8])
 # ---------------------------------------------------------------------------
 
-_VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
+_VALID_CONVERTS = frozenset({None, "to_value", "to_text", "to_binary", "to_ascii"})
 
-#: field[8] conversion_type → (format, suppress_zero, exponential).
+#: field[8] conversion_type → (convert, suppress_zero, exponential).
 #: Text sub-options are encoded in the conversion_type value itself: an integer
 #: source has suppress zero (1) or not (2); a DF source (a pointer too) or a real
 #: constant has real (3) or exponential (4) numbering and no suppress zero, which decode
 #: holds as None.  7 converts a value between a real and a 32-bit integer
 #: (:func:`_converts_value`), a plain copy in CSV.
-_CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
-    "0": ("none", "0", "0"),
-    "1": ("text", "1", "0"),  # integer source, suppress zeros
-    "2": ("text", "0", "0"),  # integer source, don't suppress zeros
-    "3": ("text", "1", "0"),  # DF source or real constant, real numbering
-    "4": ("text", "1", "1"),  # DF source or real constant, exponential numbering
-    "5": ("value", "0", "0"),
-    "6": ("ascii", "0", "0"),
-    "7": ("none", "0", "0"),  # a real <-> a 32-bit integer
-    "8": ("binary", "0", "0"),
+_CONVTYPE_TO_OPTS: dict[str, tuple[str | None, bool, bool]] = {
+    "0": (None, False, False),
+    "1": ("to_text", True, False),  # integer source, suppress zeros
+    "2": ("to_text", False, False),  # integer source, don't suppress zeros
+    "3": ("to_text", True, False),  # DF source or real constant, real numbering
+    "4": ("to_text", True, True),  # DF source or real constant, exponential numbering
+    "5": ("to_value", False, False),
+    "6": ("to_ascii", False, False),
+    "7": (None, False, False),  # a real <-> a 32-bit integer
+    "8": ("to_binary", False, False),
 }
 
 _DF_RE = re.compile(r"DF[0-9]+")
@@ -189,20 +189,20 @@ def _other_type_7(source: str, destination: str) -> bool:
     return _saves_type_7(source, destination) and not _is_dd_df_pair(source, destination)
 
 
-#: Non-text format → field[8] conversion_type.
-_FORMAT_TO_CONVTYPE: dict[str, str] = {
-    "none": "0",
-    "value": "5",
-    "ascii": "6",
-    "binary": "8",
+#: Non-text convert → field[8] conversion_type.
+_CONVERT_TO_CONVTYPE: dict[str | None, str] = {
+    None: "0",
+    "to_value": "5",
+    "to_ascii": "6",
+    "to_binary": "8",
 }
 
-#: Non-text format → field[4] value.
-_FORMAT_TO_FIELD4: dict[str, str] = {
-    "none": "0",
-    "value": "0",
-    "ascii": "1",
-    "binary": "2",
+#: Non-text convert → field[4] value.
+_CONVERT_TO_FIELD4: dict[str | None, str] = {
+    None: "0",
+    "to_value": "0",
+    "to_ascii": "1",
+    "to_binary": "2",
 }
 
 # ---------------------------------------------------------------------------
@@ -763,7 +763,7 @@ def _is_pointer(value: str, field: str) -> bool:
 def _in_its_bank(address: str) -> bool:
     """Whether ``address`` is a CLICK address: its number inside its bank's range."""
     try:
-        check_address(address, "Copy.destination")
+        check_address(address, "Copy.dest")
     except AddressError:
         return False
     return True
@@ -835,7 +835,7 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     if not (len(source) >= 4 and source[0] == source[-1] == '"'):
         return None
     # A TXT: text copies only there.
-    first = check_operand(destination, "Copy.destination", pointer=True)
+    first = check_operand(destination, "Copy.dest", pointer=True)
     if first.address is None:
         return None
     return Address("TXT", first.address.number + len(source) - 3)
@@ -859,7 +859,7 @@ def _number_fill_end(source: str, destination: str) -> Address | None:
     if len(source) < 2 or constant_shape(source, _CONSTANTS) not in _NUMBER_KINDS:
         return None
     try:
-        first = check_operand(destination, "Copy.destination").address
+        first = check_operand(destination, "Copy.dest").address
     except FieldError:
         return None
     if first is None or first.bank != "TXT":
@@ -1011,7 +1011,7 @@ def _split_paren_aware(s: str) -> list[str]:
 
 
 def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
-    """Parse a ``convert=`` kwarg value, returning *(format, text_opts)*.
+    """Parse a ``convert=`` kwarg value, returning *(convert, text_opts)*.
 
     Examples: ``to_value``, ``to_text(exponential=1)``.
     """
@@ -1025,7 +1025,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     if fmt not in ("text", "binary"):
         if inner:
             raise CsvError(f"to_{fmt} takes no arguments: {raw!r}")
-        return fmt, {}
+        return f"to_{fmt}", {}
 
     # to_text and to_binary: parse kwargs
     text_opts: dict[str, str] = {}
@@ -1039,12 +1039,12 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
             if fmt == "binary" and k != "termination_code":
                 raise FieldError(
                     f"to_binary: {k!r} is not an option; it takes only termination_code",
-                    field="Copy.format",
+                    field="Copy.convert",
                     reason=Reason.CHOICE,
                 )
             text_opts[k] = v.strip()
 
-    return fmt, text_opts
+    return f"to_{fmt}", text_opts
 
 
 def _parse_range(arg: str) -> tuple[str, str]:
@@ -1135,71 +1135,69 @@ class Copy(AfInstruction):
     ----------
     source:
         Source operand or literal (e.g. ``"DS7"``, ``"42"``, ``"3.14"``).
-    destination:
+    dest:
         Destination operand (e.g. ``"DS8"``).
-    format:
-        Copy modifier — ``"none"``, ``"value"``, ``"text"``,
-        ``"binary"``, or ``"ascii"``.  A TXT register copied into a numeric register other
-        than DF takes ``"value"`` or ``"ascii"``, and refuses ``"none"``.
+    convert:
+        The converter, as the CSV names it — ``None`` (a plain copy), ``"to_value"``,
+        ``"to_text"``, ``"to_binary"`` or ``"to_ascii"``.  A TXT register copied into a
+        numeric register other than DF takes ``"to_value"`` or ``"to_ascii"``, and refuses
+        ``None``.
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
-        Text option for an integer, hex or register source — ``"0"`` (don't suppress) or
-        ``"1"`` (suppress); ``None`` reads as ``"0"``.  A DF source or a real constant
-        has no such option: it holds ``None``, and refuses a value.  A TXT source refuses
-        ``"1"``.
+        Text option for an integer, hex or register source — ``False`` (don't suppress) or
+        ``True`` (suppress); ``None`` reads as ``False``.  A DF source or a real constant
+        copied with ``"to_text"`` has no such option: it holds ``None``, and refuses a
+        value.  A TXT source refuses ``True``.
     exponential:
-        Text option for a DF source or a real constant — ``"0"`` (real) or ``"1"``
-        (exponential).  Any other source has no such option and refuses ``"1"``.
+        Text option for a DF source or a real constant — ``False`` (real) or ``True``
+        (exponential).  Any other source has no such option and refuses ``True``.
     termination_code:
-        For a number register copied to text (``"text"`` or ``"binary"``) or a TXT register
-        copied to TXT (``"none"``) — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or
+        For a number register copied to text (``"to_text"`` or ``"to_binary"``) or a TXT
+        register copied to TXT (``None``) — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or
         ``"$HH"`` hex ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is
         refused).  A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
     """
 
     source: str
-    destination: str
-    format: str = "none"
+    dest: str
+    convert: str | None = None
     oneshot: bool = False
-    suppress_zero: str | None = None
-    exponential: str = "0"
+    suppress_zero: bool | None = None
+    exponential: bool = False
     termination_code: str = "0"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             # A constant comes back from normalize_address as written.
-            check.normalize("source", "destination")
+            check.normalize("source", "dest")
             if _is_one_digit_code(self.source):
                 # A single Copy takes $ and one hex digit as a character code; CLICK stores
                 # it with two ($1 is $01).
                 self.source = f"$0{self.source[1]}"
             elif (why := _real_hex_refusal(self.source)) is not None:
                 check.refuse("source", why, Reason.FORM)
-            if self.format not in _VALID_FORMATS:
+            if self.convert not in _VALID_CONVERTS:
                 check.refuse(
-                    "format",
-                    f"{self.format!r} is not allowed; it is none, value, text, binary or ascii",
+                    "convert",
+                    f"{self.convert!r} is not allowed; it is None, 'to_value', 'to_text', "
+                    "'to_binary' or 'to_ascii'",
                     Reason.CHOICE,
                 )
             _read_termination(check, self)
-            # No suppress_zero is "0", but for a real source copied to text, which has none.
+            # No suppress_zero is False, but for a real source copied to text, which has none.
             if self.suppress_zero is None and not (
-                self.format == "text" and _real_text_source(self.source)
+                self.convert == "to_text" and _real_text_source(self.source)
             ):
-                self.suppress_zero = "0"
-            for option in ("suppress_zero", "exponential"):
-                value = getattr(self, option)
-                if value not in ("0", "1") and not (option == "suppress_zero" and value is None):
-                    check.refuse(
-                        option,
-                        f"{getattr(self, option)!r} is not allowed; it is '0' or '1'",
-                        Reason.CHOICE,
-                    )
+                self.suppress_zero = False
+            if self.suppress_zero is None:
+                check.flag("exponential")
+            else:
+                check.flag("suppress_zero", "exponential")
             # CLICK's order: the source's address, the destination's, the source constant's
             # own value, the pairing of the two, then an SD the Copy does not write.
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
-            dst = check("destination", _check_copy_destination, self.source, kind)
+            dst = check("dest", _check_copy_destination, self.source, kind)
             const = None
             if kind in ("number", "text"):
                 # Before the pairing: "" and 100000000h into DS1 are refused values (OBJ-005).
@@ -1210,35 +1208,37 @@ class Copy(AfInstruction):
                 # A $hh code into any bank but TXT is OBJ-004; any other pairing, OBJ-024.
                 check.run(
                     _check_pair, "Copy", "source", self.source, kind,
-                    "destination", self.destination, dst.bank, _COPY_PAIRS,
+                    "dest", self.dest, dst.bank, _COPY_PAIRS,
                     "OBJ-004" if self.source.startswith("$") else "OBJ-024",
                 )  # fmt: skip
                 if kind == "number":
-                    check.run(_check_hex32, self.source, "destination", self.destination, dst.bank)
+                    check.run(_check_hex32, self.source, "dest", self.dest, dst.bank)
             if dst is not None and dst.address is not None:
                 # A Copy writes only the writable SD registers (OBJ-004), after the pairing:
                 # a bit, quoted text or 10000h into SD1 is OBJ-024.
-                check.run(
-                    check_writable_sd, dst.address, check.field("destination"), click_id="OBJ-004"
-                )
+                check.run(check_writable_sd, dst.address, check.field("dest"), click_id="OBJ-004")
             if kind is not None and dst is not None:
                 assert dst.bank is not None
                 self._check_format(check, kind, dst.bank)
                 if self.termination_code != "0" and not (
-                    (self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT")
-                    or (self.format == "none" and kind == "txt" and dst.bank == "TXT")
+                    (
+                        self.convert in ("to_text", "to_binary")
+                        and kind == "word"
+                        and dst.bank == "TXT"
+                    )
+                    or (self.convert is None and kind == "txt" and dst.bank == "TXT")
                 ):
                     # CLICK's dialog offers Termination Code for a number register copied to
                     # text and for a TXT register copied to TXT; it greys the box for a
                     # constant copied to TXT.
                     check.refuse(
-                        ("termination_code", "format", "source", "destination"),
+                        ("termination_code", "convert", "source", "dest"),
                         f"{self.termination_code!r} needs a numeric register copied to TXT "
                         "with to_text or to_binary, or a TXT register copied to TXT, not "
-                        f"{self.source!r} -> {self.destination!r} with format {self.format!r}",
+                        f"{self.source!r} -> {self.dest!r} with convert {self.convert!r}",
                         Reason.CONFLICT,
                     )
-            if kind == "txt" and self.suppress_zero == "1":
+            if kind == "txt" and self.suppress_zero is True:
                 # CLICK's dialog greys Suppress zero for a TXT source, into a number or TXT.
                 check.refuse(
                     ("suppress_zero", "source"),
@@ -1246,7 +1246,7 @@ class Copy(AfInstruction):
                     "for a number copied to text",
                     Reason.CONFLICT,
                 )
-            if self.format == "text":
+            if self.convert == "to_text":
                 # CLICK's dialog offers suppress zero for an integer, hex or register
                 # source, and real or exponential numbering for a DF source or a real
                 # constant, never both.
@@ -1258,7 +1258,7 @@ class Copy(AfInstruction):
                             "a DF source or a real constant only has exponential",
                             Reason.CONFLICT,
                         )
-                elif self.exponential == "1":
+                elif self.exponential is True:
                     check.refuse(
                         ("exponential", "source"),
                         "to_text(exponential=1) needs a DF source or a real constant, not "
@@ -1282,30 +1282,30 @@ class Copy(AfInstruction):
             elif const is not None:
                 # Written as CLICK stores it.
                 self.source = _source_display(self.source, const.kind)
-            if not check.refused("source", "destination"):
+            if not check.refused("source", "dest"):
                 # CLICK's dialog shows the end a text fills (TXT1001) and refuses one past
                 # TXT1000 as out of range.
-                end = _text_fill_end(self.source, self.destination)
+                end = _text_fill_end(self.source, self.dest)
                 if end is not None and end.number > _TXT_LAST:
                     check.add(
                         _refusal(
                             "Copy",
-                            ("destination",),
-                            f"{self.destination!r} can't take {self.source!r}; its "
+                            ("dest",),
+                            f"{self.dest!r} can't take {self.source!r}; its "
                             f"{len(self.source) - 2} characters fill "
-                            f"{self.destination}..{end.display}, past TXT{_TXT_LAST}",
+                            f"{self.dest}..{end.display}, past TXT{_TXT_LAST}",
                             Reason.RANGE,
                             "OBJ-003",
                         )
                     )
-                end = _number_fill_end(self.source, self.destination)
-                if self.format == "text" and end is not None and end.number > _TXT_LAST:
+                end = _number_fill_end(self.source, self.dest)
+                if self.convert == "to_text" and end is not None and end.number > _TXT_LAST:
                     check.add(
                         _refusal(
                             "Copy",
-                            ("destination",),
-                            f"{self.destination!r} can't take {self.source!r} as text; it "
-                            f"fills {self.destination}..{end.display}, past TXT{_TXT_LAST}",
+                            ("dest",),
+                            f"{self.dest!r} can't take {self.source!r} as text; it "
+                            f"fills {self.dest}..{end.display}, past TXT{_TXT_LAST}",
                             Reason.RANGE,
                             "OBJ-003",
                         )
@@ -1319,75 +1319,75 @@ class Copy(AfInstruction):
         the end counts the constant as stored, ``h`` and a ``+`` included (``-5`` into TXT1
         ends in TXT2, ``0FFh`` in TXT4, ``1.5`` in TXT3).
         """
-        end = _text_fill_end(self.source, self.destination)
-        if end is None and self.format == "text":
-            end = _number_fill_end(self.source, self.destination)
+        end = _text_fill_end(self.source, self.dest)
+        if end is None and self.convert == "to_text":
+            end = _number_fill_end(self.source, self.dest)
         return "" if end is None else end.display
 
     def _conversion(self) -> tuple[str, str]:
         """Tags 0x2227 (conversion type) and 0x2206 (format option) as the encoder writes
         them for these fields."""
         # field[4] is the dialog's radio index; CLICK v4 ignores it on load.
-        if self.format == "text":
+        if self.convert == "to_text":
             if _real_text_source(self.source):
                 exp = int(self.exponential)
                 return str(3 + exp), str(exp)
-            sz = 1 if self.suppress_zero == "1" else 0
+            sz = 1 if self.suppress_zero is True else 0
             return str(2 - sz), str(1 - sz)
-        if self.format in ("none", "binary") and _saves_type_7(self.source, self.destination):
+        if self.convert in (None, "to_binary") and _saves_type_7(self.source, self.dest):
             # Copy Value (7) or Copy Binary (8, with 0x2206 set).
-            return ("7", "0") if self.format == "none" else ("8", "1")
-        return _FORMAT_TO_CONVTYPE[self.format], _FORMAT_TO_FIELD4[self.format]
+            return ("7", "0") if self.convert is None else ("8", "1")
+        return _CONVERT_TO_CONVTYPE[self.convert], _CONVERT_TO_FIELD4[self.convert]
 
     def _check_format(self, check: Refusals, kind: str, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
-        fmt = self.format
-        if fmt == "binary" and _saves_type_7(self.source, self.destination):
+        convert = self.convert
+        if convert == "to_binary" and _saves_type_7(self.source, self.dest):
             return  # Copy Binary of a value converted between a real and a 32-bit integer.
-        if fmt == "none" and kind in ("word", "number") and dest_bank == "TXT":
+        if convert is None and kind in ("word", "number") and dest_bank == "TXT":
             # CLICK's dialog saves a number copied to TXT as its text (Copy Value, Suppress
             # zero by default) or as binary; a plain copy is not one it saves.
             option = "exponential=0" if _real_text_source(self.source) else "suppress_zero=1"
             check.refuse(
-                ("format", "source", "destination"),
-                f"{self.source!r} -> {self.destination!r} needs a converter: "
+                ("convert", "source", "dest"),
+                f"{self.source!r} -> {self.dest!r} needs a converter: "
                 f"convert=to_text({option},termination_code=none), CLICK's default, or "
                 "convert=to_binary",
                 Reason.CONFLICT,
             )
             return
-        if fmt in ("value", "ascii") and kind == "txt" and dest_bank == "DF":
+        if convert in ("to_value", "to_ascii") and kind == "txt" and dest_bank == "DF":
             # CLICK's dialog offers no converter for TXT into DF, and saves a plain copy.
             check.refuse(
-                ("format", "source", "destination"),
-                f"to_{fmt} is not an option for {self.source!r} -> {self.destination!r}; "
+                ("convert", "source", "dest"),
+                f"{convert} is not an option for {self.source!r} -> {self.dest!r}; "
                 "CLICK copies TXT into DF with no converter",
                 Reason.CONFLICT,
             )
             return
-        if fmt == "none" and kind == "txt" and _asks_txt_choice(dest_bank):
+        if convert is None and kind == "txt" and _asks_txt_choice(dest_bank):
             # CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value, and
             # saves one of them; a plain copy is not one it saves.
             check.refuse(
-                ("format", "source", "destination"),
-                f"{self.source!r} -> {self.destination!r} needs convert=to_value (the "
+                ("convert", "source", "dest"),
+                f"{self.source!r} -> {self.dest!r} needs convert=to_value (the "
                 "character's value) or convert=to_ascii (its ASCII code)",
                 Reason.CONFLICT,
             )
             return
-        if fmt == "text":
+        if convert == "to_text":
             ok, need = kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
-        elif fmt == "binary":
+        elif convert == "to_binary":
             ok = kind in ("word", "number") and dest_bank == "TXT"
             need = "a number to TXT, or a value between a real and a 32-bit integer (DF1 -> DD1)"
-        elif fmt in ("value", "ascii"):
+        elif convert in ("to_value", "to_ascii"):
             ok, need = kind == "txt" and dest_bank in _NUMERIC_DEST_BANKS, "TXT to a number"
         else:
             return
         if not ok:
             check.refuse(
-                ("format", "source", "destination"),
-                f"to_{fmt} copies {need}, not {self.source!r} -> {self.destination!r}",
+                ("convert", "source", "dest"),
+                f"{convert} copies {need}, not {self.source!r} -> {self.dest!r}",
                 Reason.CONFLICT,
             )
 
@@ -1434,32 +1434,32 @@ class Copy(AfInstruction):
         return str(base + (1 if self.oneshot else 0))
 
     def to_csv(self) -> str:
-        parts = [self.source, self.destination]
+        parts = [self.source, self.dest]
         kw: list[str] = []
         if self.oneshot:
             kw.append("oneshot=1")
 
-        if self.format == "text":
+        if self.convert == "to_text":
             # Only the option the source has.
             option = (
-                f"exponential={self.exponential}"
+                f"exponential={1 if self.exponential else 0}"
                 if _real_text_source(self.source)
-                else f"suppress_zero={self.suppress_zero}"
+                else f"suppress_zero={1 if self.suppress_zero else 0}"
             )
             text_kw = [
                 option,
                 f"termination_code={'none' if self.termination_code == '0' else self.termination_code}",
             ]
             kw.append(f"convert=to_text({','.join(text_kw)})")
-        elif self.format == "binary" and self.termination_code != "0":
+        elif self.convert == "to_binary" and self.termination_code != "0":
             kw.append(f"convert=to_binary(termination_code={self.termination_code})")
-        elif self.format in ("value", "binary", "ascii"):
-            kw.append(f"convert=to_{self.format}")
-        elif self.format == "none":
+        elif self.convert in ("to_value", "to_binary", "to_ascii"):
+            kw.append(f"convert={self.convert}")
+        elif self.convert is None:
             # A TXT register copied to TXT: the code stands alone, with no converter.
             kw.extend(_termination_csv(self.termination_code))
         else:
-            raise WriterError(f"Unknown format: {self.format!r}")
+            raise WriterError(f"Unknown convert: {self.convert!r}")
 
         if kw:
             return f"copy({','.join(parts)},{','.join(kw)})"
@@ -1490,7 +1490,7 @@ class Copy(AfInstruction):
         return [
             self.source,  # [0]
             "",  # [1] source_end (single = empty)
-            self.destination,  # [2]
+            self.dest,  # [2]
             self._destination_end(),  # [3] destination_end (text: its last TXT)
             field4,  # [4] format_option
             "-1" if self.oneshot else "0",  # [5]
@@ -1519,8 +1519,8 @@ def _asks_txt_choice(dest_bank: str) -> bool:
     return dest_bank in _NUMERIC_DEST_BANKS and dest_bank != "DF"
 
 
-#: Formats a block copy takes.
-_BLOCKCOPY_FORMATS = frozenset({"none", "value", "ascii"})
+#: Converters a block copy takes.
+_BLOCKCOPY_CONVERTS = frozenset({None, "to_value", "to_ascii"})
 
 
 @dataclass
@@ -1535,9 +1535,9 @@ class BlockCopy(AfInstruction):
         Source range (e.g. ``"DS28"`` .. ``"DS31"``).
     dest_start, dest_end:
         Destination range.
-    format:
-        ``"none"``, ``"value"`` (the characters' values) or ``"ascii"`` (their ASCII codes),
-        for a TXT source into a numeric register.
+    convert:
+        ``None``, ``"to_value"`` (the characters' values) or ``"to_ascii"`` (their ASCII
+        codes), for a TXT source into a numeric register.
     oneshot:
         Execute once on OFF→ON transition.
     termination_code:
@@ -1549,18 +1549,19 @@ class BlockCopy(AfInstruction):
     source_end: str
     dest_start: str
     dest_end: str
-    format: str = "none"
+    convert: str | None = None
     oneshot: bool = False
     termination_code: str = "0"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("source_start", "source_end", "dest_start", "dest_end")
-            if self.format not in _BLOCKCOPY_FORMATS:
+            if self.convert not in _BLOCKCOPY_CONVERTS:
                 check.refuse(
-                    "format", f"{self.format!r} is not allowed; it is none, value or ascii",
+                    "convert",
+                    f"{self.convert!r} is not allowed; it is None, 'to_value' or 'to_ascii'",
                     Reason.CHOICE,
-                )  # fmt: skip
+                )
             _read_termination(check, self)
             cls = "BlockCopy"
             src, src_last = _check_range(
@@ -1617,25 +1618,25 @@ class BlockCopy(AfInstruction):
                         )
                     )
             source = f"{self.source_start}..{self.source_end}"
-            if self.format != "none" and src is not None and src.bank != "TXT":
+            if self.convert is not None and src is not None and src.bank != "TXT":
                 check.refuse(
-                    ("format", "source_start", "source_end"),
-                    f"to_{self.format} needs a TXT source, not {source}",
+                    ("convert", "source_start", "source_end"),
+                    f"{self.convert} needs a TXT source, not {source}",
                     Reason.CONFLICT,
                 )
             txt_to_txt = (
                 src is not None and src.bank == "TXT" and dest is not None and dest.bank == "TXT"
             )
-            if self.format != "none" and txt_to_txt:
+            if self.convert is not None and txt_to_txt:
                 # CLICK's dialog offers TXT into TXT only Termination Code.
                 check.refuse(
-                    ("format", "dest_start"),
-                    f"to_{self.format} copies TXT to a number, not {source} -> "
+                    ("convert", "dest_start"),
+                    f"{self.convert} copies TXT to a number, not {source} -> "
                     f"{self.dest_start}..{self.dest_end}",
                     Reason.CONFLICT,
                 )
             if (
-                self.format == "none"
+                self.convert is None
                 and src is not None and src.bank == "TXT"
                 and dest is not None and dest.bank in _NUMERIC_DEST_BANKS
                 and not check.refused("dest_start")
@@ -1643,7 +1644,7 @@ class BlockCopy(AfInstruction):
                 # CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value, as
                 # for a single Copy, and saves one of them.
                 check.refuse(
-                    ("format", "source_start", "dest_start"),
+                    ("convert", "source_start", "dest_start"),
                     f"{source} -> {self.dest_start}..{self.dest_end} needs convert=to_value "
                     "(the characters' values) or convert=to_ascii (their ASCII codes)",
                     Reason.CONFLICT,
@@ -1652,14 +1653,14 @@ class BlockCopy(AfInstruction):
                 self.termination_code != "0"
                 and src is not None
                 and dest is not None
-                and not (txt_to_txt and self.format == "none")
+                and not (txt_to_txt and self.convert is None)
             ):
                 # CLICK's dialog offers Termination Code for a TXT range copied to TXT only.
                 check.refuse(
                     ("termination_code", "source_start", "dest_start"),
                     f"{self.termination_code!r} needs a TXT range copied to TXT with no "
                     f"converter, not {source} -> {self.dest_start}..{self.dest_end} with "
-                    f"format {self.format!r}",
+                    f"convert {self.convert!r}",
                     Reason.CONFLICT,
                 )
             _check_termination_form(check, self)
@@ -1677,8 +1678,8 @@ class BlockCopy(AfInstruction):
         kw: list[str] = []
         if self.oneshot:
             kw.append("oneshot=1")
-        if self.format != "none":
-            kw.append(f"convert=to_{self.format}")
+        if self.convert is not None:
+            kw.append(f"convert={self.convert}")
         kw.extend(_termination_csv(self.termination_code))
         if kw:
             return f"blockcopy({','.join(parts)},{','.join(kw)})"
@@ -1692,7 +1693,7 @@ class BlockCopy(AfInstruction):
         """Build the instruction data blob for this block copy cell."""
         from ..binary_helpers import _build_blob
 
-        conv_type = _FORMAT_TO_CONVTYPE.get(self.format, "0")
+        conv_type = _CONVERT_TO_CONVTYPE.get(self.convert, "0")
         term_flag, term_char = _termination_tags(self.termination_code)
 
         return _build_blob(
@@ -1811,8 +1812,8 @@ class Fill(AfInstruction):
 # Pack
 # ---------------------------------------------------------------------------
 
-#: Pack sub-type names and their CSV token names.
-_PACK_TYPES = frozenset({"bits", "words", "text"})
+#: The kinds of Pack, as the CSV names them.
+_PACK_KINDS = frozenset({"pack_bits", "pack_words", "pack_text"})
 
 #: field[8] conversion_type values for pack_text.
 _PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
@@ -1828,10 +1829,10 @@ class Pack(AfInstruction):
     ----------
     source_start, source_end:
         Source range (e.g. ``"C108"`` .. ``"C123"``).
-    destination:
+    dest:
         Destination operand (e.g. ``"DS167"``).
-    pack_type:
-        ``"bits"``, ``"words"``, or ``"text"``.
+    kind:
+        ``"pack_bits"``, ``"pack_words"`` or ``"pack_text"``.
     allow_whitespace:
         Text option — allow whitespace in text packing.
     oneshot:
@@ -1840,18 +1841,20 @@ class Pack(AfInstruction):
 
     source_start: str
     source_end: str
-    destination: str
-    pack_type: str = "bits"
+    dest: str
+    kind: str = "pack_bits"
     allow_whitespace: bool = False
     oneshot: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.normalize("source_start", "source_end", "destination")
-            if self.pack_type not in _PACK_TYPES:
+            check.normalize("source_start", "source_end", "dest")
+            # The checks and messages name a kind bits, words or text.
+            short = str(self.kind).removeprefix("pack_")
+            if self.kind not in _PACK_KINDS:
                 check.refuse(
-                    "pack_type",
-                    f"{self.pack_type!r} is not allowed; it is bits, words or text",
+                    "kind",
+                    f"{self.kind!r} is not allowed; it is 'pack_bits', 'pack_words' or 'pack_text'",
                     Reason.CHOICE,
                 )
             first, last = _check_range(
@@ -1860,54 +1863,56 @@ class Pack(AfInstruction):
             )  # fmt: skip
             # A bank no source packs into is one the field can't use (OBJ-004: X001, SD29 and
             # SD31 after C1..C16); a bank another source packs into is a pairing (OBJ-024).
-            dest = check(
-                "destination", check_box_operand, _destinations(_PACK_ROWS), bank_id="OBJ-004"
-            )
+            dest = check("dest", check_box_operand, _destinations(_PACK_ROWS), bank_id="OBJ-004")
             if first is not None and dest is not None:
                 assert dest.bank is not None
                 source = f"{self.source_start}..{self.source_end}"
                 # The source's length comes before the pairing (_pack_limit).
-                if last is not None and _pack_kind(first.bank) == self.pack_type:
+                if (
+                    last is not None
+                    and not check.refused("kind")
+                    and _pack_kind(first.bank) == short
+                ):
                     paired = dest.bank in _source_row(_PACK_ROWS, first.bank)
                     check.run(
-                        _check_count, "Pack", "source_start", "source_end", "destination",
-                        source, _span(first, last), self.pack_type,
-                        _pack_limit(self.pack_type, first.bank, dest.bank, paired),
-                        self.destination if paired else None,
+                        _check_count, "Pack", "source_start", "source_end", "dest",
+                        source, _span(first, last), short,
+                        _pack_limit(short, first.bank, dest.bank, paired),
+                        self.dest if paired else None,
                     )  # fmt: skip
                 check.run(
                     _check_row, "Pack", _PACK_ROWS, source, "source_start", first.bank,
-                    "destination", self.destination, dest.bank,
+                    "dest", self.dest, dest.bank,
                 )  # fmt: skip
-            if first is not None and not check.refused("pack_type"):
-                if (first.bank == "TXT") != (self.pack_type == "text"):
+            if first is not None and not check.refused("kind"):
+                if (first.bank == "TXT") != (self.kind == "pack_text"):
                     check.add(
                         _refusal(
                             "Pack",
-                            ("source_start", "pack_type"),
+                            ("source_start", "kind"),
                             f"{self.source_start!r} is "
                             f"{'a TXT register' if first.bank == 'TXT' else 'not a TXT register'}; "
-                            f"pack_{self.pack_type} "
-                            f"{'takes a TXT source' if self.pack_type == 'text' else 'has no TXT source'}, "
+                            f"{self.kind} "
+                            f"{'takes a TXT source' if self.kind == 'pack_text' else 'has no TXT source'}, "
                             f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
                             Reason.CONFLICT,
                         )
                     )
-                if self.pack_type != "text":
+                if self.kind != "pack_text":
                     check.run(
                         _check_kind, "Pack", "source_start", self.source_start, first.bank,
-                        self.pack_type, "pack_type",
+                        short, "kind",
                     )  # fmt: skip
             check.flag("allow_whitespace", "oneshot")
             if (
-                self.pack_type in ("bits", "words")
+                self.kind in ("pack_bits", "pack_words")
                 and not check.refused("allow_whitespace")
                 and self.allow_whitespace
             ):
                 # Allow whitespace is a Pack Text option; pack_bits and pack_words have none.
                 check.refuse(
-                    ("allow_whitespace", "pack_type"),
-                    f"allow_whitespace is a pack_text option; pack_{self.pack_type} has none",
+                    ("allow_whitespace", "kind"),
+                    f"allow_whitespace is a pack_text option; {self.kind} has none",
                     Reason.CONFLICT,
                 )
 
@@ -1918,15 +1923,15 @@ class Pack(AfInstruction):
 
     def to_csv(self) -> str:
         src = f"{self.source_start}..{self.source_end}"
-        parts = [src, self.destination]
+        parts = [src, self.dest]
         kw: list[str] = []
         if self.oneshot:
             kw.append("oneshot=1")
         if self.allow_whitespace:
             kw.append("allow_whitespace=1")
         if kw:
-            return f"pack_{self.pack_type}({','.join(parts)},{','.join(kw)})"
-        return f"pack_{self.pack_type}({','.join(parts)})"
+            return f"{self.kind}({','.join(parts)},{','.join(kw)})"
+        return f"{self.kind}({','.join(parts)})"
 
     def cell_params(self) -> dict:
         return dict(_CELL_PARAMS)
@@ -1934,7 +1939,7 @@ class Pack(AfInstruction):
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
 
-        if self.pack_type == "text":
+        if self.kind == "pack_text":
             if self.allow_whitespace:
                 conv_type = _PACK_TEXT_CONVTYPE["allow_whitespace"]
                 field4 = "1"
@@ -1952,7 +1957,7 @@ class Pack(AfInstruction):
             [
                 self.source_start,  # [0]
                 self.source_end,  # [1]
-                self.destination,  # [2]
+                self.dest,  # [2]
                 "",  # [3] destination_end (pack = empty)
                 field4,  # [4] format_option
                 "-1" if self.oneshot else "0",  # [5]
@@ -1971,8 +1976,8 @@ class Pack(AfInstruction):
 # Unpack
 # ---------------------------------------------------------------------------
 
-#: Unpack sub-type names.
-_UNPACK_TYPES = frozenset({"bits", "words"})
+#: The kinds of Unpack, as the CSV names them.
+_UNPACK_KINDS = frozenset({"unpack_to_bits", "unpack_to_words"})
 
 
 @dataclass
@@ -1987,8 +1992,8 @@ class Unpack(AfInstruction):
         Source operand (e.g. ``"DS172"``).
     dest_start, dest_end:
         Destination range (e.g. ``"C128"`` .. ``"C143"``).
-    unpack_type:
-        ``"bits"`` or ``"words"``.
+    kind:
+        ``"unpack_to_bits"`` or ``"unpack_to_words"``.
     oneshot:
         Execute once on OFF→ON transition.
     """
@@ -1996,16 +2001,18 @@ class Unpack(AfInstruction):
     source: str
     dest_start: str
     dest_end: str
-    unpack_type: str = "bits"
+    kind: str = "unpack_to_bits"
     oneshot: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("source", "dest_start", "dest_end")
-            if self.unpack_type not in _UNPACK_TYPES:
+            # The checks and messages name a kind bits or words.
+            short = str(self.kind).removeprefix("unpack_to_")
+            if self.kind not in _UNPACK_KINDS:
                 check.refuse(
-                    "unpack_type",
-                    f"{self.unpack_type!r} is not allowed; it is bits or words",
+                    "kind",
+                    f"{self.kind!r} is not allowed; it is 'unpack_to_bits' or 'unpack_to_words'",
                     Reason.CHOICE,
                 )
             # A bank no row holds is one the field can't use (OBJ-004): answered for an X
@@ -2030,16 +2037,16 @@ class Unpack(AfInstruction):
                     self.dest_end, first, last, one_module=True, ordered=True,
                     module_id="OBJ-1009", ids=True,
                 )  # fmt: skip
-            if first is not None and not check.refused("unpack_type"):
+            if first is not None and not check.refused("kind"):
                 check.run(
                     _check_kind, "Unpack", "dest_start", self.dest_start, first.bank,
-                    self.unpack_type, "unpack_type",
+                    short, "kind",
                 )  # fmt: skip
                 if last is not None and src is not None:
                     check.run(
                         _check_count, "Unpack", "dest_start", "dest_end", "source",
                         f"{self.dest_start}..{self.dest_end}", _span(first, last),
-                        self.unpack_type, _count_limit(self.unpack_type, src.bank), self.source,
+                        short, _count_limit(short, src.bank), self.source,
                     )  # fmt: skip
             check.flag("oneshot")
 
@@ -2055,8 +2062,8 @@ class Unpack(AfInstruction):
         if self.oneshot:
             kw.append("oneshot=1")
         if kw:
-            return f"unpack_to_{self.unpack_type}({','.join(parts)},{','.join(kw)})"
-        return f"unpack_to_{self.unpack_type}({','.join(parts)})"
+            return f"{self.kind}({','.join(parts)},{','.join(kw)})"
+        return f"{self.kind}({','.join(parts)})"
 
     def cell_params(self) -> dict:
         return dict(_CELL_PARAMS)
@@ -2166,8 +2173,8 @@ def _from_tags(
         if conv_type != 0 and constant_shape(source, _ANY_TEXT) in (Kind.TEXT, Kind.CHAR):
             # Text and a character code copy with no conversion type.
             return None
-        fmt, suppress_zero, exponential = opts
-        if fmt == "text" and _real_text_source(source):
+        convert, suppress_zero, exponential = opts
+        if convert == "to_text" and _real_text_source(source):
             # No such option for a real source.
             suppress_zero = None
 
@@ -2177,8 +2184,8 @@ def _from_tags(
 
         copy = Copy(
             source=source,
-            destination=destination,
-            format=fmt,
+            dest=destination,
+            convert=convert,
             oneshot=oneshot,
             suppress_zero=suppress_zero,
             exponential=exponential,
@@ -2188,7 +2195,7 @@ def _from_tags(
         # not a blob CLICK writes.  A number into a TXT address has either the end its text
         # fills, with the conversion type of its kind, or no end.  Quoted text has the end
         # it fills or none: CLICK's paste drops the end, even from its own clipboard.
-        number_end = _number_fill_end(copy.source, copy.destination)
+        number_end = _number_fill_end(copy.source, copy.dest)
         if number_end is not None and destination_end:
             if destination_end != number_end.display or conv_type not in _number_text_types(
                 copy.source
@@ -2211,16 +2218,18 @@ def _from_tags(
     if copy_type == 1:
         if not all([source, source_end, destination, destination_end]):
             return None
-        fmt = {0: "none", 5: "value", 6: "ascii"}.get(conv_type)
+        if conv_type not in (0, 5, 6):
+            return None
+        convert = {0: None, 5: "to_value", 6: "to_ascii"}[conv_type]
         termination_code = _read_termination_tags(tags)
-        if fmt is None or termination_code is None:
+        if termination_code is None:
             return None
         return BlockCopy(
             source_start=source,
             source_end=source_end,
             dest_start=destination,
             dest_end=destination_end,
-            format=fmt,
+            convert=convert,
             oneshot=oneshot,
             termination_code=termination_code,
         )
@@ -2239,21 +2248,21 @@ def _from_tags(
         if not all([source, source_end, destination]):
             return None
         if conv_type == 9:
-            pack_type = "text"
+            kind = "pack_text"
             allow_whitespace = False
         elif conv_type == 10:
-            pack_type = "text"
+            kind = "pack_text"
             allow_whitespace = True
         elif conv_type == 0:
-            pack_type = "bits" if _bank_prefix(source) in BIT_BANKS else "words"
+            kind = "pack_bits" if _bank_prefix(source) in BIT_BANKS else "pack_words"
             allow_whitespace = False
         else:
             return None
         return Pack(
             source_start=source,
             source_end=source_end,
-            destination=destination,
-            pack_type=pack_type,
+            dest=destination,
+            kind=kind,
             allow_whitespace=allow_whitespace,
             oneshot=oneshot,
         )
@@ -2261,12 +2270,12 @@ def _from_tags(
     if copy_type == 4:
         if not all([source, destination, destination_end]):
             return None
-        unpack_type = "bits" if _bank_prefix(destination) in BIT_BANKS else "words"
+        kind = "unpack_to_bits" if _bank_prefix(destination) in BIT_BANKS else "unpack_to_words"
         return Unpack(
             source=source,
             dest_start=destination,
             dest_end=destination_end,
-            unpack_type=unpack_type,
+            kind=kind,
             oneshot=oneshot,
         )
 
@@ -2302,12 +2311,12 @@ def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
     """Build a Copy from ``copy(source, dest, ...)`` arguments (both CSV paths)."""
     _refuse_unknown_kwargs("copy", kwargs)
-    source, destination = args
+    source, dest = args
     convert_raw = kwargs.get("convert", "")
     if convert_raw:
-        fmt, text_opts = _parse_convert_kwarg(convert_raw)
+        convert, text_opts = _parse_convert_kwarg(convert_raw)
     else:
-        fmt, text_opts = "none", {}
+        convert, text_opts = None, {}
     termination_code = text_opts.get("termination_code", "0")
     if kwargs.get("termination_code", "none") not in ("none", "0"):
         # A TXT register copied to TXT: the code stands alone, with no converter.  "none"
@@ -2318,7 +2327,7 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
                 f"for TXT copied to TXT, with no converter, not beside {convert_raw}; a "
                 "number copied to TXT takes it inside the converter "
                 "(to_text(...,termination_code=$0D))",
-                field=("Copy.termination_code", "Copy.format"),
+                field=("Copy.termination_code", "Copy.convert"),
                 reason=Reason.CONFLICT,
             )
         termination_code = kwargs["termination_code"]
@@ -2326,11 +2335,15 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
         termination_code = "0"
     return Copy(
         source=source,
-        destination=destination,
-        format=fmt,
+        dest=dest,
+        convert=convert,
         oneshot=check_csv_flag(kwargs, "oneshot", "Copy.oneshot"),
-        suppress_zero=text_opts.get("suppress_zero"),
-        exponential=text_opts.get("exponential", "0"),
+        suppress_zero=(
+            check_csv_flag(text_opts, "suppress_zero", "Copy.suppress_zero")
+            if "suppress_zero" in text_opts
+            else None
+        ),
+        exponential=check_csv_flag(text_opts, "exponential", "Copy.exponential"),
         termination_code=termination_code,
     )
 
@@ -2351,16 +2364,13 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
         src_start, src_end = _parse_range(call.args[0])
         dest_start, dest_end = _parse_range(call.args[1])
         convert_raw = call.kwargs.get("convert", "")
-        if convert_raw:
-            fmt, _ = _parse_convert_kwarg(convert_raw)
-        else:
-            fmt = "none"
+        convert = _parse_convert_kwarg(convert_raw)[0] if convert_raw else None
         return BlockCopy(
             source_start=src_start,
             source_end=src_end,
             dest_start=dest_start,
             dest_end=dest_end,
-            format=fmt,
+            convert=convert,
             oneshot=check_csv_flag(call.kwargs, "oneshot", "BlockCopy.oneshot"),
             termination_code=call.kwargs.get("termination_code", "0"),
         )
@@ -2389,8 +2399,8 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
         return Pack(
             source_start=src_start,
             source_end=src_end,
-            destination=call.args[1],
-            pack_type=call.name.removeprefix("pack_"),
+            dest=call.args[1],
+            kind=call.name,
             allow_whitespace=check_csv_flag(
                 call.kwargs, "allow_whitespace", "Pack.allow_whitespace"
             ),
@@ -2408,7 +2418,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             source=call.args[0],
             dest_start=dest_start,
             dest_end=dest_end,
-            unpack_type=call.name.removeprefix("unpack_to_"),
+            kind=call.name,
             oneshot=check_csv_flag(call.kwargs, "oneshot", "Unpack.oneshot"),
         )
 

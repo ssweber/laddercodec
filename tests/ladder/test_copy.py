@@ -154,7 +154,7 @@ def test_single_copy_with_end_address_is_not_decoded(end_tag: int) -> None:
 
 @pytest.mark.parametrize(("given", "stored"), [("$0D", "$0D"), ("$00", "$00"), ("$0d", "$0D")])
 def test_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
-    copy = Copy(source="DS20", destination="TXT7", format="text", termination_code=given)
+    copy = Copy(source="DS20", dest="TXT7", convert="to_text", termination_code=given)
     assert copy.termination_code == stored
     assert f"termination_code={stored})" in copy.to_csv()
 
@@ -163,7 +163,7 @@ def test_lowercase_code_is_stored_canonical(given: str, stored: str) -> None:
 def test_invalid_termination_code_rejected(bad: str) -> None:
     # The ASCII Table picker writes two digits.
     with pytest.raises(FieldError, match="Copy.termination_code"):
-        Copy(source="DS20", destination="TXT7", format="text", termination_code=bad)
+        Copy(source="DS20", dest="TXT7", convert="to_text", termination_code=bad)
 
 
 @pytest.mark.parametrize(
@@ -175,7 +175,7 @@ def test_invalid_termination_code_rejected(bad: str) -> None:
 )
 def test_binary_termination_code_round_trips(tmp_path: Path, code: str, token: str) -> None:
     """Copy -> CSV -> read_csv -> encode -> decode keeps a to_binary termination code."""
-    copy = Copy("DS1", "TXT1", format="binary", termination_code=code)
+    copy = Copy("DS1", "TXT1", convert="to_binary", termination_code=code)
     assert copy.to_csv() == token
     assert Copy.from_csv_token(token) == copy
 
@@ -195,7 +195,7 @@ def test_binary_termination_code_round_trips(tmp_path: Path, code: str, token: s
 
 def test_binary_termination_code_none_reads_as_no_code() -> None:
     parsed = Copy.from_csv_token("copy(DS1,TXT1,convert=to_binary(termination_code=none))")
-    assert parsed == Copy("DS1", "TXT1", format="binary")
+    assert parsed == Copy("DS1", "TXT1", convert="to_binary")
 
 
 def test_to_binary_rejects_other_keywords() -> None:

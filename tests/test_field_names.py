@@ -149,6 +149,6 @@ def test_the_scan_reads_the_field_names() -> None:
     attrs = {(c, a) for c, a, _ in _refusals_names(tree)}
     assert {("Timer", "retained"), ("Timer", "preset"), ("Timer", "accumulator")} <= attrs
     tree = ast.parse((SRC / "instructions" / "copy.py").read_text(encoding="utf-8"))
-    assert "Copy.format" in {v for v, _ in _field_literals(tree)}
+    assert "Copy.convert" in {v for v, _ in _field_literals(tree)}
     bad = ast.parse('def f(self):\n    raise FieldError("x", field="Copy.nothing")\n')
     assert [v for v, _ in _field_literals(bad)] == ["Copy.nothing"]

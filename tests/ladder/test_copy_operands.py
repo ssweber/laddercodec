@@ -44,7 +44,7 @@ _REFUSED = [
     ('copy("A",DS1)', "can't take '\"A\"'; a text constant copies to TXT"),
     ("copy($41,DD1)", r"can't take '\$41'; a text constant copies to TXT"),
     # XD is not a destination
-    ("copy(DS1,XD1)", "Copy.destination: 'XD1' is not allowed"),
+    ("copy(DS1,XD1)", "Copy.dest: 'XD1' is not allowed"),
     # every address goes through check_address
     ("copy(DS4501,DS1)", "outside DS1-DS4500"),
     ("copy(DS1,Q5)", "no CLICK bank 'Q'"),
@@ -54,7 +54,7 @@ _REFUSED = [
         "copy(DS[DD1],DS2)",
         "Copy.source pointer: 'DD1' is not allowed",
     ),
-    ("copy(DS1,QQ[DS1])", r"Copy.destination: 'QQ\[DS1\]' is not allowed"),
+    ("copy(DS1,QQ[DS1])", r"Copy.dest: 'QQ\[DS1\]' is not allowed"),
     # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
     (
         "copy(X[DS1],C1)",
@@ -63,8 +63,8 @@ _REFUSED = [
     ("copy(SC[DS1],C1)", r"Copy.source: 'SC\[DS1\]' is not allowed"),
     ("copy(SD[DS1],DS1)", r"Copy.source: 'SD\[DS1\]' is not allowed"),
     ("copy(T[DS1],C1)", r"Copy.source: 'T\[DS1\]' is not allowed"),
-    ("copy(C1,Y[DS1])", r"Copy.destination: 'Y\[DS1\]' is not allowed"),
-    ("copy(DS1,XD[DS2])", r"Copy.destination: 'XD\[DS2\]' is not allowed"),
+    ("copy(C1,Y[DS1])", r"Copy.dest: 'Y\[DS1\]' is not allowed"),
+    ("copy(DS1,XD[DS2])", r"Copy.dest: 'XD\[DS2\]' is not allowed"),
     (
         "copy(DD[DS1+2],DS1)",
         r"Copy.source pointer: 'DS1\+2' is not a CLICK address",
@@ -158,9 +158,9 @@ _REFUSED = [
     ("pack_bits(T1..T16,DS1)", "a pack from T goes to DH"),
     ("pack_words(DH1..DH2,DF1)", "a pack from DH goes to DD"),
     ("pack_words(DS1..DS2,DH1)", "a pack from DS goes to DD, DF"),
-    ("pack_text(TXT1..TXT4,SD1)", "Pack.destination: 'SD1' is not allowed"),
-    ("pack_text(TXT1..TXT4,YD0u)", "Pack.destination: 'YD0u' is not allowed"),
-    ("pack_bits(C1..C16,YD0u)", "Pack.destination: 'YD0u' is not allowed"),
+    ("pack_text(TXT1..TXT4,SD1)", "Pack.dest: 'SD1' is not allowed"),
+    ("pack_text(TXT1..TXT4,YD0u)", "Pack.dest: 'YD0u' is not allowed"),
+    ("pack_bits(C1..C16,YD0u)", "Pack.dest: 'YD0u' is not allowed"),
     ("pack_words(DD1..DD2,DF1)", "Pack.source_start: 'DD1' is not allowed"),
     ("pack_words(XD0..XD1,DD1)", "Pack.source_start: 'XD0' is not allowed"),
     ("pack_bits(C1..C1,DS1)", r"C1\.\.C1 is one address"),
@@ -345,7 +345,7 @@ _DOLLAR_FIELDS = [
     ("CompareContact.left", lambda code: CompareContact("==", code, "TXT1")),
     (
         "Copy.termination_code",
-        lambda code: Copy("DS20", "TXT7", format="text", termination_code=code),
+        lambda code: Copy("DS20", "TXT7", convert="to_text", termination_code=code),
     ),
 ]
 
@@ -479,27 +479,27 @@ def test_fill_value_constant_edges_accepted(value: str, start: str, end: str) ->
     assert parse_af_blob(fill.build_blob()) == fill
 
 
-@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("fmt", ["to_text", "to_binary"])
 @pytest.mark.parametrize("code", ["abc", "1", "DS1", "1.5", "FFFFh", '""', "None", "00"])
 def test_termination_code_is_a_character_code(fmt: str, code: str) -> None:
     """The blob stores a termination code only as a character code (OBJ-036)."""
     with pytest.raises(FieldError, match=r"^Copy.termination_code: .* is not allowed; it is a"):
-        Copy("DS20", "TXT7", format=fmt, termination_code=code)
+        Copy("DS20", "TXT7", convert=fmt, termination_code=code)
 
 
-@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("fmt", ["to_text", "to_binary"])
 def test_blank_termination_code_is_missing(fmt: str) -> None:
     with pytest.raises(FieldError, match=r"^Copy.termination_code: is blank") as raised:
-        Copy("DS20", "TXT7", format=fmt, termination_code="")
+        Copy("DS20", "TXT7", convert=fmt, termination_code="")
     assert (raised.value.reason, raised.value.click_id) == ("missing", None)
 
 
-@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("fmt", ["to_text", "to_binary"])
 @pytest.mark.parametrize(
     ("code", "stored"), [("0", "0"), ("none", "0"), ("$00", "$00"), ("$FF", "$FF")]
 )
 def test_termination_code_edges_accepted(fmt: str, code: str, stored: str) -> None:
-    copy = Copy("DS20", "TXT7", format=fmt, termination_code=code)
+    copy = Copy("DS20", "TXT7", convert=fmt, termination_code=code)
     assert copy.termination_code == stored
     assert parse_af_blob(copy.build_blob()) == copy
 
@@ -554,7 +554,7 @@ def _destination_end(copy: Copy) -> str:
 def test_text_copy_stores_its_last_txt(source: str, destination: str, end: str) -> None:
     copy = Copy(source, destination)
     assert _destination_end(copy) == end
-    assert copy.to_csv() == f"copy({source},{copy.destination})"
+    assert copy.to_csv() == f"copy({source},{copy.dest})"
     assert parse_af_blob(copy.build_blob()) == copy
 
 
@@ -568,9 +568,9 @@ def test_text_copy_stores_its_last_txt(source: str, destination: str, end: str) 
 def test_text_copy_past_txt1000_refused(
     tmp_path: Path, source: str, destination: str, message: str
 ) -> None:
-    with pytest.raises(AddressError, match=rf"^Copy.destination: .* {message}"):
+    with pytest.raises(AddressError, match=rf"^Copy.dest: .* {message}"):
         Copy(source, destination)
-    with pytest.raises(AddressError, match=rf"^Copy.destination: .* {message}"):
+    with pytest.raises(AddressError, match=rf"^Copy.dest: .* {message}"):
         _read_af(tmp_path, f"copy({source},{destination})")
 
 
@@ -648,54 +648,54 @@ def test_copy_csv_paths_agree(tmp_path: Path) -> None:
 def test_termination_code_needs_a_number_register_copied_to_text() -> None:
     """CLICK v4's dialog offers Termination Code for a number register copied to text and a
     TXT register copied to TXT, and greys it for a constant copied to TXT."""
-    Copy("DS1", "TXT1", format="text", termination_code="$0D")
-    Copy("DS1", "TXT1", format="binary", termination_code="$0D")
+    Copy("DS1", "TXT1", convert="to_text", termination_code="$0D")
+    Copy("DS1", "TXT1", convert="to_binary", termination_code="$0D")
     Copy("TXT1", "TXT2", termination_code="$0D")
     for source, destination, fmt in [
-        ("DS1", "DD1", "none"),
-        ("TXT1", "DF1", "none"),
-        ("TXT1", "DS1", "value"),
-        ("5", "TXT1", "text"),
-        ("DD1", "DF1", "binary"),
+        ("DS1", "DD1", None),
+        ("TXT1", "DF1", None),
+        ("TXT1", "DS1", "to_value"),
+        ("5", "TXT1", "to_text"),
+        ("DD1", "DF1", "to_binary"),
     ]:
         with pytest.raises(FieldError, match=r"Copy.termination_code: '\$0D'"):
-            Copy(source, destination, format=fmt, termination_code="$0D")
+            Copy(source, destination, convert=fmt, termination_code="$0D")
 
 
 @pytest.mark.parametrize("option", ["suppress_zero", "exponential"])
-@pytest.mark.parametrize("value", ["2", "5", "-1"])
-def test_text_options_are_zero_or_one(option: str, value: str) -> None:
-    with pytest.raises(FieldError, match=f"Copy.{option}: '{value}' is not allowed"):
-        Copy("DF1", "TXT1", format="text", **{option: value})
+@pytest.mark.parametrize("value", [2, 5, -1, "1", "0"])
+def test_text_options_are_flags(option: str, value: object) -> None:
+    with pytest.raises(FieldError, match=f"Copy.{option}: {value!r} is not True, False, 1 or 0"):
+        Copy("DF1", "TXT1", convert="to_text", **{option: value})
 
 
 @pytest.mark.parametrize("option", ["suppress_zero", "exponential"])
 def test_a_blank_text_option_is_missing(option: str) -> None:
     with pytest.raises(FieldError, match=f"^Copy.{option}: is blank") as raised:
-        Copy("DF1", "TXT1", format="text", **{option: ""})
+        Copy("DF1", "TXT1", convert="to_text", **{option: ""})
     assert raised.value.reason is Reason.MISSING
 
 
 @pytest.mark.parametrize(("source", "option"), [("DS1", "suppress_zero"), ("DF1", "exponential")])
 def test_text_options_keep_their_bytes(source: str, option: str) -> None:
-    for value in ("0", "1"):
-        copy = Copy(source, "TXT1", format="text", **{option: value})
+    for value in (False, True):
+        copy = Copy(source, "TXT1", convert="to_text", **{option: value})
         assert parse_af_blob(copy.build_blob()) == copy
 
 
 @pytest.mark.parametrize(
     "instruction",
     [
-        Pack("X001", "X016", "DH1", pack_type="bits"),
-        Pack("Y101", "Y108", "DH1", pack_type="bits"),
-        Pack("X021", "X036", "DH1", pack_type="bits"),
-        Unpack("DH1", "Y021", "Y036", unpack_type="bits"),
-        Pack("T1", "T16", "DH1", pack_type="bits"),
-        Pack("CT1", "CT4", "DH1", pack_type="bits"),
-        Pack("SC1", "SC16", "DH1", pack_type="bits"),
-        Pack("DH1", "DH2", "DD1", pack_type="words"),
-        Unpack("DH1", "Y001", "Y016", unpack_type="bits"),
-        Unpack("DD1", "DH1", "DH2", unpack_type="words"),
+        Pack("X001", "X016", "DH1", kind="pack_bits"),
+        Pack("Y101", "Y108", "DH1", kind="pack_bits"),
+        Pack("X021", "X036", "DH1", kind="pack_bits"),
+        Unpack("DH1", "Y021", "Y036", kind="unpack_to_bits"),
+        Pack("T1", "T16", "DH1", kind="pack_bits"),
+        Pack("CT1", "CT4", "DH1", kind="pack_bits"),
+        Pack("SC1", "SC16", "DH1", kind="pack_bits"),
+        Pack("DH1", "DH2", "DD1", kind="pack_words"),
+        Unpack("DH1", "Y001", "Y016", kind="unpack_to_bits"),
+        Unpack("DD1", "DH1", "DH2", kind="unpack_to_words"),
     ],
 )
 def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
@@ -706,7 +706,7 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
 @pytest.mark.parametrize(
     ("tags", "family", "fields"),
     [
-        ({0x6074: "X001", 0x6076: "DS1"}, Copy, ["destination"]),  # a bit into a register
+        ({0x6074: "X001", 0x6076: "DS1"}, Copy, ["dest"]),  # a bit into a register
         (
             {0x6074: "DS1", 0x6075: "DS4", 0x6076: "DS[DS9]", 0x6077: "DS13", 0x2223: "1"},
             BlockCopy,
@@ -716,17 +716,17 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
         (
             {0x6074: "X016", 0x6075: "X021", 0x6076: "DD1", 0x2223: "3"},  # two X slots
             Pack,
-            ["source_end", "destination"],
+            ["source_end", "dest"],
         ),
         (
             {0x6074: "X001", 0x6075: "X036", 0x6076: "DD1", 0x2223: "3"},  # two X slots
             Pack,
-            ["source_end", "destination"],
+            ["source_end", "dest"],
         ),
         (
             {0x6074: "X001", 0x6075: "X016", 0x6076: "DS1", 0x2223: "3"},  # X packs into DH only
             Pack,
-            ["destination"],
+            ["dest"],
         ),
         (
             {0x6074: "DS5", 0x6076: "Y001", 0x6077: "Y016", 0x2223: "4"},  # DS unpacks to C only
@@ -758,7 +758,7 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
             BlockCopy,
             ["dest_start"],
         ),
-        ({0x6074: "10000h", 0x6076: "DH1"}, Copy, ["destination"]),  # hex above FFFFh into DH
+        ({0x6074: "10000h", 0x6076: "DH1"}, Copy, ["dest"]),  # hex above FFFFh into DH
         (
             {0x6074: "DS1", 0x6075: "DS2", 0x6076: "DD1", 0x2223: "3", 0x2227: "9"},  # text, no TXT
             Pack,
@@ -796,11 +796,11 @@ def test_pack_unpack_constructors_keep_to_one_slot(first: str, last: str) -> Non
     """The dual option slot, 21-36, is a 16-point slot of its own."""
     message = f"Pack.source_end: {first}..{last} spans two X slots"
     with pytest.raises(FieldError, match=re.escape(message)):
-        Pack(first, last, "DD1", pack_type="bits")
+        Pack(first, last, "DD1", kind="pack_bits")
     y_first, y_last = "Y" + first[1:], "Y" + last[1:]
     message = f"Unpack.dest_end: {y_first}..{y_last} spans two Y slots"
     with pytest.raises(FieldError, match=re.escape(message)):
-        Unpack("DH1", y_first, y_last, unpack_type="bits")
+        Unpack("DH1", y_first, y_last, kind="unpack_to_bits")
 
 
 # ---------------------------------------------------------------------------
@@ -817,16 +817,16 @@ def _ascii_code_out_of_range() -> object:
 @pytest.mark.parametrize(
     ("build", "field"),
     [
-        (lambda: Copy("DS1", "DS2", format="bogus"), "Copy.format"),
+        (lambda: Copy("DS1", "DS2", convert="bogus"), "Copy.convert"),
         (
             lambda: Copy.from_csv_token("copy(DS1,TXT2,convert=to_binary(suppress_zero=1))"),
-            "Copy.format",
+            "Copy.convert",
         ),
-        (lambda: Copy("DS1", "TXT2", format="text", exponential="1"), "Copy.exponential"),
+        (lambda: Copy("DS1", "TXT2", convert="to_text", exponential=True), "Copy.exponential"),
         (_ascii_code_out_of_range, "Copy.termination_code"),
-        (lambda: BlockCopy("DS1", "DS2", "DS3", "DS4", format="bogus"), "BlockCopy.format"),
-        (lambda: Pack("C1", "C16", "DS1", pack_type="bogus"), "Pack.pack_type"),
-        (lambda: Unpack("DS1", "C1", "C16", unpack_type="bogus"), "Unpack.unpack_type"),
+        (lambda: BlockCopy("DS1", "DS2", "DS3", "DS4", convert="bogus"), "BlockCopy.convert"),
+        (lambda: Pack("C1", "C16", "DS1", kind="bogus"), "Pack.kind"),
+        (lambda: Unpack("DS1", "C1", "C16", kind="bogus"), "Unpack.kind"),
     ],
 )
 def test_field_names_the_refused_field(build, field: str) -> None:
@@ -840,8 +840,8 @@ def test_field_names_the_refused_field(build, field: str) -> None:
     [
         (lambda: Copy("DS[DS0]", "DS1"), "Copy.source"),
         (lambda: Copy("DS[DD1]", "DS1"), "Copy.source"),
-        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.destination"),
-        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination"),
+        (lambda: Copy("DS1", "DS[DS4501]"), "Copy.dest"),
+        (lambda: Copy("DS1", "DS[X1]"), "Copy.dest"),
     ],
 )
 def test_pointer_index_refusal_is_a_pointer_refusal(build, field: str) -> None:
@@ -855,12 +855,12 @@ def test_pointer_index_refusal_is_a_pointer_refusal(build, field: str) -> None:
 
 @pytest.mark.parametrize("source", ["99999999999", "-2147483649"])
 @pytest.mark.parametrize(
-    ("destination", "format", "termination"),
-    [("DS1", "value", "0"), ("TXT2", "text", "$0D"), ("DS1", "none", "$0D")],
+    ("destination", "convert", "termination"),
+    [("DS1", "to_value", "0"), ("TXT2", "to_text", "$0D"), ("DS1", None, "$0D")],
 )
-def test_integer_out_of_range_is_reported_before_format_and_termination(
-    source: str, destination: str, format: str, termination: str
+def test_integer_out_of_range_is_reported_before_convert_and_termination(
+    source: str, destination: str, convert: str | None, termination: str
 ) -> None:
     with pytest.raises(FieldError) as info:
-        Copy(source, destination, format=format, termination_code=termination)
+        Copy(source, destination, convert=convert, termination_code=termination)
     assert info.value.field == "Copy.source"

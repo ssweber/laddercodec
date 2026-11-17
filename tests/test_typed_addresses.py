@@ -71,13 +71,13 @@ ANSWERED: list[tuple[str, str, AfInstruction, str]] = [
     (
         "copy_pack",
         "pack C1..C16 -> DS001",
-        Pack("C1", "C16", "DS1", "bits"),
+        Pack("C1", "C16", "DS1", "pack_bits"),
         "pack_bits(C1..C16,DS1)",
     ),
     (
         "copy_pack",
         "pack C1..C16 -> ds1",
-        Pack("C1", "C16", "DS1", "bits"),
+        Pack("C1", "C16", "DS1", "pack_bits"),
         "pack_bits(C1..C16,DS1)",
     ),
     *[
@@ -254,7 +254,7 @@ FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, .
     ),
     (
         "copy termination code",
-        Copy("DS20", "TXT7", format="text", termination_code="$13"),
+        Copy("DS20", "TXT7", convert="to_text", termination_code="$13"),
         {0x6076: ("TXT7", "TXT7 ")},
         (0x1201, 0x1221),
     ),
@@ -334,7 +334,7 @@ TYPED_BLOBS: list[tuple[AfInstruction, dict[int, tuple[str, str]]]] = [
     (Copy("DS2", "YD0"), {0x6076: ("YD0", "YD00")}),
     (Copy("DS2", "YD0u"), {0x6076: ("YD0u", "YD0U")}),
     (BlockCopy("DS1", "DS2", "DS11", "DS12"), {0x6076: ("DS11", "ds11")}),
-    (Pack("C1", "C16", "DS1", "bits"), {0x6076: ("DS1", "DS001")}),
+    (Pack("C1", "C16", "DS1", "pack_bits"), {0x6076: ("DS1", "DS001")}),
     (Math("DS1 + 1", "DS4"), {0x6228: ("DS1", "ds1"), 0x61FD: ("DS1", "ds1")}),
     (Math("XD0 + 1h", "DH1", "hex"), {0x6228: ("XD0", "XD00"), 0x61FD: ("XD0", "XD00")}),
     (Math("DH2 + DH3", "YD0u", "hex"), {0x6065: ("YD0u", "YD0U")}),
@@ -367,7 +367,7 @@ def test_a_typed_clipboard_blob_reads_in_display_form(
 @pytest.mark.parametrize(
     ("inst", "edits", "field", "display"),
     [
-        (Copy("DS2", "DS1"), {0x6076: ("DS1", "DS04501")}, "Copy.destination", "DS4501"),
+        (Copy("DS2", "DS1"), {0x6076: ("DS1", "DS04501")}, "Copy.dest", "DS4501"),
         (Math("DH2 + DH3", "YD0", "hex"), {0x6065: ("YD0", "YD09")}, "Math.dest", "YD9"),
         (
             Math("DS1 + 1", "DS4"),
@@ -396,11 +396,11 @@ def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
         # A source is saved in display form.
         (Copy("DS2", "DS1"), {0x6074: ("DS2", "ds2")}),
         (BlockCopy("DS1", "DS2", "DS11", "DS12"), {0x6074: ("DS1", "DS001")}),
-        (Unpack("DS1", "C1", "C16", "bits"), {0x6074: ("DS1", "ds1")}),
+        (Unpack("DS1", "C1", "C16", "unpack_to_bits"), {0x6074: ("DS1", "ds1")}),
         # CLICK works out a Block Copy's destination end.
         (BlockCopy("DS1", "DS2", "DS11", "DS12"), {0x6077: ("DS12", "ds12")}),
         # No save shows a typed Unpack or Fill destination, or an X or Y number made short.
-        (Unpack("DS1", "C1", "C16", "bits"), {0x6076: ("C1", "c1")}),
+        (Unpack("DS1", "C1", "C16", "unpack_to_bits"), {0x6076: ("C1", "c1")}),
         (Fill("5", "DS1", "DS2"), {0x6076: ("DS1", "ds1")}),
         (Copy("C1", "Y001"), {0x6076: ("Y001", "Y1")}),
         # A decimal Math's result is saved in display form.
@@ -425,9 +425,9 @@ def _scr_text(text: str) -> bytes:
 #: Same-length edits of the coverage program and its clipboard capture that type an address
 #: as CLICK saves it: ((stored, typed) texts, class, field, the field's value read).
 COVERAGE_EDITS = [
-    ((("DS10", "ds10"),), Copy, "destination", "DS10"),
+    ((("DS10", "ds10"),), Copy, "dest", "DS10"),
     ((("DS32", "ds32"),), BlockCopy, "dest_start", "DS32"),
-    ((("DS167", "ds167"),), Pack, "destination", "DS167"),
+    ((("DS167", "ds167"),), Pack, "dest", "DS167"),
     (
         (("DS65 + DS66", "ds65 + DS66"), ("DS65#+#DS66", "ds65#+#DS66")),
         Math,

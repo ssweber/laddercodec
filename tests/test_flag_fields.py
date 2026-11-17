@@ -174,7 +174,7 @@ def test_every_bool_field_is_checked() -> None:
 def test_guard_finds_the_known_flags() -> None:
     # A guard that finds nothing passes for the wrong reason.
     by_class = {cls.__name__: bool_fields(cls) for cls in instruction_classes()}
-    assert by_class["Copy"] == ["oneshot"]
+    assert by_class["Copy"] == ["oneshot", "suppress_zero", "exponential"]
     assert by_class["Pack"] == ["allow_whitespace", "oneshot"]
     assert by_class["OutVariant"] == ["immediate", "maintained"]
     assert by_class["Coil"] == ["immediate", "oneshot"]
@@ -267,9 +267,11 @@ def _modbus(**kw: Any) -> dict[str, Any]:
 
 CASES: list[tuple[str, Any, str]] = [
     ("Copy", lambda **kw: Copy("DS1", "DS2", **kw), "oneshot"),
+    # suppress_zero also takes None, so the non-flag cases here do not apply to it.
+    ("Copy", lambda **kw: Copy("DF1", "TXT1", convert="to_text", **kw), "exponential"),
     ("BlockCopy", lambda **kw: BlockCopy("DS1", "DS3", "DS10", "DS12", **kw), "oneshot"),
     ("Fill", lambda **kw: Fill("1", "DS1", "DS5", **kw), "oneshot"),
-    ("Pack", lambda **kw: Pack("TXT1", "TXT4", "DS1", "text", **kw), "allow_whitespace"),
+    ("Pack", lambda **kw: Pack("TXT1", "TXT4", "DS1", "pack_text", **kw), "allow_whitespace"),
     ("Pack", lambda **kw: Pack("C1", "C16", "DS1", **kw), "oneshot"),
     ("Unpack", lambda **kw: Unpack("DS1", "C1", "C16", **kw), "oneshot"),
     ("Search", lambda **kw: Search("DS1", "DS10", "1", "DS20", "C20", "==", **kw), "continuous"),

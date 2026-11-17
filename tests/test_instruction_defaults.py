@@ -119,11 +119,17 @@ def test_instruction_decodes_without_default_tags(token_csv: str) -> None:
     assert parsed.to_csv() == token_csv
 
 
+#: A Copy to text always writes the text option its source has, off or on.
+_WRITTEN_WHEN_OFF = {("Copy", "suppress_zero"), ("Copy", "exponential")}
+
+
 @pytest.mark.parametrize("token_csv", sorted(_CORPUS))
 def test_unset_flag_kwarg_is_not_written(token_csv: str) -> None:
     token = _CORPUS[token_csv]
     for field in dataclasses.fields(token):
         value = getattr(token, field.name)
+        if (type(token).__name__, field.name) in _WRITTEN_WHEN_OFF:
+            continue
         if isinstance(value, bool) and not value:
             for written in (f"{field.name}=0", f"{field.name}=False"):
                 assert written not in token_csv, f"{type(token).__name__} writes {written}"

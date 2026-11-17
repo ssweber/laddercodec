@@ -156,18 +156,18 @@ def test_a_txt_register_into_a_number_needs_value_or_ascii(source: str, destinat
     """CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value and saves one;
     a plain copy is refused, not written as one CLICK never saves."""
     [error] = _errors(lambda: Copy(source, destination))
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
     assert "convert=to_value" in str(error) and "convert=to_ascii" in str(error)
-    for fmt, conv, field4 in (("value", "5", "0"), ("ascii", "6", "1")):
-        copy = Copy(source, destination, format=fmt)
+    for fmt, conv, field4 in (("to_value", "5", "0"), ("to_ascii", "6", "1")):
+        copy = Copy(source, destination, convert=fmt)
         written = _tags(copy.build_blob())
         assert (written[0x2227], written[0x2206]) == (conv, field4)
         assert parse_af_blob(copy.build_blob()) == copy
 
 
 def test_a_bare_txt_copy_into_a_number_is_refused_from_csv(tmp_path: Path) -> None:
-    with pytest.raises(FieldError, match="Copy.format: 'TXT1' -> 'YD0' needs convert=to_value"):
+    with pytest.raises(FieldError, match="Copy.convert: 'TXT1' -> 'YD0' needs convert=to_value"):
         _read_af(tmp_path, "copy(TXT1,YD0)")
     with pytest.raises(FieldError, match="needs convert=to_value"):
         Copy.from_csv_token("copy(TXT1,YD0)")
@@ -188,9 +188,9 @@ def test_a_stored_plain_txt_copy_into_a_number_keeps_its_refusal() -> None:
     blob = _build_blob("Copy", 0x2721, tuple(tags) + (0x0000,), [*tags.values(), ""])
     parsed = parse_af_blob(blob)
     assert isinstance(parsed, Copy)
-    assert parsed.format == "none"
+    assert parsed.convert is None
     [error] = refusals(parsed)
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert parsed.build_blob() == blob
     with pytest.raises(FieldError, match="needs convert=to_value"):
         replace(parsed)
@@ -204,20 +204,20 @@ def test_a_stored_plain_txt_copy_into_a_number_keeps_its_refusal() -> None:
 @pytest.mark.parametrize(
     ("source", "destination", "fmt"),
     [
-        ("TXT1", "YD0", "value"),
-        ("TXT1", "DS1", "ascii"),
-        ("TXT1", "TXT21", "none"),
-        ("TXT[DS1]", "DS1", "value"),
-        ("TXT1", "DF1", "none"),
+        ("TXT1", "YD0", "to_value"),
+        ("TXT1", "DS1", "to_ascii"),
+        ("TXT1", "TXT21", None),
+        ("TXT[DS1]", "DS1", "to_value"),
+        ("TXT1", "DF1", None),
     ],
 )
 def test_suppress_zero_on_a_txt_source_is_refused(source: str, destination: str, fmt: str) -> None:
     """CLICK's dialog greys Suppress zero for a TXT source, into a number or into TXT."""
-    [error] = _errors(lambda: Copy(source, destination, format=fmt, suppress_zero="1"))
+    [error] = _errors(lambda: Copy(source, destination, convert=fmt, suppress_zero=True))
     assert error.fields == ("Copy.suppress_zero", "Copy.source")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
     # No suppress_zero, or "0", is what every Copy that is not to text holds.
-    Copy(source, destination, format=fmt, suppress_zero="0")
+    Copy(source, destination, convert=fmt, suppress_zero=False)
 
 
 # ---------------------------------------------------------------------------
@@ -253,18 +253,18 @@ def test_no_termination_code_writes_none(code: str) -> None:
 @pytest.mark.parametrize(
     ("source", "destination", "fmt"),
     [
-        ('"AB"', "TXT1", "none"),  # a constant into TXT: the box is greyed
-        ("$41", "TXT1", "none"),
-        ("TXT1", "YD0", "value"),  # a TXT register into a number
-        ("TXT1", "DS1", "ascii"),
-        ("TXT1", "DF1", "none"),
-        ("DS1", "DS2", "none"),
+        ('"AB"', "TXT1", None),  # a constant into TXT: the box is greyed
+        ("$41", "TXT1", None),
+        ("TXT1", "YD0", "to_value"),  # a TXT register into a number
+        ("TXT1", "DS1", "to_ascii"),
+        ("TXT1", "DF1", None),
+        ("DS1", "DS2", None),
     ],
 )
 def test_a_termination_code_is_refused_where_the_dialog_greys_it(
-    source: str, destination: str, fmt: str
+    source: str, destination: str, fmt: str | None
 ) -> None:
-    errors = _errors(lambda: Copy(source, destination, format=fmt, termination_code="$0D"))
+    errors = _errors(lambda: Copy(source, destination, convert=fmt, termination_code="$0D"))
     [error] = [e for e in errors if e.field == "Copy.termination_code"]
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
 
@@ -272,7 +272,7 @@ def test_a_termination_code_is_refused_where_the_dialog_greys_it(
 def test_a_termination_code_beside_a_converter_goes_inside_it() -> None:
     with pytest.raises(FieldError, match="inside the converter") as raised:
         Copy.from_csv_token("copy(DS1,TXT1,convert=to_text(suppress_zero=1),termination_code=$0D)")
-    assert raised.value.fields == ("Copy.termination_code", "Copy.format")
+    assert raised.value.fields == ("Copy.termination_code", "Copy.convert")
     assert raised.value.reason is Reason.CONFLICT
 
 
@@ -309,24 +309,24 @@ def test_a_block_with_no_code_writes_as_before() -> None:
     assert block.to_csv() == "blockcopy(TXT1..TXT2,TXT11..TXT12)"
 
 
-@pytest.mark.parametrize("fmt", ["value", "ascii"])
+@pytest.mark.parametrize("fmt", ["to_value", "to_ascii"])
 def test_a_block_of_txt_into_txt_refuses_a_converter(fmt: str) -> None:
     """CLICK's dialog offers a TXT range into TXT Termination Code alone."""
-    [error] = _errors(lambda: BlockCopy("TXT1", "TXT2", "TXT11", "TXT12", format=fmt))
-    assert error.fields == ("BlockCopy.format", "BlockCopy.dest_start")
+    [error] = _errors(lambda: BlockCopy("TXT1", "TXT2", "TXT11", "TXT12", convert=fmt))
+    assert error.fields == ("BlockCopy.convert", "BlockCopy.dest_start")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
 
 
 @pytest.mark.parametrize(
     ("source", "dest", "fmt"),
     [
-        (("TXT1", "TXT2"), ("DS1", "DS2"), "value"),  # a TXT range into a number
-        (("DS1", "DS2"), ("DS11", "DS12"), "none"),
-        (("TXT1", "TXT2"), ("TXT11", "TXT12"), "ascii"),
+        (("TXT1", "TXT2"), ("DS1", "DS2"), "to_value"),  # a TXT range into a number
+        (("DS1", "DS2"), ("DS11", "DS12"), None),
+        (("TXT1", "TXT2"), ("TXT11", "TXT12"), "to_ascii"),
     ],
 )
 def test_a_block_termination_code_is_refused_but_for_txt_into_txt(source, dest, fmt) -> None:
-    errors = _errors(lambda: BlockCopy(*source, *dest, format=fmt, termination_code="$0D"))
+    errors = _errors(lambda: BlockCopy(*source, *dest, convert=fmt, termination_code="$0D"))
     [error] = [e for e in errors if e.field == "BlockCopy.termination_code"]
     assert error.fields == (
         "BlockCopy.termination_code",
@@ -364,11 +364,11 @@ def test_a_block_of_txt_into_a_number_needs_value_or_ascii(dest: tuple[str, str]
     """CLICK's dialog saves a TXT range into DS, DD or DH with Copy Character Value
     (``blockcopy(TXT1..TXT2,DS1..DS2,convert=to_value)``); a plain copy is refused."""
     [error] = _errors(lambda: BlockCopy("TXT1", "TXT2", *dest))
-    assert error.fields == ("BlockCopy.format", "BlockCopy.source_start", "BlockCopy.dest_start")
+    assert error.fields == ("BlockCopy.convert", "BlockCopy.source_start", "BlockCopy.dest_start")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
     assert "convert=to_value" in str(error) and "convert=to_ascii" in str(error)
-    for fmt, conv in (("value", "5"), ("ascii", "6")):
-        block = BlockCopy("TXT1", "TXT2", *dest, format=fmt)
+    for fmt, conv in (("to_value", "5"), ("to_ascii", "6")):
+        block = BlockCopy("TXT1", "TXT2", *dest, convert=fmt)
         assert _tags(block.build_blob())[0x2227] == conv
         assert parse_af_blob(block.build_blob()) == block
 
@@ -385,9 +385,9 @@ def test_a_stored_plain_block_of_txt_into_a_number_keeps_its_refusal() -> None:
     blob = _build_blob("Copy", 0x2721, (*tags, 0x0000), [*tags.values(), ""])
     parsed = parse_af_blob(blob)
     assert isinstance(parsed, BlockCopy)
-    assert parsed.format == "none"
+    assert parsed.convert is None
     [error] = refusals(parsed)
-    assert error.fields == ("BlockCopy.format", "BlockCopy.source_start", "BlockCopy.dest_start")
+    assert error.fields == ("BlockCopy.convert", "BlockCopy.source_start", "BlockCopy.dest_start")
     assert parsed.build_blob() == blob
 
 
@@ -399,13 +399,13 @@ def test_a_stored_plain_block_of_txt_into_a_number_keeps_its_refusal() -> None:
 @pytest.mark.parametrize(
     ("token", "expected"),
     [
-        ("copy(TXT1,DS1,convert=to_value,termination_code=none)", Copy("TXT1", "DS1", "value")),
-        ("copy(TXT1,DS1,convert=to_ascii,termination_code=0)", Copy("TXT1", "DS1", "ascii")),
+        ("copy(TXT1,DS1,convert=to_value,termination_code=none)", Copy("TXT1", "DS1", "to_value")),
+        ("copy(TXT1,DS1,convert=to_ascii,termination_code=0)", Copy("TXT1", "DS1", "to_ascii")),
         ("copy(DS1,DS2,termination_code=none)", Copy("DS1", "DS2")),
         (
             "copy(DS1,TXT1,convert=to_text(suppress_zero=1,termination_code=$0D),"
             "termination_code=none)",
-            Copy("DS1", "TXT1", "text", suppress_zero="1", termination_code="$0D"),
+            Copy("DS1", "TXT1", "to_text", suppress_zero=True, termination_code="$0D"),
         ),
         (
             "blockcopy(DS1..DS2,DS11..DS12,termination_code=none)",
@@ -413,7 +413,7 @@ def test_a_stored_plain_block_of_txt_into_a_number_keeps_its_refusal() -> None:
         ),
         (
             "blockcopy(TXT1..TXT2,DS1..DS2,convert=to_value,termination_code=0)",
-            BlockCopy("TXT1", "TXT2", "DS1", "DS2", "value"),
+            BlockCopy("TXT1", "TXT2", "DS1", "DS2", "to_value"),
         ),
     ],
 )
@@ -461,7 +461,7 @@ def test_a_block_copy_into_yd_is_refused_with_obj_004(source: tuple[str, str]) -
 
 def test_a_single_copy_into_yd_is_accepted() -> None:
     Copy("DS1", "YD0")
-    Copy("TXT1", "YD0", format="value")
+    Copy("TXT1", "YD0", convert="to_value")
 
 
 RTU = ModbusRtuTarget(name="rtu", com_port="cpu2", device_id=1)
