@@ -309,9 +309,9 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
         name = _call_name(token)
         if block.lead_conditions:
             raise CsvError(
-                f"{name}: the row with NOP in column AF makes the {name} row the box's "
-                f"unused Up row. The blank-AF row directly above the {name} row would be "
-                f"that Up row too. Leave no blank-AF row directly above the {name} row."
+                f"{name}: with NOP on the row under it, the {name} row is the box's unused "
+                "Up row. The box has only one Up row, so the blank-AF row directly above it "
+                f"can't be another. Leave no blank-AF row directly above {name}."
             )
         if block.continuations:
             raise CsvError(
@@ -336,7 +336,7 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
             if len(order) == 1
             else f"Its pins are {', '.join(_pin_form(p) for p in order)}, in that order."
         )
-        raise CsvError(f"{_call_name(token)} has no {_pin_form(pin_name)} pin. {pins}")
+        raise CsvError(f"{_call_name(token)} has no {pin_name}() pin. {pins}")
     remaining = order[order.index(seen[-1]) + 1 :] if seen else order
     if pin_name not in remaining:
         raise CsvError(

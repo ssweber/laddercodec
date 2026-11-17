@@ -28,7 +28,7 @@ from laddercodec.instructions.send_receive import (
     parse_af_call,
 )
 from laddercodec.model import Reason
-from laddercodec.operands.unchecked import refusals
+from laddercodec.operands.unchecked import refusals, unchecked
 from tests.kept_refusals import kept
 
 
@@ -475,6 +475,17 @@ def test_receive_y_room_counts_by_slot(remote, dest, room) -> None:
     receive(remote_start=remote, dest=dest, quantity=room)
     with pytest.raises(FieldError, match=f"outside 1-{room} "):
         receive(remote_start=remote, dest=dest, quantity=room + 1)
+
+
+def test_writing_a_kept_y_quantity_past_y816_names_the_last_address() -> None:
+    """A Receive that keeps a refused count runs past Y816 when it writes its dest range."""
+    with unchecked():
+        wide = receive(remote_start="C1", dest="Y801", quantity=20)
+    with pytest.raises(
+        FieldError, match=r"^Receive\.quantity: 20 addresses from Y801 run past Y816"
+    ) as raised:
+        wide.to_csv()
+    assert raised.value.field == "Receive.quantity"
 
 
 def test_receive_y_room_through_csv(tmp_path: Path) -> None:

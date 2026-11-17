@@ -816,6 +816,20 @@ class TestShiftRows:
         with pytest.raises(CsvError, match=r"shift\(\) has no \.down\(\) pin"):
             _literal(rung)
 
+    def test_shift_names_a_foreign_pin_as_written(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".jump(DS5)"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(CsvError, match=r"shift\(\) has no \.jump\(\) pin\. Its pins are"):
+            _literal(rung)
+
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "main.csv"
         leg = _blank()
