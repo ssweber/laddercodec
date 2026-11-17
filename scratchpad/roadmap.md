@@ -184,10 +184,6 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Copy `DS 1` (a space inside) is accepted as a single Copy's source (saved `DS1`) and destination (saved
     `DS 1`, which `read_csv` refuses) and as a decimal Math result; the rules refuse it. Decide whether it
     is refused on purpose, as the edge space is.
-  - Block Copy with a lowercase `ds1` (`block DS1..DS2 -> ds1`, `block ds1..DS2 -> DS11`): CLICK accepts
-    both, and so does `BlockCopy`, which normalises `ds1`. The verdict is the grid generator's:
-    `_block_end` in `devtools/editor_grids.py` runs `check_address`, which refuses `ds1`, and then uses
-    the destination as its own end. Fix `_block_end` to normalise first; no rule changes.
   - An SD pointer (`SD[DS1]`) is accepted as a single Copy's source, and saved as typed; the rules refuse it.
   - Pack of TXT into DH (`TXT1..TXT16`, `TXT1..TXT1000`) is OBJ-003; the rules accept it.
   - Pack ids: 33 T, CT or SC bits into DS or DD raise two boxes for one OK, OBJ-041 (the count) then

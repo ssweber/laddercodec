@@ -25,7 +25,7 @@ from typing import Any
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
-from laddercodec.model import ADDRESS_BANKS, XY_SLOTS, Address, InstructionType, check_address
+from laddercodec.model import ADDRESS_BANKS, XY_SLOTS, Address, InstructionType, check_address, normalize_address
 from laddercodec.operands.checks import BIT_BANKS, REGISTER_BANKS
 from laddercodec.operands.constants import (
     INT16_MAX,
@@ -341,9 +341,9 @@ def verdict_of(build: Callable[[], object]) -> dict[str, Any]:
 def _block_end(source: str, source_end: str, destination: str) -> str:
     """The destination end CLICK works out for a Block Copy: the start plus the source's count."""
     try:
-        first = check_address(source, "s", set(BANKS))
-        last = check_address(source_end, "e", set(BANKS))
-        dest = check_address(destination, "d", set(BANKS))
+        first = check_address(normalize_address(source), "s", set(BANKS))
+        last = check_address(normalize_address(source_end), "e", set(BANKS))
+        dest = check_address(normalize_address(destination), "d", set(BANKS))
         return addr(dest.bank, dest.number + last.number - first.number)
     except ValueError:
         return destination
