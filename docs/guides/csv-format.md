@@ -781,11 +781,14 @@ currently emit:
     number. `E1h` and `1Fh` are accepted, and so are digits, `E` and digits
     then `h` (`1E3h`, `2E5h`): CLICK stores a hex constant typed `1e3` as `1E3h`.
 - A `math` range over X or Y with an end in the CPU's option slot, X021-X036 or
-  Y021-Y036, is refused although CLICK accepts it, because CLICK v4 stores the
-  wrong points for it (`SUM ( X001 : X036 )` would leave out X032..X035). A
-  range with no end in the option slot is accepted (`SUM ( X001 : X101 )`); the
-  few option-slot ranges that are accepted, and the rule behind the refusal, are
-  in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
+  Y021-Y036, is refused although CLICK accepts it: on a CPU with no I/O modules,
+  CLICK stores the wrong points for it (`SUM ( X001 : X036 )` leaves out
+  X032..X035). Three kinds of such range are accepted, since CLICK stores them
+  right: a range from the CPU slot to X021 or Y021 (`SUM ( X001 : X021 )`), a
+  range of one point (`SUM ( X025 : X025 )`), and a range of two points numbered
+  one apart (`SUM ( X025 : X026 )`; `SUM ( X036 : X101 )` is refused). A
+  range with no end in the option slot is accepted (`SUM ( X001 : X101 )`). The
+  points CLICK stores are in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
   two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise

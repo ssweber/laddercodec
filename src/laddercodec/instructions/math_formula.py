@@ -692,11 +692,11 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
 
     :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, and the
     bits it takes only as the range of ``SUM ( a : b )``.  An address of any other bank is
-    refused with OBJ-1002.  An X or Y range CLICK would store a wrong member list for is
-    refused too.  One refusal for each address refused outside a SUM, one for each SUM
-    refused, and at most one for each range.  An address refused while it was read (``DS0``)
-    is not checked again; a range with an end refused for its bank is still checked for its
-    banks, its order and a median's size, but not for its member list.
+    refused with OBJ-1002.  An X or Y range with an end in the option slot is refused too
+    (:func:`_check_xy_range`).  One refusal for each address refused outside a SUM, one for
+    each SUM refused, and at most one for each range.  An address refused while it was read
+    (``DS0``) is not checked again; a range with an end refused for its bank is still checked
+    for its banks, its order and a median's size, but not for its option-slot ends.
     """
     operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
@@ -751,35 +751,35 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
                 )
             )
             continue
-        # The member list matters only to a SUM: a bit range anywhere else is refused already.
+        # Only a SUM gets here: a bit range anywhere else is refused already.
         if low[0] in _XY_BANKS and i - 1 not in bank_refused:
-            error = _check_xy_members(texts[i - 3], low[0], int(low[1]), int(high[1]))
+            error = _check_xy_range(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
                 found.append(error)
     return found
 
 
-def _check_xy_members(function: str, bank: str, start: int, end: int) -> FieldError | None:
-    """The refusal of an X/Y range whose stored member list is not the points between its ends.
+def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldError | None:
+    """The refusal of an X/Y range with an end in the option slot, 21-36.
 
-    CLICK v4 stores such a list for a range with an end in the option slot; the list is not
-    what the range means, so laddercodec refuses the range.
+    On a CPU with no I/O modules, CLICK stores the wrong points for such a range
+    (:func:`_xy_bound`), except for a range from the CPU slot to 21, a range of one point,
+    and a range of two points numbered one apart (X025 : X026), which are accepted.
     """
-    listed = _xy_points_between(_xy_bound(start), _xy_bound(end))
-    members = _xy_points_between(start, end)
-    if listed == members:
-        return None
-    changes = []
-    if left_out := [n for n in members if n not in listed]:
-        changes.append(f"leave out {_xy_runs(bank, left_out)}")
-    if added := [n for n in listed if n not in members]:
-        changes.append(f"add {_xy_runs(bank, added)}")
     first, last = _OPTION_SLOT
+    if not (first <= start <= last or first <= end <= last):
+        return None
+    if end - start <= 1 or (start <= _CPU_SLOT[1] and end == first):
+        return None
+    cpu_first, cpu_last = (Address(bank, n).display for n in _CPU_SLOT)
+    first_shown, last_shown = Address(bank, first).display, Address(bank, last).display
+    article = "an" if bank == "X" else "a"
     return _error(
         f"{function} ( {Address(bank, start).display} : {Address(bank, end).display} ) is "
-        f"refused; CLICK v4 stores a wrong member list for a range with an end in "
-        f"{Address(bank, first).display}-{Address(bank, last).display} "
-        f"(it would {' and '.join(changes)})",
+        f"refused; {article} {bank} range may not start or end in {first_shown}-{last_shown}, "
+        f"except a range from {cpu_first}-{cpu_last} to {first_shown}, a range of one point, "
+        f"or a range of two points numbered one apart: on a CPU with no I/O modules, CLICK "
+        f"stores the wrong points for any other such range",
         Reason.RANGE,
     )
 
@@ -787,22 +787,6 @@ def _check_xy_members(function: str, bank: str, start: int, end: int) -> FieldEr
 def _xy_points_between(low: int, high: int) -> list[int]:
     """The numbers of the X/Y points of :data:`XY_SLOTS` strictly between ``low`` and ``high``."""
     return [n for first, last in XY_SLOTS for n in range(first, last + 1) if low < n < high]
-
-
-def _xy_runs(bank: str, numbers: list[int]) -> str:
-    """``X032..X035`` for each run of consecutive numbers, runs joined with ``, ``."""
-    runs: list[list[int]] = []
-    for n in numbers:
-        if runs and n == runs[-1][-1] + 1:
-            runs[-1].append(n)
-        else:
-            runs.append([n])
-    return ", ".join(
-        Address(bank, run[0]).display
-        if len(run) == 1
-        else f"{Address(bank, run[0]).display}..{Address(bank, run[-1]).display}"
-        for run in runs
-    )
 
 
 def _xy_bound(number: int) -> int:

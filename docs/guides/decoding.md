@@ -82,7 +82,7 @@ for w in caught:
         print(w.message.rung, w.message.instruction.to_csv())
         print(w.message.error)
 # 2 math(SUM ( X001 : X036 ),DS1,mode=decimal)
-# Math.expression: SUM ( X001 : X036 ) is refused; CLICK v4 stores a wrong member list ...
+# Math.expression: SUM ( X001 : X036 ) is refused; an X range may not start or end in X021-X036, ...
 ```
 
 The warning carries `instruction`, `error` (the `FieldError` building the

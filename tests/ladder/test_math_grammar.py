@@ -28,7 +28,7 @@ from laddercodec.instructions.math_formula import parse
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
-from tests.test_v4_captures import REFUSED_XY_RANGES
+from tests.test_v4_captures import REFUSED_XY_RANGES, XY_RANGE_RULE
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 
@@ -624,7 +624,7 @@ def test_reader_prints_every_stored_math(
     # The X/Y ranges of v4_captures/math_ranges_*.bin that laddercodec refuses; the
     # encoder also wrote SUM ( X001 : X036 ) into retyped/math_wide.bin.
     if expression in REFUSED_XY_RANGES:
-        with pytest.raises(FieldError, match="wrong member list"):
+        with pytest.raises(FieldError, match=XY_RANGE_RULE):
             parse(expression, mode)
         return
     formula = parse(expression, mode)

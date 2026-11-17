@@ -289,7 +289,7 @@ def test_formula_hex_takes_dh_xd_and_yd() -> None:
     Math("SUM ( DH1 : DH3 ) + XD0u + MAX ( YD0 : YD2 ) + 1h", "DH100", "hex")
 
 
-def test_formula_bit_range_outside_sum_has_no_member_refusal() -> None:
+def test_formula_bit_range_outside_sum_has_no_option_slot_refusal() -> None:
     errors = _formula("MAX ( X001 : X036 )")
     assert [str(e) for e in errors] == [
         f"Math.expression: X001 is refused; {_DECIMAL_ONLY}",

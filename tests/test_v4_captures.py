@@ -70,6 +70,7 @@ from laddercodec.instructions.out_variant import OutVariant
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, Receive, Send
 from laddercodec.instructions.shift import Shift
+from laddercodec.model import XY_SLOTS
 from laddercodec.operands.unchecked import refusals
 from laddercodec.undecoded import UndecodedRungWarning
 from tests.undecoded_captures import without_marker
@@ -438,18 +439,40 @@ _NATIVE_XY_LISTS = [
 ]
 _XY_IDS = [f"{f}:{i}" for f, i, _, _ in _NATIVE_XY_LISTS]
 
-#: The ranges among them whose stored list is not the points between the ends, refused
-#:, and what the refusal says CLICK's list gets wrong.
+#: The ranges among them laddercodec refuses: an end in the option slot (21-36), except a
+#: range from the CPU slot to 21, a range of one point and one of two points numbered one
+#: apart.  These are the ones whose stored list is not the points between the ends.
 #: test_math_grammar.py reads it for the stored formulas it expects refused.
-REFUSED_XY_RANGES = {
-    "SUM ( X001 : X036 )": "leave out X032..X035",
-    "SUM ( X021 : X116 )": "add X021",
-    "SUM ( X001 : X032 )": "leave out X028..X031",
-    "SUM ( X005 : X036 )": "leave out X032..X035",
-    "SUM ( Y001 : Y036 )": "leave out Y032..Y035",
-    "SUM ( X025 : X027 )": "leave out X026 and add X022",
-    "SUM ( X025 : X101 )": "add X022..X025",
-}
+REFUSED_XY_RANGES = frozenset(
+    {
+        "SUM ( X001 : X036 )",
+        "SUM ( X021 : X116 )",
+        "SUM ( X001 : X032 )",
+        "SUM ( X005 : X036 )",
+        "SUM ( Y001 : Y036 )",
+        "SUM ( X025 : X027 )",
+        "SUM ( X025 : X101 )",
+    }
+)
+#: The rule each refusal states, after the range.
+XY_RANGE_RULE = (
+    r"is refused; an? (?P<b>[XY]) range may not start or end in (?P=b)021-(?P=b)036, except a "
+    r"range from (?P=b)001-(?P=b)016 to (?P=b)021, a range of one point, or a range of two "
+    r"points numbered one apart: on a CPU with no I/O modules, CLICK stores the wrong points "
+    r"for any other such range"
+)
+
+
+def _points_between(formula: str) -> list[str]:
+    """The X/Y points strictly between the ends of ``SUM ( A : B )``."""
+    start, end = formula.split()[2], formula.split()[4]
+    low, high = int(start[1:]), int(end[1:])
+    return [
+        f"{start[0]}{n:03d}"
+        for first, last in XY_SLOTS
+        for n in range(first, last + 1)
+        if low < n < high
+    ]
 
 
 @pytest.mark.parametrize(("file", "index", "formula", "expected"), _NATIVE_XY_LISTS, ids=_XY_IDS)
@@ -465,14 +488,15 @@ def test_math_xy_range_lists_in_capture(
     assert range_interiors(formula) == expected
 
 
-@pytest.mark.parametrize(
-    ("file", "index", "formula"), [x[:3] for x in _NATIVE_XY_LISTS], ids=_XY_IDS
-)
-def test_math_xy_range_refused_unless_its_list_holds_the_points_between(
-    file: str, index: int, formula: str
+@pytest.mark.parametrize(("file", "index", "formula", "expected"), _NATIVE_XY_LISTS, ids=_XY_IDS)
+def test_math_xy_range_refused_for_an_option_slot_end(
+    file: str, index: int, formula: str, expected: list[str]
 ) -> None:
-    """A refused range's rung decodes as that Math, keeping the refusal, and writes the
-    blob CLICK stored until a field changes, when encode() refuses it; the others are Math."""
+    """The rule refuses each captured range whose stored list is not the points between its
+    ends, and no other.  A refused range's rung decodes as that Math, keeping the refusal,
+    and writes the blob CLICK stored until a field changes, when encode() refuses it; the
+    others are Math."""
+    assert (formula in REFUSED_XY_RANGES) == (expected != _points_between(formula))
     path = CAPTURE_DIR / file
     rung = _decode_file(path)[index]
     af = rung.instructions[0]
@@ -480,7 +504,7 @@ def test_math_xy_range_refused_unless_its_list_holds_the_points_between(
         assert af == Math(formula, "DS1")
         assert not refusals(af)
         return
-    match = f"wrong member list.*{REFUSED_XY_RANGES[formula]}"
+    match = f"^Math.expression: {re.escape(formula)} {XY_RANGE_RULE}"
     with pytest.raises(FieldError, match=match):
         Math(formula, "DS1")
     assert isinstance(af, Math)
