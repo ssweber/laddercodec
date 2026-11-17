@@ -365,7 +365,7 @@ _DOLLAR_FIELDS = [
     ],
 )
 def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: str) -> None:
-    """Every field refuses these $ forms with the same plain FieldError and message.
+    """Every field refuses these $ forms with a plain FieldError and the same wording.
 
     One check, operands.checks.check_constant, raises the error for every field."""
     with pytest.raises(FieldError) as caught:

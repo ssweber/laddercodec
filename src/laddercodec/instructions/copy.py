@@ -10,8 +10,9 @@ All five variants share the same binary class, discriminated by field[6]:
 - ``3`` → pack (``Pack``)
 - ``4`` → unpack (``Unpack``)
 
-When a copy to text has the termination checkbox ticked, CLICK's dialog greys out the
-termination value. The blob still stores the flag and the character code as usual.
+The fixture ``tests/fixtures/coverage/golden/copy__to_text_term.csv`` holds a copy to text
+with the termination checkbox ticked. For that copy, CLICK's dialog greys out the termination
+value. The blob still stores the flag and the character code as usual.
 """
 
 from __future__ import annotations
@@ -411,9 +412,9 @@ def _refusal(
 ) -> FieldError:
     """Return an ``error`` that refuses the field ``cls.attrs[0]``.
 
-    The message is ``Class.attr: rule``, with CLICK's id in brackets at the end when there
-    is one. When the rule is about several fields, ``attrs`` names all of them, and the
-    error names them all."""
+    The message is ``Class.attr: rule``, with CLICK's id in parentheses at the end when there
+    is one. When the rule is about several fields, ``attrs`` lists them all, and the error's
+    ``field`` holds them all."""
     fields = tuple(f"{cls}.{attr}" for attr in attrs)
     tail = f" ({click_id})" if click_id else ""
     return error(
@@ -746,8 +747,8 @@ _COPY_PAIRS: dict[str, frozenset[str]] = {
     "text": frozenset({"TXT"}),
 }
 
-#: Source kind -> destination banks of a Fill. A constant fills the banks that a single Copy
-#: copies it to. A numeric register fills only numeric registers, and a TXT register fills
+#: Source kind -> destination banks of a Fill. For a constant, the banks are the same as in
+#: ``_COPY_PAIRS``. A numeric register fills only numeric registers, and a TXT register fills
 #: only TXT.
 _FILL_PAIRS: dict[str, frozenset[str]] = {
     "word": _NUMERIC_DEST_BANKS,
@@ -771,8 +772,8 @@ def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[st
     the instruction cannot use (OBJ-004), for example X001 into X001, or C1 into SC50 or
     SC303. It refuses any other source as a pairing of kinds (OBJ-024), for example DS2 or
     5 into X001. OBJ-024 is also the id of every other pairing that a single Copy refuses.
-    XD is the one register bank that a Copy does not write. It has no id for a source other
-    than a ``$hh`` code.
+    XD is the one register bank that a Copy does not write. For a source other than a ``$hh``
+    code, no CLICK answer covers XD, so this function returns no id.
 
     If the source is refused, this function returns no id. That happens for an address
     that ``_source_kind`` refuses (``kind`` is None). It also happens for a constant that
@@ -868,7 +869,8 @@ def _check_source_value(source: str, field: str) -> Constant:
     - a signed hex constant (``-FFh``);
     - a hex constant of more than 8 digits (``0FFFFFFFFh``).
 
-    A quote inside the text has no answer and no id.
+    No CLICK answer covers a text that has a quote inside it. This function raises that
+    refusal without an id.
     """
     try:
         return check_constant(source, field, _ANY_TEXT)

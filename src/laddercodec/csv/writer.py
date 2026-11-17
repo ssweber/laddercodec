@@ -110,7 +110,8 @@ def _append_data_row(
 
 
 def _followed_by_floating_row(af_tokens: Sequence[object], span_end: int) -> bool:
-    """Return True if the row just below a tall instruction's rows has a blank AF cell.
+    """Return True if the row just below a tall instruction's rows has a blank AF cell, or
+    holds a box with lead slots.
 
     If so, the writer must keep the instruction's padding rows.  Otherwise the
     read would take the blank-AF row as one of the instruction's rows, and that
@@ -540,8 +541,9 @@ def write_csv(
         default, ``False``, writes a plain ``R``.  ``read_csv()`` ignores the
         digits, so an indexed file reads back the same.
     stop:
-        What the marker rung that stands in for a rung with an unknown token acts as.
-        Pass ``"end"`` in the main program and ``"return"`` in a subroutine.
+        Whether the marker that stands in for a rung with an unknown token acts as
+        ``end()`` or as ``return()``.  Pass ``"end"`` in the main program and
+        ``"return"`` in a subroutine.
 
     Raises
     ------

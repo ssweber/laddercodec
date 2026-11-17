@@ -53,7 +53,8 @@ other line that is not blank is an entry, with its parts separated by `` | ``::
   allows a case that was added or removed.
 - ``new`` names the verdict that the branch must give, such as ``ok`` or ``!FieldError``.
 - The reason states the rule that the branch's verdict follows. Neither the key nor the
-  reason may contain `` | ``, and the reason must not start with ``<option>=``.
+  reason may contain `` | ``. The reason must not start with ``<option>=`` or be an option
+  name alone.
 
 The script judges an entry only on a case whose key the entry matches and whose first tier
 differs (:meth:`Expected.judge`). The dry run in ``classify_dryrun.py`` judges entries the

@@ -131,9 +131,10 @@ def main() -> None:
     print("RUNG MAP")
     print(f"{'=' * 72}")
 
-    # The script does not group the headers into rungs. The guess it tests is that a rung has
-    # one row header for each row, and an instruction section for each row. For each of the
-    # first 10 row headers, the loop prints what lies between it and the next row header.
+    # The script does not group the headers into rungs. The guess behind this printout is that
+    # a rung has a row header for each row, followed by an instruction section for each row.
+    # For each of the first 10 row headers, the loop prints what lies between it and the next
+    # row header.
     for i, rh_off in enumerate(row_headers[:10]):
         row_word = struct.unpack_from("<H", data, rh_off)[0]
         # The 32 column flags follow the header. Each is a flag byte and then a column index

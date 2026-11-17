@@ -46,8 +46,8 @@ the ranges. If a constant or such a word is refused, the parse does not check th
 because neither has an internal form to count.
 
 :class:`Formula` holds the tokens. Its properties and :meth:`Formula.internal` print the
-display formula, the template, the nickname display and the two internal forms joined with
-``#``.
+display formula, the template, the nickname display, and the internal formula and internal
+template, whose tokens are joined with ``#``.
 """
 
 from __future__ import annotations

@@ -512,8 +512,9 @@ def compare_lists() -> dict[Key, str]:
         for bank in ("SC", "SD"):
             listed = set(field[bank] or [])
             lo, hi = ADDRESS_BANKS[bank]
-            # The Block Copy that _accepts_address builds also writes the next address. So
-            # for a Block Copy, a listed address is wanted only if the next one is listed too.
+            # CLICK's Address Picker lists each SC or SD address that the field may write. The
+            # Block Copy that _accepts_address builds writes two addresses, n and n+1. So for
+            # a Block Copy, address n is wanted only if n+1 is listed too.
             accepted = {n for n in range(lo, hi + 1) if _accepts_address(field, bank, n)}
             wanted = listed
             if field.get("mode") == "block":
@@ -633,8 +634,8 @@ def test_a_chain_of_boxes_starts_with_the_code() -> None:
 
 
 def test_answers_are_the_grids_cases() -> None:
-    """Each answer file holds the cases of its grid file, with the same labels in the same
-    order and the same fields."""
+    """The answer files of the nine editor grids that the loop names hold the cases of their
+    grid files, with the same labels in the same order and the same fields."""
     for grid in (
         "preflight",
         "risky",

@@ -24,8 +24,9 @@ Its record holds:
            (``ok`` only)
 ``text``   ``to_csv()`` of an instance that holds the value as given, built without its
            checks
-``read``   that text, put into the baseline's CSV rows and read back through the CSV
-           parser and converter
+``read``   that text, put in place of the instance's cell in the CSV rows that the writer
+           wrote for the case, or for the baseline if the case was not written, and read
+           back through the CSV parser and converter
 ``renc``   ``enc`` for the rung that ``read`` returned, with ``=`` if it matches ``read``
 ``dec``    the blob of the unchecked instance parsed back by the blob decoder
 ``tag``    the baseline's blob, with the varied field's tag set to the case's value, parsed

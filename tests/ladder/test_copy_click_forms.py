@@ -187,7 +187,7 @@ def test_the_copy_a_capture_reads_as_writes_clicks_tags(
 @pytest.mark.parametrize("case", _TEXT)
 def test_a_text_copy_encodes_as_clicks_clip(tmp_path: Path, case: str) -> None:
     """A Copy of a text constant writes CLICK's blob byte for byte, including the destination
-    end, the last TXT that the text fills.
+    end that CLICK's clipboard holds. For text of one character, CLICK stores no end.
 
     The cases include ``é``, a tab, ``€`` and a control character. The decoded Copy keeps no
     stored blob and writes the same bytes."""

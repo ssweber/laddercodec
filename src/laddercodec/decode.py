@@ -400,8 +400,9 @@ def _decode_rtf(payload: bytes) -> str:
     """Convert an RTF comment payload to markdown text.
 
     It removes the RTF prefix and suffix around the comment text and decodes the
-    rest as cp1252.  Then it reads the body one control word at a time, so that
-    a control word sets the style and does not appear in the text.
+    rest as cp1252.  Then it reads the control words in the body, so that they set
+    the style or add a line break or a character, and their names do not appear in
+    the text.
     """
     # Find the body between the RTF prefix and suffix.
     if payload.startswith(_PREFIX):
@@ -821,8 +822,8 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
             continue
 
         # A data row.  Read it only if cell 0 has the structural bytes 01 01 at +0x09 and
-        # +0x0A.  The extra row at the end of a single-rung buffer may lack them.  This
-        # includes a buffer from CLICK whose padding is not zero.
+        # +0x0A.  The extra row at the end of a single-rung buffer may lack them.  So may
+        # the extra row at the end of a buffer from CLICK whose padding is not zero.
         if not (data[cursor + 0x09] == 0x01 and data[cursor + 0x0A] == 0x01):
             if not last:
                 error = f"grid row {index} has no cell 0 at {cursor:#x}"
@@ -1032,9 +1033,9 @@ def _fits_stored_span(af: AfInstruction, span: int) -> bool:
     """Return True when the row span that the cell stores at +0x09 is *af*'s class height.
 
     Also return True when the cell stores no span (0).  The caller keeps a box stored at
-    another span as a ``RawInstruction`` with its stored bytes.  This case occurs because an
-    earlier laddercodec wrote Email, Home, Position and Velocity boxes 1 row tall.  When
-    such a box is pasted, CLICK keeps it at 1 row until its dialog is saved.
+    another span as a ``RawInstruction`` with its stored bytes.  For example, an earlier
+    laddercodec wrote Email, Home, Position and Velocity boxes 1 row tall.  When such a box
+    is pasted, CLICK keeps it at 1 row until its dialog is saved.
     """
     return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 

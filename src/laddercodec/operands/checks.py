@@ -118,11 +118,6 @@ class Constants:
     range_id: str | None = "OBJ-005"
 
 
-#: ``HEX_MATH_RESULT`` holds the ids and wording that CLICK gives for a hex Math result it
-#: refuses.  CLICK calls an SD in SD1-SD1000, or a YD past YD8, outside the range (OBJ-003).
-#: It gives OBJ-004 for an SD outside SD1-SD1000, such as SD0 or SD1001, and for any other
-#: bank the result does not take.  Pass ``HEX_MATH_RESULT`` as keyword arguments to
-#: :func:`check_address`.
 class _ResultIds(TypedDict):
     """The keyword arguments of :func:`check_address` that carry a field's error ids."""
 
@@ -131,6 +126,11 @@ class _ResultIds(TypedDict):
     outside_range_of: str
 
 
+#: ``HEX_MATH_RESULT`` holds the ids and wording that CLICK gives for a hex Math result it
+#: refuses.  CLICK calls an SD in SD1-SD1000, or a YD past YD8, outside the range (OBJ-003).
+#: It gives OBJ-004 for an SD outside SD1-SD1000, such as SD0 or SD1001, and for any other
+#: bank the result does not take.  Pass ``HEX_MATH_RESULT`` as keyword arguments to
+#: :func:`check_address`.
 HEX_MATH_RESULT: _ResultIds = {
     "bank_ids": {"SD": "OBJ-003"},
     "range_ids": {"YD": "OBJ-003"},

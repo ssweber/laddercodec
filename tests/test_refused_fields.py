@@ -10,9 +10,11 @@ refuse. The cases cover each instruction family that has checks. The tests show 
 - An instruction that was decoded and not changed encodes as the bytes it was decoded from.
   For an output box from a program file, that is the blob that the decoder composes from the
   file's tags, the same blob that the box holds when it decodes raw.
-- ``encode()`` raises the error that building the instruction raises after a field changes
-  and is still refused, when the instruction was read from CSV, and for a condition from a
-  program file.
+- ``encode()`` raises the error that building the instruction raises, in three cases:
+
+  - a field changed and is still refused;
+  - the instruction was read from CSV;
+  - the instruction is a condition from a program file.
 """
 
 from __future__ import annotations

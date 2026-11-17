@@ -358,8 +358,8 @@ def from_tags(
         # still raises, and then the blob stays raw.
         return None
     if dest != stored_dest or internal != stored_internal:
-        # The stored text differs from the fields.  Mark the Math so that encoding it
-        # writes the bytes CLICK stored, with each address as the user typed it.
+        # CLICK saved the result or an address in the formula as the user typed it, not in
+        # display form.  Mark the Math so that encoding it writes the bytes CLICK stored.
         read_in_another_form(math)
     # Older laddercodec wrote the H prefix only on a decimal constant, and a hex Math
     # refuses decimal constants.  So only a decimal Math is checked.

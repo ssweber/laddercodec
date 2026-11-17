@@ -2,10 +2,11 @@
 
 ``encode()`` turns ``Rung`` objects into the binary that CLICK puts on the clipboard, ready
 to paste. ``decode()`` turns that binary back into ``Rung`` objects. ``decode_program()``
-reads a program from a ``Scr*.tmp`` file, one of the temp files that CLICK writes to disk.
+decodes the bytes of a ``Scr*.tmp`` file, one of the temp files that CLICK writes to disk.
 ``read_csv()`` and ``write_csv()`` convert between ``Rung`` objects and a CSV form that
-people and programs can read and edit. ``check()`` lists the shapes in your rungs that
-CLICK's Syntax Check refuses.
+people and programs can read and edit. ``check()`` lists the places in your rungs where the
+lines connect in a way that CLICK's Syntax Check refuses or may refuse. It also lists each
+marker that stands in for a rung that laddercodec could not decode.
 """
 
 from .codes import CLICK_IDS, Code

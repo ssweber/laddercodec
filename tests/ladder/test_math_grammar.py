@@ -200,8 +200,8 @@ def test_character_outside_a_formula_is_refused(char: str) -> None:
 
 
 def test_pointer_is_refused() -> None:
-    # CLICK accepts a pointer in Math. The step of CLICK's check that handles a pointer has
-    # not been read, so laddercodec refuses one.
+    # CLICK accepts a pointer in Math. Nobody has read the step of CLICK's check that
+    # handles a pointer, and laddercodec refuses one.
     _refused("DS[DS1] + 1", "decimal", "'\\[' is part of a pointer")
 
 
@@ -595,7 +595,7 @@ def test_template_writes_at_for_each_address() -> None:
 _NEEDLE = "Math".encode("utf-16-le") + b"\x00\x00"
 _SLOT_TAGS = (0x6888, 0x688C)
 
-#: Formulas in retyped/math_wide.bin, which an older version of the encoder wrote. Its XD
+#: Formulas that an older version of the encoder wrote into retyped/math_wide.bin. Its XD
 #: and YD rungs put the address itself in the template, where CLICK writes @, as CLICK's own
 #: retyped/math_xd.bin shows. Its sum of 69 addresses is over the 270-character limit.
 _OLD_TEMPLATES = {"XD0 AND 1h", "XD0u AND 1h", "YD1 AND 1h", "MAX ( XD0 : XD3 )"}

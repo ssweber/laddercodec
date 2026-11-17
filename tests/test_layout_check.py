@@ -4,6 +4,7 @@ check() reports these rungs and does not raise. The expected results come from C
 Syntax Check on rungs pasted into CLICK:
 
 - The bridge in ``fixtures/layout_check/wheatstone_bridge.csv`` gets C0001.
+  ``fixtures/layout_check/README.md`` records CLICK's answer.
 - Rung 23 of ``v4_captures/layoutthy_pasted.bin`` gets C0202, then C0001. CLICK accepted
   every other rung in that file. The file is the program copied back from CLICK right after
   the paste.
@@ -672,7 +673,8 @@ def test_dead_contact_beside_a_powered_box_is_c0202_then_c0001() -> None:
 def test_path_ending_in_a_loop_is_c0202_once() -> None:
     """A path into a loop that reaches no box gets one C0202, at the loop's first contact.
 
-    X001 feeds a loop of X002 and X003, and the C0202 is at X002.
+    X001 feeds a loop of X002 and X003, and the C0202 is at X002. The rung also gets C0003,
+    and neither finding is captured.
     """
     rung = _rung(
         [

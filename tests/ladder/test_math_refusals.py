@@ -218,8 +218,9 @@ def test_formula_refused_word_reads_on_as_what_it_looks_like() -> None:
     """After the reader refuses a word, it reads on as if the word were what it looks like.
 
     A refused constant (FFh in a decimal Math) joins the sign before it and fills a RAND
-    argument. A refused address (DS0) can still end a SUM range. In a hex Math, the refused
-    decimal constants 5 and 1 are still read as constants. Each case gives no other refusal.
+    argument. A refused address (DS0) can still be one end of a SUM range. In a hex Math, the
+    refused decimal constants 5 and 1 are still read as constants. Each case gives no other
+    refusal.
     """
     assert _shape(_formula("RAND ( - FFh , 5 )")) == [(_EXPR, "kind", "OBJ-1001")]
     assert _shape(_formula("SUM ( DS0 : DS5 )")) == [(_EXPR, "address", None)]
@@ -425,7 +426,8 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("DS1 + ~", "decimal", "form", None),
         ("DS[DS1]", "decimal", "pointer", None),
         ("", "decimal", "missing", None),
-        # Refused words. A word is a name, an address or a constant.
+        # Refused words. Each is a word that is not a name, an address or a constant, an
+        # address outside its bank's range, or a constant of the wrong mode or range.
         ("DS1 + ٣", "decimal", "form", None),
         ("DH1 + 1Eh", "hex", "form", None),
         ("DS1 + 1.5x", "decimal", "kind", "OBJ-1001"),

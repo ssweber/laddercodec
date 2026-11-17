@@ -552,8 +552,9 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     instruction that holds refusals inside ``read_csv(..., unchecked=True)``.  If the
     parser refuses a token that holds a blank argument, the function reads the token
     again with the field of that argument left blank (:func:`_with_blank_fields`).  The
-    instruction is then refused as it is when you build it with that field blank, with the
-    ``missing`` reason.  Inside ``read_csv(..., unchecked=True)`` it keeps that refusal.
+    result is the refusal that you get when you build the instruction with that field
+    blank.  Its reason is ``missing``.  Inside ``read_csv(..., unchecked=True)``, the
+    function returns the instruction, and the instruction keeps that refusal.
     """
     refused: ValueError | None = None
     try:

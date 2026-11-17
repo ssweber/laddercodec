@@ -341,9 +341,8 @@ def _clipboard_part_rows(part_rows: bytes) -> bytes:
     """Return SCR part rows as the clipboard blob's extra bytes.
 
     The SCR file stores each part's rung row, counting from 1. The clipboard
-    stores the row of each part after the first, counted from the first part. A
-    count_down whose first part is on rung row 1, counting from 0, stores
-    ``02 03 04``, and this returns ``01 02``.
+    stores the row of each part after the first, counted from the first part. For
+    example, if the stored part rows are ``02 03 04``, this returns ``01 02``.
     """
     return bytes(row - part_rows[0] for row in part_rows[1:])
 
@@ -722,10 +721,10 @@ def _build_topology_backed_rung(
 ) -> Rung:
     """Build the rung, with each stored row after the comment row as one grid row.
 
-    Keep the wires in a row even when a later row connects to the rail. The
-    segment flags depend on how the rung was edited, so they cannot show that
-    an earlier row is left over from editing. The Rung model does not keep the
-    stored row and segment flags.
+    Keep the wires in every stored row, even in a row above a later row that
+    connects to the rail. Such a row may be left over from editing, but the
+    segment flags depend on how the rung was edited, so they cannot show it.
+    The Rung model does not keep the stored row and segment flags.
     """
     rows = topology_block.rows_right_cols
     wiredown = topology_block.wiredown

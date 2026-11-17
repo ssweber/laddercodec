@@ -124,9 +124,9 @@ class PinnedInstruction(AfInstruction):
 
         Each pinned class calls this at the end of its ``__post_init__``.
 
-        ``pin_rows`` needs one row for each of the ``lead_rows`` slots above the main input
-        and one for each pin name below it, in ascending order. The first slot is on row 0
-        and the blob stores each row in one byte, so each row is 1 to 255.
+        ``pin_rows`` needs one row for each slot after the first, in ascending order. That
+        is ``lead_rows`` rows plus one for each pin name. The first slot is on row 0. The
+        blob stores each row in one byte, so each row is 1 to 255.
         """
         name = f"{type(self).__name__}.pin_rows"
         rows = self.pin_rows

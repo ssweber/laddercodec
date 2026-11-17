@@ -1,4 +1,8 @@
-"""Raw: an AF instruction that laddercodec keeps as bytes, for class names it does not know.
+"""Raw: an AF instruction that laddercodec keeps as bytes.
+
+The decoders return one for a class name that no family recognises.  They also return one
+for a box that its family cannot read, and for a box whose stored row span is not the row
+span of its class.
 
 ``RawInstruction`` keeps the whole instruction blob, from cell offset +0x25 up to
 the tail.  The encoder builds the cell header and the tail from the position of
@@ -354,7 +358,11 @@ class RawInstruction(AfInstruction):
         of tagged fields, excluding tail).
     part_count:
         The number of parts: 1 for a single-row box, more for a multi-row
-        box.  The decoders and the CSV reader read it from the blob.
+        box.  The clipboard decoder reads it from the blob.  So does the CSV
+        reader for the hex form of the token, which uses 1 if the blob does
+        not parse.  The program file decoder counts the part rows of the
+        entry, and the CSV reader takes it from the decoded-fields form of
+        the token.  Each of those two builds the blob with that count.
     rows, sub:
         The row bytes of the box's cell header.  ``rows`` is the row span
         (+0x09), and ``sub`` is the sub-rows (+0x0A).  The decoders keep the
@@ -400,7 +408,8 @@ class RawInstruction(AfInstruction):
 
     def __post_init__(self) -> None:
         # A decoded blob can hold any class name and any 16-bit part count.  The checks here
-        # refuse only a value of the wrong type, or a number that its bytes cannot hold.
+        # refuse a value of the wrong type, a part count outside 0 to 65535, and a row span or
+        # sub-rows outside 1 to 255.
         with Refusals(self) as check:
             if not isinstance(self.class_name, str):
                 check.refuse(

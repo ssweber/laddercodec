@@ -140,8 +140,9 @@ class _Rule:
     code: Code
     click_id: str | None
     captured: bool
-    #: Where CLICK is not known to report this shape with ``click_id``: a shape that CLICK is
-    #: known to report with it.
+    #: A shape that CLICK is known to report with ``click_id``. It is set when CLICK is not
+    #: known to report this rule's own shape with that id. The message then reads
+    #: ``<click_id> as for <like>``.
     like: str = ""
 
 

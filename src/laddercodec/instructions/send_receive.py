@@ -214,9 +214,9 @@ class ModbusAddress:
                 )
             if self.address.endswith(("h", "H")):
                 if check("address", check_constant, _REMOTE_HEX) is not None:
-                    # The range check reads the value as typed, so leading zeros that make it
-                    # longer than four digits keep it in range. CLICK stores the digits in
-                    # uppercase, without leading zeros, and with a lowercase h
+                    # The range check reads the value, not the number of digits. So leading
+                    # zeros do not take it out of range, even past four digits. CLICK stores
+                    # the digits in uppercase, without leading zeros, and with a lowercase h
                     # (0FFFEh -> FFFEh, 0H -> 0h).
                     display = check.run(
                         to_display,
@@ -1474,8 +1474,10 @@ def _build_target(
 ) -> ModbusRtuTarget | ModbusTcpTarget | None:
     """Return the target that the tags describe.
 
-    Return None for a port or func code that this module does not model, or for a Slave
-    ID address that CLICK's dialog would not accept. The instruction then decodes as raw.
+    Return None for a port or func code that this module does not model. Also return None
+    if building the target raises ``ValueError``. That happens for a Slave ID address that
+    CLICK's dialog would not accept, and for a port tag that is not a number. In each case
+    the instruction then decodes as raw.
     """
     func_code = tags.get(0x3218)
     known = _RD_FUNC if class_name == "RD" else _SD_FUNC

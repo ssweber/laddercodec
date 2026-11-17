@@ -1009,8 +1009,8 @@ def _native_blob(buf: bytes, class_name: str, length: int) -> bytes:
 
 @pytest.mark.parametrize("file", list(_TEXT_CAPTURES))
 def test_text_constant_capture_decodes(file: str, tmp_path: Path) -> None:
-    """Each capture decodes to the rung as typed, with termination code ``"0"``, and the rung
-    survives a CSV round-trip."""
+    """Each capture decodes to the rung as typed, with no termination code
+    (``termination_code`` is ``"0"``), and the rung survives a CSV round-trip."""
     rung = _decode_file(CAPTURE_DIR / file)[0]
     rows = decoded_rung_to_rows(rung)
     assert [(row[1], row[-1]) for row in rows if row[0] != "#" and row[-1]] == [
