@@ -1,143 +1,160 @@
 # laddercodec roadmap
 
 This file is the only statement of what laddercodec still has to do. Work that crosses repos is written once,
-in the ecosystem plan (`ssweber.github.io/plan/README.md`); items here link to it and don't repeat it. When an
+in the ecosystem plan (`ssweber.github.io/plan/README.md`). Items here link to it and don't repeat it. When an
 item lands, delete it.
 
-Each item says what it needs: **nothing** (code only), **CLICK** (the CLICK software, through the sandbox
-runner or Sam), **PLC** (a real PLC), **Sam** (his judgment), or **another repo**. Work that needs nothing is
-never queued behind work that needs Sam.
+Each item says what it needs. **nothing** means code only. **CLICK** means the CLICK software, through the
+sandbox runner or Sam. **PLC** means a real PLC. **Sam** means his judgment. **another repo** means a change
+in a sibling repo. Work that needs nothing is never queued behind work that needs Sam.
 
-Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it; updated 2026-11-17.
+Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it. Updated 2026-11-17.
 
 ## How work runs here
 
 - **Branches.** Feature and refactor branches go into an always-releasable `main`, only through PRs. There is no
-  `dev` trunk. A session pushes its branch, opens the PR and squash-merges it once CI is green on the head commit
-  and a fresh reviewer has passed that commit. A PR that needs Sam, CLICK or a PLC (a golden paste check, say)
-  waits for that. Every PR carries its CHANGELOG line, so `main` can be released at any commit.
-- **Releases are Sam's.** Nothing is tagged, released or published without him. Publishing a GitHub release
-  sends the package to PyPI, then, unless it is a pre-release, `publish.yml` starts a docs deploy of that tag. A
-  redeploy by hand is
-  `gh workflow run docs.yml --ref main` (the latest release, or `-f ref=<tag>`); it is a deploy, so it is Sam's
-  call too.
-- **Builds.** Multi-branch jobs run as BOB arcs: a worktree and a builder per branch, a fresh reviewer, CI as the
-  gate. BOB comes from the shared `bob` plugin (`ssweber/bob`); this repo's settings are in `.claude/bob/`.
-- **Arc folders stay out of git** (`../laddercodec-wt/buildbot/jobs/`). When an arc closes, its open items move
-  here and the folder can go.
-- **No provenance.** Code, tests and user docs say what a rule is, not where it came from. CLICK's own error ids
-  in messages, such as "(OBJ-023)", stay: that is what CLICK shows the user. What is still in doubt is written
-  here as a question.
-- **Less code first.** Deletion and consolidation come before new features. Line count is not a target; do what
-  is prudent.
+  `dev` trunk. A session pushes its branch and opens the PR. It squash-merges the PR once CI is green on the
+  head commit and a fresh reviewer has passed that commit. A PR that needs Sam, CLICK or a PLC (a golden paste
+  check, say) waits for that. Every PR carries its CHANGELOG line, so `main` can be released at any commit.
+- **Releases are Sam's.** Nobody tags, releases or publishes without him. Publishing a GitHub release sends the
+  package to PyPI. Unless it is a pre-release, `publish.yml` then starts a docs deploy of that tag. You can
+  redeploy by hand with `gh workflow run docs.yml --ref main` (the latest release, or `-f ref=<tag>`). That is
+  a deploy, so it is Sam's call too.
+- **Builds.** Multi-branch jobs run as BOB arcs. Each branch gets a worktree and a builder, a fresh reviewer
+  checks it, and CI is the gate. BOB comes from the shared `bob` plugin (`ssweber/bob`). This repo's settings
+  are in `.claude/bob/`.
+- **Arc folders stay out of git** (`../laddercodec-wt/buildbot/jobs/`). When an arc closes, move its open items
+  here. Then the folder can go.
+- **No provenance.** Code, tests and user docs say what a rule is, never where it came from. CLICK's own error
+  ids in messages, such as "(OBJ-023)", stay, because CLICK shows them to the user. Write what is still in
+  doubt here as a question.
+- **Less code first.** Deletion and consolidation come before new features. Line count is not a target. Do
+  what is prudent.
 
 ## Order
 
-Done: the cruft sweep, the undecoded marker (#38), the field-rule restructure (#43-#51) and the field error
-pyrung reads (#55-#60: every instruction reports every refusal, with its fields, reason, CLICK id and, through
-`read_csv`, a location on each). The next release, Sam's, carries it. Decoding that does not depend on
-the checks is done too: a stored instruction that breaks a dialog rule decodes as that instruction with a
-`RefusedFieldWarning`, and `read_csv(..., unchecked=True)` reads what `write_csv` writes for it.
+Done:
+- the cruft sweep;
+- the undecoded marker (#38);
+- the field-rule restructure (#43-#51);
+- the field error that pyrung reads (#55-#60). Every instruction reports every refusal, with its fields,
+  reason and CLICK id. Through `read_csv`, each refusal also has a location.
+- decoding that does not depend on the checks. A stored instruction that breaks a dialog rule decodes as that
+  instruction with a `RefusedFieldWarning`. `read_csv(..., unchecked=True)` reads what `write_csv` writes for
+  it.
+
+The next release, Sam's, carries all of this.
 
 Sam's direction of 2026-11-16: pyrung's CLICK validation moves onto laddercodec first, ahead of its export and
-import. pyrung builds laddercodec's objects and turns each refusal into a finding; its own bank tables go.
+import. pyrung builds laddercodec's objects and turns each refusal into a finding. Its own bank tables go.
 
-1. The field error's follow-ups. pyrung's validation waits only on a release with the error.
+1. The field error's follow-ups. pyrung's validation waits only on a release that has the error.
 2. API cleanup, in the order below. It is provisional until laddercodec and pyrung release together.
 3. Field rules tightened to the CLICK grids, as the grids arrive.
 4. Canonical constants, once CLICK has answered (the runner is asking now). It can run beside 1-3.
 
 The SCR blob dataclass fits in wherever it is ready. pyrung's export needs come after the API cleanup (below).
 
-laddercodec refuses what CLICK's editor refuses, plus what breaks the encoding or crashes CLICK on a paste. A
-rule that rests on what a PLC does stays in pyrung.
+laddercodec refuses what CLICK's editor refuses. It also refuses what breaks the encoding or crashes CLICK on a
+paste. A rule that rests on what a PLC does stays in pyrung.
 
 ## 1. The field error's follow-ups (nothing, except where marked Sam)
 
-pyrung learns what a field takes by building the object and reading the error; that is on `main`. Not built: a
-rule-description API (`field_rules(Copy)["source"]`), and a public way to build an instruction without its
-checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
-`laddercodec.operands.unchecked.unchecked()`, which a public API could expose).
+pyrung learns what a field takes by building the object and reading the error. That is on `main`. Two things
+are not built. One is a rule-description API (`field_rules(Copy)["source"]`). The other is a public way to build
+an instruction without its checks. pyrung's conformance probes use `raw(...)`. The decoders use the private
+`laddercodec.operands.unchecked.unchecked()`, which a public API could expose.
 
-- **A strict numeric tag.** `tag_int` reads a tag through `int()`, so it accepts `" 1"`, `"+1"`, `"1_0"` and
-  non-ASCII digits, as it did before. Reading only ASCII digits would leave those blobs raw.
-- **A held condition from a program file.** A contact `decode_program()` builds with a refusal has no blob to
-  write, so `encode()` raises its error (the unknown condition it decoded as before did not encode either). An
-  output box writes the blob composed from its tags, as its raw box did. Decide whether a condition should too.
+- **A strict numeric tag.** `tag_int` reads a tag through `int()`. It accepts `" 1"`, `"+1"`, `"1_0"` and
+  non-ASCII digits, as it did before. If it read only ASCII digits, those blobs would stay raw.
+- **A held condition from a program file.** When `decode_program()` builds a contact that has a refusal, the
+  contact has no blob to write. `encode()` raises the refusal's error. The unknown condition that it decoded as
+  before did not encode either. An output box writes the blob composed from its tags, as its raw box did.
+  Decide whether a condition should do the same.
 
 - **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
-  proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
-  where no single stretch is at fault (empty, the length, a `(` left open, the mode conflict); a range refusal
-  spans its `A : B`, SUM's CT and X/Y refusals the range argument. It is new public API.
-- **The blanks a CSV token still reads as syntax:** a blank argument is its field `missing` where it fills one
-  text field or a range (a range with a blank end, `..DS4`, too), and a blank `oneshot=` or `maintained=` is
-  `missing` in every family, `out` and `for` included. The Timer `unit=` and Drum `unit=`, accumulator and
-  pattern value checks are made at construction. An absent keyword stays a `CsvError` (ruled). Still a syntax
-  error with no field, where Python says `missing`:
+  proposal is `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed. It
+  is new public API.
+  - It is None where no single stretch is at fault: an empty formula, the length, a `(` left open, the mode
+    conflict.
+  - A range refusal spans its `A : B`.
+  - SUM's CT refusals and X/Y refusals span the range argument.
+- **The blanks a CSV token still reads as syntax.** These blanks already read as the field `missing`:
+  - a blank argument that fills one text field or a range (a range with a blank end, `..DS4`, too);
+  - a blank `oneshot=` or `maintained=`, in every family, `out` and `for` included.
+
+  The Timer `unit=` and Drum `unit=`, accumulator and pattern value checks are made at construction. An absent
+  keyword stays a `CsvError` (ruled). These blanks are still a syntax error with no field, where Python says
+  `missing`:
   - a blank `unit=` in a Timer or time drum, and a blank Math `mode=` (a Math `mode=` that is neither
     `decimal` nor `hex` is a `CsvError` too);
   - a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a search
     expression (`search(,result=DS1,found=C1)`).
 
-  Reading them as `missing` means changing `timer.py`, `drum.py`, `math.py`, `search.py` and
-  `send_receive.py`. Also:
+  To read them as `missing`, change `timer.py`, `drum.py`, `math.py`, `search.py` and `send_receive.py`. Also:
   - A token with blanks of two forms, a range and a single field (`pack_bits(,)`, `unpack_to_bits(,)`), stays a
-    syntax error: every blank in a token is tried in the same form.
-  - Condition tokens are not read for blanks: `rise()`, `DS1==` and `~` are syntax errors.
-  - The coil parser drops a blank argument: `out(C1,)` is accepted, and `out(,oneshot=)` reads `oneshot=` as
-    the operand, an `address` refusal.
-- **One parser per token.** Each family's `from_csv_token` parses with its own regex, and twice one has
-  disagreed with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route
-  every `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their
-  equivalent, so one parser reads each token.
-- **Token-syntax class split.** Some token-syntax errors are a `CsvError` and others a `FieldError` with no
+    syntax error, because every blank in a token is tried in the same form.
+  - Condition tokens are not read for blanks. `rise()`, `DS1==` and `~` are syntax errors.
+  - The coil parser drops a blank argument. It accepts `out(C1,)`. It reads `out(,oneshot=)` with `oneshot=` as
+    the operand, which is an `address` refusal.
+- **One parser per token.** Each family's `from_csv_token` parses with its own regex. Twice, one has disagreed
+  with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route every
+  `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their
+  equivalent, so that one parser reads each token.
+- **Token-syntax class split.** Some token-syntax errors are a `CsvError` and others are a `FieldError` with no
   field. Pick one class for a token that is not syntax.
-- **Rung names.** A refusal `encode()` raises does not name the rung it came from.
-- **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`; it should be a
-  `FieldError`.
-- **Drum wording.** A time-event drum with events only is refused as `Drum.presets: 0 steps`, and the guide does
-  not say a time drum's blank `accumulator=` is a `FieldError`.
+- **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
+- **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`. It should
+  raise `FieldError`.
+- **Drum wording.** A time-event drum with events only is refused as `Drum.presets: 0 steps`. The guide does
+  not say that a time drum's blank `accumulator=` is a `FieldError`.
 
 ## 2. API cleanup (nothing; provisional until the joint release)
 
 Sam's rule (2026-11-17): the API stays open to change from pyrung's feedback, as pyrung's validation branch
-adopts it, until laddercodec and pyrung release together. Every merged change here is provisional until then.
+adopts it, until laddercodec and pyrung release together. Every change merged here is provisional until then.
 
 - **Done:**
-  - the error tree and `decode()` returning a list (#94);
-  - Timer and Counter (#95), Contact and Coil (#97), Drum (#98) and Math, Search, ForLoop and `raw` (#99)
-    taking their CSV names;
+  - the error tree, and `decode()` returning a list (#94);
+  - the CSV names for Timer and Counter (#95), Contact and Coil (#97), Drum (#98), and Math, Search, ForLoop
+    and `raw` (#99);
   - one CSV flag rule for every family (`check_csv_flag`).
 - **In flight:** the Copy-family names (Copy, BlockCopy, Pack, Unpack).
 - **Next, in order:**
-  1. Ids. A `.code` on every refusal, as the kebab-case names Sam approved in the code-names list, with CLICK's
-     id in `.click_id`; `allow=` takes the name. On `Finding`, `kind` becomes `code` and `code` becomes
-     `click_id`; a `LayoutError` gets both. Email, Home, Position and Velocity are marked provisional here.
-  2. Frozen instructions: instructions get `frozen=True`, and a public `laddercodec.replace(inst, **changes)`
-     keeps the held blob and refusals when nothing changes and checks again when something does. Drum's lists
+  1. Ids. Every refusal gets a `.code`, which is one of the kebab-case names Sam approved in the code-names
+     list. CLICK's id goes in `.click_id`. `allow=` takes the name. On `Finding`, `kind` becomes `code` and
+     `code` becomes `click_id`. A `LayoutError` gets both. Email, Home, Position and Velocity are marked
+     provisional here.
+  2. Frozen instructions. Instructions get `frozen=True`. A public `laddercodec.replace(inst, **changes)`
+     keeps the held blob and refusals when nothing changes, and checks again when something does. Drum's lists
      are tuples already, so only the `wire_down` writes in the decoders go through `rebuilt()`.
-  3. The rung grid: a frozen `Rung` with a tuple grid, and `wire_down` moves into the grid. This comes before
-     the export pieces.
+  3. The rung grid. `Rung` becomes frozen with a tuple grid, and `wire_down` moves into the grid. This comes
+     before the export pieces.
   4. Then pyrung's export needs (below).
-- **Before release (Sam):** review the code-names list as a user. For each name: the name, one plain sentence
-  in CLICK's words, and one example.
+- **Before release (Sam):** review the code-names list as a user would. For each name, check three things: the
+  name, one plain sentence in CLICK's words, and one example.
 
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 
 The runner tries whole grids, not samples: every bank and constant kind in each dialog field. Its answers are
-committed here as test data, which makes these tests the one place CLICK's field rules are recorded. No rule is
-written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
+committed here as test data. That makes these tests the one place where CLICK's field rules are recorded. No
+rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 
-- **Case lists (Sam, 2026-11-16):** laddercodec writes them, since it knows how each field is modelled (banks,
-  constant kinds, modes), in the shape of ClickNick's `devtools/editor_cases.json`. click's runner runs them
-  and returns the answers; cases and answers are committed as test data. The runner's `try` drives Math, Copy
-  (single, block, pack, unpack) and Out today, about 4 seconds a case, so those grids run first. click is
-  adding a run that resumes and more dialogs, Receive first.
-- **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
-  with laddercodec's verdict beside each case. CLICK answered `preflight` and `risky` (159 cases), Receive
-  (18), the picker checks (28) and the full Out, Copy (single, block, pack, unpack) and Math (decimal, hex)
-  grids (5,210); `tests/test_editor_answers.py` compares them and lists each difference, grouped by what
-  is to be done. Left: Receive, Compare, Search, Fill, timers, counters and For. What the answers showed:
+- **Case lists (Sam, 2026-11-16):** laddercodec writes them, because it knows how each field is modelled
+  (banks, constant kinds, modes). They take the shape of ClickNick's `devtools/editor_cases.json`. click's
+  runner runs them and returns the answers. The cases and the answers are committed as test data. Today the
+  runner's `try` drives Math, Copy (single, block, pack, unpack) and Out, at about 4 seconds a case, so those
+  grids run first. click is adding a run that resumes, and more dialogs, Receive first.
+- **Math, Copy and Out grids are written** (#54). `make editor-grids` makes them in
+  `tests/fixtures/editor_grids/`, with laddercodec's verdict beside each case. CLICK has answered:
+  - `preflight` and `risky` (159 cases);
+  - Receive (18);
+  - the picker checks (28);
+  - the full Out, Copy (single, block, pack, unpack) and Math (decimal, hex) grids (5,210).
+
+  `tests/test_editor_answers.py` compares the answers with the rules. It lists each difference, grouped by what
+  is to be done. Left to answer: Receive, Compare, Search, Fill, timers, counters and For. What the answers
+  showed:
   - Hex Math reads a word typed without `h` as a hex constant (`DH1 + 0`, `5`, `abc`, `DH0` as `D0h`);
     laddercodec refuses it on purpose (Settled, below).
   - Math formula banks (ruled, Sam, 2026-11-16), one table per mode in `math_formula._OPERANDS`:
@@ -162,15 +179,16 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
         decimal): the rules give the range's OBJ-1014 first, whatever stands before it.
       - A median over a refused bank that is also past 1024 bytes: the rules give OBJ-1002 before
         OBJ-1013.
-  - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
-    Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
-    instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and
-    a Pack's destination keep the space, and decode as the address without it). The ratchet keeps these
-    entries with that reason. Both `dec  DS1 = ...` and `dec DS1  = ...` put the space in the Math result.
-  - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
-    destination bank its source can't unpack to now carries OBJ-004. CLICK confirms it for a DH source into
-    DS and for every source into T, DD and TXT, and gives OBJ-004 for a source from Y, C, T, CT, SC, XD, YD,
-    TD, CTD, SD or TXT. A DS, DD or DF into Y is OBJ-024 (Pack and Unpack order, below).
+  - CLICK accepts an edge space in Math's result and formula, Copy's source and destination, a Block source, a
+    Pack destination and an Unpack source. laddercodec refuses it. Ruled (closed): the refusal stays, because
+    an instruction holds the address in display form. Decode reads CLICK's edge-space saves. A single Copy's
+    destination and a Pack's destination keep the space, and decode as the address without it. The ratchet
+    keeps these entries with that reason. Both `dec  DS1 = ...` and `dec DS1  = ...` put the space in the Math
+    result.
+  - CLICK refuses an Unpack of a DS into DS with OBJ-004. laddercodec said OBJ-024. Closed: every Unpack
+    destination bank that its source can't unpack to now carries OBJ-004. CLICK confirms it for a DH source
+    into DS and for every source into T, DD and TXT. CLICK gives OBJ-004 for a source from Y, C, T, CT, SC, XD,
+    YD, TD, CTD, SD or TXT. A DS, DD or DF into Y is OBJ-024 (Pack and Unpack order, below).
   - Copy-family bank ids (closed for the answered rows): a bank no row of the field holds is OBJ-004 for a
     Pack destination (answered for X001, SD29 and SD31), an Unpack source (X001) and an Unpack destination
     (X, SC and SD); a single Copy into a bit bank it does not write is OBJ-004 from a bit source (X001 into
@@ -213,15 +231,27 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     `03 -> TXT1` stays in the ratchet at count 1.
   - Open: is Send's TXT count in characters too, and what are its limits? Send has no TXT rule today.
 - **The writable-SD list (closed):** `sc_sd_writable.answers.json` lists 29 SD for a single Copy, a Block Copy
-  and a decimal Math result, none for Out, and 25 SC for Out, none elsewhere. `WRITABLE_SD` holds the 29, and
-  the three fields refuse any other SD with reason `not_writable`: a single Copy with OBJ-004 (answered for
-  SD43, SD105, SD216 and SD1000), a decimal Math result with OBJ-003 (SD62, SD148 and SD999), and a Block
-  Copy when any address of its destination range is not listed. A Block Copy from `DS1..DS2` gives OBJ-018
-  ("read only addresses between") into SD42 and SD147, and OBJ-004 into SD215; the rule fitted to these three
-  is OBJ-018 for an unlisted SD before SD215 and OBJ-004 for one past it, no id for a range with both, and no
-  id for an unlisted start. The sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) are
-  removed: the picker list answers them. Open: CLICK's answer to the last nine `copy.block.destination.banks` cases (a writable start whose range reaches read-only SD, controls inside the list, and a read-only start that ends writable); a Block Copy whose start is not listed, and an unlisted SD
-  below SD29 in each field; a Fill into SD still takes every SD (no answer covers it).
+  and a decimal Math result. It lists none for Out. It lists 25 SC for Out and none elsewhere. `WRITABLE_SD`
+  holds the 29. The three fields refuse any other SD with reason `not_writable`:
+  - a single Copy gives OBJ-004 (answered for SD43, SD105, SD216 and SD1000);
+  - a decimal Math result gives OBJ-003 (SD62, SD148 and SD999);
+  - a Block Copy refuses when any address of its destination range is not listed.
+
+  A Block Copy from `DS1..DS2` gives OBJ-018 ("read only addresses between") into SD42 and SD147, and OBJ-004
+  into SD215. The rule fitted to these three answers is:
+  - OBJ-018 for an unlisted SD before SD215;
+  - OBJ-004 for one past it;
+  - no id for a range with both;
+  - no id for an unlisted start.
+
+  The sweep grids (`math_sd`, `copy_sd_single`, `copy_sd_block`, `out_sc`) are removed, because the picker
+  list answers them. Open questions for CLICK:
+  - the last nine `copy.block.destination.banks` cases: a writable start whose range reaches read-only SD,
+    controls inside the list, and a read-only start that ends writable;
+  - a Block Copy whose start is not listed;
+  - an unlisted SD below SD29 in each field.
+
+  A Fill into SD still takes every SD, because no answer covers it.
 - **The picker's lists for 8 more fields are in:** Pack's destination (with nothing, an X source and a C
   source filled first), Unpack's destination and destination end (with nothing, a DH source and a DS source),
   and a hex Math result. None lists an SC or SD address, and the rules accept none. The 15 `try` cases from
@@ -327,16 +357,25 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       is refused or read as `to_text`.
   - Quoted text with an E into TXT: accepted and encoded as text (Sam, 2026-11-17; item 4).
 - **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
-  SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
+  SC310 and 12 more) with OBJ-003. It accepts SC50 and SC162. `WRITABLE_SC` stands. Out, Set and Reset give
   OBJ-003 for it.
-- **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
-  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends. An end in another
-  bank is OBJ-008 before the end's own checks, even where the field refuses that bank (`C1..DS1`) and
-  where it is a pointer CLICK reads (`Y001..DS[DS1]`; `Y001..X[DS1]` is OBJ-005, and the rules give it no
-  id). Not answered, where the rules now give OBJ-008 before the end's own refusal: an SC bit a coil can't
-  write (`C1..SC1`, which was OBJ-003 for the end) and an immediate range whose end is in another bank
-  (`immediate(Y001..C2)`, which was refused as not immediate). Not answered either: an end outside its bank
-  in another bank (`C1..DS0`), which the rules give the end's bank refusal (OBJ-004).
+- **Ids confirmed:** Out, Set and Reset share one validator. It gives these ids:
+  - OBJ-004 for a bank;
+  - OBJ-008 for a range across banks;
+  - OBJ-009 for an end below the start;
+  - OBJ-012 for the same address at both ends.
+
+  An end in another bank is OBJ-008, and that comes before the end's own checks. It holds where the field
+  refuses that bank (`C1..DS1`) and where the end is a pointer that CLICK reads (`Y001..DS[DS1]`).
+  `Y001..X[DS1]` is OBJ-005, and the rules give it no id.
+
+  Not answered, where the rules now give OBJ-008 before the end's own refusal:
+  - an SC bit that a coil can't write (`C1..SC1`, which gave OBJ-003 for the end before);
+  - an immediate range whose end is in another bank (`immediate(Y001..C2)`, which was refused as not
+    immediate).
+
+  Not answered either: an end outside its bank, in another bank (`C1..DS0`). The rules give it the end's bank
+  refusal (OBJ-004).
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog; an
   id that can't be backed stays None. Open:
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
@@ -358,12 +397,17 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 ## 4. Canonical constants (CLICK)
 
 Addresses are written canonical everywhere, and tested. Math and a single Copy source are written as CLICK
-stores them (`feat/canon-math-copy`): a real as CLICK prints it back, a Copy integer without leading zeros, hex
-in CLICK's case, `$1` as `$01`; hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, naming the
-form to write. A Copy source also follows CLICK's save of `-0` (`0`) and a real's `+` (dropped). A real with
-more significant digits than CLICK keeps (Copy 7, Math 6) is refused, naming CLICK's form, and not rewritten
-(Settled). `constant_text()` writes a Python value in the form the instruction stores, but for such a real,
-which it writes in the fewest digits that hold its float32 value. The other constants are written as typed:
+stores them (`feat/canon-math-copy`):
+- a real as CLICK prints it back;
+- a Copy integer without leading zeros;
+- hex in CLICK's case;
+- `$1` as `$01`.
+
+Hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, and the refusal names the form to write. A
+Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A real with more significant
+digits than CLICK keeps (Copy 7, Math 6) is refused, and the refusal names CLICK's form. It is not rewritten
+(Settled). `constant_text()` writes a Python value in the form that the instruction stores. For such a real,
+it writes the fewest digits that hold its float32 value. The other constants are written as typed:
 - `fill(0ffh,...)`, `fill(005,...)`;
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
@@ -520,22 +564,22 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 
 ## Settled (don't reopen)
 
-- **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`; never rewrite them as CLICK's dialog does
+- **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`. Never rewrite them as CLICK's dialog does
   (`7h`, `77h`). The error names the fix.
-- **Canonical constants (Sam, 2026-11-16):** the encoder writes the form CLICK's dialog stores wherever its
-  correction keeps the meaning, a typed `+` and a hex Copy source's leading zeros included; where it would change
-  what the CSV says (hex Math digits without `h`, a Copy `EH` or `1Eh`), the text is refused and the message names
-  the fix.
+- **Canonical constants (Sam, 2026-11-16):** the encoder writes the form that CLICK's dialog stores, wherever
+  that correction keeps the meaning. That includes a typed `+` and a hex Copy source's leading zeros. Where the
+  correction would change what the CSV says (hex Math digits without `h`, a Copy `EH` or `1Eh`), the encoder
+  refuses the text, and the message names the fix.
 - **Hex Math words without `h` (Sam):** CLICK reads a word of hex digits typed without `h` as a hex constant:
   `abc`, `5`, `-5`, `005`, `C0`, `DD0`, `DF0`, `1E5`, `1-2`, `RAND(5,Ah)`, and `DH0` as `D0h`. laddercodec
-  keeps refusing them: a CSV says what it means, and `DH0` meaning `D0h`, or `10` meaning 16, is what to
-  refuse. `DISAGREEMENTS` keeps them as kept differences.
+  keeps refusing them. A CSV says what it means, so laddercodec refuses `DH0` meaning `D0h` and `10` meaning
+  16. `DISAGREEMENTS` keeps them as kept differences.
 - **Copy into DS of text that isn't a number (Sam):** CLICK takes `1E`, `E5`, `"HELLO"`, `"E"`, `"e"` and
-  `"1E5"` as a Copy source into DS1 and stores the real it parses them to (0.0, or 1.0 for `1E`).
-  laddercodec keeps refusing these six: DS is an integer, so a real such as 0.0 or 1.0 is no source for a
-  Copy into DS1, and typing a valid constant can't make that rung, since 0.0 into DS becomes 0.
+  `"1E5"` as a Copy source into DS1. It stores the real that it parses them to (0.0, or 1.0 for `1E`).
+  laddercodec keeps refusing these six. DS is an integer, so a real such as 0.0 or 1.0 is no source for a
+  Copy into DS1. Typing a valid constant can't make that rung either, because 0.0 into DS becomes 0.
   `DISAGREEMENTS` keeps them as kept differences.
-- **A bare number copied into TXT (Sam):** `copy(5,TXT1)` is refused; it needs `to_text`.
+- **A bare number copied into TXT (Sam):** `copy(5,TXT1)` is refused. It needs `to_text`.
 - **Rule codes (Sam):** the codes are kebab-case names in `.code`, with CLICK's id in `.click_id`, and `allow=`
   takes the name, never the id.
 - **A real constant with more significant digits than CLICK keeps** (Copy 7, Math 6) is refused, naming
