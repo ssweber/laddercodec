@@ -111,7 +111,7 @@ class Timer(PinnedInstruction):
                 check.refuse(
                     ("retained", "kind"),
                     "an off_delay timer can't be retentive. Use on_delay for a retentive "
-                    "timer, or remove the .reset() row (retained=False).",
+                    "timer. Otherwise remove the .reset() row, or set retained=False.",
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )

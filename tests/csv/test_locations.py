@@ -327,7 +327,15 @@ class TestConverterPins:
             ("", _wired("C97"), ".down()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "not supported for shift", line=3, rung_line=2, row=1, column=AF)
+        _raises(
+            path,
+            CsvError,
+            r"shift\(\) has no \.down\(\) pin",
+            line=3,
+            rung_line=2,
+            row=1,
+            column=AF,
+        )
 
     def test_pin_out_of_order(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [

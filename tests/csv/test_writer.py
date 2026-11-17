@@ -566,7 +566,7 @@ class TestDecodedRungToRows:
         )
 
         with pytest.raises(
-            WriterError, match="shift on row 0 is 3 rows tall, but the rung has only 2 rows"
+            WriterError, match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows"
         ):
             decoded_rung_to_rows(rung)
 

@@ -813,7 +813,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match="not supported for shift"):
+        with pytest.raises(CsvError, match=r"shift\(\) has no \.down\(\) pin"):
             _literal(rung)
 
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:

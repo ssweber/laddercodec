@@ -115,7 +115,7 @@ SYNTAX = [
     ("on_delay(,TD1)", "missing preset or unit"),
     ("count_up(CT1,CTD1,preset=,)", "Positional arg after keyword arg"),
     ("call(,)", r"Could not read 'call\(,\)' as a Call instruction"),
-    ("toggle(C1,on_acc=)", "toggle takes no keyword arguments"),
+    ("toggle(C1,on_acc=)", r"toggle takes only the coil.s address"),
 ]
 
 
@@ -157,7 +157,8 @@ def test_a_blank_argument_is_its_field_missing(
     want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=AF)
     for error in raised.value.errors:
         assert error.reason is Reason.MISSING
-        assert "is blank" in str(error)  # the same text that a blank field raises in Python
+        # The same text that a blank field raises in Python.
+        assert re.search(r"^[^:]+: (The [a-z ]+ )?is blank", str(error))
         assert CsvLocation.of(error) == want
 
 

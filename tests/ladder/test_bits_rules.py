@@ -686,7 +686,7 @@ class TestOutVariant:
         timed()
 
     def test_csv_refuses_unused_field(self) -> None:
-        with pytest.raises(ValueError, match="toggle takes no keyword arguments"):
+        with pytest.raises(ValueError, match="toggle takes only the coil.s address"):
             OutVariant.from_csv_token("toggle(C1,on_acc=TD1)")
         with pytest.raises(ValueError, match="does not support keyword"):
             OutVariant.from_csv_token("timed(C1,on_acc=TD1,on_preset=5,off_acc=TD2,unit=Tms)")

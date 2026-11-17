@@ -222,7 +222,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
             raise at(
                 CsvError(
                     f"{pin_name}() is not a pin token. Write one of "
-                    f"{', '.join(f'{p}()' for p in sorted(KNOWN_PIN_NAMES))}."
+                    f"{', '.join(_pin_form(p) for p in sorted(KNOWN_PIN_NAMES))}."
                 ),
                 column=AF_COLUMN,
             )
@@ -286,6 +286,11 @@ def _call_name(token: AfInstruction) -> str:
     return f"{token.to_csv().split('(', 1)[0]}()"
 
 
+def _pin_form(pin_name: str) -> str:
+    """Return how a pin row writes *pin_name* in column AF, such as ``.reset()``."""
+    return ".jump(DS1)" if pin_name == ".jump" else f"{pin_name}()"
+
+
 def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstruction) -> bool:
     """Take *row* into a pinned block if it belongs there, and return whether it did.
 
@@ -301,10 +306,17 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
     """
     order = token.pin_names()
     if row.kind == "nop" and token.lead_rows:
-        if block.lead_conditions or block.continuations:
+        name = _call_name(token)
+        if block.lead_conditions:
             raise CsvError(
-                f"{_call_name(token)}: the row with NOP in column AF is the box's Down "
-                f"input. Put that row directly under the {_call_name(token)} row."
+                f"{name}: the row with NOP in column AF makes the {name} row the box's "
+                f"unused Up row. The blank-AF row directly above the {name} row would be "
+                f"that Up row too. Leave no blank-AF row directly above the {name} row."
+            )
+        if block.continuations:
+            raise CsvError(
+                f"{name}: the row with NOP in column AF is the box's Down input. Put that "
+                f"row directly under the {name} row."
             )
         block.lead_conditions = [block.main_conditions]
         block.main_conditions = row.conditions
@@ -319,7 +331,12 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
         return False
     pin_name = cast(str, row.pin_name)
     if pin_name not in order:
-        raise CsvError(f"Pin token {pin_name!r} is not supported for {_call_name(token)}")
+        pins = (
+            f"Its only pin is {_pin_form(order[0])}."
+            if len(order) == 1
+            else f"Its pins are {', '.join(_pin_form(p) for p in order)}, in that order."
+        )
+        raise CsvError(f"{_call_name(token)} has no {_pin_form(pin_name)} pin. {pins}")
     remaining = order[order.index(seen[-1]) + 1 :] if seen else order
     if pin_name not in remaining:
         raise CsvError(

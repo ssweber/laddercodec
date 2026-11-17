@@ -221,7 +221,7 @@ def _emit_pinned_block(
     needed = start + height
     if len(condition_rows) < needed or len(af_tokens) < needed:
         raise WriterError(
-            f"{name} on row {start} is {height} rows tall, but the rung has only "
+            f"{name} on row {start} from 0 is {height} rows tall, but the rung has only "
             f"{len(condition_rows)} rows"
         )
     for offset in range(1, height):
@@ -284,7 +284,7 @@ def _emit_generic_tall_block(
     needed = start + visual_rows
     if len(condition_rows) < needed or len(af_tokens) < needed:
         raise WriterError(
-            f"{type(af).__name__} on row {start} is {visual_rows} rows tall, but the rung has "
+            f"{type(af).__name__} on row {start} from 0 is {visual_rows} rows tall, but the rung has "
             f"only {len(condition_rows)} rows"
         )
 

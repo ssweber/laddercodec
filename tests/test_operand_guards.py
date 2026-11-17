@@ -381,7 +381,6 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "comparison.py",
         "CsvError(f('Could not read {token!r} as a compare contact. Write two operands joined by ==, !=, <, >, <= or >=, such as DS1==1.'))",
     ): 1,
-    ("copy.py", "CsvError(f(\"Expected range with '..': {arg!r}\"))"): 1,
     ("copy.py", "WriterError(f('Unknown convert: {self.convert!r}'))"): 1,
     ("copy.py", "CsvError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
     ("copy.py", "CsvError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))"): 1,
@@ -413,15 +412,19 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ): 1,
     (
         "copy.py",
-        "CsvError(f(\"Could not read the range {arg!r}. Write two addresses joined by '..', such as DS1..DS10.\"))",
-    ): 1,
-    (
-        "copy.py",
         "CsvError(f('Could not read convert={raw}. Write to_value, to_ascii, to_text(...) or to_binary(...), such as convert=to_value.'))",
     ): 1,
     (
         "copy.py",
         "CsvError(f('Could not read {token!r} as a copy. Write it as copy(source,dest), such as copy(DS1,DS2).'))",
+    ): 1,
+    (
+        "copy.py",
+        "CsvError(f(\"Could not read the range {arg!r}. Write the {role} of {name} as two addresses joined by '..', such as DS1..DS10.\"))",
+    ): 1,
+    (
+        "copy.py",
+        "CsvError(f(\"{arg!r} is not a range. Write the {role} of {name} as two addresses joined by '..', such as DS1..DS10.\"))",
     ): 1,
     (
         "counter.py",
@@ -485,7 +488,6 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "math.py",
         "CsvError(f('math expects 2 positional args (expression, dest), got {len(call.args)}'))",
     ): 1,
-    ("out_variant.py", "CsvError(f('toggle takes no keyword arguments: {token!r}'))"): 1,
     (
         "out_variant.py",
         "CsvError(f('{kind} does not support keyword argument(s): {sorted(unknown)}'))",
@@ -502,6 +504,10 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     (
         "out_variant.py",
         'CsvError(f("Could not read {token!r}. After the coil\'s address, {kind} takes only keyword arguments, such as on_acc=TD1."))',
+    ): 1,
+    (
+        "out_variant.py",
+        'CsvError(f("Could not read {token!r}. toggle takes only the coil\'s address, such as toggle(C1) or toggle(immediate(Y001))."))',
     ): 1,
     ("position.py", "CsvError(f('Not a Position token: {token!r}'))"): 1,
     ("position.py", "CsvError(f('Not a raw Position token: {token!r}'))"): 1,

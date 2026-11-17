@@ -181,7 +181,9 @@ def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:
 
 def test_timer_rejects_foreign_pin(tmp_path: Path) -> None:
     rows = _csv_rows("on_delay(T1,TD1,preset=3000,unit=Tms)", 2, (".down()",))
-    with pytest.raises(CsvError, match="not supported for on_delay"):
+    with pytest.raises(
+        CsvError, match=r"on_delay\(\) has no \.down\(\) pin. Its only pin is \.reset\(\)"
+    ):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 

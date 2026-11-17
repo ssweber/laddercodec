@@ -639,7 +639,7 @@ def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> N
     with warnings.catch_warnings():
         warnings.simplefilter("error", UndecodedRungWarning)
         with pytest.raises(
-            WriterError, match="shift on row 0 is 3 rows tall, but the rung has only 2 rows"
+            WriterError, match="shift on row 0 from 0 is 3 rows tall, but the rung has only 2 rows"
         ):
             write_csv(tmp_path / "m.csv", [RUNGS[0], rung])
 

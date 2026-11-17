@@ -259,6 +259,11 @@ class OutVariant(AfInstruction):
             raise CsvError(f"{kind} needs a target operand: {token!r}")
 
         arg = parts[0]
+        if kind == "toggle" and len(parts) > 1:
+            raise CsvError(
+                f"Could not read {token!r}. toggle takes only the coil's address, such as "
+                "toggle(C1) or toggle(immediate(Y001))."
+            )
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
@@ -270,8 +275,6 @@ class OutVariant(AfInstruction):
             kwargs[k.strip()] = v.strip()
 
         if kind == "toggle":
-            if kwargs:
-                raise CsvError(f"toggle takes no keyword arguments: {token!r}")
             inner = re.fullmatch(r"immediate\((.+)\)", arg)
             if inner:
                 return cls(kind="toggle", operand=inner.group(1).strip(), immediate=True)
