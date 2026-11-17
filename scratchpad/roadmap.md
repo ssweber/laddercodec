@@ -8,7 +8,7 @@ Each item says what it needs: **nothing** (code only), **CLICK** (the CLICK soft
 runner or Sam), **PLC** (a real PLC), **Sam** (his judgment), or **another repo**. Work that needs nothing is
 never queued behind work that needs Sam.
 
-Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it.
+Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on it; updated 2026-11-17.
 
 ## How work runs here
 
@@ -35,19 +35,19 @@ Written 2026-11-15, after 0.4.0, from the post-release plan and Sam's rulings on
 
 Done: the cruft sweep, the undecoded marker (#38), the field-rule restructure (#43-#51) and the field error
 pyrung reads (#55-#60: every instruction reports every refusal, with its fields, reason, CLICK id and, through
-`read_csv`, a location on each). The next release, Sam's, carries it. Item 2, decoding that does not depend on
-the checks, is done too: a stored instruction that breaks a dialog rule decodes as that instruction with a
+`read_csv`, a location on each). The next release, Sam's, carries it. Decoding that does not depend on
+the checks is done too: a stored instruction that breaks a dialog rule decodes as that instruction with a
 `RefusedFieldWarning`, and `read_csv(..., unchecked=True)` reads what `write_csv` writes for it.
 
 Sam's direction of 2026-11-16: pyrung's CLICK validation moves onto laddercodec first, ahead of its export and
 import. pyrung builds laddercodec's objects and turns each refusal into a finding; its own bank tables go.
 
 1. The field error's follow-ups. pyrung's validation waits only on a release with the error.
+2. API cleanup, in the order below. It is provisional until laddercodec and pyrung release together.
 3. Field rules tightened to the CLICK grids, as the grids arrive.
 4. Canonical constants, once CLICK has answered (the runner is asking now). It can run beside 1-3.
 
-The stable public API and the SCR blob dataclass fit in wherever they are ready. pyrung's export needs come
-later (below).
+The SCR blob dataclass fits in wherever it is ready. pyrung's export needs come after the API cleanup (below).
 
 laddercodec refuses what CLICK's editor refuses, plus what breaks the encoding or crashes CLICK on a paste. A
 rule that rests on what a PLC does stays in pyrung.
@@ -69,20 +69,58 @@ checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
   proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
   where no single stretch is at fault (empty, the length, a `(` left open, the mode conflict); a range refusal
   spans its `A : B`, SUM's CT and X/Y refusals the range argument. It is new public API.
-- **The blanks a CSV token still reads as syntax:** a blank argument is now its field `missing` where it fills
-  one text field or a range (a range with a blank end, `..DS4`, too). The family parsers check these before
-  construction, so a blank is a syntax error with no field, where Python says `missing`: a Timer or time drum
-  `unit=` (an Out variant's reads as `missing`, an event drum's is accepted), a Math `mode=`, a time-event drum
-  `accumulator=`, a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a
-  search expression (`search(,result=DS1,found=C1)`). Reading them as `missing` means changing `timer.py`,
-  `drum.py`, `math.py`, `search.py` and `send_receive.py`.
+- **The blanks a CSV token still reads as syntax:** a blank argument is its field `missing` where it fills one
+  text field or a range (a range with a blank end, `..DS4`, too), and a blank `oneshot=` or `maintained=` is
+  `missing` in every family, `out` and `for` included. The Timer `unit=` and Drum `unit=`, accumulator and
+  pattern value checks are made at construction. An absent keyword stays a `CsvError` (ruled). Still a syntax
+  error with no field, where Python says `missing`:
+  - a blank `unit=` in a Timer or time drum, and a blank Math `mode=` (a Math `mode=` that is neither
+    `decimal` nor `hex` is a `CsvError` too);
+  - a drum list (`outputs=`, `presets=`, `events=`, `pattern=`), a whole Modbus `target=` and a search
+    expression (`search(,result=DS1,found=C1)`).
+
+  Reading them as `missing` means changing `timer.py`, `drum.py`, `math.py`, `search.py` and
+  `send_receive.py`. Also:
   - A token with blanks of two forms, a range and a single field (`pack_bits(,)`, `unpack_to_bits(,)`), stays a
     syntax error: every blank in a token is tried in the same form.
   - Condition tokens are not read for blanks: `rise()`, `DS1==` and `~` are syntax errors.
-  - `oneshot=` is the default in Copy, Pack, Unpack, Fill, Search and Math but a syntax error in `out` and
-    `for` (as is `maintained=` in `timed`).
   - The coil parser drops a blank argument: `out(C1,)` is accepted, and `out(,oneshot=)` reads `oneshot=` as
     the operand, an `address` refusal.
+- **One parser per token.** Each family's `from_csv_token` parses with its own regex, and twice one has
+  disagreed with `read_csv` (`Copy.from_csv_token` refuses quoted `"A,B"`, `"A=B"`, `"(A"` and `"A\nB"`). Route
+  every `from_csv_token` through `parse_af_token` and `parse_af_call`, and the condition tokens through their
+  equivalent, so one parser reads each token.
+- **Token-syntax class split.** Some token-syntax errors are a `CsvError` and others a `FieldError` with no
+  field. Pick one class for a token that is not syntax.
+- **Rung names.** A refusal `encode()` raises does not name the rung it came from.
+- **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`; it should be a
+  `FieldError`.
+- **Drum wording.** A time-event drum with events only is refused as `Drum.presets: 0 steps`, and the guide does
+  not say a time drum's blank `accumulator=` is a `FieldError`.
+
+## 2. API cleanup (nothing; provisional until the joint release)
+
+Sam's rule (2026-11-17): the API stays open to change from pyrung's feedback, as pyrung's validation branch
+adopts it, until laddercodec and pyrung release together. Every merged change here is provisional until then.
+
+- **Done:**
+  - the error tree and `decode()` returning a list (#94);
+  - Timer and Counter (#95), Contact and Coil (#97), Drum (#98) and Math, Search, ForLoop and `raw` (#99)
+    taking their CSV names;
+  - one CSV flag rule for every family (`check_csv_flag`).
+- **In flight:** the Copy-family names (Copy, BlockCopy, Pack, Unpack).
+- **Next, in order:**
+  1. Ids. A `.code` on every refusal, as the kebab-case names Sam approved in the code-names list, with CLICK's
+     id in `.click_id`; `allow=` takes the name. On `Finding`, `kind` becomes `code` and `code` becomes
+     `click_id`; a `LayoutError` gets both. Email, Home, Position and Velocity are marked provisional here.
+  2. Frozen instructions: instructions get `frozen=True`, and a public `laddercodec.replace(inst, **changes)`
+     keeps the held blob and refusals when nothing changes and checks again when something does. Drum's lists
+     are tuples already, so only the `wire_down` writes in the decoders go through `rebuilt()`.
+  3. The rung grid: a frozen `Rung` with a tuple grid, and `wire_down` moves into the grid. This comes before
+     the export pieces.
+  4. Then pyrung's export needs (below).
+- **Before release (Sam):** review the code-names list as a user. For each name: the name, one plain sentence
+  in CLICK's words, and one example.
 
 ## 3. Field rules tightened to the CLICK grids (CLICK)
 
@@ -322,15 +360,21 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 Addresses are written canonical everywhere, and tested. Math and a single Copy source are written as CLICK
 stores them (`feat/canon-math-copy`): a real as CLICK prints it back, a Copy integer without leading zeros, hex
 in CLICK's case, `$1` as `$01`; hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, naming the
-form to write. A Copy source also follows CLICK's save of `-0` (`0`), a real's `+` (dropped) and a real typed
-in exponent form that 7 significant digits don't print exactly (written in 7: `3.4028235E+38` is `3.402823E+38`,
-a slightly smaller value), `fix/copy-constants`. `constant_text()` writes a Python value in that form, but for
-such a real, which it writes in the fewest digits that hold its float32 value. The other constants are written as typed:
+form to write. A Copy source also follows CLICK's save of `-0` (`0`) and a real's `+` (dropped). A real with
+more significant digits than CLICK keeps (Copy 7, Math 6) is refused, naming CLICK's form, and not rewritten
+(Settled). `constant_text()` writes a Python value in the form the instruction stores, but for such a real,
+which it writes in the fewest digits that hold its float32 value. The other constants are written as typed:
 - `fill(0ffh,...)`, `fill(005,...)`;
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
 
 Modbus hex addresses are already canonical.
+
+Follow-ups (nothing):
+- `constant_text()` can return a form a Math or a Copy refuses (more than 6 or 7 significant digits). A
+  public helper would give CLICK's form for a value.
+- The OBJ-1009 message names 3.402823466E+38, which the 6-digit rule itself refuses. Reword it once the largest
+  real in Math is answered (Open CLICK questions).
 
 Open: does a clipboard copy-back of a dialog-made Copy carry tag 0x1201 as "0"? The clipboard form natively
 writes "0" (tumbler), and the SCR form keeps it empty or leaves it out; a pasted block Copy was saved without
@@ -344,12 +388,7 @@ Then one behaviour-change branch per answer set, as for Math and Copy.
 - **Reals in exponent form.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math
   and a Copy: is the switch to exponent form between 1E6 and 1E7 (the code's 1E+07), and does CLICK write
   `1E+07`, `1.0E+07` or `1E7`? The code writes a real positionally below 1E+07 and from 1E-04 up, and keeps any
-  other as typed, but for a Copy real typed in exponent form that 7 digits don't print exactly (below).
-- **More than 7 significant digits.** A Copy stores `3.4028235E+38` as `3.402823E+38`, so the code writes a Copy
-  real typed in exponent form in 7 digits where they don't print it exactly; `constant_text()` keeps the digits
-  that hold the value, which a Math keeps and a Copy rounds. Open: typed `1234567.89`, `0.123456789` and `0.30000001` in a Math and a Copy,
-  and an exponent-form real with more than 7 digits in a Math. The code keeps the first two as typed (7 digits
-  are another float32 value), writes the third `0.3` (the same float32 value), and keeps the last as typed.
+  other as typed.
 - **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math. The code writes `+2.5`. A Copy drops
   a real's `+` (`+1.5` is `1.5`), and the code writes `2.5` there.
 - **Integer `-00` in a Copy:** CLICK stores `-0` as `0`; the code writes `-00` as `0` too, not answered.
@@ -380,8 +419,6 @@ case is in the `copy_single` and `math_decimal` answers; the code is unchanged u
 
 Each is a dialog check or a capture. Until answered, the code keeps the behaviour named.
 
-- **Copy Binary on the type-7 pairs.** CLICK's dialog offers Copy Binary for CTD to DF, DF to CTD, a real into DD or CTD, and a wide integer into DF; `Copy._check_format` refuses `to_binary` for them, as it did before this branch. Ask what each pair saves, then accept the ones CLICK saves.
-
 - **Receive into Y101 or later from a CLICK C, T, CT or SC address.** The count room there may be 0 (every count
   refused). The code uses the slot run (Y101 from T1 gives 16) and, for C, the C room. Check Y101 from C1 with
   17 and with 102 elements, and Y101 from T1 with 1 element.
@@ -397,9 +434,9 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   The fitted list (`_xy_bound`) now only writes the reserved slots. Open: a span of more than two expansion slots,
   a Y range that starts in the option slot, and the lists CLICK stores on a CPU with I/O modules, where the rule
   may refuse ranges CLICK stores right or accept ones it stores wrong.
-- **Real constants:** a Copy source takes `3.4028235E+38` and refuses `3.4028236E+38` (OBJ-005); a decimal
-  Math refuses both (OBJ-1009), the first a follow-up in item 3. Where exactly is a Math's edge? Compare
-  accepts `3.5E+38`.
+- **Largest real in Math:** does a decimal Math take `3.40282E+38` and refuse `3.40283E+38` into DF1, and is
+  it saved as typed? The code takes the first and refuses the second with OBJ-1009. Compare accepts
+  `3.5E+38`.
 - **Fill with hex above FFFFh:** does the Fill dialog take such a constant, and into which banks? A single
   Copy puts it into DD or CTD only; the code's Fill takes it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
@@ -407,12 +444,24 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the
   TXT its text ends in (item 3 has the open cases). What does a Fill of such a number store? The code
   accepts it.
-- **Text outside printable ASCII:** do the Copy and Fill dialogs take quoted text with a character outside
-  space to `~` (an accented letter, a control character)? The code refuses it.
+- **Fill text and a bare number:** `fill(5,TXT1..TXT2)` with no option touched: what does the dialog default
+  to and save? Does Fill take quoted text with a character outside space to `~` (`"é"`, a tab)? The code
+  accepts the bare number and refuses both characters. It also accepts a real with more than 7 significant
+  digits as typed (`fill(1234567.8,DF1..DF2)`), where a Copy refuses it.
 - **Quoted text with an `E`:** the Copy dialog reads such text as a number: `"HELLO"`, `"E"`, `"e"` and
   `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled), and `"HELLO"` into TXT1 is stored 0.0 too,
   filling TXT1..TXT3 (item 4). The code accepts and encodes the text as typed into TXT, as ruled (Sam,
-  2026-11-17). Open: does Fill do the same, and what does CLICK keep when such a Copy is pasted?
+  2026-11-17). Open: does Fill do the same?
+- **Trailing zero in a real into TXT:** `copy(1.50,TXT1,...)` with real numbering, and `1.50` into TXT998:
+  does CLICK save the source as `1.50` or `1.5`, and where is the end (TXT3, TXT4; TXT1000 or refused)? The
+  code reads `1.5`, counts 3 characters and accepts TXT998.
+- **Characters above U+FFFF:** a source `"😀"` (U+1F600) into TXT1: accepted, saved how, and which TXT is the
+  end? The code refuses it.
+- **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary: offered? What
+  does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
+- **Digits away from 0.333333 in Math:** does a decimal Math keep `1234567.0` and `0.000012345678` into DF1,
+  and what does the saved formula hold (`1234570.0`, `1.23457E+06`, `0.0000123457`, `1.23457E-05`)? The code
+  refuses both, naming `1234570.0` and its own print.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -423,7 +472,7 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 
 ## For pyrung's export (later; another repo first)
 
-From the ecosystem plan's item 2; each waits until pyrung's export reaches it, after items 1-3.
+From the ecosystem plan's item 2; each waits until pyrung's export reaches it, after items 1-3 and the API cleanup.
 
 - An entry that takes a series-parallel tree and returns rows. The private `_layout.render.render` does this,
   but takes a `Network` beside the `RungTree`.
@@ -462,16 +511,12 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 
 ## Stable public API (nothing; ClickNick follows)
 
-- **Approved by Sam.**
-  - `laddercodec.__all__`, plus the names ClickNick reaches past it for, moved to the top level:
-    - `UnknownCondition` and `UnknownInstruction`;
-    - `DecodeError`, `WriterError`, `ConvertError`;
-    - `Email`, `Home`, `Position` and `Velocity`, which exist but aren't exported.
-  - ClickNick also imports `laddercodec.model.Program`, `encode.AfToken`/`ConditionToken`,
-    `csv.contract.CONDITION_COLUMNS` and `csv.writer.decoded_rung_to_rows`. Either these move to the top level
-    or ClickNick stops using them.
-  - Everything else is internal. A test pins `__all__`. Message text is not part of the API.
-  - This fits the plan's "named imports" direction.
+The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `CsvError` (was `ConvertError`),
+`DecodeError`, `WriterError`, `AfToken`, `ConditionToken`, `Email`, `Home`, `Position` and `Velocity`. Still open:
+- ClickNick also imports `csv.contract.CONDITION_COLUMNS` and `csv.writer.decoded_rung_to_rows`. Either these
+  move to the top level or ClickNick stops using them.
+- Email, Home, Position and Velocity are to be marked provisional, with no renames (API cleanup, ids).
+- Everything else is internal. A test pins `__all__`. Message text is not part of the API.
 
 ## Settled (don't reopen)
 
@@ -490,6 +535,13 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
   laddercodec keeps refusing these six: DS is an integer, so a real such as 0.0 or 1.0 is no source for a
   Copy into DS1, and typing a valid constant can't make that rung, since 0.0 into DS becomes 0.
   `DISAGREEMENTS` keeps them as kept differences.
+- **A bare number copied into TXT (Sam):** `copy(5,TXT1)` is refused; it needs `to_text`.
+- **Rule codes (Sam):** the codes are kebab-case names in `.code`, with CLICK's id in `.click_id`, and `allow=`
+  takes the name, never the id.
+- **A real constant with more significant digits than CLICK keeps** (Copy 7, Math 6) is refused, naming
+  CLICK's form, and never rewritten.
+- **Text past TXT1000** stays refused (OBJ-003), though CLICK takes a pasted one.
+- **Search keeps `op` and Call keeps `subroutine`** as field names.
 - **`feat/productivity-codec`** stays as a branch for now.
 - **A last rung of only wires in an SCR save:** it can't be told from CLICK's own trailing empty rungs (both are
   records with no instruction and no comment, byte-identical; CLICK keeps 1 to 4 trailing empties), so
@@ -501,7 +553,11 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
   change) as a dev-only dependency. It must convert units: XD here is 0-8 plus `u`, in pyclickplc 0-16 Modbus
   units. Don't compare `WRITABLE_SC`: pyclickplc's means writable in Data View, a different fact from the
   ladder-writable list here.
-
+- **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
+  token.
+- **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
+- **Small cleanups.** `tests/csv/test_flag_keywords.py` has no `read_csv(unchecked=True)` case with a
+  location; `devtools/classify_dryrun.py` keeps the internal `for_limit_*` names.
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches, since
   their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them or wire them.
 - **Search's refusal message** says "is a integer value". Fix the article.

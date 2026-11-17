@@ -483,8 +483,9 @@ are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere 
 is the value written (`copy(..,DS1)` is refused as an address). These blanks are
 still syntax errors, with no `field`: a Timer or time drum `unit=`, a Math `mode=`,
 a drum list, a whole Modbus `target=`, a search
-expression, a blank flag in `out` or `for` (`oneshot=`), and a blank argument the
-token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way.
+expression, and a blank argument the
+token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way. A blank flag
+(`oneshot=`, `maintained=`) is `missing` in every instruction.
 
 Producer may emit:
 
