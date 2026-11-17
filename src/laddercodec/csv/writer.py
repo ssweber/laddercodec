@@ -15,9 +15,10 @@ Layout
 When laddercodec can lay out a rung, the writer writes it as CLICK's syntax
 check draws it (``docs/internals/layout.md``), and the file reads back to
 exactly that drawing.  If CLICK would split the rung, the writer writes the
-rungs that CLICK splits it into.  laddercodec cannot lay out a rung that
-``laddercodec.check()`` reports, and the writer writes such a rung with its
-cells where they are.
+rungs that CLICK splits it into.  A rung that has no layout keeps its cells
+where they are.  That happens when it holds only wires and unwired NOPs, when
+the layout cannot draw it, or when ``laddercodec.check()`` reports a finding
+other than an unwired box input or a contact that feeds only a NOP.
 
 Pin row reconstruction
 ----------------------
@@ -436,8 +437,10 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     When laddercodec can lay out the rung, it is written as CLICK's syntax
     check draws it.  If CLICK would split the rung, the rows hold one rung per
     part, each starting with an ``R`` row, and the comment goes on the first.
-    laddercodec cannot lay out a rung that ``laddercodec.check()`` reports,
-    and such a rung is written with its cells where they are.
+    A rung that has no layout keeps its cells where they are.  That happens
+    when it holds only wires and unwired NOPs, when the layout cannot draw it,
+    or when ``laddercodec.check()`` reports a finding other than an unwired
+    box input or a contact that feeds only a NOP.
 
     A retained timer writes a ``.reset()`` pin row on its reset input's row,
     which is the second grid row by default.  A rung can hold several tall or
@@ -522,8 +525,9 @@ def write_csv(
 
     When laddercodec can lay out a rung, it is written as CLICK's syntax check
     draws it.  If CLICK would split a rung, the file holds the rungs it splits
-    into, so the file can hold more rungs than *rungs*.  A rung that
-    ``laddercodec.check()`` reports is written with its cells where they are.
+    into, so the file can hold more rungs than *rungs*.  A rung that has no
+    layout is written with its cells where they are (see
+    :func:`decoded_rung_to_rows`).
 
     No CSV token can hold the bytes of an unknown condition or instruction.
     A rung that holds one is written as an undecoded marker rung, with an

@@ -47,8 +47,9 @@ class FieldError(LaddercodecError):
 
     An instruction runs its checks when it is built.  If its checks refuse any values, it
     raises one error for the first refusal, and the :attr:`errors` of that error holds
-    every refusal.  The decoders' ``from_tags`` dispatchers catch the error and leave the
-    blob unparsed.  The message is for people and may change.  Read the attributes
+    every refusal.  A decoder that meets this error keeps the instruction and its
+    refusal.  A blob that no stored instruction holds, such as an address not in display
+    form, stays unparsed.  The message is for people and may change.  Read the attributes
     instead.
 
     Attributes

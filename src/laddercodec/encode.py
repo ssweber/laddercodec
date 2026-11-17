@@ -38,7 +38,8 @@ Condition:
 NOP:
     The simplest AF-column instruction. A rung holds at most one. The
     encoder writes it as flags: +0x1D = 1 in column 31 of the NOP's row,
-    and +0x15 = 1 in column 0 of that row if it is not the first row.
+    and +0x15 = 1 in column 0 of that row if it is not the first row and
+    the rung holds no other instruction.
     A NOP needs no entry in the instruction stream.
 
 Comment:

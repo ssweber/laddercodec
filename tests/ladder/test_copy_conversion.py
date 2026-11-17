@@ -54,8 +54,8 @@ def _tags(blob: bytes) -> dict[int, str]:
 
 
 #: Each case is a save that CLICK answered: the case name, the CSV that decode writes for it,
-#: and the conversion type and end that the encoder writes for that CSV. The encoder writes
-#: what CLICK saved, except where no CLICK answer shows the rule.
+#: and the conversion type and end that the encoder writes for that CSV. Both match what
+#: CLICK saved for that case.
 SAVES = [
     ("single 1.5 -> DD1", "copy(1.5,DD1)", "7", ""),
     ("single 1.5 -> DD[DS1]", "copy(1.5,DD[DS1])", "7", ""),
