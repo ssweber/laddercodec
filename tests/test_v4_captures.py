@@ -454,13 +454,19 @@ REFUSED_XY_RANGES = frozenset(
         "SUM ( X025 : X101 )",
     }
 )
-#: The rule each refusal states, after the range.
-XY_RANGE_RULE = (
-    r"is refused; an? (?P<b>[XY]) range may not start or end in (?P=b)021-(?P=b)036, except a "
-    r"range from (?P=b)001-(?P=b)016 to (?P=b)021, a range of one point, or a range of two "
-    r"points numbered one apart: on a CPU with no I/O modules, CLICK stores the wrong points "
-    r"for any other such range"
-)
+
+
+def xy_range_message(formula: str) -> str:
+    """What a refusal says after the range: the ends in 021-036, and that CLICK sums the wrong
+    bits."""
+    start, end = formula.split()[2], formula.split()[4]
+    bank = start[0]
+    ends = [e for e in (start, end) if 21 <= int(e[1:]) <= 36]
+    named = f"{ends[0]} is" if len(ends) == 1 else f"{ends[0]} and {ends[1]} are"
+    return (
+        f"is refused: {named} in the option slot ({bank}021-{bank}036), and CLICK sums the "
+        f"wrong bits for this range."
+    )
 
 
 def _points_between(formula: str) -> list[str]:
@@ -504,7 +510,7 @@ def test_math_xy_range_refused_for_an_option_slot_end(
         assert af == Math(formula, "DS1")
         assert not refusals(af)
         return
-    match = f"^Math.expression: {re.escape(formula)} {XY_RANGE_RULE}"
+    match = f"^Math.expression: {re.escape(formula)} {re.escape(xy_range_message(formula))}$"
     with pytest.raises(FieldError, match=match):
         Math(formula, "DS1")
     assert isinstance(af, Math)
