@@ -243,8 +243,12 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Coil range over SC:** does Compile refuse an SC range with read-only bits between its ends?
 - **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored. (Whether the dialog
   accepts them is item 3's grids; this is what a paste stores.)
-- **Math X/Y range members:** a span of more than two expansion slots, and a Y range that starts in the option
-  slot. The fitted rule covers every capture so far.
+- **Math X/Y range members:** the refusal is one rule, not the fitted member list: an X or Y range with an end
+  in 021-036 is refused, except one from the CPU slot to 021, one of one point, and one of two points numbered
+  one apart (X025 : X026; X036 : X101 is refused).
+  The fitted list (`_xy_bound`) now only writes the reserved slots. Open: a span of more than two expansion slots,
+  a Y range that starts in the option slot, and the lists CLICK stores on a CPU with I/O modules, where the rule
+  may refuse ranges CLICK stores right or accept ones it stores wrong.
 - **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
   it; Compare accepts `3.5E+38`.
 - **Fill with hex above FFFFh:** does the Fill dialog take such a constant, and into which banks? A single

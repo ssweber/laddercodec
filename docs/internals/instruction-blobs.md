@@ -284,11 +284,13 @@ expansion slots, and no Y range starts in the option slot.
 
 The list for `X001 : X036` leaves out X032..X035, the list for
 `X021 : X116` holds X021, an endpoint, and the list for `X025 : X027` holds
-X022 in place of X026. laddercodec refuses a Math with an X or Y range whose
-list by this rule is not every point strictly between its ends: by the rule,
-any range with an end in the option slot, except a range from the CPU slot to
-X021 and a range with no point between its ends. A stored Math with such a
-range, CLICK's own included, decodes as `raw(...)` and keeps its bytes.
+X022 in place of X026. laddercodec refuses a Math with an X or Y range that has
+an end in the option slot, except a range from the CPU slot to X021, a range of
+one point, and a range of two points numbered one apart (`X025 : X026`;
+`X036 : X101` is refused). The refused ranges are the ones whose list by this
+rule is not every point strictly between their ends. A stored Math with a
+refused range, CLICK's own included, decodes as that Math
+with a `RefusedFieldWarning`, and encodes as its stored bytes while unchanged.
 
 CLICK v4 copies Math back with 5000 reserved slots, not 500, for 5510 fields.
 A 500-slot blob still pastes into both v3 and v4, so the encoder writes 500

@@ -170,12 +170,28 @@ _REFUSED = [
     ("MAX ( XD3 : XD0 )", "DH9", "hex", "XD3 : XD0 runs high to low"),
     ("MDN ( DS1 : DS513 )", "DS9", "decimal", "covers 1026 bytes; a median covers at most 1024"),
     ("MDN ( DD1 : DD257 )", "DD9", "decimal", "covers 1028 bytes"),
-    # an X/Y range whose member list CLICK v4 stores wrong: an end in the option slot, 21-36
-    ("SUM ( X001 : X036 )", "DS9", "decimal", "wrong member list .* leave out X032..X035"),
-    ("SUM ( Y001 : Y036 )", "DS9", "decimal", "end in Y021-Y036 .* leave out Y032..Y035"),
-    ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused.* add X021\\)"),
-    ("SUM ( X025 : X036 )", "DS9", "decimal", "leave out X032..X035 and add X022..X025"),
-    ("SUM ( X036 : X101 )", "DS9", "decimal", "add X033..X036"),
+    # an X/Y range with an end in the option slot, 21-36, but not from the CPU slot to 21,
+    # of one point, or of two points numbered one apart (X036 : X101 is refused)
+    (
+        "SUM ( X001 : X036 )",
+        "DS9",
+        "decimal",
+        "Math.expression: SUM \\( X001 : X036 \\) is refused; an X range may not start or end "
+        "in X021-X036, except a range from X001-X016 to X021, a range of one point, or a range "
+        "of two points numbered one apart: on a CPU with no I/O modules, CLICK stores the "
+        "wrong points for any other such range",
+    ),
+    (
+        "SUM ( Y001 : Y036 )",
+        "DS9",
+        "decimal",
+        "a Y range may not start or end in Y021-Y036, .* Y001-Y016 to Y021",
+    ),
+    ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused; an X range"),
+    ("SUM ( X025 : X036 )", "DS9", "decimal", "SUM \\( X025 : X036 \\) is refused"),
+    ("SUM ( X036 : X101 )", "DS9", "decimal", "SUM \\( X036 : X101 \\) is refused"),
+    ("SUM ( X016 : X022 )", "DS9", "decimal", "SUM \\( X016 : X022 \\) is refused"),
+    ("SUM ( Y021 : Y023 )", "DS9", "decimal", "SUM \\( Y021 : Y023 \\) is refused"),
     ("DS1 + SUM ( X1 : X36 )", "DS9", "decimal", "SUM \\( X001 : X036 \\) is refused"),
     # 270 characters of the internal template (OBJ-1008): DS1..DS69 is 273
     (_sum_of(69), "DD1", "decimal", "the formula is 273 characters in CLICK's internal form"),
@@ -217,12 +233,17 @@ def test_unknown_mode_refused() -> None:
         # SUM over X, Y, T and SC, and MAX over TD and DS
         ("SUM ( X001 : X101 )", "DS9", "decimal"),
         ("SUM ( Y001 : Y008 )", "DS9", "decimal"),
-        # an X/Y range whose list, by the rule fitted to the captures, holds the points
-        # between the ends (X001 : X116 captured; the others not)
+        # an X/Y range with no end in the option slot, from the CPU slot to 21, of one point,
+        # or of two points numbered one apart (X001 : X116, X001 : X021 and X025 : X026
+        # captured)
         ("SUM ( X001 : X116 )", "DS9", "decimal"),
         ("SUM ( X001 : X021 )", "DS9", "decimal"),
         ("SUM ( Y016 : Y021 )", "DS9", "decimal"),
         ("SUM ( Y101 : Y201 )", "DS9", "decimal"),
+        ("SUM ( X025 : X026 )", "DS9", "decimal"),
+        ("SUM ( Y035 : Y036 )", "DS9", "decimal"),
+        ("SUM ( X021 : X021 )", "DS9", "decimal"),
+        ("SUM ( X036 : X036 )", "DS9", "decimal"),
         ("SUM ( T1 : T5 )", "DS9", "decimal"),
         ("SUM ( SC1 : SC3 )", "DS9", "decimal"),
         ("SUM ( TD1 : TD3 )", "DS9", "decimal"),
