@@ -61,10 +61,11 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 @dataclass
 class Velocity(AfInstruction):
-    """Velocity instruction — opaque fields stored as tag-keyed strings.
+    """A Velocity instruction. Each field holds the string of one stored tag, and this
+    library does not interpret it.
 
-    Provisional: the fields are named after CLICK's tag ids (``tag_3218``). A later release
-    will rename them.
+    The fields are named after CLICK's tag ids (``tag_3218``). The names are provisional,
+    and a later release will rename them.
 
     Binary class name ``"Velocity"`` (type marker 0x2735).
     """
