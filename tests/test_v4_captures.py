@@ -1145,7 +1145,9 @@ def _af_blob(
 def test_sweep_af_reencodes_like_native(path: Path, index: int, rung: Rung) -> None:
     """Every field CLICK wrote, in order, comes back from encode(decode(...)).
 
-    The decode test above cannot see function codes, because the decoder ignores tag 0x3218.
+    The decode test above compares CSV text. For most instructions, that text holds no
+    function code (tag 0x3218). The encoder works the code out again from the instruction's
+    fields.
     """
     if any(isinstance(token, str) and token.startswith("raw(") for token in rung.instructions):
         pytest.xfail("not decoded yet")

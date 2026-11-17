@@ -3,8 +3,8 @@
 Encode every .csv file in tests/fixtures/coverage/golden and write the result to the
 .bin file of the same name. Delete each .bin file that has no .csv file. The log,
 verify_progress.log, records the result of pasting each fixture into CLICK. Remove from
-it each fixture whose .bin file has uncommitted changes in git or whose .csv file is
-gone. Then list the fixtures that the log does not name.
+it each fixture whose .bin file has changes that are not staged in git, or whose .csv
+file is gone. Then list the fixtures that the log does not name.
 
 Usage:
     uv run devtools/coverage_golden.py
@@ -94,7 +94,7 @@ def prune() -> None:
         print("No verify_progress.log found — nothing to prune.")
         return
 
-    # Find .bin files with uncommitted changes
+    # Find .bin files with changes that are not staged
     result = subprocess.run(
         ["git", "diff", "--name-only", "--", "tests/fixtures/coverage/golden/*.bin"],
         capture_output=True,

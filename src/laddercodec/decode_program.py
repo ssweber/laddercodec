@@ -393,8 +393,8 @@ def _scr_box(
 ) -> AfInstruction:
     """Return the AF box of an SCR entry.
 
-    The box is the typed instruction if the height of its class matches the row span
-    that the entry stores, or if the entry stores none. Otherwise the box is a
+    The box is the typed instruction if the height of that instruction matches the row
+    span that the entry stores, or if the entry stores none. Otherwise the box is a
     ``RawInstruction`` that keeps the entry's row bytes, which are the clipboard cell's
     +0x09 and +0x0A. The clipboard decoder does the same.
     """

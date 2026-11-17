@@ -1030,8 +1030,9 @@ def _decode_multi(
 
 
 def _fits_stored_span(af: AfInstruction, span: int) -> bool:
-    """Return True when the row span that the cell stores at +0x09 is *af*'s class height.
+    """Return True when the row span that the cell stores at +0x09 is the height of *af*.
 
+    A box with pins, such as a Counter or a Drum, ends one row below its last pin row.
     Also return True when the cell stores no span (0).  The caller keeps a box stored at
     another span as a ``RawInstruction`` with its stored bytes.  For example, an earlier
     laddercodec wrote Email, Home, Position and Velocity boxes 1 row tall.  When such a box

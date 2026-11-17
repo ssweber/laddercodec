@@ -184,9 +184,9 @@ def _emit_box_tail(
 ) -> int:
     """Append the rows of a pinned block after its last used pin.
 
-    These are the rows of its unused pins.  Leave out the padding rows at the
-    end, because the read pads the box back to its height.  With
-    *keep_positional*, keep them, because a blank-AF row follows the box.
+    Leave out the padding rows at the end, because the read pads the box back
+    to its height.  With *keep_positional*, keep them, because a blank-AF row
+    follows the box.
     Return the new data row count.
     """
     last = len(tail) - 1
