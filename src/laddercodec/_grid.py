@@ -11,7 +11,6 @@ from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from .cell import ClickCell, build_row
-
 from .encode import (
     _TOKEN_FLAGS,
     MAX_ROWS,
