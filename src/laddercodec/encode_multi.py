@@ -56,14 +56,20 @@ The encoder does not copy CLICK's values for these bytes, in a single-rung
 or a multi-rung buffer:
 
     +0x0B, +0x0C   Cell header.  CLICK's values vary from cell to cell.
-                   The encoder writes 0x00 at +0x0B, and at +0x0C the
-                   value that ``cell.py`` sets.  The decoder reads
-                   neither byte.
+                   The encoder writes 0x00 at +0x0B of each grid cell.
+                   At +0x0C it writes 0x01 in a preamble cell and in
+                   each cell of a rung that has no instruction, and 0x00
+                   in every other cell.  A NOP does not count as an
+                   instruction.  The decoder reads neither byte.
     +0x15          Cell header.  CLICK writes 1 in column A of almost
-                   every rung's first row.  The encoder writes 1 only
-                   where ``ClickCell.build_header`` sets it.
-    PH+0x17        Program header.  CLICK's value varies from buffer to
-                   buffer.  The encoder writes 0x40, the template's value.
+                   every rung's first row.  The encoder writes 1 in
+                   column A in two cases only: a contact or compare
+                   contact on a rung's first row, and a row below the
+                   first whose AF cell holds a NOP, in a rung that has
+                   no instruction.
+    0x026B         Rung 0's preamble +0x0B.  CLICK's value varies from
+                   buffer to buffer.  The encoder writes 0x40, the
+                   template's value.
 
 The encoder writes bytes +0x01..+0x04 of the terminal row to match
 CLICK's, although no test shows whether CLICK needs them.  CLICK finds

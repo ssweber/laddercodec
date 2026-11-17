@@ -236,7 +236,9 @@ class TestInstructionRoundTrip:
         """encode_rung writes the bytes of the golden instr-series for two contacts, wires and
         a coil, and the bytes decode to the same row and coil.
 
-        The test builds the row by hand, so the CSV reader plays no part.
+        The test builds the row by hand, so the CSV reader plays no part. The CSV file of the
+        golden has X002 in column C, and read_csv packs it into column B. The row here puts
+        X002 in column B, as the golden's bytes hold it.
         """
         row = _wire_row(Contact("X001"))
         row[1] = Contact("X002")
