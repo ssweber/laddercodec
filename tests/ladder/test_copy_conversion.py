@@ -226,7 +226,7 @@ def test_type_7_decodes_only_where_click_saves_it(
 def test_a_number_into_txt_writes_the_end_its_text_fills(
     source: str, destination: str, end: str
 ) -> None:
-    copy = Copy(source, destination, format="text", suppress_zero="1")
+    copy = Copy(source, destination, convert="to_text", suppress_zero=True)
     written = copy.build_blob()
     assert _tags(written)[0x6077] == end
     assert _tags(written)[0x2227] == "1"
@@ -244,25 +244,25 @@ def test_a_number_into_txt_writes_the_end_its_text_fills(
         ("DF[DS1]", "TXT1", ""),  # CLICK's
     ],
 )
-@pytest.mark.parametrize(("exponential", "conv"), [("0", "3"), ("1", "4")])
+@pytest.mark.parametrize(("exponential", "conv"), [(False, "3"), (True, "4")])
 def test_a_real_into_txt_writes_its_numbering_and_end(
-    source: str, destination: str, end: str, exponential: str, conv: str
+    source: str, destination: str, end: str, exponential: bool, conv: str
 ) -> None:
     """A real constant or a DF source, a pointer too, takes real (3) or exponential (4)
     numbering, with 0x2206 set for exponential."""
-    copy = Copy(source, destination, format="text", exponential=exponential)
+    copy = Copy(source, destination, convert="to_text", exponential=exponential)
     written = _tags(copy.build_blob())
-    assert (written[0x2227], written[0x2206], written[0x6077]) == (conv, exponential, end)
+    assert (written[0x2227], written[0x2206], written[0x6077]) == (conv, str(int(exponential)), end)
     assert parse_af_blob(copy.build_blob()) == copy
     assert copy.to_csv() == (
         f"copy({source},{destination},"
-        f"convert=to_text(exponential={exponential},termination_code=none))"
+        f"convert=to_text(exponential={int(exponential)},termination_code=none))"
     )
 
 
 def test_a_number_with_zeros_kept_writes_its_end() -> None:
     """The end counts the constant as typed, whichever option the text takes."""
-    copy = Copy("-5", "TXT1", format="text", suppress_zero="0")
+    copy = Copy("-5", "TXT1", convert="to_text", suppress_zero=False)
     assert (_tags(copy.build_blob())[0x2227], _tags(copy.build_blob())[0x6077]) == ("2", "TXT2")
     assert parse_af_blob(copy.build_blob()) == copy
 
@@ -281,10 +281,10 @@ def test_a_number_whose_text_passes_txt1000_is_refused(
 ) -> None:
     """CLICK shows the end past TXT1000 and refuses it as outside the range (OBJ-003)."""
     with pytest.raises(FieldError) as raised:
-        Copy(source, destination, format="text")
+        Copy(source, destination, convert="to_text")
     [error] = raised.value.errors
     assert (error.field, error.reason, error.click_id) == (
-        "Copy.destination",
+        "Copy.dest",
         Reason.RANGE,
         "OBJ-003",
     )
@@ -297,7 +297,7 @@ def test_a_hex_constant_above_ffffh_into_df_is_refused(destination: str) -> None
     with pytest.raises(FieldError) as raised:
         Copy("10000h", destination)
     [error] = raised.value.errors
-    assert (error.field, error.click_id) == ("Copy.destination", "OBJ-024")
+    assert (error.field, error.click_id) == ("Copy.dest", "OBJ-024")
 
 
 @pytest.mark.parametrize(
@@ -328,9 +328,9 @@ def test_a_number_end_decodes_only_as_click_saves_it(
     if parsed is None:
         return
     if source == "1.5":
-        expected = Copy(source, "TXT1", format="text", exponential="1" if conv == "4" else "0")
+        expected = Copy(source, "TXT1", convert="to_text", exponential=conv == "4")
     else:
-        expected = Copy(source, "TXT1", format="text", suppress_zero="0" if conv == "2" else "1")
+        expected = Copy(source, "TXT1", convert="to_text", suppress_zero=conv != "2")
     assert parsed == expected
     assert not refusals(parsed)
 
@@ -366,11 +366,11 @@ def _with_tags(blob: bytes, changes: dict[int, str]) -> bytes:
     [
         # A real or DF source saved with type 1, as laddercodec 0.4.0 wrote it: the
         # encoder writes real numbering (type 3) and the end.
-        (Copy("1.5", "TXT1", format="text"), {0x2227: "1", 0x6077: ""}),
-        (Copy("1.5", "TXT[DS1]", format="text"), {0x2227: "1"}),
-        (Copy("DF[DS1]", "TXT1", format="text"), {0x2227: "1"}),
+        (Copy("1.5", "TXT1", convert="to_text"), {0x2227: "1", 0x6077: ""}),
+        (Copy("1.5", "TXT[DS1]", convert="to_text"), {0x2227: "1"}),
+        (Copy("DF[DS1]", "TXT1", convert="to_text"), {0x2227: "1"}),
         # An integer's text with no end: the encoder writes the end it fills.
-        (Copy("-5", "TXT1", format="text", suppress_zero="1"), {0x6077: ""}),
+        (Copy("-5", "TXT1", convert="to_text", suppress_zero=True), {0x6077: ""}),
         # An integer outside int16 into DF as type 0: the encoder writes type 7.
         (Copy("2147483647", "DF1"), {0x2227: "0"}),
     ],

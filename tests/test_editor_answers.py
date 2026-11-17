@@ -453,17 +453,17 @@ def _builds(build: Any, *args: Any) -> bool:
 
 def _pack(source: str, end: str, address: str) -> object:
     bank = source.rstrip("0123456789")
-    return Pack(source, end, address, "bits" if bank == "C" else "words")
+    return Pack(source, end, address, "pack_bits" if bank == "C" else "pack_words")
 
 
 def _unpack(source: str, bank: str, number: int, as_end: bool) -> object:
     """An Unpack whose destination range holds ``number`` as its start, or as its end."""
     if bank in ("C", "Y", "SC", "X"):
         length = 16
-        kind = "bits"
+        kind = "unpack_to_bits"
     else:
         length = 2
-        kind = "words"
+        kind = "unpack_to_words"
     first = number - length + 1 if as_end else number
     last = number if as_end else number + length - 1
     if bank == "Y":

@@ -39,21 +39,21 @@ def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None,
     ("build", "expected"),
     [
         (
-            lambda: Copy("DS1", "DS2", format="bogus", oneshot=2),
-            [("Copy.format", "choice", None), ("Copy.oneshot", "flag", None)],
+            lambda: Copy("DS1", "DS2", convert="bogus", oneshot=2),
+            [("Copy.convert", "choice", None), ("Copy.oneshot", "flag", None)],
         ),
         (
             lambda: Copy("DS[DS0]", "X1"),
-            [("Copy.source", "pointer", None), ("Copy.destination", "bank", None)],
+            [("Copy.source", "pointer", None), ("Copy.dest", "bank", None)],
         ),
         (
-            lambda: Copy("DS1", "DS2", suppress_zero="2", exponential="x"),
-            [("Copy.suppress_zero", "choice", None), ("Copy.exponential", "choice", None)],
+            lambda: Copy("DS1", "DS2", suppress_zero=2, exponential="x"),
+            [("Copy.suppress_zero", "flag", None), ("Copy.exponential", "flag", None)],
         ),
         (
-            lambda: BlockCopy("DS1", "DS0", "XD1", "DS5", format="bogus"),
+            lambda: BlockCopy("DS1", "DS0", "XD1", "DS5", convert="bogus"),
             [
-                ("BlockCopy.format", "choice", None),
+                ("BlockCopy.convert", "choice", None),
                 ("BlockCopy.source_end", "address", None),
                 ("BlockCopy.dest_start", "bank", "OBJ-004"),
             ],
@@ -67,18 +67,18 @@ def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None,
             ],
         ),
         (
-            lambda: Pack("C1", "C0", "XD1", pack_type="bogus", allow_whitespace=2),
+            lambda: Pack("C1", "C0", "XD1", kind="bogus", allow_whitespace=2),
             [
-                ("Pack.pack_type", "choice", None),
+                ("Pack.kind", "choice", None),
                 ("Pack.source_end", "address", None),
-                ("Pack.destination", "bank", "OBJ-004"),
+                ("Pack.dest", "bank", "OBJ-004"),
                 ("Pack.allow_whitespace", "flag", None),
             ],
         ),
         (
-            lambda: Unpack("X1", "C1", "C0", unpack_type="bogus", oneshot=2),
+            lambda: Unpack("X1", "C1", "C0", kind="bogus", oneshot=2),
             [
-                ("Unpack.unpack_type", "choice", None),
+                ("Unpack.kind", "choice", None),
                 ("Unpack.source", "bank", "OBJ-004"),
                 ("Unpack.dest_end", "address", None),
                 ("Unpack.oneshot", "flag", None),
@@ -94,13 +94,13 @@ def test_a_refused_field_is_not_checked_again_in_a_pair() -> None:
     # A bad source: the pairing with the destination is not checked.
     assert _shape(_errors(lambda: Copy("DS0", "X1"))) == [
         ("Copy.source", "address", None),
-        ("Copy.destination", "bank", None),
+        ("Copy.dest", "bank", None),
     ]
     assert _shape(_errors(lambda: Copy("DS0", "Y1"))) == [("Copy.source", "address", None)]
-    # A refused format is not read for the termination code.
-    assert _shape(_errors(lambda: Copy("DS1", "TXT1", format="bogus", termination_code="$0D"))) == [
-        ("Copy.format", "choice", None)
-    ]
+    # A refused convert is not read for the termination code.
+    assert _shape(
+        _errors(lambda: Copy("DS1", "TXT1", convert="bogus", termination_code="$0D"))
+    ) == [("Copy.convert", "choice", None)]
 
 
 # ---------------------------------------------------------------------------
@@ -111,24 +111,24 @@ def test_a_refused_field_is_not_checked_again_in_a_pair() -> None:
 def test_copy_pairings_are_conflicts_of_both_fields() -> None:
     (pair,) = _errors(lambda: Copy("X1", "DS1"))
     assert (pair.fields, pair.reason, pair.click_id) == (
-        ("Copy.destination", "Copy.source"),
+        ("Copy.dest", "Copy.source"),
         "conflict",
         "OBJ-024",
     )
     assert str(pair).endswith(" (OBJ-024)")
     (hexed,) = _errors(lambda: Copy("10000h", "DS1"))
     assert (hexed.fields, hexed.reason, hexed.click_id) == (
-        ("Copy.destination", "Copy.source"),
+        ("Copy.dest", "Copy.source"),
         "conflict",
         "OBJ-024",
     )
 
 
 def test_copy_format_conflicts() -> None:
-    (error,) = _errors(lambda: Copy("DS1", "DS2", format="text"))
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    (error,) = _errors(lambda: Copy("DS1", "DS2", convert="to_text"))
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert (error.reason, error.click_id) == ("conflict", None)
-    (error,) = _errors(lambda: Copy("DS1", "TXT1", format="text", exponential="1"))
+    (error,) = _errors(lambda: Copy("DS1", "TXT1", convert="to_text", exponential=True))
     assert (error.fields, error.reason) == (("Copy.exponential", "Copy.source"), "conflict")
 
 
@@ -136,7 +136,7 @@ def test_copy_termination_code() -> None:
     (error,) = _errors(lambda: Copy("DS1", "DS2", termination_code="$0D"))
     assert error.fields[0] == "Copy.termination_code"
     assert error.reason == "conflict"
-    (error,) = _errors(lambda: Copy("DS1", "TXT1", format="text", termination_code="13"))
+    (error,) = _errors(lambda: Copy("DS1", "TXT1", convert="to_text", termination_code="13"))
     assert (error.field, error.reason, error.click_id) == (
         "Copy.termination_code",
         "form",
@@ -144,10 +144,10 @@ def test_copy_termination_code() -> None:
     )
 
 
-@pytest.mark.parametrize("fmt", ["text", "binary"])
+@pytest.mark.parametrize("fmt", ["to_text", "to_binary"])
 @pytest.mark.parametrize("code", ["$D", "$ZZ", "$", "$0", "$100", "$-1", "$0D0D", "$0d "])
 def test_copy_termination_code_not_a_character_code_is_obj_036(fmt: str, code: str) -> None:
-    (error,) = _errors(lambda: Copy("DS1", "TXT1", format=fmt, termination_code=code))
+    (error,) = _errors(lambda: Copy("DS1", "TXT1", convert=fmt, termination_code=code))
     assert (error.field, error.reason, error.click_id) == (
         "Copy.termination_code",
         "form",
@@ -159,7 +159,7 @@ def test_copy_text_past_the_last_txt_is_out_of_range() -> None:
     """CLICK refuses "AB" into TXT1000 as outside the range (OBJ-003), as it does -5."""
     (error,) = _errors(lambda: Copy('"ABC"', "TXT1000"))
     assert (error.fields, error.reason, error.click_id) == (
-        ("Copy.destination",),
+        ("Copy.dest",),
         "range",
         "OBJ-003",
     )
@@ -168,11 +168,11 @@ def test_copy_text_past_the_last_txt_is_out_of_range() -> None:
 @pytest.mark.parametrize(
     ("build", "field", "reason"),
     [
-        (lambda: Copy("DS1", "DS[DS1]x"), "Copy.destination", "address"),
-        (lambda: Copy("DS1", "DS[X1]"), "Copy.destination", "pointer"),
+        (lambda: Copy("DS1", "DS[DS1]x"), "Copy.dest", "address"),
+        (lambda: Copy("DS1", "DS[X1]"), "Copy.dest", "pointer"),
         (lambda: Copy("2147483648", "DD1"), "Copy.source", "range"),
         (lambda: Copy("+1h", "DD1"), "Copy.source", "form"),
-        (lambda: Copy("DS1", "DS2", suppress_zero="2"), "Copy.suppress_zero", "choice"),
+        (lambda: Copy("DS1", "DS2", suppress_zero=2), "Copy.suppress_zero", "flag"),
     ],
 )
 def test_copy_reasons(build: Any, field: str, reason: str) -> None:
@@ -183,7 +183,7 @@ def test_copy_reasons(build: Any, field: str, reason: str) -> None:
 def test_copy_csv_convert_option_is_a_choice() -> None:
     with pytest.raises(FieldError) as caught:
         Copy.from_csv_token("copy(DS1,TXT2,convert=to_binary(suppress_zero=1))")
-    assert (caught.value.field, caught.value.reason) == ("Copy.format", "choice")
+    assert (caught.value.field, caught.value.reason) == ("Copy.convert", "choice")
 
 
 # ---------------------------------------------------------------------------
@@ -225,17 +225,17 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
             "OBJ-024",
         ),
         (
-            lambda: Pack("X016", "X021", "DH1", pack_type="bits"),
+            lambda: Pack("X016", "X021", "DH1", kind="pack_bits"),
             ("Pack.source_end", "Pack.source_start"),
             "OBJ-033",
         ),
         (
-            lambda: Pack("X1", "X16", "DS1", pack_type="bits"),
-            ("Pack.destination", "Pack.source_start"),
+            lambda: Pack("X1", "X16", "DS1", kind="pack_bits"),
+            ("Pack.dest", "Pack.source_start"),
             "OBJ-024",
         ),
         (
-            lambda: Unpack("DH1", "Y016", "Y021", unpack_type="bits"),
+            lambda: Unpack("DH1", "Y016", "Y021", kind="unpack_to_bits"),
             ("Unpack.dest_end", "Unpack.dest_start"),
             "OBJ-1009",
         ),
@@ -243,12 +243,12 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
         # (OBJ-004), where the other pairings are OBJ-024; Y, which only a DH unpacks to,
         # is a pairing of kinds (OBJ-024).
         (
-            lambda: Unpack("DS5", "Y1", "Y16", unpack_type="bits"),
+            lambda: Unpack("DS5", "Y1", "Y16", kind="unpack_to_bits"),
             ("Unpack.dest_start", "Unpack.source"),
             "OBJ-024",
         ),
         (
-            lambda: Unpack("DS1", "DS1", "DS2", unpack_type="words"),
+            lambda: Unpack("DS1", "DS1", "DS2", kind="unpack_to_words"),
             ("Unpack.dest_start", "Unpack.source"),
             "OBJ-004",
         ),
@@ -280,8 +280,8 @@ def test_blockcopy_bank_and_ends() -> None:
     (error,) = _errors(lambda: BlockCopy("DS1", "DS4", "DS10", "DS14"))
     assert error.fields[:2] == ("BlockCopy.dest_end", "BlockCopy.dest_start")
     assert (error.reason, error.click_id) == ("conflict", None)
-    (error,) = _errors(lambda: BlockCopy("DS1", "DS4", "DS10", "DS13", format="value"))
-    assert (error.field, error.reason) == ("BlockCopy.format", "conflict")
+    (error,) = _errors(lambda: BlockCopy("DS1", "DS4", "DS10", "DS13", convert="to_value"))
+    assert (error.field, error.reason) == ("BlockCopy.convert", "conflict")
     assert error.fields[1] == "BlockCopy.source_start"
     (error,) = _errors(lambda: BlockCopy("C1", "C16", "Y010", "Y025"))
     assert (error.field, error.reason) == ("BlockCopy.dest_start", "conflict")
@@ -310,7 +310,7 @@ def test_copy_destination_bank_id_follows_the_source_kind(
     source: str, destination: str, click_id: str | None
 ) -> None:
     (error,) = _errors(lambda: Copy(source, destination))
-    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "bank", click_id)
+    assert (error.field, error.reason, error.click_id) == ("Copy.dest", "bank", click_id)
 
 
 @pytest.mark.parametrize(
@@ -331,7 +331,7 @@ def test_copy_into_an_address_outside_its_bit_bank_is_obj_004(
     # Outside its bank, in a bit bank a Copy does not write: OBJ-004 from DS2 (CLICK's
     # answer), and from any other source.
     (error,) = _errors(lambda: Copy(source, destination))
-    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "bank", "OBJ-004")
+    assert (error.field, error.reason, error.click_id) == ("Copy.dest", "bank", "OBJ-004")
 
 
 @pytest.mark.parametrize(
@@ -363,9 +363,9 @@ def test_copy_of_a_character_code_outside_txt_is_obj_004(
     # A $hh code copies to TXT only; anywhere else CLICK can't use the address (OBJ-004),
     # where quoted text is a pairing of kinds (OBJ-024).
     (error,) = _errors(lambda: Copy(source, destination))
-    assert (error.field, error.reason, error.click_id) == ("Copy.destination", reason, "OBJ-004")
-    assert Copy(source, "TXT1").destination == "TXT1"
-    assert Copy(source, "TXT[DS1]").destination == "TXT[DS1]"
+    assert (error.field, error.reason, error.click_id) == ("Copy.dest", reason, "OBJ-004")
+    assert Copy(source, "TXT1").dest == "TXT1"
+    assert Copy(source, "TXT[DS1]").dest == "TXT[DS1]"
 
 
 @pytest.mark.parametrize(
@@ -383,7 +383,7 @@ def test_copy_into_a_refused_pointer_keeps_no_id(source: str, destination: str) 
     # X[DS1] OBJ-005 and into XD[DS1] or SD[DS1] OBJ-004, which the rules leave without an
     # id for now; the malformed pointers have no answer.
     (error,) = _errors(lambda: Copy(source, destination))
-    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "pointer", None)
+    assert (error.field, error.reason, error.click_id) == ("Copy.dest", "pointer", None)
 
 
 @pytest.mark.parametrize(
@@ -429,7 +429,7 @@ def test_copy_source_with_a_quote_inside_keeps_no_id(source: str) -> None:
 def test_copy_text_characters_come_after_the_pairing() -> None:
     # Text with a character a Copy refuses comes after the pairing: NUL into DS1 is OBJ-024.
     assert _shape(_errors(lambda: Copy('"\x00"', "DS1"))) == [
-        ("Copy.destination", "conflict", "OBJ-024"),
+        ("Copy.dest", "conflict", "OBJ-024"),
         ("Copy.source", "form", None),
     ]
 
@@ -439,15 +439,13 @@ def test_copy_text_characters_come_after_the_pairing() -> None:
 )
 def test_copy_pairing_comes_before_the_writable_sd(source: str) -> None:
     # A source no SD takes is a pairing (OBJ-024), even into an SD a Copy does not write.
-    assert _shape(_errors(lambda: Copy(source, "SD1"))) == [
-        ("Copy.destination", "conflict", "OBJ-024")
-    ]
+    assert _shape(_errors(lambda: Copy(source, "SD1"))) == [("Copy.dest", "conflict", "OBJ-024")]
 
 
 def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
     error, dest = _errors(lambda: Copy("DS0", "X001"))
     assert error.field == "Copy.source"
-    assert (dest.field, dest.reason, dest.click_id) == ("Copy.destination", "bank", None)
+    assert (dest.field, dest.reason, dest.click_id) == ("Copy.dest", "bank", None)
 
 
 @pytest.mark.parametrize(
@@ -456,21 +454,21 @@ def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
 def test_copy_destination_bank_has_no_id_for_a_refused_constant(source: str) -> None:
     # The constant's own check runs after the destination's, and keeps that order.
     dest, error = _errors(lambda: Copy(source, "X001"))
-    assert (dest.field, dest.reason, dest.click_id) == ("Copy.destination", "bank", None)
+    assert (dest.field, dest.reason, dest.click_id) == ("Copy.dest", "bank", None)
     assert error.field == "Copy.source"
 
 
 @pytest.mark.parametrize(
     ("build", "field"),
     [
-        (lambda: Pack("C1", "C16", "X001"), "Pack.destination"),
-        (lambda: Pack("C1", "C16", "SD29"), "Pack.destination"),
-        (lambda: Pack("X001", "X016", "Y001"), "Pack.destination"),
+        (lambda: Pack("C1", "C16", "X001"), "Pack.dest"),
+        (lambda: Pack("C1", "C16", "SD29"), "Pack.dest"),
+        (lambda: Pack("X001", "X016", "Y001"), "Pack.dest"),
         (lambda: Unpack("X001", "C1", "C16"), "Unpack.source"),
         (lambda: Unpack("C1", "C2", "C17"), "Unpack.source"),
         (lambda: Unpack("DS1", "X001", "X016"), "Unpack.dest_start"),
         (lambda: Unpack("DH1", "SC50", "SC65"), "Unpack.dest_start"),
-        (lambda: Unpack("DD1", "SD31", "SD32", unpack_type="words"), "Unpack.dest_start"),
+        (lambda: Unpack("DD1", "SD31", "SD32", kind="unpack_to_words"), "Unpack.dest_start"),
     ],
 )
 def test_pack_and_unpack_bank_no_row_holds_is_obj_004(build: Any, field: str) -> None:
@@ -494,14 +492,14 @@ def test_blockcopy_ends_are_not_computed_from_a_refused_range() -> None:
 @pytest.mark.parametrize("address", ["SD1", "SD28", "SD30", "SD43", "SD105", "SD216", "SD1000"])
 def test_copy_into_an_sd_that_is_not_writable_is_obj_004(address: str) -> None:
     assert _shape(_errors(lambda: Copy("DS1", address))) == [
-        ("Copy.destination", "not_writable", "OBJ-004")
+        ("Copy.dest", "not_writable", "OBJ-004")
     ]
 
 
 @pytest.mark.parametrize("address", ["SD29", "SD42", "SD107", "SD140", "SD147", "SD215"])
 def test_copy_into_a_writable_sd(address: str) -> None:
-    assert Copy("DS1", address).destination == address
-    assert Copy("5", address).destination == address
+    assert Copy("DS1", address).dest == address
+    assert Copy("5", address).dest == address
 
 
 @pytest.mark.parametrize(
@@ -559,13 +557,13 @@ def test_fill_into_txt_takes_one_character_with_no_id() -> None:
 
 
 def test_pack_and_unpack_choices_and_kinds() -> None:
-    (error,) = _errors(lambda: Pack("C1", "C4", "DS1", pack_type="text"))
-    assert (error.fields, error.reason) == (("Pack.source_start", "Pack.pack_type"), "conflict")
-    (error,) = _errors(lambda: Pack("DS1", "DS2", "DD1", pack_type="bits"))
-    assert (error.fields, error.reason) == (("Pack.source_start", "Pack.pack_type"), "conflict")
-    (error,) = _errors(lambda: Unpack("DD1", "DS2", "DS3", unpack_type="bits"))
+    (error,) = _errors(lambda: Pack("C1", "C4", "DS1", kind="pack_text"))
+    assert (error.fields, error.reason) == (("Pack.source_start", "Pack.kind"), "conflict")
+    (error,) = _errors(lambda: Pack("DS1", "DS2", "DD1", kind="pack_bits"))
+    assert (error.fields, error.reason) == (("Pack.source_start", "Pack.kind"), "conflict")
+    (error,) = _errors(lambda: Unpack("DD1", "DS2", "DS3", kind="unpack_to_bits"))
     assert (error.fields, error.reason) == (
-        ("Unpack.dest_start", "Unpack.unpack_type"),
+        ("Unpack.dest_start", "Unpack.kind"),
         "conflict",
     )
 
@@ -573,12 +571,12 @@ def test_pack_and_unpack_choices_and_kinds() -> None:
 @pytest.mark.parametrize(
     ("build", "click_id"),
     [
-        (lambda: Pack("C1", "C17", "DS1", pack_type="bits"), "OBJ-027"),
-        (lambda: Pack("C1", "C33", "DD1", pack_type="bits"), "OBJ-041"),
-        (lambda: Pack("DS1", "DS3", "DD1", pack_type="words"), "OBJ-040"),
-        (lambda: Unpack("DS1", "C1", "C17", unpack_type="bits"), "OBJ-032"),
-        (lambda: Unpack("DD1", "C1", "C33", unpack_type="bits"), "OBJ-039"),
-        (lambda: Unpack("DD1", "DS1", "DS3", unpack_type="words"), "OBJ-042"),
+        (lambda: Pack("C1", "C17", "DS1", kind="pack_bits"), "OBJ-027"),
+        (lambda: Pack("C1", "C33", "DD1", kind="pack_bits"), "OBJ-041"),
+        (lambda: Pack("DS1", "DS3", "DD1", kind="pack_words"), "OBJ-040"),
+        (lambda: Unpack("DS1", "C1", "C17", kind="unpack_to_bits"), "OBJ-032"),
+        (lambda: Unpack("DD1", "C1", "C33", kind="unpack_to_bits"), "OBJ-039"),
+        (lambda: Unpack("DD1", "DS1", "DS3", kind="unpack_to_words"), "OBJ-042"),
     ],
 )
 def test_pack_and_unpack_counts(build: Any, click_id: str) -> None:
@@ -589,7 +587,7 @@ def test_pack_and_unpack_counts(build: Any, click_id: str) -> None:
 
 
 _PACK_COUNT = ("Pack.source_end", "range")
-_PACK_PAIR = ("Pack.destination", "conflict", "OBJ-024")
+_PACK_PAIR = ("Pack.dest", "conflict", "OBJ-024")
 
 
 @pytest.mark.parametrize(
@@ -606,13 +604,13 @@ _PACK_PAIR = ("Pack.destination", "conflict", "OBJ-024")
         # CLICK stops after OBJ-040 for a DH source (no second box); the OBJ-024 after it is
         # laddercodec's own.
         (
-            lambda: Pack("DH1", "DH16", "DH1", pack_type="words"),
+            lambda: Pack("DH1", "DH16", "DH1", kind="pack_words"),
             [(*_PACK_COUNT, "OBJ-040"), _PACK_PAIR],
         ),
-        (lambda: Pack("DH1", "DH2", "DH1", pack_type="words"), [_PACK_PAIR]),
+        (lambda: Pack("DH1", "DH2", "DH1", kind="pack_words"), [_PACK_PAIR]),
         # A DS source is not counted where it does not pack into the destination.
-        (lambda: Pack("DS1", "DS16", "DH1", pack_type="words"), [_PACK_PAIR]),
-        (lambda: Pack("DS1", "DS3", "DD1", pack_type="words"), [(*_PACK_COUNT, "OBJ-040")]),
+        (lambda: Pack("DS1", "DS16", "DH1", kind="pack_words"), [_PACK_PAIR]),
+        (lambda: Pack("DS1", "DS3", "DD1", kind="pack_words"), [(*_PACK_COUNT, "OBJ-040")]),
     ],
 )
 def test_pack_counts_its_source_before_the_pairing(
@@ -627,17 +625,17 @@ def test_pack_count_without_a_pairing_states_the_limit_of_every_pack() -> None:
         str(error)
         == "Pack.source_end: T1..T33 is 33 bits; a pack of bits takes at most 32 (OBJ-041)"
     )
-    assert error.fields == ("Pack.source_end", "Pack.source_start", "Pack.destination")
+    assert error.fields == ("Pack.source_end", "Pack.source_start", "Pack.dest")
     assert type(error) is FieldError
 
 
 def test_pack_text_into_dh_takes_four_characters() -> None:
-    Pack("TXT1", "TXT4", "DH1", pack_type="text")
-    Pack("TXT999", "TXT1000", "DH1", pack_type="text")
+    Pack("TXT1", "TXT4", "DH1", kind="pack_text")
+    Pack("TXT999", "TXT1000", "DH1", kind="pack_text")
     for end in ("TXT5", "TXT16", "TXT1000"):
-        (error,) = _errors(lambda end=end: Pack("TXT1", end, "DH1", pack_type="text"))
+        (error,) = _errors(lambda end=end: Pack("TXT1", end, "DH1", kind="pack_text"))
         assert (error.fields, error.reason, error.click_id) == (
-            ("Pack.source_end", "Pack.source_start", "Pack.destination"),
+            ("Pack.source_end", "Pack.source_start", "Pack.dest"),
             "range",
             "OBJ-003",
         )
@@ -647,7 +645,7 @@ def test_pack_text_into_dh_takes_four_characters() -> None:
     )
     # The other registers a pack of text writes have no limit yet.
     for dest in ("DS1", "DD1", "DF1", "TD1", "CTD1"):
-        Pack("TXT1", "TXT16", dest, pack_type="text")
+        Pack("TXT1", "TXT16", dest, kind="pack_text")
 
 
 @pytest.mark.parametrize(
@@ -656,15 +654,15 @@ def test_pack_text_into_dh_takes_four_characters() -> None:
         # An Unpack pairs its destination's start with the source before it reads the end:
         # the end's fit with a refused start is not checked.
         (
-            lambda: Unpack("DS1", "DS2", "DS1", unpack_type="words"),
+            lambda: Unpack("DS1", "DS2", "DS1", kind="unpack_to_words"),
             [("Unpack.dest_start", "conflict", "OBJ-004")],
         ),
         (
-            lambda: Unpack("DS1", "DS001", "C16", unpack_type="words"),
+            lambda: Unpack("DS1", "DS001", "C16", kind="unpack_to_words"),
             [("Unpack.dest_start", "conflict", "OBJ-004")],
         ),
         (
-            lambda: Unpack("DH1", "DS1", "DS1", unpack_type="words"),
+            lambda: Unpack("DH1", "DS1", "DS1", kind="unpack_to_words"),
             [("Unpack.dest_start", "conflict", "OBJ-004")],
         ),
         (
@@ -694,21 +692,21 @@ def test_unpack_into_one_y_slot_from_dh_is_accepted() -> None:
 
 def test_pack_txt_refusals_stay_address_errors() -> None:
     for build in (
-        lambda: Pack("TXT3", "TXT4", "CTD1", pack_type="bits"),
-        lambda: Pack("X21", "X31", "DH1", pack_type="text"),
+        lambda: Pack("TXT3", "TXT4", "CTD1", kind="pack_bits"),
+        lambda: Pack("X21", "X31", "DH1", kind="pack_text"),
     ):
         (error,) = _errors(build)
         assert type(error) is AddressError
-        assert (error.fields, error.reason) == (("Pack.source_start", "Pack.pack_type"), "conflict")
+        assert (error.fields, error.reason) == (("Pack.source_start", "Pack.kind"), "conflict")
 
 
 @pytest.mark.parametrize(
     ("build", "field", "reason"),
     [
         (lambda: Pack("C1", "C0", "DS1"), "Pack.source_end", "address"),
-        (lambda: Pack("C1", "C4", "DS1x"), "Pack.destination", "address"),
-        (lambda: Pack("C1", "C4", "XD1"), "Pack.destination", "bank"),
-        (lambda: Pack("C1", "C4", "DS[DS1]"), "Pack.destination", "pointer"),
+        (lambda: Pack("C1", "C4", "DS1x"), "Pack.dest", "address"),
+        (lambda: Pack("C1", "C4", "XD1"), "Pack.dest", "bank"),
+        (lambda: Pack("C1", "C4", "DS[DS1]"), "Pack.dest", "pointer"),
         (lambda: Pack("C[DS1]", "C4", "DS1"), "Pack.source_start", "pointer"),
         (lambda: Unpack("DS1", "C1", "C0"), "Unpack.dest_end", "address"),
         (lambda: Unpack("X1", "C1", "C16"), "Unpack.source", "bank"),
@@ -733,3 +731,10 @@ def test_search_table_range_refusals_carry_reason_and_id(
     assert error.fields == ("Search.table_end", "Search.table_start")
     assert (error.reason, error.click_id) == ("conflict", click_id)
     assert str(error).endswith(f" ({click_id})")
+
+
+def test_a_refused_pack_kind_is_not_counted() -> None:
+    """A kind that is none of the three is the one refusal: its count check is skipped."""
+    assert _shape(_errors(lambda: Pack("C1", "C40", "DS1", kind="bits"))) == [
+        ("Pack.kind", "choice", None)
+    ]

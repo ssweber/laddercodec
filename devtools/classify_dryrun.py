@@ -430,9 +430,9 @@ def _move() -> list[Field]:
         out.append(
             Field(
                 "move",
-                f"Copy.source (destination={dest})",
+                f"Copy.source (dest={dest})",
                 f"Copy/to-{dest}/source",
-                _make("Copy", destination=dest)("source"),
+                _make("Copy", dest=dest)("source"),
                 copy_rule(bank),
             )
         )
@@ -444,9 +444,9 @@ def _move() -> list[Field]:
             _make(
                 "Copy",
                 source="DS20",
-                destination="TXT7",
-                format="text",
-                suppress_zero="1",
+                dest="TXT7",
+                convert="to_text",
+                suppress_zero=True,
             )("termination_code"),
             termination_rule,
         )

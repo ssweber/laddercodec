@@ -472,7 +472,7 @@ def math_grid() -> Grid:
 _TXT_CHOICE = frozenset({"DS", "DD", "DH", "YD", "TD", "CTD", "SD"})
 
 
-def _txt_default(source: str, destination: str) -> tuple[str | None, str] | None:
+def _txt_default(source: str, destination: str) -> tuple[bool | None, bool] | None:
     """The dialog's default converter for a number constant or register copied to TXT, Copy
     Value as text, as ``(suppress_zero, exponential)``: Suppress zero for an integer and Real
     Numbering for a real.  ``None`` for any other copy."""
@@ -488,14 +488,14 @@ def _txt_default(source: str, destination: str) -> tuple[str | None, str] | None
         if bank not in REGISTER_BANKS or bank == "TXT":
             return None
         real = bank == "DF"
-    return (None, "0") if real else ("1", "0")
+    return (None, False) if real else (True, False)
 
 
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
     # TXT into a number register but DF takes the dialog's default, Copy Character Value.
     txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
-    fmt = "value" if txt_choice else "none"
+    convert = "to_value" if txt_choice else None
     if mode == "single":
         # A number into TXT takes the dialog's default, Copy Value as text.
         default = _txt_default(f["source"], f["destination"])
@@ -505,23 +505,23 @@ def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
                 lambda: Copy(
                     f["source"],
                     f["destination"],
-                    format="text",
+                    convert="to_text",
                     suppress_zero=zeros,
                     exponential=exponential,
                 )
             )
-        return verdict_of(lambda: Copy(f["source"], f["destination"], format=fmt))
+        return verdict_of(lambda: Copy(f["source"], f["destination"], convert=convert))
     if mode == "block":
         end = _block_end(f["source"], f["source_end"], f["destination"])
         return verdict_of(
-            lambda: BlockCopy(f["source"], f["source_end"], f["destination"], end, format=fmt)
+            lambda: BlockCopy(f["source"], f["source_end"], f["destination"], end, convert=convert)
         )
     if mode == "pack":
         bank = _bank_of(f["source"])
-        kind = "text" if bank == "TXT" else "bits" if bank in BIT_BANKS else "words"
+        kind = "pack_text" if bank == "TXT" else "pack_bits" if bank in BIT_BANKS else "pack_words"
         return verdict_of(lambda: Pack(f["source"], f["source_end"], f["destination"], kind))
     if mode == "unpack":
-        kind = "bits" if _bank_of(f["destination"]) in BIT_BANKS else "words"
+        kind = "unpack_to_bits" if _bank_of(f["destination"]) in BIT_BANKS else "unpack_to_words"
         return verdict_of(lambda: Unpack(f["source"], f["destination"], f["destination_end"], kind))
     raise AssertionError(mode)
 

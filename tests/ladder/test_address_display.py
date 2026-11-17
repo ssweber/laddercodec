@@ -261,7 +261,7 @@ class TestConstructor:
 
     def test_copy_pointer(self) -> None:
         copy = Copy("dd[ds01]", "ds0002")
-        assert (copy.source, copy.destination) == ("DD[DS1]", "DS2")
+        assert (copy.source, copy.dest) == ("DD[DS1]", "DS2")
 
     def test_drum_lists_and_jump(self) -> None:
         drum = Drum(

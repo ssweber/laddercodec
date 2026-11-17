@@ -80,7 +80,7 @@ CASES = [
     ),
     ("forloop__basic", "for(3)", "for(Y001)", ForLoop, ["ForLoop.count"]),
     ("call__basic", "coverage_sub", "x" * 25, Call, ["Call.subroutine"]),
-    ("copy__tag", "copy(DS7,", "copy(Y001,", Copy, ["Copy.destination"]),
+    ("copy__tag", "copy(DS7,", "copy(Y001,", Copy, ["Copy.dest"]),
     (
         "blockcopy__block",
         "blockcopy(DS28..",
@@ -94,7 +94,7 @@ CASES = [
         "pack_bits(C108..",
         "pack_bits(Y001..",
         Pack,
-        ["Pack.source_end", "Pack.destination"],
+        ["Pack.source_end", "Pack.dest"],
     ),
     ("pack_text", "(TXT1..TXT4,DS170)", "(TXT1..TXT8,DH1)", Pack, ["Pack.source_end"]),
     ("unpack_to_bits", "(DS172,", "(Y001,", Unpack, ["Unpack.source"]),
@@ -501,7 +501,7 @@ def test_an_edge_spaced_destination_writes_the_stored_bytes(tmp_path, case, cls)
     blob = _saved_blob(tmp_path, case)
     parsed = parse_af_blob(blob)
     assert isinstance(parsed, cls)
-    assert parsed.destination == "DS1"
+    assert parsed.dest == "DS1"
     assert not refusals(parsed)
     assert parsed.build_blob() == blob
     assert replace(parsed).build_blob() != blob
@@ -538,7 +538,7 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
             (i, t)
             for i, rung in enumerate(rungs)
             for t in rung.instructions
-            if type(t) is cls and t.destination == new.strip()
+            if type(t) is cls and t.dest == new.strip()
         ]
         return found
 
@@ -601,7 +601,7 @@ def _copy_rung(copy_af: Copy) -> Rung:
 def test_write_csv_refuses_a_value_set_after_construction(tmp_path) -> None:
     """Built by its checks, then changed to a refused value: the rows don't read back."""
     copy_af = Copy("DS1", "DS2")
-    copy_af.destination = "Y001"
+    copy_af.dest = "Y001"
     with pytest.raises(WriterError, match="Y001"):
         write_csv(tmp_path / "out.csv", [_copy_rung(copy_af)])
 
@@ -615,6 +615,6 @@ def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
     rung = _copy_rung(copy_af)
     rung.conditions[0][0] = contact
     write_csv(tmp_path / "held.csv", [rung])
-    copy_af.destination = "Y002"
+    copy_af.dest = "Y002"
     with pytest.raises(WriterError, match="Y002"):
         write_csv(tmp_path / "out.csv", [rung])

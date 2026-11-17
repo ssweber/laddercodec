@@ -96,7 +96,7 @@ BLANKS = [
     ("out(Y001..)", ["Coil.range_end"]),
     ("pack_bits(,DS1)", ["Pack.source_start", "Pack.source_end"]),
     ("fill(,DS1..DS4)", ["Fill.value"]),
-    ("copy(DS1,)", ["Copy.destination"]),
+    ("copy(DS1,)", ["Copy.dest"]),
     ("search(DS72..DS81 == DS71,result=,found=C81)", ["Search.result"]),
     ("search(DS72..DS81 == DS71,result=DS82,found=)", ["Search.found"]),
     (SEND.replace("source=C11", "source="), ["Send.source"]),
@@ -335,7 +335,7 @@ def test_a_range_with_a_blank_end_writes_and_reads_back(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("instruction", "attr"),
-    [(Copy(source="DS1", destination="DS2"), "source"), (Math("DS2 + 1", "DS1"), "dest")],
+    [(Copy(source="DS1", dest="DS2"), "source"), (Math("DS2 + 1", "DS1"), "dest")],
 )
 def test_a_stored_dots_decodes_as_before(instruction: Any, attr: str) -> None:
     """A stored ``..`` in a one-value field decodes as the instruction holding it, refused

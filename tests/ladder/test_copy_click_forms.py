@@ -228,7 +228,7 @@ def test_text_without_its_end_decodes_on_both_paths(
 def test_text_without_its_end_past_txt1000_keeps_obj_003() -> None:
     found = _both_paths({0x6074: '"ABC"', 0x6076: "TXT999"})
     [error] = refusals(found)
-    assert (error.field, error.click_id) == ("Copy.destination", "OBJ-003")
+    assert (error.field, error.click_id) == ("Copy.dest", "OBJ-003")
     with pytest.raises(FieldError, match="OBJ-003"):
         replace(found)
 
@@ -261,7 +261,7 @@ def test_a_number_into_txt_needs_a_converter(
     """CLICK's dialog saves Copy Value as text (Suppress zero by default) or Copy Binary for a
     number into TXT, never a plain copy."""
     [error] = _errors(lambda: Copy(source, destination))
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
     assert f"convert=to_text({option},termination_code=none), CLICK's default" in str(error)
     assert "convert=to_binary" in str(error)
@@ -269,7 +269,8 @@ def test_a_number_into_txt_needs_a_converter(
         _read_af(tmp_path, f"copy({source},{destination})")
     with pytest.raises(FieldError, match="needs a converter"):
         Copy.from_csv_token(f"copy({source},{destination})")
-    copy = Copy(source, destination, format="text", **dict([option.split("=")]))
+    name, value = option.split("=")
+    copy = Copy(source, destination, convert="to_text", **{name: value == "1"})
     assert parse_af_blob(copy.build_blob()) == copy
 
 
@@ -289,9 +290,9 @@ def test_a_stored_plain_number_copy_into_txt_keeps_its_refusal(
     """A plain copy of a number into TXT, as laddercodec 0.4.0 wrote it, decodes as the Copy
     holding the refusal, and writes the bytes it was decoded from while unchanged."""
     found = _both_paths({0x6074: source, 0x6076: destination})
-    assert found.format == "none"
+    assert found.convert is None
     [error] = refusals(found)
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     with pytest.raises(FieldError, match="needs a converter"):
         replace(found)
 
@@ -305,16 +306,16 @@ def test_a_block_copy_of_numbers_into_txt_stays_refused() -> None:
 @pytest.mark.parametrize(
     ("source", "suppress_zero", "conv", "field4", "end"),
     [
-        ("123", "0", "2", "1", "TXT3"),  # CLICK's
-        ("123", "1", "1", "0", "TXT3"),  # CLICK's
-        ("5", "1", "1", "0", ""),  # CLICK's: one character, no end
-        ("5", "0", "2", "1", ""),
+        ("123", False, "2", "1", "TXT3"),  # CLICK's
+        ("123", True, "1", "0", "TXT3"),  # CLICK's
+        ("5", True, "1", "0", ""),  # CLICK's: one character, no end
+        ("5", False, "2", "1", ""),
     ],
 )
 def test_an_integer_into_txt_writes_its_suppress_zero(
-    source: str, suppress_zero: str, conv: str, field4: str, end: str
+    source: str, suppress_zero: bool, conv: str, field4: str, end: str
 ) -> None:
-    copy = Copy(source, "TXT1", format="text", suppress_zero=suppress_zero)
+    copy = Copy(source, "TXT1", convert="to_text", suppress_zero=suppress_zero)
     written = _tags(copy.build_blob())
     assert (written[0x2227], written[0x2206], written[0x6077]) == (conv, field4, end)
 
@@ -339,7 +340,7 @@ def test_an_integer_into_txt_writes_its_suppress_zero(
     ],
 )
 def test_copy_binary_writes_type_8(source: str, destination: str) -> None:
-    copy = Copy(source, destination, format="binary")
+    copy = Copy(source, destination, convert="to_binary")
     written = _tags(copy.build_blob())
     assert (written[0x2227], written[0x2206]) == ("8", "1")
     assert parse_af_blob(copy.build_blob()) == copy
@@ -361,7 +362,7 @@ def test_copy_binary_writes_type_8(source: str, destination: str) -> None:
 )
 def test_copy_binary_with_a_pointer_writes_type_8(source: str, destination: str) -> None:
     """Type 7 and Copy Binary follow the bank pair, a pointer on either side."""
-    copy = Copy(source, destination, format="binary")
+    copy = Copy(source, destination, convert="to_binary")
     written = _tags(copy.build_blob())
     assert (written[0x2227], written[0x2206]) == ("8", "1")
     assert parse_af_blob(copy.build_blob()) == copy
@@ -381,7 +382,7 @@ def test_a_plain_copy_into_a_pointer_writes_type_7(source: str, destination: str
 
 @pytest.mark.parametrize(("source", "destination"), [("DS1", "DF1"), ("5", "DF1"), ("DD1", "DS1")])
 def test_copy_binary_for_another_pair_is_refused(source: str, destination: str) -> None:
-    [error] = _errors(lambda: Copy(source, destination, format="binary"))
+    [error] = _errors(lambda: Copy(source, destination, convert="to_binary"))
     assert error.reason is Reason.CONFLICT
     assert "to_binary copies a number to TXT, or a value between a real and" in str(error)
     # A save of one keeps the refusal; type 7 for the pair is no save CLICK makes.
@@ -411,7 +412,7 @@ def test_a_hex_word_into_df_is_kept_as_typed(source: str) -> None:
     ("typed", "destination", "options", "kept"),
     [
         ("3.4028235E+38", "DF1", {}, "3.402823E+38"),  # CLICK's
-        ("3.4028235E+38", "TXT1", {"format": "text"}, "3.402823E+38"),  # CLICK's
+        ("3.4028235E+38", "TXT1", {"convert": "to_text"}, "3.402823E+38"),  # CLICK's
         ("-3.4028235E+38", "DF1", {}, "-3.402823E+38"),
         ("1.2345678", "DF1", {}, "1.234568"),
         ("1.23456789", "DD1", {}, "1.234568"),
@@ -456,7 +457,7 @@ def test_an_integer_has_no_digit_limit() -> None:
 
 
 def test_the_txt_end_of_a_real_counts_clicks_form() -> None:
-    copy = Copy("3.402823E+38", "TXT1", format="text")
+    copy = Copy("3.402823E+38", "TXT1", convert="to_text")
     assert _tags(copy.build_blob())[0x6077] == "TXT12"
 
 
@@ -632,27 +633,27 @@ def test_math_of_the_float32_edge_is_out_of_range() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("fmt", ["value", "ascii"])
+@pytest.mark.parametrize("fmt", ["to_value", "to_ascii"])
 @pytest.mark.parametrize(("source", "destination"), [("TXT1", "DF1"), ("TXT[DS1]", "DF[DS1]")])
 def test_txt_into_df_takes_no_converter(
     tmp_path: Path, fmt: str, source: str, destination: str
 ) -> None:
     """CLICK's dialog offers neither Copy Character Value nor Copy ASCII Code Value for TXT
     into DF, and saves a plain copy."""
-    [error] = _errors(lambda: Copy(source, destination, format=fmt))
-    assert error.fields == ("Copy.format", "Copy.source", "Copy.destination")
+    [error] = _errors(lambda: Copy(source, destination, convert=fmt))
+    assert error.fields == ("Copy.convert", "Copy.source", "Copy.dest")
     assert error.reason is Reason.CONFLICT
     assert "CLICK copies TXT into DF with no converter" in str(error)
     with pytest.raises(FieldError, match="no converter"):
-        _read_af(tmp_path, f"copy({source},{destination},convert=to_{fmt})")
+        _read_af(tmp_path, f"copy({source},{destination},convert={fmt})")
     assert _tags(Copy(source, destination).build_blob())[0x2227] == "0"
     # A save of one keeps the refusal, and writes its bytes while unchanged.
-    conv = "5" if fmt == "value" else "6"
+    conv = "5" if fmt == "to_value" else "6"
     tags = {0x6074: source, 0x6076: destination, 0x2227: conv}
-    if fmt == "ascii":
+    if fmt == "to_ascii":
         tags[0x2206] = "1"
     found = _both_paths(tags)
-    assert found.format == fmt
+    assert found.convert == fmt
     assert [e.fields for e in refusals(found)] == [error.fields]
 
 
@@ -716,18 +717,15 @@ def test_a_blank_flag_is_missing(tmp_path: Path, token: str, field: str) -> None
 
 
 @pytest.mark.parametrize(
-    ("pack_type", "source"), [("bits", ("C1", "C16")), ("words", ("DS1", "DS2"))]
+    ("kind", "source"), [("pack_bits", ("C1", "C16")), ("pack_words", ("DS1", "DS2"))]
 )
-def test_allow_whitespace_is_a_pack_text_option(pack_type: str, source: tuple) -> None:
+def test_allow_whitespace_is_a_pack_text_option(kind: str, source: tuple) -> None:
     """write_csv writes no pack_bits or pack_words token with allow_whitespace, which
     read_csv refuses: building one is refused."""
-    [error] = _errors(lambda: Pack(*source, "DD1", pack_type, allow_whitespace=True))
-    assert error.fields == ("Pack.allow_whitespace", "Pack.pack_type")
+    [error] = _errors(lambda: Pack(*source, "DD1", kind, allow_whitespace=True))
+    assert error.fields == ("Pack.allow_whitespace", "Pack.kind")
     assert error.reason is Reason.CONFLICT
-    assert (
-        Pack(*source, "DD1", pack_type).to_csv()
-        == f"pack_{pack_type}({source[0]}..{source[1]},DD1)"
-    )
+    assert Pack(*source, "DD1", kind).to_csv() == f"{kind}({source[0]}..{source[1]},DD1)"
 
 
 @pytest.mark.parametrize(

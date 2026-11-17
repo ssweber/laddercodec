@@ -404,7 +404,7 @@ def test_encode_refuses_empty_text_constant_set_after_build(tmp_path: Path) -> N
 
 
 def test_encode_refuses_empty_text_constant_in_objects() -> None:
-    copy = Copy(source='"Q"', destination="TXT1")
+    copy = Copy(source='"Q"', dest="TXT1")
     copy.source = '""'
     with pytest.raises(FieldError, match="a text constant is 1 to 128 characters"):
         encode_rung(2, [_empty(), _empty()], [copy, ""])

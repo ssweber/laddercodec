@@ -362,7 +362,7 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("copy.py", "CsvError(f('Cannot parse convert value: {raw!r}'))"): 1,
     ("copy.py", "CsvError(f('Cannot parse copy: {token!r}'))"): 1,
     ("copy.py", "CsvError(f('Cannot parse range: {arg!r}'))"): 1,
-    ("copy.py", "WriterError(f('Unknown format: {self.format!r}'))"): 1,
+    ("copy.py", "WriterError(f('Unknown convert: {self.convert!r}'))"): 1,
     ("copy.py", "CsvError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
     (
         "copy.py",
