@@ -1,9 +1,10 @@
-"""Send, Receive, the Modbus targets and address, raw and undecoded report every refusal.
+"""Send, Receive, the Modbus targets, ModbusAddress, raw and Undecoded report every refusal.
 
-Each class gives every refusal a reason and a field of its own; Send and Receive carry CLICK's
-ids where the code records them.  A refusal while a target is built names the target's own
-field (``ModbusTcpTarget.port``) and is raised before any Send or Receive exists; the checks
-Send and Receive make of their target name ``Receive.target``.
+Each class gives every refusal a reason and a field of its own. A refusal from Send or Receive
+also holds CLICK's id for it, where laddercodec records one. A refusal raised while a target
+is built names the target's own field, such as ``ModbusTcpTarget.port``, and it is raised
+before any Send or Receive exists. A check that Send or Receive makes of its target names the
+instruction's field, such as ``Receive.target``.
 """
 
 from __future__ import annotations
@@ -139,7 +140,7 @@ def test_modbus_address_hex_range_is_the_constant_check() -> None:
     assert (error.field, error.reason, error.click_id) == (
         "ModbusAddress.address",
         Reason.RANGE,
-        None,  # the remote-start field has no id for it; Copy and Math keep OBJ-005
+        None,  # remote_start has no CLICK id for this, though Copy and Math use OBJ-005
     )
 
 
@@ -154,7 +155,7 @@ def test_receive_names_its_own_target_field() -> None:
     low = ModbusRtuTarget(name="r", com_port="cpu2", device_id=0)
     (error,) = _refusals(lambda: receive(target=low))
     assert (error.field, error.reason) == ("Receive.target", Reason.RANGE)
-    send(target=low)  # a Send starts at slave 0
+    send(target=low)  # Send accepts slave ID 0, which Receive refuses
 
 
 # ---------------------------------------------------------------------------
@@ -195,11 +196,12 @@ def test_send_refused_remote_start_still_checks_the_independent_fields() -> None
 
 
 def test_a_field_that_depends_on_a_refused_one_is_not_checked() -> None:
-    # The quantity is no number, so no cap or room is read from it.
+    # The quantity is not a number, so it is not checked against a cap or the room.
     assert _shape(_refusals(lambda: send(quantity=None, source="DS4500"))) == [
         ("Send.quantity", Reason.FORM, None)
     ]
-    # The function code is refused, so FC05's one-element rule is not applied.
+    # The function code is refused, so the rule that FC05 and FC06 write one element is
+    # not applied.
     assert _shape(_refusals(lambda: send(function_code=7, quantity=2))) == [
         ("Send.function_code", Reason.CHOICE, None)
     ]

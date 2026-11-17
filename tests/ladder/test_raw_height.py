@@ -1,8 +1,10 @@
-"""A raw AF box has the height of the native cell it came from, or of its typed class.
+"""A raw AF box has the height of the native cell it was decoded from, or of its typed class.
 
-The cell header holds a box's row span at +0x09 and its sub-rows at +0x0A.  A box the
-decoders leave raw keeps the native bytes (the SCR entry header holds the same two
-bytes); a raw box read from CSV takes its typed class's height.
+A raw box is a ``RawInstruction``. Its typed class is the instruction class that laddercodec
+decodes the same blob to. The cell header holds a box's row span at +0x09 and its sub-rows
+at +0x0A. When a decoder leaves a box raw, the box keeps those two native bytes. An SCR
+entry header holds the same two bytes. A raw box read from CSV takes the height of its
+typed class, unless its token states ``rows=`` or ``sub=``.
 """
 
 from __future__ import annotations
@@ -45,8 +47,9 @@ _decode_program = importlib.import_module("laddercodec.decode_program")
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 V4 = FIXTURES / "v4_captures"
 
-#: Native clipboard captures holding every tall fixed-height class: the Copy family,
-#: Search, Send, Receive and the Out variants (v4 sweeps), plus SCR's coverage pair.
+#: Native clipboard captures that between them hold every tall class of fixed height. The
+#: v4 sweep captures hold the Copy family, Search, Send, Receive and the Out variants.
+#: coverage.bin is the clipboard copy of coverage.scr.
 CAPTURES = [
     V4 / "sweep_copy.bin",
     V4 / "sweep_search.bin",
@@ -59,7 +62,8 @@ CAPTURES = [
     FIXTURES / "tumbler" / "main.clipboard.bin",
 ]
 
-#: Native SCR files and their clipboard copies (``time_drums.bin`` is synthetic).
+#: Native SCR files and their clipboard copies. time_drums.scr is not here, because its
+#: ``time_drums.bin`` is synthetic.
 SCR_PAIRS = [
     ("coverage.scr", "coverage.bin"),
     ("counter_scr.scr", "counter_scr.bin"),
@@ -75,7 +79,7 @@ def _load(path: Path) -> bytes:
 
 
 def _af_cells(data: bytes) -> list[tuple[str, int, int]]:
-    """``(class_name, +0x09, +0x0A)`` of every AF instruction cell, in grid order."""
+    """Return ``(class_name, +0x09, +0x0A)`` for every AF instruction cell, in grid order."""
     row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
     _rtf, payload_len = _decode._read_rung0_comment(data)
     infos, _ = _decode._walk_grid(data, GRID_FIRST_ROW_START + payload_len, row_word // 0x20)
@@ -100,13 +104,13 @@ def _all_raw(rungs: list[Rung]) -> bool:
 
 
 def _csv_rung(token: str) -> Rung:
-    """The rung a CSV row of ``A..AE`` wires and *token* in AF reads back as."""
+    """Return the rung read from a CSV row with wires in ``A..AE`` and *token* in AF."""
     [rung] = convert_rung(_parse_single_rung_rows([["R", *["-"] * 31, token]]))
     return rung
 
 
 def _raw_token_of(af: AfInstruction) -> RawInstruction:
-    """The raw box a CSV file holds for *af*'s blob."""
+    """Return the raw box that a CSV file reads back for *af*'s blob."""
     blob = af.build_blob()
     class_name, _, part_count = find_blob_boundary(blob + bytes(16))
     raw = _csv_rung(RawInstruction(class_name, blob, part_count).to_csv()).instructions[0]
@@ -147,7 +151,7 @@ def test_scr_raw_takes_entry_row_bytes(
 
 
 def _short_email() -> RawInstruction:
-    """An Email box stored at 1 row, as CLICK copies back a pasted 1-row box."""
+    """Return a raw Email box stored at 1 row, as CLICK copies back a 1-row box pasted into it."""
     return RawInstruction("Email", Email().build_blob(), 1, rows=1, sub=1)
 
 
@@ -241,8 +245,9 @@ def _typed(path: Path, class_name: str) -> AfInstruction:
 
 
 def test_csv_raw_takes_typed_height() -> None:
-    # A regression lock on the class rule (raw matches typed), not native ground truth.
-    # Native cells it does not cover: Math 01 03 and some Search 02 03 (typed 02 02).
+    # This test locks the rule that a raw box has its typed class's height. It does not
+    # check the rule against native cells. The rule does not give the native Math cell at
+    # 01 03, or some native Search cells at 02 03, where the typed class gives 02 02.
     kinds: set[str] = set()
     for af in _typed_boxes():
         if isinstance(af, PinnedInstruction):
@@ -273,8 +278,8 @@ def test_csv_raw_takes_typed_height() -> None:
 
 
 def test_csv_raw_pinned_box_ends_below_its_last_pin() -> None:
-    # The span a typed pinned box has (last pin row + 1); the sub-rows it doesn't cover:
-    # Tmr 02 03, Cnt 04 03, Drum 04 05, SR 03 02.
+    # A raw pinned box spans the rows of its typed box, to one row below its last pin. Its
+    # sub-rows do not match these native cells: Tmr 02 03, Cnt 04 03, Drum 04 05, SR 03 02.
     pinned = [af for af in _typed_boxes() if isinstance(af, PinnedInstruction)]
     assert {type(af).__name__ for af in pinned} >= {"Timer", "Counter", "Shift", "Drum"}
     assert any(af.pin_rows[-1] + 1 > len(af.pin_rows) + 1 for af in pinned)
@@ -297,8 +302,9 @@ def test_raw_out_with_unknown_func_code_is_one_row() -> None:
     "class_name", ["Copy", "Search", "SD", "RD", "Email", "Home", "Position", "Velocity"]
 )
 def test_csv_raw_pads_rung_as_typed(class_name: str) -> None:
-    # A regression lock on the class rule (raw pads as typed), not native ground truth.
-    # Native cells it does not cover: some Search 02 03 (typed and raw rule 02 02).
+    # This test locks the rule that a raw box pads the rung as its typed class does. It does
+    # not check the rule against native cells. Some native Search cells are 02 03, where the
+    # typed class and the raw rule both give 02 02.
     path = {
         "Copy": V4 / "sweep_copy.bin",
         "Search": V4 / "sweep_search.bin",
@@ -369,8 +375,8 @@ def test_writer_keeps_native_sub_rows_raw(tmp_path: Path, monkeypatch: pytest.Mo
 
 
 def test_writer_sees_a_raw_height_loss() -> None:
-    # The writer's round-trip check compares raw heights: a box that would read back at
-    # another height than it encodes fails it.
+    # The writer's round-trip check compares the heights of raw boxes. It fails for a box
+    # that would read back at a height other than the one it encodes.
     blob = _raw_token_of(_typed(V4 / "sweep_search.bin", "Search")).blob
     native = RawInstruction("Search", blob, 1, rows=2, sub=3)
     rows = decoded_rung_to_rows(_rung_of(native, 2))
@@ -443,7 +449,11 @@ def test_legacy_hex_token_takes_rows_fields() -> None:
 
 
 def _native_files() -> list[Path]:
-    """Native clipboard and SCR captures (not goldens, not synthetic ``time_drums.bin``)."""
+    """Return the native clipboard and SCR captures among the fixtures.
+
+    Leave out the golden files, the synthetic ``time_drums.bin`` and the capture that
+    decodes to a marker.
+    """
     return sorted(
         path
         for path in FIXTURES.rglob("*")
@@ -455,7 +465,7 @@ def _native_files() -> list[Path]:
 
 
 def _drawn(rungs: list[Rung]) -> list[Rung]:
-    """*rungs* as ``write_csv`` writes them: in CLICK's layout where they have one."""
+    """Return *rungs* as ``write_csv`` writes them, in CLICK's layout where a rung has one."""
     return [part for rung in rungs for part in canonical(rung) or [rung]]
 
 
@@ -495,7 +505,7 @@ def test_native_pin_rows_round_trip_through_csv(
         drawn = _drawn(rungs)
         assert [r.instructions for r in again] == [r.instructions for r in drawn], path.name
         assert [r.conditions for r in again] == [r.conditions for r in drawn], path.name
-    # 50 boxes across the corpus move a pin.
+    # In the fixtures, 50 boxes have a pin that is not on its default row.
     assert moved == 50
     assert boxes > moved
 
@@ -572,7 +582,7 @@ def test_raw_box_the_fields_form_refuses_writes_hex(extra: bytes, rows: int | No
 # ---------------------------------------------------------------------------
 
 _VALUES_TOKEN_CANT_CARRY = [
-    "MAX ( DS1 , 100 )",  # the Math form of the native captures; a comma splits the token
+    "MAX ( DS1 , 100 )",  # as the native captures store it. A comma splits the token.
     "a,b",
     'a,"',
     '"',
@@ -590,7 +600,7 @@ _VALUES_TOKEN_CARRIES = ["", "100 )", "(a", "a=b", " lead", "é", "rows=3", "x:y
 
 
 def _field_box(value: str, last: bool = False) -> RawInstruction:
-    """A Math box with *value* in its first field, or in its last when *last*."""
+    """Return a raw Math box with *value* in its first field, or in its last if *last* is true."""
     from laddercodec.binary_helpers import _STANDARD_SENTINEL
     from laddercodec.instructions.raw import _compose_blob
 
