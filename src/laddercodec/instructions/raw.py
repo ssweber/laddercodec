@@ -153,7 +153,10 @@ def _fields_to_tag_dicts(
     Normalises clipboard conventions to match the SCR representation:
 
     * **Flag tags** (``0x11xx``/``0x12xx``): clipboard value ``"-1"``
-      or ``"1"`` → present in *tags*; ``"0"`` → absent.
+      or ``"1"`` → present in *tags*; ``"0"`` → absent.  An empty value is
+      present too: CLICK writes ``"-1"``, ``"1"`` or ``"0"``, and a blob
+      composed from a program file's tags writes a set flag as the empty
+      value the program file holds.
     * **Value tags** (byte, u16, string): their string value in *tags*;
       read them through ``binary_helpers.tag_value`` / ``tag_int``.
     * **Variant-sentinel fields**: ``0x3Axx`` → *variant_u16_tags*,
@@ -168,9 +171,9 @@ def _fields_to_tag_dicts(
     for tag, sentinel, value in fields:
         if sentinel == _STANDARD_SENTINEL:
             if _tag_wire_type(tag) == "flag":
-                if value in ("-1", "1"):
+                if value in ("-1", "1", ""):
                     tags[tag] = ""
-                # "0" / "" → absent (disabled)
+                # "0" → absent (disabled)
             else:
                 tags[tag] = value
         else:

@@ -221,9 +221,9 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (closed, above).
   - A hex Math result past SD's range (SD0, SD1001) is OBJ-004 (closed): the OBJ-003 for an SD as a hex
     result covers SD1-SD1000 only, and an SD past them is refused as a bank the result does not take.
-  - Copy `DS 1` (a space inside) is accepted as a single Copy's source (saved `DS1`) and destination (saved
-    `DS 1`, which `read_csv` refuses) and as a decimal Math result; the rules refuse it. Decide whether it
-    is refused on purpose, as the edge space is.
+  - Copy `DS 1` (a space inside) (closed): CLICK accepts it as a single Copy's source (saved `DS1`) and
+    destination (saved `DS 1`, which `read_csv` refuses) and as a decimal Math result; the rules refuse it.
+    Sam ruled on 2026-11-17 that it stays refused on purpose, as the edge space is.
   - An SD pointer (`SD[DS1]`) is accepted as a single Copy's source, and saved as typed; the rules refuse it.
   - Pack and Unpack order (closed): the rules give CLICK's id first in every answered case.
     - A Pack counts its source before the pairing. Where the source packs into the destination, the
@@ -247,8 +247,22 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       only into DS and DD). The rules give the count first (OBJ-040, OBJ-041).
     - A DH into a Y range across two slots with 16 points or fewer (`Y016..Y021`), and into the option
       slot alone (`Y021..Y036`): the rules give OBJ-1009 for the first and accept the second.
-  - Saves that decode as `raw(...)`: CLICK saves an address as typed (`DS001`, `DS01`, `ds1`, `XD00`,
-    `YD0U`, `DS[ds1]`) in Copy, Block Copy, Pack and Math.
+  - Addresses saved as typed (closed): CLICK saves a single Copy's, a Block Copy's and a Pack's
+    destination, each address of a Math formula and a hex Math's result as typed (`DS001`, `DS01`, `ds1`,
+    `XD00`, `YD0U`, `xd0U`, `DS[ds1]`). Decode reads them in display form and, unchanged, writes the saved
+    blob. CLICK saves a Copy, Block Copy or Unpack source, a decimal Math result and an Out address in
+    display form, so typed text there stays raw.
+    - Not answered (CLICK), read in display form by the code's own rule: in those fields, a typed form
+      no answer shows, such as a DH as a hex Math result (`dh1`, `DH01`), an X or Y number with extra
+      zeros (`X0001`), a lowercase bit (`y021`), a word register with a leading zero (`XD01`, `ctd01`,
+      `txt01`), a pointer of another bank (`SD[sd1]`), a Pack destination with leading zeros (`dd001`)
+      and a lowercase X or T in a `SUM`.
+    - Not answered (CLICK), left raw: an X or Y number typed short (`Y1` as a Copy destination, `X1` in a
+      Math `SUM`); a typed Fill destination, and a typed Unpack destination CLICK accepts (it refused
+      every answered one); and what a clipboard copy of a typed Math holds in its operand slots.
+    - A program file holds a set flag as an empty value, and the blob a decoded program box writes keeps
+      it so; the clipboard decoder reads an empty flag as set (no CLICK clipboard capture holds one).
+      Whether CLICK reads such a pasted box's flag as set is open (CLICK).
   - Saves that decode as `raw(...)`: conversion type 7. A single Copy saves it for exactly these answered
     cases: `1.5` into DD1, `DD[DS1]`, CTD1 or `CTD[DS1]`; CTD1 into DF1 and DF1 into CTD1; `2147483647` into
     DF1. DD1 into DF1 and back, and `1.5`, `5` or `-5` into DF1, keep the usual type.

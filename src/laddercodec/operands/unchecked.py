@@ -9,8 +9,9 @@ unchecked=True)`` does the same for a CSV.
 
 A refusal no instruction can keep still raises inside the block:
 
-- text not in CLICK's display form (``x1``, ``C001``): CLICK never writes it, and the CSV
-  would read it back in display form;
+- text not in CLICK's display form (``x1``, ``C001``) in a field CLICK saves in it: CLICK
+  never writes it, and the CSV would read it back in display form (a field CLICK saves as
+  typed, such as a Copy destination, the decoder reads in display form first);
 - a value outside a field's named values (:attr:`~Reason.CHOICE`) or not a flag
   (:attr:`~Reason.FLAG`): the bytes name no such value;
 - pin rows (``Timer.pin_rows``): the box can't be laid out;
@@ -272,7 +273,8 @@ def _same(error: FieldError) -> tuple[object, ...]:
 
 def read_in_another_form(inst: object) -> None:
     """Mark *inst*, built from stored text it reads in another form (an address with a
-    space at its edge read without it), as one that keeps its stored blob when decoded."""
+    space at its edge read without it, or saved as typed read in display form), as one
+    that keeps its stored blob when decoded."""
     object.__setattr__(inst, "_read_in_another_form", True)
 
 
