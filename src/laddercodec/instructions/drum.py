@@ -27,7 +27,7 @@ from ..model import (
     normalize_items,
 )
 from ..operands.checks import BIT_BANKS, Constants, Refusals, check_operand
-from ..operands.constants import Kind
+from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ def _constant_preset_mask(presets: list[str]) -> str:
 #: A constant step duration is 0 to 32767 for every unit, digits only: an int16
 #: with no ``-`` or ``+``, else OBJ-005.  A register duration is DS (OBJ-004 for another
 #: bank); whether the CPU takes a register at all is a project rule and is not checked.
-_DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=32767)
+_DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 
 def _check_distinct_outputs(

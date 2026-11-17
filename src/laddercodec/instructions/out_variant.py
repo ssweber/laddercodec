@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from ..binary_helpers import tag_value
 from ..model import AfInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand, check_out_target
-from ..operands.constants import Kind
+from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
 
@@ -79,9 +79,6 @@ _ACC_BANKS = frozenset({"TD"})
 #: Lowest constant preset: debounce takes 0, flasher and timed 1.
 _PRESET_FLOORS: dict[str, int] = {"debounce": 0, "flasher": 1, "timed": 1}
 
-#: Highest constant preset, for every kind (a digits-only preset
-#: above 0x7FFF is OBJ-005).
-_PRESET_MAX = 32767
 
 #: Fields each kind uses; any other of them must stay empty.
 _USED_FIELDS: dict[str, frozenset[str]] = {
@@ -94,7 +91,7 @@ _USED_FIELDS: dict[str, frozenset[str]] = {
 
 def _check_preset(value: str, name: str, floor: int) -> None:
     """A preset is a DS register or a digits-only constant from *floor* to 32767."""
-    constants = Constants(frozenset({Kind.INTEGER}), signs="", low=floor, high=_PRESET_MAX)
+    constants = Constants(frozenset({Kind.INTEGER}), signs="", low=floor, high=INT16_MAX)
     check_operand(value, name, {"DS"}, constants, letter_first=True)
 
 

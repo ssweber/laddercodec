@@ -63,7 +63,7 @@ src/laddercodec/
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
 │   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS;
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
-│   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them (not wired in yet);
+│   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)
 │   ├── errors.py         # FieldError (ValueError), AddressError; .errors, .field(s), .reason (Reason), .click_id, .obj
 │   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()

@@ -16,7 +16,7 @@ from ..model import (
     Reason,
 )
 from ..operands.checks import ALL_KINDS, Constants, Refusals, check_operand
-from ..operands.constants import Kind
+from ..operands.constants import HEX16_MAX, Kind
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ _GROUP_BANKS: dict[str, frozenset[str]] = {
 _DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
 
 #: Every kind of constant; hex is 16-bit, and a real is any spelling.
-_COMPARE_CONSTANTS = Constants(ALL_KINDS, hex_high=0xFFFF, float32=False)
+_COMPARE_CONSTANTS = Constants(ALL_KINDS, hex_high=HEX16_MAX, float32=False)
 
 _CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numeric"}
 

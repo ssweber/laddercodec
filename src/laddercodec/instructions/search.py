@@ -37,7 +37,7 @@ from ..operands.checks import (
     Refusals,
     check_quoted_text,
 )
-from ..operands.constants import SEARCH_TABLE_BANKS, Kind
+from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
 from .copy import check_box_operand, check_range
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -93,7 +93,7 @@ _TEXT_OPS = frozenset({"==", "!="})
 #: The search value: a constant of any kind, hex 16-bit (above FFFFh is a 32-bit hex
 #: constant, which is OBJ-005).  A signed hex text reads as a hex constant, which the
 #: field then refuses.
-_VALUE = Constants(ALL_KINDS, hex_high=0xFFFF, hex_sign=True)
+_VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True)
 
 # ---------------------------------------------------------------------------
 # Tag constants

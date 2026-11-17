@@ -360,7 +360,7 @@ _DOLLAR_FIELDS = [
     ],
 )
 def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: str) -> None:
-    """One check (operands.constants.check_char_code) gives every field the same FieldError."""
+    """One check (operands.checks.check_constant) gives every field the same FieldError."""
     with pytest.raises(FieldError) as caught:
         build(code)
     assert type(caught.value) is FieldError

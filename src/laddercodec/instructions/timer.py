@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from ..binary_helpers import tag_int, tag_value
 from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
-from ..operands.constants import Kind
+from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -42,8 +42,7 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 
 #: A constant set point is digits only (no sign), 0 to 32767, for every unit.
 #: A digits-only value above 0x7fff is OBJ-005; the unit does not matter.
-TIMER_MAX_SETPOINT = 32767
-_SETPOINT = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=TIMER_MAX_SETPOINT)
+_SETPOINT = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
