@@ -1,8 +1,9 @@
-"""Shared binary serialization primitives for instruction blobs.
+"""Read and write the parts of an instruction blob, the binary record of one instruction.
 
-Encoding helpers (UTF-16LE strings, tagged fields) used by instruction
-blob builders, and decoding helpers (read/parse) used by blob parsers.
-Wire-type classification for tag dispatch.
+The encoding helpers write UTF-16LE strings and tagged fields for the code that builds a
+blob.  The decoding helpers read them back for the code that parses a blob.
+``_tag_wire_type`` names a tag's wire type from its high byte.  ``tag_value``, ``tag_int``
+and ``tag_flag`` read a tag that a program file may leave out.
 """
 
 from __future__ import annotations
@@ -38,7 +39,11 @@ def _build_blob(
     tags: tuple[int, ...],
     fields: list[str],
 ) -> bytes:
-    """Build a standard instruction blob: class name + type marker + part=1 + tagged fields."""
+    """Build an instruction blob of one part.
+
+    The blob holds the class name, the type marker, a part count of 1, the field count and
+    the tagged fields.
+    """
     out = bytearray()
     out += _utf16le_null(class_name)
     out += struct.pack("<I", type_marker)
@@ -122,7 +127,7 @@ _STANDARD_SENTINEL = b"\xff\xff\xff\xff"
 
 
 def _tag_wire_type(tag: int) -> str:
-    """Infer the wire type of a SCR tag from its high byte.
+    """Infer the wire type of a tag from its high byte.
 
     Returns one of: "flag", "byte", "u16", "string", "variant_u16",
     "variant_string", or "unknown".
@@ -148,16 +153,18 @@ def _tag_wire_type(tag: int) -> str:
 # ---------------------------------------------------------------------------
 #
 # Click's program files (Scr*.tmp) store a tag only when its value differs from
-# the default; the clipboard stores every tag.  So a tag missing from a decoded
-# tag dict reads as its default, and every ``from_tags`` reads value tags through
-# ``tag_value`` / ``tag_int`` and flag tags through ``tag_flag``.
+# the default.  The clipboard stores every tag.  A tag missing from a decoded tag
+# dict therefore reads as its default.  Every ``from_tags`` reads value tags
+# through ``tag_value`` or ``tag_int``, and flag tags through ``tag_flag``.
 #
-# The default is the wire type's zero: ``""`` for string tags, ``"0"`` for
-# byte/u16 tags, unset for flags.  The tables below list the tags whose default
-# is something else, each omitted by SCR at that value.
+# A tag's default is the zero of its wire type: ``""`` for a string tag, ``"0"``
+# for a byte or u16 tag, and unset for a flag.  The tables below list the tags
+# whose default is something else.  A program file leaves each of them out when
+# it holds that value.
 #
-# Exception: the func code (0x3218) is left out of SCR whenever the class and
-# its other fields determine it, so each family derives it itself.
+# The func code (0x3218) is the exception.  A program file leaves it out whenever
+# the class and the other fields determine it, so each instruction family works it
+# out itself.
 
 #: Tags whose default is not zero, whatever the class.
 _TAG_DEFAULTS: dict[int, str] = {
@@ -192,7 +199,7 @@ def tag_default(tag: int, class_name: str = "") -> str:
 
 
 def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
-    """Read a value tag, falling back to its default when absent (or blank, for numbers)."""
+    """Read a value tag, or its default when it is absent or is a blank byte or u16 tag."""
     value = tags.get(tag)
     if value is None or (not value and _tag_wire_type(tag) in ("byte", "u16")):
         return tag_default(tag, class_name)
@@ -200,14 +207,14 @@ def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
 
 
 class NotANumber(FieldError):
-    """Text that is no number in a numeric tag: the blob stays unparsed."""
+    """Raised when a numeric tag holds text that is not a number.  The blob stays unparsed."""
 
 
 def tag_int(tags: dict[int, str], tag: int, class_name: str = "") -> int:
-    """Read a numeric tag as an int; absent or blank reads as its default.
+    """Read a numeric tag as an int.  An absent or blank tag reads as its default.
 
-    Raises :class:`NotANumber` for text that is no number, which the ``from_tags``
-    dispatchers read as a blob they leave raw.
+    Raises :class:`NotANumber` when the tag holds text that is not a number.  The decoders
+    then keep the blob raw.
     """
     value = tag_value(tags, tag, class_name)
     if not value:
