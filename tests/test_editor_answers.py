@@ -106,12 +106,6 @@ INNER_SPACE = (
     "to do: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
     "result; the rules refuse it, and read_csv refuses the save that keeps it"
 )
-BLOCK_LOWERCASE = (
-    "to do (the grid generator, not a rule): BlockCopy takes ds1 and normalises it, as CLICK "
-    "does, but devtools/editor_grids.py's _block_end runs check_address, which refuses ds1, and "
-    "falls back to the destination as its own end, so the verdict is a wrong destination end; "
-    "fix _block_end to normalise first"
-)
 SD_POINTER = (
     "to do: CLICK takes an SD pointer (SD[DS1]) as a Copy source and saves it as typed; the "
     "rules refuse it"
@@ -476,15 +470,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
     ),
     (INNER_SPACE, "copy_single", "stored", ("single DS2 -> DS 1",)),
     (INNER_SPACE, "math_decimal", "outcome", ("dec DS 1 = DS2 + 1",)),
-    (
-        BLOCK_LOWERCASE,
-        "copy_block",
-        "outcome",
-        (
-            "block DS1..DS2 -> ds1",
-            "block ds1..DS2 -> DS11",
-        ),
-    ),
     (SD_POINTER, "copy_single", "outcome", ("single SD[DS1] -> DS1",)),
     (SD_POINTER, "copy_single", "stored", ("single SD[DS1] -> DS1",)),
     (
