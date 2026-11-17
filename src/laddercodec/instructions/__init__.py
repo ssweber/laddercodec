@@ -90,7 +90,8 @@ class UnknownCondition:
 class UnknownInstruction:
     """An instruction cell on the AF column that the decoder could not read.
 
-    ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
+    The decoder makes one only when it cannot find an instruction blob in the cell.  A blob
+    that no parser accepts becomes a :class:`RawInstruction` instead.  ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
     boundary.
     """
 
@@ -98,8 +99,11 @@ class UnknownInstruction:
 
 
 ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
-"""A condition-column cell of a ``Rung``: a wire token (``"-"``, ``"|"``, ``"T"``, ``""``),
-a ``Contact`` or ``CompareContact``, or an ``UnknownCondition`` decode could not read."""
+"""A condition-column cell of a ``Rung``.
+
+It is a wire token (``"-"``, ``"|"``, ``"T"`` or ``""``), a condition instruction such as a
+``Contact`` or a ``CompareContact``, or an ``UnknownCondition`` for a cell that the decoder
+could not read."""
 
 AfToken = (
     str
@@ -124,9 +128,11 @@ AfToken = (
     | AfInstruction
     | UnknownInstruction
 )
-"""An AF-column cell of a ``Rung``: ``""`` or ``"NOP"``, an output instruction (an
-``AfInstruction``, ``RawInstruction`` and ``Undecoded`` among them), or an
-``UnknownInstruction`` decode could not read."""
+"""An AF-column cell of a ``Rung``.
+
+It is ``""``, ``"NOP"``, an output instruction, or an ``UnknownInstruction`` for a cell that
+the decoder could not read.  An output instruction is any ``AfInstruction``, including a
+``RawInstruction`` and the ``Undecoded`` marker."""
 
 
 CONDITION_FAMILY_SPECS: tuple[ConditionInstructionFamilySpec, ...] = (

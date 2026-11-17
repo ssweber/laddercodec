@@ -36,7 +36,7 @@ These rules are the same in every instruction. `field` names the field.
 | `address-out-of-range` | A number outside its bank (`DS5000`, `X017`). | OBJ-003 |
 | `bank-not-allowed` | An address in a bank the field doesn't take. | OBJ-003, OBJ-004 |
 | `upper-byte-not-allowed` | `XD0u` or `YD0u` in a field that takes no upper byte. |  |
-| `not-click-form` | A stored address, constant or Math name not written as CLICK writes it (decoding only). |  |
+| `not-click-form` | A stored value in a form that CLICK never writes. It is an address, a Math keypad name or a Math hex constant that is not in display form (`x1`, `sqrt`), or a numeric tag that holds no number. A decoder keeps such a blob raw. |  |
 | `not-writable` | An address the instruction can't write: a read-only SC bit, an SD outside the writable list, or a Send to a read-only Modbus type. | OBJ-003, OBJ-004, OBJ-018 |
 | `pointer-outside-copy` | A pointer in any field but a single Copy's source or destination. |  |
 | `pointer-bank-not-allowed` | A pointer to a bank the field's pointer can't address. | OBJ-004 |
@@ -61,7 +61,7 @@ These rules apply to several instructions.
 | `range-not-ascending` | A range that ends at or before its start. | OBJ-009, OBJ-012 |
 | `range-crosses-slot` | An X or Y range that crosses a 16-point slot. | OBJ-033, OBJ-1009 |
 | `duplicate-address` | Two fields that must differ name one address. | OBJ-012, OBJ-014 |
-| `timer-pair-mismatch` | A done bit and an accumulator that are not one timer's or one counter's. |  |
+| `timer-pair-mismatch` | A timer's or counter's done bit and accumulator with different numbers, such as `T1` with `TD2`. |  |
 | `immediate-contact-not-x` | An immediate contact outside X. |  |
 | `immediate-coil-not-y` | An immediate coil outside Y. |  |
 | `immediate-edge-contact` | Immediate on a rise or fall contact. |  |
@@ -94,22 +94,22 @@ These rules apply to the formula of a Math instruction.
 |---|---|---|
 | `math-nickname` | A formula that holds a `<nickname>`. |  |
 | `math-invalid-token` | A word or character that is no formula part. | OBJ-1001 |
-| `math-constant-kind` | Hex in a decimal Math, a decimal or h-less constant in a hex Math, or text. | OBJ-1001 |
+| `math-constant-kind` | A hex constant in a decimal Math, a constant without an `h` in a hex Math, or a text constant in any Math. | OBJ-1001 |
 | `math-constant-out-of-range` | Hex over 4 digits, a real past float32 or with more significant digits than CLICK keeps, an integer past int32, or leading zeros. | OBJ-1009 |
 | `math-nesting-depth` | Parentheses more than 8 deep. | OBJ-1010 |
 | `math-unbalanced-parens` | A `)` with no `(`, or a `(` with no `)`. | OBJ-1004, OBJ-1005 |
-| `math-function-mode` | A key from the other mode's keypad. | OBJ-1006 |
+| `math-function-mode` | A function, an operator or `PI` that only the other mode's keypad has, such as `SIN` in a hex Math or `XOR` in a decimal Math. | OBJ-1006 |
 | `math-syntax-error` | A formula with tokens out of order, a comma outside a call, `:` outside a range function, or a wrong first or last token. | OBJ-1001, OBJ-037 |
 | `math-arg-expression` | A function argument that is not one address or constant. | OBJ-1001 |
 | `random-bound-type` | A RAND bound that is a real, or in a bank RAND doesn't take. | OBJ-1001, OBJ-1002 |
 | `random-equal-bounds` | RAND with equal bounds. | OBJ-1001 |
-| `math-operand-bank` | An address in a bank the mode doesn't take, a bit outside SUM included. | OBJ-1002 |
+| `math-operand-bank` | An address outside a `SUM` range, in a bank that the Math mode doesn't take. A decimal Math takes bit addresses only in a `SUM` range. | OBJ-1002 |
 | `sum-bank-unavailable` | SUM over a bank SUM doesn't read. | OBJ-1002 |
 | `math-range-mixed-banks` | An `a : b` range in two banks. | OBJ-1015 |
 | `math-range-not-ascending` | An `a : b` range that runs high to low. | OBJ-1014 |
 | `median-range-too-large` | MDN over more than 1024 bytes. | OBJ-1013 |
 | `sum-option-slot` | An X or Y SUM range with an end in the option slot. |  |
-| `math-formula-too-long` | A formula whose internal form is over CLICK's cap. | OBJ-1008 |
+| `math-formula-too-long` | A formula longer than 270 characters in the internal form that CLICK stores. | OBJ-1008 |
 
 ## Other instructions
 
@@ -130,7 +130,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `invalid-modbus-target` | A Modbus target with a bad device_id, IP or port. |  |
 | `for-count-bank` | A For loop count in a bank the count doesn't take. | OBJ-004 |
 | `invalid-token` | A CSV token that doesn't follow its instruction's syntax. |  |
-| `invalid-raw` | A `RawInstruction` field refused. |  |
+| `invalid-raw` | A `RawInstruction` field with a value of the wrong type or out of range, or a `raw(...)` token whose `rows=` does not fit its `pins=`. |  |
 | `invalid-undecoded` | An `Undecoded` field refused. |  |
 
 ## check() findings
@@ -145,14 +145,14 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `no-coil` | A path from the rail that reaches no box. | C0003 |
 | `contact-feeds-only-nop` | A contact that feeds a NOP and no other box. | C0003 |
 | `unwired-input` | A box input (a Reset input, a Down input, ...) that no rail or contact reaches. | C0202 |
-| `output-above-box-inputs` | A box above another box that uses an input row, on the net that feeds the lower box's enable. | C000A |
+| `output-above-box-inputs` | A box whose main input is on the same net as the main input of a lower box that uses an input row, such as a `.reset()` row. The rail reaches that net through a contact. | C000A |
 | `shared-input-net` | A box input whose net another input shares. | C000A |
 | `input-without-contact` | A box input with no contact of its own. | C0205, C0212 |
 | `input-shares-enable` | A box input whose circuit shares contacts with an enable. |  |
 | `inputs-share-contacts` | A box input whose circuit shares contacts with another box input. |  |
 | `unpowered-box` | A box that no rail or contact reaches. | C0202 |
 | `shorted-contact` | A wire that joins a contact's two sides. | C0002 |
-| `undecoded-rung` | A rung that holds an undecoded marker. |  |
+| `undecoded-rung` | A rung that holds an `Undecoded` marker. The marker stands in for a rung that a decoder could not decode or that `write_csv` could not write. |  |
 
 ## Layout only
 
@@ -161,5 +161,5 @@ These codes come only from laying a rung out. `check()` never reports them. If `
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `layout-too-wide` | A layout that needs more than 31 condition columns. |  |
-| `layout-nop-split` | A split of a rung that holds a NOP. No capture shows how CLICK splits one. |  |
+| `layout-nop-split` | A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung. |  |
 | `layout-cannot-draw` | Nets that collide, cells that overlap, a contact that can't take a down wire, or a contact drawn twice. |  |
