@@ -80,15 +80,16 @@ class ClickCell:
 
     def build_header(self) -> bytes:
         """Build the 0x25 (37-byte) structured header."""
-        # 8-bit structural bytes at +0x09..+0x0C
+        # 8-bit structural bytes at +0x09..+0x0C.  The encoder always writes 0x00 at +0x0B.
+        # CLICK's own cells can hold other values at +0x0B and +0x0C, and the decoder reads
+        # neither byte.
         if self.row_span > 1 or self.visual_rows > 1:
             # Multi-row AF instruction (timer): +0x09 = row span,
-            # +0x0A = visual sub-rows, +0x0B stays 0x00 (no 0xFD marker).
+            # +0x0A = visual sub-rows.
             # A raw box keeps its native bytes, which can be 01 03 (Math).
             b09, b0a, b0c = self.row_span, self.visual_rows, 0
         elif self.blob or self.rung_has_instructions:
-            # Instruction cell or wire cell in an instruction-bearing rung.
-            # CLICK writes +0x0B=0x00, +0x0C=0x00 for these cells.
+            # Instruction cell or wire cell in an instruction-bearing rung: +0x0C = 0x00.
             b09, b0a, b0c = 1, 1, 0
         else:
             # Pure wire/data cell in a wire-only rung: +0x0C = 0x01
@@ -142,7 +143,9 @@ class ClickCell:
             if self.col < 31:
                 tail[13] = (self.local_row + 1) & 0xFF
             elif self.single_rung:
-                # Single-rung AF instructions keep the legacy row hint.
+                # A single-rung encode writes local_row + 2 at tail[13], the 1-based number
+                # of the row below.  encode() passes is_last_rung=True with single_rung=True,
+                # so the elif branch below does not run.
                 if self.is_last_rung:
                     tail[13] = (self.local_row + 2) & 0xFF
                 elif self.logical_rows > 1:

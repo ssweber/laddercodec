@@ -442,9 +442,12 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     or when ``laddercodec.check()`` reports a finding other than an unwired
     box input or a contact that feeds only a NOP.
 
-    A retained timer writes a ``.reset()`` pin row on its reset input's row,
-    which is the second grid row by default.  A rung can hold several tall or
-    pinned instructions, and each one reads back with all of its rows.
+    A box with pins writes a pin row for each pin in use, such as a retained
+    timer's ``.reset()``.  The pin row goes on the row that the box's
+    ``pin_rows`` gives for that pin, counted from the box's top row.  With the
+    default ``pin_rows=(1,)``, a retained timer's ``.reset()`` row is the row
+    below the timer.  A rung can hold several tall or pinned instructions, and
+    each one reads back with all of its rows.
     """
     rows: list[list[str]] = []
     for part, exact in _drawn(rung):

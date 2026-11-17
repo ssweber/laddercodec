@@ -140,7 +140,7 @@ def _print_rung(rung: Rung, rung_idx: int) -> None:
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: uv run devtools/inspect.py <file.bin> [file2.bin ...]")
+        print("Usage: uv run devtools/inspect_bin.py <file.bin> [file2.bin ...]")
         sys.exit(1)
 
     for arg in sys.argv[1:]:

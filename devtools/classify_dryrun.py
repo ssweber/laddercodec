@@ -585,8 +585,7 @@ def _data_flow_comm() -> list[Field]:
     )
     # This list leaves out the device_id of a Modbus target. A device_id is a number or a
     # DS address, and the Modbus family keeps its own check of it. That check raises FieldError
-    # for a bad DS address, where the shared check raises AddressError. Today's check also
-    # crashes in int() on DS and on more than 4300 digits.
+    # for a bad DS address, where the shared check raises AddressError.
     out.append(
         Field(
             "comm",

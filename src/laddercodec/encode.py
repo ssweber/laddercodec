@@ -16,9 +16,12 @@ Row:
 Cell:
     The bytes for one (row, column) position in the grid. A wire cell
     is 64 (0x40) bytes, and an instruction cell is longer. A cell holds
-    wire flags and bytes that describe the grid's structure. In a rung
-    with instructions it also holds metadata that places it in the
-    instruction stream.
+    wire flags and bytes that describe the grid's structure. An
+    instruction cell also holds its index among the rung's instructions,
+    at +0x0D. The encoder numbers the condition instructions row by row,
+    then the AF instructions. If the AF cell on the buffer's last row
+    holds no instruction, its tail holds the number of instructions in
+    the rung.
 
 Wire topology:
     The arrangement of horizontal wires ("-"), vertical pass-throughs
@@ -40,7 +43,7 @@ NOP:
     encoder writes it as flags: +0x1D = 1 in column 31 of the NOP's row,
     and +0x15 = 1 in column 0 of that row if it is not the first row and
     the rung holds no other instruction.
-    A NOP needs no entry in the instruction stream.
+    A NOP gets no instruction index and is not counted.
 
 Comment:
     Text attached to a rung. The encoder stores it as RTF: a fixed
@@ -79,7 +82,9 @@ Verified in Click (encode → paste → copy back → decode round-trip):
     [x] Coils (out, latch, reset, immediate, range — via Coil objects in af_tokens)
     [x] Comparison contacts (GT, GE, LT, LE, EQ, NE — via CompareContact objects)
     [x] Timers (on_delay, off_delay, retentive — via Timer objects in af_tokens)
-    [ ] Full AF instruction set (counters, math, etc.)
+    [x] The other AF instructions: counters, the Copy family, Search,
+        Math, Shift, drums, For/Next, Call, Return, End, Send/Receive
+        and the Out variants (tests/fixtures/coverage/golden/)
 
 
 Pipeline steps
