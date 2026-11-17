@@ -121,7 +121,8 @@ class Undecoded(AfInstruction):
         """Return why ``encode()`` refuses the marker."""
         return (
             f"an undecoded marker stands in for a rung laddercodec could not decode "
-            f"({self.headline}); it can't be pasted into CLICK"
+            f"({self.headline}); it can't be pasted into CLICK. Replace the marker rung "
+            "with the rung's logic, or remove it."
         )
 
     def to_csv(self) -> str:

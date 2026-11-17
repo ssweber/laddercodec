@@ -110,8 +110,8 @@ class Timer(PinnedInstruction):
             if self.kind == "off_delay" and self.retained:
                 check.refuse(
                     ("retained", "kind"),
-                    "off_delay can't be retentive (no .reset() pin); CLICK's Timer dialog "
-                    "offers Retentive only for an On Delay timer",
+                    "an off_delay timer can't be retentive. Use on_delay for a retentive "
+                    "timer. Otherwise remove the .reset() row, or set retained=False.",
                     Reason.CONFLICT,
                     code=Code.OPTION_NOT_OFFERED,
                 )
@@ -128,7 +128,11 @@ class Timer(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse timer: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a timer. Write it as "
+                "on_delay(done,accumulator,preset=...,unit=...) or off_delay(...), such as "
+                "on_delay(T1,TD1,preset=1000,unit=Tms)."
+            )
         kind = cast(Literal["on_delay", "off_delay"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}

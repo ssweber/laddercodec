@@ -29,7 +29,9 @@ class Return(AfInstruction):
     def from_csv_token(cls, token: str) -> Return:
         token = token.strip()
         if not re.fullmatch(r"return\(\s*\)", token):
-            raise CsvError(f"Cannot parse return instruction: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a Return instruction. Write it as return()."
+            )
         return cls()
 
     def to_csv(self) -> str:

@@ -371,7 +371,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ValueError, match="off_delay can't be retentive"):
+        with pytest.raises(ValueError, match="an off_delay timer can't be retentive"):
             _literal(rung)
 
     def test_retentive_off_delay_blob_decodes_as_raw(self) -> None:
@@ -433,7 +433,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match="Unknown pin"):
+        with pytest.raises(CsvError, match=r"bogus\(\) is not a pin token"):
             _literal(rung)
 
 
@@ -813,7 +813,21 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(CsvError, match="not supported for shift"):
+        with pytest.raises(CsvError, match=r"shift\(\) has no \.down\(\) pin"):
+            _literal(rung)
+
+    def test_shift_names_a_foreign_pin_as_written(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "main.csv"
+        _write_csv(
+            csv_path,
+            [
+                ("R", _wire_row("C96"), "shift(C99..C106)"),
+                ("", _wire_row("C97"), ".jump(DS5)"),
+            ],
+        )
+
+        rung = parse_csv_file(csv_path).rungs[0]
+        with pytest.raises(CsvError, match=r"shift\(\) has no \.jump\(\) pin\. Its pins are"):
             _literal(rung)
 
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
@@ -951,7 +965,7 @@ class TestConvertRungStrict:
         _write_csv(csv_path, [("R", _wire_row(), "drum(DS1,DS2)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ValueError, match="Unsupported AF instruction"):
+        with pytest.raises(ValueError, match=r"Could not read 'drum\(DS1,DS2\)' as an instruction"):
             _literal(rung)
 
     def test_unsupported_af_blanked_when_not_strict(self, tmp_path: Path) -> None:

@@ -282,11 +282,11 @@ class TestCoil:
             Coil.from_csv_token(token)
 
     def test_from_csv_token_invalid(self):
-        with pytest.raises(ValueError, match="Cannot parse coil"):
+        with pytest.raises(ValueError, match="Could not read 'Y001' as a coil"):
             Coil.from_csv_token("Y001")
 
     def test_from_csv_token_invalid_range_delimiter(self):
-        with pytest.raises(ValueError, match="unsupported"):
+        with pytest.raises(ValueError, match="writes a range with ':'"):
             Coil.from_csv_token("out(Y1:Y2)")
 
     def test_from_csv_token_invalid_operand(self):

@@ -169,7 +169,7 @@ def encode_rungs(
             if len(encoded) > COMMENT_MAX_BYTES:
                 raise EncodeError(
                     f"Rung {r_idx}: comment body exceeds {COMMENT_MAX_BYTES} bytes "
-                    f"after RTF encoding (got {len(encoded)})"
+                    f"after RTF encoding (got {len(encoded)}). Shorten the comment."
                 )
 
     # --- Step 1: Header — load template, patch row_word ---

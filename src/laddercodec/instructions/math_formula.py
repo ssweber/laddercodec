@@ -1203,7 +1203,7 @@ def parse(text: str, mode: str) -> Formula:
         found.append(
             _error(
                 f"the formula is {length} characters in CLICK's internal form; CLICK allows "
-                f"{MAX_INTERNAL_LENGTH}",
+                f"{MAX_INTERNAL_LENGTH}. Shorten the formula.",
                 Reason.RANGE,
                 "OBJ-1008",
                 code=Code.MATH_FORMULA_TOO_LONG,

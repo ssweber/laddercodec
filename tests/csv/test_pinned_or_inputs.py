@@ -175,13 +175,33 @@ def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:
         ["", *conds[1], ""],
         ["", *_pin_row(0), "NOP"],
     ]
-    with pytest.raises(CsvError, match="NOP bridge row"):
+    with pytest.raises(CsvError, match="the row with NOP in column AF is the box.s Down input"):
+        read_csv(_write(tmp_path / "main.csv", rows))
+
+
+def test_count_down_rejects_bridge_under_a_lead_row(tmp_path: Path) -> None:
+    """A blank-AF row above count_down() and a NOP row under it both claim the Up row."""
+
+    def wired(first: str) -> list[str]:
+        return [first] + ["-"] * (COLUMNS - 1)
+
+    rows = [
+        ["R", *wired("C1"), ""],
+        ["", *wired("X001"), "count_down(CT3,CTD3,preset=50)"],
+        ["", *wired("X002"), "NOP"],
+        ["", *wired("Y001"), ".reset()"],
+    ]
+    with pytest.raises(
+        CsvError, match=r"has only one Up row.* Leave no blank-AF row directly above count_down"
+    ):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 
 def test_timer_rejects_foreign_pin(tmp_path: Path) -> None:
     rows = _csv_rows("on_delay(T1,TD1,preset=3000,unit=Tms)", 2, (".down()",))
-    with pytest.raises(CsvError, match="not supported for on_delay"):
+    with pytest.raises(
+        CsvError, match=r"on_delay\(\) has no \.down\(\) pin. Its only pin is \.reset\(\)"
+    ):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 

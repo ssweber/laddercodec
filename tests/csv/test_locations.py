@@ -269,7 +269,15 @@ class TestInstructions:
 
     def test_condition_token_not_understood(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("+"), "out(Y001)")])
-        _raises(path, CsvError, "Cannot convert generic", line=2, rung_line=2, row=0, column=0)
+        _raises(
+            path,
+            CsvError,
+            r"Could not read '\+' as a condition cell",
+            line=2,
+            rung_line=2,
+            row=0,
+            column=0,
+        )
 
     def test_contact_with_non_ascii_digits(self, tmp_path: Path) -> None:
         """An address written with digits outside 0-9 is refused as an address, at its cell."""
@@ -281,7 +289,15 @@ class TestInstructions:
 
     def test_unsupported_af(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "main.csv", [("R", _wired("X1"), "frob(1)")])
-        _raises(path, CsvError, "Unsupported AF", line=2, rung_line=2, row=0, column=AF)
+        _raises(
+            path,
+            CsvError,
+            r"Could not read 'frob\(1\)' as an instruction",
+            line=2,
+            rung_line=2,
+            row=0,
+            column=AF,
+        )
 
     def test_rung_after_comment_counts_from_its_r_row(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [
@@ -301,7 +317,9 @@ class TestConverterPins:
             ("", _wired("X2"), ".bogus()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "Unknown pin", line=3, rung_line=2, row=1, column=AF)
+        _raises(
+            path, CsvError, r"bogus\(\) is not a pin token", line=3, rung_line=2, row=1, column=AF
+        )
 
     def test_pin_not_for_instruction(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [
@@ -309,7 +327,15 @@ class TestConverterPins:
             ("", _wired("C97"), ".down()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "not supported for shift", line=3, rung_line=2, row=1, column=AF)
+        _raises(
+            path,
+            CsvError,
+            r"shift\(\) has no \.down\(\) pin",
+            line=3,
+            rung_line=2,
+            row=1,
+            column=AF,
+        )
 
     def test_pin_out_of_order(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [
@@ -328,7 +354,7 @@ class TestConverterPins:
             ("", _wired("C78"), "NOP"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "NOP bridge", line=4, rung_line=2, row=2, column=AF)
+        _raises(path, CsvError, "is the box.s Down input", line=4, rung_line=2, row=2, column=AF)
 
     def test_missing_reset_is_at_the_box(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [GOOD, ("R", _wired("C80"), "count_up(CT4,CTD4,preset=10)")]

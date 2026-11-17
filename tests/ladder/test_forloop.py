@@ -231,7 +231,7 @@ class TestForCount:
     def test_inner_space_refused(self, limit: str) -> None:
         # CLICK's dialog accepts a count with a space inside. laddercodec refuses it because
         # it is not a number.
-        with pytest.raises(FieldError, match="has a space inside"):
+        with pytest.raises(FieldError, match="has a space in it. Write the count as digits only"):
             ForLoop(count=limit)
 
     def test_outer_space_kept_as_before(self) -> None:

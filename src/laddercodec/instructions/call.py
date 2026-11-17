@@ -37,7 +37,7 @@ class Call(AfInstruction):
             if not self.subroutine:
                 check.refuse(
                     "subroutine",
-                    "is blank; CLICK requires a subroutine name",
+                    "The subroutine name is blank. Enter the name of the subroutine to call.",
                     Reason.MISSING,
                     code=Code.BLANK_FIELD,
                 )
@@ -49,7 +49,10 @@ class Call(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
-            raise CsvError(f"Cannot parse call instruction: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a Call instruction. Write it as "
+                'call("name"), with the subroutine name in double quotes.'
+            )
         return cls(subroutine=m.group(1))
 
     def to_csv(self) -> str:

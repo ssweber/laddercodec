@@ -51,12 +51,18 @@ _CONTINUE_FUNC_CODE = "9232"
 _BREAK_FUNC_CODE = "9233"
 _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 
+_FOR_FORM = (
+    "Could not read {token!r} as a For instruction. Write it as for(count), or "
+    "for(count,oneshot=1)."
+)
+
 
 def _validate_for_count(value: str) -> str:
     text = value.strip()
     if not text:
         raise FieldError(
-            "ForLoop.count: is blank; it needs a count",
+            "ForLoop.count: The count is blank. Enter a number of loops, or an address that "
+            "holds one.",
             field="ForLoop.count",
             reason=Reason.MISSING,
             code=Code.BLANK_FIELD,
@@ -64,7 +70,8 @@ def _validate_for_count(value: str) -> str:
     if _FOR_SPACED_RE.fullmatch(text):
         # CLICK's dialog accepts ``1 0``.  It is not a number, so laddercodec refuses it.
         raise FieldError(
-            f"ForLoop.count: {text!r} has a space inside; a constant count is digits only",
+            f"ForLoop.count: {text!r} has a space in it. Write the count as digits only, such "
+            "as 10.",
             field="ForLoop.count",
             reason=Reason.FORM,
             code=Code.INVALID_CONSTANT,
@@ -100,7 +107,7 @@ class ForLoop(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"for\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse for instruction: {token!r}")
+            raise CsvError(_FOR_FORM.format(token=token))
 
         args: list[str] = []
         kwargs: dict[str, str] = {}
@@ -112,7 +119,7 @@ class ForLoop(AfInstruction):
                 args.append(seg)
 
         if len(args) != 1:
-            raise CsvError(f"for expects 1 positional arg (count), got {len(args)}")
+            raise CsvError(_FOR_FORM.format(token=token))
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
             raise CsvError(f"for does not support keyword argument(s): {sorted(unknown)}")
@@ -151,7 +158,7 @@ class Next(AfInstruction):
     def from_csv_token(cls, token: str) -> Next:
         token = token.strip()
         if not re.fullmatch(r"next\(\s*\)", token):
-            raise CsvError(f"Cannot parse next instruction: {token!r}")
+            raise CsvError(f"Could not read {token!r} as a Next instruction. Write it as next().")
         return cls()
 
     def to_csv(self) -> str:
@@ -176,7 +183,7 @@ class Break(AfInstruction):
     def from_csv_token(cls, token: str) -> Break:
         token = token.strip()
         if not re.fullmatch(r"break\(\s*\)", token):
-            raise CsvError(f"Cannot parse break instruction: {token!r}")
+            raise CsvError(f"Could not read {token!r} as a Break instruction. Write it as break().")
         return cls()
 
     def to_csv(self) -> str:
@@ -201,7 +208,9 @@ class Continue(AfInstruction):
     def from_csv_token(cls, token: str) -> Continue:
         token = token.strip()
         if not re.fullmatch(r"continue\(\s*\)", token):
-            raise CsvError(f"Cannot parse continue instruction: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a Continue instruction. Write it as continue()."
+            )
         return cls()
 
     def to_csv(self) -> str:

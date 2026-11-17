@@ -98,7 +98,8 @@ class ModbusTcpTarget:
             if isinstance(self.port, bool) or not isinstance(self.port, int):
                 check.refuse(
                     "port",
-                    f"must be an integer, got {self.port!r}",
+                    f"{self.port!r} is not an int. Pass the port as a whole number, such as "
+                    "port=502.",
                     Reason.FORM,
                     code=Code.INVALID_MODBUS_TARGET,
                 )
@@ -397,12 +398,13 @@ def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -
         )
 
 
-def _xy_nth(number: int, steps: int, cls: str) -> int:
+def _xy_nth(prefix: str, number: int, steps: int, cls: str) -> int:
     """Return the X/Y point that is ``steps`` points after ``number``.
 
     Count only the points in the slots, and skip the numbers between slots. Raise
     ``FieldError`` if the count runs past the last slot.
     """
+    quantity = steps + 1
     for lo, hi in XY_SLOTS:
         if hi < number:
             continue
@@ -411,7 +413,9 @@ def _xy_nth(number: int, steps: int, cls: str) -> int:
             return first + steps
         steps -= hi - first + 1
     raise FieldError(
-        f"X/Y count runs past the last slot from point {number}",
+        f"{cls}.quantity: {quantity} addresses from {Address(prefix, number).display} run "
+        f"past {Address(prefix, XY_SLOTS[-1][1]).display}, the last {prefix} address. Lower "
+        "the count, or start at a lower address.",
         field=f"{cls}.quantity",
         reason=Reason.RANGE,
         code=Code.COUNT_OUT_OF_RANGE,
@@ -428,7 +432,7 @@ def _addr_end(start: str, quantity: int, cls: str) -> str:
         return start
     prefix, number = m.group(1), int(m.group(2))
     if prefix in _XY_BANKS:
-        return Address(prefix, _xy_nth(number, quantity - 1, cls)).display
+        return Address(prefix, _xy_nth(prefix, number, quantity - 1, cls)).display
     return Address(prefix, number + quantity - 1).display
 
 
@@ -1619,7 +1623,9 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
     m = _CONSTRUCTOR_RE.fullmatch(raw.strip())
     if not m:
         raise FieldError(
-            f"Cannot parse target: {raw!r}",
+            f"Could not read target={raw}. Write ModbusTcpTarget(...) or "
+            "ModbusRtuTarget(...), such as "
+            'ModbusTcpTarget(name="plc",ip="192.168.1.10",port=502,device_id=1).',
             field=None,  # token syntax, not a field value
             reason=Reason.FORM,
             code=Code.INVALID_TOKEN,
@@ -1641,7 +1647,8 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         raw_port = kw.get("port", "502")
         if not raw_port.isascii() or not raw_port.lstrip("-").isdigit():
             raise FieldError(
-                f"ModbusTcpTarget.port: must be an integer, got {raw_port!r}",
+                f"ModbusTcpTarget.port: {raw_port!r} is not a port number. Enter a whole "
+                "number, such as 502.",
                 field="ModbusTcpTarget.port",
                 reason=Reason.FORM,
                 code=Code.INVALID_MODBUS_TARGET,
@@ -1650,7 +1657,7 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         com_port = _strip_quotes(kw.get("com_port", "ethernet"))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise FieldError(
-        f"Unknown target type: {cls_name!r}",
+        f"{cls_name!r} is not a target type. Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
         field=None,  # token syntax, not a field value
         reason=Reason.FORM,
         code=Code.INVALID_TOKEN,

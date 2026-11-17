@@ -153,7 +153,11 @@ class Counter(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse counter: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a counter. Write it as "
+                "count_up(done,accumulator,preset=...) or count_down(...), such as "
+                "count_up(CT1,CTD1,preset=100)."
+            )
 
         kind = cast(Literal["count_up", "count_down"], m.group(1))
         args: list[str] = []

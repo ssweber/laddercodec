@@ -219,7 +219,13 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
         pin_name = af_node.name
         if pin_name not in KNOWN_PIN_NAMES:
-            raise at(CsvError(f"Unknown pin token: {pin_name!r}"), column=AF_COLUMN)
+            raise at(
+                CsvError(
+                    f"{pin_name}() is not a pin token. Write one of "
+                    f"{', '.join(_pin_form(p) for p in sorted(KNOWN_PIN_NAMES))}."
+                ),
+                column=AF_COLUMN,
+            )
         return _ParsedRow(
             conditions=conds,
             kind="pin",
@@ -280,6 +286,11 @@ def _call_name(token: AfInstruction) -> str:
     return f"{token.to_csv().split('(', 1)[0]}()"
 
 
+def _pin_form(pin_name: str) -> str:
+    """Return how a pin row writes *pin_name* in column AF, such as ``.reset()``."""
+    return ".jump(DS1)" if pin_name == ".jump" else f"{pin_name}()"
+
+
 def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstruction) -> bool:
     """Take *row* into a pinned block if it belongs there, and return whether it did.
 
@@ -295,10 +306,17 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
     """
     order = token.pin_names()
     if row.kind == "nop" and token.lead_rows:
-        if block.lead_conditions or block.continuations:
+        name = _call_name(token)
+        if block.lead_conditions:
             raise CsvError(
-                f"{_call_name(token)} takes a NOP bridge row only directly under it, "
-                "with no row above it"
+                f"{name}: with NOP on the row under it, the {name} row is the box's unused "
+                "Up row. The box has only one Up row, so the blank-AF row directly above it "
+                f"can't be another. Leave no blank-AF row directly above {name}."
+            )
+        if block.continuations:
+            raise CsvError(
+                f"{name}: the row with NOP in column AF is the box's Down input. Put that "
+                f"row directly under the {name} row."
             )
         block.lead_conditions = [block.main_conditions]
         block.main_conditions = row.conditions
@@ -313,7 +331,12 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
         return False
     pin_name = cast(str, row.pin_name)
     if pin_name not in order:
-        raise CsvError(f"Pin token {pin_name!r} is not supported for {_call_name(token)}")
+        pins = (
+            f"Its only pin is {_pin_form(order[0])}."
+            if len(order) == 1
+            else f"Its pins are {', '.join(_pin_form(p) for p in order)}, in that order."
+        )
+        raise CsvError(f"{_call_name(token)} has no {pin_name}() pin. {pins}")
     remaining = order[order.index(seen[-1]) + 1 :] if seen else order
     if pin_name not in remaining:
         raise CsvError(
@@ -540,7 +563,10 @@ def condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
             check_address(node.raw, "Contact.operand")  # an address with digits not in 0-9
-        raise CsvError(f"Cannot convert generic condition to encode token: {node.raw!r}")
+        raise CsvError(
+            f"Could not read {node.raw!r} as a condition cell. Write a contact such as X001, "
+            "~X001 or rise(X001), a compare such as DS1==1, or a wire: -, | or T."
+        )
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
 
@@ -564,7 +590,10 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     if refused is None:
         if token is None:
             if strict:
-                raise CsvError(f"Unsupported AF instruction: {call.name!r}")
+                raise CsvError(
+                    f"Could not read {call.to_token()!r} as an instruction. Check its name "
+                    "and its parentheses."
+                )
             return ""
         if not refusals(token):
             return token

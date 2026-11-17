@@ -180,7 +180,7 @@ class OutVariant(AfInstruction):
         if self.kind != "timed" and self.maintained:
             check.refuse(
                 ("maintained", "kind"),
-                "only timed has an Output Maintained box",
+                f"only a timed coil can be maintained. Set maintained to False for {self.kind}.",
                 Reason.CONFLICT,
                 code=Code.OPTION_NOT_OFFERED,
             )
@@ -248,23 +248,33 @@ class OutVariant(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"(toggle|debounce|flasher|timed)\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse Out variant: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a toggle, debounce, flasher or timed coil. "
+                "Write the coil's address first, such as toggle(C1) or "
+                "timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)."
+            )
         kind = cast(OutVariantKind, m.group(1))
         parts = [seg.strip() for seg in m.group(2).split(",") if seg.strip()]
         if not parts or "=" in parts[0]:
             raise CsvError(f"{kind} needs a target operand: {token!r}")
 
         arg = parts[0]
+        if kind == "toggle" and len(parts) > 1:
+            raise CsvError(
+                f"Could not read {token!r}. toggle takes only the coil's address, such as "
+                "toggle(C1) or toggle(immediate(Y001))."
+            )
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise CsvError(f"Cannot parse {kind} keyword arg: {token!r}")
+                raise CsvError(
+                    f"Could not read {token!r}. After the coil's address, {kind} takes only "
+                    "keyword arguments, such as on_acc=TD1."
+                )
             k, v = seg.split("=", 1)
             kwargs[k.strip()] = v.strip()
 
         if kind == "toggle":
-            if kwargs:
-                raise CsvError(f"toggle takes no keyword arguments: {token!r}")
             inner = re.fullmatch(r"immediate\((.+)\)", arg)
             if inner:
                 return cls(kind="toggle", operand=inner.group(1).strip(), immediate=True)

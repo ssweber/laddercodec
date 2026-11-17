@@ -1133,7 +1133,10 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     """
     m = _CONVERT_CALL_RE.fullmatch(raw.strip())
     if not m:
-        raise CsvError(f"Cannot parse convert value: {raw!r}")
+        raise CsvError(
+            f"Could not read convert={raw}. Write to_value, to_ascii, to_text(...) or "
+            "to_binary(...), such as convert=to_value."
+        )
 
     fmt = m.group(1)  # "text", "value", "binary", "ascii"
     inner = (m.group(2) or "").strip()
@@ -1164,13 +1167,23 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     return f"to_{fmt}", text_opts
 
 
-def _parse_range(arg: str) -> tuple[str, str]:
-    """Split ``"A..B"`` into ``("A", "B")``."""
+def _parse_range(arg: str, name: str, role: str) -> tuple[str, str]:
+    """Split ``"A..B"`` into ``("A", "B")``.
+
+    *name* is the CSV name of the instruction, and *role* is ``"source"`` or
+    ``"destination"``. The error messages use both.
+    """
     if ".." not in arg:
-        raise CsvError(f"Expected range with '..': {arg!r}")
+        raise CsvError(
+            f"{arg!r} is not a range. Write the {role} of {name} as two addresses joined by "
+            "'..', such as DS1..DS10."
+        )
     parts = [p.strip() for p in arg.split("..")]
     if len(parts) != 2 or not all(parts):
-        raise CsvError(f"Cannot parse range: {arg!r}")
+        raise CsvError(
+            f"Could not read the range {arg!r}. Write the {role} of {name} as two addresses "
+            "joined by '..', such as DS1..DS10."
+        )
     return parts[0], parts[1]
 
 
@@ -1559,7 +1572,10 @@ class Copy(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"copy\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse copy: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a copy. Write it as copy(source,dest), such as "
+                "copy(DS1,DS2)."
+            )
 
         segments = _split_paren_aware(m.group(1))
 
@@ -1754,8 +1770,11 @@ class BlockCopy(AfInstruction):
                             cls,
                             ("dest_start", *spans),
                             f"{self.source_start}..{self.source_end} into "
-                            f"{self.dest_start} crosses a Y slot; crossing a slot is not "
-                            "supported yet: it needs a capture",
+                            f"{self.dest_start} runs past the end of its Y slot. A Y slot "
+                            "holds 16 addresses, such as Y001..Y016. laddercodec can't write "
+                            "a destination that crosses into the next slot. Copy at most 16 "
+                            "addresses into Y, and start where they all fit in one slot, such "
+                            "as C1..C16 into Y001.",
                             Reason.CONFLICT,
                             code=Code.RANGE_CROSSES_SLOT,
                         )
@@ -2546,8 +2565,8 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
                 f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs("blockcopy", call.kwargs)
-        src_start, src_end = _parse_range(call.args[0])
-        dest_start, dest_end = _parse_range(call.args[1])
+        src_start, src_end = _parse_range(call.args[0], call.name, "source")
+        dest_start, dest_end = _parse_range(call.args[1], call.name, "destination")
         convert_raw = call.kwargs.get("convert", "")
         convert = _parse_convert_kwarg(convert_raw)[0] if convert_raw else None
         return BlockCopy(
@@ -2566,7 +2585,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
                 f"fill expects 2 positional args (value, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
-        dest_start, dest_end = _parse_range(call.args[1])
+        dest_start, dest_end = _parse_range(call.args[1], call.name, "destination")
         return Fill(
             value=call.args[0],
             dest_start=dest_start,
@@ -2580,7 +2599,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
                 f"{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
-        src_start, src_end = _parse_range(call.args[0])
+        src_start, src_end = _parse_range(call.args[0], call.name, "source")
         return Pack(
             source_start=src_start,
             source_end=src_end,
@@ -2598,7 +2617,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
                 f"{call.name} expects 2 positional args (source, dest_range), got {len(call.args)}"
             )
         _refuse_unknown_kwargs(call.name, call.kwargs)
-        dest_start, dest_end = _parse_range(call.args[1])
+        dest_start, dest_end = _parse_range(call.args[1], call.name, "destination")
         return Unpack(
             source=call.args[0],
             dest_start=dest_start,

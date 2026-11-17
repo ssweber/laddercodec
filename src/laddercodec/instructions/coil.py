@@ -73,6 +73,11 @@ _FUNC_TO_COIL: dict[str, tuple[CoilKind, bool, bool, bool]] = {
 
 _COIL_TAGS = (0x6066, 0x6067, 0x11F8, 0x11F5, 0x3218, 0x0000)
 
+_COIL_FORM = (
+    "Could not read {token!r} as a coil. Write it as out(address), latch(address) or "
+    "reset(address), such as out(Y001) or out(C1..C8,oneshot=1)."
+)
+
 
 def _bank_of(value: str) -> str | None:
     """Return the bank of ``value``, or None if ``value`` is not an address CLICK accepts.
@@ -181,19 +186,19 @@ class Coil(AfInstruction):
 
         m = re.fullmatch(r"(out|latch|reset)\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse coil: {token!r}")
+            raise CsvError(_COIL_FORM.format(token=token))
 
         kind = cast(CoilKind, m.group(1))
         inner = m.group(2).strip()
         parts = [seg.strip() for seg in inner.split(",") if seg.strip()]
         if not parts:
-            raise CsvError(f"Cannot parse coil: {token!r}")
+            raise CsvError(_COIL_FORM.format(token=token))
 
         arg = parts[0]
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise CsvError(f"Cannot parse coil keyword arg: {token!r}")
+                raise CsvError(_COIL_FORM.format(token=token))
             k, v = seg.split("=", 1)
             kwargs[k.strip()] = v.strip()
 
@@ -210,12 +215,17 @@ class Coil(AfInstruction):
 
         immediate = immediate_inner
         if ":" in arg:
-            raise CsvError(f"Range delimiter ':' is unsupported: {token!r}")
+            raise CsvError(
+                f"{token!r} writes a range with ':'. Write it with '..', such as out(C1..C8)."
+            )
 
         if ".." in arg:
             parts = [p.strip() for p in arg.split("..")]
             if len(parts) != 2 or not all(parts):
-                raise CsvError(f"Cannot parse coil range: {token!r}")
+                raise CsvError(
+                    f"Could not read the range in {token!r}. Write it as two addresses "
+                    "joined by '..', such as out(C1..C8)."
+                )
             return cls(
                 parts[0],
                 kind=kind,
