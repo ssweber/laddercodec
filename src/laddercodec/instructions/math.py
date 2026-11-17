@@ -33,8 +33,10 @@ from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, FieldError, Reason, check_address
+from ..operands.address import read_as_typed
 from ..operands.checks import HEX_MATH_RESULT, Refusals, check_writable_sd
 from ..operands.constants import INT16_MAX, INT16_MIN
+from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
 from .math_formula import address_parts, parse
 from .math_formula import range_interiors as formula_range_interiors
@@ -303,18 +305,23 @@ def from_tags(
     if class_name != "Math" or type_code != _MATH_TYPE_CODE:
         return None
 
-    result = tag_value(tags, 0x6065)
+    mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
+    oneshot = tag_flag(tags, 0x11F8)
+
+    # CLICK saves each address of the formula, and a hex Math's result, as typed (ds1,
+    # DS001, XD0U, YD00); they read in display form.  A decimal result is saved in it.
+    stored_result = tag_value(tags, 0x6065)
+    result = read_as_typed(stored_result) if mode == "hex" else stored_result
+    stored_internal = tag_value(tags, 0x61FD)
+    internal = "#".join(read_as_typed(token) for token in stored_internal.split("#"))
     expression = _reconstruct_expression(
         tag_value(tags, 0x61FF),
-        tag_value(tags, 0x61FD),
+        internal,
     ) or tag_value(tags, 0x6228)
     if not result or not expression or _holds_nickname(expression):
         # The display text of CLICK's nickname view names no addresses: it is not a
         # formula laddercodec can read, so the blob stays raw.
         return None
-
-    mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
-    oneshot = tag_flag(tags, 0x11F8)
 
     try:
         math = Math(
@@ -327,8 +334,11 @@ def from_tags(
         # A refusal no decoded instruction keeps (see laddercodec.operands.unchecked)
         # leaves the blob raw; the decoders build the Math keeping any other.
         return None
+    if result != stored_result or internal != stored_internal:
+        # Decoded, it writes the bytes CLICK stored, the text as typed.
+        read_in_another_form(math)
     # Older laddercodec wrote H only for a decimal constant, which a hex Math refuses.
-    findings = _legacy_findings(tag_value(tags, 0x61FD)) if mode == "decimal" else []
+    findings = _legacy_findings(stored_internal) if mode == "decimal" else []
     if findings:
         math._legacy_findings = findings
     return math

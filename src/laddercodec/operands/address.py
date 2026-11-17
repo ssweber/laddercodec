@@ -117,6 +117,24 @@ def to_display(value: str, display: str, field: str | None) -> str:
     return display
 
 
+def read_as_typed(value: str) -> str:
+    """Return the display form of address text CLICK saved as typed; other text unchanged.
+
+    CLICK saves some fields as they were typed, not in display form (the decoders name
+    which): letter case (``ds1``, ``xd0U``), leading zeros (``DS001``, ``YD00``) and a
+    pointer's index (``DS[ds1]``) are kept, and the field reads as ``DS1``, ``XD0u``,
+    ``YD0`` and ``DS[DS1]``.  Text shorter than its display form (``Y1`` for ``Y001``) is
+    returned unchanged: no recorded save holds one, so :func:`display_form_only` still
+    refuses it.  Unlike :func:`normalize_address`, this never refuses.
+    """
+    token = _DISPLAY_FORM_ONLY.set(False)
+    try:
+        display = normalize_address(value)
+    finally:
+        _DISPLAY_FORM_ONLY.reset(token)
+    return value if len(display) > len(value) else display
+
+
 def normalize_fields(inst: object, *names: str) -> None:
     """Write each named text field of ``inst`` in display form with :func:`normalize_address`.
 

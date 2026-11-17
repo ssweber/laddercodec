@@ -396,7 +396,8 @@ def _scr_box(
     if parsed_af is not None and _fits_stored_span(parsed_af, cell_rows[0]):
         if needs_stored_blob(parsed_af):
             # It writes the blob a raw box of the entry writes, while it is unchanged: one
-            # that holds refusals, or that reads a stored address without its edge space.
+            # that holds refusals, or that reads a stored address in another form (without
+            # its edge space, or in display form where CLICK saved it as typed).
             keep_stored_blob(parsed_af, _scr_blob(class_name, type_code, tags, part_rows))
             keep_cell_rows(parsed_af, cell_rows[0], cell_rows[1])
         return parsed_af

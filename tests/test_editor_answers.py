@@ -33,14 +33,14 @@ from typing import Any
 import pytest
 
 from laddercodec.csv import read_csv
-from laddercodec.instructions import parse_af_blob
+from laddercodec.decode_program import _scr_box
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import RawInstruction
+from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, ModbusRtuTarget, Receive
 from laddercodec.instructions.undecoded import Undecoded
-from laddercodec.model import ADDRESS_BANKS, InstructionType
+from laddercodec.model import ADDRESS_BANKS, AfInstruction, InstructionType
 
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
@@ -83,8 +83,10 @@ EDGE_SPACE_KEPT = (
 
 # Copy (roadmap item 3, except where marked).
 INNER_SPACE = (
-    "to do: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
-    "result; the rules refuse it, and read_csv refuses the save that keeps it"
+    "kept: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
+    "result, and a Copy's save drops the space from the source and keeps it in the "
+    "destination; an instruction holds the address in display form, so construction refuses "
+    "the space, and read_csv refuses the save that keeps it (settled)"
 )
 SD_POINTER = (
     "to do: CLICK takes an SD pointer (SD[DS1]) as a Copy source and saves it as typed; the "
@@ -107,10 +109,6 @@ TEXT_AS_REAL = (
 )
 
 # Saves decode reads as raw(...) (roadmap item 3).
-TYPED_ADDRESS = (
-    "to do: CLICK saves an address as typed (DS001, ds1, XD00, YD0U), not in display form, and "
-    "decode reads it as raw(...)"
-)
 CONVERSION_7 = (
     "to do: a Copy of 1.5 into DD1, DD[DS1], CTD1 or CTD[DS1], of CTD1 into DF1 or DF1 into "
     "CTD1, and of 2147483647 into DF1 saves conversion type 7, which decode reads as raw(...); "
@@ -258,66 +256,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
     (TEXT_AS_REAL, "copy_single", "stored", ('single "HELLO" -> TXT1',)),
     (
-        TYPED_ADDRESS,
-        "copy_single",
-        "stored",
-        (
-            "single DS2 -> DS001",
-            "single DS2 -> DS01",
-            "single DS2 -> DS[DS001]",
-            "single DS2 -> DS[ds1]",
-            "single DS2 -> YD00",
-            "single DS2 -> YD0U",
-            "single DS2 -> ds1",
-        ),
-    ),
-    (
-        TYPED_ADDRESS,
-        "copy_block",
-        "stored",
-        (
-            "block DS1..DS2 -> DS001",
-            "block DS1..DS2 -> ds1",
-        ),
-    ),
-    (
-        TYPED_ADDRESS,
-        "copy_pack",
-        "stored",
-        (
-            "pack C1..C16 -> DS001",
-            "pack C1..C16 -> ds1",
-        ),
-    ),
-    (
-        TYPED_ADDRESS,
-        "math_decimal",
-        "stored",
-        (
-            "dec DS1 = DS001 + 1",
-            "dec DS1 = DS01 + 1",
-            "dec DS1 = ds1 + 1",
-        ),
-    ),
-    (
-        TYPED_ADDRESS,
-        "math_hex",
-        "stored",
-        (
-            "hex DH1 = XD00",
-            "hex DH1 = XD00 + 1h",
-            "hex DH1 = XD0U",
-            "hex DH1 = XD0U + 1h",
-            "hex DH1 = YD00",
-            "hex DH1 = YD00 + 1h",
-            "hex DH1 = YD0U",
-            "hex DH1 = YD0U + 1h",
-            "hex DH1 = xd0U + 1h",
-            "hex YD00 = DH2 + DH3",
-            "hex YD0U = DH2 + DH3",
-        ),
-    ),
-    (
         CONVERSION_7,
         "copy_single",
         "stored",
@@ -424,8 +362,9 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
 def reads_as_raw(rows: list[str]) -> bool:
     """Whether the saved rung reads back as ``raw(...)`` (or an unknown condition).
 
-    The rows were written by the laddercodec of the run; a ``raw(...)`` among them is read
-    again from its bytes, as decode reads that save today.
+    The rows were written by the laddercodec of the run from CLICK's program file; a
+    ``raw(...)`` among them is read again from its tags, as ``decode_program`` reads that
+    save today.
     """
     lines = ["marker," + ",".join(_columns()), *rows]
     with tempfile.TemporaryDirectory() as folder:
@@ -436,11 +375,25 @@ def reads_as_raw(rows: list[str]) -> bool:
         except Exception:
             return True
     return any(
-        isinstance(i, Undecoded)
-        or (isinstance(i, RawInstruction) and parse_af_blob(i.blob) is None)
+        isinstance(i, Undecoded) or (isinstance(i, RawInstruction) and saved_box(i) is None)
         for r in rungs
         for i in r.instructions
     )
+
+
+def saved_box(raw: RawInstruction) -> AfInstruction | None:
+    """The box ``decode_program`` reads from the entry of a raw box it wrote, or None.
+
+    That raw box holds the blob composed from the program file entry's tags: every tag a
+    standard field, and a flag that is set an empty value.  So the box is read from those
+    tags, its part rows and its cell rows, as ``decode_program`` reads the entry.
+    """
+    class_name, type_code, _parts, extra, fields = _decompose_blob(raw.blob)
+    tags = {tag: value for tag, _sentinel, value in fields}
+    part_rows = bytes([1, *(1 + row for row in extra)])
+    cell_rows = bytes([raw.visual_rows or 0, raw.sub_rows or 0])
+    box = _scr_box(class_name, type_code, tags, part_rows, {}, {}, cell_rows)
+    return None if isinstance(box, RawInstruction) else box
 
 
 def _columns() -> list[str]:

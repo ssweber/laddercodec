@@ -332,7 +332,11 @@ def _swap(data: bytes, old: str, new: str) -> bytes:
 
 
 class TestDecodeKeepsText:
-    """A blob whose text is not in display form stays raw; decoding never rewrites it."""
+    """A blob whose text is not in display form stays raw; decoding never rewrites it.
+
+    The fields CLICK saves as typed are read in display form instead
+    (``tests/test_typed_addresses.py``).
+    """
 
     @pytest.mark.parametrize("text", ["X1", "x1", "x001"])
     def test_contact(self, text: str) -> None:
@@ -348,7 +352,8 @@ class TestDecodeKeepsText:
     @pytest.mark.parametrize(
         ("expression", "old", "new"),
         [
-            ("DS1 + DS2", "DS1", "ds01"),
+            # CLICK saves a decimal Math's result in display form.
+            ("DS1 + DS2", "DS4", "ds04"),
             ("SUM ( DS1 : DS3 )", "SUM", "sum"),
         ],
     )

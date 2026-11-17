@@ -33,6 +33,7 @@ from ..model import (
     check_address,
     xy_slot,
 )
+from ..operands.address import read_as_typed
 from ..operands.checks import (
     ALL_KINDS,
     BIT_BANKS,
@@ -1771,9 +1772,8 @@ def from_tags(
 ) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
     """Construct a Copy-family instruction from tag data (shared by both decoders)."""
     built = _from_tags(class_name, type_code, tags)
-    destination = tag_value(tags, 0x6076)
-    if built is not None and _edge_trimmed(tags) and destination != destination.strip(" "):
-        # Decoded from a clipboard, it writes the bytes CLICK stored, space and all.
+    if built is not None and _read_destination(tags) != tag_value(tags, 0x6076):
+        # Decoded, it writes the bytes CLICK stored: the space, the text as typed.
         read_in_another_form(built)
     return built
 
@@ -1787,6 +1787,21 @@ def _edge_trimmed(tags: dict[int, str]) -> bool:
     return tag_int(tags, 0x2223) in (0, 3)
 
 
+def _read_destination(tags: dict[int, str]) -> str:
+    """The destination (start) as it is read: trimmed (:func:`_edge_trimmed`), and for a
+    single Copy, a Block Copy or a Pack, in display form.
+
+    CLICK saves those destinations as typed (``DS001``, ``ds1``, ``YD0U``, ``DS[ds1]``)
+    and every other address in display form.
+    """
+    destination = tag_value(tags, 0x6076)
+    if _edge_trimmed(tags):
+        destination = destination.strip(" ")
+    if tag_int(tags, 0x2223) in (0, 1, 3):
+        destination = read_as_typed(destination)
+    return destination
+
+
 def _from_tags(
     class_name: str, type_code: int, tags: dict[int, str]
 ) -> Copy | BlockCopy | Fill | Pack | Unpack | None:
@@ -1795,13 +1810,11 @@ def _from_tags(
 
     source = tag_value(tags, 0x6074)
     source_end = tag_value(tags, 0x6075)
-    destination = tag_value(tags, 0x6076)
+    destination = _read_destination(tags)
     destination_end = tag_value(tags, 0x6077)
     oneshot = tag_flag(tags, 0x11F8)
     copy_type = tag_int(tags, 0x2223)
     conv_type = tag_int(tags, 0x2227)
-    if _edge_trimmed(tags):
-        destination = destination.strip(" ")
 
     if copy_type == 0:
         if not source or not destination:

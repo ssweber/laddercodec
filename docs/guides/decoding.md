@@ -109,13 +109,23 @@ equal to the decoded one but `encode()` raises its `error`.
 
 A value no stored instruction holds still decodes as `RawInstruction` (or an
 unknown condition) with its bytes kept: an address not in CLICK's display form
-(`C001`), a value outside a field's named values (a timer unit, a compare
-operator), text that is no number in a numeric field, pin rows the box can't
-take, a value a check crashes on, a Math stored in nickname view, and an
-instruction whose CSV would not read back as the same instruction. A Copy or Pack
+outside the fields CLICK saves as typed (`C001` in an Out), a value outside a
+field's named values (a timer unit, a compare operator), text that is no number
+in a numeric field, pin rows the box can't take, a value a check crashes on, a
+Math stored in nickname view, and an instruction whose CSV would not read back as
+the same instruction. A Copy or Pack
 destination stored with a space at either edge decodes as the address without the
 space; left unchanged, it encodes as it did when it decoded as `RawInstruction`,
 space and all.
+
+CLICK saves some addresses as they were typed, not in display form: a Copy, Block
+Copy or Pack destination, each address in a Math formula, and a hex Math's result
+(`DS001`, `ds1`, `YD0U`, `DS[ds1]`). These decode in display form (`DS1`, `YD0u`,
+`DS[DS1]`), as CLICK's editor shows them, and the CSV holds that form. Left
+unchanged, the instruction encodes as the bytes CLICK saved; changed, it encodes
+in display form. A CSV holds no blob: read back from the CSV `write_csv` writes,
+the instruction encodes in display form. An address typed with fewer digits than
+its display form (`Y1`) is left raw, as is a typed address in any other field.
 
 ### Wire tokens
 
