@@ -117,14 +117,14 @@ accepts the skipped code. CLICK v4 pastes it, then fails the syntax check with
 C000A ("All inputs of the box instruction must originate from the same branch")
 until the drum is reopened and OK'd (`v4_captures/drum_jog.bin`).
 
-`0x428A` marks which presets are constants: bit *n* is cleared when step *n*'s
+`0x428A` marks which presets are constants. Bit *n* is cleared when step *n*'s
 preset is a register, so all-constant is `-1` and `presets=[DS1,DS2]` is `-4`.
-CLICK v4 computes it on OK. A time drum with any register
-preset then takes the func code series 1792 codes up (Tms 10247/10248, Th jog
-10272…); time & event drums keep the 10503 series either way. A paste keeps the
-field as written and treats a missing one as `-1`, so a 64-field time drum with
-a register preset would paste as an 8455-series drum, a state the dialog never
-writes; the encoder gives such drums the 82-field layout.
+CLICK v4 computes it on OK. A time drum with any register preset then takes the
+func code series 1792 codes up (Tms 10247/10248, Th jog 10272…). Time & event
+drums keep the 10503 series either way. A paste keeps the field as written and
+treats a missing one as `-1`. So a 64-field time drum with a register preset would
+paste as an 8455-series drum, a state that the dialog never writes. The encoder
+gives such drums the 82-field layout.
 
 ## Break and Continue (CLICK v4)
 

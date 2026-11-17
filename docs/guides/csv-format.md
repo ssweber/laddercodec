@@ -1,9 +1,9 @@
 # CSV Format (v1)
 
-This page defines laddercodec's 33-column CSV format: what `read_csv` reads and
-`write_csv` writes. pyrung's exporter produces it; the sections that describe that
-exporter (bundle naming, the subroutine `return()` tail, export validation) say so.
-If you write a CSV by hand, start at [Layout](#layout).
+This page defines laddercodec's 33-column CSV format. `read_csv` reads it and
+`write_csv` writes it. pyrung's exporter produces it. The sections that describe
+that exporter (bundle naming, the subroutine `return()` tail, export validation)
+say so. If you write a CSV by hand, start at [Layout](#layout).
 
 Relevant entry points:
 
@@ -38,10 +38,10 @@ A bundle directory contains:
 Rules:
 
 - `parse_bundle(directory)` requires `main.csv`. It reads every `.csv` file
-  (any case of the extension) directly in `subroutines/`, in lexical filename
-  order, and takes each file's stem as the subroutine's slug. A bundle with no
-  `subroutines/` folder has no subroutines. Other files are ignored.
-- laddercodec does not write bundles: `write_csv` writes one CSV file.
+  directly in `subroutines/` (any case of the extension), in lexical filename
+  order. It takes each file's stem as the subroutine's slug. A bundle with no
+  `subroutines/` folder has no subroutines. `parse_bundle` ignores other files.
+- laddercodec does not write bundles. `write_csv` writes one CSV file.
 - `pyrung`'s `LadderBundle.write(directory)`:
   - creates the directory (`parents=True, exist_ok=True`) and overwrites
     existing files;
@@ -124,16 +124,16 @@ No explicit `+` topology token is emitted.
 ## Layout
 
 Write the circuit: contacts, wires and boxes. `read_csv` lays each rung out as
-CLICK's syntax check draws it, so a CSV doesn't need pad rows under a tall box,
-rows for unused pins, or a merge in any particular column. A wire between two
-series contacts goes:
+CLICK's syntax check draws it. So a CSV doesn't need pad rows under a tall box,
+rows for unused pins, or a merge in any particular column. If you write a wire
+between two series contacts like this:
 
 ```text
      A      B      C      ...   AF
 R    X001   -      X002   -...- out(Y001)
 ```
 
-reads as
+`read_csv` reads it as:
 
 ```text
      A      B      C      ...   AF
@@ -141,21 +141,21 @@ R    X001   X002   -      -...- out(Y001)
 ```
 
 - Contacts pack left, and each OR merges in the column after its last contact.
-- Each box goes on the first free output row below the box above it; the
+- Each box goes on the first free output row below the box above it, and the
   conditions pack up beside it.
 - Blank rows inside an OR, blank rows at the top or bottom, and wire stubs that
   join nothing are dropped.
 - A pinned box's pins go on the rows CLICK gives them
   ([Builder pin continuation rows](#builder-pin-continuation-rows)).
 
-The logic never changes. Outputs whose circuits meet only at the rail become one
-rung each, in order, with the comment on the first, as CLICK splits them, so
-`read_csv` can return more rungs than the CSV holds.
+The logic never changes. If the circuits of several outputs meet only at the rail,
+`read_csv` makes one rung of each, in order, with the comment on the first. CLICK
+splits them the same way. So `read_csv` can return more rungs than the CSV holds.
 
-`write_csv` writes the same layout, so a CSV it wrote reads back unchanged. A
-rung `laddercodec.check()` reports
-([Decoding](decoding.md#check-for-line-connection-errors)) has no layout and is
-read and written as drawn. The rules are in
+`write_csv` writes the same layout, so a CSV that it wrote reads back unchanged. A
+rung that `laddercodec.check()` reports
+([Decoding](decoding.md#check-for-line-connection-errors)) has no layout.
+`read_csv` and `write_csv` handle it as drawn. The rules are in
 [Layout](../internals/layout.md).
 
 ## Vertical topology
@@ -328,8 +328,8 @@ divergent bus.
 ### Outputs under a tall box
 
 A box taller than one row (Copy is 2) needs its rows to itself in AF. Write each
-output on the row after the one above; `read_csv` moves an output down when the
-box above still covers its row, and the conditions stay beside the box. Here:
+output on the row after the one above. `read_csv` moves an output down when the
+box above still covers its row. The conditions stay beside the box. For example:
 
 ```text
      A      B      C     ...   AF
@@ -338,9 +338,9 @@ R    X001   T:C1   T     -...- copy(1,DS1)
             C3
 ```
 
-the legs keep their rows, the second Copy moves down to C3's row, and the
-vertical at C reaches it. The rung is 4 rows; the last is the second Copy's
-lower row:
+`read_csv` reads that CSV so that the legs keep their rows. The second Copy moves
+down to C3's row, and the vertical at C reaches it. The rung is 4 rows, and the
+last is the second Copy's lower row:
 
 ```text
      A      B      C     ...   AF
@@ -349,9 +349,9 @@ R    X001   T:C1   T     -...- copy(1,DS1)
             C3     -     -...- copy(2,DS2)
 ```
 
-The logic is the same, and this is the layout CLICK's syntax check leaves. A
+The logic is the same. This is the layout that CLICK's syntax check leaves. A
 box with nothing beside it keeps blank rows under it for its height, with its
-verticals carried through, and every row below moves down with the output.
+verticals carried through. Every row below moves down with the output.
 
 ## Builder pin continuation rows
 
@@ -367,9 +367,9 @@ Pin rows are independent left-rail paths, not AND-chained through the parent
 output row conditions.
 
 Pins go in a fixed order (timers: reset; `count_up`: down, reset; `count_down`:
-reset; `shift`: clock, reset; drums: reset, jump, jog). Rows without an AF token
-between the instruction and a pin, or between two pins, are OR legs of the input
-above, and they push the later pins down. CLICK grows the box to match:
+reset; `shift`: clock, reset; drums: reset, jump, jog). A row with no AF token
+between the instruction and a pin, or between two pins, is an OR leg of the input
+above. It pushes the later pins down, and CLICK grows the box to match:
 
 ```csv
 R,C1,-,...,-,"time_drum(...)"
@@ -379,12 +379,13 @@ R,C1,-,...,-,"time_drum(...)"
 ```
 
 Here `.jump()` is on row 3, not row 2. An unused pin still takes a row of its
-own, below the legs of the pin above it: with Jump off, `.reset()` with one leg
-then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK lays out a leg
-added with Insert Row the same way, and its check moves a leg drawn on the unused
-Jump row there). Unused pins after the last used one sit directly under it,
-beside its legs. The CSV doesn't place an unused pin: blank rows are dropped, and
-these rules give the row. Legs under the last pin sit below the box.
+own, below the legs of the pin above it. For example, with Jump off, `.reset()`
+with one leg and then `.jog()` puts Jog on row 4, with a blank Jump row 3 (CLICK
+lays out a leg added with Insert Row the same way, and its check moves a leg drawn
+on the unused Jump row there). Unused pins after the last used one sit directly
+under it, beside its legs. The CSV doesn't place an unused pin. `read_csv` drops
+blank rows, and these rules give the row. Legs under the last pin sit below the
+box.
 
 The same holds for legs under the main input:
 
@@ -400,8 +401,8 @@ so this box is 5 rows with Reset on row 4. A `count_up` without `.down()` puts
 the unused Down row under the main input's legs. A timer without `.reset()`
 stays 2 rows, with its main input's legs beside and below it.
 
-A leg needs `T` or `|` to join the row above. Without them the contact feeds
-nothing, which CLICK's syntax check refuses (C0202, C0003); `laddercodec.check()`
+A leg needs `T` or `|` to join the row above. Without one, the contact feeds
+nothing. CLICK's syntax check refuses that (C0202, C0003). `laddercodec.check()`
 reports it, and `read_csv` keeps the rung as drawn:
 
 ```csv
@@ -410,9 +411,9 @@ R,C31,-,...,-,"count_down(CT4,CTD4,preset=5)"
 ,C39,-,...,-,.reset()
 ```
 
-Here C31 drives Down and C32 goes nowhere. With `NOP` in the second row's AF, the
-box is 3 rows and C32 drives Down, but C31 then sits on the unused top row, where
-its wire stops at the box, and it is refused the same way.
+Here C31 drives Down and C32 goes nowhere. Now put `NOP` in the second row's AF.
+The box is 3 rows and C32 drives Down. C31 then sits on the unused top row, where
+its wire stops at the box. CLICK refuses that the same way.
 
 ## Parsing conveniences
 
@@ -474,17 +475,26 @@ Positional args stay positional. Keyword-only args use `key=value` syntax.
 Conditional kwargs (marked with "if !=0") are omitted when the value is the
 default (`0`).
 
-A blank argument is its field left blank: `out()`, `on_delay(T1,TD1,preset=,unit=Tms)`
-and `blockcopy(,DS10..DS13)` are refused with a `FieldError` whose `reason` is
-`missing` and whose `field` is the blank one (`Coil.operand`, `Timer.preset`; both
-ends of a range), as building the instruction with that field blank is. A range
-with a blank end is read so too: `..` where a range goes, and `..DS4` or `DS1..`,
-are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere `..`
-is the value written (`copy(..,DS1)` is refused as an address). These blanks are
-still syntax errors, with no `field`: a Timer or time drum `unit=`, a Math `mode=`,
-a drum list, a whole Modbus `target=`, a search
-expression, and a blank argument the
-token has no field for (`toggle(C1,on_acc=)`). So is a token broken in another way. A blank flag
+A blank argument is its field left blank. `out()`, `on_delay(T1,TD1,preset=,unit=Tms)`
+and `blockcopy(,DS10..DS13)` are refused with a `FieldError`. Its `reason` is
+`missing`, and its `field` is the blank one (`Coil.operand`, `Timer.preset`; both
+ends of a range). Building the instruction with that field blank gives the same
+error.
+
+A range with a blank end reads the same way. `write_csv` writes a range with both
+ends blank as `..`, and a range with one end blank as `..DS4` or `DS1..`.
+Elsewhere `..` is the value written (`copy(..,DS1)` is refused as an address).
+
+These blanks are still syntax errors, with no `field`:
+
+- a Timer or time drum `unit=`
+- a Math `mode=`
+- a drum list
+- a whole Modbus `target=`
+- a search expression
+- a blank argument that the token has no field for (`toggle(C1,on_acc=)`)
+
+A token that is broken in another way is also a syntax error. A blank flag
 (`oneshot=`, `maintained=`) is `missing` in every instruction.
 
 Producer may emit:
@@ -567,36 +577,37 @@ Producer may emit:
   preserved so CSV -> DSL -> CSV round-trips losslessly for unrecognized
   instruction types. The older form `raw(ClassName,hex)` holds the whole blob
   as a hex string, and may be followed by `rows=R,sub=S`.
-  - `rows` is the box's row span, 1 to 32, and `sub` its sub-rows, 1 to 255.
-    The writer always writes both. On read each is optional: a box without them
-    takes its class's height (2 rows for a Copy, 3 for a Send), a box with
-    `rows` and no `sub` has sub-rows equal to `rows`, and a box with `sub` and
-    no `rows` has its class's row span. They go right after the part count (or
-    the hex), `rows` first.
-  - `pins` is the row, below the main row, of each later part of a box with 2 or
-    more parts, joined by `/`: `pins=1/3/4` for a drum with an OR leg under its
-    reset. The writer writes it after `sub` for every such box; a 1-part box and
-    the older hex form have none. The rows are 1 to 31 and ascend, one per part
-    after the first. On read it is optional: without it the parts sit on rows
-    1, 2, ... A box ends one row below its last pin, so in this form `rows`
-    must be the last pin + 1, and the reader pads the rung to that height, as it
-    does for other tall boxes. The hex form does not check this; the writer uses
-    it for a box stored at any other span.
+  - `rows` is the box's row span, 1 to 32, and `sub` is its sub-rows, 1 to 255.
+    The writer always writes both. Both go right after the part count (or the
+    hex), `rows` first. On read each is optional:
+    - a box with neither takes its class's height (2 rows for a Copy, 3 for a Send)
+    - a box with `rows` and no `sub` has sub-rows equal to `rows`
+    - a box with `sub` and no `rows` has its class's row span
+  - `pins` gives the row of each later part of a box with 2 or more parts. Rows
+    count below the main row, and `/` joins them: `pins=1/3/4` for a drum with an
+    OR leg under its reset. The writer writes it after `sub` for every such box.
+    A 1-part box and the older hex form have none. The rows are 1 to 31 and
+    ascend, one per part after the first. On read it is optional. Without it the
+    parts sit on rows 1, 2, ... A box ends one row below its last pin, so in this
+    form `rows` must be the last pin + 1. The reader pads the rung to that height,
+    as it does for other tall boxes. The hex form does not check this, and the
+    writer uses it for a box stored at any other span.
   - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
-    path because they are not yet modeled as dedicated DSL instruction classes.
-    Their box spans 3 rows, as CLICK draws it; the reader pads the rung with blank
-    rows, as it does for other tall boxes. A box CLICK stores at 1 row (one pasted
-    from an earlier version and not yet saved by its dialog) writes `rows=1,sub=1`
-    and reads back at 1 row.
+    path, because they are not yet modeled as dedicated DSL instruction classes.
+    Their box spans 3 rows, as CLICK draws it. The reader pads the rung with blank
+    rows, as it does for other tall boxes. CLICK stores some boxes at 1 row: one
+    pasted from an earlier version and not yet saved by its dialog. Such a box
+    writes `rows=1,sub=1` and reads back at 1 row.
 - `undecoded("<error>",rung=N,row=R,column=C,stop=end)` - the marker that stands in
   for a rung laddercodec could not decode ([Decoding](decoding.md#rungs-that-dont-decode)).
-  `rung`, `row` and `column` count from 0 (column 31 is AF); `row` and `column` are
+  `rung`, `row` and `column` count from 0 (column 31 is AF). `row` and `column` are
   omitted when the failure is not at one row or cell. `stop` is `end` in the main
-  program and `return` in a subroutine: a consumer runs the marker as that
+  program and `return` in a subroutine. A consumer runs the marker as that
   instruction, so the program stops where the rung was. `encode()` refuses the
   marker, so it never reaches CLICK. `write_csv()` also writes a marker, with an
   `UndecodedRungWarning`, for a rung it can't write, such as one holding an
-  instruction no token holds; its `stop` argument gives the marker's `stop`.
+  instruction that no token holds. The `stop` argument of `write_csv()` sets the
+  marker's `stop`.
 
 Pin tokens:
 
@@ -615,14 +626,16 @@ currently emit:
 ## Operand normalization notes
 
 - Tags render as mapped Click addresses (for example `X001`, `DS10`).
-- An address is read in any letter case, with or without leading zeros, and is kept
-  and written in CLICK's display form: X and Y pad to 3 digits (`x1` is `X001`), every
-  other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`, `DS[ds01]` is `DS[DS1]`),
-  and `xd0U` is `XD0u`. Constants are kept as written. A Math formula's function
-  names are uppercase (`sum(x1:x16)` is `SUM ( X001 : X016 )`).
-- An address must name a CLICK bank and lie inside its range. X and Y number by 16-point slot: `X001`-`X016` on the
-  CPU, `X021`-`X036` on its dual option slot, and `X101`-`X116` through `X801`-`X816`
-  on expansion modules 1-8. `X017`, `C2001` and `DS0` raise `AddressError`.
+- You can write an address in any letter case, with or without leading zeros.
+  laddercodec keeps and writes it in CLICK's display form. X and Y pad to 3 digits
+  (`x1` is `X001`). Every other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`,
+  `DS[ds01]` is `DS[DS1]`), and `xd0U` is `XD0u`. Constants are kept as written. A
+  Math formula's function names are uppercase (`sum(x1:x16)` is
+  `SUM ( X001 : X016 )`).
+- An address must name a CLICK bank and lie inside its range. X and Y number by
+  16-point slot: `X001`-`X016` on the CPU, `X021`-`X036` on its dual option slot,
+  and `X101`-`X116` through `X801`-`X816` on expansion modules 1-8. `X017`,
+  `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
   - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
   - `out(...)`, `latch(...)`, `reset(...)` and the Out variants (`toggle`, `debounce`,
@@ -822,25 +835,28 @@ currently emit:
   one apart (`SUM ( X025 : X026 )`; `SUM ( X036 : X101 )` is refused). A
   range with no end in the option slot is accepted (`SUM ( X001 : X101 )`). The
   points CLICK stores are in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
-- Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
-  ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
-  two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise
-  `FieldError` in every field, and so does `$1` except as a `copy` source.
-  CLICK writes one TXT register per character of a text constant, so `""`
-  writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose
-  text would run past TXT1000 raises `AddressError`. A `copy` of text into a
-  pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK stores no end for it. A Fill value and a compare take
-  1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772)
-  and refuse `""`, a longer or non-ASCII text and a
-  quote inside the text when it is read or built; spell any other character as
-  its `$hh` code, and a quote as `$22`. A Copy source and a search value take
-  any character U+0001 to U+FFFF but a surrogate (`copy("é",TXT1)`, `"€"`, a
-  tab, a line break), which CLICK keeps as typed, and refuse NUL and a
-  character above U+FFFF; `write_csv` writes them inside the quotes, and
-  `read_csv` reads them back; a line break elsewhere in a token raises
-  `CsvError`. A search matches the window the text fills. A
-  quoted `"$41"` is three characters of text, not the code `$41`. Use `$00` for
-  the blank (NUL) character.
+- Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`).
+  - An ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`): `$` and
+    exactly two hex digits from `$00` to `$FF`. `$`, `$100` and `$4142` raise
+    `FieldError` in every field. So does `$1`, except as a `copy` source.
+  - CLICK writes one TXT register per character of a text constant, so `""`
+    writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2. A `copy` whose
+    text would run past TXT1000 raises `AddressError`.
+  - A `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters.
+    CLICK stores no end for it.
+  - A Fill value and a compare take 1 to 128 printable ASCII characters in
+    quotes (`TXT771=="AB"` compares TXT771 and TXT772). When the CSV is read or
+    the instruction is built, they refuse `""`, a longer or non-ASCII text and a
+    quote inside the text. Spell any other character as its `$hh` code, and a
+    quote as `$22`.
+  - A Copy source and a search value take any character from U+0001 to U+FFFF
+    except a surrogate (`copy("é",TXT1)`, `"€"`, a tab, a line break). CLICK keeps
+    these as typed. They refuse NUL and a character above U+FFFF. `write_csv`
+    writes them inside the quotes, and `read_csv` reads them back. A line break
+    elsewhere in a token raises `CsvError`.
+  - A search matches the window the text fills.
+  - A quoted `"$41"` is three characters of text, not the code `$41`. Use `$00`
+    for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
   - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register: the character's value or its ASCII code. CLICK's dialog asks for one of the two, so a plain copy of TXT into any number register but DF raises `FieldError` (`copy(TXT1,DS1)`, `blockcopy(TXT1..TXT2,DD1..DD2)`). A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK saves it, and `to_value` or `to_ascii` there raises `FieldError`: CLICK's dialog offers neither.
   - A number constant, register or pointer copied to TXT needs `convert=to_text(...)` or `convert=to_binary`: CLICK's dialog saves one of them, Copy Value as text by default with suppress zero, or with real numbering for a real or DF source, so `copy(5,TXT1)` and `copy(DS1,TXT1)` raise `FieldError`, and the message names `convert=to_text(suppress_zero=1,termination_code=none)`.
@@ -886,14 +902,16 @@ Rules:
 
 `write_csv` writes a decoded instruction that holds a value CLICK's dialog refuses
 as it is held ([Decoding](decoding.md#values-clicks-dialog-refuses)). `read_csv`
-refuses such a token, as it refuses any; `read_csv(path, unchecked=True)` reads it
-as written and emits a `RefusedFieldWarning` for it, whose `rung` counts the rungs
-`read_csv` returns, from 0. Each refusal in the warning's `errors` carries the
-`location` the default read raises it with ([Where a read error is](#where-a-read-error-is)),
-and the warning's message ends with the first one's. A value no stored instruction
-holds (a timer unit that is none of CLICK's, a flag that is not 0 or 1, pin rows the
-box can't take) still raises. A CSV holds no stored bytes, so `encode()` refuses the
-instruction.
+refuses such a token, as it refuses any. `read_csv(path, unchecked=True)` reads it
+as written and emits a `RefusedFieldWarning` for it. The warning's `rung` counts
+the rungs that `read_csv` returns, from 0. Each refusal in the warning's `errors`
+carries the `location` that the default read raises it with
+([Where a read error is](#where-a-read-error-is)). The warning's message ends with
+the first refusal's location.
+
+A value that no stored instruction holds still raises. Examples are a timer unit
+that is none of CLICK's, a flag that is not 0 or 1, and pin rows the box can't
+take. A CSV holds no stored bytes, so `encode()` refuses the instruction.
 
 ## Where a read error is
 
@@ -907,12 +925,13 @@ except LaddercodecError as exc:
     print(where.line, where.column_name)  # 5 D
 ```
 
-A file that isn't UTF-8 text, or a row, token or rung `read_csv` can't read, raises
-`CsvError`, and a value CLICK's dialog refuses raises `FieldError` (`AddressError`
-for an address); each is a `LaddercodecError` ([Errors](#errors)). Each carries a
-`CsvLocation` as its `location` attribute; `CsvLocation.of(exc)` returns it, or `None` for an exception
-that has none. A `FieldError` still names its field in `.field`. Each part is `None`
-where it is not known:
+`read_csv` raises `CsvError` for a file that isn't UTF-8 text, and for a row, token
+or rung that it can't read. It raises `FieldError` (`AddressError` for an address)
+for a value that CLICK's dialog refuses. Each is a `LaddercodecError`
+([Errors](#errors)). Each carries a `CsvLocation` as its `location` attribute.
+`CsvLocation.of(exc)` returns it, or `None` for an exception that has none. A
+`FieldError` still names its field in `.field`. Each part is `None` where it is
+not known:
 
 | Attribute   | Holds                                                                                        |
 |-------------|----------------------------------------------------------------------------------------------|
@@ -924,31 +943,33 @@ where it is not known:
 
 The header is line 1 only when no blank line comes before it. A row is in no rung
 when it is the header, a comment row, or a row with no `R` row between it and the
-comment row or header above it. `column_name` gives the column's letters. Rows and
-columns are counted as the CSV holds them, before layout, and `column` counts as
-`Finding.column` does. A refusal of what a pin row holds (a `.jump()` target, a
-`.reset()` on a timer that can't be retentive) is at that pin row; a missing pin row
-is at the box's row. The message ends with the location:
+comment row or header above it. `column_name` gives the column's letters.
+
+`read_csv` counts rows and columns as the CSV holds them, before layout. `column`
+counts as `Finding.column` does. A refusal of what a pin row holds (a `.jump()`
+target, a `.reset()` on a timer that can't be retentive) is at that pin row. A
+missing pin row is at the box's row. The message ends with the location:
 
 ```text
 Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, row 1 from 0, column AF)
 ```
 
-Two classes differ:
+Three cases differ:
 
-- A `FieldError` refused while a box takes its pin rows arrives as a `CsvError`, not
-  a `FieldError`. It carries the refusal's `field`, `fields`, `reason`, `click_id`
-  and `errors` as `FieldError` has them (`Drum.jump_step`).
+- If a refusal comes while a box takes its pin rows, `read_csv` raises a `CsvError`,
+  not a `FieldError`. The `CsvError` carries the refusal's `field`, `fields`,
+  `reason`, `click_id` and `errors`, as `FieldError` has them (`Drum.jump_step`).
 - Every refusal in a `FieldError`'s `errors` has its own `location`, not only the one
-  raised. A refusal a pin row's value causes is at that pin's row; the rest take the
-  cell that raised them. Only the raised error's message ends with the location.
+  raised. A refusal that a pin row's value causes is at that pin's row. The rest
+  take the cell that raised them. Only the raised error's message ends with the
+  location.
 - A file that isn't UTF-8 raises a `CsvError` with the `UnicodeDecodeError`'s
-  message and the `UnicodeDecodeError` as its `__cause__`; its location holds `file`
-  only. A `csv.Error` (such as a cell longer than `csv.field_size_limit()`) arrives
-  the same way, at the line its row starts on.
+  message and the `UnicodeDecodeError` as its `__cause__`. Its location holds
+  `file` only. A `csv.Error` (such as a cell longer than `csv.field_size_limit()`)
+  arrives the same way, at the line its row starts on.
 
-The bundle reader gives the location the same way; `file` names the file at fault,
-`main.csv` when it is missing.
+The bundle reader gives the location the same way. `file` names the file at fault,
+or `main.csv` when it is missing.
 
 ## Errors
 

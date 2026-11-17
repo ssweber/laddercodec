@@ -140,7 +140,16 @@ To walk a variable-length grid, detect cell boundaries by signature:
 
 Do **not** use `+0x0D` for detection — it varies between 0x00, 0x01, and 0xFF across cell types.
 
-Where a row starts is known only from where the row before it ends. So when a row before the last one `row_word` counts can't be walked (no cell with the expected signature follows an instruction cell), has no cell 0, or is cut off, the walk stops: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The decoder never scans ahead for a later row to resume at, since a cell 0 signature can also turn up inside an instruction blob. A preamble row's cell 0 must carry the signature, its `+0x05` one past the row before it, and its cell 1 must have `+0x30` set too: every cell of a preamble row has it, and a data row's cell 1 has it clear. A rung with no data rows also stops the walk.
+A row starts where the row before it ends, so the decoder finds each row by walking the rows in order. The walk stops in these cases:
+
+- a row before the last one that `row_word` counts can't be walked (no cell with the expected signature follows an instruction cell)
+- such a row has no cell 0
+- such a row is cut off
+- a rung has no data rows
+
+When the walk stops, the rungs before it decode. One [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The decoder never scans ahead for a later row to resume at, because a cell 0 signature can also turn up inside an instruction blob.
+
+A preamble row's cell 0 must carry the signature, with its `+0x05` one past the row before it. Its cell 1 must have `+0x30` set too. Every cell of a preamble row has it, and a data row's cell 1 has it clear.
 
 ## Multi-rung format
 
@@ -198,7 +207,7 @@ The instruction blob content (tag IDs, operand values, wire types) is **identica
 [tagged fields...]
 ```
 
-The first two and the fifth and sixth bytes after the type code are zero in all 1600 blobs of the SCR fixtures; the third and fourth are an opaque u16 LE, 0 to about 0x0EFF in the fixtures (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob but in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count; each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
+In all 1600 blobs of the SCR fixtures, the first, second, fifth and sixth bytes after the type code are zero. The third and fourth bytes are an opaque u16 LE. In the fixtures it runs from 0 to about 0x0EFF (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob. They are in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count. Each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 
@@ -243,7 +252,17 @@ ENTRY = [u8 stored_row][u8 col][u8 row_span][u8 sub_rows][u8 entry_seq][3B opaqu
 
 Instruction rows start at one because stored row zero is the special comment/preamble row. Blob pointers and trailer lengths determine the next entry position (see above). The apparent old u32 rung count was the u16 count followed by rung zero's u16 index.
 
-The main program's file (`prog_idx == 1`) has a two-byte tail after the last rung; subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor. Malformed framing ends the walk: the rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode), whose error gives the offset, stands for that rung and every rung after it. A record's end is confirmed only by the next record's prefix, or for the last record by the file's end: a section count one too low ends a record early and leaves its later bytes to be read as the next prefix. So when a prefix is cut off or holds the wrong index, or the file does not end after the last record, the marker starts at the record before, and trailing content-less records before it are dropped as in a clean file. The parser never searches for a later rung to resume decoding.
+The main program's file (`prog_idx == 1`) has a two-byte tail after the last rung. Subroutines end at the last record. The parser enforces the declared count, sequential indices, and final cursor.
+
+Malformed framing ends the walk. The rungs before it decode, and one [undecoded marker](../guides/decoding.md#rungs-that-dont-decode) stands for that rung and every rung after it. The marker's error gives the offset.
+
+Only the next record's prefix confirms where a record ends. For the last record, only the file's end confirms it. A section count that is one too low ends a record early and leaves its later bytes to be read as the next prefix. So the marker starts at the record before in these cases:
+
+- a prefix is cut off
+- a prefix holds the wrong index
+- the file does not end after the last record
+
+Trailing content-less records before the marker are dropped, as in a clean file. The parser never searches for a later rung to resume decoding.
 
 CLICK keeps trailing content-less editor rungs, sometimes fully wired. The decoder parses them and then omits trailing records with neither instructions nor a raw comment. This existing semantic-output policy is separate from structural parsing.
 
