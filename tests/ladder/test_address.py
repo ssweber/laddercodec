@@ -14,6 +14,7 @@ import pytest
 
 import laddercodec.instructions as instructions_mod
 from laddercodec import RefusedFieldWarning, decode, decode_program, encode, read_csv
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
@@ -420,7 +421,7 @@ class TestDecodeRefusedAddress:
 
     def test_dispatchers_catch_only_field_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def refuse(*_args: object) -> None:
-            raise AddressError("refused")
+            raise AddressError("refused", code=Code.NOT_AN_ADDRESS)
 
         def broken(*_args: object) -> None:
             raise ValueError("parser bug")

@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import Address, AfInstruction, Reason
 from ..operands.checks import (
@@ -162,6 +163,7 @@ class Search(AfInstruction):
                     "op",
                     f"{self.op!r} is not allowed; it is one of {', '.join(_OP_TO_FUNC)}",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             # Search has no pointer path, so no field takes one.  The table is
             # one bank, start before end (range check: OBJ-008, OBJ-009, OBJ-012).
@@ -199,6 +201,7 @@ class Search(AfInstruction):
                     f"{self.op!r} is not offered for text "
                     f"{self.value!r}; text searches with == or !=",
                     Reason.CONFLICT,
+                    code=Code.TEXT_ORDER_COMPARE,
                 )
         # The value's kind ties to the table banks.
         if (
@@ -211,6 +214,7 @@ class Search(AfInstruction):
                 f"{self.value!r} is a {const.kind} value, which searches "
                 f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
                 Reason.CONFLICT,
+                code=Code.SEARCH_VALUE_BANK,
             )
 
     @property

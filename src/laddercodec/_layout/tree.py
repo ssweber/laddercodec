@@ -15,6 +15,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import cast
 
+from ..codes import Code
 from ..errors import LayoutError
 from .network import Edge, Network
 
@@ -157,7 +158,9 @@ def reduce(source: object, sink: object, arcs: list[Arc]) -> Node:
             break
     if len(arcs) == 1 and arcs[0].src == source and arcs[0].dst == sink:
         return arcs[0].node
-    raise LayoutError("the rung's circuit is not series-parallel", "C0001")
+    raise LayoutError(
+        "the rung's circuit is not series-parallel", "C0001", code=Code.NOT_SERIES_PARALLEL
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +296,9 @@ def trees(net: Network) -> list[RungTree]:
     for e in net.edges:
         if e.src not in c.fwd:
             raise LayoutError(
-                f"row {e.row} column {e.col}: the contact's input reaches no rail", "C0202"
+                f"row {e.row} column {e.col}: the contact's input reaches no rail",
+                "C0202",
+                code=Code.NO_RAIL,
             )
     main, pins = c.main, c.pins
     if nothing_to_lay_out(net, main):
@@ -301,7 +306,9 @@ def trees(net: Network) -> list[RungTree]:
     for i in main + pins:
         s = net.sinks[i]
         if s.net != rail and s.net not in c.fwd:
-            raise LayoutError(f"row {s.row}: the box input reaches no rail", "C0202")
+            raise LayoutError(
+                f"row {s.row}: the box input reaches no rail", "C0202", code=Code.UNPOWERED_BOX
+            )
 
     # Each pin's circuit is drawn on rows of its own, so a contact two box inputs share would
     # be drawn once per input.
@@ -312,9 +319,15 @@ def trees(net: Network) -> list[RungTree]:
         s = net.sinks[i]
         mine = c.pin_arcs[i]
         if any(id(a) in main_used for a in mine):
-            raise LayoutError(f"row {s.row}: a pin input shares contacts with a main input")
+            raise LayoutError(
+                f"row {s.row}: a pin input shares contacts with a main input",
+                code=Code.INPUT_SHARES_ENABLE,
+            )
         if any(id(a) in pin_used for a in mine):
-            raise LayoutError(f"row {s.row}: a pin input shares contacts with another pin input")
+            raise LayoutError(
+                f"row {s.row}: a pin input shares contacts with another pin input",
+                code=Code.INPUTS_SHARE_CONTACTS,
+            )
         pin_used.update(id(a) for a in mine)
         node = None if s.net == rail else reduce(rail, s.net, mine)
         pin_trees[i] = PinCircuit(i, _series_terms(node))
@@ -322,16 +335,20 @@ def trees(net: Network) -> list[RungTree]:
     for a in c.arcs:
         if id(a) not in used:
             e = cast(Leaf, a.node).edge
-            raise LayoutError(f"row {e.row} column {e.col}: the contact feeds no box")
+            raise LayoutError(
+                f"row {e.row} column {e.col}: the contact feeds no box", code=Code.FEEDS_NO_BOX
+            )
     if not main:
         if net.edges:
-            raise LayoutError("the rung has contacts but no box")
+            raise LayoutError("the rung has contacts but no box", code=Code.NO_COIL)
         return []
     root = reduce(rail, c.top, c.main_arcs)
     items = _items(root)
     if len(items) > 1 and any(net.boxes[net.sinks[i].box].token == "NOP" for i in main):
         # The splits known are of coils and Copy boxes.
-        raise LayoutError("no capture shows CLICK splitting a rung that holds a NOP")
+        raise LayoutError(
+            "no capture shows CLICK splitting a rung that holds a NOP", code=Code.LAYOUT_NOP_SPLIT
+        )
     out: list[RungTree] = []
     for item in items:
         branch = item if isinstance(item, Branch) else Branch([], [item])

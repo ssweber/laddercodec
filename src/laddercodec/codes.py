@@ -1,0 +1,282 @@
+"""Names for the rules behind refusals, ``check()`` findings and layout errors.
+
+A :class:`~laddercodec.FieldError`, each refusal in its ``errors`` and a
+:class:`~laddercodec.Finding` each have a ``code``.  The code is a
+:class:`Code`, the kebab-case name of the rule.  CLICK's own id for the error is in
+``click_id``, or ``None`` when CLICK has none.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+__all__ = ["CLICK_IDS", "Code"]
+
+
+class Code(StrEnum):
+    """The name of the rule that a refusal, a finding or a layout error reports.
+
+    Each member compares equal to its text: ``Code.NO_COIL == "no-coil"`` is true.  One code
+    can come with several CLICK ids, or with none.  The ``click_id`` beside the code says
+    which id CLICK gave.  The error codes page in the docs lists every code.
+    """
+
+    # Operand rules: these rules are the same in every instruction. ``field`` names the field.
+    BLANK_FIELD = "blank-field"
+    """A field that needs a value is blank."""
+    NOT_AN_ADDRESS = "not-an-address"
+    """Text that is no CLICK address, or names no bank."""
+    ADDRESS_OUT_OF_RANGE = "address-out-of-range"
+    """A number outside its bank (``DS5000``, ``X017``)."""
+    BANK_NOT_ALLOWED = "bank-not-allowed"
+    """An address in a bank the field doesn't take."""
+    UPPER_BYTE_NOT_ALLOWED = "upper-byte-not-allowed"
+    """``XD0u`` or ``YD0u`` in a field that takes no upper byte."""
+    NOT_CLICK_FORM = "not-click-form"
+    """A stored address, constant or Math name not written as CLICK writes it (decoding only)."""
+    NOT_WRITABLE = "not-writable"
+    """An address the instruction can't write: a read-only SC bit, an SD outside the writable list, or a Send to a read-only Modbus type."""
+    POINTER_OUTSIDE_COPY = "pointer-outside-copy"
+    """A pointer in any field but a single Copy's source or destination."""
+    POINTER_BANK_NOT_ALLOWED = "pointer-bank-not-allowed"
+    """A pointer to a bank the field's pointer can't address."""
+    POINTER_NOT_DS = "pointer-not-ds"
+    """A pointer whose index is no DS address."""
+    CONSTANT_KIND_NOT_ALLOWED = "constant-kind-not-allowed"
+    """A constant of a kind the field doesn't take, or a Python value of the wrong type, such as ``2.5`` for a Send or Receive ``quantity``."""
+    NOT_A_CONSTANT = "not-a-constant"
+    """Text read as neither an address nor a constant."""
+    CONSTANT_OUT_OF_RANGE = "constant-out-of-range"
+    """A constant outside the field's limits (its value, hex digits, float32, text length or typed length), or a minus sign where the field's lowest value is 0 or more."""
+    INVALID_CONSTANT = "invalid-constant"
+    """A constant in a form the field refuses: a ``+`` where no sign is taken, a sign before hex, a space in a count, or a real with more significant digits than CLICK keeps."""
+    INVALID_CHAR_CODE = "invalid-char-code"
+    """A ``$hh`` or a termination code that is no character code."""
+    INVALID_TEXT_CONSTANT = "invalid-text-constant"
+    """Quoted text holding a quote or a character CLICK doesn't keep."""
+    NOT_A_FLAG = "not-a-flag"
+    """A flag that is not True, False, 1 or 0."""
+    INVALID_CHOICE = "invalid-choice"
+    """Not one of the field's named values: a unit, type, op, format, kind, port, function code, stop or pattern cell."""
+
+    # Shared rules: these rules apply to several instructions.
+    OPTION_NOT_OFFERED = "option-not-offered"
+    """A field or option CLICK's dialog greys out for the other fields' values."""
+    RANGE_MIXED_BANKS = "range-mixed-banks"
+    """A range whose two ends are in two banks."""
+    RANGE_NOT_ASCENDING = "range-not-ascending"
+    """A range that ends at or before its start."""
+    RANGE_CROSSES_SLOT = "range-crosses-slot"
+    """An X or Y range that crosses a 16-point slot."""
+    DUPLICATE_ADDRESS = "duplicate-address"
+    """Two fields that must differ name one address."""
+    TIMER_PAIR_MISMATCH = "timer-pair-mismatch"
+    """A done bit and an accumulator that are not one timer's or one counter's."""
+    IMMEDIATE_CONTACT_NOT_X = "immediate-contact-not-x"
+    """An immediate contact outside X."""
+    IMMEDIATE_COIL_NOT_Y = "immediate-coil-not-y"
+    """An immediate coil outside Y."""
+    IMMEDIATE_EDGE_CONTACT = "immediate-edge-contact"
+    """Immediate on a rise or fall contact."""
+    IMMEDIATE_NOT_ALLOWED = "immediate-not-allowed"
+    """Immediate on an instruction with no immediate form."""
+    TEXT_ORDER_COMPARE = "text-order-compare"
+    """``<`` or ``>`` on text, in a Compare or a Search."""
+    INVALID_SUBROUTINE_NAME = "invalid-subroutine-name"
+    """A subroutine name over 24 characters, with a forbidden character, or a device name."""
+    INVALID_INPUT_ROWS = "invalid-input-rows"
+    """``pin_rows`` that is not one ascending row (1 to 255) per box input."""
+
+    # Copy family: Copy, Block Copy, Fill, Pack and Unpack.
+    COPY_BANK_INCOMPATIBLE = "copy-bank-incompatible"
+    """A source bank or kind that can't copy into this destination bank."""
+    CONSTANT_INTO_BIT = "constant-into-bit"
+    """A single Copy of a constant into a bit address."""
+    COPY_CONVERTER_BANK = "copy-converter-bank"
+    """A converter the source and destination kinds don't offer."""
+    COPY_TXT_NEEDS_CONVERT = "copy-txt-needs-convert"
+    """A single Copy between TXT and a number, or a Block Copy from TXT into numbers, with no converter."""
+    COPY_HEX_READS_AS_REAL = "copy-hex-reads-as-real"
+    """A Copy source ``EH`` or ``1EH``. CLICK reads either one as a real."""
+    TEXT_PAST_BANK = "text-past-bank"
+    """Text a Copy writes that runs past TXT1000."""
+    BLOCK_COPY_END_MISMATCH = "block-copy-end-mismatch"
+    """A Block Copy ``dest_end`` that is not where the copy ends."""
+    PACK_KIND_MISMATCH = "pack-kind-mismatch"
+    """A Pack or Unpack kind (bits, words or text) that doesn't match the bank."""
+    PACK_TOO_MANY = "pack-too-many"
+    """A Pack source or Unpack destination past its count limit."""
+
+    # Math: these rules apply to the formula of a Math instruction.
+    MATH_NICKNAME = "math-nickname"
+    """A formula that holds a ``<nickname>``."""
+    MATH_INVALID_TOKEN = "math-invalid-token"
+    """A word or character that is no formula part."""
+    MATH_CONSTANT_KIND = "math-constant-kind"
+    """Hex in a decimal Math, a decimal or h-less constant in a hex Math, or text."""
+    MATH_CONSTANT_OUT_OF_RANGE = "math-constant-out-of-range"
+    """Hex over 4 digits, a real past float32 or with more significant digits than CLICK keeps, an integer past int32, or leading zeros."""
+    MATH_NESTING_DEPTH = "math-nesting-depth"
+    """Parentheses more than 8 deep."""
+    MATH_UNBALANCED_PARENS = "math-unbalanced-parens"
+    """A ``)`` with no ``(``, or a ``(`` with no ``)``."""
+    MATH_FUNCTION_MODE = "math-function-mode"
+    """A key from the other mode's keypad."""
+    MATH_SYNTAX_ERROR = "math-syntax-error"
+    """A formula with tokens out of order, a comma outside a call, ``:`` outside a range function, or a wrong first or last token."""
+    MATH_ARG_EXPRESSION = "math-arg-expression"
+    """A function argument that is not one address or constant."""
+    RANDOM_BOUND_TYPE = "random-bound-type"
+    """A RAND bound that is a real, or in a bank RAND doesn't take."""
+    RANDOM_EQUAL_BOUNDS = "random-equal-bounds"
+    """RAND with equal bounds."""
+    MATH_OPERAND_BANK = "math-operand-bank"
+    """An address in a bank the mode doesn't take, a bit outside SUM included."""
+    SUM_BANK_UNAVAILABLE = "sum-bank-unavailable"
+    """SUM over a bank SUM doesn't read."""
+    MATH_RANGE_MIXED_BANKS = "math-range-mixed-banks"
+    """An ``a : b`` range in two banks."""
+    MATH_RANGE_NOT_ASCENDING = "math-range-not-ascending"
+    """An ``a : b`` range that runs high to low."""
+    MEDIAN_RANGE_TOO_LARGE = "median-range-too-large"
+    """MDN over more than 1024 bytes."""
+    SUM_OPTION_SLOT = "sum-option-slot"
+    """An X or Y SUM range with an end in the option slot."""
+    MATH_FORMULA_TOO_LONG = "math-formula-too-long"
+    """A formula whose internal form is over CLICK's cap."""
+
+    # Other instructions: Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's own types.
+    COMPARE_MIXED_TYPES = "compare-mixed-types"
+    """Compare operands in different groups (hex, numeric, text)."""
+    SEARCH_VALUE_BANK = "search-value-bank"
+    """A Search constant whose kind doesn't search the table's bank."""
+    COIL_TIME_UNIT = "coil-time-unit"
+    """An Out variant with a time unit its kind lacks."""
+    DEBOUNCE_NEEDS_PHASE = "debounce-needs-phase"
+    """A debounce with neither phase filled."""
+    DRUM_SIZE_OUT_OF_RANGE = "drum-size-out-of-range"
+    """Drum steps or outputs outside 1 to 16."""
+    DRUM_PATTERN_SHAPE = "drum-pattern-shape"
+    """A drum pattern or event list that doesn't match its steps and outputs."""
+    DRUM_STEP_EMPTY = "drum-step-empty"
+    """A drum step with no event or duration."""
+    FUNCTION_CODE_MISMATCH = "function-code-mismatch"
+    """A Modbus function code that doesn't fit the remote type or the count."""
+    COUNT_OUT_OF_RANGE = "count-out-of-range"
+    """A Send or Receive count past its cap or room, or an odd TXT count."""
+    REMOTE_ADDRESS_OUT_OF_RANGE = "remote-address-out-of-range"
+    """A remote start outside the MODBUS 984 ranges, or past FFFDh."""
+    INVALID_MODBUS_TARGET = "invalid-modbus-target"
+    """A Modbus target with a bad device_id, IP or port."""
+    FOR_COUNT_BANK = "for-count-bank"
+    """A For loop count in a bank the count doesn't take."""
+    INVALID_TOKEN = "invalid-token"
+    """A CSV token that doesn't follow its instruction's syntax."""
+    INVALID_RAW = "invalid-raw"
+    """A ``RawInstruction`` field refused."""
+    INVALID_UNDECODED = "invalid-undecoded"
+    """An ``Undecoded`` field refused."""
+
+    # check() findings: ``check()`` reports these.
+    NOT_SERIES_PARALLEL = "not-series-parallel"
+    """A circuit that is not series-parallel."""
+    NO_RAIL = "no-rail"
+    """A contact whose input no rail reaches."""
+    FEEDS_NO_BOX = "feeds-no-box"
+    """A contact that feeds no box."""
+    NO_COIL = "no-coil"
+    """A path from the rail that reaches no box."""
+    CONTACT_FEEDS_ONLY_NOP = "contact-feeds-only-nop"
+    """A contact that feeds a NOP and no other box."""
+    UNWIRED_INPUT = "unwired-input"
+    """A box input (a Reset input, a Down input, ...) that no rail or contact reaches."""
+    OUTPUT_ABOVE_BOX_INPUTS = "output-above-box-inputs"
+    """A box above another box that uses an input row, on the net that feeds the lower box's enable."""
+    SHARED_INPUT_NET = "shared-input-net"
+    """A box input whose net another input shares."""
+    INPUT_WITHOUT_CONTACT = "input-without-contact"
+    """A box input with no contact of its own."""
+    INPUT_SHARES_ENABLE = "input-shares-enable"
+    """A box input whose circuit shares contacts with an enable."""
+    INPUTS_SHARE_CONTACTS = "inputs-share-contacts"
+    """A box input whose circuit shares contacts with another box input."""
+    UNPOWERED_BOX = "unpowered-box"
+    """A box that no rail or contact reaches."""
+    SHORTED_CONTACT = "shorted-contact"
+    """A wire that joins a contact's two sides."""
+    UNDECODED_RUNG = "undecoded-rung"
+    """A rung that holds an undecoded marker."""
+
+    # Layout only: these codes come only from laying a rung out. ``check()`` never reports them. If ``write_csv`` can't lay a rung out without changing its circuit, it raises a ``WriterError``, and the ``__cause__`` of that error has one of these codes.
+    LAYOUT_TOO_WIDE = "layout-too-wide"
+    """A layout that needs more than 31 condition columns."""
+    LAYOUT_NOP_SPLIT = "layout-nop-split"
+    """A split of a rung that holds a NOP. No capture shows how CLICK splits one."""
+    LAYOUT_CANNOT_DRAW = "layout-cannot-draw"
+    """Nets that collide, cells that overlap, a contact that can't take a down wire, or a contact drawn twice."""
+
+
+CLICK_IDS: dict[Code, tuple[str, ...]] = {
+    Code.ADDRESS_OUT_OF_RANGE: ("OBJ-003",),
+    Code.BANK_NOT_ALLOWED: ("OBJ-003", "OBJ-004"),
+    Code.NOT_WRITABLE: ("OBJ-003", "OBJ-004", "OBJ-018"),
+    Code.POINTER_BANK_NOT_ALLOWED: ("OBJ-004",),
+    Code.CONSTANT_OUT_OF_RANGE: ("OBJ-005",),
+    Code.INVALID_CONSTANT: ("OBJ-005",),
+    Code.INVALID_CHAR_CODE: ("OBJ-036",),
+    Code.RANGE_MIXED_BANKS: ("OBJ-008",),
+    Code.RANGE_NOT_ASCENDING: ("OBJ-009", "OBJ-012"),
+    Code.RANGE_CROSSES_SLOT: ("OBJ-033", "OBJ-1009"),
+    Code.DUPLICATE_ADDRESS: ("OBJ-012", "OBJ-014"),
+    Code.INVALID_SUBROUTINE_NAME: ("GUI-040",),
+    Code.COPY_BANK_INCOMPATIBLE: ("OBJ-004", "OBJ-024"),
+    Code.CONSTANT_INTO_BIT: ("OBJ-004", "OBJ-024"),
+    Code.TEXT_PAST_BANK: ("OBJ-003",),
+    Code.PACK_TOO_MANY: (
+        "OBJ-003",
+        "OBJ-027",
+        "OBJ-032",
+        "OBJ-039",
+        "OBJ-040",
+        "OBJ-041",
+        "OBJ-042",
+    ),  # fmt: skip
+    Code.MATH_INVALID_TOKEN: ("OBJ-1001",),
+    Code.MATH_CONSTANT_KIND: ("OBJ-1001",),
+    Code.MATH_CONSTANT_OUT_OF_RANGE: ("OBJ-1009",),
+    Code.MATH_NESTING_DEPTH: ("OBJ-1010",),
+    Code.MATH_UNBALANCED_PARENS: ("OBJ-1004", "OBJ-1005"),
+    Code.MATH_FUNCTION_MODE: ("OBJ-1006",),
+    Code.MATH_SYNTAX_ERROR: ("OBJ-1001", "OBJ-037"),
+    Code.MATH_ARG_EXPRESSION: ("OBJ-1001",),
+    Code.RANDOM_BOUND_TYPE: ("OBJ-1001", "OBJ-1002"),
+    Code.RANDOM_EQUAL_BOUNDS: ("OBJ-1001",),
+    Code.MATH_OPERAND_BANK: ("OBJ-1002",),
+    Code.SUM_BANK_UNAVAILABLE: ("OBJ-1002",),
+    Code.MATH_RANGE_MIXED_BANKS: ("OBJ-1015",),
+    Code.MATH_RANGE_NOT_ASCENDING: ("OBJ-1014",),
+    Code.MEDIAN_RANGE_TOO_LARGE: ("OBJ-1013",),
+    Code.MATH_FORMULA_TOO_LONG: ("OBJ-1008",),
+    Code.DEBOUNCE_NEEDS_PHASE: ("OBJ-006",),
+    Code.DRUM_STEP_EMPTY: ("OBJ-021", "OBJ-022", "OBJ-1019"),
+    Code.FUNCTION_CODE_MISMATCH: ("OBJ-004",),
+    Code.COUNT_OUT_OF_RANGE: ("OBJ-010", "OBJ-029"),
+    Code.REMOTE_ADDRESS_OUT_OF_RANGE: ("OBJ-010",),
+    Code.FOR_COUNT_BANK: ("OBJ-004",),
+    Code.NOT_SERIES_PARALLEL: ("C0001",),
+    Code.NO_RAIL: ("C0202",),
+    Code.FEEDS_NO_BOX: ("C0202",),
+    Code.NO_COIL: ("C0003",),
+    Code.CONTACT_FEEDS_ONLY_NOP: ("C0003",),
+    Code.UNWIRED_INPUT: ("C0202",),
+    Code.OUTPUT_ABOVE_BOX_INPUTS: ("C000A",),
+    Code.SHARED_INPUT_NET: ("C000A",),
+    Code.INPUT_WITHOUT_CONTACT: ("C0205", "C0212"),
+    Code.UNPOWERED_BOX: ("C0202",),
+    Code.SHORTED_CONTACT: ("C0002",),
+}
+"""The CLICK ids that each code can come with.
+
+A code that is missing here has no CLICK id.  A ``blank-field`` refusal has the id of the
+check that refused the blank, whatever that id is.
+"""

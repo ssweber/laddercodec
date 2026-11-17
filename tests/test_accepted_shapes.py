@@ -71,7 +71,7 @@ def _id(case: tuple[str, int]) -> str:
 def test_check_codes_match_click(case: tuple[str, int]) -> None:
     name, number = case
     findings = check(_read(name)[number - 1])
-    assert sorted(f.code or "" for f in findings) == sorted(_click(name)[number])
+    assert sorted(f.click_id or "" for f in findings) == sorted(_click(name)[number])
     assert all(f.captured for f in findings)
 
 

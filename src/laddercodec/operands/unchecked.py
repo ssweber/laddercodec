@@ -269,7 +269,7 @@ def _carry_locations(found: tuple[FieldError, ...], copies: tuple[FieldError, ..
 
 
 def _same(error: FieldError) -> tuple[object, ...]:
-    return (error.fields, error.reason, error.click_id, str(error))
+    return (error.fields, error.reason, error.code, error.click_id, str(error))
 
 
 def read_in_another_form(inst: object) -> None:

@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, cast
 
+from .codes import Code
 from .operands.address import ADDRESS_BANKS as ADDRESS_BANKS
 from .operands.address import OPERAND_RE as OPERAND_RE
 from .operands.address import XY_SLOTS as XY_SLOTS
@@ -132,18 +133,21 @@ class PinnedInstruction(AfInstruction):
                 f"({want} for a {type(self).__name__})",
                 field=name,
                 reason=Reason.FORM,
+                code=Code.INVALID_INPUT_ROWS,
             )
         if not all(type(row) is int and 1 <= row <= 255 for row in rows):
             raise FieldError(
                 f"{name}: {rows!r} holds a row outside the whole numbers 1 to 255",
                 field=name,
                 reason=Reason.RANGE,
+                code=Code.INVALID_INPUT_ROWS,
             )
         if any(later <= earlier for earlier, later in zip(rows, rows[1:], strict=False)):
             raise FieldError(
                 f"{name}: {rows!r} must ascend; each input sits below the last",
                 field=name,
                 reason=Reason.FORM,
+                code=Code.INVALID_INPUT_ROWS,
             )
 
     @property
@@ -243,6 +247,7 @@ def check_program_name(name: str, field_name: str) -> None:
             f"{field_name}: {name!r} is blank; a subroutine needs a name",
             field=field_name,
             reason=Reason.MISSING,
+            code=Code.BLANK_FIELD,
         )
     if len(text) > PROGRAM_NAME_MAX:
         raise FieldError(
@@ -250,6 +255,7 @@ def check_program_name(name: str, field_name: str) -> None:
             f"most {PROGRAM_NAME_MAX}",
             field=field_name,
             reason=Reason.RANGE,
+            code=Code.INVALID_SUBROUTINE_NAME,
         )
     bad = sorted({ch for ch in text if ch in _PROGRAM_NAME_FORBIDDEN})
     if bad:
@@ -259,6 +265,7 @@ def check_program_name(name: str, field_name: str) -> None:
             field=field_name,
             reason=Reason.FORM,
             click_id="GUI-040",
+            code=Code.INVALID_SUBROUTINE_NAME,
         )
     base = text.rsplit(".", 1)[0] if "." in text else text
     if base.upper() in _DEVICE_NAMES:
@@ -268,6 +275,7 @@ def check_program_name(name: str, field_name: str) -> None:
             field=field_name,
             reason=Reason.FORM,
             click_id="GUI-040",
+            code=Code.INVALID_SUBROUTINE_NAME,
         )
 
 

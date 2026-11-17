@@ -9,7 +9,7 @@
 ### Added
 - **One error tree.** Every error that `decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()` and `check()` raise for input they can't read or write is now a `LaddercodecError`. Each is still a `ValueError`. The classes are `DecodeError`, the new `EncodeError`, `CsvError`, `WriterError`, and `FieldError` with its subclass `AddressError`.
 - **More top-level exports.** `laddercodec` now exports `LaddercodecError`, `DecodeError`, `EncodeError`, `CsvError`, `WriterError`, `UnknownCondition`, `UnknownInstruction`, `Email`, `Home`, `Position`, `Velocity`, `ConditionInstruction`, `AfInstruction`, `ConditionToken` and `AfToken`.
-- **Undecoded markers.** When `decode()` or `decode_program()` can't read a rung, they now return an `Undecoded` marker for it and emit an `UndecodedRungWarning`. The other rungs still decode. The marker acts as `end()` in the main program and `return()` in a subroutine. `Program.undecoded` lists the markers. `write_csv` and `read_csv` round-trip a marker as an `undecoded(...)` token. `encode()` rejects a marker, and `check()` reports it as an `undecoded` finding.
+- **Undecoded markers.** When `decode()` or `decode_program()` can't read a rung, they now return an `Undecoded` marker for it and emit an `UndecodedRungWarning`. The other rungs still decode. The marker acts as `end()` in the main program and `return()` in a subroutine. `Program.undecoded` lists the markers. `write_csv` and `read_csv` round-trip a marker as an `undecoded(...)` token. `encode()` rejects a marker, and `check()` reports it as an `undecoded-rung` finding.
 - **CSV errors say where.** An error from `read_csv` now has a `CsvLocation` (file, line, rung, row and column) as its `location`, and its message ends with it. Each refusal in `.errors` has its own `location`.
 - **Field errors say why.** A `FieldError` now has `reason` (a `Reason` such as `bank`, `range` or `conflict`), `click_id` (CLICK's own id, such as `OBJ-005`, when CLICK has one), `fields` (one field, or both fields of a pair) and `errors` (every refusal for the construction, the raised one first).
 - **`RefusedFieldWarning` and `read_csv(..., unchecked=True)`.** `decode()` and `decode_program()` emit a `RefusedFieldWarning` for each instruction that holds a value CLICK's dialog refuses. `read_csv(..., unchecked=True)` reads such an instruction as written, with the same warning.
@@ -23,7 +23,7 @@
 - **Termination codes into TXT.** A single Copy of TXT into TXT now accepts `termination_code=$0D`. A Block Copy of TXT into TXT keeps its code through `decode()`, `encode()` and `read_csv`. v0.4.0 rejected the first and dropped the code in the second.
 - **Addresses that CLICK saves as typed.** An address such as `DS001`, `ds1` or `YD0U` in a Copy destination, a Math formula or a hex Math result now decodes as the instruction, in display form. v0.4.0 decoded it as `raw(...)`.
 - **Empty flag fields.** `decode()` now reads an empty flag field as set. v0.4.0 read it as clear, so a hex Math or a one-shot from `decode_program()` lost its flag when you encoded it and decoded it again.
-- **`check()` findings.** A contact in parallel with a wire-only leg is now `C0002`. v0.4.0 reported it with no code. A contact that feeds only a `NOP` is now `C0003`, the new kind `nop_only_contact`. A timer's or counter's reset with nothing wired is now an `unwired_pin` finding, `C0202`. v0.4.0 reported neither. An instruction fed from the net of another box's pin is now the new kind `shared_input_net`, `C000A`. v0.4.0 reported a pin finding for it.
+- **`check()` findings.** A contact in parallel with a wire-only leg is now `C0002`. v0.4.0 reported it with no CLICK id. A contact that feeds only a `NOP` is now `C0003`, with the new code `contact-feeds-only-nop`. A timer's or counter's reset with nothing wired is now an `unwired-input` finding, `C0202`. v0.4.0 reported neither. An instruction fed from the net of another box's pin now has the new code `shared-input-net`, `C000A`. v0.4.0 reported a pin finding for it.
 - **Hex Math `1E3h`.** A hex `Math` holding `1E3h`, which CLICK stores for a constant typed `1e3`, now decodes as the `Math`, and `read_csv` reads it. v0.4.0 decoded it as `raw(Math,...)` and `read_csv` rejected it.
 - **Bare `ValueError` and `KeyError` crashes.** A constant, For count, Timer set point, Drum preset, DS Slave ID or `ModbusAddress` of more than 4300 digits now reads as its value or raises `FieldError`. A `CompareContact` operator that is not `==`, `!=`, `<`, `>`, `<=` or `>=` now raises `FieldError`. v0.4.0 raised `ValueError` for the digits and `KeyError` for the operator.
 - **More rejections carry CLICK's id.** Many rejections that had no `click_id` now have one. For example, a Pack destination in a bank that Pack never writes, such as `X001`, now has `OBJ-004`. A Pack destination whose bank can't take the source, such as `C1..C16` into `TD1`, now has `OBJ-024`. laddercodec rejects the same values as before.
@@ -32,7 +32,7 @@
 - **Receive TXT count.** A Receive into TXT now accepts an even count of 2 to 250 characters, as CLICK does. v0.4.0 rejected a count over 124.
 - **Refusal order.** A single `Copy` whose constant source is invalid now raises `FieldError` on `Copy.source` before laddercodec checks the destination. v0.4.0 raised `AddressError` on `Copy.destination` for `copy("",DS1)`. An Out, Set or Reset range whose end is in another bank now raises `FieldError` with reason `conflict` and `OBJ-008`. v0.4.0 raised `AddressError` on `Coil.range_end`.
 - **`FieldError.field` names more fields.** It is `Class.attr` of the instruction refused, such as `Send.quantity` or `ModbusTcpTarget.port`, for more refusals than in v0.4.0.
-- **Reworded messages.** Many refusal messages changed, and a message ends with CLICK's id when there is one, such as `(OBJ-004)`. Match on `reason`, `click_id` and `field`, not on message text.
+- **Reworded messages.** Many refusal messages changed, and a message ends with CLICK's id when there is one, such as `(OBJ-004)`. Match on `code`, `reason`, `click_id` and `field`, not on message text.
 - **Undecoded comments.** A comment that doesn't decode now reads `UNDECODED comment: <error>`, followed by the plain text that could be read. `encode()` writes that text back into CLICK.
 - **Docs site follows releases.** The published docs now update when a release is published, not on every change to `main`.
 
@@ -119,6 +119,16 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - `pack_type`, `unpack_type` → `kind`. Its values are the CSV call names, such as `"pack_bits"` and `"unpack_to_words"`. v0.4.0 used `"bits"`, `"words"` and `"text"`.
   - `Copy.suppress_zero` is now `True`, `False` or `None`, and `Copy.exponential` is `True` or `False`. v0.4.0 used `"0"` and `"1"`, which are no longer accepted. A bad value raises `FieldError` with reason `flag`.
   - Do: Rename the keywords and attributes, for example `Copy("DS1", "TXT1", convert="to_text", suppress_zero=True)` and `Pack("C1", "C16", "DS1", kind="pack_bits")`. Pass `True` or `False` for `suppress_zero` and `exponential`.
+- **Every refusal and finding has a `code`.** `FieldError`, `AddressError`, each refusal in `errors` and a `check()` `Finding` now name their rule in `code`. The code is a `Code`, a new exported string enum of kebab-case names such as `bank-not-allowed`. CLICK's own id is in `click_id`. `CLICK_IDS` lists the CLICK ids that each code can come with. The Error codes page of the docs lists every code. Building a `FieldError` or `AddressError` now requires a keyword `code`.
+  - Do: Match on `code`, such as `error.code == "bank-not-allowed"`, not on message text. Pass `code=` where you build a `FieldError` or `AddressError` yourself.
+- **`Finding.kind` is now `code`, and `Finding.code` is now `click_id`.** A `check()` finding now names its shape in `code` and CLICK's id, such as `C0202`, in `click_id`. v0.4.0 held the shape in `kind` and CLICK's id in `code`. Each shape name now has `-` where it had `_`, and four shapes are renamed:
+  - `output_above_pinned_box` → `output-above-box-inputs`
+  - `pin_without_contact` → `input-without-contact`
+  - `pin_shares_main` → `input-shares-enable`
+  - `pin_shares_pin` → `inputs-share-contacts`
+  - Do: Read `finding.code` where you read `finding.kind`, and `finding.click_id` where you read `finding.code`. Compare with the new names.
+- **`Email`, `Home`, `Position` and `Velocity` are provisional.** Their fields are named after CLICK's tag ids, such as `tag_3218`. A later release will rename them.
+  - Do: Expect to rename these fields when you upgrade to that release.
 
 ## 0.4.0 (2026-11-14)
 

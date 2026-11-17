@@ -18,6 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, cast
 
+from ..codes import Code
 from ..model import AfInstruction, PinnedInstruction
 from ..operands.unchecked import rebuilt
 from .network import COLUMNS, Network
@@ -147,7 +148,10 @@ class _Painter:
         if not terms:
             if end is None:
                 return start, 0
-            raise LayoutError("an empty Or leg (a wire around the block) shorts it")
+            raise LayoutError(
+                "an empty Or leg (a wire around the block) shorts it",
+                code=Code.SHORTED_CONTACT,
+            )
         net, height = start, 0
         for index, term in enumerate(terms):
             target = end if index == len(terms) - 1 else None
@@ -187,13 +191,19 @@ class _Painter:
 
         def claim(row: int, col: int, net: int) -> None:
             if points.setdefault((row, col), net) != net:
-                raise LayoutError(f"two nets meet at row {row}, column {col}")
+                raise LayoutError(
+                    f"two nets meet at row {row}, column {col}", code=Code.LAYOUT_CANNOT_DRAW
+                )
 
         def put(row: int, col: int, value: object) -> None:
             if col >= COLUMNS:
-                raise LayoutError("the rung needs more than 31 condition columns")
+                raise LayoutError(
+                    "the rung needs more than 31 condition columns", code=Code.LAYOUT_TOO_WIDE
+                )
             if across[row][col] is not None:
-                raise LayoutError(f"two cells drawn at row {row}, column {col}")
+                raise LayoutError(
+                    f"two cells drawn at row {row}, column {col}", code=Code.LAYOUT_CANNOT_DRAW
+                )
             across[row][col] = value
 
         for c in self.contacts:
@@ -213,7 +223,9 @@ class _Painter:
                 continue
             for row in range(net.top, net.bottom):
                 if net.col >= COLUMNS:
-                    raise LayoutError("the rung needs more than 31 condition columns")
+                    raise LayoutError(
+                        "the rung needs more than 31 condition columns", code=Code.LAYOUT_TOO_WIDE
+                    )
                 vertical[row][net.col] = True
                 claim(row, net.col, index)
                 claim(row + 1, net.col, index)
@@ -239,7 +251,9 @@ def _with_down(contact: object, down: bool) -> object:
     if hasattr(contact, "wire_down"):
         return rebuilt(cast(Any, contact), wire_down=down)
     if down:
-        raise LayoutError("a contact this layout cannot mark with a down wire")
+        raise LayoutError(
+            "a contact this layout cannot mark with a down wire", code=Code.LAYOUT_CANNOT_DRAW
+        )
     return contact
 
 

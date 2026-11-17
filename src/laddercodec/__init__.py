@@ -1,5 +1,6 @@
 """Binary codec for AutomationDirect CLICK PLC ladder clipboard format."""
 
+from .codes import CLICK_IDS, Code
 from .compat import find_v4_only, is_v4_only
 from .csv import CsvLocation, read_csv
 from .csv.writer import write_csv
@@ -78,6 +79,8 @@ __all__ = [
     "FieldError",
     "AddressError",
     "Reason",
+    "Code",
+    "CLICK_IDS",
     "LaddercodecError",
     "DecodeError",
     "EncodeError",

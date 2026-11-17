@@ -8,6 +8,7 @@ import pickle
 import pytest
 
 from laddercodec import Coil, Contact, model
+from laddercodec.codes import Code
 from laddercodec.instructions import copy, counter, forloop, search, send_receive, shift
 from laddercodec.operands import address, errors
 from laddercodec.operands.banks import ALL, BITS, REGISTERS, Bank, banks, mask
@@ -156,7 +157,7 @@ def test_errors_are_value_errors() -> None:
 
 
 def test_attributes_default_to_none() -> None:
-    exc = errors.FieldError("'x' is not CLICK's display form 'X'")
+    exc = errors.FieldError("'x' is not CLICK's display form 'X'", code=Code.NOT_CLICK_FORM)
     assert (exc.field, exc.obj) == (None, None)
 
 
@@ -170,8 +171,9 @@ def test_attributes_default_to_none() -> None:
     ],
 )
 def test_field_is_not_read_from_the_message(message: str) -> None:
-    assert errors.FieldError(message).field is None
-    assert errors.FieldError(message, field="Coil.operand").field == "Coil.operand"
+    assert errors.FieldError(message, code=Code.INVALID_CHOICE).field is None
+    refusal = errors.FieldError(message, field="Coil.operand", code=Code.INVALID_CHOICE)
+    assert refusal.field == "Coil.operand"
 
 
 def test_check_address_names_the_field() -> None:
@@ -201,15 +203,19 @@ def test_display_form_refusal_names_instance() -> None:
 
 
 def test_pickle_keeps_message_and_attributes() -> None:
-    exc = errors.AddressError("Coil.operand: 'C0' is outside C1-C2000", field="Coil.operand")
+    exc = errors.AddressError(
+        "Coil.operand: 'C0' is outside C1-C2000",
+        field="Coil.operand",
+        code=Code.ADDRESS_OUT_OF_RANGE,
+    )
     copy_ = pickle.loads(pickle.dumps(exc))
     assert type(copy_) is errors.AddressError
     assert str(copy_) == str(exc)
-    assert (copy_.field, copy_.obj) == ("Coil.operand", None)
+    assert (copy_.field, copy_.code, copy_.obj) == ("Coil.operand", "address-out-of-range", None)
 
 
 def test_pickle_keeps_explicit_field() -> None:
-    exc = errors.FieldError("refused", field="Send source")
+    exc = errors.FieldError("refused", field="Send source", code=Code.BANK_NOT_ALLOWED)
     assert pickle.loads(pickle.dumps(exc)).field == "Send source"
 
 

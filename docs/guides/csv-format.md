@@ -1024,7 +1024,7 @@ Three cases differ:
 
 - If a refusal comes while a box takes its pin rows, `read_csv` raises a `CsvError`,
   not a `FieldError`. The `CsvError` carries the refusal's `field`, `fields`,
-  `reason`, `click_id` and `errors`, as `FieldError` has them (`Drum.jump_step`).
+  `code`, `reason`, `click_id` and `errors`, as `FieldError` has them (`Drum.jump_step`).
 - Every refusal in a `FieldError`'s `errors` has its own `location`, not only the one
   raised. A refusal that a pin row's value causes is at that pin's row. The rest
   take the cell that raised them. Only the raised error's message ends with the

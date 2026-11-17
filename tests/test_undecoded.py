@@ -619,8 +619,8 @@ def test_encode_refuses_a_marker() -> None:
 def test_check_reports_the_marker_and_nothing_else() -> None:
     marker = Undecoded("why", 3, 1)
     findings = check([RUNGS[1], marker_rung(marker)])
-    assert [(f.rung, f.kind, f.code, f.captured, f.row, f.column) for f in findings] == [
-        (1, "undecoded", None, False, 0, 31)
+    assert [(f.rung, f.code, f.click_id, f.captured, f.row, f.column) for f in findings] == [
+        (1, "undecoded-rung", None, False, 0, 31)
     ]
     assert findings[0].message == (
         "row 0 from 0, column AF: an undecoded marker for rung 3, row 1, "
@@ -638,15 +638,15 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
         instructions=[marker, RUNGS[1].instructions[0]],
         comment=None,
     )
-    kinds = [(f.kind, f.row, f.column) for f in check(rung)]
-    assert kinds[0] == ("undecoded", 0, 31)
-    assert ("no_rail", 1, 1) in kinds
+    codes = [(f.code, f.row, f.column) for f in check(rung)]
+    assert codes[0] == ("undecoded-rung", 0, 31)
+    assert ("no-rail", 1, 1) in codes
     unwired = Rung(
         logical_rows=1, conditions=[["", *["-"] * 30]], instructions=[marker], comment=None
     )
-    assert [(f.kind, f.row, f.column) for f in check(unwired)] == [
-        ("undecoded", 0, 31),
-        ("unpowered_box", 0, 31),
+    assert [(f.code, f.row, f.column) for f in check(unwired)] == [
+        ("undecoded-rung", 0, 31),
+        ("unpowered-box", 0, 31),
     ]
 
 

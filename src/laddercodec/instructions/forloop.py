@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
 from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
@@ -56,6 +57,7 @@ def _validate_for_count(value: str) -> str:
             "ForLoop.count: is blank; it needs a count",
             field="ForLoop.count",
             reason=Reason.MISSING,
+            code=Code.BLANK_FIELD,
         )
     if _FOR_SPACED_RE.fullmatch(text):
         # The dialog lets ``1 0`` through; it is not a number, so it is refused.
@@ -63,9 +65,17 @@ def _validate_for_count(value: str) -> str:
             f"ForLoop.count: {text!r} has a space inside; a constant count is digits only",
             field="ForLoop.count",
             reason=Reason.FORM,
+            code=Code.INVALID_CONSTANT,
         )
     text = normalize_address(text, "ForLoop.count")
-    check_operand(text, "ForLoop.count", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
+    check_operand(
+        text,
+        "ForLoop.count",
+        FOR_LIMIT_BANKS,
+        _FOR_LIMIT_CONSTANTS,
+        bank_id="OBJ-004",
+        bank_code=Code.FOR_COUNT_BANK,
+    )
     return text
 
 

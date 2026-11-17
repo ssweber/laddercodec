@@ -12,6 +12,7 @@ nav:
       - Encoding: guides/encoding.md
       - Decoding: guides/decoding.md
       - CSV Format: guides/csv-format.md
+      - Error Codes: guides/codes.md
   - Contributing:
       - Adding Instructions: contributing/adding-instructions.md
       - Troubleshooting: contributing/troubleshooting.md
@@ -30,6 +31,7 @@ exclude_docs: |
   AGENTS.md
   CLAUDE.md
   gen_reference.py
+  gen_codes.py
   gen_llms.py
 
 extra_css:

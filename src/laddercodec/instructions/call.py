@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import AfInstruction, Reason, check_program_name
 from ..operands.checks import Refusals
@@ -38,6 +39,7 @@ class Call(AfInstruction):
                     "subroutine",
                     "is blank; CLICK requires a subroutine name",
                     Reason.MISSING,
+                    code=Code.BLANK_FIELD,
                 )
             # A Call names a subroutine, so the name follows the Add New Subroutine rules.
             check("subroutine", check_program_name)

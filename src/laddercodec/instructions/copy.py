@@ -23,6 +23,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..codes import Code
 from ..errors import CsvError, WriterError
 from ..model import (
     ADDRESS_BANKS,
@@ -241,6 +242,7 @@ def _ascii_code(code: int) -> str:
             f"Copy.termination_code: ASCII code {code} is outside 0 to 0xFF",
             field="Copy.termination_code",
             reason=Reason.RANGE,
+            code=Code.INVALID_CHAR_CODE,
         )
     return f"${code:02X}"
 
@@ -364,6 +366,7 @@ def check_box_operand(
             f"{name}: {value!r} is a pointer; only a single Copy takes one",
             field=name,
             reason=Reason.POINTER,
+            code=Code.POINTER_OUTSIDE_COPY,
         )
     return check_operand(value, name, banks, constants, bank_id=bank_id)
 
@@ -375,12 +378,16 @@ def _refusal(
     reason: Reason,
     click_id: str | None = None,
     error: type[FieldError] = AddressError,
+    *,
+    code: Code,
 ) -> FieldError:
     """A refusal of ``cls.attrs[0]`` (a pair or more, when the rule is about several
     fields): ``Class.attr: rule``, with CLICK's id at the end."""
     fields = tuple(f"{cls}.{attr}" for attr in attrs)
     tail = f" ({click_id})" if click_id else ""
-    return error(f"{fields[0]}: {rule}{tail}", field=fields, reason=reason, click_id=click_id)
+    return error(
+        f"{fields[0]}: {rule}{tail}", field=fields, reason=reason, click_id=click_id, code=code
+    )
 
 
 def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool = False) -> str:
@@ -455,6 +462,7 @@ def _check_relation(
             f"{end!r} is not in the bank of {start!r}; both ends of a range are in one bank",
             Reason.CONFLICT,
             "OBJ-008" if ids else None,
+            code=Code.RANGE_MIXED_BANKS,
         )
     if ordered and _position(last) <= _position(first):
         same = _position(last) == _position(first)
@@ -465,6 +473,7 @@ def _check_relation(
             "a range ends after its start",
             Reason.CONFLICT,
             ("OBJ-012" if same else "OBJ-009") if ids else None,
+            code=Code.RANGE_NOT_ASCENDING,
         )
     if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
         raise _refusal(
@@ -474,6 +483,7 @@ def _check_relation(
             f"the range stays in one 16-point {first.bank} slot",
             Reason.CONFLICT,
             module_id,
+            code=Code.RANGE_CROSSES_SLOT,
         )
 
 
@@ -553,6 +563,8 @@ def _check_pair(
     dest_bank: str,
     pairs: dict[str, frozenset[str]],
     click_id: str | None = None,
+    *,
+    code: Code,
 ) -> None:
     """Refuse a destination bank the source kind can't copy into: a refusal of the
     destination with the source."""
@@ -565,6 +577,7 @@ def _check_pair(
             f"{_KIND_TEXT[kind]} copies to {_bank_list(allowed)}",
             Reason.CONFLICT,
             click_id,
+            code=code,
         )
 
 
@@ -584,6 +597,7 @@ def _check_kind(
             (field_name, kind_field),
             f"{value!r} is {what}; {kind} needs {need}",
             Reason.CONFLICT,
+            code=Code.PACK_KIND_MISMATCH,
         )
 
 
@@ -669,6 +683,7 @@ def _check_count(
             Reason.RANGE,
             pack_id if cls == "Pack" else unpack_id,
             FieldError,
+            code=Code.PACK_TOO_MANY,
         )
 
 
@@ -690,8 +705,8 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 }
 
 
-def _copy_dest_bank_id(kind: str | None, source: str, destination: str) -> str | None:
-    """CLICK's id for a single Copy destination in a bank a Copy does not write.
+def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[str | None, Code]:
+    """CLICK's id and the code for a single Copy destination in a bank a Copy does not write.
 
     A ``$hh`` character code copies to TXT only, and CLICK refuses it anywhere else as an
     address the instruction can't use (OBJ-004: ``$41`` into X001 or XD0), as its pairing
@@ -706,21 +721,28 @@ def _copy_dest_bank_id(kind: str | None, source: str, destination: str) -> str |
     A source that is refused has no id here: an address ``_source_kind`` refuses (``kind``
     None), and a constant the source's own check refuses later (out of range, or text it
     can't hold); that refusal stays after the destination's.
+
+    The code is ``bank-not-allowed`` but for a pairing: a constant into a bit
+    (``constant-into-bit``, a ``$hh`` code too), and a register into a bit
+    (``copy-bank-incompatible``).
     """
     if kind is None:
-        return None
+        return None, Code.BANK_NOT_ALLOWED
     if kind in ("number", "text"):
         try:
             _check_source_text(source, "Copy.source")
         except FieldError:
-            return None
+            return None, Code.BANK_NOT_ALLOWED
+    in_bit_bank = _bank_prefix(destination) in BIT_BANKS
     if source.startswith("$"):
-        return "OBJ-004"
-    if _bank_prefix(destination) not in BIT_BANKS:
-        return None
+        return "OBJ-004", Code.CONSTANT_INTO_BIT if in_bit_bank else Code.BANK_NOT_ALLOWED
+    if not in_bit_bank:
+        return None, Code.BANK_NOT_ALLOWED
     if kind == "bit" or not _in_its_bank(destination):
-        return "OBJ-004"
-    return "OBJ-024"
+        return "OBJ-004", Code.BANK_NOT_ALLOWED
+    if kind in ("number", "text"):
+        return "OBJ-024", Code.CONSTANT_INTO_BIT
+    return "OBJ-024", Code.COPY_BANK_INCOMPATIBLE
 
 
 def _check_copy_destination(destination: str, field: str, source: str, kind: str | None) -> Operand:
@@ -730,10 +752,11 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
     (``X[DS1]``, ``XD[DS1]``, ``SD[DS1]``) as an address the instruction can't use (OBJ-004),
     as into an address.
     """
+    bank_id, bank_code = _copy_dest_bank(kind, source, destination)
     try:
         return check_operand(
             destination, field, _COPY_DEST_BANKS, pointer=True,
-            bank_id=_copy_dest_bank_id(kind, source, destination),
+            bank_id=bank_id, bank_code=bank_code,
         )  # fmt: skip
     except AddressError as exc:
         if (
@@ -745,7 +768,11 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
         ):
             raise
         raise AddressError(
-            f"{exc} (OBJ-004)", field=exc.fields, reason=exc.reason, click_id="OBJ-004"
+            f"{exc} (OBJ-004)",
+            field=exc.fields,
+            reason=exc.reason,
+            click_id="OBJ-004",
+            code=exc.code,
         ) from None
 
 
@@ -785,7 +812,11 @@ def _check_source_value(source: str, field: str) -> Constant:
         ):
             raise
         raise FieldError(
-            f"{exc} (OBJ-005)", field=exc.fields, reason=exc.reason, click_id="OBJ-005"
+            f"{exc} (OBJ-005)",
+            field=exc.fields,
+            reason=exc.reason,
+            click_id="OBJ-005",
+            code=exc.code,
         ) from None
 
 
@@ -816,6 +847,7 @@ def _check_hex32(source: str, dest_field: str, destination: str, dest_bank: str)
             f"FFFFh copies to {_bank_list(_HEX32_DEST_BANKS)}",
             Reason.CONFLICT,
             "OBJ-024",
+            code=Code.COPY_BANK_INCOMPATIBLE,
         )
 
 
@@ -952,6 +984,7 @@ def _check_row(
             f"{what} from {source_bank} goes to {_bank_list(allowed)}",
             Reason.CONFLICT,
             _UNPACK_Y_ID if cls == "Unpack" and dest_bank == "Y" else _ROW_IDS[cls],
+            code=Code.COPY_BANK_INCOMPATIBLE,
         )
 
 
@@ -984,6 +1017,7 @@ def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
         f"register; the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
         Reason.NOT_WRITABLE,
         click_id,
+        code=Code.NOT_WRITABLE,
     )
 
 
@@ -1041,6 +1075,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
                     f"to_binary: {k!r} is not an option; it takes only termination_code",
                     field="Copy.convert",
                     reason=Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             text_opts[k] = v.strip()
 
@@ -1070,7 +1105,10 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
     """
     if inst.termination_code == "":
         check.refuse(
-            "termination_code", "is blank; it needs a code, or 'none' for no code", Reason.MISSING
+            "termination_code",
+            "is blank; it needs a code, or 'none' for no code",
+            Reason.MISSING,
+            code=Code.BLANK_FIELD,
         )
     elif inst.termination_code == "none":
         inst.termination_code = "0"
@@ -1091,6 +1129,7 @@ def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
             "character code ($0D), or '0' or 'none' for no code",
             Reason.FORM,
             "OBJ-036",
+            code=Code.INVALID_CHAR_CODE,
         )
 
 
@@ -1176,13 +1215,14 @@ class Copy(AfInstruction):
                 # it with two ($1 is $01).
                 self.source = f"$0{self.source[1]}"
             elif (why := _real_hex_refusal(self.source)) is not None:
-                check.refuse("source", why, Reason.FORM)
+                check.refuse("source", why, Reason.FORM, code=Code.COPY_HEX_READS_AS_REAL)
             if self.convert not in _VALID_CONVERTS:
                 check.refuse(
                     "convert",
                     f"{self.convert!r} is not allowed; it is None, 'to_value', 'to_text', "
                     "'to_binary' or 'to_ascii'",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             _read_termination(check, self)
             # No suppress_zero is False, but for a real source copied to text, which has none.
@@ -1206,10 +1246,12 @@ class Copy(AfInstruction):
             if kind is not None and dst is not None:
                 assert dst.bank is not None
                 # A $hh code into any bank but TXT is OBJ-004; any other pairing, OBJ-024.
+                pair_id = "OBJ-004" if self.source.startswith("$") else "OBJ-024"
+                into_bit = kind in ("number", "text") and dst.bank in BIT_BANKS
+                pair_code = Code.CONSTANT_INTO_BIT if into_bit else Code.COPY_BANK_INCOMPATIBLE
                 check.run(
                     _check_pair, "Copy", "source", self.source, kind,
-                    "dest", self.dest, dst.bank, _COPY_PAIRS,
-                    "OBJ-004" if self.source.startswith("$") else "OBJ-024",
+                    "dest", self.dest, dst.bank, _COPY_PAIRS, pair_id, code=pair_code,
                 )  # fmt: skip
                 if kind == "number":
                     check.run(_check_hex32, self.source, "dest", self.dest, dst.bank)
@@ -1237,6 +1279,7 @@ class Copy(AfInstruction):
                         "with to_text or to_binary, or a TXT register copied to TXT, not "
                         f"{self.source!r} -> {self.dest!r} with convert {self.convert!r}",
                         Reason.CONFLICT,
+                        code=Code.OPTION_NOT_OFFERED,
                     )
             if kind == "txt" and self.suppress_zero is True:
                 # CLICK's dialog greys Suppress zero for a TXT source, into a number or TXT.
@@ -1245,6 +1288,7 @@ class Copy(AfInstruction):
                     f"suppress_zero=1 is not an option for {self.source!r}; suppress zero is "
                     "for a number copied to text",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
             if self.convert == "to_text":
                 # CLICK's dialog offers suppress zero for an integer, hex or register
@@ -1257,6 +1301,7 @@ class Copy(AfInstruction):
                             f"to_text(suppress_zero=...) is not an option for {self.source!r}; "
                             "a DF source or a real constant only has exponential",
                             Reason.CONFLICT,
+                            code=Code.OPTION_NOT_OFFERED,
                         )
                 elif self.exponential is True:
                     check.refuse(
@@ -1264,6 +1309,7 @@ class Copy(AfInstruction):
                         "to_text(exponential=1) needs a DF source or a real constant, not "
                         f"{self.source!r}; an integer source only has suppress_zero",
                         Reason.CONFLICT,
+                        code=Code.OPTION_NOT_OFFERED,
                     )
             _check_termination_form(check, self)
             if const is not None:
@@ -1278,6 +1324,7 @@ class Copy(AfInstruction):
                     f"{self.source!r} has {significant_digits(self.source)} significant "
                     f"digits; CLICK keeps {REAL_DIGITS} significant digits: write {kept}",
                     Reason.FORM,
+                    code=Code.INVALID_CONSTANT,
                 )
             elif const is not None:
                 # Written as CLICK stores it.
@@ -1296,6 +1343,7 @@ class Copy(AfInstruction):
                             f"{self.dest}..{end.display}, past TXT{_TXT_LAST}",
                             Reason.RANGE,
                             "OBJ-003",
+                            code=Code.TEXT_PAST_BANK,
                         )
                     )
                 end = _number_fill_end(self.source, self.dest)
@@ -1308,6 +1356,7 @@ class Copy(AfInstruction):
                             f"fills {self.dest}..{end.display}, past TXT{_TXT_LAST}",
                             Reason.RANGE,
                             "OBJ-003",
+                            code=Code.TEXT_PAST_BANK,
                         )
                     )
             check.flag("oneshot")
@@ -1354,6 +1403,7 @@ class Copy(AfInstruction):
                 f"convert=to_text({option},termination_code=none), CLICK's default, or "
                 "convert=to_binary",
                 Reason.CONFLICT,
+                code=Code.COPY_TXT_NEEDS_CONVERT,
             )
             return
         if convert in ("to_value", "to_ascii") and kind == "txt" and dest_bank == "DF":
@@ -1363,6 +1413,7 @@ class Copy(AfInstruction):
                 f"{convert} is not an option for {self.source!r} -> {self.dest!r}; "
                 "CLICK copies TXT into DF with no converter",
                 Reason.CONFLICT,
+                code=Code.COPY_CONVERTER_BANK,
             )
             return
         if convert is None and kind == "txt" and _asks_txt_choice(dest_bank):
@@ -1373,6 +1424,7 @@ class Copy(AfInstruction):
                 f"{self.source!r} -> {self.dest!r} needs convert=to_value (the "
                 "character's value) or convert=to_ascii (its ASCII code)",
                 Reason.CONFLICT,
+                code=Code.COPY_TXT_NEEDS_CONVERT,
             )
             return
         if convert == "to_text":
@@ -1389,6 +1441,7 @@ class Copy(AfInstruction):
                 ("convert", "source", "dest"),
                 f"{convert} copies {need}, not {self.source!r} -> {self.dest!r}",
                 Reason.CONFLICT,
+                code=Code.COPY_CONVERTER_BANK,
             )
 
     @classmethod
@@ -1561,6 +1614,7 @@ class BlockCopy(AfInstruction):
                     "convert",
                     f"{self.convert!r} is not allowed; it is None, 'to_value' or 'to_ascii'",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             _read_termination(check, self)
             cls = "BlockCopy"
@@ -1601,6 +1655,7 @@ class BlockCopy(AfInstruction):
                             f"{self.dest_start} crosses a Y slot; crossing a slot is not "
                             "supported yet: it needs a capture",
                             Reason.CONFLICT,
+                            code=Code.RANGE_CROSSES_SLOT,
                         )
                     )
                 if dest.bank == "SD" and not check.refused("dest_start"):
@@ -1615,6 +1670,7 @@ class BlockCopy(AfInstruction):
                             f"{self.source_start}..{self.source_end} fills "
                             f"{self.dest_start}..{spelled}",
                             Reason.CONFLICT,
+                            code=Code.BLOCK_COPY_END_MISMATCH,
                         )
                     )
             source = f"{self.source_start}..{self.source_end}"
@@ -1623,6 +1679,7 @@ class BlockCopy(AfInstruction):
                     ("convert", "source_start", "source_end"),
                     f"{self.convert} needs a TXT source, not {source}",
                     Reason.CONFLICT,
+                    code=Code.COPY_CONVERTER_BANK,
                 )
             txt_to_txt = (
                 src is not None and src.bank == "TXT" and dest is not None and dest.bank == "TXT"
@@ -1634,6 +1691,7 @@ class BlockCopy(AfInstruction):
                     f"{self.convert} copies TXT to a number, not {source} -> "
                     f"{self.dest_start}..{self.dest_end}",
                     Reason.CONFLICT,
+                    code=Code.COPY_CONVERTER_BANK,
                 )
             if (
                 self.convert is None
@@ -1648,6 +1706,7 @@ class BlockCopy(AfInstruction):
                     f"{source} -> {self.dest_start}..{self.dest_end} needs convert=to_value "
                     "(the characters' values) or convert=to_ascii (their ASCII codes)",
                     Reason.CONFLICT,
+                    code=Code.COPY_TXT_NEEDS_CONVERT,
                 )
             if (
                 self.termination_code != "0"
@@ -1662,6 +1721,7 @@ class BlockCopy(AfInstruction):
                     f"converter, not {source} -> {self.dest_start}..{self.dest_end} with "
                     f"convert {self.convert!r}",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
             _check_termination_form(check, self)
             check.flag("oneshot")
@@ -1757,6 +1817,7 @@ class Fill(AfInstruction):
                 check.run(
                     _check_pair, "Fill", "value", self.value, kind,
                     "dest_start", self.dest_start, dest.bank, _FILL_PAIRS,
+                    code=Code.COPY_BANK_INCOMPATIBLE,
                 )  # fmt: skip
                 if kind in ("number", "text"):
                     # A Fill into TXT takes one character of text.
@@ -1856,6 +1917,7 @@ class Pack(AfInstruction):
                     "kind",
                     f"{self.kind!r} is not allowed; it is 'pack_bits', 'pack_words' or 'pack_text'",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             first, last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
@@ -1896,6 +1958,7 @@ class Pack(AfInstruction):
                             f"{'takes a TXT source' if self.kind == 'pack_text' else 'has no TXT source'}, "
                             f"{'pack_text' if first.bank == 'TXT' else 'pack_words or pack_bits'} does",
                             Reason.CONFLICT,
+                            code=Code.PACK_KIND_MISMATCH,
                         )
                     )
                 if self.kind != "pack_text":
@@ -1914,6 +1977,7 @@ class Pack(AfInstruction):
                     ("allow_whitespace", "kind"),
                     f"allow_whitespace is a pack_text option; {self.kind} has none",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
 
     @property
@@ -2014,6 +2078,7 @@ class Unpack(AfInstruction):
                     "kind",
                     f"{self.kind!r} is not allowed; it is 'unpack_to_bits' or 'unpack_to_words'",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             # A bank no row holds is one the field can't use (OBJ-004): answered for an X
             # source, and for X, SC and SD destinations, as for a bank the source's row
@@ -2329,6 +2394,7 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
                 "(to_text(...,termination_code=$0D))",
                 field=("Copy.termination_code", "Copy.convert"),
                 reason=Reason.CONFLICT,
+                code=Code.OPTION_NOT_OFFERED,
             )
         termination_code = kwargs["termination_code"]
     if termination_code == "none":

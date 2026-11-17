@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
+from ..codes import Code
 from ..errors import CsvError, EncodeError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
@@ -83,16 +84,23 @@ class Counter(PinnedInstruction):
                     "kind",
                     f"{self.kind!r} is not count_up or count_down",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
             check.flag("down_enabled", "reset_enabled")
             if self.reset_enabled is False:
-                check.refuse("reset_enabled", "a counter always has a Reset input", Reason.CHOICE)
+                check.refuse(
+                    "reset_enabled",
+                    "a counter always has a Reset input",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
+                )
             if self.down_enabled is True and self.kind == "count_down":
                 # count_down's own input is Down; its box has no separate .down() input.
                 check.refuse(
                     ("down_enabled", "kind"),
                     "count_down has no .down() input; only count_up does",
                     Reason.CONFLICT,
+                    code=Code.OPTION_NOT_OFFERED,
                 )
             check.normalize("done", "accumulator", "preset")
             done = check("done", check_address, banks={"CT"})
@@ -103,6 +111,7 @@ class Counter(PinnedInstruction):
                     f"{self.accumulator!r} must be CTD{done.number} to match Counter.done "
                     f"{self.done!r}",
                     Reason.CONFLICT,
+                    code=Code.TIMER_PAIR_MISMATCH,
                 )
             check(
                 "preset",

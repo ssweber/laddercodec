@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ..binary_helpers import tag_flag, tag_value
+from ..codes import Code
 from ..errors import CsvError
 from ..model import AfInstruction, FieldError, Reason, check_address
 from ..operands.address import read_as_typed
@@ -196,13 +197,19 @@ class Math(AfInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             if self.mode not in RESULT_BANKS:
-                check.refuse("mode", f"{self.mode!r} is not 'decimal' or 'hex'", Reason.CHOICE)
+                check.refuse(
+                    "mode",
+                    f"{self.mode!r} is not 'decimal' or 'hex'",
+                    Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
+                )
             if _holds_nickname(self.expression):
                 check.refuse(
                     "expression",
                     f"{self.expression!r} holds a <nickname>; Math takes addresses, not "
                     "nicknames (laddercodec cannot resolve a nickname to its address)",
                     Reason.ADDRESS,
+                    code=Code.MATH_NICKNAME,
                 )
             check.normalize("dest")
             # The result's banks and the formula's reading depend on the mode.

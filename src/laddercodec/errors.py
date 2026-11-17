@@ -9,7 +9,9 @@ under :class:`LaddercodecError` too.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from .codes import Code
 
 if TYPE_CHECKING:
     from .operands.errors import FieldError, Reason
@@ -48,18 +50,19 @@ class CsvError(LaddercodecError):
 
     A ``FieldError`` refused while a box takes its pin rows is still wrapped: it arrives as
     a ``CsvError`` (not a ``FieldError``, so ``except FieldError`` does not catch it),
-    now carrying the refusal's data.  ``field``, ``fields``, ``reason`` and ``click_id``
-    are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
+    now carrying the refusal's data.  ``field``, ``fields``, ``reason``, ``code`` and
+    ``click_id`` are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
     refusal of the box, each a ``FieldError`` with its own ``location``; ``errors[0]`` is the
     wrapped ``FieldError`` (also ``__cause__``), not this exception.  A refusal a pin row's
     value causes is located at that pin's row, any other at the box's own row.  An error that is
     no field refusal (a pin token that does not parse, a rung with no rows) has ``field``,
-    ``reason`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
+    ``reason``, ``code`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
     """
 
     field: str | None
     fields: tuple[str, ...]
     reason: Reason | None
+    code: Code | None
     click_id: str | None
     errors: tuple[FieldError, ...] | tuple[CsvError]
 
@@ -74,12 +77,14 @@ class CsvError(LaddercodecError):
             self.field = field
             self.fields = () if field is None else (field,)
             self.reason = None
+            self.code = None
             self.click_id = None
             self.errors = (self,)
         else:
             self.field = refusal.field
             self.fields = refusal.fields
             self.reason = refusal.reason
+            self.code = refusal.code
             self.click_id = refusal.click_id
             self.errors = refusal.errors
 
@@ -95,10 +100,26 @@ class WriterError(LaddercodecError):
 class LayoutError(LaddercodecError):
     """A rung CLICK's syntax check refuses, or one this layout cannot draw.
 
-    ``code`` is CLICK's error code when CLICK is known to refuse the shape (``C0001``: not
-    series-parallel; ``C0202``: a contact no rail reaches), else ``None``.
+    ``code`` names the shape, a Code such as ``"not-series-parallel"``.  ``click_id`` is
+    CLICK's id when CLICK is known to refuse the shape (``C0001``, ``C0202``), else ``None``.
     """
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    def __init__(self, message: str, click_id: str | None = None, *, code: Code) -> None:
         super().__init__(message)
         self.code = code
+        self.click_id = click_id
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Unpickling calls the class with args alone. LayoutError requires code, so pass it too.
+        return (
+            _rebuild_layout,
+            (type(self), self.args[0], self.click_id, self.code),
+            self.__dict__,
+        )
+
+
+def _rebuild_layout(
+    cls: type[LayoutError], message: str, click_id: str | None, code: Code
+) -> LayoutError:
+    """Rebuild a pickled :class:`LayoutError`; its other attributes come from its state."""
+    return cls(message, click_id=click_id, code=code)

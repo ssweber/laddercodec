@@ -84,7 +84,7 @@ def _saved() -> list[Rung]:
 
 
 def _codes(rung: Rung) -> set[str | None]:
-    return {f.code for f in check(rung)}
+    return {f.click_id for f in check(rung)}
 
 
 def _c0202_cells(rung: Rung) -> list[str]:
@@ -92,7 +92,7 @@ def _c0202_cells(rung: Rung) -> list[str]:
     return [
         f.message.split(" in CLICK's numbering")[0]
         for f in check(rung)
-        if f.code == "C0202" and f.captured
+        if f.click_id == "C0202" and f.captured
     ]
 
 

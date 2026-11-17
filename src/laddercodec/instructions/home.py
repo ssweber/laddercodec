@@ -71,6 +71,9 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 class Home(AfInstruction):
     """Home instruction — opaque fields stored as tag-keyed strings.
 
+    Provisional: the fields are named after CLICK's tag ids (``tag_3218``). A later release
+    will rename them.
+
     Binary class name ``"Home"`` (type marker 0x2734).
     """
 

@@ -7,13 +7,16 @@ refused deleted, and a rung CLICK split stands as its parts.
 
 from __future__ import annotations
 
+import copy
 import csv as csv_mod
+import pickle
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from laddercodec import check, decode, encode, read_csv, write_csv
+from laddercodec import Code, check, decode, encode, read_csv, write_csv
 from laddercodec._layout import LayoutError, canonical, circuit, layout
 from laddercodec._layout.network import cell_of
 from laddercodec.csv.contract import CSV_HEADER
@@ -155,7 +158,23 @@ def test_bridge_is_not_series_parallel() -> None:
     )
     with pytest.raises(LayoutError) as info:
         layout(rung)
-    assert info.value.code == "C0001"
+    assert info.value.click_id == "C0001"
+
+
+@pytest.mark.parametrize("clone", [copy.copy, lambda e: pickle.loads(pickle.dumps(e))])
+def test_layout_error_pickles_and_copies(clone: Callable[[LayoutError], LayoutError]) -> None:
+    error = LayoutError(
+        "the rung's circuit is not series-parallel", "C0001", code=Code.NOT_SERIES_PARALLEL
+    )
+    error.extra = 1
+    again = clone(error)
+    assert type(again) is LayoutError
+    assert (str(again), again.code, again.click_id, again.extra) == (
+        str(error),
+        Code.NOT_SERIES_PARALLEL,
+        "C0001",
+        1,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +220,7 @@ _SHARED_PINS = {
             _csv_row("", ["C5", "T"], ".clock()"),
             _csv_row("", ["", "-"], ".reset()"),
         ],
-        "pin_without_contact",
+        "input-without-contact",
     ),
     "count_up down and reset": (
         [
@@ -209,7 +228,7 @@ _SHARED_PINS = {
             _csv_row("", ["rise(C5)", "T"], ".down()"),
             _csv_row("", ["", "-"], ".reset()"),
         ],
-        "pin_without_contact",
+        "input-without-contact",
     ),
     "shift reset with a contact of its own": (
         [
@@ -217,7 +236,7 @@ _SHARED_PINS = {
             _csv_row("", ["C5", "T"], ".clock()"),
             _csv_row("", ["", "C6"], ".reset()"),
         ],
-        "pin_shares_pin",
+        "inputs-share-contacts",
     ),
     "time drum reset and jog past the jump row": (
         [
@@ -226,7 +245,7 @@ _SHARED_PINS = {
             _csv_row("", ["", "|"], ""),
             _csv_row("", ["", "-"], ".jog()"),
         ],
-        "pin_without_contact",
+        "input-without-contact",
     ),
 }
 
@@ -237,7 +256,7 @@ def test_contact_on_two_pins_stays_as_drawn(name: str, tmp_path: Path) -> None:
     drawn, got = _read_rows(tmp_path, rows)
     assert got == [drawn]
     (finding,) = check(drawn)
-    assert (finding.kind, finding.captured) == (kind, False)
+    assert (finding.code, finding.captured) == (kind, False)
     with pytest.raises(LayoutError, match="another pin input"):
         layout(drawn)
     # The decoded rung writes as drawn too.
@@ -250,7 +269,7 @@ def test_time_drum_jog_sharing_the_reset_is_not_captured(tmp_path: Path) -> None
     rows, _ = _SHARED_PINS["time drum reset and jog past the jump row"]
     drawn, _ = _read_rows(tmp_path, rows)
     (finding,) = check(drawn)
-    assert (finding.code, finding.row, finding.column) == (None, 4, 31)
+    assert (finding.click_id, finding.row, finding.column) == (None, 4, 31)
     assert finding.message == (
         "row 4 from 0, column AF: the pin has no contact of its own"
         " (CLICK's response to this shape is not captured)"

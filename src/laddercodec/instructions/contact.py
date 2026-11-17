@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..codes import Code
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     ConditionInstruction,
@@ -83,12 +84,14 @@ class Contact(ConditionInstruction):
                     ("immediate", "kind"),
                     "an edge contact has no immediate form",
                     Reason.CONFLICT,
+                    code=Code.IMMEDIATE_EDGE_CONTACT,
                 )
             if self.immediate is True and address is not None and address.bank != "X":
                 check.refuse(
                     ("immediate", "operand"),
                     f"{self.operand!r} is not allowed; an immediate contact takes X only",
                     Reason.CONFLICT,
+                    code=Code.IMMEDIATE_CONTACT_NOT_X,
                 )
             # The kind is checked last, so a refused operand is reported first.
             if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
@@ -96,6 +99,7 @@ class Contact(ConditionInstruction):
                     "kind",
                     f"{self.kind!r} is not a contact kind (no, nc, rise or fall)",
                     Reason.CHOICE,
+                    code=Code.INVALID_CHOICE,
                 )
 
     @classmethod

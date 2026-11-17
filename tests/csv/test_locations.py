@@ -15,6 +15,7 @@ from laddercodec import (
     RefusedFieldWarning,
     read_csv,
 )
+from laddercodec.codes import Code
 from laddercodec.csv.bundle import parse_bundle
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.operands.unchecked import refusals
@@ -482,9 +483,9 @@ class TestOwnLocations:
         """
         from laddercodec.csv import converter
 
-        pin_error = FieldError("pin", field="Box.pin")
-        box_error = FieldError("box", field="Box.other")
-        both = FieldError("pin", field="Box.pin")
+        pin_error = FieldError("pin", field="Box.pin", code=Code.INVALID_CHOICE)
+        box_error = FieldError("box", field="Box.other", code=Code.INVALID_CHOICE)
+        both = FieldError("pin", field="Box.pin", code=Code.INVALID_CHOICE)
         both.errors = (both, box_error)
 
         class Box:
@@ -492,7 +493,7 @@ class TestOwnLocations:
                 if pins:
                     raise both
                 if True:
-                    raise FieldError("box", field="Box.other")
+                    raise FieldError("box", field="Box.other", code=Code.INVALID_CHOICE)
 
         owner = converter._refusing_pin(Box(), {"p": ()}, (), pin_error)  # type: ignore[arg-type]
         assert owner == "p"
@@ -504,12 +505,12 @@ class TestOwnLocations:
         from laddercodec.csv import converter
         from laddercodec.operands import unchecked as unchecked_mod
 
-        refusal = FieldError("q", field="Box.q")
+        refusal = FieldError("q", field="Box.q", code=Code.INVALID_CHOICE)
 
         class Box:
             def with_pins(self, pins: dict, slots: tuple) -> object:
                 if "q" in pins and unchecked_mod._KEPT.get() is None:
-                    raise FieldError("q", field="Box.q")
+                    raise FieldError("q", field="Box.q", code=Code.INVALID_CHOICE)
                 return self
 
         box = Box()

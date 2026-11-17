@@ -56,6 +56,8 @@ EXPECTED_ROOT_EXPORTS = (
     "FieldError",
     "AddressError",
     "Reason",
+    "Code",
+    "CLICK_IDS",
     "LaddercodecError",
     "DecodeError",
     "EncodeError",
@@ -168,6 +170,10 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     assert laddercodec.Home is instructions.home.Home
     assert laddercodec.Position is instructions.position.Position
     assert laddercodec.Velocity is instructions.velocity.Velocity
+    codes = importlib.import_module("laddercodec.codes")
+    assert laddercodec.Code is codes.Code
+    assert laddercodec.CLICK_IDS is codes.CLICK_IDS
+    assert laddercodec.CLICK_IDS[laddercodec.Code.ADDRESS_OUT_OF_RANGE] == ("OBJ-003",)
 
 
 def test_errors_form_one_tree_of_value_errors() -> None:
