@@ -1,4 +1,7 @@
-"""Side-by-side comparison of instruction blobs: SCR vs CLIP format."""
+"""Print each instruction blob of an SCR file above the matching blob of a clipboard capture.
+
+The blobs pair up by type marker, and then by their order among the blobs of that type.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +16,11 @@ def hexline(data: bytes, label: str = "") -> str:
 
 
 def find_type_markers(data: bytes) -> list[tuple[int, int]]:
-    """Find all InstructionType markers (0x2711-0x2730) and their offsets."""
+    """Return (offset, marker) for each InstructionType marker (0x2711-0x2730) in *data*.
+
+    The search reads a u16 at every byte offset, so it can also match bytes that are not a
+    marker.
+    """
     results = []
     for i in range(len(data) - 1):
         marker = struct.unpack_from("<H", data, i)[0]
@@ -23,13 +30,15 @@ def find_type_markers(data: bytes) -> list[tuple[int, int]]:
 
 
 def extract_scr_blob(data: bytes, type_offset: int) -> tuple[str, bytes, int]:
-    """Extract a full instruction blob from SCR format, starting from the class name."""
-    # Walk backwards to find the length-prefixed class name
-    # The class name is: [u8 byte_len] [UTF-16LE string]
-    # Type marker follows immediately after the class name
-    # Determine class name length from the byte before the UTF-16LE string
-    # The type marker is at type_offset, so the class name ends there
-    # Find the length prefix by checking backwards
+    """Return the class name, the bytes and the start offset of an SCR blob.
+
+    *type_offset* is the offset of the blob's type marker. The blob starts at the length byte
+    of its class name, and the bytes run from there to the end of *data*. If no class name
+    is found, return ``"???"`` and start at the type marker.
+    """
+    # In SCR, a blob starts with [u8 byte_len] [UTF-16LE class name], and the type marker
+    # follows the name. Step back from the marker to the first byte whose value is the
+    # number of bytes between that byte and the marker.
     for back in range(2, 50):
         pos = type_offset - back
         if pos < 0:
@@ -51,10 +60,15 @@ def extract_scr_blob(data: bytes, type_offset: int) -> tuple[str, bytes, int]:
 
 
 def extract_clip_blob(data: bytes, type_offset: int) -> tuple[str, bytes, int]:
-    """Extract a full instruction blob from CLIP format (cell +0x25 relative)."""
-    # Walk backwards to find double-null-terminated class name
-    # In CLIP: the cell data at +0x25 starts with UTF-16LE class name + 00 00
-    # Then the type marker follows
+    """Return the class name, the bytes and the start offset of a clipboard blob.
+
+    *type_offset* is the offset of the blob's type marker. The blob starts with its class
+    name, at offset +0x25 of its cell, and the bytes run from there to the end of *data*. If
+    no class name is found, return ``"???"`` and start at the type marker.
+    """
+    # In the clipboard format, a cell's data at +0x25 starts with the UTF-16LE class name and
+    # a 00 00 terminator. The type marker follows. Step back from the marker to find the
+    # terminator, then step back again to the start of the name.
     for back in range(4, 60, 2):
         pos = type_offset - back
         if pos < 0:
@@ -62,8 +76,8 @@ def extract_clip_blob(data: bytes, type_offset: int) -> tuple[str, bytes, int]:
         # Check for double null before type offset
         if data[pos] != 0 or data[pos + 1] != 0:
             continue
-        # pos,pos+1 are the null terminator; string starts before
-        # Walk further back to find string start (non-null UTF-16LE)
+        # pos and pos+1 hold the null terminator, and the name ends there. Step back two
+        # bytes at a time to the null pair before the name.
         str_start = pos - 2
         while str_start >= 0 and not (data[str_start] == 0 and data[str_start + 1] == 0):
             str_start -= 2
@@ -113,7 +127,6 @@ def main() -> None:
             s_name, s_blob, s_start = extract_scr_blob(scr, s_off)
             c_name, c_blob, c_start = extract_clip_blob(clip, c_off)
 
-            # Show first 64 bytes of each
             preview = 80
             print(f"\n  --- {s_name} (instance {i}) ---")
             print(f"  SCR  @ {s_start:#06x} (type @ {s_off:#06x}):")
@@ -125,7 +138,8 @@ def main() -> None:
                 chunk = c_blob[j : j + 16]
                 print(hexline(chunk, f"+{j:02x}:"))
 
-            # Highlight structural differences
+            # Print the 24 bytes from each type marker on, one line above the other, so that
+            # the fields after the marker line up.
             print("\n  Key offsets from type marker:")
             s_after = scr[s_off : s_off + 24]
             c_after = clip[c_off : c_off + 24]

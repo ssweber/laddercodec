@@ -1,66 +1,82 @@
 r"""Compare two JSON outputs of ``fixture_snapshot.py`` or ``operand_probe.py``.
 
-Both tools write ``{"tool": ..., "meta": {...}, "cases": {key: value}}``.  ``cases`` is
-compared value by value, with the JSON type counted (``1``, ``1.0`` and ``true`` differ).
-Of ``meta``, only ``scope`` (fixture root, ``--limit``) is checked: the rest holds counts
-and summaries derived from ``cases``.
+Both tools write ``{"tool": ..., "meta": {...}, "cases": {key: value}}``. The first file is
+the base and the second is the branch. The script compares ``cases`` value by value, and
+values of different JSON types differ, so ``1``, ``1.0`` and ``true`` all differ. From
+``meta`` it compares only ``scope``, such as the fixture root and ``--limit``. The rest of
+``meta`` holds counts and summaries of ``cases``.
 
     uv run python -I devtools/identity_diff.py a.json b.json
     uv run python -I devtools/identity_diff.py --tiers [--expected FILE] a.json b.json
 
-Plain, it prints one line per difference and exits 1 if there is any or the two come from
-different tools, 0 if the cases are identical.
+Without ``--tiers``, the script prints one line for each difference. It exits 1 if there is
+a difference or the two files come from different tools, and 0 if the cases are identical.
 
-``--tiers`` sorts the differences by case.  The tools record an exception as
-``!Class`` where it happened and its message under the case's ``errors``, as
-``[class, message]``; a warning is ``Class: message``.  The first tier must stay
-identical: every value of a case (accept or refuse, the exception class, the CSV written,
-the bytes, the decode result), the class of every exception and warning, each name ending
-in ``Error``, ``Exception`` or ``Warning`` that an exception's message holds, and no case
-added or removed.  A case that differs only in message or warning text is listed apart and
-is not a failure.  A case whose first tier differs is a failure unless an entry of the
-expected-diff file (``--expected``, default ``expected_diff.txt`` beside this script)
-allows it.  The mode exits 1 on a failure or when the tools differ, 0 otherwise.
+With ``--tiers``, the script splits the differences into two tiers. The tools record an
+exception as ``!Class`` in place of the result of the step that raised it. They record its
+message in the case's ``errors`` list, as ``[class, message]``. They record a warning as
+``Class: message``. The first tier is what must stay identical:
+
+- every value of a case: accept or refuse, the exception class, the CSV written, the bytes
+  and the decode result;
+- the class of every exception and warning;
+- each name ending in ``Error``, ``Exception`` or ``Warning`` that an exception's message
+  holds;
+- the set of cases. No case may be added or removed.
+
+A case that differs only in the text of a message or a warning is listed separately and is
+not a failure. A case whose first tier differs is a failure, unless an entry of the
+expected-diff file allows it. That file is ``expected_diff.txt`` beside this script, or the
+file given with ``--expected``. This mode exits 1 if there is a failure or the tools
+differ, and 0 otherwise.
 
 Both modes exit 2 without comparing when an input cannot be read or has no ``cases``
 object, when either lists a ``meta.refused_baselines`` entry, when the scopes differ, or
-when both have no cases.  ``--tiers`` also exits 2 when the expected-diff file cannot be
+when both have no cases. ``--tiers`` also exits 2 when the expected-diff file cannot be
 read, and when a kind (b) entry matches a differing case whose base is not a crash.
 
-The expected-diff file is plain text: a line starting with ``#`` is a comment, and every
-other non-blank line is an entry, its parts separated by `` | ``::
+The expected-diff file is plain text. A line that starts with ``#`` is a comment. Every
+other line that is not blank is an entry, with its parts separated by `` | ``::
 
     <case key> | family=<family> | kind=<a or b> [| keys=<k>,<k>] [| new=<verdict>] | <reason>
 
-- The key matches a case key whole: ``*`` stands for any run of characters other than
-  ``/``, ``\*`` for a star and ``\\`` for a backslash.
-- ``family`` names the family branch the entry belongs to (bits, data, flow, move, comm).
-- ``kind`` is ``a`` when CLICK shows the base verdict is wrong, ``b`` when the base raised
-  something other than a ``FieldError`` or ``AddressError``: a crash, not a verdict.  A
-  kind (b) entry needs ``new``.
-- ``keys`` names the record keys (``new``, ``csv``, ...) whose first-tier difference the
-  entry allows; without it the entry allows any, and a case added or removed.
-- ``new`` pins the branch's ``new`` value the entry allows (``ok``, ``!FieldError``, ...).
-- The reason states the rule the new verdict follows.  Neither key nor reason holds `` | ``,
-  and the reason does not start with an option name.
+- The key must match a whole case key. In the key, ``*`` stands for any run of characters
+  other than ``/``, ``\*`` for a star and ``\\`` for a backslash.
+- ``family`` names the instruction family that the entry belongs to: bits, data, flow, move
+  or comm. Each family's change is made on its own branch.
+- ``kind`` is ``a`` when CLICK shows that the base's verdict is wrong. A verdict is ``ok``,
+  or a refusal with ``FieldError`` or ``AddressError``. ``kind`` is ``b`` when the base
+  raised any other exception, which is a crash and not a verdict. A kind (b) entry must
+  have ``new``.
+- ``keys`` names the record keys (``new``, ``csv``, ...) in which the entry allows a
+  first-tier difference. An entry without ``keys`` allows a difference in any key, and also
+  allows a case that was added or removed.
+- ``new`` names the verdict that the branch must give, such as ``ok`` or ``!FieldError``.
+- The reason states the rule that the branch's verdict follows. Neither the key nor the
+  reason may contain `` | ``, and the reason must not start with ``<option>=``.
 
-An entry is judged only on a case whose key it matches and whose first tier differs
-(:meth:`Expected.judge`), and the dry run judges it the same way.  It allows the case when:
+The script judges an entry only on a case whose key the entry matches and whose first tier
+differs (:meth:`Expected.judge`). The dry run in ``classify_dryrun.py`` judges entries the
+same way. The entry allows the case when each of these conditions that applies holds:
 
-- for kind (b), both sides have the case, the base's ``new`` is a crash (``!<Class>``, Class
-  neither ``FieldError`` nor ``AddressError``), and every differing key the base holds is a
-  crash too (a key the base lacks is one the crash left out).  When both sides have the
-  case but this does not hold, the entry is misused: the run reports it and exits 2;
-- with ``new``, the whole branch record is the pinned verdict.  For ``ok``: it has no
-  ``errors``, ``read`` and ``dec`` are ``=``, and ``tag``, when it has one, does not end in
-  `` None``, ``!<Class>`` or `` refused[<fields>]``.  For ``!X``: ``new`` and ``read`` are ``!X``, every class in
-  ``errors`` is X, ``dec`` is ``= refused[<fields>]`` or ``None``, and ``tag``, when it has
-  one, ends in `` refused[<fields>]`` or `` None`` (the blob decoder builds the instruction,
-  holding the refusal, or leaves a value no decoded instruction holds unparsed).  The dry
-  run's records hold only ``new``, so there the pin binds that alone;
-- with ``keys``, both sides have the case and the differing keys are among them.
+- Kind (b): both sides have the case, and the base's ``new`` is a crash. A crash is
+  ``!<Class>`` where Class is neither ``FieldError`` nor ``AddressError``. Every differing
+  key that the base holds also records a crash. A differing key that the base lacks is one
+  that the crash left out. If both sides have the case and these conditions fail, the entry
+  is misused, and the run reports it and exits 2.
+- ``new``: the branch's whole record shows the verdict, not only its ``new``. For ``ok``,
+  the record has no ``errors``, ``read`` and ``dec`` are ``=``, and ``tag``, if the record
+  has one, does not end in `` None``, ``!<Class>`` or `` refused[<fields>]``. For ``!X``,
+  ``new`` and ``read`` are ``!X``, every class in ``errors`` is X, ``dec`` is
+  ``= refused[<fields>]`` or ``None``, and ``tag``, if the record has one, ends in
+  `` refused[<fields>]`` or `` None``. `` refused[<fields>]`` means that the blob decoder
+  built the instruction and the instruction holds the refusal. `` None`` means that the
+  decoder returned no instruction, because no decoded instruction can hold the value. In
+  the dry run, a record holds only ``new``, so there the check covers only ``new``.
+- ``keys``: both sides have the case, and every differing key is named in ``keys``.
 
-An entry that allows no case is listed as matching no difference, which is never an error.
+The script lists each entry that allows no case as matching no difference. That is never
+an error.
 """
 
 from __future__ import annotations
@@ -112,7 +128,7 @@ def diff_cases(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
 
 
 def _load(path_a: str | Path, path_b: str | Path) -> tuple[dict, dict] | int:
-    """The two outputs, or the exit status when they cannot be compared."""
+    """Return the two outputs, or the exit status if they cannot be compared."""
     docs = []
     for path in (path_a, path_b):
         try:
@@ -151,10 +167,12 @@ def _load(path_a: str | Path, path_b: str | Path) -> tuple[dict, dict] | int:
 
 
 def diff_files(path_a: str | Path, path_b: str | Path) -> int:
-    """Print the differences between two tool outputs; return the exit status.
+    """Print the differences between two tool outputs, and return the exit status.
 
-    0: identical cases; 1: differences or different tools; 2: not comparable (unreadable,
-    no ``cases``, a refused probe baseline, different scope, or no cases on either side).
+    The status is 0 if the cases are identical, and 1 if they differ or the tools differ. It
+    is 2 if the outputs cannot be compared. That happens when a file cannot be read or has
+    no ``cases``, when either lists a refused probe baseline, when the scopes differ, or when
+    neither has any cases.
     """
     loaded = _load(path_a, path_b)
     if isinstance(loaded, int):
@@ -171,19 +189,21 @@ def diff_files(path_a: str | Path, path_b: str | Path) -> int:
 # Two tiers
 # ---------------------------------------------------------------------------
 
-#: A class name inside an exception message (an exception a message names or wraps).
+#: Matches a class name in an exception message, such as an exception that the message
+#: names or wraps.
 _INNER_CLASS = re.compile(r"\b[A-Z][A-Za-z0-9_]*(?:Error|Exception|Warning)\b")
 
-#: Case keys whose list holds ``<WarningClass>: <message>`` strings.
+#: The record keys whose list holds ``<WarningClass>: <message>`` strings.
 _WARNING_KEYS = ("warn", "warnings", "write_warn")
 
 #: The expected-diff file read by default.
 EXPECTED = Path(__file__).resolve().parent / "expected_diff.txt"
 
-#: The family branches an expected-diff entry can belong to.
+#: The instruction families that an expected-diff entry can belong to.
 FAMILIES = ("bits", "data", "flow", "move", "comm")
 
-#: The exception classes that are a field's verdict; any other is a crash.
+#: The exception classes that record a refusal of a field value, which is a verdict. Any
+#: other exception class records a crash.
 VERDICT_CLASSES = frozenset({"FieldError", "AddressError"})
 
 #: The parts an entry may hold between its key and its reason.
@@ -191,10 +211,10 @@ _OPTIONS = ("family", "kind", "keys", "new")
 
 
 def first_tier(record: Any) -> Any:
-    """What of one case must stay identical: ``record`` without message text.
+    """Return the first tier of one case: ``record`` without its message text.
 
-    An exception in ``errors`` keeps its class and the class names its message holds; a
-    warning keeps its class.  Every other value stays whole.
+    Each exception in ``errors`` becomes its class and the class names that its message
+    holds. Each warning becomes its class. Every other value is unchanged.
     """
     if not isinstance(record, dict):
         return record
@@ -216,9 +236,12 @@ def first_tier(record: Any) -> Any:
 
 @functools.cache
 def _pattern(key: str) -> re.Pattern[str]:
-    """A case-key pattern: ``*`` is any run of characters other than ``/``, ``\\*`` a star,
-    ``\\\\`` a backslash; any other character, a lone backslash included, stands for
-    itself."""
+    """Return the regular expression for the case-key pattern ``key``.
+
+    In ``key``, ``*`` is any run of characters other than ``/``, ``\\*`` is a star and
+    ``\\\\`` is a backslash. Any other character stands for itself, and so does a lone
+    backslash.
+    """
     out: list[str] = []
     index = 0
     while index < len(key):
@@ -234,11 +257,11 @@ def _pattern(key: str) -> re.Pattern[str]:
 
 
 class Judgement(NamedTuple):
-    """What an entry says of one differing case."""
+    """The result of judging an expected-diff entry on one differing case."""
 
-    #: The entry allows the case.
+    #: True if the entry allows the case.
     allowed: bool
-    #: Why the entry cannot be used on the case at all; empty when it can.
+    #: Why the entry is misused on the case, or empty if it is not misused.
     problem: str = ""
 
 
@@ -248,27 +271,30 @@ class Expected(NamedTuple):
     line: int
     key: str
     reason: str
-    #: The family branch the entry belongs to, one of :data:`FAMILIES`.
+    #: The instruction family that the entry belongs to, one of :data:`FAMILIES`.
     family: str
     #: ``a`` (CLICK shows the base verdict is wrong) or ``b`` (the base crashed).
     kind: str
-    #: The record keys whose first-tier difference the entry allows; empty for all.
+    #: The record keys in which the entry allows a first-tier difference. Empty allows any key.
     fields: tuple[str, ...] = ()
-    #: The branch's ``new`` value the entry allows; ``None`` for any.
+    #: The verdict that the branch must give, or ``None`` to allow any verdict.
     new: str | None = None
 
     def matches(self, case_key: str) -> bool:
         return _pattern(self.key).fullmatch(case_key) is not None
 
     def judge(self, base: Any, branch: Any, verdict_only: bool = False) -> Judgement:
-        """Whether the entry allows a case whose key it matches and whose first tier differs;
-        ``base`` and ``branch`` are the case's records, ``None`` on a side that lacks it.
-        ``verdict_only`` says the records hold only ``new`` (the dry run's), so a pin binds
-        that alone."""
+        """Judge a case that the entry matches and whose first tier differs.
+
+        Return a :class:`Judgement` that says whether the entry allows the case. ``base`` and
+        ``branch`` are the case's two records, and ``None`` stands for a side that lacks the
+        case. Set ``verdict_only`` when the records hold only ``new``, as the dry run's
+        records do. A ``new`` pin then checks only ``new``.
+        """
         differing = _differing(base, branch)
         if self.kind == "b":
             if not (isinstance(base, dict) and isinstance(branch, dict)):
-                return Judgement(False)  # a case added or removed replaces no crash
+                return Judgement(False)  # an added or removed case has no crash to replace
             crash = _not_a_crash(base, differing)
             if crash:
                 return Judgement(False, f"line {self.line}: {self.key}: {crash}")
@@ -288,7 +314,10 @@ class Expected(NamedTuple):
 
 
 def _entry(path: str | Path, number: int, text: str) -> Expected:
-    """One entry line; :class:`ValueError` says what is wrong with it."""
+    """Return the entry on one line of the expected-diff file.
+
+    Raise :class:`ValueError` with a message that says what is wrong if the line is malformed.
+    """
     where = f"{path}:{number}"
     parts = [part.strip() for part in text.split(" | ")]
     if len(parts) < 2 or not parts[0] or not parts[-1]:
@@ -323,8 +352,11 @@ def _entry(path: str | Path, number: int, text: str) -> Expected:
 
 
 def _crash_class(value: Any) -> str | None:
-    """The class of a recorded crash: the last word of a text value when it is
-    ``!<Class>`` and Class is not a field's verdict; ``None`` otherwise."""
+    """Return the class of the crash that ``value`` records, or ``None`` if it records none.
+
+    A text value records a crash when its last word is ``!<Class>`` and Class is neither
+    ``FieldError`` nor ``AddressError``.
+    """
     if not isinstance(value, str):
         return None
     match = re.fullmatch(r"(?:.* )?!(\w+)", value, re.DOTALL)
@@ -334,8 +366,12 @@ def _crash_class(value: Any) -> str | None:
 
 
 def _holds_crash(value: Any) -> bool:
-    """Whether a recorded value is a crash: ``!<Class>`` (after a tag prefix), or an
-    ``errors`` list whose every class is one."""
+    """Return True if a recorded value is a crash.
+
+    The value is a crash if it is text that ends in a crash ``!<Class>``, which may follow a
+    prefix such as a tag number. It is also a crash if it is an ``errors`` list that is not
+    empty and in which every class is a crash.
+    """
     if isinstance(value, list):
         return bool(value) and all(
             isinstance(error, list) and error and _crash_class(f"!{error[0]}") for error in value
@@ -344,7 +380,7 @@ def _holds_crash(value: Any) -> bool:
 
 
 def _not_a_crash(base: dict[str, Any], differing: set[str] | None) -> str:
-    """Why a base record is not a crash a kind (b) entry may cover; empty when it is."""
+    """Return why a kind (b) entry cannot cover the base record, or empty text if it can."""
     new = base.get("new")
     if _crash_class(new) is None or new != f"!{_crash_class(new)}":
         return f"the base gives new={new!r}, not a crash"
@@ -355,8 +391,11 @@ def _not_a_crash(base: dict[str, Any], differing: set[str] | None) -> str:
 
 
 def _pinned(branch: Any, pin: str, verdict_only: bool = False) -> bool:
-    """Whether a branch record is the verdict ``pin`` names, the whole record and not only
-    its ``new``; with ``verdict_only``, its ``new`` alone."""
+    """Return True if the branch record shows the verdict ``pin``.
+
+    The whole record must show the verdict, not only its ``new``. With ``verdict_only``,
+    only ``new`` is checked.
+    """
     if not isinstance(branch, dict) or branch.get("new") != pin:
         return False
     if verdict_only:
@@ -376,16 +415,22 @@ def _pinned(branch: Any, pin: str, verdict_only: bool = False) -> bool:
     )
 
 
-#: A value's blob, decoded, refused: left unparsed, crashed on, or holding a refusal.
+#: Matches a ``tag`` value whose blob the decoder refused. The decoder returned no
+#: instruction, raised, or built an instruction that holds a refusal.
 _REFUSED_TAG = r"(?: None|!\w+| refused\[[^\]]+\])\Z"
-#: A refused value's blob, decoded: the instruction holding the refusal, or left unparsed.
+#: Matches a ``tag`` value for a refused value. The decoder built an instruction that holds
+#: the refusal, or returned no instruction.
 _HELD_OR_NONE = r"(?: None| refused\[[^\]]+\])\Z"
-#: The same, for the case's own blob: the instruction as written, holding the refusal.
+#: Matches a ``dec`` value for a refused value. The decoder built the instruction as written
+#: (``=``), and the instruction holds the refusal.
 _HELD_SAME = r"= refused\[[^\]]+\]"
 
 
 def read_expected(path: str | Path) -> list[Expected]:
-    """The entries of an expected-diff file; :class:`ValueError` names a malformed line."""
+    """Return the entries of an expected-diff file.
+
+    Raise :class:`ValueError`, naming the line, at the first malformed line.
+    """
     entries: list[Expected] = []
     with open(path, encoding="utf-8") as handle:
         for number, raw in enumerate(handle, 1):
@@ -402,7 +447,7 @@ def _one(cases: dict[str, Any], key: str, tier: bool) -> dict[str, Any]:
 
 
 def _differing(a: Any, b: Any) -> set[str] | None:
-    """The record keys whose first tier differs; ``None`` unless both are records."""
+    """Return the record keys whose first tier differs, or ``None`` unless both are records."""
     if not (isinstance(a, dict) and isinstance(b, dict)):
         return None
     ta, tb = first_tier(a), first_tier(b)
@@ -416,10 +461,11 @@ def _print_cases(cases: dict[str, list[str]], indent: str) -> None:
 
 
 def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path = EXPECTED) -> int:
-    """Print the differences between two tool outputs in two tiers; return the exit status.
+    """Print the differences between two tool outputs in two tiers, and return the exit status.
 
-    0: no case differs beyond its messages, apart from expected-diff entries; 1: one does,
-    or the tools differ; 2: not comparable, the expected-diff file cannot be read, or an
+    The status is 0 if every case that differs beyond its message text is allowed by an
+    expected-diff entry. It is 1 if such a case is not allowed, or if the tools differ. It is
+    2 if the outputs cannot be compared, if the expected-diff file cannot be read, or if an
     entry is misused on a differing case (:meth:`Expected.judge`).
     """
     try:
@@ -481,7 +527,7 @@ def diff_tiers(path_a: str | Path, path_b: str | Path, expected_path: str | Path
 
 
 def print_problems(problems: list[str], expected_path: str | Path) -> None:
-    """Report the entries misused on a differing case (to stderr)."""
+    """Print to stderr each differing case on which an entry was misused."""
     print(
         f"{expected_path}: {len(problems)} differing case(s) an entry matches but cannot "
         "cover (a kind (b) entry covers only a base that crashed):",

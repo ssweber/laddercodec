@@ -1,10 +1,11 @@
-"""Inspect decoded ladder rungs from native .bin captures.
+"""Print the decoded rungs of clipboard captures.
 
-Decodes all rungs and prints structured information:
-- Known instructions (Contact, Coil, Timer, CompareContact): model repr + to_csv()
-- RawInstruction: class name + tagged field breakdown
-- UnknownCondition / UnknownInstruction: tagged field breakdown
-- Multi-rung support
+A capture is a ``.bin`` file that holds the binary CLICK puts on the clipboard. It can hold
+more than one rung. For each instruction in each rung, the script prints:
+
+- for a decoded instruction such as a Contact, Coil or Timer, its repr and its ``to_csv()``;
+- for a RawInstruction, its class name, its ``to_csv()`` and the tagged fields of its blob;
+- for an UnknownCondition or UnknownInstruction, the tagged fields of its blob.
 
 Usage::
 
@@ -32,14 +33,18 @@ from laddercodec.instructions import (
 
 
 def _col_letter(col_idx: int) -> str:
-    """Convert 0-based column index to A..AE."""
+    """Return the column letters of a 0-based column index, such as A for 0 and AE for 30."""
     if col_idx < 26:
         return chr(ord("A") + col_idx)
     return f"A{chr(ord('A') + col_idx - 26)}"
 
 
 def _print_blob_detail(raw: bytes, indent: str = "      ") -> None:
-    """Print tagged-field breakdown for an instruction blob."""
+    """Print the parts of an instruction blob, one per line.
+
+    The parts are the class name, the type marker, the part count, any extra bytes, the
+    tagged fields and any trailing bytes.
+    """
     class_name, pos = _read_utf16le(raw, 0)
     print(f"{indent}class: {class_name!r}")
 
@@ -100,7 +105,7 @@ def _print_rung(rung: Rung, rung_idx: int) -> None:
         conds = rung.conditions[row_idx]
         af = rung.instructions[row_idx]
 
-        # Collect non-trivial condition tokens (skip blanks and horizontal wires).
+        # Print each condition cell that is not blank or a horizontal wire.
         for col_idx, tok in enumerate(conds):
             if tok in ("", "-"):
                 continue

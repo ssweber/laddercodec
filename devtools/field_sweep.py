@@ -1,16 +1,24 @@
-"""Record what odd field values do to every golden instruction: tests/fixtures/field_sweep/.
+"""Record what each golden instruction does with odd values in its fields.
 
-    make field-sweep    # add the golden instructions the record lacks, drop the ones gone
+    make field-sweep    # record new golden instructions, remove those no golden CSV holds
 
-Every instruction the golden CSVs read to is rebuilt with one field replaced by None, 5, 2.5,
-a tuple, a list and a list with a None item, and with one field refused while another holds
-None, 5 or 2.5.  Each rebuild is accepted (``a``), refused with ``FieldError`` (``F``) or
-``AddressError`` (``A``), or fails with another exception (``X``).  The record keeps one
-string of these letters per instruction, keyed by a digest of its class name and CSV text, so
-renaming a field does not change a key.
+A golden instruction is one that a CSV file in ``tests/fixtures/coverage/golden`` or
+``tests/fixtures/ladder_captures/golden`` holds. The record is
+``tests/fixtures/field_sweep/outcomes.json``.
 
-An instruction already in the record keeps its letters: only a change to the golden set
-changes the record.  ``tests/test_field_sweep.py`` compares the code with it.
+The script rebuilds each golden instruction many times. The first rebuilds change one field,
+to None, 5 or 2.5, to a tuple, to a list, or to a list whose first item is None. The rest
+change two fields. One gets an invalid value (``"QQ9"``, or 7 for a bool), and the
+other gets None, 5 or 2.5. Only fields that hold text, a bool, a list or a tuple change.
+
+Each rebuild is accepted (``a``), refused with ``FieldError`` (``F``) or ``AddressError``
+(``A``), or fails with another exception (``X``). The record holds one string of these
+letters for each instruction. Its key is a digest of the class name and the CSV text, so
+renaming a field does not change the key.
+
+The script does not rebuild an instruction that the record already holds. The record
+changes only when the set of golden instructions changes. ``tests/test_field_sweep.py``
+compares what the code does with the record.
 """
 
 from __future__ import annotations
@@ -34,12 +42,12 @@ _ODD: list[Any] = [None, 5, 2.5]
 
 
 def key_of(inst: Any) -> str:
-    """The record's key: a digest of the class name and the CSV text."""
+    """Return the record key of ``inst``, a digest of its class name and CSV text."""
     return hashlib.sha1(f"{type(inst).__name__}|{inst.to_csv()}".encode()).hexdigest()[:12]
 
 
 def golden_instructions() -> dict[str, Any]:
-    """Every instruction object the golden CSVs read to, by ``key_of``."""
+    """Return every instruction that the golden CSV files hold, keyed by ``key_of``."""
     found: dict[str, Any] = {}
     paths = itertools.chain(
         (FIXTURES / "coverage" / "golden").glob("*.csv"),
@@ -64,7 +72,7 @@ def _variants(value: Any) -> list[Any]:
 
 
 def rebuilds(inst: Any) -> Iterator[dict[str, Any]]:
-    """The field changes the sweep tries on ``inst``, in a fixed order."""
+    """Yield the field changes to try on ``inst``, in a fixed order."""
     values = {f.name: getattr(inst, f.name) for f in dataclasses.fields(inst) if f.init}
     fields = [name for name, v in values.items() if isinstance(v, (str, bool, list, tuple))]
     for name in fields:
@@ -79,7 +87,7 @@ def rebuilds(inst: Any) -> Iterator[dict[str, Any]]:
 
 
 def outcomes(inst: Any) -> str:
-    """One letter per rebuild: a, F, A or X."""
+    """Return the outcome of each rebuild of ``inst`` as one letter: a, F, A or X."""
     letters = []
     for changes in rebuilds(inst):
         try:
