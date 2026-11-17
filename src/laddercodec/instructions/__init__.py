@@ -91,8 +91,8 @@ class UnknownInstruction:
     """An instruction cell on the AF column that the decoder could not read.
 
     The decoder makes one only when it cannot find an instruction blob in the cell.  A blob
-    that no parser accepts becomes a :class:`RawInstruction` instead.  ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
-    boundary.
+    that no parser accepts becomes a :class:`RawInstruction` instead.  ``raw`` holds the
+    instruction's own bytes, from cell offset ``+0x25`` to the cell boundary.
     """
 
     raw: bytes
