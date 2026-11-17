@@ -316,7 +316,7 @@
   "single 1E -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: '1E' is not a CLICK address"},
   "single E5 -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: 'E5' has no CLICK bank 'E'; banks are X, Y, C, T, CT, SC, DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT"},
   "single 1.5.2 -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: '1.5.2' is not a CLICK address"},
-  "single 3.4028235E+38 -> DS1": {"verdict": "accepted"},
+  "single 3.4028235E+38 -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: '3.4028235E+38' has 8 significant digits; CLICK keeps 7 significant digits: write 3.402823E+38"},
   "single 3.4028236E+38 -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: '3.4028236E+38' is refused; a real constant is a finite number within float32 (up to about 3.4028235E+38)"},
   "single 3.5E+38 -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: '3.5E+38' is refused; a real constant is a finite number within float32 (up to about 3.4028235E+38)"},
   "single -3.5E+38 -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: '-3.5E+38' is refused; a real constant is a finite number within float32 (up to about 3.4028235E+38)"},

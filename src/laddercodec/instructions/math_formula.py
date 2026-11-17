@@ -64,8 +64,11 @@ from ..operands.constants import (
     INT16_MIN,
     INT32_MAX,
     INT32_MIN,
+    MATH_REAL_DIGITS,
     hex_display,
+    real_beyond_kept_digits,
     real_display,
+    significant_digits,
 )
 from ..operands.errors import Reason
 
@@ -499,7 +502,9 @@ def _decimal_internal(text: str) -> str | FieldError:
     (``+5``).  It stores an int16 value as ``H`` and a wider one as ``W``,
     keeping the typed text (``H+5``).  A real is stored as
     ``F``; its value, read as a double, is at most float32's largest in size, so
-    ``3.4028235E+38``, which float32 rounds to that largest value, is refused.
+    ``3.4028235E+38``, which float32 rounds to that largest value, is refused.  CLICK
+    keeps 6 significant digits of a real (``0.33333334`` is saved as ``0.333333``), so
+    one typed with more is refused too, and the refusal names the constant to write.
     """
     body = text[1:] if text[:1] in _SIGNS else text
     if not all(c in _DIGITS for c in body):
@@ -509,6 +514,13 @@ def _decimal_internal(text: str) -> str | FieldError:
                 f"{_FLOAT32_MAX_TEXT} in size, float32's largest value",
                 Reason.RANGE,
                 "OBJ-1009",
+            )
+        kept = real_beyond_kept_digits(text, MATH_REAL_DIGITS)
+        if kept is not None:
+            return _error(
+                f"{text} has {significant_digits(text)} significant digits; CLICK keeps "
+                f"{MATH_REAL_DIGITS} significant digits in Math: write {kept}",
+                Reason.FORM,
             )
         return f"F{text}"
     if len(text) > _MAX_PRINTED:

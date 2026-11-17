@@ -26,6 +26,7 @@ from __future__ import annotations
 import math
 import re
 import struct
+from decimal import Decimal
 from enum import StrEnum
 from typing import NamedTuple
 
@@ -147,8 +148,10 @@ def hex_display(digits: str) -> str:
     return f"{digits.upper().lstrip('0') or '0'}h"
 
 
-#: The significant digits CLICK prints a real constant with.
+#: The significant digits CLICK keeps of a real constant in a single Copy source.
 REAL_DIGITS = 7
+#: The significant digits CLICK keeps of a real constant in a Math formula.
+MATH_REAL_DIGITS = 6
 
 
 def real_display(text: str) -> str:
@@ -184,7 +187,8 @@ def copy_real_display(text: str) -> str:
     (``3.4028235E+38`` is ``3.402823E+38``, a slightly smaller float32 value).  One that 7
     digits print exactly is kept as typed (``1E-45``, ``1E-50``); CLICK's form for one typed
     otherwise (``1e7``, ``1.0E-10``) is not known.  ``text`` is a real :func:`classify`
-    reads: finite and within float32.
+    reads: finite and within float32.  A single Copy refuses a real typed with more than 7
+    significant digits before it prints one (:func:`real_beyond_kept_digits`).
     """
     text = text.removeprefix("+")
     value = _float32(float(text))
@@ -197,6 +201,47 @@ def copy_real_display(text: str) -> str:
 def _float32(value: float) -> float:
     """The float32 value nearest ``value``, which is within float32."""
     return struct.unpack("<f", struct.pack("<f", value))[0]
+
+
+_EXPONENT_RE = re.compile(r"[Ee]")
+#: Where 7 significant digits print a real in positional form: from 1E-04 to below 1E+07.
+_POSITIONAL_FROM, _POSITIONAL_BELOW = 1e-4, 1e7
+
+
+def significant_digits(text: str) -> int:
+    """The significant digits a real constant is typed with: its digits before any
+    exponent, leading and trailing zeros aside.
+
+    ``0.0015`` has 2, ``1.50`` has 2, ``3.4028235E+38`` has 8, ``100000000.0`` has 1.
+    Trailing zeros are not counted: CLICK prints ``1.50`` back as ``1.5``.
+    """
+    mantissa = _EXPONENT_RE.split(text, maxsplit=1)[0]
+    return len("".join(c for c in mantissa if c.isdigit()).strip("0"))
+
+
+def real_beyond_kept_digits(text: str, digits: int = REAL_DIGITS) -> str | None:
+    """The real constant ``text`` rounded to ``digits`` significant digits, when it is
+    typed with more; None for one typed with at most that many.
+
+    CLICK keeps 7 significant digits of a real in a single Copy source
+    (:data:`REAL_DIGITS`) and 6 in a Math formula (:data:`MATH_REAL_DIGITS`): it saves
+    ``3.4028235E+38`` copied into DF1 as ``3.402823E+38``, and ``0.33333334`` in a Math as
+    ``0.333333``.  The text returned is the float32 value printed with ``digits``
+    significant digits, with ``.0`` added where that print has neither a point nor an
+    exponent, and positional from 1E-04 to below 1E+07 as :func:`real_display` prints
+    (``1234570.0``): the constant to write.  ``text`` is a real :func:`classify` reads:
+    finite and within float32.
+    """
+    if significant_digits(text) <= digits:
+        return None
+    printed = f"{_float32(float(text)):.{digits}G}"
+    if "E" in printed and _POSITIONAL_FROM <= abs(float(printed)) < _POSITIONAL_BELOW:
+        # Positional from 1E-04 to below 1E+07, as laddercodec prints a real (1234570.0, not
+        # 1.23457E+06).
+        printed = format(Decimal(printed), "f")
+    if "." not in printed and "E" not in printed:
+        printed += ".0"
+    return printed
 
 
 #: Enough significant digits to write any float32 value at or below its exact value.
@@ -216,15 +261,15 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
       ASCII is its code, ``$`` and two hex digits (``$0D``).
 
-    The text builds a Math or a single Copy holding that value, but for one kind of real: a
-    Copy writes a real in exponent form that 7 significant digits don't print exactly in
-    CLICK's 7 digits, which is not the value.  The largest float32 value is
-    ``3.402823466E+38``, which a Copy stores as ``3.402823E+38``, a slightly smaller value.
+    The text builds a Math for a real of at most 6 significant digits, and a single Copy
+    for one of at most 7.  CLICK keeps 6 in a Math and 7 in a Copy, and saves a real of
+    more cut to that many: a Math or a Copy refuses one, and its message names the
+    constant to write (:func:`real_beyond_kept_digits`).  The largest float32 value is
+    ``3.402823466E+38``; write ``3.40282E+38`` in a Math and ``3.402823E+38`` in a Copy.
 
     Provisional until CLICK answers: a real that 7 significant digits print in exponent
     form (from 1E+07 up and below 1E-04) is written in Python's ``G`` form (``1.5E+10``),
-    and one that needs more than 7 digits keeps them (``0.33333334``); how CLICK writes
-    either in a Math is not known.
+    and one that needs more than 7 digits keeps them (``0.33333334``).
 
     Whether a field takes the text (an int above int16, a hex value above FFFFh, a real in
     a hex Math) is the field's check, made when the instruction is built.  A value no
@@ -289,10 +334,25 @@ def printable(text: str) -> bool:
     """Whether ``text`` is printable ASCII only.
 
     Not part of the shared check, which takes any character: a field limit.  A Compare text
-    constant, a Search text value and the text of a single Copy or a Fill hold printable
-    ASCII only; ``$hh`` spells any other code.
+    constant and the text of a Fill hold printable ASCII only; ``$hh`` spells any other
+    code.  A single Copy's text and a Search text value take what :func:`kept_text` takes.
     """
     return PRINTABLE_ASCII.issuperset(text)
+
+
+#: Why text :func:`kept_text` refuses is refused.
+KEPT_TEXT_RULE = "text holds characters U+0001 to U+FFFF, no NUL and no surrogate; write NUL as $00"
+
+
+def kept_text(text: str) -> bool:
+    """Whether CLICK keeps each character of ``text`` as typed, one TXT register each.
+
+    CLICK keeps printable ASCII, a tab, a control character (U+0001), Latin-1 (U+00E9) and
+    the rest of its 16-bit characters (U+20AC) in a single Copy source and a Search text
+    value.  NUL can't be stored, since it ends a stored string, and a surrogate or a
+    character above U+FFFF is no 16-bit character.
+    """
+    return all(0 < ord(c) < 0xD800 or 0xE000 <= ord(c) <= 0xFFFF for c in text)
 
 
 #: Why a ``$`` value is refused; the shared field check raises it in every field.

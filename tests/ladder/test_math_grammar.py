@@ -259,13 +259,39 @@ def test_real_above_the_largest_float32_is_refused(constant: str) -> None:
     )
 
 
-@pytest.mark.parametrize(
-    "constant",
-    ["3.402823466E+38", "-3.402823466E+38", "3.4028234E+38", "3.4028234663852886E+38", "1E-50"],
-)
+@pytest.mark.parametrize("constant", ["3.40282E+38", "-3.40282E+38", "1E-50"])
 def test_real_up_to_the_largest_float32_is_taken(constant: str) -> None:
-    # The value the refusal names is taken, and so is float32's largest value written exactly.
+    # The largest real of 6 significant digits, and a small one.
     assert parse(f"DF1 * ( {constant} )", "decimal").internal() == f"DF1#*#(#F{constant}#)"
+
+
+@pytest.mark.parametrize(
+    ("constant", "digits", "kept"),
+    [
+        # CLICK's answer: 0.33333334 typed in a formula is saved as 0.333333.
+        ("0.33333334", 8, "0.333333"),
+        ("1.234567", 7, "1.23457"),
+        ("1234567.89", 9, "1234570.0"),
+        ("0.123456789", 9, "0.123457"),
+        ("-0.33333334", 8, "-0.333333"),
+        ("3.402823466E+38", 10, "3.40282E+38"),
+        ("3.4028234663852886E+38", 17, "3.40282E+38"),
+    ],
+)
+def test_real_of_more_than_6_digits_is_refused(constant: str, digits: int, kept: str) -> None:
+    _refused(
+        f"DF1 * ( {constant} )",
+        "decimal",
+        re.escape(
+            f"{constant} has {digits} significant digits; CLICK keeps 6 significant digits "
+            f"in Math: write {kept}"
+        ),
+    )
+
+
+@pytest.mark.parametrize("constant", ["1.50000000", "0.000333333", "123456.0", "1.5E+10"])
+def test_real_of_6_digits_trailing_zeros_aside_is_taken(constant: str) -> None:
+    Math(f"DF1 * ( {constant} )", "DF9")
 
 
 @pytest.mark.parametrize(
@@ -281,9 +307,6 @@ def test_real_up_to_the_largest_float32_is_taken(constant: str) -> None:
         # Exponent form is kept as typed: how CLICK prints it is not known beyond 1.5E+10.
         ("( -1.5e10 )", "( -1.5e10 )"),
         ("1.0E-10", "1.0E-10"),
-        # More than 7 significant digits that count are kept.
-        ("1234567.89", "1234567.89"),
-        ("0.123456789", "0.123456789"),
     ],
 )
 def test_real_is_written_as_click_prints_it(typed: str, stored: str) -> None:

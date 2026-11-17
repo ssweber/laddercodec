@@ -200,15 +200,15 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy(DS1,YD0u)",
         "copy(TXT1,DS1,convert=to_value)",
         "copy(TXT1,DF1)",
-        "copy(DS1,TXT1)",
-        "copy(5,TXT1)",
+        "copy(DS1,TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
+        "copy(5,TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
         "copy(1Fh,DH1)",
         "copy(1FH,DH1)",
         "copy(-1.5E+3,DF1)",
         "copy(.5,DF1)",
         "copy($0D,TXT1)",
         "copy(DD[DS1],DS1)",
-        "copy(DS1,TXT[DS2])",
+        "copy(DS1,TXT[DS2],convert=to_text(suppress_zero=1,termination_code=none))",
         "copy(C[DS1],Y001)",
         "copy(XD[DS1],DS1)",
         "copy(DS1,YD[DS2])",
@@ -321,7 +321,6 @@ def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: st
         ("$00", "TXT2"),
         ("$FF", "TXT2"),
         ("$0d", "TXT2"),
-        ("5", "TXT2"),  # a number into TXT is not refused: accepted
         ("2147483647", "DD1"),
         ("-2147483648", "DD1"),
     ],
@@ -591,21 +590,31 @@ def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> 
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# Text in a single Copy or a Fill is printable ASCII only, as in Compare
-# and Search; $hh writes any other code.
+# Text in a Fill is printable ASCII only, as in Compare; $hh writes any other code.  A
+# single Copy's text takes any 16-bit character CLICK keeps, as Search's does.
 _NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
 _PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
+_COPY_TEXT_RULE = r"text holds characters U\+0001 to U\+FFFF, no NUL and no surrogate"
+#: Characters a single Copy's text refuses: NUL, which ends a stored string, a surrogate
+#: and a character above U+FFFF, which are no 16-bit character.
+_NOT_COPY_TEXT = ['"\U0001f600"', '"\x00"', '"A\x00B"', '"\ud800"']
 
 
 @pytest.mark.parametrize("text", _NOT_PRINTABLE)
-def test_text_is_printable_ascii(tmp_path: Path, text: str) -> None:
-    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_PRINTABLE_RULE}"):
-        Copy(text, "TXT2")
-    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_PRINTABLE_RULE}"):
-        _read_af(tmp_path, f"copy({text},TXT2)")
-    if len(text) == 3:  # one character: a Fill takes it, and a Copy stores no end
+def test_fill_text_is_printable_ascii(text: str) -> None:
+    if len(text) == 3:  # one character, as a Fill value takes
         with pytest.raises(FieldError, match=rf"^Fill.value: .* {_PRINTABLE_RULE}"):
             Fill(text, "TXT2", "TXT5")
+
+
+@pytest.mark.parametrize("text", _NOT_COPY_TEXT)
+def test_copy_text_refuses_other_characters(tmp_path: Path, text: str) -> None:
+    with pytest.raises(FieldError, match=rf"^Copy.source: .* {_COPY_TEXT_RULE}"):
+        Copy(text, "TXT2")
+    if text != '"\ud800"':  # a lone surrogate has no UTF-8 for the CSV file
+        with pytest.raises(FieldError, match=rf"^Copy.source: .* {_COPY_TEXT_RULE}"):
+            _read_af(tmp_path, f"copy({text},TXT2)")
+    if len(text) == 3:  # one character: a Copy stores no end
         assert kept(from_tags_af("Copy", 0x2721, {0x6074: '"A"', 0x6076: "TXT2"})) is not None
         stored = kept(from_tags_af("Copy", 0x2721, {0x6074: text, 0x6076: "TXT2"}), "Copy.source")
         assert stored.source == text
@@ -614,7 +623,6 @@ def test_text_is_printable_ascii(tmp_path: Path, text: str) -> None:
 @pytest.mark.parametrize(
     ("source", "destination", "end"),
     [
-        ('"TT"', "TXT1", ""),  # the end is missing
         ('"TT"', "TXT1", "TXT1"),
         ('"TT"', "TXT1", "TXT3"),
         ('"Q"', "TXT2", "TXT2"),  # one character stores no end
@@ -644,7 +652,7 @@ def test_termination_code_needs_a_number_register_copied_to_text() -> None:
     Copy("DS1", "TXT1", format="binary", termination_code="$0D")
     Copy("TXT1", "TXT2", termination_code="$0D")
     for source, destination, fmt in [
-        ("DS1", "TXT1", "none"),
+        ("DS1", "DD1", "none"),
         ("TXT1", "DF1", "none"),
         ("TXT1", "DS1", "value"),
         ("5", "TXT1", "text"),

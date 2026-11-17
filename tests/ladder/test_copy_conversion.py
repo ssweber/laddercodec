@@ -1,8 +1,8 @@
 """A single Copy's conversion type 7 and a number copied into TXT, as CLICK saves them.
 
 CLICK saves conversion type 7 (tag 0x2227) for a value converted between a real and a 32-bit
-integer: DF to DD or CTD and back, a real constant into DD or CTD, and an integer outside int16
-into DF.  It saves a number constant whose text fills more than one TXT with the TXT that text
+integer: DF to DD or CTD and back (a DF, DD or CTD pointer source too), a real constant into DD
+or CTD, and an integer outside int16 into DF.  It saves a number constant whose text fills more than one TXT with the TXT that text
 ends in (tag 0x6077), counted on the constant as typed, and the conversion type of its kind.
 The saves are CLICK's answers in ``tests/fixtures/editor_grids/copy_single.answers.json`` and
 the CLICK v4 captures in ``tests/fixtures/v4_captures/copy_single/``.
@@ -131,6 +131,12 @@ def test_a_save_decodes_as_the_copy_and_writes_its_bytes(
         ("65536", "DF1"),
         ("2147483647", "DF1"),
         ("2147483647", "DF[DS1]"),
+        ("DF[DS1]", "DD1"),  # a pointer source, as CLICK saves it
+        ("DD[DS1]", "DF1"),
+        ("CTD[DS1]", "DF1"),
+        ("DF[DS1]", "CTD1"),
+        ("DF1", "CTD[DS1]"),  # a pointer destination, as CLICK saves it
+        ("DD1", "DF[DS1]"),
     ],
 )
 def test_a_value_converted_between_a_real_and_a_32_bit_integer_writes_type_7(
@@ -159,8 +165,6 @@ def test_a_value_converted_between_a_real_and_a_32_bit_integer_writes_type_7(
         ("DS1", "DF1"),
         ("TD1", "DF1"),
         ("DF1", "TD1"),
-        ("DD[DS1]", "DF1"),  # a pointer beside DF has no answer
-        ("DF1", "CTD[DS1]"),
     ],
 )
 def test_other_copies_write_type_0(source: str, destination: str) -> None:
@@ -180,7 +184,10 @@ def test_other_copies_write_type_0(source: str, destination: str) -> None:
         ("-32768", "DF[DS1]", False),
         ("FFh", "DF1", False),
         ("DS1", "DF1", False),
-        ("DD[DS1]", "DF1", False),
+        ("DD[DS1]", "DF1", True),
+        ("DF[DS1]", "DD1", True),
+        ("CTD[DS1]", "DF1", True),
+        ("DF1", "CTD[DS1]", True),
         ("DF1", "DF1", False),
         ("1.5", "DS1", False),
         ("1.5", "DF1", False),
@@ -316,7 +323,7 @@ def test_a_number_end_decodes_only_as_click_saves_it(
     tags = {0x6074: source, 0x6076: "TXT1", 0x2227: conv}
     if end:
         tags[0x6077] = end
-    parsed = from_tags("Copy", 0x2721, tags)
+    parsed = from_tags_af("Copy", 0x2721, tags)
     assert (parsed is not None) is decodes
     if parsed is None:
         return
@@ -364,8 +371,6 @@ def _with_tags(blob: bytes, changes: dict[int, str]) -> bytes:
         (Copy("DF[DS1]", "TXT1", format="text"), {0x2227: "1"}),
         # An integer's text with no end: the encoder writes the end it fills.
         (Copy("-5", "TXT1", format="text", suppress_zero="1"), {0x6077: ""}),
-        # A register's text with real numbering: the encoder writes type 1.
-        (Copy("DS1", "TXT1", format="text", suppress_zero="1"), {0x2227: "3"}),
         # An integer outside int16 into DF as type 0: the encoder writes type 7.
         (Copy("2147483647", "DF1"), {0x2227: "0"}),
     ],

@@ -26,7 +26,23 @@ from .ast import (
 )
 
 _EDGE_RE = re.compile(r"^(rise|fall)\((.+)\)$")
-_CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|\.[A-Za-z_][A-Za-z0-9_]*)\((.*)\)$")
+# DOTALL: quoted text in a call may hold a line break, such as a Copy source "A<LF>B";
+# _call_match refuses one outside the quotes.
+_CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|\.[A-Za-z_][A-Za-z0-9_]*)\((.*)\)$", re.DOTALL)
+
+
+def _call_match(text: str) -> re.Match[str] | None:
+    """*text* matched as a call, or None for no call or one with a CR or LF outside quotes.
+
+    A line break is taken only inside quoted text; ``copy(DS1,<LF>DS2)`` is no call.
+    """
+    in_quote = False
+    for ch in text:
+        if ch == '"':
+            in_quote = not in_quote
+        elif ch in "\r\n" and not in_quote:
+            return None
+    return _CALL_RE.fullmatch(text)
 
 
 def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
@@ -266,7 +282,7 @@ def parse_af_token(token: str) -> AfNode:
     if text == "":
         return AfBlank()
 
-    m = _CALL_RE.fullmatch(text)
+    m = _call_match(text)
     if not m:
         return AfCall(name=text, args=tuple(), known=False, raw=text)
 
@@ -311,7 +327,7 @@ def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = Fa
     range whose start or end is blank) is a blank argument too, each blank end ``fill(i)``.
     A ``raw(...)`` token has none: its arguments are its own field specs.
     """
-    m = _CALL_RE.fullmatch(token.strip())
+    m = _call_match(token.strip())
     if not m or m.group(1) == "raw":
         return None
     segments = list(_split_top_level_csv_like(m.group(2).strip())) or [""]

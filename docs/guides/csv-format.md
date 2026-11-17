@@ -710,10 +710,12 @@ currently emit:
     that 7 significant digits would print in exponent form (from `1E+07` up and
     below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
     7-digit print is another float32 value (`1234567.89`);
-  - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), and a real typed
-    in exponent form that 7 significant digits don't print exactly in 7
-    (`3.4028235E+38` is `3.402823E+38`, a slightly smaller value), as CLICK's
-    Copy stores them; one that 7 digits print exactly is kept as typed (`1E-45`);
+  - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), as CLICK's Copy
+    stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
+    zeros aside, and saves a real typed with more cut to 7 (`3.4028235E+38` as
+    `3.402823E+38`), so a `copy` refuses one and the message names the constant
+    of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`); a `math`
+    keeps 6 and refuses more the same way (`0.33333334` names `0.333333`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
     and `+0` stay, `-0` is `0`), and a hex constant with uppercase digits, its
     leading zeros and a lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
@@ -727,9 +729,10 @@ currently emit:
   value as a decimal integer (`14` for `Eh`, `30` for `1Eh`). `constant_text()`
   writes a Python int, float or str as text that builds a `math` or a `copy`
   holding that value (`constant_text(255, hex=True)` is `FFh`), but a `copy`
-  writes a real in exponent form that 7 significant digits don't print exactly
-  in 7, which is not the value: the largest float32 value is `3.402823466E+38`,
-  which a `copy` stores as `3.402823E+38`.
+  refuses a real of more than 7 significant digits and a `math` one of more than
+  6 (`constant_text(1/3)` is `0.33333334`): the largest float32 value is
+  `3.402823466E+38`; write `3.402823E+38` in a `copy` and `3.40282E+38` in a
+  `math`.
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -776,7 +779,9 @@ currently emit:
     separated by spaces or tabs. Any other word or character (`DS1 = DS2`, `FOO`,
     `NAN`, `0x1A`, a lone `.`, a pointer, a line break) is refused, and so is a
     real constant above float32's largest value, 3.402823466E+38, in size
-    (`1E39`, and `3.4028235E+38`, which float32 rounds to that value).
+    (`1E39`, and `3.4028235E+38`, which float32 rounds to that value), and a real
+    of more than 6 significant digits, which CLICK saves cut to 6 (`0.33333334`
+    names `0.333333`, and `3.402823466E+38` names `3.40282E+38`).
   - Each address lies inside its bank's range: `DS1 + DS0` is refused.
   - A sign goes at the start, after `(` or after `,`, and a decimal `math` joins
     it to the constant after it (`( + 5 )` is written `( +5 )`). After an
@@ -818,18 +823,26 @@ currently emit:
   CLICK writes one TXT register per character of a text constant, so `""`
   writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose
   text would run past TXT1000 raises `AddressError`. A `copy` of text into a
-  pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK stores no end for it. A Copy source, a Fill value, a compare and a search take
-  1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
-  matches the same window) and refuse `""`, a longer or non-ASCII text and a
+  pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK stores no end for it. A Fill value and a compare take
+  1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772)
+  and refuse `""`, a longer or non-ASCII text and a
   quote inside the text when it is read or built; spell any other character as
-  its `$hh` code, and a quote as `$22`. A quoted `"$41"` is three characters of text, not the code
-  `$41`. Use `$00` for the blank (NUL) character.
+  its `$hh` code, and a quote as `$22`. A Copy source and a search value take
+  any character U+0001 to U+FFFF but a surrogate (`copy("é",TXT1)`, `"€"`, a
+  tab, a line break), which CLICK keeps as typed, and refuse NUL and a
+  character above U+FFFF; `write_csv` writes them inside the quotes, and
+  `read_csv` reads them back; a line break elsewhere in a token raises
+  `CsvError`. A search matches the window the text fills. A
+  quoted `"$41"` is three characters of text, not the code `$41`. Use `$00` for
+  the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
-  - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register: the character's value or its ASCII code. CLICK's dialog asks for one of the two, so a plain copy of TXT into any number register but DF raises `FieldError` (`copy(TXT1,DS1)`, `blockcopy(TXT1..TXT2,DD1..DD2)`). A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK saves it.
+  - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register: the character's value or its ASCII code. CLICK's dialog asks for one of the two, so a plain copy of TXT into any number register but DF raises `FieldError` (`copy(TXT1,DS1)`, `blockcopy(TXT1..TXT2,DD1..DD2)`). A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK saves it, and `to_value` or `to_ascii` there raises `FieldError`: CLICK's dialog offers neither.
+  - A number constant, register or pointer copied to TXT needs `convert=to_text(...)` or `convert=to_binary`: CLICK's dialog saves one of them, Copy Value as text by default with suppress zero, or with real numbering for a real or DF source, so `copy(5,TXT1)` and `copy(DS1,TXT1)` raise `FieldError`, and the message names `convert=to_text(suppress_zero=1,termination_code=none)`.
+  - `convert=to_binary` for a value converted between a real and a 32-bit integer, where a plain copy converts it: DF to DD or CTD and back, a real constant into DD or CTD, an integer constant outside int16 into DF (`copy(CTD1,DF1,convert=to_binary)`), a pointer on either side included (`copy(DF[DS1],CTD1,convert=to_binary)`).
   - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
   - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address or pointer (`DF[DS1]`) or a real constant (`1.5`): real (`0`) or exponential (`1`) numbering. `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other source, an integer or hex constant or a DD or DS pointer included. Only the option CLICK's dialog offers for the source is written and read: `suppress_zero` for a DF or real source raises `FieldError`, and so does `exponential=1` for any other source; `exponential=0` for one is accepted and not written.
 - A TXT register or pointer copied to TXT takes a termination code with no converter: `copy(TXT1,TXT21,termination_code=$0D)`, and for a range `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`. `none`, `0` or no keyword is no code, which any copy takes. A code for any other copy, or a code beside a `convert=` kwarg, raises `FieldError`; inside `to_binary(...)` or `to_text(...)` it is the converter's. A `blockcopy` of TXT into TXT takes no converter.
-- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; any other (`terminaton_code=`) raises `CsvError`.
+- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; `fill`, `pack_bits`, `pack_words`, `unpack_to_bits` and `unpack_to_words` take `oneshot`, and `pack_text` takes `oneshot` and `allow_whitespace`. Any other (`terminaton_code=`) raises `CsvError`. A flag is `1` or `0`; any other value (`oneshot=yes`) raises `FieldError` with reason `flag`, and a blank `oneshot=` with reason `missing`. `allow_whitespace` is a `pack_text` option: a `Pack` of bits or words built with it raises `FieldError` with reason `conflict`.
 
 ## Immediate handling
 
