@@ -1,23 +1,26 @@
-"""Defaults, checked over every instruction in the fixtures.
+"""Tests of how default values are stored and written, over every instruction in the fixtures.
 
-Binary side: Click's ``Scr*.tmp`` files leave out each tag at its default value
-(see ``binary_helpers.tag_default``); the clipboard stores every tag.
+In the binary, CLICK's ``Scr*.tmp`` files leave out each tag that is at its default value
+(see ``binary_helpers.tag_default``).  The clipboard stores every tag.
 
-* The defaults table must match what CLICK does: in every native SCR + clipboard
-  pair, each tag SCR left out has its default value in the clipboard copy.
-* Every instruction must decode without its default tags: each one's clipboard
-  blob, with every tag at its default dropped the way SCR does, decodes to the
-  same instruction rather than ``raw(...)``.
+* The defaults table must match what CLICK does.  In every native pair of an SCR file
+  and a clipboard capture, each tag that the SCR file left out has its default value in
+  the clipboard capture.
+* Every instruction must decode without its default tags.  Take the clipboard blob of
+  each instruction and drop every tag that is at its default, as SCR does.  The result
+  decodes to the same instruction, not to ``raw(...)``.
 
 The func code (0x3218) is kept: SCR leaves it out only when it can be derived, and
 each family derives it.
 
-CSV side: a flag kwarg (a ``bool`` field such as ``oneshot``) is written only when
-set, so ``for(3)`` rather than ``for(3,oneshot=0)``.  Value kwargs (``mode=``,
-``unit=``, ``preset=``, the ``to_text(...)`` option the source has and its termination code) are always written.
+In CSV, a flag kwarg (a ``bool`` field such as ``oneshot``) is written only when it is
+set: ``for(3)``, not ``for(3,oneshot=0)``.  Value kwargs are always written.  They are
+``mode=``, ``unit=``, ``preset=``, and in a ``to_text(...)`` copy the text option that
+the source has and the termination code.
 
-The instructions come from the coverage goldens plus every native clipboard
-capture (CLICK v4 copy-backs, the SCR pairs' clipboard side, the tumbler programs).
+The instructions come from the coverage golden files and from every native clipboard
+capture: the CLICK v4 copy-backs, the clipboard side of the SCR pairs, and the tumbler
+programs.
 """
 
 from __future__ import annotations
@@ -63,9 +66,9 @@ def _corpus() -> dict[str, Instruction]:
             if not isinstance(token, Instruction) or isinstance(token, RawInstruction):
                 continue
             if refusals(token):
-                continue  # a stored value its checks refuse: it builds no blob to compare
+                continue  # its checks refuse a stored value, so it builds no blob to compare
 
-            # The wire-down flag is grid topology, not blob content.
+            # The wire-down flag describes the grid, and the blob does not hold it.
             if getattr(token, "wire_down", False):
                 token = dataclasses.replace(token, wire_down=False)
             found.setdefault(token.to_csv(), token)
@@ -76,7 +79,8 @@ _CORPUS = _corpus()
 
 
 def _scr_fields(class_name: str, fields: list[tuple[int, bytes, str]]):
-    """Drop the fields Click's SCR leaves out: every tag at its default."""
+    """Return *fields* without the tags that CLICK's SCR files leave out, which are the tags
+    at their default.  Tags 0x0000 and 0x3218 are always kept."""
     kept = []
     for tag, sentinel, value in fields:
         if tag in (0x0000, 0x3218):
