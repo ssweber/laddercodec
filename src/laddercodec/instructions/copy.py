@@ -1024,6 +1024,71 @@ def _parse_range(arg: str) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
+# Termination code (single Copy and Block Copy)
+# ---------------------------------------------------------------------------
+
+
+def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
+    """Spell ``inst.termination_code`` one way, whichever way it came in (``$0d`` from CSV,
+    13 from a blob): ``$`` and two uppercase hex digits, or ``"0"`` for no code.
+
+    ``"none"`` is the CSV spelling of no code, which ``to_csv`` writes; a blank is refused.
+    """
+    if inst.termination_code == "":
+        check.refuse(
+            "termination_code", "is blank; it needs a code, or 'none' for no code", Reason.MISSING
+        )
+    elif inst.termination_code == "none":
+        inst.termination_code = "0"
+    elif inst.termination_code.startswith("$"):
+        code = check("termination_code", check_constant, _TERMINATION, char_id="OBJ-036")
+        if code is not None:
+            spelled = check.run(_ascii_code, int(code.value))
+            if spelled is not None:
+                inst.termination_code = spelled
+
+
+def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
+    """Refuse a termination code that is no character code: the blob stores only those."""
+    if not inst.termination_code.startswith("$") and inst.termination_code != "0":
+        check.refuse(
+            "termination_code",
+            f"{inst.termination_code!r} is not allowed; it is a "
+            "character code ($0D), or '0' or 'none' for no code",
+            Reason.FORM,
+            "OBJ-036",
+        )
+
+
+def _termination_tags(termination_code: str) -> tuple[str, str]:
+    """Tags 0x1221 (termination flag) and 0x3216 (the code in decimal) for a code."""
+    if termination_code != "0" and termination_code.startswith("$"):
+        return "-1", str(int(termination_code[1:], 16))
+    return "0", "0"
+
+
+def _read_termination_tags(tags: dict[int, str]) -> str | None:
+    """The termination code a blob stores: ``"0"`` for none, or ``$hh``; None for a code
+    that is no decimal number.
+
+    0x1221 alone marks termination; 0x1201 is also set for a text constant source, so it
+    does not imply a code.  CLICK leaves 0x3216 out for the code ``$00``.
+    """
+    term_char = tag_value(tags, 0x3216)
+    if not (tag_flag(tags, 0x1221) and term_char):
+        return "0"
+    if not (term_char.isascii() and term_char.isdigit()):
+        return None
+    return _ascii_code(int(term_char))
+
+
+def _termination_csv(termination_code: str) -> list[str]:
+    """The ``termination_code=`` kwarg of a Copy with no converter or a Block Copy: none
+    for no code."""
+    return [] if termination_code == "0" else [f"termination_code={termination_code}"]
+
+
+# ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
 
@@ -1040,20 +1105,23 @@ class Copy(AfInstruction):
         Destination operand (e.g. ``"DS8"``).
     format:
         Copy modifier — ``"none"``, ``"value"``, ``"text"``,
-        ``"binary"``, or ``"ascii"``.
+        ``"binary"``, or ``"ascii"``.  A TXT register copied into a numeric register other
+        than DF takes ``"value"`` or ``"ascii"``, and refuses ``"none"``.
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
         Text option for an integer, hex or register source — ``"0"`` (don't suppress) or
         ``"1"`` (suppress); ``None`` reads as ``"0"``.  A DF source or a real constant
-        has no such option: it holds ``None``, and refuses a value.
+        has no such option: it holds ``None``, and refuses a value.  A TXT source refuses
+        ``"1"``.
     exponential:
         Text option for a DF source or a real constant — ``"0"`` (real) or ``"1"``
         (exponential).  Any other source has no such option and refuses ``"1"``.
     termination_code:
-        Text option — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or ``"$HH"`` hex
-        ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is refused).  A
-        lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
+        For a number register copied to text (``"text"`` or ``"binary"``) or a TXT register
+        copied to TXT (``"none"``) — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or
+        ``"$HH"`` hex ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is
+        refused).  A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
     """
 
     source: str
@@ -1080,22 +1148,7 @@ class Copy(AfInstruction):
                     f"{self.format!r} is not allowed; it is none, value, text, binary or ascii",
                     Reason.CHOICE,
                 )
-            # One spelling per code, whichever way it came in ($0d from CSV, 13 from a blob).
-            # "none" is the CSV spelling of no code, which to_csv writes.
-            if self.termination_code == "":
-                check.refuse(
-                    "termination_code",
-                    "is blank; it needs a code, or 'none' for no code",
-                    Reason.MISSING,
-                )
-            elif self.termination_code == "none":
-                self.termination_code = "0"
-            elif self.termination_code.startswith("$"):
-                code = check("termination_code", check_constant, _TERMINATION, char_id="OBJ-036")
-                if code is not None:
-                    spelled = check.run(_ascii_code, int(code.value))
-                    if spelled is not None:
-                        self.termination_code = spelled
+            _read_termination(check, self)
             # No suppress_zero is "0", but for a real source copied to text, which has none.
             if self.suppress_zero is None and not (
                 self.format == "text" and _real_text_source(self.source)
@@ -1138,17 +1191,27 @@ class Copy(AfInstruction):
                 assert dst.bank is not None
                 self._check_format(check, kind, dst.bank)
                 if self.termination_code != "0" and not (
-                    self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT"
+                    (self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT")
+                    or (self.format == "none" and kind == "txt" and dst.bank == "TXT")
                 ):
-                    # CLICK v4's dialog: termination is for a single copy from a number register
-                    # to text; the box is greyed for TXT -> TXT and constant -> TXT.
+                    # CLICK's dialog offers Termination Code for a number register copied to
+                    # text and for a TXT register copied to TXT; it greys the box for a
+                    # constant copied to TXT.
                     check.refuse(
                         ("termination_code", "format", "source", "destination"),
                         f"{self.termination_code!r} needs a numeric register copied to TXT "
-                        f"with to_text or to_binary, not {self.source!r} -> "
-                        f"{self.destination!r} with format {self.format!r}",
+                        "with to_text or to_binary, or a TXT register copied to TXT, not "
+                        f"{self.source!r} -> {self.destination!r} with format {self.format!r}",
                         Reason.CONFLICT,
                     )
+            if kind == "txt" and self.suppress_zero == "1":
+                # CLICK's dialog greys Suppress zero for a TXT source, into a number or TXT.
+                check.refuse(
+                    ("suppress_zero", "source"),
+                    f"suppress_zero=1 is not an option for {self.source!r}; suppress zero is "
+                    "for a number copied to text",
+                    Reason.CONFLICT,
+                )
             if self.format == "text":
                 # CLICK's dialog offers suppress zero for an integer, hex or register
                 # source, and real or exponential numbering for a DF source or a real
@@ -1168,15 +1231,7 @@ class Copy(AfInstruction):
                         f"{self.source!r}; an integer source only has suppress_zero",
                         Reason.CONFLICT,
                     )
-            if not self.termination_code.startswith("$") and self.termination_code != "0":
-                # The blob stores a termination code only as a character code.
-                check.refuse(
-                    "termination_code",
-                    f"{self.termination_code!r} is not allowed; it is a "
-                    "character code ($0D), or '0' or 'none' for no code",
-                    Reason.FORM,
-                    "OBJ-036",
-                )
+            _check_termination_form(check, self)
             if const is not None:
                 const = check("source", check_constant, _CONSTANTS)
             if const is not None:
@@ -1248,6 +1303,16 @@ class Copy(AfInstruction):
         fmt = self.format
         if fmt == "binary" and _is_dd_df_pair(self.source, self.destination):
             return  # DD <-> DF Copy Binary
+        if fmt == "none" and kind == "txt" and _asks_txt_choice(dest_bank):
+            # CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value, and
+            # saves one of them; a plain copy is not one it saves.
+            check.refuse(
+                ("format", "source", "destination"),
+                f"{self.source!r} -> {self.destination!r} needs convert=to_value (the "
+                "character's value) or convert=to_ascii (its ASCII code)",
+                Reason.CONFLICT,
+            )
+            return
         if fmt in ("text", "binary"):
             ok, need = kind in ("word", "number") and dest_bank == "TXT", "a number to TXT"
         elif fmt in ("value", "ascii"):
@@ -1272,6 +1337,7 @@ class Copy(AfInstruction):
             copy(DS26,DS27,oneshot=1)
             copy(TXT1,DS10,convert=to_value)
             copy(DS12,TXT2,convert=to_text(suppress_zero=1,termination_code=none))
+            copy(TXT1,TXT21,termination_code=$0D)
         """
         token = token.strip()
         m = re.fullmatch(r"copy\((.+)\)", token)
@@ -1324,7 +1390,10 @@ class Copy(AfInstruction):
             kw.append(f"convert=to_binary(termination_code={self.termination_code})")
         elif self.format in ("value", "binary", "ascii"):
             kw.append(f"convert=to_{self.format}")
-        elif self.format != "none":
+        elif self.format == "none":
+            # A TXT register copied to TXT: the code stands alone, with no converter.
+            kw.extend(_termination_csv(self.termination_code))
+        else:
             raise ValueError(f"Unknown format: {self.format!r}")
 
         if kw:
@@ -1347,12 +1416,7 @@ class Copy(AfInstruction):
         conv_type, field4 = self._conversion()
 
         # Termination encoding: $hex → decimal for field[10], flag for [9].
-        if self.termination_code != "0" and self.termination_code.startswith("$"):
-            term_char = str(int(self.termination_code[1:], 16))
-            term_flag = "-1"
-        else:
-            term_char = "0"
-            term_flag = "0"
+        term_flag, term_char = _termination_tags(self.termination_code)
         # field[11]: CLICK v4's dialog writes -1 on every save and ignores it on
         # load; earlier versions set it only for a termination code.  We write -1 for
         # those and for a text constant source.
@@ -1379,6 +1443,17 @@ class Copy(AfInstruction):
 # BlockCopy
 # ---------------------------------------------------------------------------
 
+
+def _asks_txt_choice(dest_bank: str) -> bool:
+    """Whether a single Copy of a TXT register into ``dest_bank`` writes the character's
+    value (to_value) or its ASCII code (to_ascii), one of which CLICK's dialog saves.
+
+    That is every numeric register but DF: CLICK saves a TXT register into DF as a plain
+    copy.
+    """
+    return dest_bank in _NUMERIC_DEST_BANKS and dest_bank != "DF"
+
+
 #: Formats a block copy takes.
 _BLOCKCOPY_FORMATS = frozenset({"none", "value", "ascii"})
 
@@ -1396,9 +1471,13 @@ class BlockCopy(AfInstruction):
     dest_start, dest_end:
         Destination range.
     format:
-        ``"none"`` or ``"value"`` (convert to numeric value).
+        ``"none"``, ``"value"`` (the characters' values) or ``"ascii"`` (their ASCII codes),
+        for a TXT source into a numeric register.
     oneshot:
         Execute once on OFF→ON transition.
+    termination_code:
+        For a TXT range copied to TXT — ``"0"`` or ``"none"`` (no code; stored as ``"0"``),
+        or ``"$HH"`` hex ASCII code, as a single Copy's.
     """
 
     source_start: str
@@ -1407,6 +1486,7 @@ class BlockCopy(AfInstruction):
     dest_end: str
     format: str = "none"
     oneshot: bool = False
+    termination_code: str = "0"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -1416,6 +1496,7 @@ class BlockCopy(AfInstruction):
                     "format", f"{self.format!r} is not allowed; it is none, value or ascii",
                     Reason.CHOICE,
                 )  # fmt: skip
+            _read_termination(check, self)
             cls = "BlockCopy"
             src, src_last = _check_range(
                 check, "source_start", self.source_start, "source_end", self.source_end,
@@ -1470,13 +1551,53 @@ class BlockCopy(AfInstruction):
                             Reason.CONFLICT,
                         )
                     )
+            source = f"{self.source_start}..{self.source_end}"
             if self.format != "none" and src is not None and src.bank != "TXT":
                 check.refuse(
                     ("format", "source_start", "source_end"),
-                    f"to_{self.format} needs a TXT source, not "
-                    f"{self.source_start}..{self.source_end}",
+                    f"to_{self.format} needs a TXT source, not {source}",
                     Reason.CONFLICT,
                 )
+            txt_to_txt = (
+                src is not None and src.bank == "TXT" and dest is not None and dest.bank == "TXT"
+            )
+            if self.format != "none" and txt_to_txt:
+                # CLICK's dialog offers TXT into TXT only Termination Code.
+                check.refuse(
+                    ("format", "dest_start"),
+                    f"to_{self.format} copies TXT to a number, not {source} -> "
+                    f"{self.dest_start}..{self.dest_end}",
+                    Reason.CONFLICT,
+                )
+            if (
+                self.format == "none"
+                and src is not None and src.bank == "TXT"
+                and dest is not None and dest.bank in _NUMERIC_DEST_BANKS
+                and not check.refused("dest_start")
+            ):  # fmt: skip
+                # CLICK's dialog asks for Copy Character Value or Copy ASCII Code Value, as
+                # for a single Copy, and saves one of them.
+                check.refuse(
+                    ("format", "source_start", "dest_start"),
+                    f"{source} -> {self.dest_start}..{self.dest_end} needs convert=to_value "
+                    "(the characters' values) or convert=to_ascii (their ASCII codes)",
+                    Reason.CONFLICT,
+                )
+            if (
+                self.termination_code != "0"
+                and src is not None
+                and dest is not None
+                and not (txt_to_txt and self.format == "none")
+            ):
+                # CLICK's dialog offers Termination Code for a TXT range copied to TXT only.
+                check.refuse(
+                    ("termination_code", "source_start", "dest_start"),
+                    f"{self.termination_code!r} needs a TXT range copied to TXT with no "
+                    f"converter, not {source} -> {self.dest_start}..{self.dest_end} with "
+                    f"format {self.format!r}",
+                    Reason.CONFLICT,
+                )
+            _check_termination_form(check, self)
             check.flag("oneshot")
 
     @property
@@ -1493,6 +1614,7 @@ class BlockCopy(AfInstruction):
             kw.append("oneshot=1")
         if self.format != "none":
             kw.append(f"convert=to_{self.format}")
+        kw.extend(_termination_csv(self.termination_code))
         if kw:
             return f"blockcopy({','.join(parts)},{','.join(kw)})"
         return f"blockcopy({','.join(parts)})"
@@ -1506,6 +1628,7 @@ class BlockCopy(AfInstruction):
         from ..binary_helpers import _build_blob
 
         conv_type = _FORMAT_TO_CONVTYPE.get(self.format, "0")
+        term_flag, term_char = _termination_tags(self.termination_code)
 
         return _build_blob(
             "Copy",
@@ -1521,9 +1644,9 @@ class BlockCopy(AfInstruction):
                 "1",  # [6] copy_type_idx (block)
                 self.func_code,  # [7]
                 conv_type,  # [8] conversion_type
-                "0",  # [9] termination_flag
-                "0",  # [10] termination_char
-                "0",  # [11] text_flag
+                term_flag,  # [9] termination_flag
+                term_char,  # [10] termination_char (decimal)
+                term_flag,  # [11] text_flag: set with a termination code, as a single Copy's
                 "",  # [12] terminator
             ],
         )
@@ -1973,14 +2096,9 @@ def _from_tags(
             # No such option for a real source.
             suppress_zero = None
 
-        termination_code = "0"
-        term_char = tag_value(tags, 0x3216)
-        # 0x1221 alone marks termination; 0x1201 is also set for a text
-        # constant source, so it must not imply a termination code.
-        if tag_flag(tags, 0x1221) and term_char:
-            if not (term_char.isascii() and term_char.isdigit()):
-                return None
-            termination_code = _ascii_code(int(term_char))
+        termination_code = _read_termination_tags(tags)
+        if termination_code is None:
+            return None
 
         copy = Copy(
             source=source,
@@ -2018,7 +2136,8 @@ def _from_tags(
         if not all([source, source_end, destination, destination_end]):
             return None
         fmt = {0: "none", 5: "value", 6: "ascii"}.get(conv_type)
-        if fmt is None:
+        termination_code = _read_termination_tags(tags)
+        if fmt is None or termination_code is None:
             return None
         return BlockCopy(
             source_start=source,
@@ -2027,6 +2146,7 @@ def _from_tags(
             dest_end=destination_end,
             format=fmt,
             oneshot=oneshot,
+            termination_code=termination_code,
         )
 
     if copy_type == 2:
@@ -2082,8 +2202,21 @@ def _from_tags(
 # ---------------------------------------------------------------------------
 
 
+#: The keywords ``copy(...)`` and ``blockcopy(...)`` take besides their operands.
+_COPY_KWARGS = frozenset({"convert", "oneshot", "termination_code"})
+
+
+def _refuse_unknown_kwargs(name: str, kwargs: Mapping[str, str]) -> None:
+    """Refuse a keyword ``copy`` or ``blockcopy`` does not take, so a misspelt one
+    (``terminaton_code=``) is not dropped."""
+    unknown = set(kwargs) - _COPY_KWARGS
+    if unknown:
+        raise ValueError(f"{name} does not support keyword argument(s): {sorted(unknown)}")
+
+
 def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
     """Build a Copy from ``copy(source, dest, ...)`` arguments (both CSV paths)."""
+    _refuse_unknown_kwargs("copy", kwargs)
     source, destination = args
     convert_raw = kwargs.get("convert", "")
     if convert_raw:
@@ -2091,6 +2224,19 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
     else:
         fmt, text_opts = "none", {}
     termination_code = text_opts.get("termination_code", "0")
+    if kwargs.get("termination_code", "none") not in ("none", "0"):
+        # A TXT register copied to TXT: the code stands alone, with no converter.  "none"
+        # and "0" are no code, which any copy takes.
+        if convert_raw:
+            raise FieldError(
+                f"Copy.termination_code: {kwargs['termination_code']!r} stands alone only "
+                f"for TXT copied to TXT, with no converter, not beside {convert_raw}; a "
+                "number copied to TXT takes it inside the converter "
+                "(to_text(...,termination_code=$0D))",
+                field=("Copy.termination_code", "Copy.format"),
+                reason=Reason.CONFLICT,
+            )
+        termination_code = kwargs["termination_code"]
     if termination_code == "none":
         termination_code = "0"
     return Copy(
@@ -2116,6 +2262,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             raise ValueError(
                 f"blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}"
             )
+        _refuse_unknown_kwargs("blockcopy", call.kwargs)
         src_start, src_end = _parse_range(call.args[0])
         dest_start, dest_end = _parse_range(call.args[1])
         convert_raw = call.kwargs.get("convert", "")
@@ -2130,6 +2277,7 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             dest_end=dest_end,
             format=fmt,
             oneshot=call.kwargs.get("oneshot") == "1",
+            termination_code=call.kwargs.get("termination_code", "0"),
         )
 
     if call.name == "fill":

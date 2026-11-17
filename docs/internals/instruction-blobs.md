@@ -180,6 +180,16 @@ address, a DF pointer (`DF[DS1]`) or a real constant copied to text, and suppres
 not for any other source, a DD or DS pointer included. A pointer source saves no end.
 Decode reads type `4` only for such a source.
 
+For a TXT register or pointer copied to a number register, CLICK's dialog asks for the
+character's value (type `5`, `0x2206` = 0) or its ASCII code (type `6`, `0x2206` = 1) and
+offers no suppress zero; it saves TXT into DF as type `0`. For TXT copied to TXT it offers a
+termination code alone: tag `0x1221` is its flag and `0x3216` the code in decimal (`$0D` is
+`13`). The clipboard holds `0x3216` = `0` for `$00`; the program file leaves `0x3216` out,
+and decode reads a set flag with no `0x3216` as `$00`. A Block Copy (`0x2223` = 1) of TXT
+into TXT holds its code in the same two tags. CLICK v4 sets the text flag `0x1201` on every
+Copy it saves and ignores it on load; the encoder sets it for a termination code or a text
+constant. Captures: `tests/fixtures/v4_captures/copy_txt/`.
+
 A decoded single Copy whose `0x2227` and `0x6077` differ from what the encoder writes for
 its fields, or whose save is a type `7` other than DD to or from DF or a number with an
 end, writes the blob it was decoded from while it is unchanged.

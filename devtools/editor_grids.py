@@ -468,13 +468,22 @@ def math_grid() -> Grid:
 # ---------------------------------------------------------------------------
 
 
+#: Banks a Copy or Block Copy of TXT asks Copy Character Value or Copy ASCII Code Value for.
+_TXT_CHOICE = frozenset({"DS", "DD", "DH", "YD", "TD", "CTD", "SD"})
+
+
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
+    # TXT into a number register but DF takes the dialog's default, Copy Character Value.
+    txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
+    fmt = "value" if txt_choice else "none"
     if mode == "single":
-        return verdict_of(lambda: Copy(f["source"], f["destination"]))
+        return verdict_of(lambda: Copy(f["source"], f["destination"], format=fmt))
     if mode == "block":
         end = _block_end(f["source"], f["source_end"], f["destination"])
-        return verdict_of(lambda: BlockCopy(f["source"], f["source_end"], f["destination"], end))
+        return verdict_of(
+            lambda: BlockCopy(f["source"], f["source_end"], f["destination"], end, format=fmt)
+        )
     if mode == "pack":
         bank = _bank_of(f["source"])
         kind = "text" if bank == "TXT" else "bits" if bank in BIT_BANKS else "words"

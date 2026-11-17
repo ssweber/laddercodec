@@ -802,6 +802,9 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
                     ("function_code", "remote_start"),
                     f"FC{fc:02d} cannot read {kind}",
                     Reason.CONFLICT,
+                    # CLICK refuses a register slave address read with FC01 as an address
+                    # the instruction can't use.
+                    _BANK_ID if fc == 1 and not bit else None,
                 )
         elif default_fc is not None and fc != default_fc and not isinstance(remote, str):
             check.refuse(
