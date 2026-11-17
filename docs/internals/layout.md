@@ -1,15 +1,17 @@
 # Layout
 
 `read_csv` lays every rung out as CLICK's syntax check draws it, and `write_csv` writes that
-drawing. A CSV author writes contacts, wires and boxes; the reader decides the rows a box's
-height takes, where OR legs and outputs sit, and where each pin of a pinned box goes. The
-circuit never changes: only cells move, and a rung CLICK would split becomes several rungs.
+drawing. A CSV author writes contacts, wires and boxes. The reader decides the rows that a
+box's height takes, where OR legs and outputs sit, and where each pin of a pinned box goes.
+The circuit never changes. Only cells move, and a rung that CLICK would split becomes several
+rungs.
 
 `encode()` and `decode()` don't lay out. `encode(rung)` writes the grid it is given, and
-`decode()` returns the grid the bytes hold, so `decode(encode(x)) == [x]` holds for any `Rung`.
+`decode()` returns the grid that the bytes hold. So `decode(encode(x)) == [x]` holds for any
+`Rung`.
 
 The code is `laddercodec._layout`. Ground truth is CLICK v4's copy-back of pasted rungs before
-and after its syntax check (`tests/fixtures/v4_captures/*_pasted.bin` and `*_checked.bin`);
+and after its syntax check (`tests/fixtures/v4_captures/*_pasted.bin` and `*_checked.bin`).
 `tests/test_layout.py` checks every checked capture and every pasted-to-checked pair.
 
 ## Pipeline
@@ -54,13 +56,13 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
    and the condition side packs up beside it. An out under a non-retentive on_delay moves up
    to row 2, and one under a Send to row 3. A branch after the output split starts on the row
    of its first box.
-8. A rung is as tall as its lowest contact, box input or box span. Blank rows below, a blank
-   first row and wire stubs that join nothing are dropped.
-   So is a `NOP` that no rail or contact reaches, in a rung with a circuit; `check()` reports
-   nothing for it: CLICK's check gives no error and leaves a rung of `~X002` to
-   `latch(Y002)` with stubs at A and C, an unwired `NOP` and a blank row as one row. Any
-   other box no rail or contact reaches is reported as `unpowered_box` and its rung stays as
-   drawn: CLICK's check on one is not known.
+8. A rung is as tall as its lowest contact, box input or box span. The layout drops blank
+   rows below, a blank first row and wire stubs that join nothing. It also drops a `NOP` that
+   no rail or contact reaches, in a rung with a circuit. `check()` reports nothing for it.
+   CLICK's check gives no error for it, and leaves a rung of `~X002` to `latch(Y002)` with
+   stubs at A and C, an unwired `NOP` and a blank row as one row. `check()` reports any other
+   box that no rail or contact reaches as `unpowered_box`, and its rung stays as drawn.
+   CLICK's check on one is not known.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
    on the first. So `read_csv` can return more rungs than the CSV holds.
 
@@ -73,122 +75,142 @@ then each pin in its fixed order.
     and with a lead slot the main row's AF holds `NOP`. A count_down whose Down is drawn from
     the token row is redrawn onto the Down row.
 11. Each used pin's circuit starts on its slot row. The first slot after the main input starts
-    below every contact placed so far, so OR legs under the main input push the pins down;
-    each later slot starts below the circuit above it. An unused pin between used ones takes a
-    row of its own there. A drum
-    Reset leg on the unused Jump row is redrawn from `(1, 2, 3)` to `(1, 3, 4)`, and the same
-    circuit at `(1, 3, 4)` is kept; a count_down `(1, 6)` becomes `(1, 5)` and an event drum
-    `(4, 6, 7)` becomes `(3, 5, 6)`.
+    below every contact placed so far, so OR legs under the main input push the pins down.
+    Each later slot starts below the circuit above it. An unused pin between used ones takes
+    a row of its own there. A drum Reset leg on the unused Jump row is redrawn from
+    `(1, 2, 3)` to `(1, 3, 4)`, and the same circuit at `(1, 3, 4)` is kept. A count_down
+    `(1, 6)` becomes `(1, 5)`, and an event drum `(4, 6, 7)` becomes `(3, 5, 6)`.
 12. Unused pins after the last used one sit directly under it, beside its legs. A drum at
     `(1, 2, 3)` with Jump and Jog unused is kept, and the same circuit at `(1, 5, 6)` is
-    redrawn to `(1, 2, 3)`; a non-retentive on_delay stays at `pin_rows=(1,)` with legs
+    redrawn to `(1, 2, 3)`. A non-retentive on_delay stays at `pin_rows=(1,)` with legs
     below it.
 13. `pin_rows` is each slot's row minus the token row; the box ends on its last slot's row.
 
 ## Rungs with no layout
 
-A rung `laddercodec.check()` reports has no layout and is read and written as drawn: a circuit
-that is not series-parallel (C0001), a contact no rail reaches or that feeds no box (C0202 and
-C0003), a contact a wire shorts (C0002), a box above a box with a used pin on its main
-input's net or another box's input on a pin's net (C000A), and a pin with no contact of its
-own (C0205, C0212). CLICK pastes and
-saves these rungs and refuses them only at its check. A rung of wires alone, or with an
-unwired `NOP`, has no circuit and is kept as drawn too.
+A rung that `laddercodec.check()` reports has no layout. `read_csv` and `write_csv` handle it
+as drawn. These are the shapes:
 
-Two findings keep the layout. A pin that no rail or contact reaches (C0202 at its AF cell): the
-layout draws its row blank, dropping any wire in it, and CLICK saves such a rung as pasted
-when the row holds nothing. A contact that feeds only a `NOP` (C0003): the rung is laid out as
-before; CLICK keeps that layout when pasted, and its check on the rung as written is not
-captured.
+- a circuit that is not series-parallel (C0001)
+- a contact that no rail reaches or that feeds no box (C0202 and C0003)
+- a contact that a wire shorts (C0002)
+- a box above a box with a used pin on its main input's net, or another box's input on a
+  pin's net (C000A)
+- a pin with no contact of its own (C0205, C0212)
+
+CLICK pastes and saves these rungs and refuses them only at its check. A rung of wires alone,
+or with an unwired `NOP`, has no circuit and is kept as drawn too.
+
+Two findings keep the layout:
+
+- A pin that no rail or contact reaches (C0202 at its AF cell). The layout draws its row
+  blank and drops any wire in it. CLICK saves such a rung as pasted when the row holds
+  nothing.
+- A contact that feeds only a `NOP` (C0003). The rung is laid out as before. CLICK keeps that
+  layout when pasted. Its check on the rung as written is not captured.
 
 Three more shapes are kept as drawn, with no capture of CLICK's check on them:
 
 - A contact on the circuits of two pins, or of a main input and a pin that has contacts of
   its own as well. Each pin's circuit is drawn on rows of its own, so a layout would draw the
-  contact once per input. `check()` reports the later pin: `pin_without_contact` when all its
-  contacts are the other pin's (a pin with no contact of its own), else `pin_shares_pin` or
-  `pin_shares_main`.
+  contact once per input. `check()` reports the later pin. The finding is
+  `pin_without_contact` when all its contacts are the other pin's (a pin with no contact of
+  its own). Otherwise it is `pin_shares_pin` or `pin_shares_main`.
 - A rung that would split (rule 9) and holds a `NOP` that a rail or contact reaches. The
   splits known are of coils and Copy boxes.
 - A rung the render cannot fit in 31 columns, or whose nets would cross.
 
-Two rungs CLICK's check rewrites with no error are kept as drawn: a `NOP` on a row of its own
-beside a coil's rung (`C1 -> out(Y1)`, `- -> NOP`), whose `NOP` CLICK drops, leaving one row;
-and a rung of wires alone, which CLICK wires through AF, so that it decodes as wires into a
-`NOP`.
+CLICK's check rewrites two more rungs with no error. Both are kept as drawn:
+
+- a `NOP` on a row of its own beside a coil's rung (`C1 -> out(Y1)`, `- -> NOP`). CLICK
+  drops the `NOP` and leaves one row.
+- a rung of wires alone. CLICK wires it through AF, so that it decodes as wires into a
+  `NOP`.
 
 ## Check rules
 
 `check()` reports the rungs CLICK's syntax check refuses by these rules. A shape no capture
 shows is reported with `captured=False`.
 
-14. A contact whose input no line connects to the rail is C0202 at that contact, the first of
-    each such group. A path from the rail that reaches no box is C0202 at its last contact,
-    and C0003 once for the rung. A contact that feeds a `NOP` and no other box, along
-    any path, is `nop_only_contact`, C0003 once for the rung, even when a coil sits on another
-    wire of the rung or on another leg of the same split; a `NOP` on the rail alone, or on a
-    net a coil shares, is not. A contact whose two sides a wire joins (a contact in parallel
-    with a wire-only leg) is C0002.
-15. A pin whose row holds nothing (no contact, no wire, no vertical into it) is C0202 at its
-    AF cell, the row counted from 1. The captured pins are a timer's and a counter's reset in
-    a rung whose rail reaches a box. A pin whose row holds a contact or a wire that no rail
-    or contact reaches is C0202 at its AF cell too, not captured.
+14. `check()` reports these contact shapes:
+    - A contact whose input no line connects to the rail is C0202 at that contact, the
+      first of each such group.
+    - A path from the rail that reaches no box is C0202 at its last contact, and C0003
+      once for the rung.
+    - A contact that feeds a `NOP` and no other box, along any path, is
+      `nop_only_contact`: C0003 once for the rung. This holds even when a coil sits on
+      another wire of the rung or on another leg of the same split. A `NOP` on the rail
+      alone, or on a net that a coil shares, does not count.
+    - A contact whose two sides a wire joins (a contact in parallel with a wire-only
+      leg) is C0002.
+15. A pin whose row holds nothing (no contact, no wire, no vertical into it) is C0202 at
+    its AF cell, with the row counted from 1. The captured pins are a timer's and a
+    counter's reset in a rung whose rail reaches a box. A pin whose row holds a contact
+    or a wire that no rail or contact reaches is also C0202 at its AF cell. That case is
+    not captured.
 16. A circuit into the main inputs that is not series-parallel is C0001, the rung's last
-    finding: `check()` reports no C000A for the rung, and no finding about a pin's contacts.
-    The rung captured has an output above a retentive timer on its net, whose reset has no
-    contact of its own; `check()` drops C0212, C000A on a pin's net and the findings with no
-    code as well.
+    finding. `check()` reports no C000A for the rung, and no finding about a pin's
+    contacts. The rung captured has an output above a retentive timer on its net, whose
+    reset has no contact of its own. For it, `check()` also drops C0212, C000A on a pin's
+    net and the findings with no code.
 17. Two boxes are paired on a net that the rail reaches through a contact, not on the rail
-    itself, when one has a used pin (a retentive timer, a counter, a shift, a drum) and:
-    the other box's main input is on the pinned box's main input's net, above it
-    (`output_above_pinned_box`); or an input of the other box is on one of its pins' nets
-    (`shared_input_net`). Each is C000A: CLICK's "All inputs of the box instruction must
-    originate from the same branch". Paired boxes are one group, and each group is one
-    finding, at its first pinned box with a captured pairing, else at its first pinned box.
+    itself, when one has a used pin (a retentive timer, a counter, a shift, a drum) and one
+    of these holds:
+    - the other box's main input is on the pinned box's main input's net, above it
+      (`output_above_pinned_box`)
+    - an input of the other box is on the net of one of the pinned box's pins
+      (`shared_input_net`)
+
+    Each is C000A: CLICK's "All inputs of the box instruction must originate from the same
+    branch". Paired boxes are one group, and each group is one finding. The finding is at
+    the group's first pinned box with a captured pairing, or else at its first pinned box.
     The captured pairings are an output above the pinned box, and a box's main input below
-    a pin on a net of the pin's own. A `NOP` as the other box, a pinned box above, a pin's
-    net shared with a pin or with a main input above the pin, and a box below on a reset
-    teed off the main input are not captured.
+    a pin on a net of the pin's own. These are not captured: a `NOP` as the other box, a
+    pinned box above, a pin's net shared with a pin or with a main input above the pin, and
+    a box below on a reset teed off the main input.
 18. The boxes of a C000A group get no finding about their pins' contacts. The rung captured
-    has a timer's reset on an output's net, a C0205 shape by rule 19; `check()` drops every
-    other pin finding of the group too, C0212 and the findings with no code included.
-19. A timer's or drum's reset whose contacts are all on a main input's circuit (a reset teed
-    off the main input) is C0205 for a timer and C0212 for a drum. A box's own inputs on
-    one net pair it with no box, and a box below the pinned box on its main input's net is
+    has a timer's reset on an output's net, a C0205 shape by rule 19. `check()` drops every
+    other pin finding of the group too, including C0212 and the findings with no code.
+19. A timer's or drum's reset whose contacts are all on a main input's circuit (a reset
+    teed off the main input) is C0205 for a timer and C0212 for a drum. A box's own inputs
+    on one net pair it with no box. A box below the pinned box on its main input's net is
     paired only through such a reset.
 
 ## Writing CSV
 
-`write_csv` writes each rung's layout and checks that the rows read back to it exactly. A
-decoded rung that is not in CLICK's layout, such as a paste copied back before the syntax
-check, is written in the layout, which may be several rungs; the writer checks that their
-circuit is the decoded rung's, each contact in it exactly once. A rung with no layout is
-written as stored and reads back as stored, except that blank rows at its end can read back
-as a tall box's own rows and be dropped; the writer warns when they are.
+`write_csv` writes each rung's layout and checks that the rows read back to it exactly. If a
+decoded rung is not in CLICK's layout (for example a paste copied back before the syntax
+check), `write_csv` writes it in the layout, which may be several rungs. The writer checks
+that their circuit is the decoded rung's, with each contact in it exactly once. `write_csv`
+writes a rung with no layout as stored, and it reads back as stored. The exception is blank
+rows at its end. They can read back as a tall box's own rows and be dropped, and the writer
+warns when they are.
 
 ## Open questions
 
 For the next capture round:
 
 - An output above a pinned box on one net reached through a branch (`C1,T:C2 -> out(Y1)`
-  above a retentive on_delay on C1's net, Reset C3): the shape of C000A with the output
-  behind a contact of its own. The box inputs share no net, so rule 17 does not report it,
-  and `read_csv` lays it out.
+  above a retentive on_delay on C1's net, Reset C3). This is the shape of C000A with the
+  output behind a contact of its own. The box inputs share no net, so rule 17 does not
+  report it, and `read_csv` lays it out.
 - A box on the net of a reset with no contact of its own (a drum's Reset teed off its main
-  input, `copy(...)` below on that net): `check()` reports C000A alone, by rules 17 and 18,
-  with `captured=False`; CLICK may accept the rung, or report C0212 or C0205 as well.
-- A bridge whose timer reset tees off its own main input: whether CLICK reports C0205 with
-  C0001 (rule 16).
-- A pin other than a timer's or counter's reset with nothing wired to it (a shift's clock, a
-  drum's jog, a counter's down): C0202 by rule 15, not captured. Nor is a pin row that holds
-  a wire no rail or contact reaches.
-- A rung with two groups of boxes that share nets: whether CLICK prints C000A once or once
-  per group.
+  input, `copy(...)` below on that net). `check()` reports C000A alone, by rules 17 and 18,
+  with `captured=False`. CLICK may accept the rung, or report C0212 or C0205 as well.
+- A bridge whose timer reset tees off its own main input. Does CLICK report C0205 with
+  C0001 (rule 16)?
+- A pin other than a timer's or counter's reset with nothing wired to it (a shift's clock,
+  a drum's jog, a counter's down). `check()` reports C0202 by rule 15, not captured. A pin
+  row that holds a wire no rail or contact reaches is not captured either.
+- A rung with two groups of boxes that share nets. Does CLICK print C000A once, or once per
+  group?
 - A rung with a `NOP` no rail or contact reaches and outputs that meet only at the rail
-  (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`): `read_csv` drops the `NOP`, then
+  (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`). `read_csv` drops the `NOP`, then
   splits the rung in two. No capture shows CLICK's check doing both on one rung.
-- A contact two pins share: CLICK's code for it, if it refuses it.
-- A `NOP` reached only by contacts that also reach a coil: `check()` reports nothing, as for a
-  `NOP` on a coil's net. Probed, not captured: C1 splits with a wire to the `NOP` and C2 to a
-  coil; a shorted contact into a `NOP` (C0002 only); an unrailed contact into a `NOP`; a rail
-  wire to a coil plus a contact off the rail into a `NOP`.
+- A contact that two pins share. What code does CLICK give it, if it refuses it?
+- A `NOP` reached only by contacts that also reach a coil. `check()` reports nothing, as
+  for a `NOP` on a coil's net. These were probed and not captured:
+  - C1 splits with a wire to the `NOP` and C2 to a coil
+  - a shorted contact into a `NOP` (C0002 only)
+  - an unrailed contact into a `NOP`
+  - a rail wire to a coil plus a contact off the rail into a `NOP`

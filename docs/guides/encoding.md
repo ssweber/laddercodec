@@ -71,8 +71,8 @@ binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", ""],
 
 ## Condition-Side Instructions
 
-A contact takes its operand first and a `kind`: `"no"` (the default), `"nc"`,
-`"rise"` or `"fall"`. Each line below is the CSV token in its comment:
+`Contact` takes an operand, then an optional `kind`: `"no"` (the default), `"nc"`,
+`"rise"` or `"fall"`. The comment on each line below is its CSV token:
 
 ```python
 from laddercodec import CompareContact, Contact
@@ -87,13 +87,14 @@ Contact("X001", kind="nc", immediate=True)     # ~X001.immediate
 CompareContact(op=">=", left="DS1", right="100")  # DS1>=100
 ```
 
-Only an NO or NC contact on X has an immediate form: an edge contact, or an
-immediate contact on another bank, raises `FieldError`.
+Only an NO or NC contact on X has an immediate form. If you ask for an immediate
+form of an edge contact, or of a contact on another bank, `Contact` raises
+`FieldError`.
 
 ## AF-Side Instructions
 
-A coil takes its operand first and a `kind`: `"out"` (the default), `"latch"` or
-`"reset"`, the names of its CSV calls:
+`Coil` takes an operand, then an optional `kind`: `"out"` (the default), `"latch"`
+or `"reset"`. These are the names of its CSV calls:
 
 ```python
 from laddercodec import Coil
@@ -139,23 +140,32 @@ binary = encode(rung)
 Tall instructions such as timers, copy-family instructions, shift, drum, and
 some counters occupy multiple visual rows. `encode()` accepts the fully expanded
 rows directly and writes them as given. When you come from canonical CSV,
-`read_csv()` handles the padding and pin rows for you, and lays each rung out as
-CLICK's syntax check draws it ([CSV layout](csv-format.md#layout)).
+`read_csv()` handles the padding and pin rows for you. It also lays each rung out
+as CLICK's syntax check draws it ([CSV layout](csv-format.md#layout)).
 
 ## Text Constants
 
 Text constants are written with their double quotes (`Copy(source='"Q"', ...)`,
 `CompareContact("==", "TXT1", '"T"')`), and an ASCII-code constant as `$hh`
 (`"$00"`). CLICK writes one TXT register per character of a text constant, so an
-empty `""` writes nothing. `Copy` and `Fill` take 1 to 128 characters in quotes
-and raise `FieldError` for `""`, a longer text and a quote inside the text. `Fill`
-takes printable ASCII; `Copy` takes any character U+0001 to U+FFFF but a surrogate
-(`"é"`, `"€"`, a tab), which CLICK keeps as typed, and refuses NUL and a character
-above U+FFFF. `Search` takes the characters `Copy` takes, and `CompareContact` 1 to
-128 printable ASCII characters in quotes; both match consecutive TXT registers
-(`"AB"`) and raise `FieldError` for `""`, a longer text and a quote inside the
-text, and `CompareContact` for non-ASCII text. Each refuses when built or
-read from CSV. A quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
+empty `""` writes nothing.
+
+`Copy` and `Fill` take 1 to 128 characters in quotes. They raise `FieldError` for
+`""`, for a longer text and for a quote inside the text.
+
+- `Fill` takes printable ASCII.
+- `Copy` takes any character from U+0001 to U+FFFF except a surrogate (`"é"`,
+  `"€"`, a tab). CLICK keeps these as typed. `Copy` refuses NUL and a character
+  above U+FFFF.
+- `Search` takes the characters that `Copy` takes.
+- `CompareContact` takes 1 to 128 printable ASCII characters in quotes.
+
+`Search` and `CompareContact` match consecutive TXT registers (`"AB"`). They raise
+`FieldError` for `""`, for a longer text and for a quote inside the text.
+`CompareContact` also raises it for non-ASCII text.
+
+Each check runs when you build the instruction and when you read it from CSV. A
+quoted `"$41"` is text. Use `$00` for the blank (NUL) character.
 
 ## Refused Values
 
@@ -171,19 +181,30 @@ except FieldError as exc:
 # Timer.preset range OBJ-005
 ```
 
-A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
-address) when the instruction is built. `errors` holds every refusal of that
-instruction, the raised one first. `Timer`, `Coil`, `Contact`, `CompareContact`,
+If you build an instruction with a value that CLICK's dialog refuses, it raises
+`FieldError`, or `AddressError` for an address. `errors` holds every refusal of
+that instruction, with the raised one first.
+
+These report every field they refuse: `Timer`, `Coil`, `Contact`, `CompareContact`,
 `OutVariant`, `Counter`, `Shift`, `Call`, `ForLoop`, `Drum`, `Search`, `Copy`,
-`BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Send`, `Receive`, the Modbus targets and address,
-`RawInstruction` and `Undecoded` report every field they refuse;
-the other instructions report the first. A Math formula gives one refusal for each
-address, constant, key or range it refuses, each on `Math.expression`; an error in
-its parentheses or in the order of its tokens ends the list. After a word that is
-none of an address, a name or a constant, the order, bit and range checks are
-skipped. A target refused when it is built names its own field (`ModbusTcpTarget.port`)
-before any `Send` or `Receive` holds it. The one check a `Receive` makes of its target, a serial Slave ID of 0
-(it starts at 1), names `Receive.target`. Each refusal has:
+`BlockCopy`, `Fill`, `Pack`, `Unpack`, `Math`, `Send`, `Receive`, the Modbus targets
+and address, `RawInstruction` and `Undecoded`. The other instructions report the
+first refusal only.
+
+A Math formula gives one refusal for each address, constant, key or range that it
+refuses, each on `Math.expression`. A key here is a keypad key that the mode does
+not take. Three things cut the list short:
+
+- An error in the formula's parentheses ends the list.
+- An error in the order of its tokens ends the list.
+- If the formula holds a word that is none of an address, a name or a constant, the
+  order, bit and range checks are skipped.
+
+If a target is refused when you build it, the refusal names the target's own field
+(`ModbusTcpTarget.port`). That happens before any `Send` or `Receive` holds the
+target. `Receive` makes one check of its target: it refuses a serial Slave ID of 0,
+because Slave IDs start at 1. That refusal names `Receive.target`. Each refusal
+has these attributes:
 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|
@@ -197,15 +218,16 @@ before any `Send` or `Receive` holds it. The one check a `Receive` makes of its 
 `not_writable`, `flag`, `choice`, `conflict` and `missing` (each is described under
 `Reason` in the [Codec API](../reference/api/codec.md)), or `None` for a refusal not
 given one yet. A blank in a field that requires a value is `missing`, whatever
-the field takes; a field that may be blank is accepted, and its blank is no refusal. A field that depends on a refused one is not checked:
-a Timer whose done is refused is not checked for an accumulator that
-matches it.
+the field takes. A field that may be blank accepts a blank, and that is no refusal.
+
+A field that depends on a refused one is not checked. For example, if a Timer's
+done is refused, the Timer is not checked for an accumulator that matches it.
 
 A decoded instruction can hold a refused value, with a `RefusedFieldWarning`
-([Decoding](decoding.md#values-clicks-dialog-refuses)). Unchanged, it encodes as
-the bytes it was decoded from; changed, it is checked again, and `encode()` raises
-the `FieldError` building it raises. Read from CSV, it has no bytes to write, and
-`encode()` raises that error.
+([Decoding](decoding.md#values-clicks-dialog-refuses)). If you encode it
+unchanged, you get the bytes it was decoded from. If you change it, it is checked
+again, and `encode()` raises the `FieldError` that building it raises. If you read
+it from CSV, it has no bytes to write, and `encode()` raises that error.
 
 ## Comments
 
@@ -263,8 +285,8 @@ All standard Click instruction families are supported from the root package:
 Unknown AF blobs can still be preserved via `RawInstruction`, which keeps the
 binary payload intact for lossless round-trip.
 
-`encode()` raises `EncodeError` for a rung that holds an `Undecoded` marker: the
-marker stands in for a rung laddercodec could not decode, and CLICK has no
+`encode()` raises `EncodeError` for a rung that holds an `Undecoded` marker. The
+marker stands in for a rung that laddercodec could not decode, and CLICK has no
 instruction for it ([Decoding](decoding.md#rungs-that-dont-decode)).
 
 ## If a paste fails

@@ -23,7 +23,7 @@ Wire tokens are classified by (right, down) only — the segment flag is indepen
 
 Contacts and coils normally set right=1 — they behave like horizontal wires with instruction data layered on top. Instruction occupancy and right-wire presence are separate in the native format: a drum placed on a newly inserted blank row can have right=0. A contact cell can additionally set down=1 (a branch rooted directly under the contact): since right is already 1, that's the T shape, and the CSV renders it as a `T:` prefix on the contact token (e.g. `T:C1204`), mapping to `wire_down=True` on `Contact`/`CompareContact`.
 
-A cell in the AF column can also set down=1 (CLICK keeps a path drawn down the output column until its syntax check, which removes it). The CSV cannot hold that vertical, so the decoders return an undecoded marker for the rung, with an `UndecodedRungWarning`, instead of dropping it: `decode()` when an AF cell sets down=1, and `decode_program()` when the AF column's down list is not empty.
+A cell in the AF column can also set down=1. CLICK keeps a path drawn down the output column until its syntax check, which removes it. The CSV cannot hold that vertical. So instead of dropping it, the decoders return an undecoded marker for the rung, with an `UndecodedRungWarning`. `decode()` does this when an AF cell sets down=1, and `decode_program()` does it when the AF column's down list is not empty.
 
 ## Row-start flag
 
