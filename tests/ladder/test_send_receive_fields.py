@@ -1145,7 +1145,7 @@ def test_zero_padded_hex_rung_stays_raw_and_round_trips(tmp_path: Path) -> None:
     sent = rung.instructions[0]
     object.__setattr__(sent.remote_start, "address", "0FFFEh")
     blob = sent.build_blob()
-    got = decode(encode(rung)).instructions[0]
+    got = decode(encode(rung))[0].instructions[0]
     assert not isinstance(got, Send)
     assert got.build_blob() == blob
 

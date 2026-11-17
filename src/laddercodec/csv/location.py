@@ -24,13 +24,15 @@ class CsvLocation:
     """Where in a CSV an error ``read_csv`` raised, or a refusal it kept, was found.
 
     Every exception ``read_csv`` raises for a bad CSV carries one as its ``location``
-    attribute, whatever its class: ``ValueError``, ``FieldError``, ``AddressError``,
-    ``csv.Error`` and the rest keep their class and gain the attribute.  :meth:`of` reads
-    it.  A ``ValueError`` (``FieldError`` included) or ``csv.Error`` message ends with
-    `` (at <location>)``; a ``UnicodeDecodeError`` keeps its message and its location
-    holds ``file`` only.  A ``FieldError`` refused while a box takes its pin rows (a
-    ``.jump()`` target, a ``.reset()`` on a timer that can't be retentive) arrives as the
-    ``ConvertError`` it always was, with the refusal's data.  Each refusal in a
+    attribute, whatever its class: ``CsvError`` (a row or token it can't read),
+    ``FieldError`` and ``AddressError`` keep their class and gain the attribute.
+    :meth:`of` reads it.  A ``csv.Error`` or ``UnicodeDecodeError`` (a file that isn't
+    UTF-8) arrives as a ``CsvError`` with the same message and the original as its
+    ``__cause__``; for a file that isn't UTF-8, the location holds ``file`` only.  Each
+    message ends with `` (at <location>)``.  A
+    ``FieldError`` refused while a box takes its pin rows (a ``.jump()`` target, a
+    ``.reset()`` on a timer that can't be retentive) arrives as a ``CsvError``, with the
+    refusal's data.  Each refusal in a
     ``FieldError``'s ``errors`` carries its own location.  Each field is ``None``
     where it is not known or does not apply.
 

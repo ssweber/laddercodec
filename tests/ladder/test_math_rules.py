@@ -470,7 +470,7 @@ def test_a_stored_rand_its_dialog_refuses_decodes_and_writes_its_bytes(
         assert old.encode("utf-16-le") in data, old
         data = data.replace(old.encode("utf-16-le"), new.encode("utf-16-le"))
     with pytest.warns(RefusedFieldWarning, match=message):
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [math] = decoded.instructions
     assert isinstance(math, Math)
@@ -489,7 +489,7 @@ def test_a_stored_real_above_the_largest_float32_decodes_and_writes_its_bytes(
     assert data.count(old) == 4  # the display formula, the template and both internal forms
     data = data.replace(old, new)
     with pytest.warns(RefusedFieldWarning, match=r"3\.4028235E\+38 is outside the float32 range"):
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [math] = decoded.instructions
     assert isinstance(math, Math) and math.expression == "DF1 * 3.4028235E+38"

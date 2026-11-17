@@ -34,7 +34,7 @@ def test_tumbler_scr_decodes_to_clipboard_rungs(scr_path: Path) -> None:
         assert program.name == scr_path.stem
 
     clipboard = decode(clipboard_bin.read_bytes())
-    expected = clipboard if isinstance(clipboard, list) else [clipboard]
+    expected = clipboard
     assert _cells(program.rungs) == _cells(expected)
 
 

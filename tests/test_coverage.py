@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec.csv.converter import ConvertError, convert_rung
+from laddercodec.csv.converter import CsvError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import write_csv
 from laddercodec.decode import Rung, decode
@@ -57,7 +57,7 @@ def _convert_program(
     for idx, rung in enumerate(rungs):
         try:
             converted.extend(_args(r) for r in convert_rung(rung))
-        except (ConvertError, NotImplementedError, ValueError) as exc:
+        except (CsvError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"rung {idx}: {exc}") from exc
     return rungs, converted
 
@@ -129,7 +129,7 @@ def test_coverage_csv_roundtrip(pair_index, tmp_path: Path):
     encoded = _encode_converted(converted)
 
     decoded = decode(encoded)
-    decoded_rungs = decoded if isinstance(decoded, list) else [decoded]
+    decoded_rungs = decoded
     if any(not isinstance(r, Rung) for r in decoded_rungs):
         pytest.fail(f"decode returned unexpected object type for {rid}")
 

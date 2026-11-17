@@ -18,6 +18,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..errors import CsvError, EncodeError
 from ..model import (
     Address,
     PinnedInstruction,
@@ -108,7 +109,7 @@ def _parse_simple_list(val: str) -> list[str]:
     """Parse ``"[a,b,c]"`` into a list of strings."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise ValueError(f"Expected list: {val!r}")
+        raise CsvError(f"Expected list: {val!r}")
     inner = val[1:-1].strip()
     if not inner:
         return []
@@ -119,7 +120,7 @@ def _parse_pattern(val: str) -> list[list[int]]:
     """Parse ``"[[1,0],[0,1]]"`` into a nested integer list."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise ValueError(f"Expected nested list: {val!r}")
+        raise CsvError(f"Expected nested list: {val!r}")
     inner = val[1:-1].strip()
     rows: list[str] = []
     depth = 0
@@ -139,7 +140,7 @@ def _parse_pattern(val: str) -> list[list[int]]:
             continue
         cells = _parse_simple_list(row_str)
         if any(x not in ("0", "1") for x in cells):
-            raise ValueError(f"A pattern cell is 0 or 1: {row_str!r}")
+            raise CsvError(f"A pattern cell is 0 or 1: {row_str!r}")
         pattern.append([int(x) for x in cells])
     return pattern
 
@@ -229,7 +230,7 @@ def _refuse_blank_steps(
 def _timer_done_bit(accumulator: str) -> str:
     """``TD101`` -> ``T101``: the timer a time & event drum's accumulator belongs to."""
     if not accumulator.startswith("TD"):
-        raise ValueError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
+        raise CsvError(f"time_event_drum accumulator must be a TD address: {accumulator!r}")
     return f"T{accumulator[2:]}"
 
 
@@ -465,7 +466,7 @@ class Drum(PinnedInstruction):
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Drum:
         if ".reset" not in pins:
-            raise ValueError("Drum requires a .reset() pin row")
+            raise CsvError("Drum requires a .reset() pin row")
         drum = replace(self, pin_rows=cast(tuple[int, int, int], pin_rows))
         if ".jump" in pins:
             target = pins[".jump"][0] if pins[".jump"] else ""
@@ -499,7 +500,7 @@ class Drum(PinnedInstruction):
             if block_base and self.has_register_preset:
                 block_base += _REGISTER_PRESET_FC_OFFSET
         if not block_base:
-            raise ValueError(f"Unsupported {self.drum_kind} drum unit: {self.unit!r}")
+            raise EncodeError(f"Unsupported {self.drum_kind} drum unit: {self.unit!r}")
         # Each time unit's block has the event drum's shape: no-jog group (base,
         # reset, jump) then jog group (base, reset, jump, jog).
         if self.jog_enabled:
@@ -593,7 +594,11 @@ class Drum(PinnedInstruction):
             # (absent = -1), and a time drum's func code series follows it.
             out += _tagged_field(0x428A, _constant_preset_mask(self.events_or_presets))
             # Field 80: the done bit of the accumulator's timer (TD101 -> T101)
-            out += _tagged_field(0x6068, _timer_done_bit(self.accumulator))
+            try:
+                done_bit = _timer_done_bit(self.accumulator)
+            except CsvError as exc:  # the accumulator was changed after it was built
+                raise EncodeError(str(exc)) from exc
+            out += _tagged_field(0x6068, done_bit)
 
         # Last field: terminator
         out += _tagged_field(0x0000, "")
@@ -726,13 +731,13 @@ def parse_af_call(call: AfCall) -> Drum:
         presets = _parse_optional_list(call.kwargs.get("presets", "[]"))
         events = _parse_optional_list(call.kwargs.get("events", "[]"))
         if len(presets) != len(events):
-            raise ValueError(
+            raise CsvError(
                 f"time_event_drum needs one preset and one event per step "
                 f"(None for unused): {len(presets)} presets, {len(events)} events"
             )
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_EVENT_FC_BASE:
-            raise ValueError(f"Unsupported time_event_drum unit: {unit!r}")
+            raise CsvError(f"Unsupported time_event_drum unit: {unit!r}")
         accumulator = normalize_address(call.kwargs.get("accumulator", ""), "Drum.accumulator")
         _timer_done_bit(accumulator)
         return Drum(
@@ -756,7 +761,7 @@ def parse_af_call(call: AfCall) -> Drum:
         accumulator = call.kwargs.get("accumulator", "")
         unit = call.kwargs.get("unit", "")
         if unit not in _TIME_FC_BASE:
-            raise ValueError(f"Unsupported time drum unit: {unit!r}")
+            raise CsvError(f"Unsupported time drum unit: {unit!r}")
 
     return Drum(
         drum_kind="event" if is_event else "time",

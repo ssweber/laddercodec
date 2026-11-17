@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
+from ..errors import CsvError
 from ..model import (
     ConditionInstruction,
     InstructionType,
@@ -180,7 +181,7 @@ class CompareContact(ConditionInstruction):
 
         parts = split_comparison(token)
         if parts is None:
-            raise ValueError(f"Cannot parse compare contact: {token!r}")
+            raise CsvError(f"Cannot parse compare contact: {token!r}")
         left, op, right = parts
         return cls(op=cast(CompareOp, op), left=left, right=right, wire_down=wire_down)
 

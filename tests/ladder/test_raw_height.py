@@ -90,10 +90,6 @@ def _af_cells(data: bytes) -> list[tuple[str, int, int]]:
     return cells
 
 
-def _rungs(decoded: Rung | list[Rung]) -> list[Rung]:
-    return decoded if isinstance(decoded, list) else [decoded]
-
-
 def _all_raw(rungs: list[Rung]) -> bool:
     return all(
         isinstance(af, RawInstruction)
@@ -129,7 +125,7 @@ def test_clipboard_raw_reencodes_native_row_bytes(
 ) -> None:
     native = _load(path)
     monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
-    rungs = _rungs(decode(native))
+    rungs = decode(native)
     assert _all_raw(rungs)
     assert _af_cells(encode(rungs)) == _af_cells(native)
 
@@ -162,7 +158,7 @@ def test_clipboard_short_box_stays_raw(below: object) -> None:
     rung = Rung(2, [["-"] * 31, ["-"] * 31], [_short_email(), below], None, None)
     data = encode(rung)
     assert _af_cells(data)[0] == ("Email", 1, 1)
-    (back,) = _rungs(decode(data))
+    (back,) = decode(data)
     assert back.logical_rows == 2
     assert isinstance(back.instructions[0], RawInstruction)
     assert back.instructions[0].cell_params() == {}
@@ -228,7 +224,7 @@ def test_sub_rows_default_to_the_given_span() -> None:
 def _typed_boxes() -> list[AfInstruction]:
     boxes = []
     for path in CAPTURES:
-        for rung in _rungs(decode(_load(path))):
+        for rung in decode(_load(path)):
             boxes += [
                 af
                 for af in rung.instructions
@@ -238,7 +234,7 @@ def _typed_boxes() -> list[AfInstruction]:
 
 
 def _typed(path: Path, class_name: str) -> AfInstruction:
-    for rung in _rungs(decode(_load(path))):
+    for rung in decode(_load(path)):
         for af in rung.instructions:
             if isinstance(af, AfInstruction) and not isinstance(af, RawInstruction):
                 if find_blob_boundary(af.build_blob() + bytes(16))[0] == class_name:
@@ -355,7 +351,7 @@ def test_writer_keeps_native_sub_rows_raw(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
     rungs = [
         rung
-        for rung in _rungs(decode(native))
+        for rung in decode(native)
         if any(getattr(af, "class_name", "") == "Search" for af in rung.instructions)
     ]
     assert len(rungs) == 8
@@ -470,7 +466,7 @@ def _drawn(rungs: list[Rung]) -> list[Rung]:
 def _forced_raw_rungs(path: Path) -> list[Rung]:
     if path.suffix == ".scr":
         return decode_program(path.read_bytes()).rungs
-    return _rungs(decode(_load(path)))
+    return decode(_load(path))
 
 
 def test_native_pin_rows_round_trip_through_csv(
@@ -642,7 +638,7 @@ def test_native_raw_math_with_a_comma_in_a_field_round_trips_through_csv(
     monkeypatch.setattr(_decode, "parse_af_blob", lambda raw: None)
     cases = [(V4 / "math.bin", (21, 22, 23)), (V4 / "math_typed.bin", (1,))]
     for path, numbers in cases:
-        rungs = _rungs(decode(_load(path)))
+        rungs = decode(_load(path))
         for number in numbers:
             rung = rungs[number - 1]
             out = tmp_path / f"{path.stem}_{number}.csv"

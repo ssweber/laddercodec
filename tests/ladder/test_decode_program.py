@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Undecoded, UndecodedRungWarning, decode
+from laddercodec import DecodeError, Undecoded, UndecodedRungWarning, decode
 from laddercodec._layout import canonical
 from laddercodec.csv import read_csv
 from laddercodec.decode import AF_DOWN_WIRE, inspect_cells
@@ -60,7 +60,7 @@ def _load_fixture_pair(name: str):
     clip_data = (_SCR_FIXTURE_DIR / f"{name}.bin").read_bytes()
 
     clip_result = decode(clip_data)
-    clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
+    clip_rungs = clip_result
     program = decode_program(scr_data)
     return clip_rungs, program.rungs
 
@@ -471,7 +471,7 @@ def test_topology_row_blocks_match_or_topology_clipboard_columns():
     clip_data = (_SCR_FIXTURE_DIR / "or_topology.bin").read_bytes()
 
     clip_result = decode(clip_data)
-    clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
+    clip_rungs = clip_result
 
     topo_map = _topology_blocks_by_section(scr_data)
 
@@ -497,7 +497,7 @@ def test_row_block_seg_flags_match_clipboard_segment_flags():
     clip_data = (_SCR_FIXTURE_DIR / "or_topology.bin").read_bytes()
 
     clip_result = decode(clip_data)
-    clip_rungs = clip_result if isinstance(clip_result, list) else [clip_result]
+    clip_rungs = clip_result
 
     topo_map = _topology_blocks_by_section(scr_data)
 
@@ -924,7 +924,7 @@ def test_corrupt_topology_is_not_skipped_before_a_valid_rung():
     # Invalid row count in rung zero; later rung framing is still valid.
     struct.pack_into("<H", data, header.rungs_start + 6, 0)
     assert _framing_marker(data, 0, "unparseable rung topology") == []
-    with pytest.raises(ValueError, match=r"unparseable rung topology.*rung 0"):
+    with pytest.raises(DecodeError, match=r"unparseable rung topology.*rung 0"):
         _walk_rung_records(bytes(data), header)
 
 
@@ -1014,12 +1014,20 @@ def test_a_section_count_too_low_puts_the_marker_on_its_record(monkeypatch):
     assert checked > 20
 
 
-def test_truncated_headers_raise_value_error():
+def test_truncated_headers_raise_decode_error():
     data = _synthetic_scr([None])
     header = _parse_header(data)
     for end in range(header.rungs_start):
-        with pytest.raises(ValueError):
+        with pytest.raises(DecodeError):
             decode_program(data[:end])
+
+
+def test_a_name_that_is_not_utf16_raises_decode_error():
+    data = bytearray(_synthetic_scr([None]))
+    data[0x43:0x45] = b"\x00\xd8"  # a lone high surrogate
+    with pytest.raises(DecodeError, match="SCR name is not UTF-16LE text") as caught:
+        decode_program(bytes(data))
+    assert isinstance(caught.value.__cause__, UnicodeDecodeError)
 
 
 def test_truncated_rung_prefixes_stop_decoding_at_a_marker():
@@ -1066,8 +1074,6 @@ def test_native_row_and_entry_flags_map_to_clipboard(name):
     binary = path.with_suffix(".bin").read_bytes()
     records = _walk_rung_records(data, _parse_header(data))
     rungs = decode(binary)
-    if not isinstance(rungs, list):
-        rungs = [rungs]
     requests = [
         (i, row, col)
         for i, rung in enumerate(rungs)

@@ -38,7 +38,7 @@ def _clip_blob(clip: bytes) -> bytes:
 
 
 def _one(rungs: object) -> Copy | BlockCopy:
-    rung = rungs[0] if isinstance(rungs, list) else rungs
+    rung = rungs[0]
     [found] = [t for t in rung.instructions if isinstance(t, (Copy, BlockCopy))]
     return found
 

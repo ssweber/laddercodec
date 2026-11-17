@@ -220,7 +220,7 @@ def _stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields) -> bytes
 def _decoded(data: bytes) -> tuple[list[Rung], list[RefusedFieldWarning]]:
     with pytest.warns(RefusedFieldWarning) as record:
         decoded = decode(data)
-    rungs = decoded if isinstance(decoded, list) else [decoded]
+    rungs = decoded
     return rungs, [w.message for w in record if isinstance(w.message, RefusedFieldWarning)]
 
 
@@ -273,7 +273,7 @@ def test_a_field_fixed_by_assignment_is_accepted(
         rungs, _ = _read_unchecked(_edited(tmp_path, golden, old, new))
     index, held = _held(rungs)
     golden_bytes = (GOLDEN / f"{golden}.bin").read_bytes()
-    [valid] = [t for t in _tokens(_as_list(decode(golden_bytes))[index]) if type(t) is cls]
+    [valid] = [t for t in _tokens(decode(golden_bytes)[index]) if type(t) is cls]
     _fix(held, valid)
     assert not refusals(held)
     assert encode(rungs) == golden_bytes
@@ -292,7 +292,7 @@ def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
         rungs, _ = _read_unchecked(_edited(tmp_path, golden, old, new))
     index, held = _held(rungs)
     golden_bytes = (GOLDEN / f"{golden}.bin").read_bytes()
-    [valid] = [t for t in _tokens(_as_list(decode(golden_bytes))[index]) if type(t) is cls]
+    [valid] = [t for t in _tokens(decode(golden_bytes)[index]) if type(t) is cls]
     typed = {
         f.name: getattr(valid, f.name).lower()
         for f in dataclasses.fields(cast("Any", valid))
@@ -307,10 +307,6 @@ def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
         setattr(held, name, value)
     assert not refusals(held)
     assert encode(rungs) == golden_bytes
-
-
-def _as_list(decoded: Rung | list[Rung]) -> list[Rung]:
-    return decoded if isinstance(decoded, list) else [decoded]
 
 
 @pytest.mark.parametrize(("golden", "old", "new", "cls", "fields"), CASES, ids=_IDS)
@@ -399,7 +395,7 @@ def test_clicks_own_refused_math_writes_its_bytes(monkeypatch, file, index) -> N
         warnings.simplefilter("ignore")
         decoded_raw = decode(data)
     monkeypatch.undo()
-    as_raw = (decoded_raw if isinstance(decoded_raw, list) else [decoded_raw])[index]
+    as_raw = decoded_raw[index]
     assert any(isinstance(t, RawInstruction) for t in as_raw.instructions)
     out = encode(rung)
     assert out == encode(as_raw)
@@ -540,7 +536,7 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
         ]
         return found
 
-    from_clipboard = _as_list(decode(clipboard))
+    from_clipboard = decode(clipboard)
     index, inst = edge_spaced(from_clipboard)
     assert not refusals(inst)
     blob = inst.build_blob()
@@ -551,7 +547,7 @@ def test_both_decoders_write_an_edge_spaced_destination_as_stored(
     monkeypatch.setattr(
         decode_mod, "parse_af_blob", lambda raw: None if (af := parse_af(raw)) == inst else af
     )
-    as_raw_clipboard = _as_list(decode(clipboard))
+    as_raw_clipboard = decode(clipboard)
     monkeypatch.undo()
     [raw_clip] = [t for t in as_raw_clipboard[index].instructions if isinstance(t, RawInstruction)]
     assert raw_clip.blob == blob

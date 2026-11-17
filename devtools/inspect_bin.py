@@ -149,13 +149,11 @@ def main() -> None:
         print(f"  {path.name} ({len(data)} bytes)")
         print(f"{'=' * 60}")
 
-        result = decode(data)
-        if isinstance(result, Rung):
-            _print_rung(result, 0)
-        else:
-            print(f"  Multi-rung: {len(result)} rungs")
-            for i, rung in enumerate(result):
-                _print_rung(rung, i)
+        rungs = decode(data)
+        if len(rungs) > 1:
+            print(f"  Multi-rung: {len(rungs)} rungs")
+        for i, rung in enumerate(rungs):
+            _print_rung(rung, i)
 
 
 if __name__ == "__main__":

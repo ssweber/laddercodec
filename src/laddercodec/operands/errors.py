@@ -5,6 +5,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Any
 
+from ..errors import LaddercodecError
+
 
 class Reason(StrEnum):
     """Why a field refused its value: :attr:`FieldError.reason`.
@@ -39,7 +41,7 @@ class Reason(StrEnum):
     """Blank where the field needs a value."""
 
 
-class FieldError(ValueError):
+class FieldError(LaddercodecError):
     """An instruction field holds a value CLICK's dialog refuses.
 
     An instruction runs its checks when it is built and raises one error for every value

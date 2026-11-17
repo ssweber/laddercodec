@@ -11,9 +11,11 @@ entry.
   ``import re``, ``import re as x`` or ``from re import ...``.
 - ``BANK_NAMES``: a set, tuple or list literal (or ``set``/``frozenset`` of one) whose
   items are all text and include a bank name, and a dict literal whose keys are.
-- ``VALUE_ERROR``: a raise of ``ValueError``, called or bare, of a name bound to it, or of
-  a ``ValueError`` subclass defined in ``instructions/``, outside the blob-parse functions
-  in ``BLOB_PARSE``, which report malformed bytes and stay ``ValueError``.
+- ``VALUE_ERROR``: a raise of ``ValueError``, called or bare, of a name bound to it, of a
+  ``ValueError`` subclass defined in ``instructions/``, or of a class of
+  :mod:`laddercodec.errors` (``CsvError``, ``EncodeError``, ...), outside the blob-parse
+  functions in ``BLOB_PARSE``, which report malformed bytes and stay ``ValueError``.  A
+  ``FieldError`` is the form a refused field takes, and is not counted.
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import copy
 from collections import Counter
 from pathlib import Path
 
+from laddercodec import errors
 from laddercodec.operands.address import ADDRESS_BANKS
 
 INSTRUCTIONS = Path(__file__).resolve().parents[1] / "src" / "laddercodec" / "instructions"
@@ -36,6 +39,13 @@ _SEQUENCES = (ast.Set, ast.List, ast.Tuple)
 BLOB_PARSE = frozenset({("raw.py", "_read_utf16le_boundary"), ("raw.py", "find_blob_boundary")})
 
 Key = tuple[str, str]
+
+#: The classes of :mod:`laddercodec.errors`: a raise of one is counted as a ``ValueError``.
+TREE_ERRORS = frozenset(
+    name
+    for name, value in vars(errors).items()
+    if isinstance(value, type) and issubclass(value, ValueError)
+)
 
 
 # ---------------------------------------------------------------------------
@@ -146,8 +156,9 @@ def _is_bank_literal(node: ast.AST, parent: ast.AST | None) -> bool:
 
 
 def _value_error_names(trees: list[ast.Module]) -> set[str]:
-    """``ValueError``, the names bound to it and its subclasses defined in ``trees``."""
-    names = {"ValueError"}
+    """``ValueError``, the classes of :mod:`laddercodec.errors`, the names bound to them and
+    their subclasses defined in ``trees``."""
+    names = {"ValueError", *TREE_ERRORS}
 
     def is_known(expr: ast.expr) -> bool:
         if isinstance(expr, ast.Name):
@@ -333,136 +344,138 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
 }
 
 VALUE_ERROR_ALLOWED: dict[Key, int] = {
-    ("call.py", "ValueError(f('Cannot parse call instruction: {token!r}'))"): 1,
-    ("coil.py", "ValueError('coil oneshot must be 0 or 1')"): 1,
-    ("coil.py", "ValueError(f(\"Range delimiter ':' is unsupported: {token!r}\"))"): 1,
-    ("coil.py", "ValueError(f('Cannot parse coil keyword arg: {token!r}'))"): 1,
-    ("coil.py", "ValueError(f('Cannot parse coil range: {token!r}'))"): 1,
-    ("coil.py", "ValueError(f('Cannot parse coil: {token!r}'))"): 2,
-    ("coil.py", "ValueError(f('Coil does not support keyword argument(s): {sorted(unknown)}'))"): 1,
+    ("call.py", "CsvError(f('Cannot parse call instruction: {token!r}'))"): 1,
+    ("coil.py", "CsvError('coil oneshot must be 0 or 1')"): 1,
+    ("coil.py", "CsvError(f(\"Range delimiter ':' is unsupported: {token!r}\"))"): 1,
+    ("coil.py", "CsvError(f('Cannot parse coil keyword arg: {token!r}'))"): 1,
+    ("coil.py", "CsvError(f('Cannot parse coil range: {token!r}'))"): 1,
+    ("coil.py", "CsvError(f('Cannot parse coil: {token!r}'))"): 2,
+    ("coil.py", "CsvError(f('Coil does not support keyword argument(s): {sorted(unknown)}'))"): 1,
     (
         "coil.py",
-        "ValueError(f('Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}'))",
+        "CsvError(f('Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}'))",
     ): 1,
-    ("comparison.py", "ValueError(f('Cannot parse compare contact: {token!r}'))"): 1,
-    ("contact.py", "ValueError('Immediate edge contacts are unsupported')"): 1,
-    ("copy.py", "ValueError(f(\"Expected range with '..': {arg!r}\"))"): 1,
-    ("copy.py", "ValueError(f('Cannot parse convert value: {raw!r}'))"): 1,
-    ("copy.py", "ValueError(f('Cannot parse copy: {token!r}'))"): 1,
-    ("copy.py", "ValueError(f('Cannot parse range: {arg!r}'))"): 1,
-    ("copy.py", "ValueError(f('Unknown format: {self.format!r}'))"): 1,
-    ("copy.py", "ValueError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
+    ("comparison.py", "CsvError(f('Cannot parse compare contact: {token!r}'))"): 1,
+    ("contact.py", "CsvError('Immediate edge contacts are unsupported')"): 1,
+    ("copy.py", "CsvError(f(\"Expected range with '..': {arg!r}\"))"): 1,
+    ("copy.py", "CsvError(f('Cannot parse convert value: {raw!r}'))"): 1,
+    ("copy.py", "CsvError(f('Cannot parse copy: {token!r}'))"): 1,
+    ("copy.py", "CsvError(f('Cannot parse range: {arg!r}'))"): 1,
+    ("copy.py", "WriterError(f('Unknown format: {self.format!r}'))"): 1,
+    ("copy.py", "CsvError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
     (
         "copy.py",
-        "ValueError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))",
-    ): 1,
-    (
-        "copy.py",
-        "ValueError(f('blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}'))",
+        "CsvError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))",
     ): 1,
     (
         "copy.py",
-        "ValueError(f('copy expects 2 positional args (source, dest), got {len(args)}: {token!r}'))",
+        "CsvError(f('blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}'))",
     ): 1,
     (
         "copy.py",
-        "ValueError(f('copy expects 2 positional args (source, dest), got {len(call.args)}'))",
+        "CsvError(f('copy expects 2 positional args (source, dest), got {len(args)}: {token!r}'))",
     ): 1,
     (
         "copy.py",
-        "ValueError(f('fill expects 2 positional args (value, dest_range), got {len(call.args)}'))",
-    ): 1,
-    ("copy.py", "ValueError(f('to_{fmt} options must be keyword arguments: {raw!r}'))"): 1,
-    ("copy.py", "ValueError(f('to_{fmt} takes no arguments: {raw!r}'))"): 1,
-    (
-        "copy.py",
-        "ValueError(f('{call.name} expects 2 positional args (source, dest_range), got {len(call.args)}'))",
+        "CsvError(f('copy expects 2 positional args (source, dest), got {len(call.args)}'))",
     ): 1,
     (
         "copy.py",
-        "ValueError(f('{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}'))",
+        "CsvError(f('fill expects 2 positional args (value, dest_range), got {len(call.args)}'))",
     ): 1,
-    ("counter.py", "ValueError(f('Cannot parse counter: {token!r}'))"): 1,
+    ("copy.py", "CsvError(f('to_{fmt} options must be keyword arguments: {raw!r}'))"): 1,
+    ("copy.py", "CsvError(f('to_{fmt} takes no arguments: {raw!r}'))"): 1,
+    (
+        "copy.py",
+        "CsvError(f('{call.name} expects 2 positional args (source, dest_range), got {len(call.args)}'))",
+    ): 1,
+    (
+        "copy.py",
+        "CsvError(f('{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}'))",
+    ): 1,
+    ("counter.py", "CsvError(f('Cannot parse counter: {token!r}'))"): 1,
     (
         "counter.py",
-        "ValueError(f('Unsupported counter variant: {self.counter_type}(down={self.down_enabled}, reset={self.reset_enabled})'))",
+        "EncodeError(f('Unsupported counter variant: {self.counter_type}(down={self.down_enabled}, reset={self.reset_enabled})'))",
     ): 1,
     (
         "counter.py",
-        "ValueError(f('{counter_type} expects 2 positional args (done, current), got {len(args)}: {token!r}'))",
+        "CsvError(f('{counter_type} expects 2 positional args (done, current), got {len(args)}: {token!r}'))",
     ): 1,
-    ("counter.py", "ValueError(f('{counter_type} missing preset kwarg: {token!r}'))"): 1,
-    ("counter.py", "ValueError(f('{self.counter_type} requires a .reset() pin row'))"): 1,
-    ("drum.py", "ValueError('Drum requires a .reset() pin row')"): 1,
-    ("drum.py", "ValueError(f('A pattern cell is 0 or 1: {row_str!r}'))"): 1,
-    ("drum.py", "ValueError(f('Expected list: {val!r}'))"): 1,
-    ("drum.py", "ValueError(f('Expected nested list: {val!r}'))"): 1,
-    ("drum.py", "ValueError(f('Unsupported time drum unit: {unit!r}'))"): 1,
-    ("drum.py", "ValueError(f('Unsupported time_event_drum unit: {unit!r}'))"): 1,
-    ("drum.py", "ValueError(f('Unsupported {self.drum_kind} drum unit: {self.unit!r}'))"): 1,
+    ("counter.py", "CsvError(f('{counter_type} missing preset kwarg: {token!r}'))"): 1,
+    ("counter.py", "CsvError(f('{self.counter_type} requires a .reset() pin row'))"): 1,
+    ("drum.py", "CsvError('Drum requires a .reset() pin row')"): 1,
+    ("drum.py", "CsvError(f('A pattern cell is 0 or 1: {row_str!r}'))"): 1,
+    ("drum.py", "CsvError(f('Expected list: {val!r}'))"): 1,
+    ("drum.py", "CsvError(f('Expected nested list: {val!r}'))"): 1,
+    ("drum.py", "CsvError(f('Unsupported time drum unit: {unit!r}'))"): 1,
+    ("drum.py", "CsvError(f('Unsupported time_event_drum unit: {unit!r}'))"): 1,
+    ("drum.py", "EncodeError(f('Unsupported {self.drum_kind} drum unit: {self.unit!r}'))"): 1,
+    ("drum.py", "EncodeError(str(exc))"): 1,
     (
         "drum.py",
-        "ValueError(f('time_event_drum accumulator must be a TD address: {accumulator!r}'))",
+        "CsvError(f('time_event_drum accumulator must be a TD address: {accumulator!r}'))",
     ): 1,
     (
         "drum.py",
-        "ValueError(f('time_event_drum needs one preset and one event per step (None for unused): {len(presets)} presets, {len(events)} events'))",
+        "CsvError(f('time_event_drum needs one preset and one event per step (None for unused): {len(presets)} presets, {len(events)} events'))",
     ): 1,
-    ("email.py", "ValueError(f('Not a raw Email token: {token!r}'))"): 1,
-    ("email.py", "ValueError(f('Not an Email token: {token!r}'))"): 1,
-    ("end.py", "ValueError(f('Cannot parse end instruction: {token!r}'))"): 1,
-    ("forloop.py", "ValueError('for oneshot must be 0 or 1')"): 1,
-    ("forloop.py", "ValueError(f('Cannot parse break instruction: {token!r}'))"): 1,
-    ("forloop.py", "ValueError(f('Cannot parse continue instruction: {token!r}'))"): 1,
-    ("forloop.py", "ValueError(f('Cannot parse for instruction: {token!r}'))"): 1,
-    ("forloop.py", "ValueError(f('Cannot parse next instruction: {token!r}'))"): 1,
+    ("email.py", "CsvError(f('Not a raw Email token: {token!r}'))"): 1,
+    ("email.py", "CsvError(f('Not an Email token: {token!r}'))"): 1,
+    ("end.py", "CsvError(f('Cannot parse end instruction: {token!r}'))"): 1,
+    ("forloop.py", "CsvError('for oneshot must be 0 or 1')"): 1,
+    ("forloop.py", "CsvError(f('Cannot parse break instruction: {token!r}'))"): 1,
+    ("forloop.py", "CsvError(f('Cannot parse continue instruction: {token!r}'))"): 1,
+    ("forloop.py", "CsvError(f('Cannot parse for instruction: {token!r}'))"): 1,
+    ("forloop.py", "CsvError(f('Cannot parse next instruction: {token!r}'))"): 1,
     (
         "forloop.py",
-        "ValueError(f('for does not support keyword argument(s): {sorted(unknown)}'))",
+        "CsvError(f('for does not support keyword argument(s): {sorted(unknown)}'))",
     ): 1,
-    ("forloop.py", "ValueError(f('for expects 1 positional arg (limit), got {len(args)}'))"): 1,
-    ("home.py", "ValueError(f('Not a Home token: {token!r}'))"): 1,
-    ("home.py", "ValueError(f('Not a raw Home token: {token!r}'))"): 1,
-    ("math.py", "ValueError(f(\"math mode must be 'decimal' or 'hex', got {mode_arg!r}\"))"): 1,
+    ("forloop.py", "CsvError(f('for expects 1 positional arg (limit), got {len(args)}'))"): 1,
+    ("home.py", "CsvError(f('Not a Home token: {token!r}'))"): 1,
+    ("home.py", "CsvError(f('Not a raw Home token: {token!r}'))"): 1,
+    ("math.py", "CsvError(f(\"math mode must be 'decimal' or 'hex', got {mode_arg!r}\"))"): 1,
     (
         "math.py",
-        "ValueError(f('math expects 2 positional args (expression, result), got {len(call.args)}'))",
+        "CsvError(f('math expects 2 positional args (expression, result), got {len(call.args)}'))",
     ): 1,
-    ("out_variant.py", "ValueError('timed maintained must be 0 or 1')"): 1,
-    ("out_variant.py", "ValueError(f('Cannot parse Out variant: {token!r}'))"): 1,
-    ("out_variant.py", "ValueError(f('Cannot parse {kind} keyword arg: {token!r}'))"): 1,
-    ("out_variant.py", "ValueError(f('toggle takes no keyword arguments: {token!r}'))"): 1,
+    ("out_variant.py", "CsvError('timed maintained must be 0 or 1')"): 1,
+    ("out_variant.py", "CsvError(f('Cannot parse Out variant: {token!r}'))"): 1,
+    ("out_variant.py", "CsvError(f('Cannot parse {kind} keyword arg: {token!r}'))"): 1,
+    ("out_variant.py", "CsvError(f('toggle takes no keyword arguments: {token!r}'))"): 1,
     (
         "out_variant.py",
-        "ValueError(f('{kind} does not support keyword argument(s): {sorted(unknown)}'))",
+        "CsvError(f('{kind} does not support keyword argument(s): {sorted(unknown)}'))",
     ): 1,
     (
         "out_variant.py",
-        "ValueError(f('{kind} missing keyword argument(s) {sorted(missing)}: {token!r}'))",
+        "CsvError(f('{kind} missing keyword argument(s) {sorted(missing)}: {token!r}'))",
     ): 1,
-    ("out_variant.py", "ValueError(f('{kind} needs a target operand: {token!r}'))"): 1,
-    ("position.py", "ValueError(f('Not a Position token: {token!r}'))"): 1,
-    ("position.py", "ValueError(f('Not a raw Position token: {token!r}'))"): 1,
-    ("return_.py", "ValueError('return expects no arguments')"): 1,
-    ("return_.py", "ValueError(f('Cannot parse return instruction: {token!r}'))"): 1,
-    ("search.py", "ValueError('search missing result or found kwargs')"): 1,
-    ("search.py", "ValueError(f('Cannot parse search expression: {expr!r}'))"): 1,
+    ("out_variant.py", "CsvError(f('{kind} needs a target operand: {token!r}'))"): 1,
+    ("position.py", "CsvError(f('Not a Position token: {token!r}'))"): 1,
+    ("position.py", "CsvError(f('Not a raw Position token: {token!r}'))"): 1,
+    ("return_.py", "CsvError('return expects no arguments')"): 1,
+    ("return_.py", "CsvError(f('Cannot parse return instruction: {token!r}'))"): 1,
+    ("send_receive.py", "CsvError(f('{call.name} needs a {name}= keyword'))"): 1,
+    ("search.py", "CsvError('search missing result or found kwargs')"): 1,
+    ("search.py", "CsvError(f('Cannot parse search expression: {expr!r}'))"): 1,
     (
         "search.py",
-        "ValueError(f('search expects 1 positional arg (expression), got {len(call.args)}'))",
+        "CsvError(f('search expects 1 positional arg (expression), got {len(call.args)}'))",
     ): 1,
-    ("shift.py", "ValueError(f('Cannot parse shift range: {token!r}'))"): 1,
-    ("shift.py", "ValueError(f('Cannot parse shift: {token!r}'))"): 1,
-    ("shift.py", "ValueError(f('shift expects a range arg (start..end): {token!r}'))"): 1,
-    ("timer.py", "ValueError(f('Cannot parse timer: {token!r}'))"): 1,
-    ("timer.py", "ValueError(f('Unknown timer unit: {unit!r}'))"): 1,
+    ("shift.py", "CsvError(f('Cannot parse shift range: {token!r}'))"): 1,
+    ("shift.py", "CsvError(f('Cannot parse shift: {token!r}'))"): 1,
+    ("shift.py", "CsvError(f('shift expects a range arg (start..end): {token!r}'))"): 1,
+    ("timer.py", "CsvError(f('Cannot parse timer: {token!r}'))"): 1,
+    ("timer.py", "CsvError(f('Unknown timer unit: {unit!r}'))"): 1,
     (
         "timer.py",
-        "ValueError(f('{timer_type} expects 2 positional args (done, acc), got {len(args)}: {token!r}'))",
+        "CsvError(f('{timer_type} expects 2 positional args (done, acc), got {len(args)}: {token!r}'))",
     ): 1,
-    ("timer.py", "ValueError(f('{timer_type} missing preset or unit kwargs: {token!r}'))"): 1,
-    ("velocity.py", "ValueError(f('Not a Velocity token: {token!r}'))"): 1,
-    ("velocity.py", "ValueError(f('Not a raw Velocity token: {token!r}'))"): 1,
+    ("timer.py", "CsvError(f('{timer_type} missing preset or unit kwargs: {token!r}'))"): 1,
+    ("velocity.py", "CsvError(f('Not a Velocity token: {token!r}'))"): 1,
+    ("velocity.py", "CsvError(f('Not a raw Velocity token: {token!r}'))"): 1,
 }
 
 ALLOWED: dict[str, dict[Key, int]] = {
@@ -538,6 +551,10 @@ def check(value):
     raise ValueError(f"bad {value!r}")
 
 
+def parse(token):
+    raise CsvError(f"Cannot parse {token!r}")
+
+
 def find_blob_boundary(raw):
     raise ValueError("Truncated")
 """
@@ -570,6 +587,7 @@ def test_scan_finds_each_kind(tmp_path: Path) -> None:
             ("raw.py", "Refused(value)"): 1,
             ("raw.py", "WorseToken(f('bad {value!r:>4}'))"): 1,
             ("raw.py", "ValueError(f('bad {value!r}'))"): 1,
+            ("raw.py", "CsvError(f('Cannot parse {token!r}'))"): 1,
         }
     )
 

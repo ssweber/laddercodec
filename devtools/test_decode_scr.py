@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from laddercodec import Rung, decode
@@ -45,8 +44,7 @@ def main() -> None:
     scr_data = Path(scr_path).read_bytes()
     clip_data = Path(clip_path).read_bytes()
 
-    clip_result = decode(clip_data)
-    clip_rungs = cast(list[Rung], clip_result) if isinstance(clip_result, list) else [clip_result]
+    clip_rungs = decode(clip_data)
 
     program = decode_program(scr_data)
     scr_rungs = program.rungs

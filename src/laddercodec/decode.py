@@ -41,6 +41,7 @@ from dataclasses import dataclass, replace
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
+from .errors import DecodeError
 from .instructions import (
     AfInstruction,
     AfToken,
@@ -82,10 +83,6 @@ from .undecoded import (
 # ---------------------------------------------------------------------------
 # Public types
 # ---------------------------------------------------------------------------
-
-
-class DecodeError(ValueError):
-    """Raised when a clipboard binary cannot be decoded."""
 
 
 class _CellError(DecodeError):
@@ -819,8 +816,8 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
 # ---------------------------------------------------------------------------
 
 
-def decode(data: bytes) -> Rung | list[Rung]:
-    """Decode a clipboard binary. Returns Rung for single-rung, list[Rung] for multi-rung.
+def decode(data: bytes) -> list[Rung]:
+    """Decode a clipboard binary into its rungs, one or several.
 
     Parameters
     ----------
@@ -829,14 +826,13 @@ def decode(data: bytes) -> Rung | list[Rung]:
 
     Returns
     -------
-    Rung | list[Rung]
-        A single ``Rung`` for single-rung buffers, or a list of ``Rung``
-        objects for multi-rung buffers.  A rung that can't be decoded comes back as an
-        undecoded marker rung (:func:`laddercodec.undecoded.marker_rung`), with an
-        ``UndecodedRungWarning``.  When the cells can't be walked, the marker stands for
-        that rung and every rung after it; when that happens in rung 0, before any
-        preamble row, the decoder can't tell one rung from several and returns the
-        marker rung alone.
+    list[Rung]
+        One ``Rung`` per rung of the buffer, in order: a list of one for a single-rung
+        buffer.  A rung that can't be decoded comes back as an undecoded marker rung
+        (:func:`laddercodec.undecoded.marker_rung`), with an ``UndecodedRungWarning``.
+        When the cells can't be walked, the marker stands for that rung and every rung
+        after it; when that happens in rung 0, before any preamble row, the decoder can't
+        tell one rung from several and returns the marker rung alone in the list.
 
     Raises
     ------
@@ -862,7 +858,7 @@ def decode(data: bytes) -> Rung | list[Rung]:
     warn_refused([rung])
     warn_comments(failed)
     warn_undecoded([rung])
-    return rung
+    return [rung]
 
 
 def decode_rung(data: bytes) -> Rung:

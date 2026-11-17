@@ -428,7 +428,7 @@ def _clip_blob(clip: bytes) -> bytes:
 
 
 def _one_copy(rungs: object) -> Copy:
-    rung = rungs[0] if isinstance(rungs, list) else rungs
+    rung = rungs[0]
     [copy] = [t for t in rung.instructions if isinstance(t, Copy)]
     return copy
 

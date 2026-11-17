@@ -1139,5 +1139,4 @@ class TestFloatingRowBelowPinnedSpan:
 
         # Binary round-trip preserves the same emission.
         decoded = decode(encode(rungs))
-        decoded_list = decoded if isinstance(decoded, list) else [decoded]
-        assert decoded_rung_to_rows(decoded_list[0]) == data_rows
+        assert decoded_rung_to_rows(decoded[0]) == data_rows

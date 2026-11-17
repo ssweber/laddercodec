@@ -96,9 +96,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, cast
 
 from .empty_multirow import synthesize_empty_multirow
+from .errors import EncodeError
 from .instructions import AfInstruction, ConditionInstruction
 from .topology import (
     GRID_FIRST_ROW_START,
@@ -106,6 +108,9 @@ from .topology import (
     PREAMBLE_COMMENT_LENGTH,
     RUNG0_PREAMBLE_BASE,
 )
+
+if TYPE_CHECKING:
+    from .decode import Rung
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -244,7 +249,7 @@ def _normalize_af(token: AfToken) -> str:
         return "NOP"
     if stripped == "":
         return ""
-    raise ValueError(f"Unsupported AF token: {token!r}")
+    raise EncodeError(f"Unsupported AF token: {token!r}")
 
 
 def _compute_seg_boundaries(
@@ -384,7 +389,7 @@ def encode_rung(
         assert comment is not None
         encoded = _build_rtf_body(comment).encode("cp1252")
         if len(encoded) > COMMENT_MAX_BYTES:
-            raise ValueError(
+            raise EncodeError(
                 f"Comment body exceeds {COMMENT_MAX_BYTES} bytes after RTF encoding "
                 f"(got {len(encoded)})"
             )
@@ -400,7 +405,7 @@ def encode_rung(
     return _pad_to_page(out)
 
 
-def encode(rungs, *, show_nicknames: bool = False):
+def encode(rungs: Rung | Iterable[Rung], *, show_nicknames: bool = False) -> bytes:
     """Encode one or more rungs to clipboard binary.
 
     Parameters
@@ -418,31 +423,44 @@ def encode(rungs, *, show_nicknames: bool = False):
     -------
     bytes
         Encoded binary payload.
+
+    Raises
+    ------
+    EncodeError
+        If a rung can't be written: a grid of the wrong size, a wire token where CLICK
+        can't draw one, more than one ``NOP``, an undecoded marker, or a comment too long.
+    FieldError
+        If an instruction holds a value CLICK's dialog refuses.
     """
     from .decode import Rung  # lazy import to avoid circular
 
-    if isinstance(rungs, Rung):
-        return encode_rung(
-            rungs.logical_rows,
-            rungs.conditions,
-            rungs.instructions,
-            rungs.comment,
-            show_nicknames=show_nicknames,
-        )
-    rungs = list(rungs)
-    if len(rungs) == 1:
-        r = rungs[0]
+    rung_list = [rungs] if isinstance(rungs, Rung) else list(rungs)
+    if len(rung_list) == 1:
+        r = rung_list[0]
+        conditions, instructions = _cells(r)
         return encode_rung(
             r.logical_rows,
-            r.conditions,
-            r.instructions,
+            conditions,
+            instructions,
             r.comment,
             show_nicknames=show_nicknames,
         )
     from .encode_multi import encode_rungs
 
     return encode_rungs(
-        [(r.logical_rows, r.conditions, r.instructions) for r in rungs],
-        comments=[r.comment for r in rungs],
+        [(r.logical_rows, *_cells(r)) for r in rung_list],
+        comments=[r.comment for r in rung_list],
         show_nicknames=show_nicknames,
+    )
+
+
+def _cells(rung: Rung) -> tuple[Sequence[Sequence[ConditionToken]], Sequence[AfToken]]:
+    """*rung*'s condition rows and AF tokens, as the encoder's token types.
+
+    A decoded rung's cells can also hold an ``UnknownCondition`` or ``UnknownInstruction``,
+    which those types leave out.
+    """
+    return (
+        cast("Sequence[Sequence[ConditionToken]]", rung.conditions),
+        cast("Sequence[AfToken]", rung.instructions),
     )

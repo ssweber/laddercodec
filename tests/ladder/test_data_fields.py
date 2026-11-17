@@ -218,7 +218,7 @@ def _clipboard_decoded(af: Timer | Counter | Drum, old: str, new: str) -> object
     data = encode_rung(1, [["-"] * 31], [af])
     assert data.count(_utf16(old)) == 1
     with pytest.warns(RefusedFieldWarning):
-        [decoded] = decode(data.replace(_utf16(old), _utf16(new))).instructions
+        [decoded] = decode(data.replace(_utf16(old), _utf16(new)))[0].instructions
     return decoded
 
 
@@ -269,7 +269,7 @@ class TestRefusedBlobsDecode:
         object.__setattr__(d, "pattern", d.pattern + [[1, 1]])
         assert d.num_steps == 17
         data = encode_rung(1, [["-"] * 31], [d])
-        [decoded] = decode(data).instructions
+        [decoded] = decode(data)[0].instructions
         assert isinstance(decoded, RawInstruction)
         assert decoded.class_name == "Drum"
 
@@ -301,7 +301,7 @@ def _decoded_after(model: object, *fields: str, **bad: object) -> object:
     for name, value in bad.items():
         object.__setattr__(model, name, value)
     with pytest.warns(RefusedFieldWarning):
-        [decoded] = decode(encode_rung(1, [["-"] * 31], [model])).instructions
+        [decoded] = decode(encode_rung(1, [["-"] * 31], [model]))[0].instructions
     assert decoded == model
     return kept(decoded, *fields)
 
@@ -410,7 +410,7 @@ class TestShiftRules:
         shift = Shift(start_bit="C1", end_bit="C2")
         object.__setattr__(shift, "start_bit", "Y1")
         object.__setattr__(shift, "end_bit", "Y2")
-        [decoded] = decode(encode_rung(1, [["-"] * 31], [shift])).instructions
+        [decoded] = decode(encode_rung(1, [["-"] * 31], [shift]))[0].instructions
         assert isinstance(decoded, RawInstruction) and decoded.class_name == "SR"
 
     def test_scr_same_address_decodes(self) -> None:

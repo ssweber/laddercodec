@@ -18,6 +18,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_value
+from ..errors import CsvError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
@@ -85,14 +86,14 @@ class Shift(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"shift\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse shift: {token!r}")
+            raise CsvError(f"Cannot parse shift: {token!r}")
 
         inner = m.group(1).strip()
         if ".." not in inner:
-            raise ValueError(f"shift expects a range arg (start..end): {token!r}")
+            raise CsvError(f"shift expects a range arg (start..end): {token!r}")
         parts = [p.strip() for p in inner.split("..")]
         if len(parts) != 2 or not all(parts):
-            raise ValueError(f"Cannot parse shift range: {token!r}")
+            raise CsvError(f"Cannot parse shift range: {token!r}")
 
         return cls(
             start_bit=parts[0],

@@ -15,20 +15,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import cast
 
+from ..errors import LayoutError
 from .network import Edge, Network
-
-
-class LayoutError(ValueError):
-    """A rung CLICK's syntax check refuses, or one this layout cannot draw.
-
-    ``code`` is CLICK's error code when CLICK is known to refuse the shape (``C0001``: not
-    series-parallel; ``C0202``: a contact no rail reaches), else ``None``.
-    """
-
-    def __init__(self, message: str, code: str | None = None) -> None:
-        super().__init__(message)
-        self.code = code
-
 
 # ---------------------------------------------------------------------------
 # SP nodes

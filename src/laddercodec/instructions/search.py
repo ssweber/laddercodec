@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..errors import CsvError
 from ..model import Address, AfInstruction, Reason
 from ..operands.checks import (
     ALL_KINDS,
@@ -295,17 +296,17 @@ def from_tags(
 def parse_af_call(call: AfCall) -> Search:
     """Parse an AF AST call into a Search."""
     if len(call.args) != 1:
-        raise ValueError(f"search expects 1 positional arg (expression), got {len(call.args)}")
+        raise CsvError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
     m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr)
     if not m:
-        raise ValueError(f"Cannot parse search expression: {expr!r}")
+        raise CsvError(f"Cannot parse search expression: {expr!r}")
 
     result = call.kwargs.get("result")
     found = call.kwargs.get("found")
     if not result or not found:
-        raise ValueError("search missing result or found kwargs")
+        raise CsvError("search missing result or found kwargs")
 
     return Search(
         table_start=m.group(1).strip(),

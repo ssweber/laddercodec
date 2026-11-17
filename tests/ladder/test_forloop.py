@@ -132,7 +132,7 @@ class TestBlankFields:
         conditions = [["-"] * 31]
         data = encode_rung(1, conditions, [ForLoop(limit="DS1")])
         data = data.replace("DS1".encode("utf-16-le"), "   ".encode("utf-16-le"))
-        [af] = decode(data).instructions
+        [af] = decode(data)[0].instructions
         assert isinstance(af, RawInstruction)
         assert af.class_name == "For"
 
@@ -164,7 +164,7 @@ def _clipboard_af(model: ForLoop | Call, old: str, new: str) -> object:
     assert len(old) == len(new)
     data = encode_rung(1, [["-"] * 31], [model])
     assert data.count(old.encode("utf-16-le")) == 1
-    [af] = decode(data.replace(old.encode("utf-16-le"), new.encode("utf-16-le"))).instructions
+    [af] = decode(data.replace(old.encode("utf-16-le"), new.encode("utf-16-le")))[0].instructions
     return af
 
 

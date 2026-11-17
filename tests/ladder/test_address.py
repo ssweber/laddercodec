@@ -366,7 +366,7 @@ class TestDecodeRefusedAddress:
         data = encode_rung(1, conditions, [Coil(InstructionType.COIL_OUT, "Y801")])
         data = _swap_operand(_swap_operand(data, "Y801", "Y901"), "X101", "X117")
         with pytest.warns(RefusedFieldWarning) as caught:
-            rung = decode(data)
+            [rung] = decode(data)
         contact, coil = rung.conditions[0][0], rung.instructions[0]
         assert isinstance(contact, Contact) and contact.operand == "X117"
         assert isinstance(coil, Coil) and coil.operand == "Y901"

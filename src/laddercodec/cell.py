@@ -16,6 +16,7 @@ import struct
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from .errors import EncodeError
 from .topology import CELL_SIZE, COLS_PER_ROW
 
 # Instruction data starts at this offset in the cell header.
@@ -260,8 +261,8 @@ def build_row(cells: Sequence[bytes | bytearray]) -> bytes:
     is at least ``CELL_SIZE`` bytes (instruction cells may be larger).
     """
     if len(cells) != COLS_PER_ROW:
-        raise ValueError(f"Expected {COLS_PER_ROW} cells, got {len(cells)}")
+        raise EncodeError(f"Expected {COLS_PER_ROW} cells, got {len(cells)}")
     for i, c in enumerate(cells):
         if len(c) < CELL_SIZE:
-            raise ValueError(f"Cell {i}: expected >= {CELL_SIZE} bytes, got {len(c)}")
+            raise EncodeError(f"Cell {i}: expected >= {CELL_SIZE} bytes, got {len(c)}")
     return b"".join(cells)

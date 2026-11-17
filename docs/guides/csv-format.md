@@ -829,7 +829,7 @@ currently emit:
   - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
   - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address or pointer (`DF[DS1]`) or a real constant (`1.5`): real (`0`) or exponential (`1`) numbering. `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other source, an integer or hex constant or a DD or DS pointer included. Only the option CLICK's dialog offers for the source is written and read: `suppress_zero` for a DF or real source raises `FieldError`, and so does `exponential=1` for any other source; `exponential=0` for one is accepted and not written.
 - A TXT register or pointer copied to TXT takes a termination code with no converter: `copy(TXT1,TXT21,termination_code=$0D)`, and for a range `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`. `none`, `0` or no keyword is no code, which any copy takes. A code for any other copy, or a code beside a `convert=` kwarg, raises `FieldError`; inside `to_binary(...)` or `to_text(...)` it is the converter's. A `blockcopy` of TXT into TXT takes no converter.
-- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; any other (`terminaton_code=`) raises `ValueError`.
+- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; any other (`terminaton_code=`) raises `CsvError`.
 
 ## Immediate handling
 
@@ -879,20 +879,19 @@ instruction.
 ## Where a read error is
 
 ```python
-import csv
-
-from laddercodec import CsvLocation, read_csv
+from laddercodec import CsvLocation, LaddercodecError, read_csv
 
 try:
     rungs = read_csv("main.csv")
-except (ValueError, csv.Error) as exc:
+except LaddercodecError as exc:
     where = CsvLocation.of(exc)
     print(where.line, where.column_name)  # 5 D
 ```
 
-An error `read_csv` raises for a bad CSV keeps its class (`ValueError`,
-`FieldError`, `AddressError`, `csv.Error`, ...) and carries a `CsvLocation` as its
-`location` attribute; `CsvLocation.of(exc)` returns it, or `None` for an exception
+A file that isn't UTF-8 text, or a row, token or rung `read_csv` can't read, raises
+`CsvError`, and a value CLICK's dialog refuses raises `FieldError` (`AddressError`
+for an address); each is a `LaddercodecError` ([Errors](#errors)). Each carries a
+`CsvLocation` as its `location` attribute; `CsvLocation.of(exc)` returns it, or `None` for an exception
 that has none. A `FieldError` still names its field in `.field`. Each part is `None`
 where it is not known:
 
@@ -918,18 +917,33 @@ Coil.operand: 'C9999' is outside C1-C2000 (at main.csv, line 5, rung at line 4, 
 
 Two classes differ:
 
-- A `FieldError` refused while a box takes its pin rows arrives as a `ConvertError`
-  (`laddercodec.csv.converter`, a `ValueError` and not a `FieldError`), as before. It
-  carries the refusal's `field`, `fields`, `reason`, `click_id` and `errors` as
-  `FieldError` has them (`Drum.jump_target`).
+- A `FieldError` refused while a box takes its pin rows arrives as a `CsvError`, not
+  a `FieldError`. It carries the refusal's `field`, `fields`, `reason`, `click_id`
+  and `errors` as `FieldError` has them (`Drum.jump_target`).
 - Every refusal in a `FieldError`'s `errors` has its own `location`, not only the one
   raised. A refusal a pin row's value causes is at that pin's row; the rest take the
   cell that raised them. Only the raised error's message ends with the location.
-- A `UnicodeDecodeError` (a file that isn't UTF-8) keeps its message, and its
-  location holds `file` only.
+- A file that isn't UTF-8 raises a `CsvError` with the `UnicodeDecodeError`'s
+  message and the `UnicodeDecodeError` as its `__cause__`; its location holds `file`
+  only. A `csv.Error` (such as a cell longer than `csv.field_size_limit()`) arrives
+  the same way, at the line its row starts on.
 
 The bundle reader gives the location the same way; `file` names the file at fault,
 `main.csv` when it is missing.
+
+## Errors
+
+`decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()` and `check()`
+raise a `LaddercodecError` for input they can't read or write, and every
+`LaddercodecError` is a `ValueError`:
+
+| Class          | Raised by                                                                    |
+|----------------|------------------------------------------------------------------------------|
+| `DecodeError`  | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
+| `EncodeError`  | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
+| `CsvError`     | `read_csv` for a file that isn't UTF-8, or a row, token or rung it can't read |
+| `WriterError`  | `write_csv` for a rung the CSV can't hold                                    |
+| `FieldError`   | building an instruction, `read_csv` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address |
 
 ## Strict validation and failure mode
 

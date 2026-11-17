@@ -395,11 +395,11 @@ class TestDecodeKeepsText:
     def test_rung_round_trips_raw(self, tmp_path: Path) -> None:
         (rung,) = read_csv(_rung_csv(tmp_path / "r.csv", "X001", "out(C1)"))
         data = _swap(encode(rung), "C1", "c1")
-        decoded = decode(data)
+        [decoded] = decode(data)
         assert isinstance(decoded, Rung)
         assert isinstance(decoded.instructions[0], RawInstruction)
         assert encode(decoded) == data
-        decoded = decode(_swap(data, "X001", "x001"))
+        [decoded] = decode(_swap(data, "X001", "x001"))
         assert isinstance(decoded, Rung)
         assert isinstance(decoded.conditions[0][0], UnknownCondition)
 

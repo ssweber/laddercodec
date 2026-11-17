@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec.csv import read_csv
-from laddercodec.csv.converter import ConvertError
+from laddercodec.csv.converter import CsvError
 from laddercodec.instructions import (
     Coil,
     CompareContact,
@@ -208,8 +208,8 @@ def test_csv_set_reset_oneshot_refused(tmp_path: Path, token: str) -> None:
 
 
 def test_csv_off_delay_with_reset_refused(tmp_path: Path) -> None:
-    # The converter reports a pin's refusal as a ConvertError that carries the message.
-    with pytest.raises(ConvertError, match="Timer.retained"):
+    # The converter reports a pin's refusal as a CsvError that carries the message.
+    with pytest.raises(CsvError, match="Timer.retained"):
         _csv_af(tmp_path, "off_delay(T1,TD1,preset=5,unit=Ts)", ".reset()")
 
 

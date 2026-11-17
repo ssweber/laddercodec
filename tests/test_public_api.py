@@ -56,9 +56,11 @@ EXPECTED_ROOT_EXPORTS = (
     "FieldError",
     "AddressError",
     "Reason",
+    "LaddercodecError",
     "DecodeError",
+    "EncodeError",
     "WriterError",
-    "ConvertError",
+    "CsvError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
@@ -117,8 +119,10 @@ def test_root_public_api_supports_basic_roundtrip(tmp_path: Path) -> None:
     )
 
     encoded = encode(rung)
-    decoded = decode(encoded)
+    decoded_rungs = decode(encoded)
 
+    assert isinstance(decoded_rungs, list) and len(decoded_rungs) == 1
+    decoded = decoded_rungs[0]
     assert isinstance(decoded, Rung)
     assert decoded.logical_rows == 1
     assert decoded.comment == "Motor start circuit"
@@ -153,13 +157,31 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
 
     assert laddercodec.DecodeError is decode_mod.DecodeError
     assert laddercodec.WriterError is writer.WriterError
-    assert laddercodec.ConvertError is converter.ConvertError
+    assert laddercodec.CsvError is converter.CsvError
     assert laddercodec.UnknownCondition is instructions.UnknownCondition
     assert laddercodec.UnknownInstruction is instructions.UnknownInstruction
     assert laddercodec.Email is instructions.email.Email
     assert laddercodec.Home is instructions.home.Home
     assert laddercodec.Position is instructions.position.Position
     assert laddercodec.Velocity is instructions.velocity.Velocity
+
+
+def test_errors_form_one_tree_of_value_errors() -> None:
+    from laddercodec.errors import LayoutError
+
+    base = laddercodec.LaddercodecError
+    assert issubclass(base, ValueError)
+    for error in (
+        laddercodec.DecodeError,
+        laddercodec.EncodeError,
+        laddercodec.CsvError,
+        laddercodec.WriterError,
+        laddercodec.FieldError,
+        LayoutError,
+    ):
+        assert issubclass(error, base), error
+    assert issubclass(laddercodec.AddressError, laddercodec.FieldError)
+    assert not hasattr(laddercodec, "ConvertError")
 
 
 def test_advanced_helpers_remain_module_scoped() -> None:

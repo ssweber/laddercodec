@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_int, tag_value
+from ..errors import CsvError
 from ..model import (
     ADDRESS_BANKS,
     XY_SLOTS,
@@ -1571,6 +1572,9 @@ def _parse_function_code(kw: dict[str, str], cls: str) -> int | None:
 def parse_af_call(call: AfCall) -> Receive | Send:
     """Parse a CSV AF call node into a Send or Receive instruction."""
     kw = call.kwargs
+    for name in ("target", "remote_start"):
+        if name not in kw:
+            raise CsvError(f"{call.name} needs a {name}= keyword")
 
     target = _parse_target(kw["target"])
     remote_start = _parse_remote_start(kw["remote_start"])

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
+from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     ConditionInstruction,
@@ -149,7 +150,7 @@ class Contact(ConditionInstruction):
         edge_match = re.fullmatch(r"(rise|fall)\((.+)\)", token)
         if edge_match:
             if immediate:
-                raise ValueError("Immediate edge contacts are unsupported")
+                raise CsvError("Immediate edge contacts are unsupported")
             edge_kind = cast(Literal["rise", "fall"], edge_match.group(1))
             operand = edge_match.group(2).strip()
             return cls(

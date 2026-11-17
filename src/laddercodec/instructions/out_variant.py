@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_value
+from ..errors import CsvError
 from ..model import AfInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand, check_out_target
 from ..operands.constants import INT16_MAX, Kind
@@ -227,23 +228,23 @@ class OutVariant(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"(toggle|debounce|flasher|timed)\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse Out variant: {token!r}")
+            raise CsvError(f"Cannot parse Out variant: {token!r}")
         kind = cast(OutVariantKind, m.group(1))
         parts = [seg.strip() for seg in m.group(2).split(",") if seg.strip()]
         if not parts or "=" in parts[0]:
-            raise ValueError(f"{kind} needs a target operand: {token!r}")
+            raise CsvError(f"{kind} needs a target operand: {token!r}")
 
         arg = parts[0]
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise ValueError(f"Cannot parse {kind} keyword arg: {token!r}")
+                raise CsvError(f"Cannot parse {kind} keyword arg: {token!r}")
             k, v = seg.split("=", 1)
             kwargs[k.strip()] = v.strip()
 
         if kind == "toggle":
             if kwargs:
-                raise ValueError(f"toggle takes no keyword arguments: {token!r}")
+                raise CsvError(f"toggle takes no keyword arguments: {token!r}")
             inner = re.fullmatch(r"immediate\((.+)\)", arg)
             if inner:
                 return cls(kind="toggle", operand=inner.group(1).strip(), immediate=True)
@@ -261,13 +262,13 @@ class OutVariant(AfInstruction):
             required = {"unit"}
         missing = required - set(kwargs)
         if missing:
-            raise ValueError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
+            raise CsvError(f"{kind} missing keyword argument(s) {sorted(missing)}: {token!r}")
         unknown = set(kwargs) - allowed
         if unknown:
-            raise ValueError(f"{kind} does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvError(f"{kind} does not support keyword argument(s): {sorted(unknown)}")
         maintained_raw = kwargs.get("maintained", "0")
         if maintained_raw not in {"0", "1"}:
-            raise ValueError("timed maintained must be 0 or 1")
+            raise CsvError("timed maintained must be 0 or 1")
 
         return cls(
             kind=kind,

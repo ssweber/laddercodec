@@ -45,6 +45,7 @@ from typing import get_args
 
 from .._layout import LayoutError, canonical, circuit
 from ..decode import Rung
+from ..errors import WriterError
 from ..instructions import (
     AfInstruction,
     ConditionInstruction,
@@ -58,11 +59,6 @@ from ..undecoded import Stop, Undecoded, UndecodedRungWarning, marker_rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import _is_blank_row, convert_rung, pinned_gap_height
 from .parser import _parse_single_rung_rows
-
-
-class WriterError(ValueError):
-    """Raised when a decoded rung cannot be serialized to CSV."""
-
 
 # ---------------------------------------------------------------------------
 # Token serialization
@@ -521,8 +517,7 @@ def write_csv(
     path:
         Output file path.
     rungs:
-        One or more decoded rungs (from ``decode_rung()`` or
-        ``decode_rungs()``).
+        One or more decoded rungs, such as the list ``decode()`` returns.
     index:
         When ``True``, the per-rung ``R`` marker is replaced with a 1-based
         sequential index (``R1``, ``R2``, ``R3``, ...) counting across the
@@ -535,14 +530,12 @@ def write_csv(
 
     Raises
     ------
-    ValueError
-        If *stop* is neither ``"end"`` nor ``"return"``; nothing is written.
     WriterError
-        If any other rung can't be written, such as one whose shape the CSV
-        can't hold.
+        If *stop* is neither ``"end"`` nor ``"return"`` (nothing is written), or if a
+        rung can't be written, such as one whose shape the CSV can't hold.
     """
     if stop not in get_args(Stop):
-        raise ValueError(f"write_csv: stop={stop!r} must be 'end' or 'return'")
+        raise WriterError(f"write_csv: stop={stop!r} must be 'end' or 'return'")
     path = Path(path)
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)

@@ -32,7 +32,7 @@ TUMBLER = Path(__file__).parent / "fixtures" / "tumbler"
 
 def _rungs(name: str | Path) -> list[Rung]:
     got = decode((V4 / name).read_bytes())
-    return got if isinstance(got, list) else [got]
+    return got
 
 
 def _through_csv(rungs: list[Rung], tmp_path: Path) -> list[Rung]:
@@ -242,7 +242,7 @@ def test_contact_on_two_pins_stays_as_drawn(name: str, tmp_path: Path) -> None:
     with pytest.raises(LayoutError, match="another pin input"):
         layout(drawn)
     # The decoded rung writes as drawn too.
-    decoded = decode(encode(drawn))
+    [decoded] = decode(encode(drawn))
     assert isinstance(decoded, Rung)
     assert _contacts(_through_csv([decoded], tmp_path)) == _contacts([decoded])
 

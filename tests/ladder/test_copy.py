@@ -187,7 +187,7 @@ def test_binary_termination_code_round_trips(tmp_path: Path, code: str, token: s
     rung = read_csv(path)[0]
     assert rung.instructions[0] == copy
 
-    decoded = decode(encode(rung))
+    [decoded] = decode(encode(rung))
     assert isinstance(decoded, Rung)
     assert decoded.instructions[0] == copy
     assert decoded.instructions[0].to_csv() == token

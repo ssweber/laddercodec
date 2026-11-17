@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from ..errors import CsvError
 from ..model import AfInstruction
 from .family import AfInstructionFamilySpec
 
@@ -27,7 +28,7 @@ class End(AfInstruction):
     def from_csv_token(cls, token: str) -> End:
         token = token.strip()
         if not re.fullmatch(r"end\(\s*\)", token):
-            raise ValueError(f"Cannot parse end instruction: {token!r}")
+            raise CsvError(f"Cannot parse end instruction: {token!r}")
         return cls()
 
     def to_csv(self) -> str:
