@@ -97,10 +97,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   adding a run that resumes and more dialogs, Receive first.
 - **Math, Copy and Out grids are written** (#54): `tests/fixtures/editor_grids/`, made by `make editor-grids`,
   with laddercodec's verdict beside each case. CLICK answered `preflight` and `risky` (159 cases), Receive
-  (18) and the picker checks (28); `tests/test_editor_answers.py` compares them and lists each difference.
-  Left: the full Math, Copy and Out grids, then Receive, Compare, Search, Fill, timers, counters
-  and For. What the answers showed:
-  - Hex Math `DH1 + 0`, `DH1 = 0` and `RAND(5,Ah)` are accepted, laddercodec refuses on purpose (item 4).
+  (18), the picker checks (28) and the full Out, Copy (single, block, pack, unpack) and Math (decimal, hex)
+  grids (5,210); `tests/test_editor_answers.py` compares them and lists each difference, grouped by what
+  is to be done. Left: Receive, Compare, Search, Fill, timers, counters and For. What the answers showed:
+  - Hex Math reads a word typed without `h` as a hex constant (`DH1 + 0`, `5`, `abc`, `DH0` as `D0h`);
+    laddercodec refuses it on purpose (Settled, below).
   - Math formula banks (ruled, Sam, 2026-11-16), one table per mode in `math_formula._OPERANDS`:
     - Hex: hex constants and the DH, XD and YD registers only. Every other register (DS, DD, DF, TD, CTD,
       SD, TXT) and every bit is refused, in a `SUM` too. The answers hold DH accepted, and DS and X refused
@@ -109,40 +110,40 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       as the range of `SUM ( a : b )`. DH, XD, YD, TXT and CT are refused anywhere, a `SUM` included. The
       Address Picker for a decimal `SUM` enables exactly X, Y, C, T, SC, DS, DD, DF, TD, CTD and SD.
     - Every bank refusal is OBJ-1002, reason `bank`: one for each address outside a `SUM`, one for each
-      `SUM`. Open:
-      - Do the `math_hex` and `math_decimal` answers confirm every bank in every position (alone, beside a
-        constant, a RAND bound, a range end, a `SUM`)? That includes XD and YD in hex, and DH, XD, YD, TXT
-        and CT in decimal outside a `SUM`.
-      - Does OBJ-1002 come ahead of OBJ-1014 or OBJ-1015 for a `SUM` over a refused bank whose ends are also
-        reversed (`SUM ( DH2 : DH1 )`) or in two banks (`SUM ( X001 : TXT2 )`)?
+      `SUM`.
+    - The `math_hex` and `math_decimal` answers confirm both tables in every position (alone, beside a
+      constant, a range end, a `SUM`), XD and YD in hex and DH, XD, YD, TXT and CT in decimal included,
+      except a RAND bound (follow-ups, below).
+    - A `SUM` whose ends are reversed is OBJ-1014, and one whose ends are in two banks OBJ-1015, ahead of
+      OBJ-1002 for a refused bank (`SUM ( DH2 : DH1 )`, `SUM ( X001 : TXT2 )`); the rules give OBJ-1002.
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
     Pack destination and an Unpack source, laddercodec refuses. Ruled (closed): the refusal stays, since an
     instruction holds the address in display form; decode reads CLICK's edge-space saves (a single Copy's and
     a Pack's destination keep the space, and decode as the address without it). The ratchet keeps these
     entries with that reason. Both `dec  DS1 = ...` and `dec DS1  = ...` put the space in the Math result.
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
-    destination bank its source can't unpack to now carries OBJ-004. Open: only DS into DS is answered; ask
-    CLICK for a DH source into DS and a DD source into Y.
+    destination bank its source can't unpack to now carries OBJ-004. CLICK confirms it for a DH source into
+    DS and for every source into T, DD and TXT, and gives OBJ-004 for a source from Y, C, T, CT, SC, XD, YD,
+    TD, CTD, SD or TXT. A DS, DD or DF into Y is OBJ-024 (a follow-up, below).
   - Copy-family bank ids (closed for the answered rows): a bank no row of the field holds is OBJ-004 for a
     Pack destination (answered for X001, SD29 and SD31), an Unpack source (X001) and an Unpack destination
     (X, SC and SD); a single Copy into a bit bank it does not write is OBJ-004 from a bit source (X001 into
     X001, C1 into SC50 and SC303) and OBJ-024 from any other (DS2 and 5 into X001). The rules give these ids
-    to every bank of each check. Open, ask CLICK:
-    - Single Copy: T and CT as the destination, from a bit source and from a DS; a non-bit source (DS, a
-      number) into SC; a TXT register or a text constant into any bit bank (X, T, CT, SC); an XD destination
-      (no id).
-    - Pack into Y, C, T, CT, SC, XD, YD or TXT.
-    - Unpack from Y, C, T, CT, SC, XD, YD, TD, CTD, SD or TXT, and into T, DD or TXT.
-    - Order: does CLICK report a refused constant source (`99999999999`, `1e99`, `FFFFFFFFFh`, `"é"`, text
-      of 200 characters) before the destination, and with which id, when the destination is a bit bank
-      (X001)? The rules give the destination's bank refusal no id then, and refuse the constant after it.
-      `"é"` into DS1 gives OBJ-024, so CLICK may report the pairing first.
-    - Order: a single Copy into an SD it does not write is OBJ-004 from any source (`C1 -> SD1` too), while
-      a non-bit source into SC is OBJ-024 (pairing first). What does CLICK give for a bit (C1) and for a text
-      constant into an unwritable SD (SD1, SD43)?
-    - An address past its bank's range in a bank the field refuses (`C1 -> X017`, `DS1 -> X017`, a Pack or
-      Unpack into X017, `C1 -> SC1001`) gets the bank's id, since the bank is checked first; CLICK may give
-      OBJ-005 (the value is illegal) instead.
+    to every bank of each check. What the full grids answered:
+    - Single Copy: T and CT as the destination are OBJ-004 from a bit (C1, X001) and OBJ-024 from a DS; a
+      DS or a number into SC is OBJ-024; a TXT register or a text constant into X, C, T, CT or SC is
+      OBJ-024. The rules give each of these. An XD destination is OBJ-004 from a DS, TXT1 or 5 and OBJ-024
+      from a bit or `"A"`; the rules give no id there yet.
+    - Pack into Y, C, T, CT or SC (in range or past it) is OBJ-004, and into XD, YD or TXT OBJ-004 (OBJ-033
+      for 32 X or Y bits), as the rules give.
+    - A bit (C1, X001, T1, CT1, SC1), a text constant or `10000h` into SD1, which a Copy does not write, is
+      OBJ-024: the pairing comes first. A follow-up, below. SD43 is not answered.
+    - A DS into X, T, CT or SC past the bank's range (`DS2 -> X017`, `T501`, `SC1001`) is OBJ-004, not
+      OBJ-005. A follow-up, below. A bit source there (`C1 -> X017`) is not answered.
+    - Still open: does CLICK report a refused constant source (`99999999999`, `1e99`, `FFFFFFFFFh`, `"é"`,
+      text of 200 characters) before the destination, and with which id, when the destination is a bit
+      bank (X001)? The rules give the destination's bank refusal no id then, and refuse the constant after
+      it.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
     the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its
@@ -167,9 +168,39 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   SD; YD9 is answered the same way, applied to a YD past YD8. The rules now say so, where they said OBJ-004 or
   gave no id.
   A bank a hex result does not take (DS1) stays OBJ-004.
-- **Rows the editor refuses and the code accepts** (samples, to be confirmed by the grids): a RAND bound that
-  is a real or a DF, and equal bounds. A DH in a decimal Math, a DD, DF, TD, CTD or SD register in a hex one
-  and a SUM over TXT are refused now, by the formula bank ruling above.
+- **Follow-ups from the full grids (nothing).** Each is one group in `DISAGREEMENTS`; fix the rule, then
+  drop the group's entries:
+  - RAND bounds: a bound in DF, TD, CTD or SD (decimal) or in XD or YD (hex, each spelling) is OBJ-1002;
+    equal bounds (`RAND(1,1)`, `RAND(DH1,DH1)`) and a real bound (`RAND(1.5,10)`) are OBJ-1001. The rules
+    accept all of them.
+  - `3.4028235E+38` in a decimal Math, alone or as an operand, is OBJ-1009; the rules accept it. A Copy
+    source takes it (`3.4028236E+38` is OBJ-005 there).
+  - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (above).
+  - A hex Math result past SD's range (SD0, SD1001) is OBJ-004; the rules give OBJ-003.
+  - Copy `DS 1` (a space inside) is accepted as a single Copy's source (saved `DS1`) and destination (saved
+    `DS 1`, which `read_csv` refuses) and as a decimal Math result. A lowercase `ds1` is accepted as a Block
+    Copy's source start and destination; the rules refuse both, though a single Copy takes `ds1`. Decide
+    whether these are refused on purpose, as the edge space is.
+  - An SD pointer (`SD[DS1]`) is accepted as a single Copy's source, and saved as typed; the rules refuse it.
+  - Pack of TXT into DH (`TXT1..TXT16`, `TXT1..TXT1000`) is OBJ-003; the rules accept it.
+  - Pack ids: 33 T, CT or SC bits into DS or DD raise two boxes for one OK, OBJ-041 (the count) then
+    OBJ-024 (the answers' `boxes`); a Pack of more than 2 DH into DH is OBJ-040 (the count). The rules give
+    OBJ-024 for both.
+  - Copy ids: a `$` code source (`$41`, `$1`) into any bank but TXT is OBJ-004; `""` and a hex source of
+    more than 8 digits into DS1 are OBJ-005; a bit, text or `10000h` into SD1 is OBJ-024 (above); a DS into
+    an X, T, CT or SC address past its range is OBJ-004 (above). The rules give OBJ-024, OBJ-024, OBJ-004
+    and OBJ-024.
+  - Unpack ids: a DS, DD or DF into Y is OBJ-024 before the range checks; a DH into more than 16 Y is
+    OBJ-1009; an Unpack into a bank its source can't unpack to is OBJ-004 before OBJ-008, OBJ-009 and
+    OBJ-012.
+  - Out: a range whose end is in another bank is OBJ-008 even where that bank is refused (`C1..DS1`); the
+    rules give OBJ-004.
+  - Saves that decode as `raw(...)`: CLICK saves an address as typed (`DS001`, `DS01`, `ds1`, `XD00`,
+    `YD0U`, `DS[ds1]`) in Copy, Block Copy, Pack and Math; a Copy between a real and a DD, CTD or DF
+    register saves conversion type 7 (`1.5 -> DD1`, `CTD1 -> DF1`); a number into TXT saves the text CLICK
+    prints, with its last TXT and a conversion type (`-5` fills TXT1..TXT2, `2147483647` TXT1..TXT10).
+  - Quoted text with an E into TXT (`"HELLO" -> TXT1`) is saved as the real 0.0, filling TXT1..TXT3; the
+    rules accept it as text (item 4).
 - **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
   SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
   OBJ-003 for it.
@@ -191,7 +222,8 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - OBJ-002 and OBJ-003: which dialogs give them for an address that is not one and for a number outside its
     bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
-    from CLICK's own code; the math grids are to confirm each.
+    from CLICK's own code; the math grids confirm every one the rules give, except the `SUM` order and the
+    hex SD result (follow-ups, above).
 
 ## 4. Canonical constants (CLICK)
 
@@ -230,6 +262,20 @@ Then one behaviour-change branch per answer set, as for Math and Copy.
   that a stored `1E3h` decodes and reads back.
 - **`MAX ( DS1 , DS2 )`:** which id does the dialog give? The code refuses it with no id.
 
+**Answered by the full Copy and Math grids**, where CLICK stores another form than the code writes now (each
+case is in the `copy_single` and `math_decimal` answers; the code is unchanged until a branch takes them):
+- A Copy `-0` into DS1 is stored `0`; the code writes `-0`. (`-00` is not answered.)
+- A Copy `+1.5` into DS1 is stored `1.5`, the `+` dropped; the code writes `+1.5`. A Math keeps it (`+1.5`), as
+  the code writes, and a Copy keeps the `+` of an integer (`+5`, `+0`).
+- A Copy `1Eh` into DS1 is stored as the real `1.0`, as `EH` is stored `0.0`; the code reads `1Eh` as hex 30.
+  So at least `1EH` among the hex Copy sources with `E` above is a real; the rest are not answered.
+- A Copy `3.4028235E+38` into DS1 is stored `3.402823E+38` (7 significant digits); the code keeps it as typed.
+- A decimal Math `1E5` is stored `100000`, and `1.5E+3` and `1.5E3` are stored `1500` (alone and as `DS1 + ...`);
+  the code writes `100000.0` and `1500.0`. A Copy stores `1E5` as `100000.0`, as the code writes.
+- A Copy `"HELLO"` into `TXT[DS1]` is stored `0.0` (item 3).
+- As the code writes: `1E-45` and `1E-50` are kept as typed in a Copy (and `1E-45` in a Math); `1.5e-3` is
+  `0.0015`; `1.` is `1.0`; `1.50` is `1.5`.
+
 ## Open CLICK questions (CLICK)
 
 Each is a dialog check or a capture. Until answered, the code keeps the behaviour named.
@@ -249,18 +295,22 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
   The fitted list (`_xy_bound`) now only writes the reserved slots. Open: a span of more than two expansion slots,
   a Y range that starts in the option slot, and the lists CLICK stores on a CPU with I/O modules, where the rule
   may refuse ranges CLICK stores right or accept ones it stores wrong.
-- **Real constants:** where exactly is the float32 edge (about `3.4028235E+38`)? The Copy source refuses above
-  it; Compare accepts `3.5E+38`.
+- **Real constants:** a Copy source takes `3.4028235E+38` and refuses `3.4028236E+38` (OBJ-005); a decimal
+  Math refuses both (OBJ-1009), the first a follow-up in item 3. Where exactly is a Math's edge? Compare
+  accepts `3.5E+38`.
 - **Fill with hex above FFFFh:** does the Fill dialog take such a constant, and into which banks? A single
   Copy puts it into DD or CTD only; the code's Fill takes it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
   store? The code refuses both.
-- **Number constant into TXT:** a single Copy and a Fill take a decimal or hex constant into a TXT range. What
-  does CLICK store in each TXT register? The code accepts it.
+- **Number constant into TXT:** a single Copy saves the text CLICK prints, with its last TXT and a
+  conversion type (`-5` fills TXT1..TXT2, `2147483647` TXT1..TXT10, `1.5` TXT1..TXT3); decode reads that
+  save as `raw(...)` (item 3). What does a Fill store? The code accepts it.
 - **Text outside printable ASCII:** do the Copy and Fill dialogs take quoted text with a character outside
   space to `~` (an accented letter, a control character)? The code refuses it.
-- **Quoted text with an `E`:** the Copy dialog reads such text as a number. Does lowercase `e` do the same, does
-  Fill, and what does CLICK keep when such a Copy is pasted? The code accepts and encodes the text as typed.
+- **Quoted text with an `E`:** the Copy dialog reads such text as a number: `"HELLO"`, `"E"`, `"e"` and
+  `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled), and `"HELLO"` into TXT1 is stored 0.0 too,
+  filling TXT1..TXT3 (item 3). Does Fill do the same, and what does CLICK keep when such a Copy is pasted? The
+  code accepts and encodes the text as typed into TXT.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -327,6 +377,15 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 - **Canonical constants (Sam, 2026-11-16):** the encoder writes the form CLICK's dialog stores wherever its
   correction keeps the meaning, a typed `+` and a hex Copy source's leading zeros included; where it would change
   what the CSV says (hex Math digits without `h`, a Copy `EH`), the text is refused and the message names the fix.
+- **Hex Math words without `h` (Sam):** CLICK reads a word of hex digits typed without `h` as a hex constant:
+  `abc`, `5`, `-5`, `005`, `C0`, `DD0`, `DF0`, `1E5`, `1-2`, `RAND(5,Ah)`, and `DH0` as `D0h`. laddercodec
+  keeps refusing them: a CSV says what it means, and `DH0` meaning `D0h`, or `10` meaning 16, is what to
+  refuse. `DISAGREEMENTS` keeps them as kept differences.
+- **Copy into DS of text that isn't a number:** CLICK takes `1E`, `E5`, `"HELLO"`, `"E"`, `"e"` and `"1E5"`
+  as a Copy source into DS1 and stores the real it parses them to (0.0, or 1.0 for `1E`). laddercodec keeps
+  refusing these six: DS is an integer, so a real such as 0.0 or 1.0 is no source for a Copy into DS1, and
+  typing a valid constant can't make that rung, since 0.0 into DS becomes 0. `DISAGREEMENTS` keeps them as
+  kept differences.
 - **`feat/productivity-codec`** stays as a branch for now.
 - **A last rung of only wires in an SCR save:** it can't be told from CLICK's own trailing empty rungs (both are
   records with no instruction and no comment, byte-identical; CLICK keeps 1 to 4 trailing empties), so

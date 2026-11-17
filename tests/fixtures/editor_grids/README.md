@@ -60,11 +60,13 @@ ClickNick's runner drove CLICK Programming Software v4.00's editor, on 2026-11-1
 (`accepted`, `refused` or `other`), `code` and `message` (the error box's), `syntax_check`,
 `seconds`, `read_back` (each field as the dialog showed it), `limits` (each field's text limit)
 and, for an accepted case that was saved, `stored` (the saved rung as laddercodec CSV rows).
-The answers sit beside the grids:
+Where one OK raised a chain of error boxes, `boxes` lists each box's code and message, and
+`code` and `message` are the first box's. The answers sit beside the grids:
 
 | File | What it holds |
 | --- | --- |
 | `preflight.answers.json`, `risky.answers.json` | the answers to the files of those names (92 and 67 cases) |
+| `out.answers.json`, `copy_single.answers.json`, `copy_block.answers.json`, `copy_pack.answers.json`, `copy_unpack.answers.json`, `math_decimal.answers.json`, `math_hex.answers.json` | the answers to the files of those names (477, 900, 661, 615, 603, 1,071 and 883 cases); six Pack cases (33 T, CT or SC bits into DS or DD) hold `boxes`: OBJ-041, then OBJ-024 |
 | `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file; the runner's own case file is not kept) |
 | `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs, `rxc1` and `rxc2`). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
