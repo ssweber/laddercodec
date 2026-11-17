@@ -8,7 +8,8 @@ rebuilt here with the builders ``devtools/editor_grids.py`` uses and compared th
 - the code: where both refuse and CLICK gave an ``OBJ-nnn``, the refusal's ``click_id`` is the
   same (a ``click_id`` of None is not a disagreement, and most refusals have none yet, so
   only some codes are compared: ``CODES_COMPARED`` is today's number, and a change that
-  adds or drops ids changes it and fails);
+  adds or drops ids changes it and fails); where one OK raised a chain of error boxes
+  (``boxes``), ``code`` is the first;
 - the save: an accepted case's ``stored`` rows read back with ``read_csv`` as an instruction
   that is not ``raw(...)``.
 
@@ -53,13 +54,22 @@ ANSWER_FILES = (
     "pickcheck",
     "picker_lists",
     "rule_rows",
+    "out",
+    "copy_single",
+    "copy_block",
+    "copy_pack",
+    "copy_unpack",
+    "math_decimal",
+    "math_hex",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
 
-HEX_BARE = "deliberate: a hex Math constant needs h (roadmap item 4)"
-HEX_BARE_MIXED = (
-    "deliberate: a hex Math constant needs h, even beside an h constant (roadmap item 4)"
+HEX_WORD = (
+    "kept: laddercodec asks for the h; CLICK reads a word of hex digits typed without it as a "
+    "hex constant, so 10 is 16 and DH0 is D0h (settled). A word shaped like an address (C0, "
+    "DD0, DF0, DH0, DH501) is refused as outside its bank's range instead; to do: that "
+    "message is to name the h form"
 )
 EDGE_SPACE = (
     "deliberate: CLICK accepts an edge space and the save trims it; an instruction holds the "
@@ -71,31 +81,699 @@ EDGE_SPACE_KEPT = (
     "as the address without it"
 )
 
+# Math (roadmap item 3, except where marked).
+RAND_BANK = (
+    "to do: a RAND bound in a bank CLICK refuses there (DF, TD, CTD and SD in decimal, XD and "
+    "YD in hex) is OBJ-1002; the rules accept it"
+)
+RAND_EQUAL = "to do: equal RAND bounds are OBJ-1001; the rules accept them"
+RAND_REAL = "to do: a real RAND bound is OBJ-1001; the rules accept it"
+FLOAT_EDGE = "to do: the constant 3.4028235E+38 in a decimal Math is OBJ-1009; the rules accept it"
+SUM_ORDER = (
+    "to do: a SUM whose ends are reversed is OBJ-1014, over a bank the mode refuses too; the "
+    "rules give OBJ-1002"
+)
+SUM_BLOCK = (
+    "to do: a SUM whose ends are in two banks is OBJ-1015, where a bank is refused too; the "
+    "rules give OBJ-1002"
+)
+HEX_RESULT_SD = (
+    "to do: a hex Math result past SD's range (SD0, SD1001) is OBJ-004; the rules give OBJ-003"
+)
+
+# Copy (roadmap item 3, except where marked).
+INNER_SPACE = (
+    "to do: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
+    "result; the rules refuse it, and read_csv refuses the save that keeps it"
+)
+BLOCK_LOWERCASE = (
+    "to do (the grid generator, not a rule): BlockCopy takes ds1 and normalises it, as CLICK "
+    "does, but devtools/editor_grids.py's _block_end runs check_address, which refuses ds1, and "
+    "falls back to the destination as its own end, so the verdict is a wrong destination end; "
+    "fix _block_end to normalise first"
+)
+SD_POINTER = (
+    "to do: CLICK takes an SD pointer (SD[DS1]) as a Copy source and saves it as typed; the "
+    "rules refuse it"
+)
+E_REAL = (
+    "kept: laddercodec refuses; DS is an integer, so a real such as 0.0 or 1.0 is no source "
+    "for a Copy into DS1, yet CLICK lets text that is not a number through as a real (E5 and "
+    '"HELLO" are stored 0.0, 1E is 1.0); typing a valid constant can\'t make that rung, since '
+    "0.0 into DS becomes 0 (settled)"
+)
+COPY_EH = (
+    "kept: CLICK stores EH as the real 0.0; laddercodec refuses it and names the forms to write, "
+    "0Eh for hex or 0.0 for the real (settled)"
+)
+TEXT_AS_REAL = (
+    'to do (roadmap item 4): CLICK stores quoted text with an E ("HELLO") into TXT as its float '
+    "value too (0.0, filling TXT1..TXT3); the rules accept it as text, and decode reads the "
+    "save as raw(...)"
+)
+ASCII_SOURCE = (
+    "to do: a $ code source ($41, $1) into a bank other than TXT is OBJ-004; the rules give OBJ-024"
+)
+SOURCE_VALUE = (
+    'to do: an empty text ("") or a hex source of more than 8 digits into DS1 is OBJ-005; the '
+    "rules give OBJ-024"
+)
+SD_PAIRING = (
+    'to do: a bit, quoted text ("A") or 10000h into an SD a Copy does not write (SD1) is '
+    "OBJ-024, the pairing first; the rules give OBJ-004"
+)
+BIT_PAST_RANGE = (
+    "to do: a DS into an X, T, CT or SC address outside its bank (X000, X017, T501, SC1001) is "
+    "OBJ-004; the rules give OBJ-024"
+)
+PACK_TXT = "to do: a Pack of TXT into DH is OBJ-003; the rules accept it"
+PACK_TWO_BOXES = (
+    "to do: a Pack of 33 T, CT or SC bits into DS or DD shows OBJ-041 (the count), then "
+    "OBJ-024; the rules give OBJ-024"
+)
+PACK_DH_COUNT = (
+    "to do: a Pack of DH1..DH16 or DH1..DH500 into DH is OBJ-040 (the count; DH1..DH2 is "
+    "OBJ-024); the rules give OBJ-024"
+)
+UNPACK_BANK_FIRST = (
+    "to do: an Unpack into a bank its source can't unpack to is OBJ-004 before the range "
+    "checks; the rules give OBJ-008, OBJ-009 or OBJ-012"
+)
+UNPACK_Y_PAIRING = (
+    "to do: an Unpack of DS, DD or DF into Y is OBJ-024 before the range checks; the rules give "
+    "OBJ-004, OBJ-009, OBJ-012 or OBJ-019"
+)
+UNPACK_Y_COUNT = (
+    "to do: an Unpack of DH into Y001..Y032 or Y001..Y036 is OBJ-1009 (into Y001..Y016 it is "
+    "accepted); the rules give OBJ-019"
+)
+
+# Out (roadmap item 3).
+OUT_ACROSS = (
+    "to do: an Out range whose end is in another bank is OBJ-008, where that bank is refused "
+    "too; the rules give OBJ-004"
+)
+
+# Saves decode reads as raw(...) (roadmap item 3).
+TYPED_ADDRESS = (
+    "to do: CLICK saves an address as typed (DS001, ds1, XD00, YD0U), not in display form, and "
+    "decode reads it as raw(...)"
+)
+CONVERSION_7 = (
+    "to do: a Copy of 1.5 into DD1, DD[DS1], CTD1 or CTD[DS1], of CTD1 into DF1 or DF1 into "
+    "CTD1, and of 2147483647 into DF1 saves conversion type 7, which decode reads as raw(...); "
+    "DD1 into DF1 and back, and 1.5, 5 or -5 into DF1, keep the usual type"
+)
+TXT_NUMBER = (
+    "to do: a number whose text fills more than one TXT (-5, 1.5, FFh, 2147483647 into TXT1) "
+    "saves the constant as typed, the TXT its text ends in and a conversion type, which decode "
+    "reads as raw(...); 5 into TXT1 reads back"
+)
+RX2_COUNT = (
+    "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
+    "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
+    "accept; no answer says what rx2 held"
+)
+
+
+def _table(*groups: tuple[str, str, str, tuple[str, ...]]) -> dict[Key, str]:
+    """One entry for each case of each group (reason, grid, kind, labels); a case listed twice
+    fails, in one group or in two."""
+    table: dict[Key, str] = {}
+    for reason, grid, kind, labels in groups:
+        for label in labels:
+            key = (grid, label, kind)
+            if key in table:
+                raise ValueError(f"{key} is listed twice")
+            table[key] = reason
+    return table
+
+
 #: Every difference between CLICK's answers and the rules.  Kinds: ``outcome`` (accepted or
 #: refused), ``code`` (the OBJ id), ``stored`` (the save reads back as raw), ``list`` (the
-#: writable SC or SD addresses).
-DISAGREEMENTS: dict[Key, str] = {
-    ("preflight", "hex DH1 = DH1 + 0", "outcome"): HEX_BARE,
-    ("preflight", "hex DH1 = 0", "outcome"): HEX_BARE,
-    ("preflight", "hex DH1 = RAND(5,Ah)", "outcome"): HEX_BARE_MIXED,
-    ("receive", "03 -> TXT1", "outcome"): (
-        "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
-        "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
-        "accept; no answer says what rx2 held"
+#: writable SC or SD addresses).  Each group is one thing to do (or one kept on purpose).
+DISAGREEMENTS: dict[Key, str] = _table(
+    (RX2_COUNT, "receive", "outcome", ("03 -> TXT1",)),
+    (
+        EDGE_SPACE + " (Math result)",
+        "risky",
+        "outcome",
+        ("dec  DS1 = DS2 + 1", "dec DS1  = DS2 + 1"),
     ),
-    ("risky", "dec  DS1 = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
-    ("risky", "dec DS1  = DS2 + 1", "outcome"): EDGE_SPACE + " (Math result)",
-    ("risky", "single  DS1 -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
-    ("risky", "single DS1  -> DS1", "outcome"): EDGE_SPACE + " (Copy source)",
-    ("risky", "single DS2 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Copy destination)",
-    ("risky", "single DS2 -> DS1 ", "outcome"): EDGE_SPACE_KEPT + " (Copy destination)",
-    ("risky", "block  DS1..DS2 -> DS11", "outcome"): EDGE_SPACE + " (Block Copy source)",
-    ("risky", "pack C1..C16 ->  DS1", "outcome"): EDGE_SPACE_KEPT + " (Pack destination)",
-    ("risky", "unpack  DS1 -> C1..C16", "outcome"): EDGE_SPACE + " (Unpack source)",
-}
+    (
+        EDGE_SPACE + " (Copy source)",
+        "risky",
+        "outcome",
+        ("single  DS1 -> DS1", "single DS1  -> DS1"),
+    ),
+    (
+        EDGE_SPACE_KEPT + " (Copy destination)",
+        "risky",
+        "outcome",
+        ("single DS2 ->  DS1", "single DS2 -> DS1 "),
+    ),
+    (EDGE_SPACE + " (Block Copy source)", "risky", "outcome", ("block  DS1..DS2 -> DS11",)),
+    (EDGE_SPACE_KEPT + " (Pack destination)", "risky", "outcome", ("pack C1..C16 ->  DS1",)),
+    (EDGE_SPACE + " (Unpack source)", "risky", "outcome", ("unpack  DS1 -> C1..C16",)),
+    (
+        HEX_WORD,
+        "preflight",
+        "outcome",
+        (
+            "hex DH1 = 0",
+            "hex DH1 = DH1 + 0",
+            "hex DH1 = RAND(5,Ah)",
+        ),
+    ),
+    (
+        HEX_WORD,
+        "math_hex",
+        "outcome",
+        (
+            "hex DH1 = +0",
+            "hex DH1 = +5",
+            "hex DH1 = -0",
+            "hex DH1 = -005",
+            "hex DH1 = -5",
+            "hex DH1 = 0",
+            "hex DH1 = 005",
+            "hex DH1 = 1-2",
+            "hex DH1 = 1E39",
+            "hex DH1 = 1E5",
+            "hex DH1 = 1e5",
+            "hex DH1 = 5",
+            "hex DH1 = C0",
+            "hex DH1 = C0 + 1h",
+            "hex DH1 = DD0",
+            "hex DH1 = DD0 + 1h",
+            "hex DH1 = DF0",
+            "hex DH1 = DF0 + 1h",
+            "hex DH1 = DH0",
+            "hex DH1 = DH0 + 1h",
+            "hex DH1 = DH1 + 0",
+            "hex DH1 = DH1 + 005",
+            "hex DH1 = DH1 + 1-2",
+            "hex DH1 = DH1 + 1E39",
+            "hex DH1 = DH1 + 1E5",
+            "hex DH1 = DH1 + 1e5",
+            "hex DH1 = DH1 + 5",
+            "hex DH1 = DH1 + E5",
+            "hex DH1 = DH1 + abc",
+            "hex DH1 = DH501",
+            "hex DH1 = DH501 + 1h",
+            "hex DH1 = E5",
+            "hex DH1 = RAND(1h,5)",
+            "hex DH1 = RAND(1h,C0)",
+            "hex DH1 = RAND(1h,DD0)",
+            "hex DH1 = RAND(1h,DF0)",
+            "hex DH1 = RAND(1h,DH0)",
+            "hex DH1 = RAND(1h,DH501)",
+            "hex DH1 = RAND(5,Ah)",
+            "hex DH1 = RAND(C0,Ah)",
+            "hex DH1 = RAND(DD0,Ah)",
+            "hex DH1 = RAND(DF0,Ah)",
+            "hex DH1 = RAND(DH0,Ah)",
+            "hex DH1 = RAND(DH501,Ah)",
+            "hex DH1 = abc",
+        ),
+    ),
+    (
+        RAND_BANK,
+        "math_decimal",
+        "outcome",
+        (
+            "dec DS1 = RAND(1,CTD1)",
+            "dec DS1 = RAND(1,CTD250)",
+            "dec DS1 = RAND(1,DF1)",
+            "dec DS1 = RAND(1,DF500)",
+            "dec DS1 = RAND(1,SD1)",
+            "dec DS1 = RAND(1,SD1000)",
+            "dec DS1 = RAND(1,TD1)",
+            "dec DS1 = RAND(1,TD500)",
+            "dec DS1 = RAND(CTD1,10)",
+            "dec DS1 = RAND(CTD250,10)",
+            "dec DS1 = RAND(DF1,10)",
+            "dec DS1 = RAND(DF500,10)",
+            "dec DS1 = RAND(SD1,10)",
+            "dec DS1 = RAND(SD1000,10)",
+            "dec DS1 = RAND(TD1,10)",
+            "dec DS1 = RAND(TD500,10)",
+        ),
+    ),
+    (
+        RAND_BANK,
+        "math_hex",
+        "outcome",
+        (
+            "hex DH1 = RAND(1h,XD0)",
+            "hex DH1 = RAND(1h,XD00)",
+            "hex DH1 = RAND(1h,XD0U)",
+            "hex DH1 = RAND(1h,XD0u)",
+            "hex DH1 = RAND(1h,XD1)",
+            "hex DH1 = RAND(1h,XD8)",
+            "hex DH1 = RAND(1h,YD0)",
+            "hex DH1 = RAND(1h,YD00)",
+            "hex DH1 = RAND(1h,YD0U)",
+            "hex DH1 = RAND(1h,YD0u)",
+            "hex DH1 = RAND(1h,YD1)",
+            "hex DH1 = RAND(1h,YD8)",
+            "hex DH1 = RAND(XD0,Ah)",
+            "hex DH1 = RAND(XD00,Ah)",
+            "hex DH1 = RAND(XD0U,Ah)",
+            "hex DH1 = RAND(XD0u,Ah)",
+            "hex DH1 = RAND(XD1,Ah)",
+            "hex DH1 = RAND(XD8,Ah)",
+            "hex DH1 = RAND(YD0,Ah)",
+            "hex DH1 = RAND(YD00,Ah)",
+            "hex DH1 = RAND(YD0U,Ah)",
+            "hex DH1 = RAND(YD0u,Ah)",
+            "hex DH1 = RAND(YD1,Ah)",
+            "hex DH1 = RAND(YD8,Ah)",
+        ),
+    ),
+    (
+        RAND_EQUAL,
+        "math_decimal",
+        "outcome",
+        (
+            "dec DS1 = RAND(1,1)",
+            "dec DS1 = RAND(DS1,DS1)",
+        ),
+    ),
+    (
+        RAND_EQUAL,
+        "math_hex",
+        "outcome",
+        (
+            "hex DH1 = RAND(1h,1h)",
+            "hex DH1 = RAND(DH1,DH1)",
+        ),
+    ),
+    (
+        RAND_REAL,
+        "math_decimal",
+        "outcome",
+        (
+            "dec DS1 = RAND(1,1.5)",
+            "dec DS1 = RAND(1.5,10)",
+        ),
+    ),
+    (
+        FLOAT_EDGE,
+        "math_decimal",
+        "outcome",
+        (
+            "dec DS1 = 3.4028235E+38",
+            "dec DS1 = DS1 + 3.4028235E+38",
+        ),
+    ),
+    (
+        SUM_ORDER,
+        "math_decimal",
+        "code",
+        (
+            "dec DS1 = SUM(CT2:CT1)",
+            "dec DS1 = SUM(DH2:DH1)",
+            "dec DS1 = SUM(TXT2:TXT1)",
+            "dec DS1 = SUM(XD1:XD0)",
+            "dec DS1 = SUM(YD1:YD0)",
+        ),
+    ),
+    (
+        SUM_ORDER,
+        "math_hex",
+        "code",
+        (
+            "hex DH1 = SUM(C2:C1)",
+            "hex DH1 = SUM(CT2:CT1)",
+            "hex DH1 = SUM(CTD2:CTD1)",
+            "hex DH1 = SUM(DD2:DD1)",
+            "hex DH1 = SUM(DF2:DF1)",
+            "hex DH1 = SUM(DS2:DS1)",
+            "hex DH1 = SUM(SC2:SC1)",
+            "hex DH1 = SUM(SD2:SD1)",
+            "hex DH1 = SUM(T2:T1)",
+            "hex DH1 = SUM(TD2:TD1)",
+            "hex DH1 = SUM(TXT2:TXT1)",
+            "hex DH1 = SUM(X002:X001)",
+            "hex DH1 = SUM(Y002:Y001)",
+        ),
+    ),
+    (
+        SUM_BLOCK,
+        "math_decimal",
+        "code",
+        (
+            "dec DS1 = SUM(C1:TXT2)",
+            "dec DS1 = SUM(CT1:C2)",
+            "dec DS1 = SUM(CT1:DS2)",
+            "dec DS1 = SUM(CT1:TXT2)",
+            "dec DS1 = SUM(CT1:X002)",
+            "dec DS1 = SUM(CTD1:TXT2)",
+            "dec DS1 = SUM(DD1:TXT2)",
+            "dec DS1 = SUM(DF1:TXT2)",
+            "dec DS1 = SUM(DH1:C2)",
+            "dec DS1 = SUM(DH1:DS2)",
+            "dec DS1 = SUM(DH1:TXT2)",
+            "dec DS1 = SUM(DH1:X002)",
+            "dec DS1 = SUM(DS1:TXT2)",
+            "dec DS1 = SUM(SC1:TXT2)",
+            "dec DS1 = SUM(SD1:TXT2)",
+            "dec DS1 = SUM(T1:TXT2)",
+            "dec DS1 = SUM(TD1:TXT2)",
+            "dec DS1 = SUM(TXT1:C2)",
+            "dec DS1 = SUM(TXT1:DS2)",
+            "dec DS1 = SUM(TXT1:X002)",
+            "dec DS1 = SUM(X001:TXT2)",
+            "dec DS1 = SUM(XD0:C2)",
+            "dec DS1 = SUM(XD0:DS2)",
+            "dec DS1 = SUM(XD0:TXT2)",
+            "dec DS1 = SUM(XD0:X002)",
+            "dec DS1 = SUM(Y001:TXT2)",
+            "dec DS1 = SUM(YD0:C2)",
+            "dec DS1 = SUM(YD0:DS2)",
+            "dec DS1 = SUM(YD0:TXT2)",
+            "dec DS1 = SUM(YD0:X002)",
+        ),
+    ),
+    (
+        HEX_RESULT_SD,
+        "math_hex",
+        "code",
+        (
+            "hex SD0 = DH2 + DH3",
+            "hex SD1001 = DH2 + DH3",
+        ),
+    ),
+    (
+        INNER_SPACE,
+        "copy_single",
+        "outcome",
+        (
+            "single DS 1 -> DS1",
+            "single DS2 -> DS 1",
+        ),
+    ),
+    (INNER_SPACE, "copy_single", "stored", ("single DS2 -> DS 1",)),
+    (INNER_SPACE, "math_decimal", "outcome", ("dec DS 1 = DS2 + 1",)),
+    (
+        BLOCK_LOWERCASE,
+        "copy_block",
+        "outcome",
+        (
+            "block DS1..DS2 -> ds1",
+            "block ds1..DS2 -> DS11",
+        ),
+    ),
+    (SD_POINTER, "copy_single", "outcome", ("single SD[DS1] -> DS1",)),
+    (SD_POINTER, "copy_single", "stored", ("single SD[DS1] -> DS1",)),
+    (
+        E_REAL,
+        "copy_single",
+        "outcome",
+        (
+            'single "1E5" -> DS1',
+            'single "E" -> DS1',
+            'single "HELLO" -> DS1',
+            'single "e" -> DS1',
+            "single 1E -> DS1",
+            "single E5 -> DS1",
+        ),
+    ),
+    (COPY_EH, "copy_single", "outcome", ("single EH -> DS1",)),
+    (TEXT_AS_REAL, "copy_single", "stored", ('single "HELLO" -> TXT1',)),
+    (
+        ASCII_SOURCE,
+        "copy_single",
+        "code",
+        (
+            "single $00 -> DS1",
+            "single $1 -> DS1",
+            "single $0D -> DS1",
+            "single $41 -> C1",
+            "single $41 -> CT1",
+            "single $41 -> CTD1",
+            "single $41 -> CTD[DS1]",
+            "single $41 -> C[DS1]",
+            "single $41 -> DD1",
+            "single $41 -> DD[DS1]",
+            "single $41 -> DF1",
+            "single $41 -> DF[DS1]",
+            "single $41 -> DH1",
+            "single $41 -> DH[DS1]",
+            "single $41 -> DS1",
+            "single $41 -> DS[DS1]",
+            "single $41 -> SC1",
+            "single $41 -> T1",
+            "single $41 -> TD1",
+            "single $41 -> TD[DS1]",
+            "single $41 -> X001",
+            "single $41 -> Y001",
+            "single $41 -> YD0",
+            "single $41 -> YD[DS1]",
+            "single $FF -> DS1",
+            "single $ff -> DS1",
+        ),
+    ),
+    (
+        SOURCE_VALUE,
+        "copy_single",
+        "code",
+        (
+            'single "" -> DS1',
+            "single 0FFFFFFFFh -> DS1",
+            "single 100000000h -> DS1",
+            "single FFFFFFFFFh -> DS1",
+        ),
+    ),
+    (
+        SD_PAIRING,
+        "copy_single",
+        "code",
+        (
+            'single "A" -> SD1',
+            'single "AB" -> SD1',
+            "single 10000h -> SD1",
+            "single C1 -> SD1",
+            "single CT1 -> SD1",
+            "single SC1 -> SD1",
+            "single T1 -> SD1",
+            "single X001 -> SD1",
+            "single Y001 -> SD1",
+        ),
+    ),
+    (
+        BIT_PAST_RANGE,
+        "copy_single",
+        "code",
+        (
+            "single DS2 -> CT0",
+            "single DS2 -> CT251",
+            "single DS2 -> SC0",
+            "single DS2 -> SC1001",
+            "single DS2 -> T0",
+            "single DS2 -> T501",
+            "single DS2 -> X000",
+            "single DS2 -> X017",
+            "single DS2 -> X020",
+            "single DS2 -> X037",
+            "single DS2 -> X100",
+            "single DS2 -> X117",
+            "single DS2 -> X817",
+        ),
+    ),
+    (
+        PACK_TXT,
+        "copy_pack",
+        "outcome",
+        (
+            "pack TXT1..TXT1000 -> DH1",
+            "pack TXT1..TXT16 -> DH1",
+        ),
+    ),
+    (
+        PACK_TWO_BOXES,
+        "copy_pack",
+        "code",
+        (
+            "pack CT1..CT33 -> DD1",
+            "pack CT1..CT33 -> DS1",
+            "pack SC1..SC33 -> DD1",
+            "pack SC1..SC33 -> DS1",
+            "pack T1..T33 -> DD1",
+            "pack T1..T33 -> DS1",
+        ),
+    ),
+    (
+        PACK_DH_COUNT,
+        "copy_pack",
+        "code",
+        (
+            "pack DH1..DH16 -> DH1",
+            "pack DH1..DH500 -> DH1",
+        ),
+    ),
+    (
+        UNPACK_BANK_FIRST,
+        "copy_unpack",
+        "code",
+        (
+            "unpack DH1 -> DS1..DS1",
+            "unpack DS1 -> DH1..DH1",
+            "unpack DS1 -> DH2..DH1",
+            "unpack DS1 -> DH500..DH500",
+            "unpack DS1 -> DS001..C16",
+            "unpack DS1 -> DS1..DS1",
+            "unpack DS1 -> DS2..DS1",
+            "unpack DS1 -> DS4500..DS4500",
+            "unpack DS1 -> ds1..C16",
+        ),
+    ),
+    (
+        UNPACK_Y_PAIRING,
+        "copy_unpack",
+        "code",
+        (
+            "unpack DD1 -> Y001..Y001",
+            "unpack DD1 -> Y001..Y002",
+            "unpack DD1 -> Y001..Y016",
+            "unpack DD1 -> Y001..Y032",
+            "unpack DD1 -> Y001..Y033",
+            "unpack DD1 -> Y001..Y036",
+            "unpack DF1 -> Y001..Y016",
+            "unpack DF1 -> Y001..Y032",
+            "unpack DF1 -> Y001..Y036",
+            "unpack DS1 -> Y001..Y001",
+            "unpack DS1 -> Y001..Y002",
+            "unpack DS1 -> Y001..Y016",
+            "unpack DS1 -> Y001..Y021",
+            "unpack DS1 -> Y001..Y032",
+            "unpack DS1 -> Y001..Y033",
+            "unpack DS1 -> Y001..Y036",
+            "unpack DS1 -> Y002..Y001",
+            "unpack DS1 -> Y016..Y016",
+            "unpack DS1 -> Y021..Y021",
+            "unpack DS1 -> Y036..Y036",
+            "unpack DS1 -> Y101..Y101",
+            "unpack DS1 -> Y101..Y116",
+            "unpack DS1 -> Y101..Y201",
+            "unpack DS1 -> Y815..Y816",
+            "unpack DS1 -> Y816..Y816",
+        ),
+    ),
+    (
+        UNPACK_Y_COUNT,
+        "copy_unpack",
+        "code",
+        (
+            "unpack DH1 -> Y001..Y032",
+            "unpack DH1 -> Y001..Y036",
+        ),
+    ),
+    (
+        OUT_ACROSS,
+        "out",
+        "code",
+        (
+            "out C1..DS1",
+            "out C1..TXT1",
+            "out C1..X001",
+            "out Y001..DS001",
+            "out Y001..DS1",
+            "out Y001..TXT1",
+            "out Y001..X001",
+            "out Y001..ds1",
+        ),
+    ),
+    (
+        TYPED_ADDRESS,
+        "copy_single",
+        "stored",
+        (
+            "single DS2 -> DS001",
+            "single DS2 -> DS01",
+            "single DS2 -> DS[DS001]",
+            "single DS2 -> DS[ds1]",
+            "single DS2 -> YD00",
+            "single DS2 -> YD0U",
+            "single DS2 -> ds1",
+        ),
+    ),
+    (
+        TYPED_ADDRESS,
+        "copy_block",
+        "stored",
+        (
+            "block DS1..DS2 -> DS001",
+            "block DS1..DS2 -> ds1",
+        ),
+    ),
+    (
+        TYPED_ADDRESS,
+        "copy_pack",
+        "stored",
+        (
+            "pack C1..C16 -> DS001",
+            "pack C1..C16 -> ds1",
+        ),
+    ),
+    (
+        TYPED_ADDRESS,
+        "math_decimal",
+        "stored",
+        (
+            "dec DS1 = DS001 + 1",
+            "dec DS1 = DS01 + 1",
+            "dec DS1 = ds1 + 1",
+        ),
+    ),
+    (
+        TYPED_ADDRESS,
+        "math_hex",
+        "stored",
+        (
+            "hex DH1 = XD00",
+            "hex DH1 = XD00 + 1h",
+            "hex DH1 = XD0U",
+            "hex DH1 = XD0U + 1h",
+            "hex DH1 = YD00",
+            "hex DH1 = YD00 + 1h",
+            "hex DH1 = YD0U",
+            "hex DH1 = YD0U + 1h",
+            "hex DH1 = xd0U + 1h",
+            "hex YD00 = DH2 + DH3",
+            "hex YD0U = DH2 + DH3",
+        ),
+    ),
+    (
+        CONVERSION_7,
+        "copy_single",
+        "stored",
+        (
+            "single 1.5 -> CTD1",
+            "single 1.5 -> CTD[DS1]",
+            "single 1.5 -> DD1",
+            "single 1.5 -> DD[DS1]",
+            "single 2147483647 -> DF1",
+            "single CTD1 -> DF1",
+            "single DF1 -> CTD1",
+        ),
+    ),
+    (
+        TXT_NUMBER,
+        "copy_single",
+        "stored",
+        (
+            "single -5 -> TXT1",
+            "single 1.5 -> TXT1",
+            "single 2147483647 -> TXT1",
+            "single FFh -> TXT1",
+        ),
+    ),
+)
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 86
+CODES_COMPARED = 2768
 
 
 @pytest.fixture(scope="module")
@@ -107,6 +785,12 @@ def generator() -> Any:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+@pytest.fixture(scope="module")
+def compared(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
+    """The comparison of every answer file, made once for the tests that read it."""
+    return compare(generator)
 
 
 def _answers(name: str) -> list[dict[str, Any]]:
@@ -344,8 +1028,8 @@ def compare_picker_checks() -> list[str]:
     return wrong
 
 
-def test_answers_match_the_rules(generator: Any) -> None:
-    found, _ = compare(generator)
+def test_answers_match_the_rules(compared: tuple[dict[Key, str], dict[str, int]]) -> None:
+    found = dict(compared[0])
     found.update(compare_lists())
     assert set(found) - set(DISAGREEMENTS) == set(), (
         "a difference between CLICK's answers and the rules that DISAGREEMENTS does not list: "
@@ -360,8 +1044,10 @@ def test_picker_checks_follow_the_picker_lists() -> None:
     assert compare_picker_checks() == []
 
 
-def test_the_length_rule_skips_what_cannot_be_typed(generator: Any) -> None:
-    _, counts = compare(generator)
+def test_the_length_rule_skips_what_cannot_be_typed(
+    compared: tuple[dict[Key, str], dict[str, int]],
+) -> None:
+    _, counts = compared
     assert counts["skipped"] == 3, "RESULTS names three risky cases past their field's limit"
     skipped = [c["case"] for g in ANSWER_FILES for c in _answers(g) if too_long(c)]
     assert len(skipped) == 3
@@ -380,14 +1066,47 @@ def test_every_case_was_answered() -> None:
                 assert read_back == case["fields"], (grid, case["case"])
 
 
-def test_codes_compared_are_the_count(generator: Any) -> None:
-    _, counts = compare(generator)
+def test_codes_compared_are_the_count(compared: tuple[dict[Key, str], dict[str, int]]) -> None:
+    _, counts = compared
     assert counts["codes"] == CODES_COMPARED, counts
+
+
+def test_a_case_listed_twice_fails() -> None:
+    once = ("a reason", "out", "code", ("out C1..DS1",))
+    with pytest.raises(ValueError, match="listed twice"):
+        _table(once, ("another reason", "out", "code", ("out Y001..DS1", "out C1..DS1")))
+
+
+def test_a_chain_of_boxes_starts_with_the_code() -> None:
+    """Where one OK raised several error boxes (``boxes``, each a code and its message), the
+    case's ``code`` and ``message`` are the first box's, and that code is the one compared."""
+    chains = [
+        (grid, case)
+        for grid in ANSWER_FILES
+        for case in _answers(grid)
+        if case.get("boxes") is not None
+    ]
+    assert chains, "the copy_pack answers hold the chains of boxes"
+    for grid, case in chains:
+        assert case["outcome"] == "refused", (grid, case["case"])
+        assert len(case["boxes"]) >= 2, (grid, case["case"])
+        assert all(len(box) == 2 for box in case["boxes"]), (grid, case["case"])
+        assert case["boxes"][0] == [case["code"], case["message"]], (grid, case["case"])
 
 
 def test_answers_are_the_grids_cases() -> None:
     """The answered cases are the grid file's, label for label, with the same fields."""
-    for grid in ("preflight", "risky"):
+    for grid in (
+        "preflight",
+        "risky",
+        "out",
+        "copy_single",
+        "copy_block",
+        "copy_pack",
+        "copy_unpack",
+        "math_decimal",
+        "math_hex",
+    ):
         cases = json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
         answered = _answers(grid)
         assert [c["case"] for c in answered] == [c["case"] for c in cases], grid
