@@ -434,12 +434,12 @@ def test_compare_group_names_both_operands() -> None:
 def test_drum_event_names_its_list_item() -> None:
     def build() -> Drum:
         return Drum(
-            "event", outputs=["C1"], events_or_presets=["DS1"], pattern=[[1]],
+            "event_drum", outputs=["C1"], events=["DS1"], pattern=[[1]],
             current_step="DS1", completion_flag="C2",
         )  # fmt: skip
 
     (error,) = _refusals(build)
-    assert (error.field, error.reason) == ("Drum.events_or_presets[0]", Reason.BANK)
+    assert (error.field, error.reason) == ("Drum.events[0]", Reason.BANK)
     assert str(error).startswith("Drum.events[0]: ")
 
 

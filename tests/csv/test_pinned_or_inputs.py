@@ -238,9 +238,9 @@ def _count_down() -> Counter:
 
 def _drum(pin_rows: tuple[int, int, int] = (1, 2, 3)) -> Drum:
     return Drum(
-        drum_kind="event",
+        kind="event_drum",
         outputs=["C1", "C2"],
-        events_or_presets=["C3", "C4"],
+        events=["C3", "C4"],
         pattern=[[1, 0], [0, 1]],
         current_step="DS1",
         completion_flag="C5",

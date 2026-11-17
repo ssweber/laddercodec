@@ -238,13 +238,13 @@ def _blank(token: str, key: str) -> str:
 #: one: a toggle has none of the five timing fields, a timed box no off phase, and a drum
 #: with no ``.jump()`` row no jump target.
 CSV_BLANKS: dict[tuple[str, str | None, str], str] = {
-    ("Drum", "event", "accumulator"): EVENT_DRUM[:-1] + ",accumulator=)",
-    ("Drum", "event", "unit"): EVENT_DRUM[:-1] + ",unit=)",
-    ("Drum", "time_event", "events"): TIME_EVENT_DRUM,  # events=[None,...]
-    ("Drum", "time_event", "events_or_presets"): TIME_EVENT_DRUM,  # presets=[1000,None,500]
-    ("Drum", "event, jump off", "jump_target"): EVENT_DRUM,
-    ("Drum", "time, jump off", "jump_target"): TIME_DRUM,
-    ("Drum", "time_event, jump off", "jump_target"): TIME_EVENT_DRUM,
+    ("Drum", "event_drum", "accumulator"): EVENT_DRUM[:-1] + ",accumulator=)",
+    ("Drum", "event_drum", "unit"): EVENT_DRUM[:-1] + ",unit=)",
+    ("Drum", "time_event_drum", "events"): TIME_EVENT_DRUM,  # events=[None,...]
+    ("Drum", "time_event_drum", "presets"): TIME_EVENT_DRUM,  # presets=[1000,None,500]
+    ("Drum", "event_drum, jump off", "jump_step"): EVENT_DRUM,
+    ("Drum", "time_drum, jump off", "jump_step"): TIME_DRUM,
+    ("Drum", "time_event_drum, jump off", "jump_step"): TIME_EVENT_DRUM,
     ("ModbusRtuTarget", None, "name"): RECEIVE.replace('name="rtu"', 'name=""'),
     ("ModbusTcpTarget", None, "name"): SEND.replace('name="tcp"', 'name=""'),
     **{("OutVariant", "toggle", attr): "toggle(C1)" for attr in TIMING},
@@ -284,7 +284,7 @@ def test_a_blank_python_accepts_reads_from_its_csv_token(
     holder = _holder(_read(token), cls)
     assert kind_of(holder, attr) == kind
     value = getattr(holder, attr)
-    assert value == "" or (isinstance(value, list) and "" in value), value
+    assert value == "" or (isinstance(value, tuple) and "" in value), value
 
 
 #: ``..`` where a field takes one value is that value, not a blank: (token, field, reason

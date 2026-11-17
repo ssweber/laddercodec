@@ -44,7 +44,7 @@ def _termination(code: str) -> Copy:
 
 def _time_drum(preset: str) -> Drum:
     return Drum(
-        "time", ["C1"], [preset], [[1]], current_step="DS1", completion_flag="C50",
+        "time_drum", ["C1"], [preset], pattern=[[1]], current_step="DS1", completion_flag="C50",
         accumulator="TD1", unit="Tms",
     )  # fmt: skip
 
@@ -236,7 +236,7 @@ def test_drum_pattern_cell_is_0_or_1(cells: str) -> None:
 
 
 def test_drum_pattern_accepts_0_and_1() -> None:
-    assert _drum_pattern("1,0").pattern == [[1, 0], [1, 0]]
+    assert _drum_pattern("1,0").pattern == ((1, 0), (1, 0))
 
 
 def test_math_refuses_a_nickname_with_unicode_digits() -> None:

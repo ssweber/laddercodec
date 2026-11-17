@@ -346,7 +346,7 @@ class TestConverterPins:
         assert exc.field == "Timer.retained"
         assert isinstance(exc.__cause__, FieldError)
 
-    def test_refused_jump_target_keeps_its_field(self, tmp_path: Path) -> None:
+    def test_refused_jump_step_keeps_its_field(self, tmp_path: Path) -> None:
         """The refused target is the ``.jump(...)`` row's value: the error is at that row."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM),
@@ -354,12 +354,12 @@ class TestConverterPins:
             ("", _wired("C5"), ".jump(C5)"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        exc = _raises(path, CsvError, "jump_target", line=4, rung_line=2, row=2, column=AF)
+        exc = _raises(path, CsvError, "jump_step", line=4, rung_line=2, row=2, column=AF)
         assert isinstance(exc, CsvError)
-        assert exc.field == "Drum.jump_target"
+        assert exc.field == "Drum.jump_step"
         assert isinstance(exc.__cause__, AddressError)
 
-    def test_refused_jump_target_with_pins_after_it(self, tmp_path: Path) -> None:
+    def test_refused_jump_step_with_pins_after_it(self, tmp_path: Path) -> None:
         """A leg under the reset and a jog after the jump don't move the error off the jump."""
         rows: list[Row | list[str]] = [
             ("R", _wired("C1"), DRUM),
@@ -369,7 +369,7 @@ class TestConverterPins:
             ("", _wired("C3"), ".jog()"),
         ]
         path = _write(tmp_path / "main.csv", rows)
-        _raises(path, CsvError, "jump_target", line=5, rung_line=2, row=3, column=AF)
+        _raises(path, CsvError, "jump_step", line=5, rung_line=2, row=3, column=AF)
 
     def test_box_open_at_the_rungs_end(self, tmp_path: Path) -> None:
         """A box still open at the rung's end is located at its own row, not the last."""
@@ -581,7 +581,7 @@ class TestHeldRefusals:
         located = {e.field: CsvLocation.of(e) for e in _held_refusals(path)}
         assert located == {
             "Drum.current_step": CsvLocation(file=path, line=2, rung_line=2, row=0, column=AF),
-            "Drum.jump_target": CsvLocation(file=path, line=5, rung_line=2, row=3, column=AF),
+            "Drum.jump_step": CsvLocation(file=path, line=5, rung_line=2, row=3, column=AF),
         }
 
     def test_the_warning_ends_with_the_first_refusals_location(self, tmp_path: Path) -> None:

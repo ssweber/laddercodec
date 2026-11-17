@@ -131,15 +131,15 @@ def _search_continuation_row() -> list[object]:
 def _event_drum() -> Drum:
     """Return a compact event drum that exercises reset/jump/jog pin rows."""
     return Drum(
-        drum_kind="event",
+        kind="event_drum",
         outputs=["Y10", "Y11"],
-        events_or_presets=["C10", "C11"],
+        events=["C10", "C11"],
         pattern=[[1, 0], [0, 1]],
         current_step="DS10",
         completion_flag="C12",
         jog_enabled=True,
         jump_enabled=True,
-        jump_target="DS11",
+        jump_step="DS11",
     )
 
 

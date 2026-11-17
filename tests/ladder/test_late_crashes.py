@@ -42,9 +42,9 @@ def _shift(**kw) -> Shift:
 
 def _drum(**kw) -> Drum:
     return Drum(
-        drum_kind="event",
+        kind="event_drum",
         outputs=["C1", "C2"],
-        events_or_presets=["C3", "C4"],
+        events=["C3", "C4"],
         pattern=[[1, 0], [0, 1]],
         current_step="DS1",
         completion_flag="C5",
@@ -253,7 +253,7 @@ _FLAG_FIELDS = {
     "Contact.wire_down": lambda v: Contact("X1", wire_down=v),
     "CompareContact.wire_down": lambda v: CompareContact("==", "DS1", "5", wire_down=v),
     "Drum.jog_enabled": lambda v: _drum(jog_enabled=v),
-    "Drum.jump_enabled": lambda v: _drum(jump_enabled=v, jump_target="DS2"),
+    "Drum.jump_enabled": lambda v: _drum(jump_enabled=v, jump_step="DS2"),
 }
 
 

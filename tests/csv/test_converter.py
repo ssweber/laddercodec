@@ -553,7 +553,7 @@ class TestAfNodeToToken:
                 "completion_flag": "C213",
             },
         )
-        with pytest.raises(ValueError, match="Unsupported time drum unit"):
+        with pytest.raises(FieldError, match="Drum.unit: 'BadUnit' is not one of Tms, Ts"):
             af_node_to_token(node)
 
     def test_return(self) -> None:

@@ -265,18 +265,18 @@ class TestConstructor:
 
     def test_drum_lists_and_jump(self) -> None:
         drum = Drum(
-            drum_kind="event",
+            kind="event_drum",
             outputs=["y1", "C002"],
-            events_or_presets=["x1", "c03"],
+            events=["x1", "c03"],
             pattern=[[1, 0], [0, 1]],
             current_step="ds01",
             completion_flag="c09",
             jump_enabled=True,
-            jump_target="ds002",
+            jump_step="ds002",
         )
-        assert drum.outputs == ["Y001", "C2"]
-        assert drum.events_or_presets == ["X001", "C3"]
-        assert (drum.current_step, drum.completion_flag, drum.jump_target) == ("DS1", "C9", "DS2")
+        assert drum.outputs == ("Y001", "C2")
+        assert drum.events == ("X001", "C3")
+        assert (drum.current_step, drum.completion_flag, drum.jump_step) == ("DS1", "C9", "DS2")
 
     @pytest.mark.parametrize("target", [ModbusRtuTarget, ModbusTcpTarget])
     def test_slave_id_address(self, target: type) -> None:
@@ -371,9 +371,9 @@ class TestDecodeKeepsText:
 
     def test_drum_list(self) -> None:
         blob = Drum(
-            drum_kind="event",
+            kind="event_drum",
             outputs=["Y001", "C2"],
-            events_or_presets=["X001", "C3"],
+            events=["X001", "C3"],
             pattern=[[1, 0], [0, 1]],
             current_step="DS1",
             completion_flag="C9",

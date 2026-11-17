@@ -10,6 +10,7 @@ import pytest
 
 from laddercodec import (
     AddressError,
+    CsvError,
     FieldError,
     RefusedFieldWarning,
     decode,
@@ -23,6 +24,7 @@ from laddercodec.instructions.drum import Drum
 from laddercodec.instructions.raw import RawInstruction
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
+from laddercodec.model import Reason
 from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
 
@@ -107,29 +109,30 @@ class TestShift:
         assert Shift(start_bit="C106", end_bit="C99").to_csv() == "shift(C106..C99)"
 
 
-def drum(kind: str = "event", steps: int = 2, outs: int = 2, **kw) -> Drum:
+def drum(kind: str = "event_drum", steps: int = 2, outs: int = 2, **kw) -> Drum:
     args: dict = {
-        "drum_kind": kind,
+        "kind": kind,
         "outputs": [f"C{i + 1}" for i in range(outs)],
-        "events_or_presets": [f"C{i + 10}" if kind == "event" else "100" for i in range(steps)],
         "pattern": [[1] * outs for _ in range(steps)],
         "current_step": "DS1",
         "completion_flag": "C50",
     }
-    if kind != "event":
-        args.update(accumulator="TD1", unit="Tms")
-    if kind == "time_event":
+    if kind == "event_drum":
+        args["events"] = [f"C{i + 10}" for i in range(steps)]
+    else:
+        args.update(presets=["100"] * steps, accumulator="TD1", unit="Tms")
+    if kind == "time_event_drum":
         args["events"] = ["C10"] * steps
     return Drum(**{**args, **kw})
 
 
 class TestDrum:
-    @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
+    @pytest.mark.parametrize("kind", ["event_drum", "time_drum", "time_event_drum"])
     def test_valid_extremes(self, kind: str) -> None:
         assert drum(kind, steps=16, outs=16).num_steps == 16
         assert drum(kind, steps=1, outs=1).num_outputs == 1
 
-    @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
+    @pytest.mark.parametrize("kind", ["event_drum", "time_drum", "time_event_drum"])
     def test_step_and_output_counts(self, kind: str) -> None:
         with pytest.raises(FieldError, match="17 steps"):
             drum(kind, steps=17)
@@ -158,37 +161,37 @@ class TestDrum:
             drum(current_step="DD1")
         with pytest.raises(AddressError, match="completion_flag"):
             drum(completion_flag="Y1")
-        for kind in ("time", "time_event"):
+        for kind in ("time_drum", "time_event_drum"):
             with pytest.raises(AddressError, match="accumulator"):
                 drum(kind, accumulator="DS1")
             with pytest.raises(AddressError, match="accumulator"):
                 drum(kind, accumulator="")
 
-    def test_jump_target(self) -> None:
-        assert drum(jump_enabled=True, jump_target="DS5").jump_target == "DS5"
-        with pytest.raises(AddressError, match="jump_target"):
-            drum(jump_enabled=True, jump_target="")
-        with pytest.raises(AddressError, match="jump_target"):
-            drum(jump_enabled=True, jump_target="C1")
+    def test_jump_step(self) -> None:
+        assert drum(jump_enabled=True, jump_step="DS5").jump_step == "DS5"
+        with pytest.raises(AddressError, match="jump_step"):
+            drum(jump_enabled=True, jump_step="")
+        with pytest.raises(AddressError, match="jump_step"):
+            drum(jump_enabled=True, jump_step="C1")
 
     def test_event_drum_needs_every_event(self) -> None:
         with pytest.raises(FieldError, match="OBJ-021"):
-            drum(events_or_presets=["C10", ""])
+            drum(events=["C10", ""])
 
     def test_time_drum_needs_every_duration(self) -> None:
         with pytest.raises(FieldError, match="OBJ-022"):
-            drum("time", events_or_presets=["100", ""])
+            drum("time_drum", presets=["100", ""])
 
     def test_time_event_step_needs_one_of_two(self) -> None:
-        assert drum("time_event", events_or_presets=["100", ""], events=["", "C10"])
+        assert drum("time_event_drum", presets=["100", ""], events=["", "C10"])
         with pytest.raises(FieldError, match="OBJ-1019"):
-            drum("time_event", events_or_presets=["100", ""], events=["C10", ""])
+            drum("time_event_drum", presets=["100", ""], events=["C10", ""])
         with pytest.raises(FieldError, match="one event per step"):
-            drum("time_event", events=["C10"])
+            drum("time_event_drum", events=["C10"])
 
     def test_unit(self) -> None:
         with pytest.raises(FieldError, match="Drum.unit"):
-            drum("time", unit="x")
+            drum("time_drum", unit="x")
 
 
 class TestDrumPatternCells:
@@ -265,8 +268,8 @@ class TestRefusedBlobsDecode:
 
     def test_drum_with_17_steps(self) -> None:
         d = drum(steps=16, outs=2)
-        object.__setattr__(d, "events_or_presets", d.events_or_presets + ["C99"])
-        object.__setattr__(d, "pattern", d.pattern + [[1, 1]])
+        object.__setattr__(d, "events", (*d.events, "C99"))
+        object.__setattr__(d, "pattern", (*d.pattern, (1, 1)))
         assert d.num_steps == 17
         data = encode_rung(1, [["-"] * 31], [d])
         [decoded] = decode(data)[0].instructions
@@ -422,31 +425,31 @@ class TestShiftRules:
 
 class TestDrumDurations:
     # 0..32767 for every unit, digits only (OBJ-005); a register is DS (OBJ-004).
-    @pytest.mark.parametrize("kind", ["time", "time_event"])
+    @pytest.mark.parametrize("kind", ["time_drum", "time_event_drum"])
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits(self, kind: str, unit: str) -> None:
-        assert drum(kind, events_or_presets=["0", "32767"], unit=unit)
-        assert drum(kind, events_or_presets=["DS1", "5"], unit=unit)
+        assert drum(kind, presets=["0", "32767"], unit=unit)
+        assert drum(kind, presets=["DS1", "5"], unit=unit)
         with pytest.raises(
             FieldError, match=r"^Drum.presets\[1\]: '32768' is outside 0 to 32767 \(OBJ-005\)"
         ):
-            drum(kind, events_or_presets=["1", "32768"], unit=unit)
+            drum(kind, presets=["1", "32768"], unit=unit)
 
     @pytest.mark.parametrize("preset", ["-1", "+5"])
     def test_sign_refused(self, preset: str) -> None:
         message = rf"^Drum.presets\[0\]: '{re.escape(preset)}' is refused; a constant here takes no sign \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
-            drum("time", events_or_presets=[preset, "1"])
+            drum("time_drum", presets=[preset, "1"])
 
     def test_fraction_refused(self) -> None:
         message = r"^Drum.presets\[0\]: '1.5' is a real; Drum.presets\[0\] takes a decimal integer"
         with pytest.raises(FieldError, match=message):
-            drum("time", events_or_presets=["1.5", "1"])
+            drum("time_drum", presets=["1.5", "1"])
 
     @pytest.mark.parametrize("preset", ["DD1", "TD1", "DH1"])
     def test_other_registers_refused(self, preset: str) -> None:
         with pytest.raises(AddressError, match=r"^Drum.presets\[0\]: .* takes DS \(OBJ-004\)$"):
-            drum("time", events_or_presets=[preset, "1"])
+            drum("time_drum", presets=[preset, "1"])
 
     def test_csv(self, tmp_path: Path) -> None:
         token = (
@@ -458,7 +461,7 @@ class TestDrumDurations:
         assert isinstance(_read_af(tmp_path, token.replace("32768", "32767")), Drum)
 
     def test_refused_duration_decodes(self) -> None:
-        _decoded_after(drum("time"), "Drum.events_or_presets[0]", events_or_presets=["40000", "1"])
+        _decoded_after(drum("time_drum"), "Drum.presets[0]", presets=("40000", "1"))
 
 
 class TestDrumEventsAndOutputs:
@@ -466,16 +469,16 @@ class TestDrumEventsAndOutputs:
     # from the completion flag (OBJ-014), compared as addresses.
     @pytest.mark.parametrize("event", ["X001", "Y001", "C5", "T1", "CT1", "SC1"])
     def test_event_banks_accepted(self, event: str) -> None:
-        assert drum(events_or_presets=[event, "C10"]).events_or_presets[0] == event
-        assert drum("time_event", events=[event, ""]).events[0] == event
+        assert drum(events=[event, "C10"]).events[0] == event
+        assert drum("time_event_drum", events=[event, ""]).events[0] == event
 
     @pytest.mark.parametrize("event", ["DS1", "TD1", "XD0", "TXT1"])
     def test_other_event_banks_refused(self, event: str) -> None:
         message = r"^Drum.events\[0\]: .* takes X, Y, C, T, CT, SC$"
         with pytest.raises(AddressError, match=message):
-            drum(events_or_presets=[event, "C10"])
+            drum(events=[event, "C10"])
         with pytest.raises(AddressError, match=message):
-            drum("time_event", events=[event, ""])
+            drum("time_event_drum", events=[event, ""])
 
     @pytest.mark.parametrize("second", ["C1", "C001"])
     def test_output_twice_refused(self, tmp_path: Path, second: str) -> None:
@@ -493,7 +496,7 @@ class TestDrumEventsAndOutputs:
         with pytest.raises(FieldError, match="OBJ-014"):
             drum(outputs=["Y001", "Y1"])
 
-    @pytest.mark.parametrize("kind", ["event", "time", "time_event"])
+    @pytest.mark.parametrize("kind", ["event_drum", "time_drum", "time_event_drum"])
     def test_output_is_completion_flag(self, kind: str) -> None:
         message = r"^Drum.outputs\[1\]: 'C50' is the completion flag"
         with pytest.raises(FieldError, match=message):
@@ -502,12 +505,12 @@ class TestDrumEventsAndOutputs:
     @pytest.mark.parametrize(
         ("bad", "field"),
         [
-            ({"outputs": ["C1", "C1"]}, "Drum.outputs[1]"),
-            ({"outputs": ["C1", "C50"]}, "Drum.outputs[1]"),
-            ({"events_or_presets": ["DS1", "C10"]}, "Drum.events_or_presets[0]"),
+            ({"outputs": ("C1", "C1")}, "Drum.outputs[1]"),
+            ({"outputs": ("C1", "C50")}, "Drum.outputs[1]"),
+            ({"events": ("DS1", "C10")}, "Drum.events[0]"),
         ],
     )
-    def test_refused_blobs_decode(self, bad: dict[str, list[str]], field: str) -> None:
+    def test_refused_blobs_decode(self, bad: dict[str, tuple[str, ...]], field: str) -> None:
         _decoded_after(drum(), field, **bad)
 
     @pytest.mark.parametrize(
@@ -515,7 +518,7 @@ class TestDrumEventsAndOutputs:
         [
             ("C184", "C183", "Drum.outputs[1]"),
             ("C184", "C187", "Drum.outputs[1]"),
-            ("C185", "DS18", "Drum.events_or_presets[0]"),
+            ("C185", "DS18", "Drum.events[0]"),
         ],
     )
     def test_scr_refused_blobs_decode(self, old: str, new: str, field: str) -> None:
@@ -523,16 +526,118 @@ class TestDrumEventsAndOutputs:
         assert _scr_refused(old, new) == [("Drum", [field])]
 
 
+class TestDrumNames:
+    """A Drum's fields are its CSV keywords, its lists are tuples, and its kind is the CSV name."""
+
+    def test_lists_are_stored_as_tuples(self) -> None:
+        d = drum("time_event_drum")
+        assert (type(d.outputs), type(d.presets), type(d.events)) == (tuple,) * 3
+        assert type(d.pattern) is tuple and type(d.pattern[0]) is tuple
+
+    def test_a_list_and_a_tuple_build_equal_drums(self) -> None:
+        a = drum(outputs=["C1", "C2"], pattern=[[1, 0], [0, 1]], events=["C10", "C11"])
+        b = drum(outputs=("C1", "C2"), pattern=((1, 0), (0, 1)), events=("C10", "C11"))
+        assert a == b
+        assert a.to_csv() == b.to_csv()
+        assert a.build_blob() == b.build_blob()
+
+    @pytest.mark.parametrize("kind", ["event_drum", "time_drum", "time_event_drum"])
+    def test_csv_round_trip_keeps_the_kind(self, kind: str, tmp_path: Path) -> None:
+        d = drum(kind)
+        assert d.to_csv().startswith(f"{kind}(")
+        assert _read_af(tmp_path, d.to_csv()) == d
+
+    def test_an_event_drum_refuses_presets(self) -> None:
+        with pytest.raises(FieldError) as error:
+            drum("event_drum", presets=["100", "200"])
+        assert (error.value.field, error.value.reason) == ("Drum.presets", Reason.CONFLICT)
+
+    def test_a_time_drum_refuses_events(self) -> None:
+        with pytest.raises(FieldError) as error:
+            drum("time_drum", events=["C10", "C11"])
+        assert (error.value.field, error.value.reason) == ("Drum.events", Reason.CONFLICT)
+
+    def test_the_old_names_are_gone(self) -> None:
+        with pytest.raises(TypeError):
+            Drum(drum_kind="event_drum")  # type: ignore[call-arg]
+        with pytest.raises(TypeError):
+            drum(events_or_presets=["C1", "C2"])
+
+    def test_the_old_kind_values_are_refused(self) -> None:
+        with pytest.raises(FieldError) as error:
+            drum("time_event")
+        assert (error.value.field, error.value.reason) == ("Drum.kind", Reason.CHOICE)
+
+
+class TestDrumCsvChecks:
+    """A drum token missing a keyword is a CSV error; a value it holds that the Drum refuses is
+    that Drum's FieldError."""
+
+    TIME = (
+        "time_drum(outputs=[C1,C2],presets=[100,200],{unit}pattern={pattern},"
+        "current_step=DS1,accumulator=TD1,completion_flag=C9)"
+    )
+    TIME_EVENT = (
+        "time_event_drum(outputs=[C1,C2],presets=[100,None],events=[None,C20],{unit}"
+        "pattern=[[1,0],[0,1]],current_step=DS1,{accumulator}completion_flag=C9)"
+    )
+
+    def _time(self, unit: str = "unit=Tms,", pattern: str = "[[1,0],[0,1]]") -> str:
+        return self.TIME.format(unit=unit, pattern=pattern)
+
+    def _time_event(self, unit: str = "unit=Tms,", accumulator: str = "accumulator=TD1,") -> str:
+        return self.TIME_EVENT.format(unit=unit, accumulator=accumulator)
+
+    @pytest.mark.parametrize("unit", ["", "unit=,"])
+    def test_a_time_drum_without_a_unit_is_a_csv_error(self, tmp_path: Path, unit: str) -> None:
+        with pytest.raises(CsvError, match="time_drum needs unit="):
+            _read_af(tmp_path, self._time(unit))
+        with pytest.raises(CsvError, match="time_event_drum needs unit="):
+            _read_af(tmp_path, self._time_event(unit))
+
+    def test_a_bad_unit_is_a_field_error(self, tmp_path: Path) -> None:
+        for token in (self._time("unit=Bad,"), self._time_event("unit=Bad,")):
+            with pytest.raises(FieldError, match="^Drum.unit: 'Bad' is not one of Tms") as error:
+                _read_af(tmp_path, token)
+            assert error.value.reason is Reason.CHOICE
+
+    def test_a_time_event_drum_without_an_accumulator_is_a_csv_error(self, tmp_path: Path) -> None:
+        with pytest.raises(CsvError, match="time_event_drum needs accumulator="):
+            _read_af(tmp_path, self._time_event(accumulator=""))
+
+    def test_a_blank_time_event_accumulator_is_a_field_error(self, tmp_path: Path) -> None:
+        with pytest.raises(AddressError, match="^Drum.accumulator: is blank") as error:
+            _read_af(tmp_path, self._time_event(accumulator="accumulator=,"))
+        assert error.value.reason is Reason.MISSING
+
+    def test_a_time_event_accumulator_outside_td_is_a_field_error(self, tmp_path: Path) -> None:
+        with pytest.raises(AddressError, match="^Drum.accumulator") as error:
+            _read_af(tmp_path, self._time_event(accumulator="accumulator=DS1,"))
+        assert error.value.reason is Reason.BANK
+
+    @pytest.mark.parametrize("pattern", ["[[1,2],[0,1]]", "[[1,x],[0,1]]", "[[1,],[0,1]]"])
+    def test_a_pattern_cell_outside_0_and_1_is_a_field_error(
+        self, tmp_path: Path, pattern: str
+    ) -> None:
+        with pytest.raises(FieldError, match="^Drum.pattern: .* cells are 0 or 1") as error:
+            _read_af(tmp_path, self._time(pattern=pattern))
+        assert error.value.reason is Reason.CHOICE
+
+    def test_a_pattern_that_is_no_list_is_a_csv_error(self, tmp_path: Path) -> None:
+        with pytest.raises(CsvError, match="Expected nested list"):
+            _read_af(tmp_path, self._time(pattern="1"))
+
+
 class TestFieldNames:
     """A refusal names the dataclass field it came from, where the message does not."""
 
     def test_drum_names_the_field_of_a_message_without_one(self) -> None:
         with pytest.raises(FieldError) as steps:
-            drum("event", events_or_presets=["C1"] * 33, pattern=[[1, 0]] * 33)
-        assert steps.value.field == "Drum.events_or_presets"
+            drum("event_drum", events=["C1"] * 33, pattern=[[1, 0]] * 33)
+        assert steps.value.field == "Drum.events"
         with pytest.raises(FieldError) as step:
-            drum("time_event", events_or_presets=["", "5"], events=["", ""])
-        assert step.value.fields == ("Drum.events_or_presets[0]", "Drum.events[0]")
+            drum("time_event_drum", presets=["", "5"], events=["", ""])
+        assert step.value.fields == ("Drum.presets[0]", "Drum.events[0]")
         with pytest.raises(FieldError) as outs:
             drum(outs=33, steps=1)
         assert outs.value.field == "Drum.outputs"
@@ -540,9 +645,9 @@ class TestFieldNames:
     def test_kind_and_unit_refusals_name_the_field(self) -> None:
         with pytest.raises(FieldError) as kind:
             drum("bogus")
-        assert kind.value.field == "Drum.drum_kind"
+        assert kind.value.field == "Drum.kind"
         with pytest.raises(FieldError) as unit:
-            drum("time", unit="Tx")
+            drum("time_drum", unit="Tx")
         assert unit.value.field == "Drum.unit"
         with pytest.raises(FieldError) as timer_unit:
             timer(unit="Tx")
@@ -569,17 +674,17 @@ class TestLongDigitRuns:
     ZEROS = "0" * 5000 + "1"
     ONES = "1" * 5000
 
-    @pytest.mark.parametrize("kind", ["time", "time_event"])
+    @pytest.mark.parametrize("kind", ["time_drum", "time_event_drum"])
     @pytest.mark.parametrize("index", [0, 1])
     def test_drum_presets(self, kind: str, index: int) -> None:
         for value, ok in ((self.ZEROS, True), (self.ONES, False)):
             presets = ["5", "5"]
             presets[index] = value
             if ok:
-                assert drum(kind, events_or_presets=presets).events_or_presets[index] == value
+                assert drum(kind, presets=presets).presets[index] == value
             else:
                 with pytest.raises(FieldError, match=rf"^Drum.presets\[{index}\]"):
-                    drum(kind, events_or_presets=presets)
+                    drum(kind, presets=presets)
 
     @pytest.mark.parametrize("kind", ["on_delay", "off_delay"])
     def test_timer_preset(self, kind: str) -> None:

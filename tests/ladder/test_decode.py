@@ -294,9 +294,9 @@ def _make_time_drum():
     from laddercodec import Drum
 
     return Drum(
-        drum_kind="time",
+        kind="time_drum",
         outputs=["C2"],
-        events_or_presets=["1"],
+        presets=["1"],
         pattern=[[0]],
         current_step="DS1",
         completion_flag="C1",

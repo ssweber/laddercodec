@@ -151,14 +151,14 @@ def normalize_fields(inst: object, *names: str) -> None:
 def normalize_items(inst: object, *names: str) -> None:
     """Write each item of each named list field of ``inst`` in display form.
 
-    The field becomes the list of its items, each through :func:`normalize_address`, so a
+    The field becomes the tuple of its items, each through :func:`normalize_address`, so a
     value that can't be iterated, or an item that is not text, raises ``TypeError``.  A
     refusal names ``Class.name[i]``.
     """
     cls = type(inst).__name__
     for name in names:
         items = getattr(inst, name)
-        value = [normalize_address(v, f"{cls}.{name}[{i}]") for i, v in enumerate(items)]
+        value = tuple(normalize_address(v, f"{cls}.{name}[{i}]") for i, v in enumerate(items))
         object.__setattr__(inst, name, value)
 
 

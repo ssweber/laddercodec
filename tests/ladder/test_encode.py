@@ -515,10 +515,10 @@ def test_encode_refuses_a_comment_too_long() -> None:
 
 def test_encode_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None:
     drum = Drum(
-        drum_kind="time_event",
+        kind="time_event_drum",
         outputs=["C1"],
         pattern=[[1]],
-        events_or_presets=["1"],
+        presets=["1"],
         events=["X1"],
         unit="Ts",
         accumulator="TD1",
