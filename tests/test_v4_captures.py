@@ -122,10 +122,14 @@ def _current_spelling(token: str) -> str:
     """A comment token as write_csv spells it now.
 
     Comments are baked into captures.  ``to_text`` used to carry both
-    ``suppress_zero`` and ``exponential``; it now writes only the source's own.
+    ``suppress_zero`` and ``exponential``; it now writes only the source's own, and a DF
+    source refuses ``suppress_zero``.
     """
     if token.startswith("copy(") and "to_text(" in token:
-        return Copy.from_csv_token(token).to_csv()
+        try:
+            return Copy.from_csv_token(token).to_csv()
+        except FieldError:
+            return Copy.from_csv_token(re.sub(r"suppress_zero=[01],", "", token)).to_csv()
     return token
 
 

@@ -155,9 +155,14 @@ def test_copy_termination_code_not_a_character_code_is_obj_036(fmt: str, code: s
     )
 
 
-def test_copy_text_past_the_last_txt_conflicts_with_its_destination() -> None:
+def test_copy_text_past_the_last_txt_is_out_of_range() -> None:
+    """CLICK refuses "AB" into TXT1000 as outside the range (OBJ-003), as it does -5."""
     (error,) = _errors(lambda: Copy('"ABC"', "TXT1000"))
-    assert (error.fields, error.reason) == (("Copy.destination", "Copy.source"), "conflict")
+    assert (error.fields, error.reason, error.click_id) == (
+        ("Copy.destination",),
+        "range",
+        "OBJ-003",
+    )
 
 
 @pytest.mark.parametrize(

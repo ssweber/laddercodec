@@ -143,6 +143,47 @@ with the two fields Click writes; `next()` keeps the one-field v3 form. Each
 version accepts either Next on paste and copies back its own: v3 drops `9220`,
 v4 adds it.
 
+## Single Copy conversion type
+
+A single Copy (class `Copy`, type 0x2721, `0x2223` = 0) holds its conversion in tag
+`0x2227` and, for text into TXT, the last TXT the text fills in tag `0x6077`. Source:
+`copy.py`.
+
+| `0x2227` | Copy |
+|---|---|
+| `0` | a plain copy |
+| `1`, `2` | an integer, hex or register source to text, zeros suppressed (`1`) or not (`2`) |
+| `3`, `4` | a DF address or pointer, or a real constant, to text, real (`3`) or exponential (`4`) numbering |
+| `5`, `6` | TXT to a number, by value (`5`) or as character codes (`6`) |
+| `7` | a value converted between a real and a 32-bit integer |
+| `8` | a binary copy |
+
+CLICK saves type `7` for a copy between DF and DD or CTD (either way, addresses), for a
+real constant into DD or CTD (an address or a pointer), and for an integer constant outside
+int16 into DF (an address or a pointer: `32768`, `-32769`, `65535`, `65536`, `2147483647`).
+A real into DS, DH, TD, YD or DF, an integer into DD, and `5`, `-5`, `32767`, `-32768` or
+`FFh` into DF keep type `0`. The encoder writes the same. CLICK refuses `10000h` into DF1
+(OBJ-024), as laddercodec does.
+
+A number constant copied into a TXT address is written as its text, one TXT a character,
+and CLICK saves the end it fills, counted on the constant as stored, `h` and a `+`
+included: `-5`, `1h` and `+5` into TXT1 end in TXT2, `10h` and `1.5` in TXT3, `0FFh` in
+TXT4, `FFFFh` in TXT5, `2147483647` in TXT10. One character (`5`) and a pointer
+(`TXT[DS1]`) have no end, as for quoted text. An end past TXT1000 is refused (OBJ-003), as
+for quoted text: `-5` into TXT1000 would end in TXT1001. The type is `1` or `2` for an
+integer or hex constant and `3` (real numbering) or `4` (exponential numbering, with
+`0x2206` = 1) for a real (`1.5` into TXT1 ends in TXT3 either way). The encoder writes the
+same. Decode reads a number with its end or with none.
+
+CLICK's Copy dialog offers real or exponential numbering, and no suppress zero, for a DF
+address, a DF pointer (`DF[DS1]`) or a real constant copied to text, and suppress zero or
+not for any other source, a DD or DS pointer included. A pointer source saves no end.
+Decode reads type `4` only for such a source.
+
+A decoded single Copy whose `0x2227` and `0x6077` differ from what the encoder writes for
+its fields, or whose save is a type `7` other than DD to or from DF or a number with an
+end, writes the blob it was decoded from while it is unchanged.
+
 ## Math formulas
 
 A Math blob (class `Math`, type 0x271A) has 1010 tagged fields: 9 header

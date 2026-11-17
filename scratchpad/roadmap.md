@@ -263,13 +263,31 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     - A program file holds a set flag as an empty value, and the blob a decoded program box writes keeps
       it so; the clipboard decoder reads an empty flag as set (no CLICK clipboard capture holds one).
       Whether CLICK reads such a pasted box's flag as set is open (CLICK).
-  - Saves that decode as `raw(...)`: conversion type 7. A single Copy saves it for exactly these answered
-    cases: `1.5` into DD1, `DD[DS1]`, CTD1 or `CTD[DS1]`; CTD1 into DF1 and DF1 into CTD1; `2147483647` into
-    DF1. DD1 into DF1 and back, and `1.5`, `5` or `-5` into DF1, keep the usual type.
-  - Saves that decode as `raw(...)`: a number whose text fills more than one TXT, into TXT1. The save holds
-    the constant as typed, the TXT its text ends in and a conversion type: `-5` ends in TXT2 (type 1), `1.5`
-    in TXT3 (type 3), `FFh` in TXT3 (type 1), `2147483647` in TXT10 (type 1). `5` into TXT1 reads back.
-  - Quoted text with an E into TXT: item 4 owns it.
+  - A single Copy's conversion type 7 and a number's TXT end (closed, 2026-11-17, CLICK v4 typed each case
+    through its dialogs; captures in `tests/fixtures/v4_captures/copy_single/`): decode reads every answered
+    save as the Copy. The encoder writes type 7 for DF to and from DD or CTD, for a real constant into DD or
+    CTD, and for an integer constant outside int16 into a DF address or pointer (`32768`, `-32769`, `65535`,
+    `65536`, `2147483647`; `32767` and `-32768` stay type 0). It writes a number's end, the constant's
+    length as stored with `h` and `+` counted (`0FFh` into TXT1 ends in TXT4), for an integer or hex
+    constant, and refuses an end past TXT1000 with OBJ-003 (`-5` into TXT1000), as for quoted text
+    (`"AB"` into TXT1000). `10000h` into DF1 is
+    OBJ-024, as before (`docs/internals/instruction-blobs.md`). A decoded Copy whose type or end the encoder
+    writes otherwise keeps its stored blob while unchanged; one the encoder writes as CLICK saved it (a
+    plain copy, a pointer's text) writes `0x1201` = 0 where CLICK v4 sets it, the narrow keep rule
+    (2026-11-17). A real constant or a DF pointer into TXT takes what CLICK's dialog offers a DF address
+    (closed, Sam, 2026-11-17): `to_text(exponential=0|1)`, type 3 or 4 (`0x2206` = 1), a real constant's
+    end at its typed length (`1.5` into TXT1 ends in TXT3), and `suppress_zero` refused; a DD or DS
+    pointer keeps suppress zero (type 1, no end). The coverage golden `copy__conversion` holds one rung
+    of each new encoding and waits on a paste check (CLICK). Open:
+    - Not answered (CLICK): a pointer beside DF, DD or CTD (`DD[DS1]` and `CTD[DS1]` into DF1, DF1 into
+      `DD[DS1]` and `CTD[DS1]`, `DF[DS1]` into DD1 and CTD1, pointer to pointer such as `DD[DS1]` into
+      `DF[DS2]`): the encoder writes type 0 and a saved type 7 decodes as `raw(...)`. A hex constant above
+      7FFFh into DF (`FFFFh`): type 0. A number's end with Do not suppress zero (type 2): the encoder writes
+      the same end.
+    - A number into TXT with no `to_text` (`copy(5,TXT1)`): CLICK saves every answered number into TXT
+      with a text type; construction accepts the plain copy and writes type 0. Decide (Sam) whether it
+      is refused or read as `to_text`.
+  - Quoted text with an E into TXT: accepted and encoded as text (Sam, 2026-11-17; item 4).
 - **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
   SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
   OBJ-003 for it.
@@ -350,15 +368,19 @@ case is in the `copy_single` and `math_decimal` answers; the code is unchanged u
   the code writes `100000.0` and `1500.0`. A lowercase `1e5` in a decimal Math, alone and as `DS1 + 1e5`,
   is stored `100000.0`, as the code writes. A Copy stores both `1E5` and `1e5` as `100000.0`, as the code
   writes.
-- Quoted text with an E into TXT is stored as its float value, a follow-up this item owns (the ratchet
-  lists it): a Copy `"HELLO"` into TXT1 saves the source `0.0`, ends in TXT3 and has conversion type 3,
-  which decode reads as `raw(...)`; into `TXT[DS1]` it is stored `0.0`. The rules accept it as text.
+- Quoted text with an E into TXT is stored as its float value: a Copy `"HELLO"` into TXT1 saves the
+  source `0.0`, ends in TXT3 and has conversion type 3, which decode reads as
+  `copy(0.0,TXT1,convert=to_text(...))`; into `TXT[DS1]` it is stored `0.0`. Ruled (Sam, 2026-11-17):
+  the rules keep accepting it and the encoder keeps writing it as text. The ratchet does not list it:
+  both CLICK and the rules accept the case, and its save reads back.
 - As the code writes: `1E-45` and `1E-50` are kept as typed in a Copy (and `1E-45` in a Math); `1.5e-3` is
   `0.0015`; `1.` is `1.0`; `1.50` is `1.5`.
 
 ## Open CLICK questions (CLICK)
 
 Each is a dialog check or a capture. Until answered, the code keeps the behaviour named.
+
+- **Copy Binary on the type-7 pairs.** CLICK's dialog offers Copy Binary for CTD to DF, DF to CTD, a real into DD or CTD, and a wide integer into DF; `Copy._check_format` refuses `to_binary` for them, as it did before this branch. Ask what each pair saves, then accept the ones CLICK saves.
 
 - **Receive into Y101 or later from a CLICK C, T, CT or SC address.** The count room there may be 0 (every count
   refused). The code uses the slot run (Y101 from T1 gives 16) and, for C, the C room. Check Y101 from C1 with
@@ -383,15 +405,14 @@ Each is a dialog check or a capture. Until answered, the code keeps the behaviou
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do they
   store? The code refuses both.
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the
-  constant as typed, the TXT its text ends in and a conversion type (`-5` ends in TXT2, `1.5` and `FFh` in
-  TXT3, `2147483647` in TXT10); decode reads that save as `raw(...)` (item 3). `5` into TXT1 reads back.
-  What does a Fill store? The code accepts it.
+  TXT its text ends in (item 3 has the open cases). What does a Fill of such a number store? The code
+  accepts it.
 - **Text outside printable ASCII:** do the Copy and Fill dialogs take quoted text with a character outside
   space to `~` (an accented letter, a control character)? The code refuses it.
 - **Quoted text with an `E`:** the Copy dialog reads such text as a number: `"HELLO"`, `"E"`, `"e"` and
   `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled), and `"HELLO"` into TXT1 is stored 0.0 too,
-  filling TXT1..TXT3 (item 4). Does Fill do the same, and what does CLICK keep when such a Copy is pasted? The
-  code accepts and encodes the text as typed into TXT.
+  filling TXT1..TXT3 (item 4). The code accepts and encodes the text as typed into TXT, as ruled (Sam,
+  2026-11-17). Open: does Fill do the same, and what does CLICK keep when such a Copy is pasted?
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -424,6 +445,7 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 - `raw()` stays a no-op, and its status tags (once laddercodec exposes them) count as written outside the
   ladder.
 - `to_text(exponential=True)` from an integer source: refuse it or drop it.
+- The translator writes both `to_text` keys (`suppress_zero` and `exponential`); write only `exponential` for a DF address, a DF pointer or a real constant source, which refuse `suppress_zero` now, and only `suppress_zero` for any other source.
 - The translator writes a pointer with an offset (`DS[DS1+5]`) for a mapped block; CLICK refuses it.
 - `COMPARE_COMPATIBILITY` is never called.
 - `coil_target` allows X, T and CT; on/off-delay constants have no floor; drum presets have no 32767 cap; counter
