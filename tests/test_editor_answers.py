@@ -86,7 +86,8 @@ EDGE_SPACE_KEPT = (
     "as the address without it"
 )
 
-# Copy (roadmap item 3, except where marked).
+# Reasons for Copy cases.  INNER_SPACE covers a Math result too, and RX2_COUNT is a
+# Receive case.
 INNER_SPACE = (
     "kept: CLICK takes DS 1 (a space inside) as a Copy source or destination and as a Math "
     "result, and a Copy's save drops the space from the source and keeps it in the "
@@ -379,9 +380,10 @@ def saved_box(raw: RawInstruction) -> AfInstruction | None:
     """Return the box that ``decode_program`` reads from the program-file entry that *raw*
     was written from, or None if that box is raw too.
 
-    That raw box holds the blob composed from the program file entry's tags: every tag a
-    standard field, and a flag that is set an empty value.  So the box is read from those
-    tags, its part rows and its cell rows, as ``decode_program`` reads the entry.
+    *raw* holds a blob composed from the entry's tags.  Each tag is a standard field in it,
+    and a flag that is set is a field with an empty value.  This function reads the tags
+    back from the blob, with the part rows and the cell rows, and reads the box from them
+    as ``decode_program`` reads the entry.
     """
     class_name, type_code, _parts, extra, fields = _decompose_blob(raw.blob)
     tags = {tag: value for tag, _sentinel, value in fields}

@@ -1025,7 +1025,7 @@ def test_receive_word_swap_on_one_element_keeps_its_refusal() -> None:
     ],
 )
 def test_receive_status_bit_used_twice(kw) -> None:
-    """Receive refuses the same C bit in two status fields (0x271e)."""
+    """Receive refuses the same C bit in two status fields."""
     with pytest.raises(FieldError, match="already the"):
         receive(**kw)
 

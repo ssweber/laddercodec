@@ -276,8 +276,9 @@ def test_a_preamble_row_with_no_cell_0_stops_decoding(offset: int, value: int) -
 
     The decoder cannot tell whether rung 0 has more rows.
 
-    Rung 0's last row has no output, so the walk steps to the preamble row without
-    checking it, as it does after a row whose last cell holds an instruction.
+    Rung 0's last row has no output, so its last cell is 0x40 bytes, and the walk steps
+    straight to the preamble row.  After a row whose last cell holds an instruction, the
+    walk would search for the next row's cell 0 instead.
     """
     first = _decoded("instr-3row-or.bin")
     assert first.instructions[-1] == ""

@@ -10,8 +10,10 @@ In the binary, CLICK's ``Scr*.tmp`` files leave out each tag that is at its defa
   each instruction and drop every tag that is at its default, as SCR does.  The result
   decodes to the same instruction, not to ``raw(...)``.
 
-The func code (0x3218) is kept: SCR leaves it out only when it can be derived, and
-each family derives it.
+Neither check treats the func code (0x3218) as a default.  The first does not compare it,
+and the second keeps it.  An SCR file leaves the func code out only when the class and
+the other fields determine it.  Each instruction family works it out itself, and the
+defaults table has no entry for it.
 
 In CSV, a flag kwarg (a ``bool`` field such as ``oneshot``) is written only when it is
 set: ``for(3)``, not ``for(3,oneshot=0)``.  Value kwargs are always written.  They are

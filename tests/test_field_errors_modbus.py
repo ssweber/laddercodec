@@ -486,7 +486,9 @@ def test_a_count_no_start_could_take_is_refused_beside_a_refused_address() -> No
         ("Receive.dest", Reason.ADDRESS, None),
         ("Receive.quantity", Reason.RANGE, "OBJ-010"),
     ]
-    # Registers cap lower, and a count either kind takes is left to the start.
+    # A register Send takes at most 123 elements, fewer than a coil Send. The remote_start
+    # DS1 is a register, so 124 is refused beside the refused source. When the remote_start
+    # is refused, its kind is not known. A coil Send takes 124, so the count is not refused.
     assert _shape(_refusals(lambda: send(source="bad", quantity=124))) == [
         ("Send.source", Reason.ADDRESS, None),
         ("Send.quantity", Reason.RANGE, "OBJ-010"),
