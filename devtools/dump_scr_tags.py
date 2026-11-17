@@ -1,4 +1,4 @@
-"""Dump SCR tagged fields for each instruction in or_topology."""
+"""Print the tagged fields of each instruction in each rung of a CLICK .scr file."""
 
 from __future__ import annotations
 
@@ -33,13 +33,13 @@ def main() -> None:
             blob_start = cursor + 8
             cls, typ, end_off, part_rows = blob
             m1 = len(part_rows)
-            next_pos = end_off + 2 + data[end_off]  # trailer-aware advance
+            next_pos = end_off + 2 + data[end_off]  # the byte at end_off is a trailer length
 
             # Parse tagged fields
             pos = blob_start
             sl = data[pos]
             pos += 1 + sl + 2  # skip class name + type
-            pos += 6 + 1 + m1 + 4  # skip zeros + m1 + counting + end_offset
+            pos += 6 + 1 + m1 + 4  # skip 6 bytes + part count + m1 row bytes + end_offset
 
             tags = []
             while pos < end_off:

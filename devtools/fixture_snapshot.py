@@ -43,7 +43,10 @@ DECODE_SUFFIXES = (".bin", ".bin.gz", ".scr", ".tmp")
 
 
 def load_laddercodec(src_dir: str) -> Any:
-    """Import laddercodec from ``src_dir``; refuse a copy loaded from anywhere else."""
+    """Import laddercodec from ``src_dir`` and return it.
+
+    Exit with an error if ``src_dir`` holds no laddercodec package, or if Python loads
+    laddercodec from somewhere else."""
     src = Path(src_dir).resolve()
     if not (src / "laddercodec" / "__init__.py").is_file():
         raise SystemExit(f"{src} has no laddercodec package")
@@ -61,7 +64,9 @@ _SCRUB: list[tuple[re.Pattern[str], str]] = []
 
 
 def set_scrub_roots(roots: dict[str, Path]) -> None:
-    """Write each root path (either slash style, any case) in messages as its name."""
+    """Set up :func:`scrub` to replace each root path in a message with the root's name.
+
+    The match ignores case and accepts the path written with either kind of slash."""
     _SCRUB.clear()
     resolved = {name: str(root.resolve()) for name, root in roots.items()}
     for name, text in sorted(resolved.items(), key=lambda item: -len(item[1])):
@@ -71,7 +76,7 @@ def set_scrub_roots(roots: dict[str, Path]) -> None:
 
 
 def scrub(text: str) -> str:
-    """``text`` with machine paths under the roots written ``<name>/rel/path``."""
+    """Return ``text`` with each path under a root written as ``<name>/rel/path``."""
     for pattern, name in _SCRUB:
         text = pattern.sub(lambda m, name=name: name + m.group(1).replace("\\", "/"), text)
     return text
@@ -82,7 +87,7 @@ ERRORS: list[list[str]] = []
 
 
 def error_text(exc: BaseException) -> str:
-    """``!<ExceptionClass>``; the message goes to :data:`ERRORS`."""
+    """Return ``!<ExceptionClass>`` for ``exc``, and add its class and message to :data:`ERRORS`."""
     ERRORS.append([type(exc).__name__, scrub(str(exc))])
     return f"!{type(exc).__name__}"
 
@@ -92,7 +97,7 @@ def sha256(data: bytes) -> str:
 
 
 def token_text(token: Any) -> str:
-    """CSV text of one decoded cell; pinned boxes add their pin rows."""
+    """Return the CSV text of one decoded cell. Add the pin rows and labels of a pinned box."""
     from laddercodec.instructions import UnknownCondition, UnknownInstruction
     from laddercodec.model import AfInstruction, ConditionInstruction, PinnedInstruction
 
@@ -154,7 +159,8 @@ def _v4_only(laddercodec: Any, rungs: list[Any]) -> Any:
 
 
 def _encodings(laddercodec: Any, rungs: list[Any], encode_arg: Any) -> dict[str, Any]:
-    """Encoded-bytes hashes (plain and with nicknames shown) and the v4-only instructions."""
+    """Return the sha256 of the encoded bytes, with and without ``show_nicknames=True``,
+    and the instructions that ``find_v4_only()`` reports."""
     if not rungs:
         return {"encode": None, "encode_nicknames": None, "v4_only": []}
     return {

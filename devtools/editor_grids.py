@@ -44,9 +44,9 @@ from laddercodec.operands.constants import (
 )
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "editor_grids"
-#: Seconds one case takes the runner, for the estimates.
+#: The seconds the runner takes for one case. main() uses it to estimate each file's hours.
 SECONDS_PER_CASE = 4
-#: A file longer than this is split.
+#: The most cases a file should hold. main() flags a file with more as over the split limit.
 SPLIT_AT = 2000
 
 #: The banks in CLICK's order.
@@ -62,12 +62,14 @@ XY = ("X", "Y")
 
 
 def addr(bank: str, number: int, upper: bool = False) -> str:
-    """An address in the form CLICK shows."""
+    """Return the address in the form that CLICK shows."""
     return Address(bank, number, upper).display
 
 
 def samples(bank: str) -> list[str]:
-    """In-range addresses of ``bank`` at its edges, then the addresses just outside it."""
+    """Return addresses of ``bank`` at the edges of its range, then addresses just outside.
+
+    For X and Y, the edges are those of the slots."""
     lo, hi = ADDRESS_BANKS[bank]
     if bank in XY:
         slots = XY_SLOTS
@@ -85,12 +87,15 @@ def samples(bank: str) -> list[str]:
 
 
 def low(bank: str) -> str:
-    """The lowest address of ``bank``."""
+    """Return the lowest address of ``bank``."""
     return addr(bank, *((0,) if bank in WORD_IO else (ADDRESS_BANKS[bank][0],)))
 
 
 def ranges(bank: str) -> list[tuple[str, str]]:
-    """Ranges ``(start, end)`` in ``bank``: a pair, the longest, edges and the refused shapes."""
+    """Return ``(start, end)`` ranges in ``bank``.
+
+    The list holds a range of two addresses, the longest range, ranges at the edges, and
+    the refused shapes, where the end is before the start or equal to it."""
     lo, hi = ADDRESS_BANKS[bank]
     if bank in XY:
         s = XY_SLOTS
@@ -126,8 +131,10 @@ def ranges(bank: str) -> list[tuple[str, str]]:
 
 
 def run_to(bank: str, count: int) -> str:
-    """The end of a run of ``count`` addresses from the first of ``bank`` (the number is
-    arithmetic, so it may fall in a gap or past the bank)."""
+    """Return the last address of a run of ``count`` addresses from the first of ``bank``.
+
+    The function only adds to the number, so the address may fall in a gap between slots
+    or past the end of the bank."""
     start = 0 if bank in WORD_IO else ADDRESS_BANKS[bank][0]
     return addr(bank, start + count - 1)
 
@@ -135,7 +142,8 @@ def run_to(bank: str, count: int) -> str:
 #: Other ways to type an address.
 TYPED_FORMS = ["ds1", "DS001", "DS01", "x1", "x001", "c001", " DS1", "DS1 ", "DS 1", "xd0U", "XD0u"]
 
-#: The pointer forms: every bank as the pointed bank, and index texts.
+#: Pointer addresses. POINTERS puts every bank before ``[DS1]``, and POINTER_INDEXES tries
+#: different texts between the brackets.
 POINTERS = [f"{bank}[DS1]" for bank in BANKS]
 POINTER_INDEXES = [
     "DS[DS1]",
@@ -157,8 +165,8 @@ POINTER_INDEXES = [
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Constants by kind (every :class:`Kind` has a list), spelled the ways the shared constant
-#: reader tells apart.
+#: A list of constants for every :class:`Kind`. Each list holds the spellings that the shared
+#: constant reader treats differently.
 CONSTANTS: dict[Kind, list[str]] = {
     Kind.INTEGER: [
         "0",
@@ -272,12 +280,12 @@ CONSTANTS: dict[Kind, list[str]] = {
 }
 assert set(CONSTANTS) == set(Kind), "a constant kind has no spellings"
 
-#: Text that is no constant and no address.
+#: Text that is neither a constant nor an address.
 NOT_CONSTANTS = ["abc", "", " ", "1 2", "1,5", "٣", "DS", "DS1.5", "5DS", "#5", "@5"]
 
-#: One constant per kind and width, for the pairing with each bank.
+#: One constant for each kind and width, to pair with each bank.
 REPRESENTATIVES = ["5", "-5", str(INT32_MAX), "1.5", "FFh", "10000h", '"A"', '"AB"', "$41"]
-#: A few spellings, for a field the full list does not need.
+#: A few constants, for a field that does not need the full list.
 FEW = ["5", "1.5", "FFh", '"A"', "$41"]
 #: Other forms of an address, for a field that takes no pointer.
 FORMS_SHORT = ["DS[DS1]", "X[DS1]", "ds1", "DS001", " DS1"]
@@ -286,7 +294,7 @@ PARTNERS = ("X", "C", "DS", "TXT")
 
 
 def all_constants() -> list[str]:
-    """Every spelling, kind by kind, then the texts that are none."""
+    """Return every constant spelling, kind by kind, then the texts that are not constants."""
     return [text for kind in Kind for text in CONSTANTS[kind]] + NOT_CONSTANTS
 
 
@@ -311,14 +319,15 @@ class Grid:
         mode: str | None,
         **fields: str,
     ) -> None:
-        """Add a case; one with a label already in the file is the same case and is kept once."""
+        """Add a case. If the file already has a case with this label, keep only the first."""
         case: dict[str, Any] = {"row": row, "case": label, "instruction": instruction}
         if mode is not None:
             case["mode"] = mode
         case["fields"] = fields
         if label in self.labels:
             kept = self.labels[label]
-            # Same fields; the row may differ (a spelling asked under two questions).
+            # The two cases must match in all but the row. The row may differ, because two
+            # rows can try the same spelling.
             assert {k: v for k, v in kept.items() if k != "row"} == {
                 k: v for k, v in case.items() if k != "row"
             }, f"two different cases share the label {label!r}"
@@ -327,12 +336,14 @@ class Grid:
         self.cases.append(case)
 
     def verdicts(self) -> dict[str, dict[str, Any]]:
-        """laddercodec's verdict on each case, by label."""
+        """Return laddercodec's verdict on each case, keyed by the case's label."""
         return {case["case"]: self.check(case) for case in self.cases}
 
 
 def verdict_of(build: Callable[[], object]) -> dict[str, Any]:
-    """Build an instruction: ``accepted``, or ``refused`` with the error, its field and message."""
+    """Call ``build`` and return the verdict.
+
+    The verdict is ``accepted``, or ``refused`` with the exception's class, field and message."""
     try:
         build()
     except Exception as exc:
@@ -346,7 +357,10 @@ def verdict_of(build: Callable[[], object]) -> dict[str, Any]:
 
 
 def _block_end(source: str, source_end: str, destination: str) -> str:
-    """The destination end CLICK works out for a Block Copy: the start plus the source's count."""
+    """Return the destination end that CLICK works out for a Block Copy.
+
+    CLICK gives the destination range as many addresses as the source range. If an address
+    does not parse, return ``destination``."""
     try:
         first = check_address(normalize_address(source), "s", set(BANKS))
         last = check_address(normalize_address(source_end), "e", set(BANKS))
@@ -357,7 +371,7 @@ def _block_end(source: str, source_end: str, destination: str) -> str:
 
 
 def _bank_of(text: str) -> str:
-    """The bank letters of an address text, else ``""``."""
+    """Return the letters at the start of an address text in upper case, or ``""`` if none."""
     letters = ""
     for char in text.strip():
         if not char.isalpha():
@@ -377,7 +391,7 @@ def _math_check(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def math_grid() -> Grid:
-    """Math, decimal and hex."""
+    """Return the grid of the Math dialog, in decimal and hex mode."""
     grid = Grid(_math_check)
 
     def add(row: str, mode: str, result: str, formula: str) -> None:
@@ -394,7 +408,7 @@ def math_grid() -> Grid:
     dec_base, hex_base = "DS2 + 1", "DH2 + DH3"
     for mode, result, base in (("decimal", dec_result, dec_base), ("hex", hex_result, hex_base)):
         add("control", mode, result, base)
-        # The result takes each bank, and a pointer.
+        # Try every bank in the result, then pointers and the other typed forms.
         for bank in BANKS:
             for text in samples(bank):
                 add(f"result.{mode}.banks", mode, text, base)
@@ -402,7 +416,7 @@ def math_grid() -> Grid:
             add(f"result.{mode}.forms", mode, text, base)
         for text in ["5", "1.5", "FFh", '"A"', "$41", ""]:
             add(f"result.{mode}.not-an-address", mode, text, base)
-        # An operand is each bank, alone and with a constant of the mode.
+        # Try every bank as an operand, alone and with a constant of the mode.
         one = "1" if mode == "decimal" else "1h"
         for bank in BANKS:
             for text in samples(bank):
@@ -410,12 +424,12 @@ def math_grid() -> Grid:
                 add(f"operand.{mode}.banks-alone", mode, result, text)
         for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
             add(f"operand.{mode}.forms", mode, result, f"{text} + {one}")
-        # A constant of every kind and spelling, with an operand and alone.
+        # Try a constant of every kind and spelling, with an operand and alone.
         own = "DS1" if mode == "decimal" else "DH1"
         for text in all_constants():
             add(f"constants.{mode}", mode, result, f"{own} + {text}")
             add(f"constants.{mode}.alone", mode, result, text)
-        # RAND: each bank as a bound, and the equal and reversed bounds.
+        # Try every bank as a RAND bound, then bounds that are equal or reversed.
         bound = "10" if mode == "decimal" else "Ah"
         first = "1" if mode == "decimal" else "1h"
         for bank in BANKS:
@@ -438,11 +452,11 @@ def math_grid() -> Grid:
         for text in REPRESENTATIVES:
             add(f"rand.{mode}.constants", mode, result, f"RAND({text},{bound})")
             add(f"rand.{mode}.constants", mode, result, f"RAND({first},{text})")
-        # SUM: each bank's ranges.
+        # Try SUM on the ranges of every bank.
         for bank in BANKS:
             for start, end in ranges(bank):
                 add(f"sum.{mode}.ranges", mode, result, f"SUM({start}:{end})")
-    # Mixed-bank SUM ranges, and the other range functions, in decimal.
+    # In decimal mode only, try SUM ranges that cross banks, and the other range functions.
     for first_bank in BANKS:
         for second_bank in PARTNERS:
             add(
@@ -468,14 +482,17 @@ def math_grid() -> Grid:
 # ---------------------------------------------------------------------------
 
 
-#: Banks a Copy or Block Copy of TXT asks Copy Character Value or Copy ASCII Code Value for.
+#: The destination banks for which a Copy or Block Copy from TXT asks you to choose Copy
+#: Character Value or Copy ASCII Code Value.
 _TXT_CHOICE = frozenset({"DS", "DD", "DH", "YD", "TD", "CTD", "SD"})
 
 
 def _txt_default(source: str, destination: str) -> tuple[bool | None, bool] | None:
-    """The dialog's default converter for a number constant or register copied to TXT, Copy
-    Value as text, as ``(suppress_zero, exponential)``: Suppress zero for an integer and Real
-    Numbering for a real.  ``None`` for any other copy."""
+    """Return the dialog's default converter for a number copied to TXT.
+
+    The number is a constant or a register. The default converter is Copy Value as text,
+    returned as ``(suppress_zero, exponential)``. It sets Suppress zero for an integer and
+    Real Numbering for a real. Return ``None`` for any other copy."""
     if _bank_of(destination) != "TXT":
         return None
     constant = classify(source)
@@ -493,11 +510,12 @@ def _txt_default(source: str, destination: str) -> tuple[bool | None, bool] | No
 
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
-    # TXT into a number register but DF takes the dialog's default, Copy Character Value.
+    # A copy from TXT into a number register other than DF uses the dialog's default, Copy
+    # Character Value.
     txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
     convert = "to_value" if txt_choice else None
     if mode == "single":
-        # A number into TXT takes the dialog's default, Copy Value as text.
+        # A copy of a number into TXT uses the dialog's default, Copy Value as text.
         default = _txt_default(f["source"], f["destination"])
         if default is not None:
             zeros, exponential = default
@@ -527,17 +545,17 @@ def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def _natural_dest(source_bank: str) -> str:
-    """A destination that takes a source from ``source_bank``."""
+    """Return a destination that accepts a source from ``source_bank``."""
     return "C1" if source_bank in BIT_BANKS else "DS1"
 
 
 def _natural_source(dest_bank: str) -> str:
-    """A source that goes to ``dest_bank``."""
+    """Return a source that can be copied to ``dest_bank``."""
     return "X001" if dest_bank in ("Y", "C") else "DS2"
 
 
 def copy_grid() -> Grid:
-    """Copy: single, block, pack and unpack."""
+    """Return the grid of the Copy dialog, in its single, block, pack and unpack modes."""
     grid = Grid(_copy_check)
 
     def single(row: str, source: str, destination: str) -> None:
@@ -609,7 +627,7 @@ def copy_grid() -> Grid:
             single("pairs.pointer", src, pointer)
     for pointer in POINTERS:
         single("pairs.pointer-source", pointer, "DS1")
-    # Text into TXT: where its characters end.
+    # Copy text into TXT at the start and the end of the bank, to see where its characters end.
     for text in ('"AB"', '"ABC"', '"HELLO"', '"A"'):
         for target in ("TXT1", "TXT999", "TXT1000", "TXT1001", "TXT[DS1]"):
             single("text.fill", text, target)
@@ -737,7 +755,7 @@ def _out_check(case: dict[str, Any]) -> dict[str, Any]:
 
 
 def out_grid() -> Grid:
-    """Out (Out/Toggle, no One Shot, no Immediate)."""
+    """Return the grid of the Out dialog, with Out/Toggle and without One Shot or Immediate."""
     grid = Grid(_out_check)
 
     def out(row: str, address: str, end: str | None = None) -> None:
@@ -781,9 +799,11 @@ RISKY_LENGTH = 40
 
 
 def is_risky(case: dict[str, Any]) -> bool:
-    """Whether a field's text may not survive typing into the dialog: empty, a space at either
-    end, a tab, a character outside ASCII, or a long text. The runner aborts the whole run
-    when a field does not read back as typed, so these cases are a file of their own."""
+    """Return True if a field's text may not survive typing into the dialog.
+
+    Such a field is empty, has a space at either end, holds a tab or a character outside
+    ASCII, or is longer than RISKY_LENGTH. The runner stops the whole run when a field does
+    not read back as typed, so these cases go in a file of their own."""
     return any(
         not v or v != v.strip() or "\t" in v or not v.isascii() or len(v) > RISKY_LENGTH
         for v in case["fields"].values()
@@ -796,7 +816,9 @@ def _whole(name: str) -> Grid:
 
 
 def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
-    """The safe cases (not risky) of a dialog's grid, in one mode."""
+    """Return a function that builds a grid of the cases of dialog ``name`` in ``mode``.
+
+    The grid leaves out the risky cases."""
 
     def part() -> Grid:
         whole = _whole(name)
@@ -811,13 +833,13 @@ def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
 
 
 def check_case(case: dict[str, Any]) -> dict[str, Any]:
-    """laddercodec's verdict on a case of any dialog."""
+    """Return laddercodec's verdict on a case from any dialog."""
     checks = {"math": _math_check, "copy": _copy_check, "out": _out_check}
     return checks[case["instruction"]](case)
 
 
 def risky_grid() -> Grid:
-    """The risky spellings of every dialog."""
+    """Return a grid of the risky cases from every dialog."""
     grid = Grid(check_case)
     for name in ("math", "copy", "out"):
         for case in _whole(name).cases:
@@ -828,9 +850,11 @@ def risky_grid() -> Grid:
 
 
 def preflight_grid() -> Grid:
-    """The first safe case of every row of the dialog grids: each field and state the control
-    cases do not type into (Out's range end, a constant or pointer in a range end), tried
-    once, so a field that will not take text stops a short run."""
+    """Return a grid of the first case that is not risky from each row of every dialog.
+
+    The grid tries once each field and state that the control cases do not type into, such
+    as Out's range end, or a constant or pointer in a range end. If a field will not accept
+    text, it stops this short run and not a long one."""
     grid = Grid(check_case)
     for name in ("math", "copy", "out"):
         seen: set[str] = set()
@@ -842,8 +866,8 @@ def preflight_grid() -> Grid:
     return grid
 
 
-#: The preflight and risky files, then one file per dialog and mode (Math and Copy have modes whose
-#: lists are long).
+#: The preflight and risky files, then one file for each dialog and mode. Math and Copy have a
+#: file for each mode because their lists are long.
 GRIDS: dict[str, Callable[[], Grid]] = {
     "preflight": preflight_grid,
     "risky": risky_grid,
@@ -862,13 +886,13 @@ def _lines(head: str, items: list[str], tail: str) -> str:
 
 
 def render_cases(grid: Grid) -> str:
-    """The grid file: one case per line."""
+    """Return the text of the grid file, with one case on each line."""
     items = ["  " + json.dumps(case, ensure_ascii=True) for case in grid.cases]
     return _lines('{\n "cases": [', items, " ]\n}")
 
 
 def render_verdicts(grid: Grid) -> str:
-    """The verdicts file: one verdict per line, keyed by the case's label."""
+    """Return the text of the verdicts file, with one verdict on each line, keyed by label."""
     items = [
         f"  {json.dumps(label, ensure_ascii=True)}: {json.dumps(v, ensure_ascii=True)}"
         for label, v in grid.verdicts().items()
@@ -877,7 +901,7 @@ def render_verdicts(grid: Grid) -> str:
 
 
 def build() -> dict[str, str]:
-    """Every file's name and text."""
+    """Return the name and text of every file."""
     files: dict[str, str] = {}
     for name, make in GRIDS.items():
         grid = make()
@@ -887,7 +911,7 @@ def build() -> dict[str, str]:
 
 
 def counts() -> dict[str, int]:
-    """The number of cases in each grid."""
+    """Return the number of cases in each grid."""
     return {name: len(make().cases) for name, make in GRIDS.items()}
 
 
