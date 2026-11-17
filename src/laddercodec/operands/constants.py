@@ -127,10 +127,16 @@ SEARCH_TABLE_BANKS: dict[Kind, frozenset[str]] = {
 }
 
 
+#: The largest finite float32 value, about 3.402823466E+38.
+FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
+
+
 def fits_float32(value: float) -> bool:
     """Whether ``value`` is finite and fits float32.
 
-    A value that rounds to float32's largest finite number, about 3.4028235E+38, fits.
+    A value that rounds to float32's largest finite number, about 3.4028235E+38, fits.  A
+    decimal Math takes a real only up to :data:`FLOAT32_MAX` in size, so it refuses
+    3.4028235E+38, which fits.
     """
     if not math.isfinite(value):
         return False
@@ -201,8 +207,6 @@ def _float32(value: float) -> float:
     return struct.unpack("<f", struct.pack("<f", value))[0]
 
 
-#: The largest finite float32 value.
-_FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
 #: Enough significant digits to write any float32 value at or below its exact value.
 _REAL_DIGITS_MAX = 17
 
@@ -259,7 +263,7 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
     text = repr(nearest)
     for digits in range(1, _REAL_DIGITS_MAX + 1):
         candidate = f"{nearest:.{digits}G}"
-        if abs(float(candidate)) > _FLOAT32_MAX:
+        if abs(float(candidate)) > FLOAT32_MAX:
             continue
         if struct.unpack("<f", struct.pack("<f", float(candidate)))[0] == nearest:
             text = candidate

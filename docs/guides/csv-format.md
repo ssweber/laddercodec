@@ -775,7 +775,8 @@ currently emit:
   - It holds addresses, constants, function names, operators and parentheses,
     separated by spaces or tabs. Any other word or character (`DS1 = DS2`, `FOO`,
     `NAN`, `0x1A`, a lone `.`, a pointer, a line break) is refused, and so is a
-    real constant outside the float32 range (`1E39`).
+    real constant above float32's largest value, 3.402823466E+38, in size
+    (`1E39`, and `3.4028235E+38`, which float32 rounds to that value).
   - Each address lies inside its bank's range: `DS1 + DS0` is refused.
   - A sign goes at the start, after `(` or after `,`, and a decimal `math` joins
     it to the constant after it (`( + 5 )` is written `( +5 )`). After an

@@ -239,6 +239,36 @@ def test_real_is_f_and_fits_float32() -> None:
 
 
 @pytest.mark.parametrize(
+    "constant",
+    [
+        # CLICK's answers: refused, though float32 rounds it to its largest value.
+        "3.4028235E+38",
+        # laddercodec's, until CLICK answers: above float32's largest value as typed.
+        "3.40282347E+38",
+        "-3.4028235E+38",
+    ],
+)
+def test_real_above_the_largest_float32_is_refused(constant: str) -> None:
+    _refused(
+        f"DF1 * ( {constant} )",
+        "decimal",
+        re.escape(
+            f"{constant} is outside the float32 range; a real constant is at most "
+            "3.402823466E+38 in size, float32's largest value (OBJ-1009)"
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "constant",
+    ["3.402823466E+38", "-3.402823466E+38", "3.4028234E+38", "3.4028234663852886E+38", "1E-50"],
+)
+def test_real_up_to_the_largest_float32_is_taken(constant: str) -> None:
+    # The value the refusal names is taken, and so is float32's largest value written exactly.
+    assert parse(f"DF1 * ( {constant} )", "decimal").internal() == f"DF1#*#(#F{constant}#)"
+
+
+@pytest.mark.parametrize(
     ("typed", "stored"),
     [
         # CLICK's answers: a real is stored as CLICK prints it back, display and internal.

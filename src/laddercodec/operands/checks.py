@@ -111,9 +111,10 @@ class Constants:
     range_id: str | None = "OBJ-005"
 
 
-#: The ids and wording CLICK gives a hex Math result outside its range: an SD, or a YD past
-#: YD8, is outside the range (OBJ-003); another bank it does not take is OBJ-004.  Pass as
-#: keyword arguments to :func:`check_address`.
+#: The ids and wording CLICK gives a hex Math result outside its range: an SD in SD1-SD1000,
+#: or a YD past YD8, is outside the range (OBJ-003); an SD past that range (SD0, SD1001) and
+#: another bank it does not take are OBJ-004.  Pass as keyword arguments to
+#: :func:`check_address`.
 class _ResultIds(TypedDict):
     """The keyword arguments of :func:`check_address` that carry a field's error ids."""
 

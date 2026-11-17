@@ -228,9 +228,10 @@ def check_address(
     YD.  The message names ``label``, or the field when no label is given.  ``bank_id`` is
     the error id CLICK's dialog gives for a bank the field does not take (``"OBJ-004"``),
     where it is known; it becomes the refusal's ``click_id``.  ``bank_ids`` gives another id
-    for particular banks (``{"SD": "OBJ-003"}``), and ``range_ids`` one for a number outside
-    its bank's range, by bank.  A refusal with one of those ids says it is outside the range
-    of ``outside_range_of`` (the field's noun, else its name), and what the field takes.
+    for particular banks (``{"SD": "OBJ-003"}``), given only to an address inside its bank's
+    range (SD0 gets ``bank_id``), and ``range_ids`` one for a number outside its bank's
+    range, by bank.  A refusal with one of those ids says it is outside the range of
+    ``outside_range_of`` (the field's noun, else its name), and what the field takes.
     """
     name = label or field
     if value == "":
@@ -252,7 +253,7 @@ def check_address(
     if banks is not None and bank not in banks:
         allowed = [b for b in ADDRESS_BANKS if b in banks]
         specific = (bank_ids or {}).get(bank)
-        if specific is not None:
+        if specific is not None and _in_range(bank, digits, upper):
             names = (
                 ", ".join(allowed[:-1]) + " and " + allowed[-1] if len(allowed) > 1 else allowed[0]
             )

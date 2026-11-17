@@ -76,6 +76,9 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
         ("SD1000", "bank", "OBJ-003"),
         ("YD9", "address", "OBJ-003"),
         ("DS1", "bank", "OBJ-004"),
+        # An SD past its bank's range is no SD register: a bank the result does not take.
+        ("SD0", "bank", "OBJ-004"),
+        ("SD1001", "bank", "OBJ-004"),
     )
     for result, reason, click_id in cases:
         (error,) = _refusals(lambda result=result: Math("DH1", result, "hex"))
@@ -83,6 +86,9 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
     assert str(_refusals(lambda: Math("DH1", "SD29", "hex"))[0]) == (
         "Math.result: 'SD29' is outside the range of a hex Math result (OBJ-003); "
         "it takes DH and YD"
+    )
+    assert str(_refusals(lambda: Math("DH1", "SD0", "hex"))[0]) == (
+        "Math.result: 'SD0' is not allowed; Math.result takes DH, YD (OBJ-004)"
     )
     assert str(_refusals(lambda: Math("DH1", "YD9", "hex"))[0]) == (
         "Math.result: 'YD9' is outside the range of a hex Math result (OBJ-003); "
@@ -107,16 +113,16 @@ def test_math_result_and_formula_both_reported() -> None:
 
 
 def test_formula_gives_every_refusal() -> None:
-    """Two words, a constant's value, a key of the other mode, two bits, a range, a median."""
+    """Two words, a constant's value, a key of the other mode, a range, two bits, a median."""
     errors = _formula("DS0 + FFh * 007 + MAX ( C5 : C1 ) AND MDN ( DS1 : DS900 )")
     assert _shape(errors) == [
         (_EXPR, "address", None),
         (_EXPR, "kind", "OBJ-1001"),
         (_EXPR, "form", "OBJ-1009"),
         (_EXPR, "conflict", "OBJ-1006"),
-        (_EXPR, "bank", "OBJ-1002"),
-        (_EXPR, "bank", "OBJ-1002"),
         (_EXPR, "form", "OBJ-1014"),
+        (_EXPR, "bank", "OBJ-1002"),
+        (_EXPR, "bank", "OBJ-1002"),
         (_EXPR, "range", "OBJ-1013"),
     ]
     assert [str(e).split(": ", 1)[1].split(" ", 1)[0] for e in errors] == [
@@ -125,8 +131,8 @@ def test_formula_gives_every_refusal() -> None:
         "007",
         "AND",
         "C5",
-        "C1",
         "C5",
+        "C1",
         "MDN",
     ]
     assert errors[3].fields == (_EXPR, _MODE)
@@ -242,20 +248,41 @@ def test_formula_decimal_sum_over_a_refused_bank_is_refused_once() -> None:
 
 
 def test_formula_sum_refusal_names_the_refused_end() -> None:
-    """A SUM over two banks names the range and the end refused; the span is refused too."""
+    """A SUM over two banks is refused for the span first, as CLICK refuses it (OBJ-1015);
+    the bank refusal names the range and the end refused."""
     errors = _formula("SUM ( X001 : TXT2 )")
     assert [str(e) for e in errors] == [
-        f"Math.expression: SUM ( X001 : TXT2 ) is refused for TXT2; {_DECIMAL_ONLY}",
         "Math.expression: X001 : TXT2 spans two banks; a range stays in one (OBJ-1015)",
+        f"Math.expression: SUM ( X001 : TXT2 ) is refused for TXT2; {_DECIMAL_ONLY}",
     ]
 
 
-def test_formula_bank_refusal_still_checks_the_range_order() -> None:
-    """An end refused for its bank is still checked for its order: OBJ-1002, then OBJ-1014."""
-    assert _shape(_formula("SUM ( DH2 : DH1 )")) == [
-        (_EXPR, "bank", "OBJ-1002"),
-        (_EXPR, "form", "OBJ-1014"),
-    ]
+@pytest.mark.parametrize(
+    ("expression", "mode", "first"),
+    [
+        # CLICK's answers: the range's order or banks, ahead of a bank the mode refuses.
+        ("SUM ( DH2 : DH1 )", "decimal", "OBJ-1014"),
+        ("SUM ( TXT2 : TXT1 )", "decimal", "OBJ-1014"),
+        ("SUM ( DS2 : DS1 )", "hex", "OBJ-1014"),
+        ("SUM ( X002 : X001 )", "hex", "OBJ-1014"),
+        ("SUM ( CT1 : C2 )", "decimal", "OBJ-1015"),
+        ("SUM ( DH1 : TXT2 )", "decimal", "OBJ-1015"),
+        ("SUM ( YD0 : X002 )", "decimal", "OBJ-1015"),
+    ],
+)
+def test_formula_range_shape_comes_before_its_bank(expression: str, mode: str, first: str) -> None:
+    """A range is refused for its order or its banks first, then each refused bank once."""
+    errors = _formula(expression, mode)
+    assert errors[0].click_id == first
+    assert errors[0].reason == Reason.FORM
+    assert [e.click_id for e in errors[1:]] == ["OBJ-1002"]
+
+
+def test_formula_range_shapes_come_before_every_bank() -> None:
+    """Every range's order and banks are checked before any address's bank, then a median's
+    size: OBJ-1014 for the SUM, OBJ-1002 for DH1 and the SUM, OBJ-1013 for the median."""
+    errors = _formula("DH1 + SUM ( DH5 : DH2 ) + MDN ( DS1 : DS900 )")
+    assert [e.click_id for e in errors] == ["OBJ-1014", "OBJ-1002", "OBJ-1002", "OBJ-1013"]
 
 
 @pytest.mark.parametrize("address", ["DH1", "XD0", "XD0u", "YD1", "TXT1", "C1", "X001", "CT1"])
@@ -364,6 +391,9 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("( DS1", "decimal", "form", "OBJ-1005"),
         # A decimal constant's value.
         ("1E39", "decimal", "range", "OBJ-1009"),
+        ("3.4028235E+38", "decimal", "range", "OBJ-1009"),
+        ("DS1 + 3.4028235E+38", "decimal", "range", "OBJ-1009"),
+        ("-3.4028235E+38", "decimal", "range", "OBJ-1009"),
         ("123456789012", "decimal", "range", "OBJ-1009"),
         ("000000000005", "decimal", "form", "OBJ-1009"),
         # Leading zeros are the form refused: 6000000000 alone is taken.

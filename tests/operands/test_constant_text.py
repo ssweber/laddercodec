@@ -10,6 +10,7 @@ import pytest
 
 from laddercodec import Copy, Math, constant_text
 from laddercodec.operands.constants import (
+    FLOAT32_MAX,
     classify,
     copy_real_display,
     fits_float32,
@@ -147,15 +148,12 @@ def test_constant_text(value: int | float | str, hex_: bool, text: str) -> None:
     assert classify(text) is not None
 
 
-_FLOAT32_MAX = struct.unpack("<f", bytes.fromhex("ffff7f7f"))[0]
-
-
 @pytest.mark.parametrize("sign", [1, -1])
 def test_constant_text_at_the_float32_edge(sign: int) -> None:
     # The fewest digits that read back as the largest float32 and stay within it.
-    text = constant_text(sign * _FLOAT32_MAX)
+    text = constant_text(sign * FLOAT32_MAX)
     assert text == ("-" if sign < 0 else "") + "3.402823466E+38"
-    assert struct.unpack("<f", struct.pack("<f", float(text)))[0] == sign * _FLOAT32_MAX
+    assert struct.unpack("<f", struct.pack("<f", float(text)))[0] == sign * FLOAT32_MAX
     assert Math(text, "DF1").expression.replace(" ", "") == text
     # A Copy writes it in CLICK's 7 digits, a slightly smaller value.
     assert Copy(text, "DF1").source == ("-" if sign < 0 else "") + "3.402823E+38"
@@ -180,7 +178,7 @@ def test_constant_text_is_what_construction_stores(value: int | float | str) -> 
 #: (value, constant_text, what a Copy stores): reals in exponent form that need more than 7
 #: digits, which a Copy writes in CLICK's 7.
 _LONG_EXPONENT = [
-    (_FLOAT32_MAX, "3.402823466E+38", "3.402823E+38"),
+    (FLOAT32_MAX, "3.402823466E+38", "3.402823E+38"),
     (1.2345678e10, "1.2345678E+10", "1.234568E+10"),
     (1.17549435e-38, "1.1754944E-38", "1.175494E-38"),
 ]
