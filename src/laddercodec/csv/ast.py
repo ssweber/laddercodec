@@ -70,7 +70,7 @@ class EdgeCondition:
     kind: Literal["rise", "fall"]
     operand: str
     wire_down: bool = False
-    immediate: bool = False  # never valid; the Contact built from it refuses it
+    immediate: bool = False  # Never valid. The Contact built from this node refuses it.
 
 
 @dataclass(frozen=True)
@@ -112,7 +112,10 @@ class AfCall:
     raw: str | None = None
 
     def to_token(self) -> str:
-        """Reconstruct the canonical token string."""
+        """Return the CSV token of this call.
+
+        Return ``raw`` if it is set. Otherwise build the token from the name and the arguments.
+        """
         if self.raw is not None:
             return self.raw
         parts = list(self.args)
@@ -130,7 +133,8 @@ class RowAst:
     canonical: CanonicalRow
     condition_nodes: tuple[ConditionCellNode, ...]
     af_node: AfNode
-    #: The CSV line the row starts on, from 1; ``None`` for rows not read from a file.
+    #: The CSV line that the row starts on, counted from 1. It is ``None`` if the row was not
+    #: read from a file.
     line: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:

@@ -26,15 +26,16 @@ from .ast import (
 )
 
 _EDGE_RE = re.compile(r"^(rise|fall)\((.+)\)$")
-# DOTALL: quoted text in a call may hold a line break, such as a Copy source "A<LF>B";
-# _call_match refuses one outside the quotes.
+# DOTALL lets the arguments match a line break, because quoted text in a call may hold one,
+# such as a Copy source "A<LF>B". _call_match refuses a line break outside the quotes.
 _CALL_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*|\.[A-Za-z_][A-Za-z0-9_]*)\((.*)\)$", re.DOTALL)
 
 
 def _call_match(text: str) -> re.Match[str] | None:
-    """*text* matched as a call, or None for no call or one with a CR or LF outside quotes.
+    """Return the match of *text* as a call, or None.
 
-    A line break is taken only inside quoted text; ``copy(DS1,<LF>DS2)`` is no call.
+    Return None if *text* is not a call, or if it has a CR or LF outside quoted text. For
+    example, ``copy(DS1,<LF>DS2)`` returns None.
     """
     in_quote = False
     for ch in text:
@@ -114,8 +115,8 @@ def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
 def _kwarg_eq_index(seg: str) -> int:
     """Return the index of the ``=`` that separates key from value, or -1.
 
-    Skips ``==`` (comparison operator) and ``=`` inside quotes, parens, or
-    brackets.  A valid kwarg ``=`` has an identifier-like key on the left.
+    Skip the ``=`` in ``==``, ``!=``, ``<=`` and ``>=``, and any ``=`` inside quotes,
+    parentheses or brackets. Accept an ``=`` only if the text to its left is an identifier.
     """
     paren = bracket = 0
     in_quote = False
@@ -147,7 +148,7 @@ def _kwarg_eq_index(seg: str) -> int:
             if idx + 1 < len(seg) and seg[idx + 1] == "=":
                 idx += 2
                 continue
-            # Skip != (preceded by !)
+            # Skip the = of !=, <= and >=
             if idx > 0 and seg[idx - 1] in ("!", "<", ">"):
                 idx += 1
                 continue
@@ -190,8 +191,9 @@ def _decode_af_string_literal(arg: str) -> str:
 
 
 def _split_immediate(text: str) -> tuple[str, bool]:
-    """``text`` without its immediate suffix (``.immediate``) or wrapper
-    (``immediate(...)``), and whether it had one."""
+    """Return *text* without its immediate suffix or wrapper, and whether it had one.
+
+    The suffix is ``.immediate`` and the wrapper is ``immediate(...)``."""
     if text.endswith(".immediate"):
         return text[: -len(".immediate")], True
     inner = re.fullmatch(r"immediate\((.+)\)", text)
@@ -238,13 +240,14 @@ def parse_condition_token(token: str) -> ConditionCellNode:
     if text == "|":
         return VerticalPassThroughWire()
 
-    # Detect wire-down prefix: T:X001 or |:rise(X002)
+    # A T: or |: prefix, as in T:X001 or |:rise(X002), means a wire also runs down from the cell.
     wire_down = False
     if len(text) > 2 and text[1] == ":" and text[0] in ("T", "|"):
         wire_down = True
         text = text[2:]
 
-    # An immediate edge contact (rise(X1).immediate) reads as one, and building it refuses it.
+    # Parse an immediate edge contact such as rise(X1).immediate as an edge condition.
+    # The Contact built from it refuses it later.
     edge_text, edge_immediate = _split_immediate(text)
     edge_match = _EDGE_RE.fullmatch(edge_text)
     if edge_match:
@@ -300,8 +303,8 @@ def parse_af_token(token: str) -> AfNode:
     kwargs: dict[str, str] = {}
     in_kwargs = False
     for seg in segments:
-        # A raw token's arguments are its own field specs (``rows=3``, ``60a5=1``), which
-        # RawInstruction reads from the token text; keep them all positional.
+        # The arguments of a raw(...) token are field specs such as ``rows=3`` and ``60a5=1``.
+        # RawInstruction reads them from the token text, so they all stay positional here.
         eq_idx = -1 if name == "raw" else _kwarg_eq_index(seg)
         if eq_idx >= 0:
             in_kwargs = True
@@ -323,15 +326,19 @@ def parse_af_token(token: str) -> AfNode:
 
 
 def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = False) -> str | None:
-    """*token*, an AF call, with each blank argument replaced by ``fill(i)``, or None when no
-    argument is blank.
+    """Return *token*, an AF call, with each blank argument replaced by ``fill(i)``.
 
-    ``i`` counts the top-level arguments from 0.  A blank positional argument becomes
-    ``fill(i)`` and a blank keyword value ``key=fill(i)``; ``name()`` has one blank argument.
-    With *ranges*, each is read as a range: a blank argument becomes ``fill(i)..fill(i)``,
-    and a range with a blank end (``..``, ``..DS4``, ``DS1..``, as ``write_csv`` writes a
-    range whose start or end is blank) is a blank argument too, each blank end ``fill(i)``.
-    A ``raw(...)`` token has none: its arguments are its own field specs.
+    Return None if no argument is blank. Also return None if *token* is not a call, or if it
+    is a ``raw(...)`` token, whose arguments are field specs.
+
+    ``i`` is the index of the top-level argument, counted from 0. A blank positional argument
+    becomes ``fill(i)``, and a blank keyword value becomes ``key=fill(i)``. ``name()`` counts
+    as one blank argument.
+
+    With *ranges*, each argument is read as a range. A blank argument becomes
+    ``fill(i)..fill(i)``. In a range with a blank start or end, such as ``..``, ``..DS4`` or
+    ``DS1..``, each blank end becomes ``fill(i)``. ``write_csv`` writes a range in this form
+    when its start or end is blank.
     """
     m = _call_match(token.strip())
     if not m or m.group(1) == "raw":
@@ -349,7 +356,10 @@ def fill_blank_args(token: str, fill: Callable[[int], str], *, ranges: bool = Fa
 
 
 def _filled(value: str, i: int, fill: Callable[[int], str], *, ranges: bool) -> str | None:
-    """*value*, argument *i*, with its blanks ``fill(i)``, or None when it has none."""
+    """Return *value*, argument *i*, with each blank replaced by ``fill(i)``.
+
+    Return None if *value* has no blank.
+    """
     if not ranges:
         return fill(i) if not value else None
     start, dots, end = value.partition("..")

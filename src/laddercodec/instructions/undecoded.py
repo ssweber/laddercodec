@@ -1,6 +1,6 @@
-"""Undecoded — the marker that stands in for a rung laddercodec could not decode.
+"""The ``Undecoded`` marker, which stands in for a rung that laddercodec could not decode.
 
-It is not a CLICK instruction: it has no blob, and ``encode()`` refuses it.
+The marker is not a CLICK instruction.  It has no binary form, and ``encode()`` refuses it.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from .family import AfInstructionFamilySpec
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
-#: The AF column: 31 counted from 0 (column A is 0).
+#: The index of the AF column, counted from 0 at column A.
 _LAST_COLUMN = 31
 
 Stop = Literal["end", "return"]
@@ -25,12 +25,13 @@ _STOPS: tuple[Stop, ...] = ("end", "return")
 
 @dataclass
 class Undecoded(AfInstruction):
-    """A rung laddercodec could not decode, and why.
+    """A marker for a rung that laddercodec could not decode, with the reason.
 
-    A decoder that cannot read a rung puts this marker in its place: a one-row rung, wired
-    from the rail, whose output is the marker.  It acts as ``end()`` in the main program
-    and as ``return()`` in a subroutine, so a program never runs past a rung it could not
-    read.  ``encode()`` refuses it, so it is never pasted into CLICK.
+    When a decoder cannot read a rung, it puts a marker rung in its place.  The marker rung
+    is one row, wired from the rail, with this marker as its output.  The marker acts as
+    ``end()`` in the main program and as ``return()`` in a subroutine, so a program never
+    runs past a rung that could not be read.  ``encode()`` refuses the marker, so it is
+    never pasted into CLICK.
 
     Attributes
     ----------
@@ -42,7 +43,7 @@ class Undecoded(AfInstruction):
         Where in that rung decoding failed, both from 0 (column 0 is A, 31 is AF), or
         ``None`` when the failure is not at one row or cell.
     stop:
-        ``"end"`` in the main program, ``"return"`` in a subroutine.
+        What the marker acts as: ``"end"`` in the main program, ``"return"`` in a subroutine.
     """
 
     error: str
@@ -108,7 +109,7 @@ class Undecoded(AfInstruction):
 
     @property
     def where(self) -> str:
-        """``rung N, row R``, or ``rung N`` when ``row`` is ``None``."""
+        """Where decoding failed, as ``rung N, row R``, or ``rung N`` when ``row`` is ``None``."""
         return f"rung {self.rung}" if self.row is None else f"rung {self.rung}, row {self.row}"
 
     @property
@@ -117,7 +118,7 @@ class Undecoded(AfInstruction):
         return f"UNDECODED: {self.where}: {self.error}"
 
     def refusal(self) -> str:
-        """Why ``encode()`` refuses the marker."""
+        """Return why ``encode()`` refuses the marker."""
         return (
             f"an undecoded marker stands in for a rung laddercodec could not decode "
             f"({self.headline}); it can't be pasted into CLICK"
@@ -145,7 +146,10 @@ def _is_index(value: object) -> bool:
 
 
 def _index_reason(value: object) -> Reason:
-    """Why ``value`` is no index: not a whole number (form), or one outside its limits."""
+    """Return the reason that *value* is not a valid index.
+
+    An int is out of range (``Reason.RANGE``). Anything else has the wrong form (``Reason.FORM``).
+    """
     return Reason.RANGE if type(value) is int else Reason.FORM
 
 
@@ -173,7 +177,7 @@ def parse_af_call(call: AfCall) -> Undecoded:
         raise FieldError(
             f"Undecoded: {call.to_token()!r} must be "
             'undecoded("<error>",rung=N,row=R,column=C,stop=end), row and column optional',
-            field=None,  # token syntax, not a field value
+            field=None,  # The token's syntax is wrong, not a field's value.
             reason=Reason.FORM,
             code=Code.INVALID_TOKEN,
         )
