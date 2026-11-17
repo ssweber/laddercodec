@@ -89,14 +89,17 @@ then each pin in its fixed order.
 
 A rung `laddercodec.check()` reports has no layout and is read and written as drawn: a circuit
 that is not series-parallel (C0001), a contact no rail reaches or that feeds no box (C0202 and
-C0003), a box above a box with a used pin on its main input's net or another box's input on
-a pin's net (C000A), and a pin with no contact of its own (C0205, C0212). CLICK pastes and
+C0003), a contact a wire shorts (C0002), a box above a box with a used pin on its main
+input's net or another box's input on a pin's net (C000A), and a pin with no contact of its
+own (C0205, C0212). CLICK pastes and
 saves these rungs and refuses them only at its check. A rung of wires alone, or with an
 unwired `NOP`, has no circuit and is kept as drawn too.
 
-One finding keeps the layout: a pin that no rail or contact reaches (C0202 at its AF cell).
-The layout draws its row blank, dropping any wire in it, and CLICK saves such a rung as pasted
-when the row holds nothing.
+Two findings keep the layout. A pin that no rail or contact reaches (C0202 at its AF cell): the
+layout draws its row blank, dropping any wire in it, and CLICK saves such a rung as pasted
+when the row holds nothing. A contact that feeds only a `NOP` (C0003): the rung is laid out as
+before; CLICK keeps that layout when pasted, and its check on the rung as written is not
+captured.
 
 Three more shapes are kept as drawn, with no capture of CLICK's check on them:
 
@@ -121,7 +124,11 @@ shows is reported with `captured=False`.
 
 14. A contact whose input no line connects to the rail is C0202 at that contact, the first of
     each such group. A path from the rail that reaches no box is C0202 at its last contact,
-    and C0003 once for the rung.
+    and C0003 once for the rung. A contact that feeds a `NOP` and no other box, along
+    any path, is `nop_only_contact`, C0003 once for the rung, even when a coil sits on another
+    wire of the rung or on another leg of the same split; a `NOP` on the rail alone, or on a
+    net a coil shares, is not. A contact whose two sides a wire joins (a contact in parallel
+    with a wire-only leg) is C0002.
 15. A pin whose row holds nothing (no contact, no wire, no vertical into it) is C0202 at its
     AF cell, the row counted from 1. The captured pins are a timer's and a counter's reset in
     a rung whose rail reaches a box. A pin whose row holds a contact or a wire that no rail
@@ -181,3 +188,7 @@ For the next capture round:
   (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`): `read_csv` drops the `NOP`, then
   splits the rung in two. No capture shows CLICK's check doing both on one rung.
 - A contact two pins share: CLICK's code for it, if it refuses it.
+- A `NOP` reached only by contacts that also reach a coil: `check()` reports nothing, as for a
+  `NOP` on a coil's net. Probed, not captured: C1 splits with a wire to the `NOP` and C2 to a
+  coil; a shorted contact into a `NOP` (C0002 only); an unrailed contact into a `NOP`; a rail
+  wire to a coil plus a contact off the rail into a `NOP`.

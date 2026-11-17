@@ -245,9 +245,12 @@ _LADDER_FINDINGS = {
         (0, "feeds_no_box", "C0202", 1, 1),
         (0, "no_coil", "C0003", None, None),
     ],
+    # C20 C21 in series feed only a NOP: C0003, as for one contact (accepted_shapes.csv rung 2).
+    "instr-cond__and": [(0, "nop_only_contact", "C0003", None, None)],
+    "mr-instr-cond__and": [(0, "nop_only_contact", "C0003", None, None)],
     "instr-2row-spread": [(0, "feeds_no_box", "C0202", 1, 10), (0, "no_coil", "C0003", None, None)],
     # X001's output joins the rail through B's vertical and the row 2 wire.
-    "instr-3row-branch": [(0, "shorted_contact", None, 0, 0), (0, "unpowered_box", None, 1, 31)],
+    "instr-3row-branch": [(0, "shorted_contact", "C0002", 0, 0), (0, "unpowered_box", None, 1, 31)],
     "instr-3row-scatter": [
         (0, "feeds_no_box", "C0202", 1, 5),
         (0, "feeds_no_box", "C0202", 2, 15),
@@ -265,7 +268,6 @@ _LADDER_FINDINGS = {
 
 #: Findings above whose shape no capture shows with that code.
 _UNCAPTURED = {
-    ("instr-3row-branch", 0),
     ("instr-3row-branch", 1),
     ("instr-copy-multirow-2af-T", 0),
     ("instr-timer-ret", 0),
@@ -542,10 +544,10 @@ def test_boxes_off_the_rail_are_not_c000a() -> None:
     assert check(rung) == []
 
 
-def test_shorted_contact_is_not_captured() -> None:
+def test_shorted_contact_is_c0002() -> None:
     shorted = check(read_csv(LADDER / "instr-3row-branch.csv"))[0]
-    assert (shorted.kind, shorted.code, shorted.captured) == ("shorted_contact", None, False)
-    assert shorted.message.endswith("(CLICK's response to this shape is not captured)")
+    assert (shorted.kind, shorted.code, shorted.captured) == ("shorted_contact", "C0002", True)
+    assert shorted.message.endswith("(CLICK: C0002)")
 
 
 def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
