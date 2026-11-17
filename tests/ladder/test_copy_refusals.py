@@ -232,14 +232,15 @@ def test_copy_csv_convert_option_is_a_choice() -> None:
         (
             lambda: Unpack("DH1", "Y016", "Y021", unpack_type="bits"),
             ("Unpack.dest_end", "Unpack.dest_start"),
-            "OBJ-019",
+            "OBJ-1009",
         ),
         # An Unpack's destination refuses a bank its source can't unpack to as a bank
-        # (OBJ-004), where the other pairings are OBJ-024.
+        # (OBJ-004), where the other pairings are OBJ-024; Y, which only a DH unpacks to,
+        # is a pairing of kinds (OBJ-024).
         (
             lambda: Unpack("DS5", "Y1", "Y16", unpack_type="bits"),
             ("Unpack.dest_start", "Unpack.source"),
-            "OBJ-004",
+            "OBJ-024",
         ),
         (
             lambda: Unpack("DS1", "DS1", "DS2", unpack_type="words"),
@@ -449,6 +450,110 @@ def test_pack_and_unpack_counts(build: Any, click_id: str) -> None:
     assert (error.reason, error.click_id) == ("range", click_id)
     assert len(error.fields) == 3
     assert error.field.endswith("_end")
+
+
+_PACK_COUNT = ("Pack.source_end", "range")
+_PACK_PAIR = ("Pack.destination", "conflict", "OBJ-024")
+
+
+@pytest.mark.parametrize(
+    ("build", "expected"),
+    [
+        # A Pack's source is counted before its pairing: against the destination where the
+        # source packs into it, else against 32 bits, or two words from a DH.
+        (lambda: Pack("T1", "T33", "DS1"), [(*_PACK_COUNT, "OBJ-041"), _PACK_PAIR]),
+        (lambda: Pack("SC1", "SC33", "DD1"), [(*_PACK_COUNT, "OBJ-041"), _PACK_PAIR]),
+        (lambda: Pack("T1", "T17", "DS1"), [_PACK_PAIR]),
+        (lambda: Pack("T1", "T32", "DH1"), [(*_PACK_COUNT, "OBJ-027")]),
+        (lambda: Pack("C1", "C33", "DS1"), [(*_PACK_COUNT, "OBJ-027")]),
+        (lambda: Pack("C1", "C33", "TD1"), [(*_PACK_COUNT, "OBJ-041"), _PACK_PAIR]),
+        # CLICK stops after OBJ-040 for a DH source (no second box); the OBJ-024 after it is
+        # laddercodec's own.
+        (
+            lambda: Pack("DH1", "DH16", "DH1", pack_type="words"),
+            [(*_PACK_COUNT, "OBJ-040"), _PACK_PAIR],
+        ),
+        (lambda: Pack("DH1", "DH2", "DH1", pack_type="words"), [_PACK_PAIR]),
+        # A DS source is not counted where it does not pack into the destination.
+        (lambda: Pack("DS1", "DS16", "DH1", pack_type="words"), [_PACK_PAIR]),
+        (lambda: Pack("DS1", "DS3", "DD1", pack_type="words"), [(*_PACK_COUNT, "OBJ-040")]),
+    ],
+)
+def test_pack_counts_its_source_before_the_pairing(
+    build: Any, expected: list[tuple[str, str, str]]
+) -> None:
+    assert _shape(_errors(build)) == expected
+
+
+def test_pack_count_without_a_pairing_states_the_limit_of_every_pack() -> None:
+    error = _errors(lambda: Pack("T1", "T33", "DS1"))[0]
+    assert (
+        str(error)
+        == "Pack.source_end: T1..T33 is 33 bits; a pack of bits takes at most 32 (OBJ-041)"
+    )
+    assert error.fields == ("Pack.source_end", "Pack.source_start", "Pack.destination")
+    assert type(error) is FieldError
+
+
+def test_pack_text_into_dh_takes_four_characters() -> None:
+    Pack("TXT1", "TXT4", "DH1", pack_type="text")
+    Pack("TXT999", "TXT1000", "DH1", pack_type="text")
+    for end in ("TXT5", "TXT16", "TXT1000"):
+        (error,) = _errors(lambda end=end: Pack("TXT1", end, "DH1", pack_type="text"))
+        assert (error.fields, error.reason, error.click_id) == (
+            ("Pack.source_end", "Pack.source_start", "Pack.destination"),
+            "range",
+            "OBJ-003",
+        )
+    assert str(error) == (
+        "Pack.source_end: TXT1..TXT1000 is 1000 characters; a pack into 'DH1' takes at most 4 "
+        "(OBJ-003)"
+    )
+    # The other registers a pack of text writes have no limit yet.
+    for dest in ("DS1", "DD1", "DF1", "TD1", "CTD1"):
+        Pack("TXT1", "TXT16", dest, pack_type="text")
+
+
+@pytest.mark.parametrize(
+    ("build", "expected"),
+    [
+        # An Unpack pairs its destination's start with the source before it reads the end:
+        # the end's fit with a refused start is not checked.
+        (
+            lambda: Unpack("DS1", "DS2", "DS1", unpack_type="words"),
+            [("Unpack.dest_start", "conflict", "OBJ-004")],
+        ),
+        (
+            lambda: Unpack("DS1", "DS001", "C16", unpack_type="words"),
+            [("Unpack.dest_start", "conflict", "OBJ-004")],
+        ),
+        (
+            lambda: Unpack("DH1", "DS1", "DS1", unpack_type="words"),
+            [("Unpack.dest_start", "conflict", "OBJ-004")],
+        ),
+        (
+            lambda: Unpack("DS1", "Y816", "Y817"),
+            [("Unpack.dest_start", "conflict", "OBJ-024"), ("Unpack.dest_end", "address", None)],
+        ),
+        (lambda: Unpack("DD1", "Y001", "Y032"), [("Unpack.dest_start", "conflict", "OBJ-024")]),
+        # A start the source unpacks to is followed by the end's checks.
+        (
+            lambda: Unpack("DS1", "C1", "DS1"),
+            [("Unpack.dest_end", "conflict", "OBJ-008")],
+        ),
+        (lambda: Unpack("DH1", "Y001", "Y032"), [("Unpack.dest_end", "conflict", "OBJ-1009")]),
+        (lambda: Unpack("DH1", "Y001", "Y036"), [("Unpack.dest_end", "conflict", "OBJ-1009")]),
+    ],
+)
+def test_unpack_pairs_its_destination_before_the_range(
+    build: Any, expected: list[tuple[str, str, str | None]]
+) -> None:
+    assert _shape(_errors(build)) == expected
+
+
+def test_unpack_into_one_y_slot_from_dh_is_accepted() -> None:
+    Unpack("DH1", "Y001", "Y016")
+    Unpack("DH1", "Y021", "Y036")
 
 
 def test_pack_txt_refusals_stay_address_errors() -> None:

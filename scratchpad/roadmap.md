@@ -132,7 +132,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Unpack of a DS into DS is refused with OBJ-004, laddercodec said OBJ-024. Closed: every Unpack
     destination bank its source can't unpack to now carries OBJ-004. CLICK confirms it for a DH source into
     DS and for every source into T, DD and TXT, and gives OBJ-004 for a source from Y, C, T, CT, SC, XD, YD,
-    TD, CTD, SD or TXT. A DS, DD or DF into Y is OBJ-024 (a follow-up, below).
+    TD, CTD, SD or TXT. A DS, DD or DF into Y is OBJ-024 (Pack and Unpack order, below).
   - Copy-family bank ids (closed for the answered rows): a bank no row of the field holds is OBJ-004 for a
     Pack destination (answered for X001, SD29 and SD31), an Unpack source (X001) and an Unpack destination
     (X, SC and SD); a single Copy into a bit bank it does not write is OBJ-004 from a bit source (X001 into
@@ -209,17 +209,32 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     `DS 1`, which `read_csv` refuses) and as a decimal Math result; the rules refuse it. Decide whether it
     is refused on purpose, as the edge space is.
   - An SD pointer (`SD[DS1]`) is accepted as a single Copy's source, and saved as typed; the rules refuse it.
-  - Pack of TXT into DH (`TXT1..TXT16`, `TXT1..TXT1000`) is OBJ-003; the rules accept it.
-  - Pack ids: 33 T, CT or SC bits into DS or DD raise two boxes for one OK, OBJ-041 (the count) then
-    OBJ-024 (the answers' `boxes`); a Pack of `DH1..DH16` or `DH1..DH500` into DH is OBJ-040 (the count;
-    `DH1..DH2` is OBJ-024). The rules give OBJ-024 for both.
+  - Pack and Unpack order (closed): the rules give CLICK's id first in every answered case.
+    - A Pack counts its source before the pairing. Where the source packs into the destination, the
+      limit is the destination's room (16 or 32 bits, 2 words: OBJ-027, OBJ-041, OBJ-040). Where it does
+      not, bits are held to 32 (OBJ-041, then OBJ-024, as the answers' `boxes` show) and a DH source to
+      2 words (OBJ-040); a DS source is not counted (`DS1..DS4500` into DH1 is OBJ-024).
+    - For a DH source CLICK stops after OBJ-040 (`DH1..DH16` and `DH1..DH500` into DH1 show no
+      `boxes`). The OBJ-024 that follows in `.errors` is laddercodec's own; CLICK's first id matches.
+    - A Pack of text into DH takes at most 4 characters (OBJ-003, reason `range`): `TXT1..TXT2` and
+      `TXT999..TXT1000` are accepted, `TXT1..TXT16` and `TXT1..TXT1000` refused.
+    - An Unpack pairs its destination's start with the source (OBJ-004; OBJ-024 for Y from DS, DD or DF)
+      before it reads the end, so the end's fit with a refused start (OBJ-008, OBJ-009, OBJ-012) is not
+      checked. A DH into a Y range across two slots is OBJ-1009, where the rules said OBJ-019.
+  - Pack and Unpack neighbours no answer covers (CLICK):
+    - A Pack of text into DS, DD, DF, TD or CTD: CLICK's own code reads limits of 6 characters for DS
+      and TD, 11 for DD and CTD and 14 for DF (OBJ-003); the rules take any length there. Into DH, 5 to
+      15 characters (`TXT1..TXT5`): the rules refuse them, as CLICK's code does. Ask CLICK next for
+      `TXT1..TXT4` and `TXT1..TXT5` into DH1, the edge of the limit.
+    - A count where the pairing is refused and no answer shows it: `DH1..DH3` into DS1, DF1, TD1 or
+      CTD1, `C1..C33` into TD1 or CTD1, and 33 or more T, CT or SC bits into DF1, TD1 or CTD1 (answered
+      only into DS and DD). The rules give the count first (OBJ-040, OBJ-041).
+    - A DH into a Y range across two slots with 16 points or fewer (`Y016..Y021`), and into the option
+      slot alone (`Y021..Y036`): the rules give OBJ-1009 for the first and accept the second.
   - Copy ids: a `$` code source (`$41`, `$1`) into any bank but TXT is OBJ-004; `""` and a hex source of
     more than 8 digits into DS1 are OBJ-005; a bit, quoted text or `10000h` into SD1 is OBJ-024 (above); a
     DS into an X, T, CT or SC address outside its bank (`X000`, `X017`, `T501`, `SC1001`) is OBJ-004
     (above). The rules give OBJ-024, OBJ-024, OBJ-004 and OBJ-024.
-  - Unpack ids: a DS, DD or DF into Y is OBJ-024 before the range checks; a DH into `Y001..Y032` or
-    `Y001..Y036` is OBJ-1009 (into `Y001..Y016` it is accepted); an Unpack into a bank its source can't
-    unpack to is OBJ-004 before OBJ-008, OBJ-009 and OBJ-012.
   - Out: a range whose end is in another bank is OBJ-008 even where that bank is refused (`C1..DS1`); the
     rules give OBJ-004.
   - Saves that decode as `raw(...)`: CLICK saves an address as typed (`DS001`, `DS01`, `ds1`, `XD00`,
