@@ -47,11 +47,29 @@ def _conv_and_option(copy: Copy) -> tuple[str, str]:
             "0",
             "copy(DF1,TXT1,convert=to_text(exponential=0,termination_code=none))",
         ),
-        (  # suppress_zero means nothing for DF: accepted, not written
-            "copy(DF1,TXT1,convert=to_text(suppress_zero=0,exponential=1,termination_code=none))",
+        (
+            "copy(DF1,TXT1,convert=to_text(exponential=1,termination_code=none))",
             "4",
             "1",
             "copy(DF1,TXT1,convert=to_text(exponential=1,termination_code=none))",
+        ),
+        (  # a DF pointer takes a DF source's options
+            "copy(DF[DS1],TXT1,convert=to_text(exponential=1,termination_code=none))",
+            "4",
+            "1",
+            "copy(DF[DS1],TXT1,convert=to_text(exponential=1,termination_code=none))",
+        ),
+        (  # so does a real constant
+            "copy(1.5,TXT1,convert=to_text(exponential=0,termination_code=none))",
+            "3",
+            "0",
+            "copy(1.5,TXT1,convert=to_text(exponential=0,termination_code=none))",
+        ),
+        (  # an integer pointer takes an integer source's
+            "copy(DD[DS1],TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
+            "1",
+            "0",
+            "copy(DD[DS1],TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
         ),
         ("copy(DD1,DF1)", "7", "0", "copy(DD1,DF1)"),
         ("copy(DF1,DD1)", "7", "0", "copy(DF1,DD1)"),
@@ -71,10 +89,22 @@ def test_conversion_type_follows_source_and_destination(
     assert parsed.to_csv() == csv
 
 
-def test_exponential_on_integer_source_rejected() -> None:
-    # CLICK offers exponential numbering for a DF source only.
-    with pytest.raises(ValueError, match="needs a DF source"):
-        Copy.from_csv_token("copy(DS1,TXT1,convert=to_text(exponential=1))")
+@pytest.mark.parametrize("source", ["DS1", "DD[DS1]", "5", "FFh"])
+def test_exponential_on_integer_source_rejected(source: str) -> None:
+    # CLICK offers exponential numbering for a DF source or a real constant only.
+    with pytest.raises(ValueError, match="needs a DF source or a real constant"):
+        Copy.from_csv_token(f"copy({source},TXT1,convert=to_text(exponential=1))")
+
+
+@pytest.mark.parametrize("source", ["DF1", "DF[DS1]", "1.5"])
+@pytest.mark.parametrize("value", ["0", "1"])
+def test_suppress_zero_on_a_real_source_is_refused(source: str, value: str) -> None:
+    """CLICK's dialog offers no Suppress zero for a DF source or a real constant."""
+    with pytest.raises(FieldError, match="only has exponential") as raised:
+        Copy.from_csv_token(f"copy({source},TXT1,convert=to_text(suppress_zero={value}))")
+    [error] = raised.value.errors
+    assert error.reason.value == "conflict"
+    assert error.click_id is None
 
 
 @pytest.mark.parametrize(("conv", "source", "destination"), [(7, "DS1", "DF1"), (4, "DS1", "TXT1")])

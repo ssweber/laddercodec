@@ -828,7 +828,7 @@ currently emit:
   - `convert=to_value`
   - `convert=to_ascii`
   - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
-  - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for an integer source, `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF source: only the option CLICK offers for that source is written. The other is accepted on read and ignored (DF), except `exponential=1` from an integer source, which raises `ValueError`.
+  - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address or pointer (`DF[DS1]`) or a real constant (`1.5`): real (`0`) or exponential (`1`) numbering. `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other source, an integer or hex constant or a DD or DS pointer included. Only the option CLICK's dialog offers for the source is written and read: `suppress_zero` for a DF or real source raises `FieldError`, and so does `exponential=1` for any other source; `exponential=0` for one is accepted and not written.
 
 ## Immediate handling
 

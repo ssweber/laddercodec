@@ -26,12 +26,14 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from laddercodec import FieldError
 from laddercodec.csv import read_csv
 from laddercodec.decode_program import _scr_box
 from laddercodec.instructions.coil import Coil
@@ -101,23 +103,6 @@ E_REAL = (
 COPY_EH = (
     "kept: CLICK stores EH and 1Eh as the reals 0.0 and 1.0; laddercodec refuses them and names "
     "the forms to write, the real or the hex value as a decimal integer (settled)"
-)
-TEXT_AS_REAL = (
-    'to do (roadmap item 4): CLICK stores quoted text with an E ("HELLO") into TXT as its float '
-    "value too (0.0, filling TXT1..TXT3); the rules accept it as text, and decode reads the "
-    "save as raw(...)"
-)
-
-# Saves decode reads as raw(...) (roadmap item 3).
-CONVERSION_7 = (
-    "to do: a Copy of 1.5 into DD1, DD[DS1], CTD1 or CTD[DS1], of CTD1 into DF1 or DF1 into "
-    "CTD1, and of 2147483647 into DF1 saves conversion type 7, which decode reads as raw(...); "
-    "DD1 into DF1 and back, and 1.5, 5 or -5 into DF1, keep the usual type"
-)
-TXT_NUMBER = (
-    "to do: a number whose text fills more than one TXT (-5, 1.5, FFh, 2147483647 into TXT1) "
-    "saves the constant as typed, the TXT its text ends in and a conversion type, which decode "
-    "reads as raw(...); 5 into TXT1 reads back"
 )
 RX2_COUNT = (
     "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
@@ -254,36 +239,10 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
-    (TEXT_AS_REAL, "copy_single", "stored", ('single "HELLO" -> TXT1',)),
-    (
-        CONVERSION_7,
-        "copy_single",
-        "stored",
-        (
-            "single 1.5 -> CTD1",
-            "single 1.5 -> CTD[DS1]",
-            "single 1.5 -> DD1",
-            "single 1.5 -> DD[DS1]",
-            "single 2147483647 -> DF1",
-            "single CTD1 -> DF1",
-            "single DF1 -> CTD1",
-        ),
-    ),
-    (
-        TXT_NUMBER,
-        "copy_single",
-        "stored",
-        (
-            "single -5 -> TXT1",
-            "single 1.5 -> TXT1",
-            "single 2147483647 -> TXT1",
-            "single FFh -> TXT1",
-        ),
-    ),
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 2835
+CODES_COMPARED = 2840
 
 
 @pytest.fixture(scope="module")
@@ -359,19 +318,30 @@ def rules_verdict(generator: Any, case: dict[str, Any]) -> tuple[bool, str | Non
     return True, None
 
 
+def _read_rows(path: Path, rows: list[str]) -> list[Any]:
+    """The rungs ``read_csv`` reads from *rows*, written to *path* under the header."""
+    lines = ["marker," + ",".join(_columns()), *rows]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return read_csv(path)
+
+
 def reads_as_raw(rows: list[str]) -> bool:
     """Whether the saved rung reads back as ``raw(...)`` (or an unknown condition).
 
     The rows were written by the laddercodec of the run from CLICK's program file; a
     ``raw(...)`` among them is read again from its tags, as ``decode_program`` reads that
-    save today.
+    save today.  That laddercodec wrote ``to_text(suppress_zero=...)`` for a real constant,
+    which now takes only ``exponential``; such a row is read without it.
     """
-    lines = ["marker," + ",".join(_columns()), *rows]
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "stored.csv"
-        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         try:
-            rungs = read_csv(path)
+            try:
+                rungs = _read_rows(path, rows)
+            except FieldError as exc:
+                if exc.field != "Copy.suppress_zero":
+                    raise
+                rungs = _read_rows(path, [re.sub(r"suppress_zero=[01],", "", row) for row in rows])
         except Exception:
             return True
     return any(

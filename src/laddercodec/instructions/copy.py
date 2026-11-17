@@ -47,7 +47,7 @@ from ..operands.checks import (
     check_writable_sd,
     constant_shape,
 )
-from ..operands.constants import TEXT_MAX, Constant, Kind, copy_real_display
+from ..operands.constants import TEXT_MAX, Constant, Kind, classify, copy_real_display
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -81,18 +81,19 @@ _VALID_FORMATS = frozenset({"none", "value", "text", "binary", "ascii"})
 
 #: field[8] conversion_type → (format, suppress_zero, exponential).
 #: Text sub-options are encoded in the conversion_type value itself: an integer
-#: source has suppress zero (1) or not (2); a DF source has real (3) or
-#: exponential (4) numbering, with suppress_zero stored as 1.  7 is a DD <-> DF
-#: Copy Value, a plain copy in CSV.
+#: source has suppress zero (1) or not (2); a DF source (a pointer too) or a real
+#: constant has real (3) or exponential (4) numbering and no suppress zero, which decode
+#: holds as None.  7 converts a value between a real and a 32-bit integer
+#: (:func:`_converts_value`), a plain copy in CSV.
 _CONVTYPE_TO_OPTS: dict[str, tuple[str, str, str]] = {
     "0": ("none", "0", "0"),
     "1": ("text", "1", "0"),  # integer source, suppress zeros
     "2": ("text", "0", "0"),  # integer source, don't suppress zeros
-    "3": ("text", "1", "0"),  # DF source, real numbering
-    "4": ("text", "1", "1"),  # DF source, exponential numbering
+    "3": ("text", "1", "0"),  # DF source or real constant, real numbering
+    "4": ("text", "1", "1"),  # DF source or real constant, exponential numbering
     "5": ("value", "0", "0"),
     "6": ("ascii", "0", "0"),
-    "7": ("none", "0", "0"),  # DD <-> DF
+    "7": ("none", "0", "0"),  # a real <-> a 32-bit integer
     "8": ("binary", "0", "0"),
 }
 
@@ -104,11 +105,62 @@ def _is_df(operand: str) -> bool:
     return _DF_RE.fullmatch(operand.strip()) is not None
 
 
+def _real_text_source(source: str) -> bool:
+    """Whether CLICK's dialog offers real and exponential numbering for ``source`` copied
+    to text, and no suppress zero: a DF address or pointer, or a real constant."""
+    return (
+        _operand_bank(source, pointer=True) == "DF"
+        or constant_shape(source, _CONSTANTS) is Kind.FLOAT
+    )
+
+
 def _is_dd_df_pair(source: str, destination: str) -> bool:
     """A single copy between DD and DF, either way: CLICK's Copy Value / Copy Binary choice."""
     src, dst = source.strip(), destination.strip()
     return (_DD_RE.fullmatch(src) is not None and _is_df(dst)) or (
         _is_df(src) and _DD_RE.fullmatch(dst) is not None
+    )
+
+
+def _operand_bank(operand: str, *, pointer: bool = False) -> str | None:
+    """The bank of ``operand`` read as an address (with ``pointer``, a pointer's bank too);
+    None for a constant or text that is neither."""
+    try:
+        return check_operand(operand, "Copy.source", pointer=pointer).bank
+    except FieldError:
+        return None
+
+
+def _converts_value(source: str, destination: str) -> bool:
+    """Whether a single Copy of ``source`` into ``destination`` converts a value between a
+    real and a 32-bit integer, which CLICK saves as conversion type 7.
+
+    That is a copy between DF and DD or CTD, either way, and a real constant into DD or CTD,
+    an address or a pointer (``1.5`` into ``DD[DS1]``).  A pointer of DF, DD or CTD beside a
+    register is not type 7 here.
+    """
+    src, dst = _operand_bank(source), _operand_bank(destination)
+    if (src == "DF" and dst in _INT32_BANKS) or (src in _INT32_BANKS and dst == "DF"):
+        return True
+    return (
+        constant_shape(source, _CONSTANTS) is Kind.FLOAT
+        and _operand_bank(destination, pointer=True) in _INT32_BANKS
+    )
+
+
+def _wide_into_df(source: str, destination: str) -> bool:
+    """Whether ``source`` is a decimal integer outside int16 copied into a DF address or
+    pointer, which CLICK saves as conversion type 7.
+
+    CLICK saves ``32768``, ``-32769``, ``65535`` and ``65536`` into DF1, and ``2147483647``
+    into DF1 and ``DF[DS1]``, as type 7; ``32767`` and ``-32768`` as type 0.
+    """
+    const = classify(source)
+    return (
+        const is not None
+        and const.kind is Kind.INTEGER
+        and const.wide
+        and _operand_bank(destination, pointer=True) == "DF"
     )
 
 
@@ -712,9 +764,11 @@ def _check_source_value(source: str, field: str) -> Constant:
         ) from None
 
 
+#: The 32-bit integer registers.
+_INT32_BANKS = frozenset({"DD", "CTD"})
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
 #: (OBJ-024).
-_HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
+_HEX32_DEST_BANKS = _INT32_BANKS
 
 
 def _check_hex32(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
@@ -751,6 +805,41 @@ def _text_fill_end(source: str, destination: str) -> Address | None:
     if first.address is None:
         return None
     return Address("TXT", first.address.number + len(source) - 3)
+
+
+#: The constant kinds a single Copy writes into TXT as their text.
+_NUMBER_KINDS = frozenset({Kind.INTEGER, Kind.HEX, Kind.FLOAT})
+
+
+def _number_fill_end(source: str, destination: str) -> Address | None:
+    """The last TXT a single Copy of a number constant into a TXT address fills with the
+    constant's text, which CLICK saves as the destination end (tag 0x6077).
+
+    The text is the constant as stored, ``h`` and a ``+`` included, one TXT a character:
+    ``-5``, ``1h`` and ``+5`` into TXT1 end in TXT2, ``10h`` and ``1.5`` in TXT3, ``0FFh`` in
+    TXT4, ``FFFFh`` in TXT5, ``2147483647`` in TXT10.  An end past TXT1000 is returned too:
+    CLICK refuses it (``-5`` into TXT1000 ends in TXT1001, OBJ-003).  ``None`` for one
+    character (``5`` into TXT1, saved with no end), for a pointer (``1.5`` into ``TXT[DS1]``,
+    saved with no end), and for any other source or destination.
+    """
+    if len(source) < 2 or constant_shape(source, _CONSTANTS) not in _NUMBER_KINDS:
+        return None
+    try:
+        first = check_operand(destination, "Copy.destination").address
+    except FieldError:
+        return None
+    if first is None or first.bank != "TXT":
+        return None
+    return Address("TXT", first.number + len(source) - 1)
+
+
+def _number_text_types(source: str) -> frozenset[int]:
+    """The conversion types a number constant's end is saved with: 3 or 4 (real or
+    exponential numbering) for a real, 1 or 2 (zeros suppressed or not) for an integer or
+    hex constant."""
+    if constant_shape(source, _CONSTANTS) is Kind.FLOAT:
+        return frozenset({3, 4})
+    return frozenset({1, 2})
 
 
 # ---------------------------------------------------------------------------
@@ -955,11 +1044,12 @@ class Copy(AfInstruction):
     oneshot:
         Execute once on OFF→ON transition.
     suppress_zero:
-        Text option for an integer source — ``"0"`` (don't suppress) or
-        ``"1"`` (suppress).  A DF source has no such option; it reads ``"1"``.
+        Text option for an integer, hex or register source — ``"0"`` (don't suppress) or
+        ``"1"`` (suppress); ``None`` reads as ``"0"``.  A DF source or a real constant
+        has no such option: it holds ``None``, and refuses a value.
     exponential:
-        Text option for a DF source — ``"0"`` (real) or ``"1"`` (exponential).
-        An integer source has no such option and rejects ``"1"``.
+        Text option for a DF source or a real constant — ``"0"`` (real) or ``"1"``
+        (exponential).  Any other source has no such option and refuses ``"1"``.
     termination_code:
         Text option — ``"0"`` or ``"none"`` (no code; stored as ``"0"``), or ``"$HH"`` hex
         ASCII code, always two digits (``"$0D"`` for 0x0D; ``"$D"`` is refused).  A
@@ -970,7 +1060,7 @@ class Copy(AfInstruction):
     destination: str
     format: str = "none"
     oneshot: bool = False
-    suppress_zero: str = "0"
+    suppress_zero: str | None = None
     exponential: str = "0"
     termination_code: str = "0"
 
@@ -1006,8 +1096,14 @@ class Copy(AfInstruction):
                     spelled = check.run(_ascii_code, int(code.value))
                     if spelled is not None:
                         self.termination_code = spelled
+            # No suppress_zero is "0", but for a real source copied to text, which has none.
+            if self.suppress_zero is None and not (
+                self.format == "text" and _real_text_source(self.source)
+            ):
+                self.suppress_zero = "0"
             for option in ("suppress_zero", "exponential"):
-                if getattr(self, option) not in ("0", "1"):
+                value = getattr(self, option)
+                if value not in ("0", "1") and not (option == "suppress_zero" and value is None):
                     check.refuse(
                         option,
                         f"{getattr(self, option)!r} is not allowed; it is '0' or '1'",
@@ -1054,15 +1150,22 @@ class Copy(AfInstruction):
                         Reason.CONFLICT,
                     )
             if self.format == "text":
-                # CLICK's dialog offers suppress zero for an integer source and
-                # real/exponential for a DF source, never both.
-                if _is_df(self.source):
-                    self.suppress_zero = "1"  # what CLICK stores; not a setting
+                # CLICK's dialog offers suppress zero for an integer, hex or register
+                # source, and real or exponential numbering for a DF source or a real
+                # constant, never both.
+                if _real_text_source(self.source):
+                    if self.suppress_zero is not None and not check.refused("suppress_zero"):
+                        check.refuse(
+                            ("suppress_zero", "source"),
+                            f"to_text(suppress_zero=...) is not an option for {self.source!r}; "
+                            "a DF source or a real constant only has exponential",
+                            Reason.CONFLICT,
+                        )
                 elif self.exponential == "1":
                     check.refuse(
                         ("exponential", "source"),
-                        f"to_text(exponential=1) needs a DF source, not {self.source!r}; "
-                        "an integer source only has suppress_zero",
+                        "to_text(exponential=1) needs a DF source or a real constant, not "
+                        f"{self.source!r}; an integer source only has suppress_zero",
                         Reason.CONFLICT,
                     )
             if not self.termination_code.startswith("$") and self.termination_code != "0":
@@ -1080,24 +1183,65 @@ class Copy(AfInstruction):
                 # Written as CLICK stores it.
                 self.source = _source_display(self.source, const.kind)
             if not check.refused("source", "destination"):
+                # CLICK's dialog shows the end a text fills (TXT1001) and refuses one past
+                # TXT1000 as out of range.
                 end = _text_fill_end(self.source, self.destination)
                 if end is not None and end.number > _TXT_LAST:
                     check.add(
                         _refusal(
                             "Copy",
-                            ("destination", "source"),
+                            ("destination",),
                             f"{self.destination!r} can't take {self.source!r}; its "
                             f"{len(self.source) - 2} characters fill "
                             f"{self.destination}..{end.display}, past TXT{_TXT_LAST}",
-                            Reason.CONFLICT,
+                            Reason.RANGE,
+                            "OBJ-003",
+                        )
+                    )
+                end = _number_fill_end(self.source, self.destination)
+                if self.format == "text" and end is not None and end.number > _TXT_LAST:
+                    check.add(
+                        _refusal(
+                            "Copy",
+                            ("destination",),
+                            f"{self.destination!r} can't take {self.source!r} as text; it "
+                            f"fills {self.destination}..{end.display}, past TXT{_TXT_LAST}",
+                            Reason.RANGE,
+                            "OBJ-003",
                         )
                     )
             check.flag("oneshot")
 
     def _destination_end(self) -> str:
-        """Tag 0x6077: the last TXT a text of two or more characters fills, else empty."""
+        """Tag 0x6077: the last TXT a text of two or more characters fills, else empty.
+
+        A number constant copied to text fills TXT with its own text, as CLICK saves it:
+        the end counts the constant as stored, ``h`` and a ``+`` included (``-5`` into TXT1
+        ends in TXT2, ``0FFh`` in TXT4, ``1.5`` in TXT3).
+        """
         end = _text_fill_end(self.source, self.destination)
+        if end is None and self.format == "text":
+            end = _number_fill_end(self.source, self.destination)
         return "" if end is None else end.display
+
+    def _conversion(self) -> tuple[str, str]:
+        """Tags 0x2227 (conversion type) and 0x2206 (format option) as the encoder writes
+        them for these fields."""
+        # field[4] is the dialog's radio index; CLICK v4 ignores it on load.
+        if self.format == "text":
+            if _real_text_source(self.source):
+                exp = int(self.exponential)
+                return str(3 + exp), str(exp)
+            sz = 1 if self.suppress_zero == "1" else 0
+            return str(2 - sz), str(1 - sz)
+        if _is_dd_df_pair(self.source, self.destination) and self.format in ("none", "binary"):
+            return ("7", "0") if self.format == "none" else ("8", "1")
+        if self.format == "none" and (
+            _converts_value(self.source, self.destination)
+            or _wide_into_df(self.source, self.destination)
+        ):
+            return "7", "0"
+        return _FORMAT_TO_CONVTYPE[self.format], _FORMAT_TO_FIELD4[self.format]
 
     def _check_format(self, check: Refusals, kind: str, dest_bank: str) -> None:
         """Refuse a converter the source and destination kinds don't offer."""
@@ -1165,10 +1309,10 @@ class Copy(AfInstruction):
             kw.append("oneshot=1")
 
         if self.format == "text":
-            # Only the option the source has (pyrung's exporter writes the same).
+            # Only the option the source has.
             option = (
                 f"exponential={self.exponential}"
-                if _is_df(self.source)
+                if _real_text_source(self.source)
                 else f"suppress_zero={self.suppress_zero}"
             )
             text_kw = [
@@ -1195,20 +1339,12 @@ class Copy(AfInstruction):
         """Build the instruction data blob for this copy cell."""
         from ..binary_helpers import _build_blob
 
-        # Compute conversion_type (field[8]) and format_option (field[4]).
-        # field[4] is the dialog's radio index; CLICK v4 ignores it on load.
-        if self.format == "text":
-            if _is_df(self.source):
-                exp = int(self.exponential)
-                conv_type, field4 = str(3 + exp), str(exp)
-            else:
-                sz = int(self.suppress_zero)
-                conv_type, field4 = str(2 - sz), str(1 - sz)
-        elif _is_dd_df_pair(self.source, self.destination) and self.format in ("none", "binary"):
-            conv_type, field4 = ("7", "0") if self.format == "none" else ("8", "1")
-        else:
-            conv_type = _FORMAT_TO_CONVTYPE[self.format]
-            field4 = _FORMAT_TO_FIELD4[self.format]
+        return _build_blob("Copy", 0x2721, _COPY_TAGS, self._tag_values())
+
+    def _tag_values(self) -> list[str]:
+        """The value of each tag in :data:`_COPY_TAGS`, as the encoder writes them."""
+        # conversion_type (field[8]) and format_option (field[4]).
+        conv_type, field4 = self._conversion()
 
         # Termination encoding: $hex → decimal for field[10], flag for [9].
         if self.termination_code != "0" and self.termination_code.startswith("$"):
@@ -1222,26 +1358,21 @@ class Copy(AfInstruction):
         # those and for a text constant source.
         text_flag = "-1" if term_flag == "-1" or _is_text_constant(self.source) else "0"
 
-        return _build_blob(
-            "Copy",
-            0x2721,
-            _COPY_TAGS,
-            [
-                self.source,  # [0]
-                "",  # [1] source_end (single = empty)
-                self.destination,  # [2]
-                self._destination_end(),  # [3] destination_end (text: its last TXT)
-                field4,  # [4] format_option
-                "-1" if self.oneshot else "0",  # [5]
-                "0",  # [6] copy_type_idx (single)
-                self.func_code,  # [7]
-                conv_type,  # [8] conversion_type
-                term_flag,  # [9] termination_flag
-                term_char,  # [10] termination_char (decimal)
-                text_flag,  # [11] text_flag
-                "",  # [12] terminator
-            ],
-        )
+        return [
+            self.source,  # [0]
+            "",  # [1] source_end (single = empty)
+            self.destination,  # [2]
+            self._destination_end(),  # [3] destination_end (text: its last TXT)
+            field4,  # [4] format_option
+            "-1" if self.oneshot else "0",  # [5]
+            "0",  # [6] copy_type_idx (single)
+            self.func_code,  # [7]
+            conv_type,  # [8] conversion_type
+            term_flag,  # [9] termination_flag
+            term_char,  # [10] termination_char (decimal)
+            text_flag,  # [11] text_flag
+            "",  # [12] terminator
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -1829,11 +1960,18 @@ def _from_tags(
             return None
         # Types that only exist for one source kind; anything else isn't a blob
         # CLICK writes, so leave it to raw() rather than re-encode it differently.
-        if conv_type == 7 and not _is_dd_df_pair(source, destination):
+        if conv_type == 7 and not (
+            _is_dd_df_pair(source, destination)
+            or _converts_value(source, destination)
+            or _wide_into_df(source, destination)
+        ):
             return None
-        if conv_type == 4 and not _is_df(source):
+        if conv_type == 4 and not _real_text_source(source):
             return None
         fmt, suppress_zero, exponential = opts
+        if fmt == "text" and _real_text_source(source):
+            # No such option for a real source.
+            suppress_zero = None
 
         termination_code = "0"
         term_char = tag_value(tags, 0x3216)
@@ -1854,9 +1992,26 @@ def _from_tags(
             termination_code=termination_code,
         )
         # The destination end follows from the text; an end that disagrees with it is
-        # not a blob CLICK writes.
-        if destination_end != copy._destination_end():
+        # not a blob CLICK writes.  A number into a TXT address has either the end its text
+        # fills, with the conversion type of its kind, or no end.
+        number_end = _number_fill_end(copy.source, copy.destination)
+        if number_end is not None and destination_end:
+            if destination_end != number_end.display or conv_type not in _number_text_types(
+                copy.source
+            ):
+                return None
+        elif destination_end != copy._destination_end() and number_end is None:
             return None
+        written = dict(zip(_COPY_TAGS, copy._tag_values(), strict=True))
+        if (
+            (conv_type, destination_end) != (int(written[0x2227]), written[0x6077])
+            or (conv_type == 7 and not _is_dd_df_pair(source, destination))
+            or (number_end is not None and destination_end)
+        ):
+            # The encoder writes another conversion type or end for these fields, or the
+            # save is a type 7 other than DD to or from DF, or a number's end: unchanged,
+            # the Copy writes the blob it was decoded from.
+            read_in_another_form(copy)
         return copy
 
     if copy_type == 1:
@@ -1943,7 +2098,7 @@ def _copy_from_csv(args: Sequence[str], kwargs: Mapping[str, str]) -> Copy:
         destination=destination,
         format=fmt,
         oneshot=kwargs.get("oneshot") == "1",
-        suppress_zero=text_opts.get("suppress_zero", "0"),
+        suppress_zero=text_opts.get("suppress_zero"),
         exponential=text_opts.get("exponential", "0"),
         termination_code=termination_code,
     )

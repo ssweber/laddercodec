@@ -180,9 +180,30 @@ def test_each_answered_save_reads_in_display_form(
     assert box.build_blob() == replace(inst, oneshot=True).build_blob()
 
 
+#: The single Copy conversion saves that read as the Copy, with no address typed
+#: (``tests/ladder/test_copy_conversion.py``).
+CONVERSION_SAVES = {
+    ("copy_single", label)
+    for label in (
+        "single 1.5 -> DD1",
+        "single 1.5 -> DD[DS1]",
+        "single 1.5 -> CTD1",
+        "single 1.5 -> CTD[DS1]",
+        "single CTD1 -> DF1",
+        "single DF1 -> CTD1",
+        "single 2147483647 -> DF1",
+        "single -5 -> TXT1",
+        "single FFh -> TXT1",
+        "single 2147483647 -> TXT1",
+        "single 1.5 -> TXT1",
+        'single "HELLO" -> TXT1',
+    )
+}
+
+
 def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
     """Of the Copy and Math saves the answers hold as ``raw(...)``, those that read as the
-    instruction now are the answered typed addresses."""
+    instruction now are the answered typed addresses and the single Copy conversion saves."""
     read: set[tuple[str, str]] = set()
     for grid in ("copy_single", "copy_block", "copy_pack", "math_decimal", "math_hex"):
         answers = json.loads((GRIDS / f"{grid}.answers.json").read_text(encoding="utf-8"))
@@ -192,7 +213,7 @@ def test_the_answered_saves_are_every_typed_save(tmp_path: Path) -> None:
             raw = _raw_box(_saved_rung(tmp_path, case))
             if not isinstance(_program_box(raw), RawInstruction):
                 read.add((grid, case["case"]))
-    assert read == {(grid, label) for grid, label, _inst, _csv in ANSWERED}
+    assert read == {(grid, label) for grid, label, _inst, _csv in ANSWERED} | CONVERSION_SAVES
 
 
 def _retagged(blob: bytes, edits: dict[int, tuple[str, str]]) -> bytes:

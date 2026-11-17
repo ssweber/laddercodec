@@ -680,9 +680,7 @@ PROBES: dict[str, Probe] = {
             "int": dict(source="42", destination="DS9"),
             "float": dict(source="3.14", destination="DF1"),
             "text": dict(source="DS12", destination="TXT2", format="text", suppress_zero="1"),
-            "text_df": dict(
-                source="DF2", destination="TXT5", format="text", suppress_zero="1", exponential="1"
-            ),
+            "text_df": dict(source="DF2", destination="TXT5", format="text", exponential="1"),
             "text_term": dict(
                 source="DS20",
                 destination="TXT7",

@@ -26,15 +26,16 @@ unchanged it holds those refusals; once one changes, :func:`refusals` runs const
 checks on its values now, so a field fixed by assignment holds none.  Every dataclass field
 counts (``pin_rows`` among them) except ``wire_down``, which the cell holds, not the blob.
 
-The decoders keep the blob an instruction was read from when it holds refusals or read
-stored text in another form: the clipboard's blob with the cell's row bytes, or for an
-output box from a program file, the blob composed from its tags (:func:`keep_stored_blob`,
-:func:`keep_cell_rows`).  While the fields are unchanged, ``build_blob()`` returns that
-blob, and ``encode()`` writes it and the cell rows, as it does for a ``RawInstruction``.
-Changed, or with no blob, ``build_blob()`` and ``encode()`` raise the first refusal it
-holds; a changed one that holds none writes the blob of the copy construction makes from
-its values now.  :func:`rebuilt` copies the blob to a copy that changes only
-``wire_down``; ``dataclasses.replace`` does not.
+The decoders keep the blob an instruction was read from when it holds refusals or was read
+from a save its fields do not restate (stored text in another form, or a single Copy's
+saved conversion, :func:`read_in_another_form`): the clipboard's blob with the cell's row
+bytes, or for an output box from a program file, the blob composed from its tags
+(:func:`keep_stored_blob`, :func:`keep_cell_rows`).  While the fields are unchanged,
+``build_blob()`` returns that blob, and ``encode()`` writes it and the cell rows, as it
+does for a ``RawInstruction``.  Changed, or with no blob, ``build_blob()`` and
+``encode()`` raise the first refusal it holds; a changed one that holds none writes the
+blob of the copy construction makes from its values now.  :func:`rebuilt` copies the blob
+to a copy that changes only ``wire_down``; ``dataclasses.replace`` does not.
 
 Not public API.
 """
@@ -272,9 +273,12 @@ def _same(error: FieldError) -> tuple[object, ...]:
 
 
 def read_in_another_form(inst: object) -> None:
-    """Mark *inst*, built from stored text it reads in another form (an address with a
-    space at its edge read without it, or saved as typed read in display form), as one
-    that keeps its stored blob when decoded."""
+    """Mark *inst* as one that keeps its stored blob when decoded: it was built from a save
+    its fields do not restate, such as stored text it reads in another form (an address
+    with a space at its edge read without it, or saved as typed read in display form) or a
+    single Copy's conversion type and destination end as CLICK saved them (type 7 other than
+    DD to or from DF, a number's end in TXT, or a pair the encoder writes otherwise for
+    those fields)."""
     object.__setattr__(inst, "_read_in_another_form", True)
 
 
