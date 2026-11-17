@@ -1,6 +1,6 @@
 """Home — home instruction (type marker 0x2734).
 
-Binary class name: ``"Home"``.
+In the binary, the class name is ``"Home"``.
 """
 
 from __future__ import annotations
@@ -69,12 +69,13 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 @dataclass
 class Home(AfInstruction):
-    """Home instruction — opaque fields stored as tag-keyed strings.
+    """The Home instruction.  laddercodec does not interpret its fields, and keeps each as a
+    string.
 
-    Provisional: the fields are named after CLICK's tag ids (``tag_3218``). A later release
-    will rename them.
+    Each field is named after CLICK's tag id for it, such as ``tag_3218``.  These names are
+    provisional, and a later release will rename them.
 
-    Binary class name ``"Home"`` (type marker 0x2734).
+    In the binary, its class name is ``"Home"`` and its type marker is 0x2734.
     """
 
     tag_222d: str = "0"
@@ -194,7 +195,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Home | None:
-    """Construct a Home from tag data (shared by both decoders)."""
+    """Build a Home from tag data, or return None when the class name or type code differ.
+
+    The clipboard decoder and the program-file decoder both call it.
+    """
     if class_name != _CLASS_NAME or type_code != _TYPE_CODE:
         return None
     return Home(**_extract_fields(tags))

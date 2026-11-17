@@ -1,12 +1,13 @@
-"""A rung's network reduced to a series-parallel tree, the way CLICK's syntax check reads it.
+"""Reduce a rung's network to a series-parallel tree, the way CLICK's syntax check reads it.
 
-The reduction is structural: two edges between the same two nets become one parallel block,
-and a net with one edge in and one edge out joins its two edges in series.  It does not
-simplify logic (``Or(C1, C1)`` stays two legs) and does not factor a prefix drawn twice.
+The reduction looks only at the shape of the circuit.  Two edges between the same two nets
+become one parallel block.  A net with one edge in and one edge out joins its two edges in
+series.  The reduction does not simplify the logic, so ``Or(C1, C1)`` stays two legs.  It
+also leaves alone a run of contacts that is drawn at the start of two legs.
 
-Every main box input gets an edge from its net to one shared sink ``TOP``; the reduction runs
-from the rail to ``TOP``, so the outputs hanging off one net become one parallel block of
-items.  Each pin input is reduced on its own, from the rail to its pin.
+Every main box input gets an edge from its net to one shared sink, ``top``.  The reduction
+runs from the rail to ``top``, so the outputs on one net become one parallel block of
+items.  Each pin input is reduced on its own, from the rail to its pin's net.
 """
 
 from __future__ import annotations
@@ -75,7 +76,7 @@ def _has_out(node: Node) -> bool:
 
 
 def _out_key(node: Node) -> tuple[int, int]:
-    """Order of an output item: its first box's row."""
+    """Return the sort key of an output item, which is the key of its topmost box."""
     if isinstance(node, Out):
         return node.key
     if isinstance(node, (Series, Parallel)):
@@ -126,7 +127,10 @@ def reachable(start: object, arcs: list[Arc], *, reverse: bool = False) -> set[o
 
 
 def reduce(source: object, sink: object, arcs: list[Arc]) -> Node:
-    """The SP tree of ``arcs`` between ``source`` and ``sink``; LayoutError when none exists."""
+    """Return the series-parallel tree of ``arcs`` between ``source`` and ``sink``.
+
+    Raise :class:`LayoutError` (C0001) when the arcs do not reduce to one tree.
+    """
     arcs = list(arcs)
     while True:
         changed = False
@@ -224,9 +228,10 @@ class Circuits:
     """A rung's contact arcs, split into the circuit of each box input.
 
     ``main_arcs`` holds every arc on a path into a main box input, including the arc from
-    each main input's net to ``top``; ``pin_arcs`` holds, per used pin input, the contact arcs
-    on a path into it.  Arcs no rail reaches are included: a rung where CLICK
-    reports C0001 as well as C0202 is series-parallel only without them.
+    each main input's net to ``top``.  ``pin_arcs`` holds, for each used pin input, the
+    contact arcs on a path into it.  Both include arcs that no rail reaches.  CLICK reports
+    C0001 as well as C0202 for some rungs, and such a rung is series-parallel only when
+    those arcs are left out.
     """
 
     arcs: list[Arc]  # one per contact edge
@@ -239,7 +244,7 @@ class Circuits:
     pin_arcs: dict[int, list[Arc]]
 
     def used(self) -> set[int]:
-        """``id`` of every arc in a box's circuit."""
+        """Return the ``id`` of every arc in the circuit of any box input."""
         found = {id(a) for a in self.main_arcs}
         for mine in self.pin_arcs.values():
             found.update(id(a) for a in mine)
@@ -250,9 +255,9 @@ def circuits(net: Network) -> Circuits:
     """Split ``net``'s contacts into the circuit feeding each box input."""
     arcs = [Arc(e.src, e.dst, Leaf(e)) for e in net.edges]
     main = [i for i, s in enumerate(net.sinks) if s.slot == net.boxes[s.box].main]
-    # A pin input that no wire or contact reaches is left unwired: CLICK saves such a box,
-    # and the pin's row stays blank.  Its syntax check reports C0202 at the AF cell of a pin
-    # whose row holds nothing.
+    # Leave out a pin input that no wire or contact reaches.  CLICK saves a box with such a
+    # pin, and the pin's row stays blank.  CLICK's syntax check reports C0202 at the AF cell
+    # of a pin whose row holds nothing.
     touched = {e.src for e in net.edges} | {e.dst for e in net.edges}
     pins = [
         i
@@ -279,17 +284,18 @@ def circuits(net: Network) -> Circuits:
 
 
 def nothing_to_lay_out(net: Network, main: list[int]) -> bool:
-    """Whether the rung holds wires and unwired NOPs at most: no contact and no wired box."""
+    """Return True when the rung has no contacts and every box is a NOP not wired to the rail."""
     return not net.edges and all(
         net.boxes[net.sinks[i].box].token == "NOP" and net.sinks[i].net != net.rail for i in main
     )
 
 
 def trees(net: Network) -> list[RungTree]:
-    """The rung's SP trees: one per CLICK rung it splits into.
+    """Return the rung's series-parallel trees, one for each CLICK rung it splits into.
 
-    Raises LayoutError for a shape CLICK refuses (C0001, C0202) or one this layout does not
-    cover yet, such as a contact on the circuits of two box inputs where one is a pin.
+    Raises LayoutError for a shape CLICK refuses (C0001, C0202).  It also raises it for a
+    shape this layout does not handle, such as a contact on the circuits of two box inputs
+    where one of them is a pin.
     """
     rail = net.rail
     c = circuits(net)
@@ -310,8 +316,8 @@ def trees(net: Network) -> list[RungTree]:
                 f"row {s.row}: the box input reaches no rail", "C0202", code=Code.UNPOWERED_BOX
             )
 
-    # Each pin's circuit is drawn on rows of its own, so a contact two box inputs share would
-    # be drawn once per input.
+    # Each pin's circuit is drawn on rows of its own.  A contact that two box inputs share
+    # would be drawn once for each input, so refuse it.
     main_used = {id(a) for a in c.main_arcs}
     pin_used: set[int] = set()
     pin_trees: dict[int, PinCircuit] = {}
@@ -345,7 +351,8 @@ def trees(net: Network) -> list[RungTree]:
     root = reduce(rail, c.top, c.main_arcs)
     items = _items(root)
     if len(items) > 1 and any(net.boxes[net.sinks[i].box].token == "NOP" for i in main):
-        # The splits known are of coils and Copy boxes.
+        # laddercodec knows how CLICK splits a rung of coils or Copy boxes.  It has no
+        # capture of CLICK splitting a rung that holds a NOP.
         raise LayoutError(
             "no capture shows CLICK splitting a rung that holds a NOP", code=Code.LAYOUT_NOP_SPLIT
         )

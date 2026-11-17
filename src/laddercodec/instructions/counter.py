@@ -1,8 +1,8 @@
 """Cnt — counter instructions (type marker 0x2719).
 
-Binary class name: ``"Cnt"``.
+In the binary, the class name is ``"Cnt"``.
 
-Supported variants:
+laddercodec supports three forms of counter.  Each is stored with the mode shown:
 
 - ``count_up(...)+.reset()``            -> mode 0
 - ``count_up(...)+.down()+.reset()``    -> mode 2
@@ -48,11 +48,11 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 # ---------------------------------------------------------------------------
 
 #: A constant set point is a 32-bit signed integer written in under 13 characters.
-#: Each check else OBJ-005: the value fits 32 bits, and the text is under 13 characters.
-#: A '-' only leads: ``1-2`` is refused.
+#: CLICK reports OBJ-005 if the value does not fit in 32 bits or the text is 13 characters
+#: or longer.  A '-' may only come first, so ``1-2`` is refused.
 _PRESET = Constants(frozenset({Kind.INTEGER}), signs="-", max_length=12)
 
-#: Register presets: DS or DD only (OBJ-004).
+#: The banks a preset register may be in.  CLICK reports OBJ-004 for any other bank.
 COUNTER_PRESET_BANKS = frozenset({"DS", "DD"})
 
 _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
@@ -72,9 +72,10 @@ class Counter(PinnedInstruction):
     preset: str
     down_enabled: bool = False
     reset_enabled: bool = True
-    #: Rows of the down and reset inputs below the up input (row 0).  OR legs
-    #: on an input push the later inputs down.  count_down's main input is Down
-    #: (row 1, under its unused Up), so legs under it push ``.reset()`` down.
+    #: The rows of the Down and Reset inputs, counted from the box's top row,
+    #: which is row 0.  count_up's Up input is on row 0.  count_down's main
+    #: input is Down, on row 1 under its unused Up.  OR legs under an input
+    #: push every later input down, ``.reset()`` included.
     pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
@@ -95,7 +96,7 @@ class Counter(PinnedInstruction):
                     code=Code.INVALID_CHOICE,
                 )
             if self.down_enabled is True and self.kind == "count_down":
-                # count_down's own input is Down; its box has no separate .down() input.
+                # count_down's main input is Down.  Its box has no separate .down() input.
                 check.refuse(
                     ("down_enabled", "kind"),
                     "count_down has no .down() input; only count_up does",
@@ -148,7 +149,7 @@ class Counter(PinnedInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Counter:
-        """Parse v1 counter: ``count_up(CT1,CTD1,preset=100)``."""
+        """Parse a CSV v1 counter token, such as ``count_up(CT1,CTD1,preset=100)``."""
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
@@ -198,7 +199,7 @@ class Counter(PinnedInstruction):
         return {
             "visual_rows": self.pin_rows[-1] + 1,
             "sub_rows": 3,
-            # Native count_down AF row 0 stores +0x1D=0 (while count_up uses 1).
+            # CLICK stores 0 at +0x1D in row 0 of a count_down AF cell, and 1 for count_up.
             "wire_right": 0 if self.kind == "count_down" else 1,
         }
 
@@ -256,7 +257,10 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Counter | None:
-    """Construct a Counter from tag data (shared by both decoders)."""
+    """Build a Counter from tag data, or return None if the tags are not a counter's.
+
+    The clipboard decoder and the program-file decoder both call it.
+    """
     if class_name != "Cnt" or type_code != _COUNTER_TYPE_CODE:
         return None
     done = tag_value(tags, 0x606B)

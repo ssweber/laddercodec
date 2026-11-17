@@ -1,4 +1,4 @@
-"""Bundle parser for Click Ladder CSV directory exports."""
+"""The parser for a CSV bundle: a directory with ``main.csv`` and a ``subroutines/`` folder."""
 
 from __future__ import annotations
 
@@ -13,8 +13,9 @@ from .parser import parse_csv_file
 def parse_bundle(directory: Path | str) -> ProgramBundleAst:
     """Parse ``main.csv`` and ``subroutines/*.csv`` of a bundle directory.
 
-    An exception raised for a bad file carries a ``CsvLocation`` (``laddercodec.CsvLocation``)
-    whose ``file`` is the file at fault: ``main.csv`` when it is missing.
+    An exception raised for a bad file has a ``CsvLocation`` (``laddercodec.CsvLocation``)
+    whose ``file`` is the file at fault.  If ``main.csv`` is missing, ``file`` is the path
+    where ``main.csv`` should be.
     """
     dir_path = Path(directory)
     main_path = dir_path / "main.csv"

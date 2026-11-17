@@ -1,15 +1,17 @@
-"""Ladder rung decoder — binary clipboard buffer to structured data.
+"""The decoder that reads a CLICK clipboard binary into ``Rung`` objects.
 
-Reads a Click clipboard binary and produces the same data structures
-that feed ``encode_rung()`` / ``encode_rungs()``.
+Each ``Rung`` holds the values that ``encode_rung()`` and ``encode_rungs()`` take as
+input.
 
 Public API
 ----------
 
+    decode(data)             -> list[Rung]
     decode_rung(data)        -> Rung
     decode_rungs(data)       -> list[Rung]
+    inspect_cells(data, cells) -> list[CellDump]
 
-Round-trip identity:
+``decode_rung`` gives back the values that ``encode_rung`` was given:
 
     decode_rung(encode_rung(lr, cr, af, cmt))
         .logical_rows  == lr
@@ -20,16 +22,17 @@ Round-trip identity:
 Instruction cells
 -----------------
 
-Contacts and coils are composite: a horizontal wire (``(1,1,0)``) with
-instruction data layered on top.  The instruction payload starts at
-cell offset ``+0x25`` (UTF-16LE class name, type marker, operand, func
-code).  Wire-only cells are exactly ``0x40`` bytes; instruction cells
-are larger.
+A cell that holds a contact or a coil is a horizontal wire cell, with the flags
+``(1,1,0)``, that also holds the instruction's data.  The instruction data starts at
+offset ``+0x25`` in the cell.  It holds the class name in UTF-16LE, a type marker, the
+operand and the function code.  A cell with only wires is exactly ``0x40`` bytes long.
+A cell with an instruction is longer.
 
-Known instruction types are decoded into domain objects (``Contact``,
-``Coil``, ``Timer``, etc.) from ``instructions/``.  Unrecognised cells
-fall back to ``UnknownCondition`` / ``UnknownInstruction`` with raw
-bytes preserved.
+For each instruction type it knows, the decoder builds an object from ``instructions/``,
+such as a ``Contact``, ``Coil`` or ``Timer``.  A condition cell that it does not
+recognise becomes an ``UnknownCondition``.  An AF cell that it does not recognise becomes
+a ``RawInstruction`` when the decoder can find the instruction's blob, and an
+``UnknownInstruction`` otherwise.  Each of these keeps the instruction's raw bytes.
 """
 
 from __future__ import annotations
@@ -86,7 +89,10 @@ from .undecoded import (
 
 
 class _CellError(DecodeError):
-    """A cell of a data row that cannot be decoded; ``column`` counts from 0 (31 is AF)."""
+    """Raised when a cell of a data row cannot be decoded.
+
+    ``column`` is the cell's column, counted from 0, so the AF column is 31.
+    """
 
     def __init__(self, column: int, message: str) -> None:
         super().__init__(message)
@@ -95,31 +101,35 @@ class _CellError(DecodeError):
 
 @dataclass
 class Rung:
-    """Structured rung data — used for both decode output and encode input.
+    """One rung of ladder logic.  The decoders return it, and ``encode()`` accepts it.
 
-    This is a semantic model: native row/segment flags and editing history
-    are not retained. Re-encoding constructs canonical flags rather than
-    promising byte-identical preservation of CLICK's bytes.
+    A ``Rung`` holds what the rung means, not how CLICK stored it.  It does not
+    keep CLICK's row and segment flags or any trace of how the rung was edited.
+    ``encode()`` writes the flags in a standard form, so its bytes can differ
+    from the bytes that CLICK wrote.
 
     Attributes
     ----------
     logical_rows:
         Number of rung rows (1..32).
     conditions:
-        Row-major token grid. Each row has 31 condition-column entries.
-        Wire-only cells are strings (``""`` blank, ``"-"`` horizontal,
-        ``"|"`` vertical, ``"T"`` junction-down).  Contacts are
-        ``Contact`` objects; unrecognised cells are
-        ``UnknownCondition``.
+        One list of tokens per row.  Each row has 31 entries, one per
+        condition column.  A cell with only wires is a string (``""`` blank,
+        ``"-"`` horizontal, ``"|"`` vertical, ``"T"`` junction-down).  A
+        contact is an object such as ``Contact``.  A cell that the decoder
+        does not recognise is an ``UnknownCondition``.
     instructions:
-        One per row.  ``"NOP"`` or ``""`` for wire-only cells.
-        Coils are ``Coil`` objects; unrecognised cells are
+        One AF token per row.  A row with no instruction holds ``"NOP"``
+        or ``""``.  An instruction is an object such as ``Coil``.  A cell
+        that the decoder does not recognise is a ``RawInstruction`` or an
         ``UnknownInstruction``.
     comment:
-        Markdown text (for CSV export), or ``None``.
+        The rung comment as Markdown text, or ``None``.  The CSV form
+        uses this text.
     comment_rtf:
-        Raw RTF payload bytes, or ``None``.  Preserves byte-exact
-        fidelity for re-encoding.
+        The comment's RTF bytes as the binary stored them, or ``None``.
+        ``encode()`` does not read them.  It writes the comment from
+        ``comment``.
     """
 
     logical_rows: int
@@ -135,7 +145,7 @@ DecodedRung = Rung
 
 @dataclass
 class CellDump:
-    """Raw byte dump of a single cell, for RE/debugging.
+    """The raw bytes of one cell and what they decode to, for reverse engineering and debugging.
 
     Attributes
     ----------
@@ -186,16 +196,17 @@ _MAGIC = b"CLICK   "
 
 # Reverse of encode._TOKEN_FLAGS: (segment, right, down) -> token
 #
-# The segment flag (+0x19) is load-bearing — getting it wrong causes
-# contacts/wires to shift down to their own row.  It is ignored for
-# token classification — tokens are classified by (right, down) only.
+# The segment flag (+0x19) matters to CLICK.  If an encoder writes it
+# wrong, CLICK shows the contacts and wires shifted down to a row of
+# their own.  The decoder ignores it and picks the token from the
+# right and down flags only.
 #
-# Visual rendering note for pyrung walkers:
-#   Click renders the DOWN wire at the LEFT EDGE of the cell, not the
-#   center.  A "-" below a T appears as a corner (└ shape) because
-#   the T's down-wire meets the "-" at the cell's left edge.  This
-#   means a "-" that has no cell to its RIGHT should look UP one row
-#   for a T — the branch connects there via the left-edge overlap.
+# How CLICK draws these wires, for code that follows them through the grid:
+#   Click draws the DOWN wire at the LEFT EDGE of the cell, not at its
+#   center.  A "-" below a T looks like a corner (└ shape), because the
+#   T's down wire meets the "-" at the cell's left edge.  When a "-"
+#   has no cell to its RIGHT, look UP one row for a T.  The branch
+#   connects there, where the two wires meet at the left edge.
 #
 _FLAGS_TO_TOKEN: dict[tuple[int, int, int], str] = {
     (0, 0, 0): "",
@@ -208,7 +219,7 @@ _FLAGS_TO_TOKEN: dict[tuple[int, int, int], str] = {
     (0, 1, 1): "T",  # right + down — same as T (segment don't-care)
 }
 
-# Payload offsets derived from rung 0 preamble.
+# Where rung 0's comment length and comment bytes sit in the rung 0 preamble.
 _PAYLOAD_LENGTH_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_LENGTH  # 0x0294
 _PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 
@@ -218,7 +229,7 @@ _INSTR_DATA_OFFSET = 0x25
 
 @dataclass(frozen=True)
 class _RtfStyle:
-    """Inline style state for markdown-emitting RTF decode."""
+    """The bold, italic and underline state while the RTF decoder writes Markdown."""
 
     bold: bool = False
     italic: bool = False
@@ -227,7 +238,11 @@ class _RtfStyle:
 
 @dataclass
 class _RtfGroupState:
-    """Current RTF group state."""
+    """The state of one RTF group.
+
+    It holds the group's style, whether the group's text is skipped, and how many fallback
+    characters follow a ``\\u`` control.
+    """
 
     style: _RtfStyle
     skip_destination: bool = False
@@ -251,7 +266,7 @@ _CELL_SCAN_LIMIT = 0x200
 
 
 def _validate_buffer(data: bytes) -> None:
-    """Check magic and minimum buffer size."""
+    """Raise :class:`DecodeError` if *data* lacks the magic or ends before the grid starts."""
     if len(data) < len(_MAGIC) or data[: len(_MAGIC)] != _MAGIC:
         raise DecodeError(f"Invalid magic: expected {_MAGIC!r}, got {data[: len(_MAGIC)]!r}")
     if len(data) < GRID_FIRST_ROW_START:
@@ -324,7 +339,7 @@ def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
 
 
 def _assert_rtf_ansicpg_1252(payload: bytes, body_start: int) -> None:
-    """Reject RTF payloads that declare a non-cp1252 ANSI code page."""
+    """Raise :class:`DecodeError` unless the RTF prefix declares ANSI code page 1252."""
     match = _RTF_ANSI_CPG_RE.search(payload[:body_start])
     if match is None:
         raise DecodeError("Cannot locate RTF code page: missing \\ansicpg in prefix")
@@ -338,7 +353,11 @@ def _assert_rtf_ansicpg_1252(payload: bytes, body_start: int) -> None:
 
 
 def _decode_rtf_unicode_char(arg: int | None) -> str:
-    """Decode one RTF ``\\u`` argument using the signed 16-bit rules."""
+    """Return the character for an RTF ``\\u`` argument, or ``""`` when there is none.
+
+    RTF writes the argument as a signed 16-bit number, so a negative value stands for the
+    value plus 0x10000.
+    """
     if arg is None:
         return ""
 
@@ -380,15 +399,16 @@ def _skip_rtf_fallback_chars(body: str, i: int, count: int) -> int:
 def _decode_rtf(payload: bytes) -> str:
     """Convert an RTF comment payload to markdown text.
 
-    Strips the RTF envelope (prefix/suffix), decodes the cp1252 body,
-    then tokenizes the body so control words are treated as structure
-    instead of leaking through as literal text.
+    It removes the RTF prefix and suffix around the comment text and decodes the
+    rest as cp1252.  Then it reads the body one control word at a time, so that
+    a control word sets the style and does not appear in the text.
     """
-    # Strip envelope.
+    # Find the body between the RTF prefix and suffix.
     if payload.startswith(_PREFIX):
         body_start = len(_PREFIX)
     else:
-        # Fallback: find \fsNN<space> as the prefix boundary.
+        # The prefix is not the one encode() writes.  The body starts after the space
+        # that follows \fsNN.
         idx = payload.find(b"\\fs")
         if idx == -1:
             raise DecodeError("Cannot locate RTF body: no \\fs marker in prefix")
@@ -402,7 +422,7 @@ def _decode_rtf(payload: bytes) -> str:
     if payload.endswith(_SUFFIX):
         body_end = len(payload) - len(_SUFFIX)
     else:
-        # Fallback: find last \par } sequence.
+        # The suffix is not the one encode() writes.  The body ends at the last \par }.
         idx = payload.rfind(b"\\par }")
         if idx == -1:
             raise DecodeError("Cannot locate RTF body: no \\par } in suffix")
@@ -504,9 +524,9 @@ def _decode_rtf(payload: bytes) -> str:
 
 
 def _read_rung0_comment(data: bytes) -> tuple[bytes | None, int]:
-    """Extract rung 0's comment from the fixed preamble at 0x0260.
+    """Return rung 0's comment RTF bytes from the fixed preamble at 0x0260, and their length.
 
-    Returns (raw_rtf_bytes | None, payload_len).
+    Return ``(None, 0)`` when rung 0 has no comment.
     """
     payload_len = struct.unpack_from("<I", data, _PAYLOAD_LENGTH_OFFSET)[0]
     if payload_len > 0:
@@ -535,7 +555,7 @@ def _is_cell_signature(data: bytes, pos: int, expected_col: int, expected_row_by
 def _find_next_cell(data: bytes, search_from: int, expected_col: int, row_byte: int) -> int:
     """Scan forward to find the start of the next cell in the same row.
 
-    Used when the current cell is an instruction cell (> 0x40 bytes).
+    The caller uses it after an instruction cell, which is longer than 0x40 bytes.
     """
     limit = min(search_from + _CELL_SCAN_LIMIT, len(data) - CELL_SIZE)
     for pos in range(search_from, limit + 1):
@@ -550,8 +570,9 @@ def _find_next_cell(data: bytes, search_from: int, expected_col: int, row_byte: 
 def _find_row_end(data: bytes, search_from: int, row_byte: int) -> int:
     """Find the end of the last cell (col 31) in a data row.
 
-    Uses the current row's ``row_byte`` to look for the next row
-    (``row_byte + 1`` at +0x05) or a terminal/padding boundary.
+    It looks for the first cell of the next row, which has ``row_byte + 1`` at +0x05, or
+    for the terminal row.  If it finds neither, it looks for the zero bytes where page
+    padding starts.
     """
     next_row_byte = (row_byte + 1) & 0xFF
     limit = min(search_from + _CELL_SCAN_LIMIT * 2, len(data) - CELL_SIZE)
@@ -574,7 +595,7 @@ def _find_row_end(data: bytes, search_from: int, row_byte: int) -> int:
         if data[pos : pos + 0x10] == b"\x00" * 0x10:
             return pos
 
-    # Last resort: assume standard cell size.
+    # Last resort: the cell ends where the search started.
     return search_from
 
 
@@ -601,11 +622,10 @@ def _walk_row_cells(data: bytes, cursor: int) -> list[_CellBound]:
         has_instr = data[pos + _INSTR_DATA_OFFSET] != 0
 
         if has_instr:
-            # Use blob structure to find minimum scan start — large blobs
-            # (e.g. Math at ~8KB) can contain byte patterns that fool the
-            # heuristic cell-signature scanner.  Skip past the 16-byte
-            # tail too — tail bytes can match cell signatures when
-            # row_byte is small (e.g. 0x01).
+            # Start the scan after the end of the instruction's blob.  A large
+            # blob, such as a Math box at about 8 KB, can hold bytes that look
+            # like a cell signature.  Skip the 16-byte cell tail too, because its
+            # bytes can look like a cell signature when row_byte is small, such as 0x01.
             scan_from = pos + CELL_SIZE
             try:
                 instr_start = pos + _INSTR_DATA_OFFSET
@@ -639,8 +659,8 @@ def _decode_data_row(
 ) -> tuple[list[ConditionToken], AfToken]:
     """Decode one grid data row by walking cells sequentially.
 
-    Pass ``refuse_af_down`` when the row's content is being kept, so a down wire in the AF
-    column raises instead of being dropped.
+    Pass ``refuse_af_down=True`` when the row becomes part of a decoded rung.  A down wire
+    in the AF column then raises :class:`_CellError`.  Otherwise the decoder ignores it.
 
     Returns ``(conditions, af_token)``.
 
@@ -670,7 +690,7 @@ def _decode_data_row(
 
 
 def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> ConditionToken:
-    """The token of one condition cell (columns A..AE)."""
+    """Return the token of one condition cell (columns A..AE)."""
     if has_instr:
         instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
         parsed = parse_condition_blob(instr_raw)
@@ -691,7 +711,7 @@ def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool
 
 
 def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> AfToken:
-    """The token of the AF cell (column 31)."""
+    """Return the token of the AF cell (column 31)."""
     if not has_instr:
         return "NOP" if data[pos + 0x1D] == 1 else ""
     instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
@@ -721,7 +741,7 @@ def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> Af
 # Row classification tags.
 _DATA = "DATA"
 _PREAMBLE = "PREAMBLE"
-#: A row the walk can't read: it and every row after it are lost.
+#: The tag for a row that the walk can't read.  The walk stops there, so it reads no later row.
 _LOST = "LOST"
 
 # (tag, cursor, comment_rtf for PREAMBLE | error text for LOST | None)
@@ -729,24 +749,33 @@ _RowInfo = tuple[str, int, bytes | str | None]
 
 
 def _is_terminal(data: bytes, pos: int) -> bool:
-    """The terminal row's signature.  The full check avoids a data row with row_byte 0xFF."""
+    """Return whether the row at *pos* is the terminal row.
+
+    It checks +0x01 and +0x03 as well as +0x05, so a data row whose row byte is 0xFF
+    does not match.
+    """
     return data[pos + 0x05] == 0xFF and data[pos + 0x01] == 0x01 and data[pos + 0x03] == 0x30
 
 
 def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list[_RowInfo], bool]:
-    """Walk grid rows and classify each as DATA or PREAMBLE.
+    """Walk grid rows and tag each one as DATA, PREAMBLE or LOST.
 
-    Returns (row_infos, is_multi_rung).
-    Stops early if a TERMINAL row (``+0x05 == 0xFF``) is encountered.
+    Returns (row_infos, is_multi_rung).  *is_multi_rung* is True when the walk finds a
+    preamble row or the TERMINAL row (``+0x05 == 0xFF``).  The walk stops at the
+    TERMINAL row.
 
     For data rows, walks all 32 cells to determine the actual row size
     (which may exceed ``GRID_ROW_STRIDE`` if instruction cells are present).
 
-    A row before the last one the program header counts that is cut off, holds no cell 0,
-    or whose cells can't be walked is LOST, and the walk stops: where the next row starts
-    is known only from this row's end.  So is a row taken for a preamble that may not be
-    one: a preamble row's cell 0 must carry the cell signature, numbered one past the row
-    before it, and its cell 1 must have the preamble flag (+0x30) too.
+    The walk tags a row LOST and stops when the row is cut off, has no cell 0, or has
+    cells that can't be walked.  It must stop, because only the end of this row shows
+    where the next row starts.  A row that has the preamble flag but fails the preamble
+    checks is LOST too.  A preamble row's cell 0 must have the cell signature, with a row
+    byte one more than the row before it.  Its cell 1 must have the preamble flag (+0x30)
+    as well.
+
+    The program header counts the grid rows.  If the last of them is cut off, has no
+    cell 0 or fails the preamble checks, the walk stops there and does not tag it LOST.
     """
     cursor = grid_start
     row_infos: list[_RowInfo] = []
@@ -766,7 +795,7 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
             break
 
         if data[cursor + 0x30] == 0x01:
-            # Preamble row — multi-rung boundary.
+            # A preamble row starts each rung after the first.
             expected = data[cursor + 0x05] if row_byte is None else (row_byte + 1) & 0xFF
             if not _is_cell_signature(data, cursor, 0, expected):
                 if not last:
@@ -774,7 +803,7 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
                     row_infos.append((_LOST, cursor, error))
                 break
             cmt_len = int.from_bytes(data[cursor + 0x34 : cursor + 0x38], "little")
-            # Every cell of a preamble row has +0x30 set; a data row's cell 1 has it clear.
+            # Every cell of a preamble row has +0x30 set.  A data row's cell 1 has it clear.
             cell1 = cursor + CELL_SIZE + cmt_len
             if cell1 + CELL_SIZE > len(data) or data[cell1 + 0x30] != 0x01:
                 if not last:
@@ -791,9 +820,9 @@ def _walk_grid(data: bytes, grid_start: int, total_grid_rows: int) -> tuple[list
             cursor += GRID_ROW_STRIDE + cmt_len
             continue
 
-        # Data row — but only decode if cell 0 has valid structural bytes.  The trailing
-        # "extra" row in single-rung buffers (and CLICK's own buffers with non-zero padding)
-        # may lack them.
+        # A data row.  Read it only if cell 0 has the structural bytes 01 01 at +0x09 and
+        # +0x0A.  The extra row at the end of a single-rung buffer may lack them.  This
+        # includes a buffer from CLICK whose padding is not zero.
         if not (data[cursor + 0x09] == 0x01 and data[cursor + 0x0A] == 0x01):
             if not last:
                 error = f"grid row {index} has no cell 0 at {cursor:#x}"
@@ -827,17 +856,18 @@ def decode(data: bytes) -> list[Rung]:
     Returns
     -------
     list[Rung]
-        One ``Rung`` per rung of the buffer, in order: a list of one for a single-rung
-        buffer.  A rung that can't be decoded comes back as an undecoded marker rung
-        (:func:`laddercodec.undecoded.marker_rung`), with an ``UndecodedRungWarning``.
-        When the cells can't be walked, the marker stands for that rung and every rung
-        after it; when that happens in rung 0, before any preamble row, the decoder can't
-        tell one rung from several and returns the marker rung alone in the list.
+        One ``Rung`` per rung of the buffer, in order.  A single-rung buffer gives a
+        list of one.  A rung that can't be decoded comes back as an undecoded marker
+        rung (:func:`laddercodec.undecoded.marker_rung`), with an
+        ``UndecodedRungWarning``.  If the decoder can't walk the grid past a row, the
+        marker stands for that rung and every rung after it.  If that happens in rung 0,
+        before any preamble row, the decoder can't tell one rung from several.  It then
+        returns a list that holds only the marker rung.
 
     Raises
     ------
     DecodeError
-        If the buffer is invalid: its magic or size.
+        If the buffer does not start with the ``CLICK   `` magic or is too short.
     """
     _validate_buffer(data)
     row_word = struct.unpack_from("<I", data, PROGRAM_HEADER_BASE)[0]
@@ -872,13 +902,13 @@ def decode_rung(data: bytes) -> Rung:
     Returns
     -------
     Rung
-        Decoded rung data matching ``encode_rung()`` input contract.
+        The decoded rung.  Its fields hold the values that ``encode_rung()`` takes.
 
     Raises
     ------
     DecodeError
         If the buffer is invalid or contains multiple rungs.  A rung that can't be decoded
-        comes back as an undecoded marker rung, as from :func:`decode`.
+        does not raise.  It comes back as an undecoded marker rung, as from :func:`decode`.
     """
     _validate_buffer(data)
 
@@ -919,9 +949,10 @@ def decode_rungs(data: bytes) -> list[Rung]:
     ------
     DecodeError
         If the buffer is invalid or contains only a single rung.  A rung that can't be
-        decoded comes back as an undecoded marker rung, as from :func:`decode`; when the
-        walk stops in rung 0, which can't tell one rung from several, the list holds that
-        rung's marker only.
+        decoded does not raise.  It comes back as an undecoded marker rung, as from
+        :func:`decode`.  If the walk stops in rung 0, before any preamble row, the
+        decoder can't tell one rung from several.  The list then holds only that rung's
+        marker.
     """
     _validate_buffer(data)
 
@@ -954,7 +985,8 @@ def _decode_single(
     failed: list[tuple[int, str]],
 ) -> Rung:
     """Decode a single-rung buffer from pre-walked grid info."""
-    # Single-rung: total_grid_rows = logical_rows + 1 (format quirk).
+    # A single-rung buffer counts one grid row more than the rung has:
+    # total_grid_rows = logical_rows + 1.
     logical_rows = total_grid_rows - 1
     data_rows = [ri for ri in row_infos if ri[0] != _PREAMBLE][:logical_rows]
 
@@ -976,12 +1008,13 @@ def _decode_multi(
     # Rung N>0: DATA rows after PREAMBLE[N] (comment from that preamble).
     rungs: list[Rung] = []
     current_data: list[_RowInfo] = []  # the current rung's data rows
-    current_rtf: bytes | None = rung0_rtf  # rung 0 uses fixed preamble
+    current_rtf: bytes | None = rung0_rtf  # rung 0's comment is in the fixed preamble
 
     for info in row_infos:
         tag, _, extra = info
         if tag == _PREAMBLE:
-            # Flush the current rung.  One with no data rows is a marker to the end.
+            # Build the rung that this preamble row ends.  A rung with no data rows becomes
+            # a marker for it and every later rung, so return without reading further.
             rungs.append(_build_rung(data, current_data, current_rtf, len(rungs), failed))
             if not current_data:
                 return rungs
@@ -996,23 +1029,25 @@ def _decode_multi(
 
 
 def _fits_stored_span(af: AfInstruction, span: int) -> bool:
-    """True when *af*'s class height is the row span its cell stores (+0x09; 0 stores none).
+    """Return True when the row span that the cell stores at +0x09 is *af*'s class height.
 
-    A box stored at another span stays raw with its stored bytes: CLICK keeps a 1-row
-    Email, Home, Position or Velocity pasted from an earlier laddercodec at 1 row until
-    its dialog is saved.
+    Also return True when the cell stores no span (0).  The caller keeps a box stored at
+    another span as a ``RawInstruction`` with its stored bytes.  This case occurs because an
+    earlier laddercodec wrote Email, Home, Position and Velocity boxes 1 row tall.  When
+    such a box is pasted, CLICK keeps it at 1 row until its dialog is saved.
     """
     return span == 0 or int(af.cell_params().get("visual_rows", 1)) == span
 
 
 def _drop_tall_span_nops(instructions: list[AfToken]) -> None:
-    """Clear stray NOPs that fall inside a tall instruction's row span.
+    """Clear each NOP that sits on a row covered by a tall AF instruction.
 
-    An AF instruction owns ``visual_rows`` grid rows.  A NOP on one of its
-    continuation rows is editing cruft — e.g. a NOP left stranded when the
-    user inserts a row above it — not a real op, so drop it.  The main-input
-    row of a box with lead slots is exempt: count_down's NOP bridge row is a
-    genuine part of the instruction.
+    An AF instruction covers ``visual_rows`` grid rows.  A NOP on one of the
+    rows below its first row is left over from editing.  For example, a NOP
+    stays behind when the user inserts a row above it.  It is not a real
+    instruction, so this function replaces it with ``""``.  A box with inputs
+    above its main input, such as count_down with its unused Up input, has a
+    NOP on its main-input row.  That NOP is part of the box, so it stays.
     """
     for i, af in enumerate(instructions):
         if not isinstance(af, AfInstruction):
@@ -1033,12 +1068,13 @@ def _build_rung(
 ) -> Rung:
     """Build rung number *rung* from its walked data rows.
 
-    A rung that can't be decoded (a row the walk could not read, a cell that does not
-    decode, or no data rows at all) is an undecoded marker rung.  A LOST row ends the walk,
-    so its marker stands for this rung and every rung after it, as does a rung with no data
-    rows: the walk took a row for a preamble that was not one, or lost count of the rows.
-    A comment that does not decode is noted in the comment and added to *failed*
-    (:func:`laddercodec.undecoded.read_comment`).
+    Return an undecoded marker rung when the rung can't be decoded.  That happens when a
+    row is LOST, a cell does not decode, or the rung has no data rows.  A LOST row ended the
+    walk, so its marker stands for this rung and every rung after it.  The marker for a rung
+    with no data rows stands for every later rung too.  Such a rung means that the walk took
+    a row for a preamble row when it was not one, or lost count of the rows.  If the comment
+    does not decode, :func:`laddercodec.undecoded.read_comment` puts a note in the comment
+    and adds the error to *failed*.
     """
     comment = read_comment(rtf, rung, failed)
     if not rows:
