@@ -158,22 +158,36 @@ A single Copy (class `Copy`, type 0x2721, `0x2223` = 0) holds its conversion in 
 | `7` | a value converted between a real and a 32-bit integer |
 | `8` | a binary copy |
 
-CLICK saves type `7` for a copy between DF and DD or CTD (either way, addresses), for a
-real constant into DD or CTD (an address or a pointer), and for an integer constant outside
-int16 into DF (an address or a pointer: `32768`, `-32769`, `65535`, `65536`, `2147483647`).
-A real into DS, DH, TD, YD or DF, an integer into DD, and `5`, `-5`, `32767`, `-32768` or
-`FFh` into DF keep type `0`. The encoder writes the same. CLICK refuses `10000h` into DF1
-(OBJ-024), as laddercodec does.
+CLICK saves type `7` for a copy between DF and DD or CTD (either way, addresses, and a DF,
+DD or CTD pointer source such as `DF[DS1]` into DD1), for a real constant into DD or CTD (an
+address or a pointer), and for an integer constant outside int16 into DF (an address or a
+pointer: `32768`, `-32769`, `65535`, `65536`, `2147483647`). A real into DS, DH, TD, YD or
+DF, an integer into DD, and `5`, `-5`, `32767`, `-32768`, `FFh`, `FFFFh` or `0FFFFh` into
+DF keep type `0`, the hex source as typed. The type follows the bank pair, a pointer
+on either side: CLICK saves `DF1` into `CTD[DS1]` as type `7`. The encoder writes the
+same. CLICK refuses `10000h` into DF1 (OBJ-024), as laddercodec does.
 
-A number constant copied into a TXT address is written as its text, one TXT a character,
-and CLICK saves the end it fills, counted on the constant as stored, `h` and a `+`
+For each pair CLICK saves as type `7`, its dialog also offers Copy Binary, saved as type `8`
+with `0x2206` = 1, a pointer on either side included (`DF[DS1]` into `CTD1`, `CTD1` into
+`DF[DS1]`); the encoder writes that for `convert=to_binary`.
+
+CLICK keeps 7 significant digits of a real constant: `3.4028235E+38` is saved as
+`3.402823E+38`, into DF1 and into TXT1 alike. laddercodec refuses a real typed with more,
+and the message names the constant of 7 digits to write.
+
+A number constant or register copied into TXT needs a converter: CLICK's dialog saves Copy
+Value as text, by default with suppress zero (type `1`) or, for a real or DF source,
+real numbering (type `3`), or Copy Binary, never type `0`, and
+laddercodec refuses a plain copy. A number constant copied into a TXT address is written as
+its text, one TXT a character, and CLICK saves the end it fills, counted on the constant as stored, `h` and a `+`
 included: `-5`, `1h` and `+5` into TXT1 end in TXT2, `10h` and `1.5` in TXT3, `0FFh` in
 TXT4, `FFFFh` in TXT5, `2147483647` in TXT10. One character (`5`) and a pointer
 (`TXT[DS1]`) have no end, as for quoted text. An end past TXT1000 is refused (OBJ-003), as
 for quoted text: `-5` into TXT1000 would end in TXT1001. The type is `1` or `2` for an
 integer or hex constant and `3` (real numbering) or `4` (exponential numbering, with
-`0x2206` = 1) for a real (`1.5` into TXT1 ends in TXT3 either way). The encoder writes the
-same. Decode reads a number with its end or with none.
+`0x2206` = 1) for a real (`1.5` into TXT1 ends in TXT3 either way, `3.402823E+38` in
+TXT12). `123` into TXT1 with zeros kept saves type `2`, `0x2206` = 1 and end TXT3. The
+encoder writes the same. Decode reads a number with its end or with none.
 
 CLICK's Copy dialog offers real or exponential numbering, and no suppress zero, for a DF
 address, a DF pointer (`DF[DS1]`) or a real constant copied to text, and suppress zero or
@@ -182,7 +196,8 @@ Decode reads type `4` only for such a source.
 
 For a TXT register or pointer copied to a number register, CLICK's dialog asks for the
 character's value (type `5`, `0x2206` = 0) or its ASCII code (type `6`, `0x2206` = 1) and
-offers no suppress zero; it saves TXT into DF as type `0`. For TXT copied to TXT it offers a
+offers no suppress zero; for TXT into DF it offers neither, and saves type `0`. For TXT
+copied to TXT it offers a
 termination code alone: tag `0x1221` is its flag and `0x3216` the code in decimal (`$0D` is
 `13`). The clipboard holds `0x3216` = `0` for `$00`; the program file leaves `0x3216` out,
 and decode reads a set flag with no `0x3216` as `$00`. A Block Copy (`0x2223` = 1) of TXT
@@ -190,9 +205,19 @@ into TXT holds its code in the same two tags. CLICK v4 sets the text flag `0x120
 Copy it saves and ignores it on load; the encoder sets it for a termination code or a text
 constant. Captures: `tests/fixtures/v4_captures/copy_txt/`.
 
+Quoted text keeps its characters as typed, any 16-bit character but NUL and a surrogate
+(`"é"`, a tab, `"€"`, U+0001), stored in UTF-16LE and ended by a NUL; write NUL as
+`$00`. A quoted text or `$hh` source has no conversion type, and a source that is not a
+real or DF has no real numbering (type `3` or `4`): decode leaves such a save raw.
+CLICK's dialog saves the end the text fills (`"HALLO"` into
+TXT1 ends in TXT5); its paste keeps the text and drops `0x6077`, even from its own
+clipboard. Decode reads quoted text with its end or with none, and keeps the OBJ-003
+refusal for text past TXT1000; the encoder writes the end. Captures:
+`tests/fixtures/v4_captures/copy_forms/`.
+
 A decoded single Copy whose `0x2227` and `0x6077` differ from what the encoder writes for
-its fields, or whose save is a type `7` other than DD to or from DF or a number with an
-end, writes the blob it was decoded from while it is unchanged.
+its fields, or whose save is a type `7` or `8` other than DD to or from DF or a number with
+an end, writes the blob it was decoded from while it is unchanged.
 
 ## Math formulas
 
@@ -260,7 +285,9 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
    typed `+` kept) at the typed length, or a real whose value, read as a double, is at
    most float32's largest, 3.402823466E+38, in size (`3.4028235E+38`, which float32
-   rounds to that value, is refused with OBJ-1009). Hex: CLICK
+   rounds to that value, is refused with OBJ-1009). CLICK keeps 6 significant digits of
+   a real (`0.33333334` is saved as `0.333333`); laddercodec refuses a real typed with
+   more, naming the constant of 6 digits to write (`3.40282E+38` for float32's largest). Hex: CLICK
    uppercases the word and deletes its first `H`, wherever it is, then takes 1 to
    4 hex digits, so it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as `77h`.
    laddercodec takes only 1 to 4 hex digits followed by `h` or `H`, and refuses

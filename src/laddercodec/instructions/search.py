@@ -93,8 +93,8 @@ FOUND_BANKS = frozenset({"C"})
 _TEXT_OPS = frozenset({"==", "!="})
 #: The search value: a constant of any kind, hex 16-bit (above FFFFh is a 32-bit hex
 #: constant, which is OBJ-005).  A signed hex text reads as a hex constant, which the
-#: field then refuses.
-_VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True)
+#: field then refuses.  Text takes the characters CLICK keeps, checked with its quotes.
+_VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True, printable=False)
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -181,7 +181,7 @@ class Search(AfInstruction):
             check("result", check_box_operand, RESULT_BANKS)
             check("found", check_box_operand, FOUND_BANKS)
             if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
-                check("source", check_quoted_text)
+                check("source", check_quoted_text, kept=True)
             # The search value is a constant or a data register, never a bit.
             source = check("source", check_box_operand, REGISTER_BANKS, _VALUE)
             if source is not None:
@@ -299,7 +299,8 @@ def parse_af_call(call: AfCall) -> Search:
         raise CsvError(f"search expects 1 positional arg (expression), got {len(call.args)}")
 
     expr = call.args[0]
-    m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr)
+    # DOTALL: a text value may hold a line break.
+    m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr, re.DOTALL)
     if not m:
         raise CsvError(f"Cannot parse search expression: {expr!r}")
 

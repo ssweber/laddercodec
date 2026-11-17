@@ -427,8 +427,8 @@ def test_copy_source_with_a_quote_inside_keeps_no_id(source: str) -> None:
 
 
 def test_copy_text_characters_come_after_the_pairing() -> None:
-    # Text outside printable ASCII is refused after the pairing: "é" into DS1 is OBJ-024.
-    assert _shape(_errors(lambda: Copy('"é"', "DS1"))) == [
+    # Text with a character a Copy refuses comes after the pairing: NUL into DS1 is OBJ-024.
+    assert _shape(_errors(lambda: Copy('"\x00"', "DS1"))) == [
         ("Copy.destination", "conflict", "OBJ-024"),
         ("Copy.source", "form", None),
     ]
@@ -451,7 +451,7 @@ def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
 
 
 @pytest.mark.parametrize(
-    "source", ["99999999999", "1e99", "FFFFFFFFFh", '"é"', '"' + "A" * 200 + '"']
+    "source", ["99999999999", "1e99", "FFFFFFFFFh", '"\x00"', '"' + "A" * 200 + '"']
 )
 def test_copy_destination_bank_has_no_id_for_a_refused_constant(source: str) -> None:
     # The constant's own check runs after the destination's, and keeps that order.

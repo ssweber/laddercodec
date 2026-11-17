@@ -104,6 +104,10 @@ COPY_EH = (
     "kept: CLICK stores EH and 1Eh as the reals 0.0 and 1.0; laddercodec refuses them and names "
     "the forms to write, the real or the hex value as a decimal integer (settled)"
 )
+COPY_REAL_DIGITS = (
+    "kept: CLICK keeps 7 significant digits and stores 3.4028235E+38 as 3.402823E+38, another "
+    "value; laddercodec refuses a real of more than 7 and names the form CLICK stores (settled)"
+)
 RX2_COUNT = (
     "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
     "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
@@ -239,6 +243,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
+    (COPY_REAL_DIGITS, "copy_single", "outcome", ("single 3.4028235E+38 -> DS1",)),
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.

@@ -269,7 +269,7 @@ CASES: list[tuple[str, Any, str]] = [
     ("Copy", lambda **kw: Copy("DS1", "DS2", **kw), "oneshot"),
     ("BlockCopy", lambda **kw: BlockCopy("DS1", "DS3", "DS10", "DS12", **kw), "oneshot"),
     ("Fill", lambda **kw: Fill("1", "DS1", "DS5", **kw), "oneshot"),
-    ("Pack", lambda **kw: Pack("C1", "C16", "DS1", **kw), "allow_whitespace"),
+    ("Pack", lambda **kw: Pack("TXT1", "TXT4", "DS1", "text", **kw), "allow_whitespace"),
     ("Pack", lambda **kw: Pack("C1", "C16", "DS1", **kw), "oneshot"),
     ("Unpack", lambda **kw: Unpack("DS1", "C1", "C16", **kw), "oneshot"),
     ("Search", lambda **kw: Search("DS1", "DS10", "1", "DS20", "C20", "==", **kw), "continuous"),

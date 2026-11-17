@@ -41,6 +41,7 @@ from laddercodec.operands.constants import (
     INT32_MIN,
     TEXT_MAX,
     Kind,
+    classify,
 )
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "editor_grids"
@@ -472,12 +473,44 @@ def math_grid() -> Grid:
 _TXT_CHOICE = frozenset({"DS", "DD", "DH", "YD", "TD", "CTD", "SD"})
 
 
+def _txt_default(source: str, destination: str) -> tuple[str | None, str] | None:
+    """The dialog's default converter for a number constant or register copied to TXT, Copy
+    Value as text, as ``(suppress_zero, exponential)``: Suppress zero for an integer and Real
+    Numbering for a real.  ``None`` for any other copy."""
+    if _bank_of(destination) != "TXT":
+        return None
+    constant = classify(source)
+    if constant is not None:
+        if constant.kind not in (Kind.INTEGER, Kind.HEX, Kind.FLOAT):
+            return None
+        real = constant.kind is Kind.FLOAT
+    else:
+        bank = _bank_of(source)
+        if bank not in REGISTER_BANKS or bank == "TXT":
+            return None
+        real = bank == "DF"
+    return (None, "0") if real else ("1", "0")
+
+
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
     # TXT into a number register but DF takes the dialog's default, Copy Character Value.
     txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
     fmt = "value" if txt_choice else "none"
     if mode == "single":
+        # A number into TXT takes the dialog's default, Copy Value as text.
+        default = _txt_default(f["source"], f["destination"])
+        if default is not None:
+            zeros, exponential = default
+            return verdict_of(
+                lambda: Copy(
+                    f["source"],
+                    f["destination"],
+                    format="text",
+                    suppress_zero=zeros,
+                    exponential=exponential,
+                )
+            )
         return verdict_of(lambda: Copy(f["source"], f["destination"], format=fmt))
     if mode == "block":
         end = _block_end(f["source"], f["source_end"], f["destination"])

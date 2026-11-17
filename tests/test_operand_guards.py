@@ -258,7 +258,10 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("raw.py", "re.fullmatch('(?:0[xX])?[0-9A-Fa-f]+', parts[0])"): 1,
     ("raw.py", "re.fullmatch('[0-9]+', parts[1])"): 1,
     ("return_.py", "re.fullmatch('return\\\\(\\\\s*\\\\)', token)"): 1,
-    ("search.py", "re.fullmatch('(.+?)\\\\.\\\\.(.+?)\\\\s*(==|!=|>=|<=|>|<)\\\\s*(.+)', expr)"): 1,
+    (
+        "search.py",
+        "re.fullmatch('(.+?)\\\\.\\\\.(.+?)\\\\s*(==|!=|>=|<=|>|<)\\\\s*(.+)', expr, re.DOTALL)",
+    ): 1,
     (
         "send_receive.py",
         "re.compile('([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})')",

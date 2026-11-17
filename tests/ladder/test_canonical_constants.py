@@ -8,6 +8,7 @@ encoded blob all write that form, and a decoded save compares equal to the typed
 from __future__ import annotations
 
 import csv
+import re
 import warnings
 from pathlib import Path
 
@@ -42,7 +43,6 @@ _COPY_ANSWERED = [
     (".5", "DF1", "0.5"),
     ("1E5", "DF1", "100000.0"),
     ("+1.5", "DS1", "1.5"),
-    ("3.4028235E+38", "DS1", "3.402823E+38"),
     ("1E-45", "DS1", "1E-45"),
     ("1E-50", "DS1", "1E-50"),
     ("1.5e-3", "DS1", "0.0015"),
@@ -55,11 +55,17 @@ _COPY_DERIVED = [
     ("-007", "DS1", "-7"),
     ("-00", "DS1", "0"),
     ("+2.50", "DF1", "2.5"),
-    ("3.40282355E+38", "DF1", "3.402823E+38"),
     ("0abch", "DD1", "0ABCh"),
     ('"AB"', "TXT1", '"AB"'),
 ]
 _COPY = _COPY_ANSWERED + _COPY_DERIVED
+#: (typed source, destination, CLICK's form): a real with more significant digits than the
+#: seven CLICK keeps, which it saves cut to seven; the first is CLICK's answer.
+_COPY_ROUNDED = [
+    ("3.4028235E+38", "DS1", "3.402823E+38"),
+    ("3.40282355E+38", "DF1", "3.402823E+38"),
+    ("1.23456789", "DF1", "1.234568"),
+]
 
 #: (typed formula, mode, CLICK's display, CLICK's internal form): the constant forms of
 #: CLICK's Math answers, in a formula; 1E3h is the form CLICK stores for a typed 1e3.
@@ -118,6 +124,20 @@ def test_copy_source_every_writer_writes_clicks_form(
     assert _written_af(tmp_path, copy) == f"copy({stored},{destination})"
     assert _fields(copy)[_COPY_SOURCE] == stored
     assert decode(encode(_rung(copy)))[0].instructions[0] == copy
+
+
+@pytest.mark.parametrize(("typed", "destination", "stored"), _COPY_ROUNDED)
+def test_copy_source_clicks_rounding_is_refused_and_named(
+    tmp_path: Path, typed: str, destination: str, stored: str
+) -> None:
+    # CLICK keeps seven significant digits: the typed value is not the one it saves, so it
+    # is refused, and the message names the constant of seven digits to write.
+    rule = rf"CLICK keeps 7 significant digits: write {re.escape(stored)}"
+    with pytest.raises(FieldError, match=rule):
+        Copy(typed, destination)
+    with pytest.raises(FieldError, match=rule):
+        _read_af(tmp_path, f"copy({typed},{destination})")
+    assert Copy(stored, destination).source == stored
 
 
 @pytest.mark.parametrize(("typed", "mode", "display", "internal"), _MATH)

@@ -483,9 +483,10 @@ def test_a_stored_real_above_the_largest_float32_decodes_and_writes_its_bytes(
 ) -> None:
     """CLICK's Math dialog refuses 3.4028235E+38 (OBJ-1009); a Math stored with it decodes
     as that Math, keeping the refusal, and encodes its bytes unchanged."""
-    rung = _read_af_rung(tmp_path, "math(DF1 * 3.4028234E+38,DF9,mode=decimal)")
+    # 3.4028200E+38: 6 significant digits, as a Math takes, and as long as the value stored.
+    rung = _read_af_rung(tmp_path, "math(DF1 * 3.4028200E+38,DF9,mode=decimal)")
     data = encode(rung)
-    old, new = "3.4028234E+38".encode("utf-16-le"), "3.4028235E+38".encode("utf-16-le")
+    old, new = "3.4028200E+38".encode("utf-16-le"), "3.4028235E+38".encode("utf-16-le")
     assert data.count(old) == 4  # the display formula, the template and both internal forms
     data = data.replace(old, new)
     with pytest.warns(RefusedFieldWarning, match=r"3\.4028235E\+38 is outside the float32 range"):

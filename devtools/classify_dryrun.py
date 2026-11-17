@@ -120,7 +120,7 @@ class Namespace:
         from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
         from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
         from laddercodec.operands import checks
-        from laddercodec.operands.constants import SEARCH_TABLE_BANKS, Kind
+        from laddercodec.operands.constants import SEARCH_TABLE_BANKS, Kind, real_beyond_kept_digits
 
         loaded = Path(laddercodec.__file__).resolve().parent.parent
         if loaded != src:
@@ -133,6 +133,7 @@ class Namespace:
         self.InstructionType: Any = InstructionType
         self.normalize: Any = normalize_address
         self.search_tables: Any = SEARCH_TABLE_BANKS
+        self.real_beyond_kept_digits: Any = real_beyond_kept_digits
         # Shared banks come from checks; the family-only ones from their family.
         self.compare_groups: Any = _GROUP_BANKS
         self.compare_banks: Any = frozenset().union(*_GROUP_BANKS.values())
@@ -182,29 +183,36 @@ def _wide_hex(text: str) -> bool:
     return int(text.upper().rstrip("H").lstrip("+-") or "0", 16) > 0xFFFF
 
 
+#: The constant kinds that are numbers, by their ``Kind`` value.
+_NUMBER_KINDS = frozenset({"integer", "hex", "float"})
+#: The characters a single Copy's quoted text holds: U+0001 to U+FFFF but a surrogate.
+_COPY_TEXT_CHARS = frozenset(chr(c) for c in (*range(0x01, 0xD800), *range(0xE000, 0x10000)))
+
+
 def copy_rule(dest: str) -> Callable[[Any, str], None]:
     """Single Copy source into ``dest``.
 
     Every kind at the shared check's limits; a signed hex text reads as a (refused) hex
     constant.  The family keeps the pairing, in its own class (AddressError): text and
     ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
-    number constant goes to every register, TXT included.  A TXT register into a number
-    register but DF needs to_value or to_ascii, a refusal of the format (FieldError), and
-    the baseline copies with no converter.  A constant's own limits come
-    before the pairing (``""`` and ``100000000h`` into DS1 are refused values), except
-    text outside printable ASCII, refused after it.  The family writes ``$`` and one
-    hex digit with two first (``$1`` is ``$01``), as CLICK stores it.
+    number constant goes to every register; into TXT it, and a number register, needs a
+    converter, a refusal of the format (FieldError), and the baseline copies with none.  A
+    TXT register into a number register but DF needs to_value or to_ascii, a refusal of the
+    format too.  A constant's own limits come before the pairing (``""`` and
+    ``100000000h`` into DS1 are refused values), except text with a character outside
+    U+0001 to U+FFFF but a surrogate, refused after it, and a real of more than
+    7 significant digits, refused after the format.  The family writes ``$`` and one hex
+    digit with two first (``$1`` is ``$01``), as CLICK stores it.
     """
 
     def rule(ns: Any, value: str) -> None:
         text = ns.normalize(value)
         if len(text) == 2 and text[0] == "$" and text[1] in "0123456789ABCDEFabcdef":
             text = f"$0{text[1]}"
-        constants = ns.constants(hex_sign=True)
+        constants = ns.constants(hex_sign=True, printable=False)
         shape = ns.checks.constant_shape(text, constants)
         if shape is not None:
-            any_text = ns.constants(hex_sign=True, printable=False)
-            ns.checks.check_constant(text, "Copy.source", any_text)
+            ns.checks.check_constant(text, "Copy.source", constants)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
             ns.refuse("text copies to TXT", address=True)
         if shape == ns.Kind.HEX and _wide_hex(text) and dest not in ("DD", "CTD"):
@@ -220,6 +228,15 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
             ns.refuse("a bit copies to Y, C", address=True)
         if op.constant is None and op.bank == "TXT" and dest not in ("DF", "TXT"):
             ns.refuse("a TXT register into a number needs to_value or to_ascii")
+        number = op.constant.kind in _NUMBER_KINDS if op.constant else op.bank != "TXT"
+        if dest == "TXT" and number:
+            ns.refuse("a number into TXT needs a converter")
+        if op.constant and op.constant.kind == ns.Kind.TEXT:
+            if not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
+                ns.refuse("text holds U+0001 to U+FFFF, no NUL and no surrogate")
+        if op.constant and op.constant.kind == ns.Kind.FLOAT:
+            if ns.real_beyond_kept_digits(text) is not None:
+                ns.refuse("a real of more than 7 significant digits")
 
     return rule
 
@@ -263,15 +280,18 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
 
     Every kind; hex is 16-bit.  The family keeps the pairing of a constant's kind with the
     table banks: an integer or a real searches DS, DD, DF, TD and CTD, hex DH, text or
-    ``$hh`` TXT.
+    ``$hh`` TXT.  Text takes what a single Copy's takes, U+0001 to U+FFFF but a surrogate.
     """
 
     def rule(ns: Any, value: str) -> None:
-        constants = ns.constants(hex_high=0xFFFF, hex_sign=True)
+        constants = ns.constants(hex_high=0xFFFF, hex_sign=True, printable=False)
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "Search.source", ns.checks.REGISTER_BANKS, constants)
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
             ns.refuse("the value's kind does not search this table")
+        if op.constant and op.constant.kind == ns.Kind.TEXT:
+            if not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
+                ns.refuse("text holds U+0001 to U+FFFF, no NUL and no surrogate")
 
     return rule
 

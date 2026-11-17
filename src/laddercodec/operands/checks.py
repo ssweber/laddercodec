@@ -4,7 +4,8 @@
 - :func:`check_constant`: a constant of the kinds and limits a :class:`Constants` names.
 - :func:`check_operand`: an address, a pointer or a constant, in one field;
   :func:`constant_shape` names the kind of constant a text is spelled as, limits aside.
-- :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it.
+- :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it;
+  :func:`check_kept_text`: text a single Copy source or a Search value holds.
 - :func:`check_out_target`: an address a coil writes.
 - :func:`check_writable_sd`: an SD register a Copy or a decimal Math writes.
 - :func:`check_flag`: a True/False field.
@@ -35,10 +36,12 @@ from .constants import (
     CHAR_CODE_RULE,
     INT32_MAX,
     INT32_MIN,
+    KEPT_TEXT_RULE,
     TEXT_MAX,
     Constant,
     Kind,
     classify,
+    kept_text,
     printable,
 )
 from .errors import AddressError, FieldError, Reason
@@ -59,6 +62,7 @@ __all__ = [
     "check_flag",
     "check_operand",
     "check_out_target",
+    "check_kept_text",
     "check_quoted_text",
     "check_writable_sd",
     "constant_shape",
@@ -406,26 +410,40 @@ def _check_limits(value: str, at: _At, constants: Constants, const: Constant) ->
 _TEXT_CHARS = range(0x20, 0x7F)
 
 
-def check_quoted_text(value: str, field: str, *, label: str | None = None) -> None:
+def check_kept_text(value: str, text: str, field: str, *, label: str | None = None) -> None:
+    """Refuse the text ``text`` of the constant ``value`` where CLICK does not keep a
+    character of it (:func:`~laddercodec.operands.constants.kept_text`): a single Copy
+    source and a Search text value take the characters CLICK keeps."""
+    if not kept_text(text):
+        raise _at(field, label).error(value, f"is refused; {KEPT_TEXT_RULE}", Reason.FORM)
+
+
+def check_quoted_text(
+    value: str, field: str, *, label: str | None = None, kept: bool = False
+) -> None:
     """Refuse a quoted text constant Compare and Search refuse.
 
     The text between the quotes is 1 to :data:`TEXT_MAX` printable ASCII characters,
     with no quote inside: a quote would end the text in the CSV token, so it is written
-    ``$22``.  On hardware the text is compared against consecutive TXT registers from the
-    named one.
+    ``$22``.  With ``kept`` (a Search value), it takes any character CLICK keeps
+    (:func:`check_kept_text`) instead of printable ASCII.  On hardware the text is compared
+    against consecutive TXT registers from the named one.
     """
     at = _at(field, label)
     if value == "":
         raise _blank(at)
     inner = value[1:-1]
     long = not 1 <= len(inner) <= TEXT_MAX
-    if long or any(ord(c) not in _TEXT_CHARS for c in inner):
+    if long or (not kept and any(ord(c) not in _TEXT_CHARS for c in inner)):
+        chars = "characters" if kept else "printable ASCII characters"
         raise at.error(
             value,
-            f"is refused; a text constant is 1 to {TEXT_MAX} printable ASCII characters in "
-            "quotes (use $hh for a character by code)",
+            f"is refused; a text constant is 1 to {TEXT_MAX} {chars} in quotes (use $hh "
+            "for a character by code)",
             Reason.RANGE if long else Reason.FORM,
         )
+    if kept:
+        check_kept_text(value, inner, field, label=label)
     if '"' in inner:
         raise at.error(value, "holds a quote; write the quote character as $22", Reason.FORM)
 

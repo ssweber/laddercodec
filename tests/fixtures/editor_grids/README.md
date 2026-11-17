@@ -51,7 +51,9 @@ the committed files differ from what the generator writes.
 built as the instruction laddercodec would make from it: Block Copy's destination end is the
 start plus the source's length, which CLICK works out itself; a Copy or Block Copy of TXT
 into a number register other than DF takes Copy Character Value (`to_value`), the dialog's
-default, since a plain copy is refused; Pack and Unpack take the bits or
+default, since a plain copy is refused; a single Copy of a number constant or a number
+register into TXT takes the dialog's default too, Copy Value as text with Suppress zero for
+an integer and Real Numbering for a real; Pack and Unpack take the bits or
 words form of the bank typed. The verdicts exist to be compared with CLICK's answers case by
 case. `--check` compares the messages too; the test compares the verdict, error and field only.
 
