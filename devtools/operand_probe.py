@@ -701,10 +701,18 @@ PROBES: dict[str, Probe] = {
             "dest_end": "op",
             "format": _lit("none", "value", "ascii", "text", ""),
             "oneshot": "bool",
+            "termination_code": "op",
         },
         baselines=lambda ns: {
             "block": dict(
                 source_start="DS28", source_end="DS31", dest_start="DS32", dest_end="DS35"
+            ),
+            "term": dict(
+                source_start="TXT1",
+                source_end="TXT2",
+                dest_start="TXT11",
+                dest_end="TXT12",
+                termination_code="$0D",
             ),
             "ascii": dict(
                 source_start="TXT17",

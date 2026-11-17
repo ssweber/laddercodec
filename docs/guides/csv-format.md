@@ -825,10 +825,11 @@ currently emit:
   its `$hh` code, and a quote as `$22`. A quoted `"$41"` is three characters of text, not the code
   `$41`. Use `$00` for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
-  - `convert=to_value`
-  - `convert=to_ascii`
+  - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register: the character's value or its ASCII code. CLICK's dialog asks for one of the two, so a plain copy of TXT into any number register but DF raises `FieldError` (`copy(TXT1,DS1)`, `blockcopy(TXT1..TXT2,DD1..DD2)`). A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK saves it.
   - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
   - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address or pointer (`DF[DS1]`) or a real constant (`1.5`): real (`0`) or exponential (`1`) numbering. `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other source, an integer or hex constant or a DD or DS pointer included. Only the option CLICK's dialog offers for the source is written and read: `suppress_zero` for a DF or real source raises `FieldError`, and so does `exponential=1` for any other source; `exponential=0` for one is accepted and not written.
+- A TXT register or pointer copied to TXT takes a termination code with no converter: `copy(TXT1,TXT21,termination_code=$0D)`, and for a range `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`. `none`, `0` or no keyword is no code, which any copy takes. A code for any other copy, or a code beside a `convert=` kwarg, raises `FieldError`; inside `to_binary(...)` or `to_text(...)` it is the converter's. A `blockcopy` of TXT into TXT takes no converter.
+- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; any other (`terminaton_code=`) raises `ValueError`.
 
 ## Immediate handling
 

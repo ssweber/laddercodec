@@ -198,7 +198,8 @@ def test_copy_from_csv_token_refuses_the_same(token: str, message: str) -> None:
         "copy(SC1,C1)",
         "copy(XD0u,DS1)",
         "copy(DS1,YD0u)",
-        "copy(TXT1,DS1)",
+        "copy(TXT1,DS1,convert=to_value)",
+        "copy(TXT1,DF1)",
         "copy(DS1,TXT1)",
         "copy(5,TXT1)",
         "copy(1Fh,DH1)",
@@ -637,12 +638,15 @@ def test_copy_csv_paths_agree(tmp_path: Path) -> None:
 
 
 def test_termination_code_needs_a_number_register_copied_to_text() -> None:
-    """CLICK v4's dialog greys the box for TXT -> TXT and constant -> TXT copies."""
+    """CLICK v4's dialog offers Termination Code for a number register copied to text and a
+    TXT register copied to TXT, and greys it for a constant copied to TXT."""
     Copy("DS1", "TXT1", format="text", termination_code="$0D")
     Copy("DS1", "TXT1", format="binary", termination_code="$0D")
+    Copy("TXT1", "TXT2", termination_code="$0D")
     for source, destination, fmt in [
         ("DS1", "TXT1", "none"),
-        ("TXT1", "TXT2", "none"),
+        ("TXT1", "DF1", "none"),
+        ("TXT1", "DS1", "value"),
         ("5", "TXT1", "text"),
         ("DD1", "DF1", "binary"),
     ]:

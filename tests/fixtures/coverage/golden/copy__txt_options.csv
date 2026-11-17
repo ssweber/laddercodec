@@ -1,0 +1,13 @@
+marker,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,AA,AB,AC,AD,AE,AF
+#,copy__txt_txt_term_00
+#,"copy(TXT1,TXT21,termination_code=$00)"
+R,C1960,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"copy(TXT1,TXT21,termination_code=$00)"
+#,copy__txt_txt_term_0d
+#,"copy(TXT1,TXT21,termination_code=$0D)"
+R,C1961,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"copy(TXT1,TXT21,termination_code=$0D)"
+#,blockcopy__txt_txt_term_00
+#,"blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$00)"
+R,C1962,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$00)"
+#,blockcopy__txt_txt_term_0d
+#,"blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)"
+R,C1963,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,"blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)"

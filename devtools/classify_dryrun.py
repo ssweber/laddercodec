@@ -188,7 +188,9 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
     Every kind at the shared check's limits; a signed hex text reads as a (refused) hex
     constant.  The family keeps the pairing, in its own class (AddressError): text and
     ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
-    number constant goes to every register, TXT included.  A constant's own limits come
+    number constant goes to every register, TXT included.  A TXT register into a number
+    register but DF needs to_value or to_ascii, a refusal of the format (FieldError), and
+    the baseline copies with no converter.  A constant's own limits come
     before the pairing (``""`` and ``100000000h`` into DS1 are refused values), except
     text outside printable ASCII, refused after it.  The family writes ``$`` and one
     hex digit with two first (``$1`` is ``$01``), as CLICK stores it.
@@ -216,6 +218,8 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
         )
         if op.constant is None and op.bank in ns.checks.BIT_BANKS:
             ns.refuse("a bit copies to Y, C", address=True)
+        if op.constant is None and op.bank == "TXT" and dest not in ("DF", "TXT"):
+            ns.refuse("a TXT register into a number needs to_value or to_ascii")
 
     return rule
 

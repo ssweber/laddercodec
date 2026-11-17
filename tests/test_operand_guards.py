@@ -354,6 +354,10 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("copy.py", "ValueError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
     (
         "copy.py",
+        "ValueError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))",
+    ): 1,
+    (
+        "copy.py",
         "ValueError(f('blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}'))",
     ): 1,
     (

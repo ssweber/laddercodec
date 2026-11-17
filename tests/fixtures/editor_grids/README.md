@@ -49,7 +49,9 @@ the committed files differ from what the generator writes.
 `<grid>.verdicts.json` maps each case's label to what laddercodec's rules say today:
 `{"verdict": "accepted"}`, or `{"verdict": "refused", "error", "field", "message"}`. A case is
 built as the instruction laddercodec would make from it: Block Copy's destination end is the
-start plus the source's length, which CLICK works out itself; Pack and Unpack take the bits or
+start plus the source's length, which CLICK works out itself; a Copy or Block Copy of TXT
+into a number register other than DF takes Copy Character Value (`to_value`), the dialog's
+default, since a plain copy is refused; Pack and Unpack take the bits or
 words form of the bank typed. The verdicts exist to be compared with CLICK's answers case by
 case. `--check` compares the messages too; the test compares the verdict, error and field only.
 
