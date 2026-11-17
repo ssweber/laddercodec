@@ -203,6 +203,42 @@ def test_coil_range(kind: InstructionType, start: str, end: str, click_id: str) 
     assert str(error).endswith(f" ({click_id})")
 
 
+@pytest.mark.parametrize("kind", [OUT, LATCH, InstructionType.COIL_RESET])
+@pytest.mark.parametrize(
+    ("start", "end"),
+    [("C1", "DS1"), ("C1", "TXT1"), ("Y001", "X001"), ("Y001", "ds1"), ("Y001", "DS[DS1]")],
+)
+def test_coil_range_into_a_refused_bank_is_obj_008(
+    kind: InstructionType, start: str, end: str
+) -> None:
+    """An end in another bank, a pointer CLICK reads included, is OBJ-008 before its own
+    refusal."""
+    errors = _refusals(lambda: Coil(kind, start, end))
+    assert _shape(errors) == [("Coil.range_end", "conflict", "OBJ-008")]
+    assert errors[0].fields == ("Coil.range_end", "Coil.operand")
+
+
+@pytest.mark.parametrize("end", ["X[DS1]", "DS[DS0]", "DS[DS[DS1]]"])
+def test_coil_range_end_click_does_not_read_as_a_pointer_has_no_id(end: str) -> None:
+    """A pointer CLICK does not read (OBJ-005 for Y001..X[DS1]) has no bank to compare."""
+    assert _shape(_refusals(lambda: Coil(OUT, "Y001", end))) == [
+        ("Coil.range_end", "address", None)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "immediate"), [("C1", "SC1", False), ("Y001", "C2", True)]
+)
+def test_coil_range_across_banks_comes_before_the_end_s_own_checks(
+    start: str, end: str, immediate: bool
+) -> None:
+    """laddercodec's own: no answer covers an end CLICK would also refuse as not writable (SC1)
+    or as not immediate (C2); the bank pairing comes first, as in ``C1..DS1``."""
+    assert _shape(_refusals(lambda: Coil(OUT, start, end, immediate=immediate))) == [
+        ("Coil.range_end", "conflict", "OBJ-008")
+    ]
+
+
 def test_coil_skips_what_depends_on_a_refused_field() -> None:
     # A refused type: the one-shot pairing is not checked.
     assert _shape(_refusals(lambda: Coil(99, "C1", oneshot=True))) == [  # type: ignore[arg-type]
