@@ -188,7 +188,7 @@ def test_layoutq_kinds() -> None:
         (11, "output-above-box-inputs", "C000A", 1, 31),  # out, then a retentive timer
         (13, "output-above-box-inputs", "C000A", 1, 31),  # out, then a count_down
         (14, "input-without-contact", "C0205", 1, 31),  # timer Reset teed off its input
-        (15, "input-without-contact", "C0212", 1, 31),  # drum Reset teed off the net after Or(C82, C83)
+        (15, "input-without-contact", "C0212", 1, 31),  # drum Reset teed off Or(C82, C83)
         (16, "feeds-no-box", "C0202", 1, 1),  # C94, the last contact of row 1
         (16, "no-coil", "C0003", None, None),
         (17, "feeds-no-box", "C0202", 1, 1),
