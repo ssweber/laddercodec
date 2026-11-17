@@ -221,8 +221,8 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
         if pin_name not in KNOWN_PIN_NAMES:
             raise at(
                 CsvError(
-                    f"{pin_name}() is not a pin token. Use the pin that the box above takes, "
-                    f"one of {', '.join(f'{p}()' for p in sorted(KNOWN_PIN_NAMES))}."
+                    f"{pin_name}() is not a pin token. Write one of "
+                    f"{', '.join(f'{p}()' for p in sorted(KNOWN_PIN_NAMES))}."
                 ),
                 column=AF_COLUMN,
             )
