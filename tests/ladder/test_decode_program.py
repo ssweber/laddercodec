@@ -229,7 +229,7 @@ def test_parse_scr_tags_handles_compact_math_nickname_flag():
         variant_string_tags,
     )
 
-    assert parsed == Math(expression="DS123 + 200", result="DS124", mode="decimal", oneshot=False)
+    assert parsed == Math(expression="DS123 + 200", dest="DS124", mode="decimal", oneshot=False)
 
 
 def test_parse_scr_tags_handles_compact_timer_variant_fields():

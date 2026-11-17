@@ -30,7 +30,7 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.checks import BIT_BANKS, Constants, Refusals, check_constant
+from ..operands.checks import BIT_BANKS, Constants, Refusals, check_constant, check_csv_flag
 from ..operands.constants import Kind, hex_display
 from ..operands.unchecked import holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
@@ -1578,8 +1578,9 @@ def parse_af_call(call: AfCall) -> Receive | Send:
 
     target = _parse_target(kw["target"])
     remote_start = _parse_remote_start(kw["remote_start"])
-    word_swap = kw.get("word_swap") == "1"
-    function_code = _parse_function_code(kw, "Receive" if call.name == "receive" else "Send")
+    cls = "Receive" if call.name == "receive" else "Send"
+    word_swap = check_csv_flag(kw, "word_swap", f"{cls}.word_swap")
+    function_code = _parse_function_code(kw, cls)
 
     receiving = kw.get("receiving", "")
     sending = kw.get("sending", "")

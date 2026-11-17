@@ -51,15 +51,15 @@ _COPY_DH = ": copy .* into a DH register first \\(OBJ-1002\\)"
 
 _REFUSED = [
     # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
-    ("DS1 + 1", "DH1", "decimal", "Math.result: 'DH1' is not allowed"),
-    ("DS1 + 1", "YD1", "decimal", "Math.result: 'YD1' is not allowed"),
-    ("DS1", "X001", "decimal", "Math.result: 'X001' is not allowed"),
-    ("DS1", "C1", "decimal", "Math.result: 'C1' is not allowed"),
-    ("DS1", "TXT1", "decimal", "Math.result: 'TXT1' is not allowed"),
-    ("DS1", "XD1", "decimal", "Math.result: 'XD1' is not allowed"),
-    ("DH1 + 1h", "DS9", "hex", "Math.result: 'DS9' is not allowed"),
-    ("DH1 + 1h", "DD9", "hex", "Math.result: 'DD9' is not allowed"),
-    ("DH1 + 1h", "XD1", "hex", "Math.result: 'XD1' is not allowed"),
+    ("DS1 + 1", "DH1", "decimal", "Math.dest: 'DH1' is not allowed"),
+    ("DS1 + 1", "YD1", "decimal", "Math.dest: 'YD1' is not allowed"),
+    ("DS1", "X001", "decimal", "Math.dest: 'X001' is not allowed"),
+    ("DS1", "C1", "decimal", "Math.dest: 'C1' is not allowed"),
+    ("DS1", "TXT1", "decimal", "Math.dest: 'TXT1' is not allowed"),
+    ("DS1", "XD1", "decimal", "Math.dest: 'XD1' is not allowed"),
+    ("DH1 + 1h", "DS9", "hex", "Math.dest: 'DS9' is not allowed"),
+    ("DH1 + 1h", "DD9", "hex", "Math.dest: 'DD9' is not allowed"),
+    ("DH1 + 1h", "XD1", "hex", "Math.dest: 'XD1' is not allowed"),
     ("DS1", "DS4501", "decimal", "outside DS1-DS4500"),
     # constants (OBJ-1009): 32-bit integers, hex at most 4 digits and FFFFh
     ("DS1 + 3000000000", "DD9", "decimal", "3000000000 is outside -2147483648..2147483647"),
@@ -184,11 +184,11 @@ _REFUSED = [
     ("RAND ( 1h , YD0u )", "DH9", "hex", "YD0u is refused; " + _HEX_RAND + _COPY_DH),
     ("RAND ( 1h , DS1 )", "DH9", "hex", "DS1 is refused; " + _HEX_RAND + " \\(OBJ"),
     # a decimal result in SD is a writable SD register (OBJ-003)
-    ("DS1 + 1", "SD1", "decimal", "Math.result: 'SD1' is not a writable SD register"),
-    ("DS1 + 1", "SD62", "decimal", "Math.result: 'SD62' is not a writable SD register"),
-    ("DS1 + 1", "SD148", "decimal", "Math.result: 'SD148' is not a writable SD"),
-    ("DS1 + 1", "SD216", "decimal", "Math.result: 'SD216' is not a writable SD"),
-    ("DS1 + 1", "SD1000", "decimal", "Math.result: 'SD1000' is not a writable SD"),
+    ("DS1 + 1", "SD1", "decimal", "Math.dest: 'SD1' is not a writable SD register"),
+    ("DS1 + 1", "SD62", "decimal", "Math.dest: 'SD62' is not a writable SD register"),
+    ("DS1 + 1", "SD148", "decimal", "Math.dest: 'SD148' is not a writable SD"),
+    ("DS1 + 1", "SD216", "decimal", "Math.dest: 'SD216' is not a writable SD"),
+    ("DS1 + 1", "SD1000", "decimal", "Math.dest: 'SD1000' is not a writable SD"),
     # ranges: one bank (OBJ-1015), low : high (OBJ-1014), median <= 1024 bytes (OBJ-1013)
     ("SUM ( DS1 : DD5 )", "DD9", "decimal", "DS1 : DD5 spans two banks"),
     ("SUM ( DS10 : DS1 )", "DD9", "decimal", "DS10 : DS1 runs high to low"),
@@ -335,10 +335,10 @@ def test_longest_formula_fits_the_slots_and_matches_the_header() -> None:
 @pytest.mark.parametrize(
     ("fields", "field"),
     [
-        ({0x6065: "C1"}, "Math.result"),  # a bit result
-        ({0x6065: "SD62"}, "Math.result"),  # an SD that is not writable
+        ({0x6065: "C1"}, "Math.dest"),  # a bit result
+        ({0x6065: "SD62"}, "Math.dest"),  # an SD that is not writable
         ({0x11FE: "-1", 0x6065: "DH9", 0x61FD: "DS1#+#DH2"}, "Math.expression"),  # hex DS
-        ({0x11FE: "-1", 0x61FD: "DH1#+#DH2"}, "Math.result"),  # a hex Math into DS9
+        ({0x11FE: "-1", 0x61FD: "DH1#+#DH2"}, "Math.dest"),  # a hex Math into DS9
         ({0x61FF: "SUM ( @ : @ )", 0x61FD: "SUM#(#CT1#:#CT3#)"}, "Math.expression"),  # CT
         ({0x61FF: "@ + 3000000000", 0x61FD: "DS1#+#W3000000000"}, "Math.expression"),  # int32
         ({0x61FF: "@ + 007", 0x61FD: "DS1#+#H007"}, "Math.expression"),  # reads back as 7

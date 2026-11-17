@@ -22,7 +22,7 @@ def _rung(expr: str) -> Rung:
     return Rung(
         logical_rows=1,
         conditions=[[""] * 31],
-        instructions=[Math(expression=expr, result="DD1")],
+        instructions=[Math(expression=expr, dest="DD1")],
         comment=None,
     )
 
@@ -115,7 +115,7 @@ def test_hex_mode_legacy_h_is_a_refusal_not_a_legacy_finding():
     """A hex Math takes no decimal constant, so an older ``H70000`` in one decodes keeping
     that refusal, with no legacy finding: older laddercodec wrote H in a decimal Math only."""
     class_name, type_code, _, _, fields = _decompose_blob(
-        Math(expression="1h + DH1", result="DH2", mode="hex").build_blob()
+        Math(expression="1h + DH1", dest="DH2", mode="hex").build_blob()
     )
     tags = {tag: value for tag, _, value in fields}
     assert from_tags_af(class_name, type_code, tags) is not None

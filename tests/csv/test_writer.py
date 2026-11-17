@@ -563,7 +563,7 @@ class TestDecodedRungToRows:
         rung = Rung(
             logical_rows=1,
             conditions=[[Contact("C222")] + ["-"] * 30],
-            instructions=[ForLoop(limit="3", oneshot=False)],
+            instructions=[ForLoop(count="3", oneshot=False)],
             comment_rtf=None,
             comment=None,
         )

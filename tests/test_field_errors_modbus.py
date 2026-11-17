@@ -336,8 +336,8 @@ def test_raw_gives_every_refusal() -> None:
         ("RawInstruction.class_name", Reason.FORM, None),
         ("RawInstruction.blob", Reason.FORM, None),
         ("RawInstruction.part_count", Reason.RANGE, None),
-        ("RawInstruction.visual_rows", Reason.RANGE, None),
-        ("RawInstruction.sub_rows", Reason.FORM, None),
+        ("RawInstruction.rows", Reason.RANGE, None),
+        ("RawInstruction.sub", Reason.FORM, None),
     ]
 
 
@@ -347,16 +347,16 @@ def test_raw_part_count_and_rows_reasons() -> None:
         assert (error.field, error.reason) == ("RawInstruction.part_count", reason)
     for bad, reason in ((1.5, Reason.FORM), (256, Reason.RANGE)):
         (error,) = _refusals(lambda: RawInstruction("X", b"", 1, bad))  # noqa: B023
-        assert (error.field, error.reason) == ("RawInstruction.visual_rows", reason)
+        assert (error.field, error.reason) == ("RawInstruction.rows", reason)
 
 
 @pytest.mark.parametrize(
     ("token", "field", "reason"),
     [
-        ("raw(Tmr,0x2718,2,rows=x)", "RawInstruction.visual_rows", Reason.FORM),
-        ("raw(Tmr,0x2718,2,rows=99)", "RawInstruction.visual_rows", Reason.RANGE),
-        ("raw(Tmr,0x2718,2,rows=1,sub=256)", "RawInstruction.sub_rows", Reason.RANGE),
-        ("raw(Tmr,0x2718,2,rows=5,pins=2)", "RawInstruction.visual_rows", Reason.FORM),
+        ("raw(Tmr,0x2718,2,rows=x)", "RawInstruction.rows", Reason.FORM),
+        ("raw(Tmr,0x2718,2,rows=99)", "RawInstruction.rows", Reason.RANGE),
+        ("raw(Tmr,0x2718,2,rows=1,sub=256)", "RawInstruction.sub", Reason.RANGE),
+        ("raw(Tmr,0x2718,2,rows=5,pins=2)", "RawInstruction.rows", Reason.FORM),
         ("raw(Tmr,0x2718,1,pins=1)", None, Reason.FORM),
         ("raw(Tmr,0x2718,3,pins=2/1)", None, Reason.FORM),
         ("raw(Tmr,0x2718,2,pins=40)", None, Reason.FORM),

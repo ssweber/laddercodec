@@ -47,7 +47,7 @@ def test_math_gives_every_refusal() -> None:
     """A result in a bank Math does not write, a refused formula and a bad flag: three."""
     errors = _refusals(lambda: Math("DS1 + DS0", "C1", oneshot=2))
     assert _shape(errors) == [
-        ("Math.result", "bank", "OBJ-004"),
+        ("Math.dest", "bank", "OBJ-004"),
         (_EXPR, "address", None),
         ("Math.oneshot", "flag", None),
     ]
@@ -82,16 +82,15 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
     )
     for result, reason, click_id in cases:
         (error,) = _refusals(lambda result=result: Math("DH1", result, "hex"))
-        assert (error.field, error.reason, error.click_id) == ("Math.result", reason, click_id)
+        assert (error.field, error.reason, error.click_id) == ("Math.dest", reason, click_id)
     assert str(_refusals(lambda: Math("DH1", "SD29", "hex"))[0]) == (
-        "Math.result: 'SD29' is outside the range of a hex Math result (OBJ-003); "
-        "it takes DH and YD"
+        "Math.dest: 'SD29' is outside the range of a hex Math result (OBJ-003); it takes DH and YD"
     )
     assert str(_refusals(lambda: Math("DH1", "SD0", "hex"))[0]) == (
-        "Math.result: 'SD0' is not allowed; Math.result takes DH, YD (OBJ-004)"
+        "Math.dest: 'SD0' is not allowed; Math.dest takes DH, YD (OBJ-004)"
     )
     assert str(_refusals(lambda: Math("DH1", "YD9", "hex"))[0]) == (
-        "Math.result: 'YD9' is outside the range of a hex Math result (OBJ-003); "
+        "Math.dest: 'YD9' is outside the range of a hex Math result (OBJ-003); "
         "it takes DH1-DH500, YD0, YD0u, YD1-YD8"
     )
     for result in ("YD0", "YD0u", "YD8"):
@@ -104,7 +103,7 @@ def test_hex_result_in_sd_is_outside_the_range() -> None:
 
 def test_math_result_and_formula_both_reported() -> None:
     errors = _refusals(lambda: Math("DS1 + FOO", "DH1"))
-    assert _shape(errors) == [("Math.result", "bank", "OBJ-004"), (_EXPR, "kind", "OBJ-1001")]
+    assert _shape(errors) == [("Math.dest", "bank", "OBJ-004"), (_EXPR, "kind", "OBJ-1001")]
 
 
 # ---------------------------------------------------------------------------

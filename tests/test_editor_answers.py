@@ -366,7 +366,7 @@ def saved_box(raw: RawInstruction) -> AfInstruction | None:
     class_name, type_code, _parts, extra, fields = _decompose_blob(raw.blob)
     tags = {tag: value for tag, _sentinel, value in fields}
     part_rows = bytes([1, *(1 + row for row in extra)])
-    cell_rows = bytes([raw.visual_rows or 0, raw.sub_rows or 0])
+    cell_rows = bytes([raw.rows or 0, raw.sub or 0])
     box = _scr_box(class_name, type_code, tags, part_rows, {}, {}, cell_rows)
     return None if isinstance(box, RawInstruction) else box
 

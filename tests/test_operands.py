@@ -219,10 +219,10 @@ def test_token_rows_refusal_names_a_field_only_for_a_raw_token() -> None:
 
     with pytest.raises(errors.FieldError) as info:
         RawInstruction.from_csv_token("raw(Timer,0x0001,2,rows=abc)")
-    assert info.value.field == "RawInstruction.visual_rows"
+    assert info.value.field == "RawInstruction.rows"
     with pytest.raises(errors.FieldError) as info:
         RawInstruction.from_csv_token("raw(Timer,0x0001,2,sub=0)")
-    assert info.value.field == "RawInstruction.sub_rows"
+    assert info.value.field == "RawInstruction.sub"
     with pytest.raises(errors.FieldError) as info:
         Velocity.from_csv_token("raw(Velocity,0x2735,1,rows=abc)")
     assert info.value.field is None

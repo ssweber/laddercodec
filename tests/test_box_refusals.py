@@ -63,10 +63,10 @@ def _search(**kw: Any) -> Search:
     fields: dict[str, Any] = dict(
         table_start="DS1",
         table_end="DS5",
-        source="DS10",
+        value="DS10",
         result="DS11",
         found="C1",
-        comparison="==",
+        op="==",
     )
     return Search(**{**fields, **kw})
 
@@ -134,7 +134,7 @@ def _counter(**kw: Any) -> Counter:
         ),
         (
             lambda: ForLoop("DH1", oneshot=7),
-            [("ForLoop.limit", Reason.BANK), ("ForLoop.oneshot", Reason.FLAG)],
+            [("ForLoop.count", Reason.BANK), ("ForLoop.oneshot", Reason.FLAG)],
         ),
         (
             lambda: _drum(current_step="C1", completion_flag="DS1"),
@@ -145,9 +145,9 @@ def _counter(**kw: Any) -> Counter:
             [("Search.result", Reason.BANK), ("Search.found", Reason.BANK)],
         ),
         (
-            lambda: _search(table_start="C1", table_end="C2", comparison="~"),
+            lambda: _search(table_start="C1", table_end="C2", op="~"),
             [
-                ("Search.comparison", Reason.CHOICE),
+                ("Search.op", Reason.CHOICE),
                 ("Search.table_start", Reason.BANK),
                 ("Search.table_end", Reason.BANK),
             ],
@@ -232,10 +232,10 @@ def test_call_reports_its_one_field_once() -> None:
         (lambda: Call("a/b"), ("Call.subroutine", Reason.FORM, "GUI-040")),
         (lambda: Call("x" * 300), ("Call.subroutine", Reason.RANGE, None)),
         # ForLoop
-        (lambda: ForLoop(""), ("ForLoop.limit", Reason.MISSING, None)),
-        (lambda: ForLoop("1 0"), ("ForLoop.limit", Reason.FORM, None)),
-        (lambda: ForLoop("DH1"), ("ForLoop.limit", Reason.BANK, "OBJ-004")),
-        (lambda: ForLoop("2147483648"), ("ForLoop.limit", Reason.RANGE, "OBJ-005")),
+        (lambda: ForLoop(""), ("ForLoop.count", Reason.MISSING, None)),
+        (lambda: ForLoop("1 0"), ("ForLoop.count", Reason.FORM, None)),
+        (lambda: ForLoop("DH1"), ("ForLoop.count", Reason.BANK, "OBJ-004")),
+        (lambda: ForLoop("2147483648"), ("ForLoop.count", Reason.RANGE, "OBJ-005")),
         (lambda: ForLoop("3", oneshot=2), ("ForLoop.oneshot", Reason.FLAG, None)),
         # Drum
         (lambda: _drum("spin"), ("Drum.kind", Reason.CHOICE, None)),
@@ -290,20 +290,20 @@ def test_call_reports_its_one_field_once() -> None:
         ),
         (lambda: _drum(jog_enabled=2), ("Drum.jog_enabled", Reason.FLAG, None)),
         # Search
-        (lambda: _search(comparison="~"), ("Search.comparison", Reason.CHOICE, None)),
+        (lambda: _search(op="~"), ("Search.op", Reason.CHOICE, None)),
         (
             lambda: _search(table_start="C1", table_end="C2"),
             ("Search.table_start", Reason.BANK, None),
         ),
         (lambda: _search(result="C1"), ("Search.result", Reason.BANK, None)),
         (lambda: _search(found="DS1"), ("Search.found", Reason.BANK, None)),
-        (lambda: _search(source="C1"), ("Search.source", Reason.BANK, None)),
-        (lambda: _search(source='"A'), ("Search.source", Reason.ADDRESS, None)),
+        (lambda: _search(value="C1"), ("Search.value", Reason.BANK, None)),
+        (lambda: _search(value='"A'), ("Search.value", Reason.ADDRESS, None)),
         (
-            lambda: _search(source="TXT1", comparison=">"),
-            ("Search.comparison", Reason.CONFLICT, None),
+            lambda: _search(value="TXT1", op=">"),
+            ("Search.op", Reason.CONFLICT, None),
         ),
-        (lambda: _search(source="0FFh"), ("Search.source", Reason.CONFLICT, None)),
+        (lambda: _search(value="0FFh"), ("Search.value", Reason.CONFLICT, None)),
         (lambda: _search(continuous=2), ("Search.continuous", Reason.FLAG, None)),
     ],
 )
@@ -326,7 +326,7 @@ def test_a_pair_names_both_fields() -> None:
     ]
     assert _fields(lambda: Shift("C1", "C1")) == [("Shift.end_bit", "Shift.start_bit")]
     assert _fields(lambda: _drum(outputs=["C1", "C1"])) == [("Drum.outputs[1]", "Drum.outputs[0]")]
-    assert _fields(lambda: _search(source="0FFh")) == [("Search.source", "Search.table_start")]
+    assert _fields(lambda: _search(value="0FFh")) == [("Search.value", "Search.table_start")]
 
 
 # ---------------------------------------------------------------------------

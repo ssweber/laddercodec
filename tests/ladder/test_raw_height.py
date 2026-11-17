@@ -148,7 +148,7 @@ def test_scr_raw_takes_entry_row_bytes(
 
 def _short_email() -> RawInstruction:
     """An Email box stored at 1 row, as CLICK copies back a pasted 1-row box."""
-    return RawInstruction("Email", Email().build_blob(), 1, visual_rows=1, sub_rows=1)
+    return RawInstruction("Email", Email().build_blob(), 1, rows=1, sub=1)
 
 
 @pytest.mark.parametrize("below", ["NOP", Coil("Y001")], ids=["nop", "coil"])
@@ -192,26 +192,26 @@ def test_tall_classes_are_in_the_captures() -> None:
 def test_cell_rows_take_part_in_equality() -> None:
     # Two boxes are equal when they encode the same +0x09/+0x0A.
     blob = _raw_token_of(_typed(V4 / "sweep_search.bin", "Search")).blob
-    native = RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=3)
+    native = RawInstruction("Search", blob, 1, rows=2, sub=3)
     class_rule = RawInstruction("Search", blob, 1)
     assert native != class_rule
-    assert class_rule == RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=2)
-    assert class_rule == RawInstruction("Search", blob, 1, visual_rows=2)
+    assert class_rule == RawInstruction("Search", blob, 1, rows=2, sub=2)
+    assert class_rule == RawInstruction("Search", blob, 1, rows=2)
     assert native.cell_params() == {"visual_rows": 2, "sub_rows": 3}
     assert class_rule.cell_params() == {"visual_rows": 2}
 
 
 @pytest.mark.parametrize("bad", [0, 256, -1, True, "2", 2.0])
 def test_cell_rows_refused(bad: object) -> None:
-    with pytest.raises(FieldError, match="RawInstruction.visual_rows"):
-        RawInstruction("Zzz", b"", visual_rows=bad)  # type: ignore[arg-type]
-    with pytest.raises(FieldError, match="RawInstruction.sub_rows"):
-        RawInstruction("Zzz", b"", sub_rows=bad)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="RawInstruction.rows"):
+        RawInstruction("Zzz", b"", rows=bad)  # type: ignore[arg-type]
+    with pytest.raises(FieldError, match="RawInstruction.sub"):
+        RawInstruction("Zzz", b"", sub=bad)  # type: ignore[arg-type]
 
 
 def test_sub_rows_default_to_the_given_span() -> None:
-    assert RawInstruction("Zzz", b"", visual_rows=3).cell_params() == {"visual_rows": 3}
-    assert RawInstruction("Zzz", b"", visual_rows=1, sub_rows=1).cell_params() == {}
+    assert RawInstruction("Zzz", b"", rows=3).cell_params() == {"visual_rows": 3}
+    assert RawInstruction("Zzz", b"", rows=1, sub=1).cell_params() == {}
 
 
 # ---------------------------------------------------------------------------
@@ -372,7 +372,7 @@ def test_writer_sees_a_raw_height_loss() -> None:
     # The writer's round-trip check compares raw heights: a box that would read back at
     # another height than it encodes fails it.
     blob = _raw_token_of(_typed(V4 / "sweep_search.bin", "Search")).blob
-    native = RawInstruction("Search", blob, 1, visual_rows=2, sub_rows=3)
+    native = RawInstruction("Search", blob, 1, rows=2, sub=3)
     rows = decoded_rung_to_rows(_rung_of(native, 2))
     token = rows[0][-1]
     assert ",rows=2,sub=3," in token
@@ -382,7 +382,7 @@ def test_writer_sees_a_raw_height_loss() -> None:
 
 
 @pytest.mark.parametrize(
-    ("fields", "visual_rows", "sub_rows"),
+    ("fields", "rows", "sub"),
     [
         ("", None, None),
         ("rows=3,", 3, None),
@@ -391,11 +391,9 @@ def test_writer_sees_a_raw_height_loss() -> None:
         ("rows=32,sub=255,", 32, 255),
     ],
 )
-def test_raw_token_rows_fields_are_optional(
-    fields: str, visual_rows: int | None, sub_rows: int | None
-) -> None:
+def test_raw_token_rows_fields_are_optional(fields: str, rows: int | None, sub: int | None) -> None:
     raw = RawInstruction.from_csv_token(f"raw(Zzz,0x1234,1,{fields}0001=a,0000=)")
-    assert (raw.visual_rows, raw.sub_rows) == (visual_rows, sub_rows)
+    assert (raw.rows, raw.sub) == (rows, sub)
     assert raw.to_csv().startswith("raw(Zzz,0x1234,1,rows=")
     assert RawInstruction.from_csv_token(raw.to_csv()) == raw
 
@@ -436,7 +434,7 @@ def test_legacy_hex_token_takes_rows_fields() -> None:
     assert legacy.cell_params() == {"visual_rows": 3}
     stated = RawInstruction.from_csv_token(f"raw(Email,{blob.hex()},rows=1,sub=1)")
     assert stated.cell_params() == {}
-    assert stated == RawInstruction("Email", blob, 1, visual_rows=1, sub_rows=1)
+    assert stated == RawInstruction("Email", blob, 1, rows=1, sub=1)
 
 
 # ---------------------------------------------------------------------------
@@ -563,7 +561,7 @@ def test_raw_box_the_fields_form_refuses_writes_hex(extra: bytes, rows: int | No
     from laddercodec.instructions.raw import _compose_blob
 
     blob = _compose_blob("Zzz", 0x1234, 3, extra, [(0x0001, _STANDARD_SENTINEL, "a")])
-    raw = RawInstruction("Zzz", blob, 3, visual_rows=rows)
+    raw = RawInstruction("Zzz", blob, 3, rows=rows)
     token = raw.to_csv()
     assert token.startswith(f"raw(Zzz,{blob.hex()},rows=")
     assert RawInstruction.from_csv_token(token) == raw
