@@ -585,7 +585,7 @@ def test_text_copy_past_txt1000_refused(
 
 
 def test_pointer_copy_with_an_end_stays_raw() -> None:
-    """CLICK writes an empty 0x6077 for a copy through a pointer.
+    """CLICK writes no value in 0x6077 for a copy through a pointer.
 
     A blob with a value in 0x6077 stays raw()."""
     tags = {0x6074: '"AB"', 0x6076: "TXT[DS1]", 0x6077: "TXT2", 0x2223: "0", 0x2227: "0"}
