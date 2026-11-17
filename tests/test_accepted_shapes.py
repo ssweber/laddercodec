@@ -1,9 +1,11 @@
-"""check(), read_csv, write_csv and encode on shapes CLICK v4.00 pastes and keeps.
+"""Test check(), read_csv, write_csv and encode on rungs that CLICK v4.00 pastes and keeps.
 
-Ground truth (``fixtures/layout_check/README.md``): ``accepted_shapes.csv``,
-``two_wires.csv`` and ``nop_leg.csv`` pasted into CLICK, its Syntax Check answer (``*_errors.txt``) and the
-program it saved after the check (``*_checked.scr``), which holds every rung as pasted.
-Nothing refuses these shapes; only the check does.
+The expected results come from CLICK, as ``fixtures/layout_check/README.md`` describes.
+``accepted_shapes.csv``, ``two_wires.csv`` and ``nop_leg.csv`` were each pasted into CLICK.
+For each one, ``*_errors.txt`` holds the answer of CLICK's Syntax Check, and
+``*_checked.scr`` is the program that CLICK saved after the check. The saved program holds
+every rung as it was pasted. Neither CLICK's paste nor laddercodec refuses these rungs. Only
+the Syntax Check reports errors on them.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ from laddercodec import Rung, check, decode_program, encode, read_csv, write_csv
 
 LC = Path(__file__).parent / "fixtures" / "layout_check"
 
-#: The shape of each rung of each file, from 1 as CLICK numbers them.
+#: The shape of each rung in each file, by rung number. CLICK numbers rungs from 1.
 FILES = {
     "accepted_shapes": {
         1: "a contact in parallel with a wire-only leg",
@@ -98,14 +100,15 @@ def test_write_csv_round_trips(name: str, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("name", FILES)
 def test_encode_is_the_payload_click_was_given(name: str) -> None:
-    """The CSV, encoded, is the clipboard payload the runner pasted: nothing refuses a shape."""
+    """encode accepts every rung and gives the clipboard payload that was pasted into CLICK."""
     assert encode(_read(name)) == (LC / f"{name}_pasted.clip.bin").read_bytes()
 
 
 def test_a_mesh_of_contacts_checks_quickly(tmp_path: Path) -> None:
-    """32 rows of 31 contacts, each with a down wire, into one coil: check() and read_csv are fast.
+    """read_csv and check() take under 2 s on a rung of 32 rows of 31 contacts.
 
-    The reachability walk once took 20 s on this rung.
+    Each row ends in out(Y001). Every contact above the last row has a down wire. The
+    reachability walk once took 20 s on this rung.
     """
     import time
 

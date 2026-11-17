@@ -1,9 +1,8 @@
 """Tests for laddercodec.instructions.copy: termination codes and conversion types.
 
-CLICK and pyrung's exporter spell a termination code as ``$`` + two hex digits
-(``$0D``, ``$00``), so a decoded Copy must write the same text.  Conversion
-types (tag 0x2227) follow CLICK's dialog: they depend on the source and
-destination types.
+CLICK and pyrung's exporter write a termination code as ``$`` and two hex digits
+(``$0D``, ``$00``). A decoded Copy must write the same text. The conversion type
+(tag 0x2227) depends on the source and destination types, as in CLICK's Copy dialog.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from laddercodec.instructions.raw import _decompose_blob
 
 
 def _conv_and_option(copy: Copy) -> tuple[str, str]:
-    """(0x2227 conversion type, 0x2206 option) as written."""
+    """Return the conversion type (tag 0x2227) and option (tag 0x2206) of *copy*'s blob."""
     fields = {tag: value for tag, _s, value in _decompose_blob(copy.build_blob())[4]}
     return fields[0x2227], fields[0x2206]
 
@@ -53,7 +52,7 @@ def _conv_and_option(copy: Copy) -> tuple[str, str]:
             "1",
             "copy(DF1,TXT1,convert=to_text(exponential=1,termination_code=none))",
         ),
-        (  # a DF pointer takes a DF source's options
+        (  # a DF pointer gets the options of a DF source
             "copy(DF[DS1],TXT1,convert=to_text(exponential=1,termination_code=none))",
             "4",
             "1",
@@ -65,7 +64,7 @@ def _conv_and_option(copy: Copy) -> tuple[str, str]:
             "0",
             "copy(1.5,TXT1,convert=to_text(exponential=0,termination_code=none))",
         ),
-        (  # an integer pointer takes an integer source's
+        (  # an integer pointer gets the options of an integer source
             "copy(DD[DS1],TXT1,convert=to_text(suppress_zero=1,termination_code=none))",
             "1",
             "0",
@@ -99,7 +98,10 @@ def test_exponential_on_integer_source_rejected(source: str) -> None:
 @pytest.mark.parametrize("source", ["DF1", "DF[DS1]", "1.5"])
 @pytest.mark.parametrize("value", ["0", "1"])
 def test_suppress_zero_on_a_real_source_is_refused(source: str, value: str) -> None:
-    """CLICK's dialog offers no Suppress zero for a DF source or a real constant."""
+    """Suppress zero on a DF source or a real constant raises a FieldError.
+
+    CLICK's dialog offers no Suppress zero for a DF source or a real constant.
+    """
     with pytest.raises(FieldError, match="only has exponential") as raised:
         Copy.from_csv_token(f"copy({source},TXT1,convert=to_text(suppress_zero={value}))")
     [error] = raised.value.errors
@@ -111,14 +113,17 @@ def test_suppress_zero_on_a_real_source_is_refused(source: str, value: str) -> N
 def test_conversion_type_for_another_source_is_not_decoded(
     conv: int, source: str, destination: str
 ) -> None:
-    """A type CLICK only writes for another source kind is left to raw()."""
+    """A conversion type that CLICK writes only for another kind of source is left to raw().
+
+    from_tags returns None for it.
+    """
     tags = {0x6074: source, 0x6076: destination, 0x2227: str(conv)}
     assert from_tags("Copy", 0x2721, tags) is None
 
 
 _TOKEN = "copy(DS20,TXT7,convert=to_text(suppress_zero=1,termination_code={code}))"
 
-#: Below 0x10 is where a one-digit spelling used to slip out.
+#: The codes below 0x10 check that a code keeps both digits, as in ``$0D``, not ``$D``.
 _CODES = ["$00", "$0D", "$0A", "$13", "$7F"]
 
 
@@ -136,7 +141,11 @@ def test_termination_code_round_trips(code: str) -> None:
 
 @pytest.mark.parametrize(("code", "term_char"), [("$00", None), ("$0D", "13")])
 def test_termination_code_from_scr_tags(code: str, term_char: str | None) -> None:
-    """SCR omits 0x3216 at 0, so a $00 terminator has only its 0x1221 flag."""
+    """from_tags reads the termination code from the tags of an SCR file.
+
+    The SCR file leaves out tag 0x3216 when its value is 0, so a $00 terminator has only its
+    0x1221 flag.
+    """
     tags = {0x6074: "DS20", 0x6076: "TXT7", 0x2227: "1", 0x1221: ""}
     if term_char is not None:
         tags[0x3216] = term_char
@@ -147,7 +156,10 @@ def test_termination_code_from_scr_tags(code: str, term_char: str | None) -> Non
 
 @pytest.mark.parametrize("end_tag", [0x6075, 0x6077])
 def test_single_copy_with_end_address_is_not_decoded(end_tag: int) -> None:
-    """Copy type 0 (absent 0x2223) with an end address is left to raw(), not truncated."""
+    """A single Copy (type 0, no tag 0x2223) with an end address is left to raw().
+
+    from_tags returns None for it, so the end address is not dropped.
+    """
     tags = {0x6074: "DS1", 0x6076: "DS10", end_tag: "DS20"}
     assert from_tags("Copy", 0x2721, tags) is None
 
@@ -174,7 +186,7 @@ def test_invalid_termination_code_rejected(bad: str) -> None:
     ],
 )
 def test_binary_termination_code_round_trips(tmp_path: Path, code: str, token: str) -> None:
-    """Copy -> CSV -> read_csv -> encode -> decode keeps a to_binary termination code."""
+    """A to_binary termination code, or no code, survives CSV, read_csv, encode and decode."""
     copy = Copy("DS1", "TXT1", convert="to_binary", termination_code=code)
     assert copy.to_csv() == token
     assert Copy.from_csv_token(token) == copy

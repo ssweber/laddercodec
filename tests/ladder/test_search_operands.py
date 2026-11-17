@@ -1,6 +1,8 @@
-"""Search operand rules: the table is DS, DD, DH, DF, TD, CTD or TXT, the result a DS, and
-the search value a constant or a data register, never a bit.  The Result Flag,
-pointer, table range, text operator and hex value rules are Search's own.
+"""Tests for the rules on Search's operands.
+
+The table is DS, DD, DH, DF, TD, CTD or TXT. The result is a DS. The search value is a
+constant or a data register, never a bit. The rules for the Result Flag, pointers, the
+table range, text operators and hex values apply only to Search.
 """
 
 from __future__ import annotations
@@ -43,21 +45,24 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("DS1..DS10 == 1", "result=DS20,found=Y001", "Search.found: 'Y001' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=XD0u", "Search.found: 'XD0u' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=YD0u", "Search.found: 'YD0u' is not allowed"),
-        # no pointers
+        # Search refuses a pointer
         ("DS1..DS10 == DS[DS100]", "result=DS20,found=C1", "Search.value: 'DS\\[DS100\\]' is a"),
         ("DS1..DS10 == 1", "result=DS[DS1],found=C1", "Search.result: 'DS\\[DS1\\]' is a"),
         ("DS[DS1]..DS10 == 1", "result=DS20,found=C1", "Search.table_start: 'DS\\[DS1\\]' is a"),
-        # the table is one bank, start before end (OBJ-009, OBJ-008, OBJ-012)
+        # the table is in one bank, and its start comes before its end (OBJ-009, OBJ-008,
+        # OBJ-012)
         ("DS10..DS1 == 1", "result=DS20,found=C1", "DS10\\.\\.DS1 runs backwards"),
         ("DS1..DD5 == 1", "result=DS20,found=C1", "'DD5' is not in the bank of 'DS1'"),
         ("DS1..DS1 == 1", "result=DS20,found=C1", "DS1\\.\\.DS1 is one address"),
-        # a text value hides the order operators, a text constant or a TXT register alike
+        # CLICK offers no order operator for a text value, either a text constant or a TXT
+        # register
         ('TXT1..TXT10 > "A"', "result=DS20,found=C1", "'>' is not offered for text"),
         ('TXT1..TXT10 <= "A"', "result=DS20,found=C1", "'<=' is not offered for text"),
         ("TXT1..TXT10 >= $41", "result=DS20,found=C1", "'>=' is not offered for text"),
         ("TXT1..TXT10 < TXT20", "result=DS20,found=C1", "'<' is not offered for text"),
         ("DS1..DS10 > TXT20", "result=DS20,found=C1", "'>' is not offered for text"),
-        # a hex value above FFFFh is 32-bit (OBJ-005; CLICK's shared input check decides by value)
+        # a hex value above FFFFh is 32-bit and is refused (OBJ-005). CLICK's shared input
+        # check decides by the value, not by the number of digits.
         ("DH1..DH10 == 10000h", "result=DS20,found=C1", "'10000h' is above FFFFh"),
         ("DH1..DH10 == 001FFFFh", "result=DS20,found=C1", "'001FFFFh' is above FFFFh"),
     ],
@@ -103,7 +108,8 @@ def test_unknown_comparison_is_refused(comparison: str) -> None:
         Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
-# CLICK's shared constant check (operands.constants.classify) on the search value: OBJ-005.
+# The search value goes through CLICK's shared constant check, which
+# operands.constants.classify implements (OBJ-005).
 
 _INT32 = r"is outside -2147483648 to 2147483647 \(OBJ-005\)"
 _HEX_SIGN = "a hex constant has no sign$"
@@ -152,7 +158,8 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
     assert parse_af_blob(search.build_blob()) == search
 
 
-# A Search value takes a $ code only as $ and two hex digits; `$1`, `$D` and `$100` are refused.
+# A Search value accepts a $ code only as $ and two hex digits. `$1`, `$D` and `$100` are
+# refused.
 @pytest.mark.parametrize("table", ["TXT", "DS"])
 @pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
 def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
