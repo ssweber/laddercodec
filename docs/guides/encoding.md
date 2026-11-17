@@ -191,10 +191,14 @@ These report every field they refuse: `Timer`, `Coil`, `Contact`, `CompareContac
 and address, `RawInstruction` and `Undecoded`. The other instructions report the
 first refusal only.
 
-A Math formula gives one refusal for each address, constant, key or range it
-refuses, each on `Math.expression`. An error in its parentheses or in the order of
-its tokens ends the list. After a word that is none of an address, a name or a
-constant, the order, bit and range checks are skipped.
+A Math formula gives one refusal for each address, constant, key or range that it
+refuses, each on `Math.expression`. A key here is a keypad key that the mode does
+not take. Three things cut the list short:
+
+- An error in the formula's parentheses ends the list.
+- An error in the order of its tokens ends the list.
+- If the formula holds a word that is none of an address, a name or a constant, the
+  order, bit and range checks are skipped.
 
 If a target is refused when you build it, the refusal names the target's own field
 (`ModbusTcpTarget.port`). That happens before any `Send` or `Receive` holds the

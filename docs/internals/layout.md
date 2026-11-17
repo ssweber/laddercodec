@@ -132,22 +132,27 @@ CLICK's check rewrites two more rungs with no error. Both are kept as drawn:
 `check()` reports the rungs CLICK's syntax check refuses by these rules. A shape no capture
 shows is reported with `captured=False`.
 
-14. A contact whose input no line connects to the rail is C0202 at that contact, the first of
-    each such group. A path from the rail that reaches no box is C0202 at its last contact,
-    and C0003 once for the rung. A contact that feeds a `NOP` and no other box, along
-    any path, is `nop_only_contact`, C0003 once for the rung, even when a coil sits on another
-    wire of the rung or on another leg of the same split; a `NOP` on the rail alone, or on a
-    net a coil shares, is not. A contact whose two sides a wire joins (a contact in parallel
-    with a wire-only leg) is C0002.
-15. A pin whose row holds nothing (no contact, no wire, no vertical into it) is C0202 at its
-    AF cell, the row counted from 1. The captured pins are a timer's and a counter's reset in
-    a rung whose rail reaches a box. A pin whose row holds a contact or a wire that no rail
-    or contact reaches is C0202 at its AF cell too, not captured.
+14. `check()` reports these contact shapes:
+    - A contact whose input no line connects to the rail is C0202 at that contact, the
+      first of each such group.
+    - A path from the rail that reaches no box is C0202 at its last contact, and C0003
+      once for the rung.
+    - A contact that feeds a `NOP` and no other box, along any path, is
+      `nop_only_contact`: C0003 once for the rung. This holds even when a coil sits on
+      another wire of the rung or on another leg of the same split. A `NOP` on the rail
+      alone, or on a net that a coil shares, does not count.
+    - A contact whose two sides a wire joins (a contact in parallel with a wire-only
+      leg) is C0002.
+15. A pin whose row holds nothing (no contact, no wire, no vertical into it) is C0202 at
+    its AF cell, with the row counted from 1. The captured pins are a timer's and a
+    counter's reset in a rung whose rail reaches a box. A pin whose row holds a contact
+    or a wire that no rail or contact reaches is also C0202 at its AF cell. That case is
+    not captured.
 16. A circuit into the main inputs that is not series-parallel is C0001, the rung's last
-    finding: `check()` reports no C000A for the rung, and no finding about a pin's contacts.
-    The rung captured has an output above a retentive timer on its net, whose reset has no
-    contact of its own; `check()` drops C0212, C000A on a pin's net and the findings with no
-    code as well.
+    finding. `check()` reports no C000A for the rung, and no finding about a pin's
+    contacts. The rung captured has an output above a retentive timer on its net, whose
+    reset has no contact of its own. For it, `check()` also drops C0212, C000A on a pin's
+    net and the findings with no code.
 17. Two boxes are paired on a net that the rail reaches through a contact, not on the rail
     itself, when one has a used pin (a retentive timer, a counter, a shift, a drum) and one
     of these holds:
@@ -166,9 +171,9 @@ shows is reported with `captured=False`.
 18. The boxes of a C000A group get no finding about their pins' contacts. The rung captured
     has a timer's reset on an output's net, a C0205 shape by rule 19. `check()` drops every
     other pin finding of the group too, including C0212 and the findings with no code.
-19. A timer's or drum's reset whose contacts are all on a main input's circuit (a reset teed
-    off the main input) is C0205 for a timer and C0212 for a drum. A box's own inputs on
-    one net pair it with no box, and a box below the pinned box on its main input's net is
+19. A timer's or drum's reset whose contacts are all on a main input's circuit (a reset
+    teed off the main input) is C0205 for a timer and C0212 for a drum. A box's own inputs
+    on one net pair it with no box. A box below the pinned box on its main input's net is
     paired only through such a reset.
 
 ## Writing CSV
@@ -186,24 +191,26 @@ warns when they are.
 For the next capture round:
 
 - An output above a pinned box on one net reached through a branch (`C1,T:C2 -> out(Y1)`
-  above a retentive on_delay on C1's net, Reset C3): the shape of C000A with the output
-  behind a contact of its own. The box inputs share no net, so rule 17 does not report it,
-  and `read_csv` lays it out.
+  above a retentive on_delay on C1's net, Reset C3). This is the shape of C000A with the
+  output behind a contact of its own. The box inputs share no net, so rule 17 does not
+  report it, and `read_csv` lays it out.
 - A box on the net of a reset with no contact of its own (a drum's Reset teed off its main
-  input, `copy(...)` below on that net): `check()` reports C000A alone, by rules 17 and 18,
-  with `captured=False`; CLICK may accept the rung, or report C0212 or C0205 as well.
-- A bridge whose timer reset tees off its own main input: whether CLICK reports C0205 with
-  C0001 (rule 16).
-- A pin other than a timer's or counter's reset with nothing wired to it (a shift's clock, a
-  drum's jog, a counter's down): C0202 by rule 15, not captured. Nor is a pin row that holds
-  a wire no rail or contact reaches.
-- A rung with two groups of boxes that share nets: whether CLICK prints C000A once or once
-  per group.
+  input, `copy(...)` below on that net). `check()` reports C000A alone, by rules 17 and 18,
+  with `captured=False`. CLICK may accept the rung, or report C0212 or C0205 as well.
+- A bridge whose timer reset tees off its own main input. Does CLICK report C0205 with
+  C0001 (rule 16)?
+- A pin other than a timer's or counter's reset with nothing wired to it (a shift's clock,
+  a drum's jog, a counter's down). `check()` reports C0202 by rule 15, not captured. A pin
+  row that holds a wire no rail or contact reaches is not captured either.
+- A rung with two groups of boxes that share nets. Does CLICK print C000A once, or once per
+  group?
 - A rung with a `NOP` no rail or contact reaches and outputs that meet only at the rail
-  (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`): `read_csv` drops the `NOP`, then
+  (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`). `read_csv` drops the `NOP`, then
   splits the rung in two. No capture shows CLICK's check doing both on one rung.
-- A contact two pins share: CLICK's code for it, if it refuses it.
-- A `NOP` reached only by contacts that also reach a coil: `check()` reports nothing, as for a
-  `NOP` on a coil's net. Probed, not captured: C1 splits with a wire to the `NOP` and C2 to a
-  coil; a shorted contact into a `NOP` (C0002 only); an unrailed contact into a `NOP`; a rail
-  wire to a coil plus a contact off the rail into a `NOP`.
+- A contact that two pins share. What code does CLICK give it, if it refuses it?
+- A `NOP` reached only by contacts that also reach a coil. `check()` reports nothing, as
+  for a `NOP` on a coil's net. These were probed and not captured:
+  - C1 splits with a wire to the `NOP` and C2 to a coil
+  - a shorted contact into a `NOP` (C0002 only)
+  - an unrailed contact into a `NOP`
+  - a rail wire to a coil plus a contact off the rail into a `NOP`

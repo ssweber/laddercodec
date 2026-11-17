@@ -637,70 +637,86 @@ currently emit:
   and `X101`-`X116` through `X801`-`X816` on expansion modules 1-8. `X017`,
   `C2001` and `DS0` raise `AddressError`.
 - Each instruction narrows the banks it takes:
-  - Contacts take X, Y, C, T, CT or SC; `.immediate` only on X.
+  - Contacts take X, Y, C, T, CT or SC. `.immediate` is only on X.
   - `out(...)`, `latch(...)`, `reset(...)` and the Out variants (`toggle`, `debounce`,
-    `flasher`, `timed`) take Y, C or SC; `immediate(...)` only on Y, and both ends of
-    an immediate range.
+    `flasher`, `timed`) take Y, C or SC. `immediate(...)` is only on Y, and so are both
+    ends of an immediate range.
   - The SC bits a coil writes are SC50, SC51, SC53, SC55, SC60, SC61, SC65, SC66, SC67,
     SC75, SC76, SC120, SC121, SC162, SC165, SC168, SC171, SC303, SC304, SC305, SC306,
     SC323, SC324, SC325 and SC326. An SC range needs both ends on this list.
-  - A coil range stays in one bank and its end is above its start: `out(C1..C2000)`
-    and `out(immediate(Y001..Y101))` are accepted, `out(C9..C1)`, `out(C5..C5)` and
-    `out(C5..Y5)` are refused.
+  - A coil range stays in one bank, and its end is above its start. `out(C1..C2000)`
+    and `out(immediate(Y001..Y101))` are accepted. `out(C9..C1)`, `out(C5..C5)` and
+    `out(C5..Y5)` are rejected.
   - Variant accumulators are TD, and the on and off phases of `debounce` and
     `flasher` use two different TD registers. A preset is a DS register or a whole
-    number up to 32767, at least 0 for `debounce` and at least 1 for `flasher` and
-    `timed`.
+    number up to 32767. The lowest number is 0 for `debounce` and 1 for `flasher`
+    and `timed`.
   - A `debounce` may leave out one phase's keywords
-    (`debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)`); it needs at least one phase.
+    (`debounce(C1,on_acc=TD1,on_preset=100,unit=Tms)`). It needs at least one phase.
     `flasher` needs both.
-  - A compare takes data registers or constants, never bits, on either side. Both
-    sides come from one group: hex (XD, YD, DH, `0h`-`FFFFh`), numeric (TD, CTD, DS,
-    DD, DF, SD, numbers; a whole number lies in -2147483648 to 2147483647) or text
-    (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
-    is `$22`, and `"$41"` is text). A text compare takes `==` or `!=` only.
+  - A compare takes data registers or constants on either side, never bits. Both
+    sides come from one group:
+    - hex: XD, YD, DH, `0h`-`FFFFh`
+    - numeric: TD, CTD, DS, DD, DF, SD, or a number (a whole number lies in
+      -2147483648 to 2147483647)
+    - text: TXT, or 1 to 128 printable ASCII characters in quotes such as `"A"` or
+      `"AB"`, or `$41`. A quote is `$22`, and `"$41"` is text.
+
+    A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
   - Timer: done `T1`-`T500` with accumulator `TD` of the same number, and a
     preset that is a `DS` address or digits only, `0`-`32767` for every unit.
   - Counter: done `CT1`-`CT250` with accumulator `CTD` of the same number,
     and a preset that is a `DS` or `DD` address or an integer from
     `-2147483648` to `2147483647` (a `-` only in front, at most 12 characters).
-  - Shift: both ends are `C` bits and differ (`shift(C1..C1)` and `shift(C1..C001)`
-    are refused); `shift(C106..C99)` runs backwards.
-  - Drum: 1-16 steps and 1-16 outputs (`Y` or `C`), a pattern of 0/1 cells with
-    one row per step, current step `DS`, accumulator `TD`, completion flag `C`,
-    and a `.jump()` target that is a `DS` address. Each step has an event (event
-    drum) or a duration (time drum); a time and event step needs a duration or an event.
-    A time drum or a time and event drum without a `unit=`, and a time and event drum
-    without an `accumulator=`, is a syntax error, but a blank `accumulator=` on a time and
-    event drum is a `FieldError` (`missing`); a `unit=` that is not `Tms`, `Ts`,
-    `Tm`, `Th` or `Td`, an accumulator that is not `TD`, and a pattern cell that is not
-    `0` or `1` are refused with a `FieldError`.
-  - Drum events are X, Y, C, T, CT or SC; a duration is `0`-`32767` (no sign) or a
+  - Shift: both ends are `C` bits and differ. `shift(C1..C1)` and `shift(C1..C001)`
+    are rejected. `shift(C106..C99)` runs backwards.
+  - Drum:
+    - 1-16 steps and 1-16 outputs (`Y` or `C`)
+    - a pattern of 0/1 cells, with one row per step
+    - current step `DS`, accumulator `TD`, completion flag `C`
+    - a `.jump()` target that is a `DS` address
+    - for each step, an event (event drum) or a duration (time drum). A time and
+      event step needs a duration or an event.
+  - Drum errors:
+    - A time drum or a time and event drum without a `unit=` is a syntax error.
+    - A time and event drum without an `accumulator=` is a syntax error. A blank
+      `accumulator=` on a time and event drum is a `FieldError` (`missing`).
+    - A `unit=` that is not `Tms`, `Ts`, `Tm`, `Th` or `Td` raises `FieldError`. So
+      does an accumulator that is not `TD`, and a pattern cell that is not `0` or `1`.
+  - Drum events are X, Y, C, T, CT or SC. A duration is `0`-`32767` (no sign) or a
     `DS` address. No output appears twice or equals the completion flag, compared as
     addresses (`C1` and `C001` are the same bit).
 - `for(count)`: a `DS`, `DD`, `TD`, `CTD` or `SD` address, or digits only from `0` to
-  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are refused.
-- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows. With
-  outer spaces trimmed, the name is not blank, has at most 24 characters and none of
-  `\ / : * ? " < > |`, and the part before its last dot is not a Windows device name
-  (`CON`, `NUL`, `COM1`, ...).
+  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are rejected.
+- `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows.
+  After outer spaces are trimmed, the name:
+  - is not blank
+  - has at most 24 characters
+  - has none of `\ / : * ? " < > |`
+  - has a part before its last dot that is not a Windows device name (`CON`, `NUL`,
+    `COM1`, ...)
 - Block ranges render either:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
-- Indirect refs render as `BANK[pointer]`, the pointer a DS address and `BANK`
-  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`). Only a single `copy` takes one; `blockcopy`,
-  `fill`, `pack_*`, `unpack_to_*` and `search` raise `AddressError`.
+- Indirect refs render as `BANK[pointer]`. The pointer is a DS address, and `BANK` is
+  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`). Only a
+  single `copy` takes one. `blockcopy`, `fill`, `pack_*`, `unpack_to_*` and `search`
+  raise `AddressError`.
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
-  dialogs and raise `AddressError` or `FieldError` naming the field: a bit
-  copies to Y or C, a text constant to TXT, both ends of a range sit in one bank
-  and the end comes after the start (`DS1..DS1` is refused), an X or Y range in
-  a Pack source, a Block Copy source or an Unpack destination stays in one
-  16-point slot, a pack or unpack range fits its register (`pack_bits` takes
-  bits, `pack_words` registers), and a Math result is DS, DD, DF, TD, CTD or SD
-  in decimal mode, DH or YD in hex mode.
+  dialogs and raise `AddressError` or `FieldError` naming the field:
+  - a bit copies to Y or C
+  - a text constant copies to TXT
+  - both ends of a range sit in one bank, and the end comes after the start
+    (`DS1..DS1` is rejected)
+  - an X or Y range in a Pack source, a Block Copy source or an Unpack destination
+    stays in one 16-point slot
+  - a pack or unpack range fits its register (`pack_bits` takes bits, `pack_words`
+    registers)
+  - a Math result is DS, DD, DF, TD, CTD or SD in decimal mode, and DH or YD in hex
+    mode
 - A single `copy` destination, every address a `blockcopy` fills and a decimal
-  `math` result take only the SD registers a program writes: SD29, SD31, SD32,
+  `math` result accept only the SD registers a program writes: SD29, SD31, SD32,
   SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114,
   SD140-SD147, SD214 and SD215. Any other SD raises `AddressError`
   (`copy(DS1,SD43)`, `blockcopy(DS1..DS2,SD42..SD43)`).
@@ -709,131 +725,137 @@ currently emit:
     TD, CTD or SD; TXT to DS, DD, DH or TXT. The destination end is the start
     plus the source's length, whatever the banks (`blockcopy(DS1..DS4,DD1..DD4)`).
     A run into Y that would cross a slot (`blockcopy(C1..C16,Y010..Y025)`) is
-    refused: what CLICK writes for it is not captured yet.
+    rejected. What CLICK writes for it is not captured yet.
   - `pack_*`: X, Y, T, CT and SC bits pack into DH; C bits into DS, DD, DH or
     DF; DS words into DD or DF; DH words into DD; TXT into DS, DD, DH, DF, TD
     or CTD, and at most 4 characters into DH (`pack_text(TXT1..TXT4,DH1)`).
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
-- A single `copy` takes a 32-bit integer constant, and a hex constant above
-  `FFFFh` copies only to DD or CTD. A `copy` source and a `fill` value take a
-  32-bit integer and unsigned hex up to `FFFFFFFFh`, with at most 8 digits above
-  `FFFFh`; a `search` value takes a 32-bit integer and unsigned hex up to `FFFFh`
-  (`+1h` is refused).
+- Constants:
+  - A single `copy` takes a 32-bit integer constant. A hex constant above `FFFFh`
+    copies only to DD or CTD.
+  - A `copy` source and a `fill` value take a 32-bit integer and unsigned hex up to
+    `FFFFFFFFh`, with at most 8 digits above `FFFFh`.
+  - A `search` value takes a 32-bit integer and unsigned hex up to `FFFFh` (`+1h` is
+    rejected).
 - A single `copy` source and a `math` constant are written as CLICK stores them,
   in `to_csv()`, `write_csv` and the encoded rung alike:
   - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
     `0.5`, `1E5` is `100000.0`, and in a `math` a typed `+2.5` stays.
     laddercodec prints a real with 7 significant digits, which fits those
-    answers, and keeps a typed `+` in a `math` (`+2.50` is written `+2.5`); CLICK
+    answers, and keeps a typed `+` in a `math` (`+2.50` is written `+2.5`). CLICK
     has not answered for the rest. A real
     that 7 significant digits would print in exponent form (from `1E+07` up and
-    below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
+    below `1E-04`, such as `1.5E+10`) is kept as typed. So is one whose
     7-digit print is another float32 value (`1234567.89`);
   - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), as CLICK's Copy
     stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
-    zeros aside, and saves a real typed with more cut to 7 (`3.4028235E+38` as
-    `3.402823E+38`), so a `copy` refuses one and the message names the constant
-    of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`); a `math`
-    keeps 6 and refuses more the same way (`0.33333334` names `0.333333`);
+    zeros aside. It saves a real typed with more cut to 7 (`3.4028235E+38` as
+    `3.402823E+38`). So a `copy` rejects one, and the message names the constant
+    of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`). A `math`
+    keeps 6 and rejects more the same way (`0.33333334` names `0.333333`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
     and `+0` stay, `-0` is `0`), and a hex constant with uppercase digits, its
     leading zeros and a lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
   - in a `math`, a hex constant with uppercase digits and no leading zeros
     (`0ffh` is `FFh`, `0000h` is `0h`);
   - in a `copy` to TXT, `$` and one hex digit as the code with two (`$1` is
-    `$01`); a `fill`, a compare and a search still refuse `$1`.
+    `$01`). A `fill`, a compare and a search still reject `$1`.
 
-  `copy(EH,DH1)` and `copy(1Eh,DH1)` are refused: CLICK's Copy stores `EH` as
-  the real `0.0` and `1Eh` as `1.0`, not as hex. Write the real, or the hex
-  value as a decimal integer (`14` for `Eh`, `30` for `1Eh`). `constant_text()`
-  writes a Python int, float or str as text that builds a `math` or a `copy`
-  holding that value (`constant_text(255, hex=True)` is `FFh`), but a `copy`
-  refuses a real of more than 7 significant digits and a `math` one of more than
-  6 (`constant_text(1/3)` is `0.33333334`): the largest float32 value is
-  `3.402823466E+38`; write `3.402823E+38` in a `copy` and `3.40282E+38` in a
+  `copy(EH,DH1)` and `copy(1Eh,DH1)` are rejected. CLICK's Copy stores `EH` as
+  the real `0.0` and `1Eh` as `1.0`, not as hex. Write the real, or write the hex
+  value as a decimal integer (`14` for `Eh`, `30` for `1Eh`).
+
+  `constant_text()` writes a Python int, float or str as text that builds a `math`
+  or a `copy` holding that value (`constant_text(255, hex=True)` is `FFh`). A `copy`
+  rejects a real of more than 7 significant digits, and a `math` rejects one of
+  more than 6 (`constant_text(1/3)` is `0.33333334`). The largest float32 value is
+  `3.402823466E+38`. Write `3.402823E+38` in a `copy` and `3.40282E+38` in a
   `math`.
-- Constants, counts and address numbers use the digits 0-9 only; a digit from
-  another script (`٣`) is refused.
+- Constants, counts and address numbers use the digits 0-9 only. A digit from
+  another script (`٣`) is rejected.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
   text constant or a TXT register), and a hex value of at most `FFFFh`.
-- In a decimal `math`, an integer constant must read back as typed: CLICK keeps
+- In a decimal `math`, an integer constant must read back as typed. CLICK keeps
   its low 32 bits and refuses it when they print at a different length
-  (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
-  constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`1.5`). Hex digits
-  without `h` in a hex `math` (`7`, `005`, `FF`, `1e3`) are refused, though CLICK
-  reads them as hex: where CLICK takes the `h` form, the message names it (`7h`,
-  `5h`, `FFh`, `1E3h`). A hex constant has at most 4 digits, and an `H` suffix is
-  written `h`, as CLICK writes it (`7H` becomes `7h`).
-- Each `math` mode takes its own registers, and any other address is refused, in
+  (`3000000000`, `007` and `-0` are rejected).
+  - A decimal `math` takes no hex constant (`1Fh` or `1FH`), and a hex `math` takes
+    no decimal one (`1.5`).
+  - A hex `math` rejects hex digits without `h` (`7`, `005`, `FF`, `1e3`), though
+    CLICK reads them as hex. Where CLICK takes the `h` form, the message names it
+    (`7h`, `5h`, `FFh`, `1E3h`).
+  - A hex constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
+    writes it (`7H` becomes `7h`).
+- Each `math` mode takes its own registers, and any other address is rejected, in
   a `SUM` too:
   - A hex formula takes only hex values: hex constants and the DH, XD and YD
-    registers. Any other register (`DS1 + 1h`, `DD1 + 1h`) and any bit is
-    refused (`SUM ( X001 : X002 )`). Copy a register into a DH first, or pack
-    bits into a DH; or use a decimal `math` for a DS, DD, DF, TD, CTD or SD
-    value.
+    registers. It rejects any other register (`DS1 + 1h`, `DD1 + 1h`) and any bit
+    (`SUM ( X001 : X002 )`). Copy a register into a DH first, or pack bits into a
+    DH. Or use a decimal `math` for a DS, DD, DF, TD, CTD or SD value.
   - A decimal formula takes decimal constants and the DS, DD, DF, TD, CTD and SD
-    registers; an X, Y, C, T or SC bit stands only as the range of a `SUM`
-    (`SUM ( X001 : X016 )`, not `X001 + 1`). A DH, XD, YD or TXT register and a
-    CT bit are refused (`DS1 + DH1`, `SUM ( CT1 : CT5 )`). Copy a DH, XD, YD or
-    TXT register into a DS first, or use a hex `math` for a DH, XD or YD value;
-    pack CT bits into a DH, then copy the DH into a DS or use it in a hex
-    `math`.
+    registers. An X, Y, C, T or SC bit stands only as the range of a `SUM`
+    (`SUM ( X001 : X016 )`, not `X001 + 1`). It rejects a DH, XD, YD or TXT register
+    and a CT bit (`DS1 + DH1`, `SUM ( CT1 : CT5 )`). Copy a DH, XD, YD or TXT
+    register into a DS first, or use a hex `math` for a DH, XD or YD value. Pack CT
+    bits into a DH, then copy the DH into a DS or use it in a hex `math`.
 - A bound of `RAND ( a , b )` takes fewer values than the rest of the formula:
-  - In a decimal formula, a DS or DD register or an integer constant
-    (`RAND ( -5 , DD1 )`). A DF, TD, CTD or SD register is refused
-    (`RAND ( DF1 , 10 )`), and so is a real constant (`RAND ( 1.5 , 10 )`):
-    copy the register into a DS or DD first.
-  - In a hex formula, a DH register or a hex constant (`RAND ( DH1 , FFh )`).
-    An XD or YD register is refused (`RAND ( XD0 , Ah )`): copy it into a DH
-    first.
+  - In a decimal formula, a bound is a DS or DD register or an integer constant
+    (`RAND ( -5 , DD1 )`). A DF, TD, CTD or SD register is rejected
+    (`RAND ( DF1 , 10 )`), and so is a real constant (`RAND ( 1.5 , 10 )`). Copy the
+    register into a DS or DD first.
+  - In a hex formula, a bound is a DH register or a hex constant
+    (`RAND ( DH1 , FFh )`). An XD or YD register is rejected (`RAND ( XD0 , Ah )`).
+    Copy it into a DH first.
   - The two bounds differ: `RAND ( 1 , 1 )` and `RAND ( DH1 , DH1 )` are
-    refused. Bounds are equal when they read the same as CLICK shows them
-    (`01h` is `1h`, `ds1` is `DS1`), so `RAND ( 1h , 01h )` is refused and
-    `RAND ( 1 , +1 )` is taken. Reversed bounds are taken (`RAND ( 10 , 1 )`).
-- A `math` formula is at most 270 characters as CLICK stores it: a sum of 68
-  addresses fits, 69 does not; constants, functions and parentheses count too.
-- A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would
-  refuse raises `FieldError` (`AddressError` for an address):
+    rejected. Bounds are equal when they read the same as CLICK shows them
+    (`01h` is `1h`, `ds1` is `DS1`), so `RAND ( 1h , 01h )` is rejected and
+    `RAND ( 1 , +1 )` is accepted. Reversed bounds are accepted (`RAND ( 10 , 1 )`).
+- A `math` formula is at most 270 characters as CLICK stores it. A sum of 68
+  addresses fits, and 69 does not. Constants, functions and parentheses count too.
+- A `math` formula is read as CLICK's Math dialog reads it. A formula that CLICK
+  would refuse raises `FieldError` (`AddressError` for an address):
   - It holds addresses, constants, function names, operators and parentheses,
-    separated by spaces or tabs. Any other word or character (`DS1 = DS2`, `FOO`,
-    `NAN`, `0x1A`, a lone `.`, a pointer, a line break) is refused, and so is a
-    real constant above float32's largest value, 3.402823466E+38, in size
-    (`1E39`, and `3.4028235E+38`, which float32 rounds to that value), and a real
-    of more than 6 significant digits, which CLICK saves cut to 6 (`0.33333334`
-    names `0.333333`, and `3.402823466E+38` names `3.40282E+38`).
-  - Each address lies inside its bank's range: `DS1 + DS0` is refused.
-  - A sign goes at the start, after `(` or after `,`, and a decimal `math` joins
-    it to the constant after it (`( + 5 )` is written `( +5 )`). After an
-    operator, put the signed value in parentheses: `DS1 * ( -5 )`, not
-    `DS1 * -5` or `DS1 - -5`.
+    separated by spaces or tabs. It rejects:
+    - any other word or character (`DS1 = DS2`, `FOO`, `NAN`, `0x1A`, a lone `.`, a
+      pointer, a line break)
+    - a real constant above float32's largest value, 3.402823466E+38, in size
+      (`1E39`, and `3.4028235E+38`, which float32 rounds to that value)
+    - a real of more than 6 significant digits, which CLICK saves cut to 6
+      (`0.33333334` names `0.333333`, and `3.402823466E+38` names `3.40282E+38`)
+  - Each address lies inside its bank's range: `DS1 + DS0` is rejected.
+  - A sign goes at the start, after `(` or after `,`. A decimal `math` joins it to
+    the constant after it (`( + 5 )` is written `( +5 )`). After an operator, put
+    the signed value in parentheses: `DS1 * ( -5 )`, not `DS1 * -5` or `DS1 - -5`.
   - Each operator stands between two values, and two values never stand side by
-    side: `DS1 +`, `* DS1`, `DS1 DS2`, `2 PI` and `( DS1 ) ( DS2 )` are refused.
+    side. `DS1 +`, `* DS1`, `DS1 DS2`, `2 PI` and `( DS1 ) ( DS2 )` are rejected.
   - A function takes its argument in parentheses (`SIN ( DF1 )`, not `SIN DF1`).
     `PI` stands alone or before parentheses (`PI ( 2 )`).
   - `RAND`, `LSH`, `RSH`, `LRO` and `RRO` take `( a , b )`, one token each
-    (`RAND ( DS1 + 1 , 2 )` is refused), and the first argument of a shift or
-    rotate is an address (`LSH ( 1h , 2h )` is refused). A `,` anywhere else is
-    refused (`DS1 , DS2`, `MAX ( DS1 , DS2 )`): CLICK reads it as a decimal
+    (`RAND ( DS1 + 1 , 2 )` is rejected). The first argument of a shift or
+    rotate is an address (`LSH ( 1h , 2h )` is rejected). A `,` anywhere else is
+    rejected (`DS1 , DS2`, `MAX ( DS1 , DS2 )`). CLICK reads it as a decimal
     comma (OBJ-037 for `DS1 , DS2`; `MAX ( DS1 , DS2 )` carries no id).
   - `SUM`, `MAX`, `MIN`, `MDN` and `AVG` take `( a : b )`, a range of two
     addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )` and `SUM ( 1 : 5 )` are
-    refused). A `:` anywhere else is refused (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
+    rejected). A `:` anywhere else is rejected (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
   - `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `LOG`, `LN`, `SQRT`, `RAD` and
-    `DEG` hold no `RAND`, shift or rotate call, and no range but a `SUM`:
-    `SIN ( SUM ( DF1 : DF3 ) )` is accepted, `SIN ( MAX ( DF1 : DF3 ) )` is
-    refused.
+    `DEG` hold no `RAND`, shift or rotate call, and no range but a `SUM`.
+    `SIN ( SUM ( DF1 : DF3 ) )` is accepted, and `SIN ( MAX ( DF1 : DF3 ) )` is
+    rejected.
   - In a hex `math`, a constant whose digits run into an `E` (`1Eh`, `0Eh`,
-    `2E5Ah`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
-    number. `E1h` and `1Fh` are accepted, and so are digits, `E` and digits
+    `2E5Ah`, `001Eh`) is rejected, because CLICK reads the digits before the `E` as
+    a real number. `E1h` and `1Fh` are accepted. So are digits, `E` and digits
     then `h` (`1E3h`, `2E5h`): CLICK stores a hex constant typed `1e3` as `1E3h`.
 - A `math` range over X or Y with an end in the CPU's option slot, X021-X036 or
-  Y021-Y036, is refused although CLICK accepts it: on a CPU with no I/O modules,
+  Y021-Y036, is rejected although CLICK accepts it. On a CPU with no I/O modules,
   CLICK stores the wrong points for it (`SUM ( X001 : X036 )` leaves out
-  X032..X035). Three kinds of such range are accepted, since CLICK stores them
-  right: a range from the CPU slot to X021 or Y021 (`SUM ( X001 : X021 )`), a
-  range of one point (`SUM ( X025 : X025 )`), and a range of two points numbered
-  one apart (`SUM ( X025 : X026 )`; `SUM ( X036 : X101 )` is refused). A
-  range with no end in the option slot is accepted (`SUM ( X001 : X101 )`). The
+  X032..X035). Three kinds of such range are accepted, because CLICK stores them
+  right:
+  - a range from the CPU slot to X021 or Y021 (`SUM ( X001 : X021 )`)
+  - a range of one point (`SUM ( X025 : X025 )`)
+  - a range of two points numbered one apart (`SUM ( X025 : X026 )`;
+    `SUM ( X036 : X101 )` is rejected)
+
+  A range with no end in the option slot is accepted (`SUM ( X001 : X101 )`). The
   points CLICK stores are in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`).
   - An ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`): `$` and
@@ -858,13 +880,57 @@ currently emit:
   - A quoted `"$41"` is three characters of text, not the code `$41`. Use `$00`
     for the blank (NUL) character.
 - Copy converters are emitted as a `convert=` kwarg on the instruction:
-  - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register: the character's value or its ASCII code. CLICK's dialog asks for one of the two, so a plain copy of TXT into any number register but DF raises `FieldError` (`copy(TXT1,DS1)`, `blockcopy(TXT1..TXT2,DD1..DD2)`). A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK saves it, and `to_value` or `to_ascii` there raises `FieldError`: CLICK's dialog offers neither.
-  - A number constant, register or pointer copied to TXT needs `convert=to_text(...)` or `convert=to_binary`: CLICK's dialog saves one of them, Copy Value as text by default with suppress zero, or with real numbering for a real or DF source, so `copy(5,TXT1)` and `copy(DS1,TXT1)` raise `FieldError`, and the message names `convert=to_text(suppress_zero=1,termination_code=none)`.
-  - `convert=to_binary` for a value converted between a real and a 32-bit integer, where a plain copy converts it: DF to DD or CTD and back, a real constant into DD or CTD, an integer constant outside int16 into DF (`copy(CTD1,DF1,convert=to_binary)`), a pointer on either side included (`copy(DF[DS1],CTD1,convert=to_binary)`).
-  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)` for a number register copied to TXT with a termination code (`none` is accepted and writes plain `to_binary`; any other keyword raises `FieldError`). A termination code is `none`, `0`, or `$` and two hex digits (`$0D`); anything else, `$D` included, raises `FieldError`.
-  - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address or pointer (`DF[DS1]`) or a real constant (`1.5`): real (`0`) or exponential (`1`) numbering. `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other source, an integer or hex constant or a DD or DS pointer included. Only the option CLICK's dialog offers for the source is written and read: `suppress_zero` for a DF or real source raises `FieldError`, and so does `exponential=1` for any other source; `exponential=0` for one is accepted and not written.
-- A TXT register or pointer copied to TXT takes a termination code with no converter: `copy(TXT1,TXT21,termination_code=$0D)`, and for a range `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`. `none`, `0` or no keyword is no code, which any copy takes. A code for any other copy, or a code beside a `convert=` kwarg, raises `FieldError`; inside `to_binary(...)` or `to_text(...)` it is the converter's. A `blockcopy` of TXT into TXT takes no converter.
-- `copy` and `blockcopy` take the keywords `convert`, `oneshot` and `termination_code`; `fill`, `pack_bits`, `pack_words`, `unpack_to_bits` and `unpack_to_words` take `oneshot`, and `pack_text` takes `oneshot` and `allow_whitespace`. Any other (`terminaton_code=`) raises `CsvError`. A flag is `1` or `0`; any other value (`oneshot=yes`) raises `FieldError` with reason `flag`, and a blank `oneshot=` with reason `missing`. `allow_whitespace` is a `pack_text` option: a `Pack` of bits or words built with it raises `FieldError` with reason `conflict`.
+  - `convert=to_value` or `convert=to_ascii` for TXT copied to a number register.
+    They give the character's value or its ASCII code.
+    - CLICK's dialog asks for one of the two. So a plain copy of TXT into any
+      number register but DF raises `FieldError` (`copy(TXT1,DS1)`,
+      `blockcopy(TXT1..TXT2,DD1..DD2)`).
+    - A TXT register copied to DF is a plain copy (`copy(TXT1,DF1)`), as CLICK
+      saves it. `to_value` or `to_ascii` there raises `FieldError`, because CLICK's
+      dialog offers neither.
+  - A number constant, register or pointer copied to TXT needs `convert=to_text(...)`
+    or `convert=to_binary`. CLICK's dialog saves one of them. It saves Copy Value as
+    text by default, with suppress zero, or with real numbering for a real or DF
+    source. So `copy(5,TXT1)` and `copy(DS1,TXT1)` raise `FieldError`, and the
+    message names `convert=to_text(suppress_zero=1,termination_code=none)`.
+  - `convert=to_binary` for a value converted between a real and a 32-bit integer,
+    where a plain copy converts it:
+    - DF to DD or CTD, and back (`copy(CTD1,DF1,convert=to_binary)`)
+    - a real constant into DD or CTD
+    - an integer constant outside int16 into DF
+    - a pointer on either side of any of these (`copy(DF[DS1],CTD1,convert=to_binary)`)
+  - `convert=to_binary`, or `convert=to_binary(termination_code=$XX)`, for a number
+    register copied to TXT with a termination code. `none` is accepted and writes
+    plain `to_binary`. Any other keyword raises `FieldError`.
+  - A termination code is `none`, `0`, or `$` and two hex digits (`$0D`). Anything
+    else, `$D` included, raises `FieldError`.
+  - `convert=to_text(exponential=<0|1>,termination_code=<none|$XX>)` for a DF address
+    or pointer (`DF[DS1]`) or a real constant (`1.5`). It picks real (`0`) or
+    exponential (`1`) numbering.
+  - `convert=to_text(suppress_zero=<0|1>,termination_code=<none|$XX>)` for any other
+    source, including an integer or hex constant and a DD or DS pointer.
+  - laddercodec writes and reads only the option that CLICK's dialog offers for the
+    source. `suppress_zero` for a DF or real source raises `FieldError`. So does
+    `exponential=1` for any other source. `exponential=0` for any other source is
+    accepted and not written.
+- A TXT register or pointer copied to TXT takes a termination code with no converter:
+  `copy(TXT1,TXT21,termination_code=$0D)`, and for a range
+  `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`.
+  - `none`, `0` or no keyword means no code, and any copy takes that.
+  - A code for any other copy raises `FieldError`. So does a code beside a
+    `convert=` kwarg. Inside `to_binary(...)` or `to_text(...)`, it is the converter's
+    code.
+  - A `blockcopy` of TXT into TXT takes no converter.
+- Keywords by instruction:
+  - `copy` and `blockcopy` take `convert`, `oneshot` and `termination_code`.
+  - `fill`, `pack_bits`, `pack_words`, `unpack_to_bits` and `unpack_to_words` take
+    `oneshot`.
+  - `pack_text` takes `oneshot` and `allow_whitespace`.
+  - Any other keyword (`terminaton_code=`) raises `CsvError`.
+  - A flag is `1` or `0`. Any other value (`oneshot=yes`) raises `FieldError` with
+    reason `flag`, and a blank `oneshot=` raises it with reason `missing`.
+  - `allow_whitespace` is a `pack_text` option. A `Pack` of bits or words built with
+    it raises `FieldError` with reason `conflict`.
 
 ## Immediate handling
 
