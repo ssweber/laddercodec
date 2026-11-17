@@ -30,14 +30,14 @@ if TYPE_CHECKING:
 # Variant encodings
 # ---------------------------------------------------------------------------
 
-# (counter_type, down_enabled, reset_enabled) -> (mode, up_fc, down_fc, reset_fc)
+# (kind, down_enabled, reset_enabled) -> (mode, up_fc, down_fc, reset_fc)
 _VARIANT_TO_ENCODING: dict[tuple[str, bool, bool], tuple[str, str, str, str]] = {
     ("count_up", False, True): ("0", "8710", "0", "8711"),
     ("count_up", True, True): ("2", "8713", "8714", "8715"),
     ("count_down", False, True): ("1", "0", "8747", "8748"),
 }
 
-# Reverse: (mode, up_fc, down_fc, reset_fc) -> (counter_type, down_enabled, reset_enabled)
+# Reverse: (mode, up_fc, down_fc, reset_fc) -> (kind, down_enabled, reset_enabled)
 _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = {
     v: k for k, v in _VARIANT_TO_ENCODING.items()
 }
@@ -51,7 +51,7 @@ _ENCODING_TO_VARIANT: dict[tuple[str, str, str, str], tuple[str, bool, bool]] = 
 #: A '-' only leads: ``1-2`` is refused.
 _PRESET = Constants(frozenset({Kind.INTEGER}), signs="-", max_length=12)
 
-#: Register set points: DS or DD only (OBJ-004).
+#: Register presets: DS or DD only (OBJ-004).
 COUNTER_PRESET_BANKS = frozenset({"DS", "DD"})
 
 _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
@@ -65,9 +65,9 @@ _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 class Counter(PinnedInstruction):
     """A counter instruction (count_up / count_down)."""
 
-    counter_type: Literal["count_up", "count_down"]
-    done_bit: str
-    current: str
+    kind: Literal["count_up", "count_down"]
+    done: str
+    accumulator: str
     preset: str
     down_enabled: bool = False
     reset_enabled: bool = True
@@ -78,30 +78,30 @@ class Counter(PinnedInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.counter_type not in ("count_up", "count_down"):
+            if self.kind not in ("count_up", "count_down"):
                 check.refuse(
-                    "counter_type",
-                    f"{self.counter_type!r} is not count_up or count_down",
+                    "kind",
+                    f"{self.kind!r} is not count_up or count_down",
                     Reason.CHOICE,
                 )
             check.flag("down_enabled", "reset_enabled")
             if self.reset_enabled is False:
                 check.refuse("reset_enabled", "a counter always has a Reset input", Reason.CHOICE)
-            if self.down_enabled is True and self.counter_type == "count_down":
+            if self.down_enabled is True and self.kind == "count_down":
                 # count_down's own input is Down; its box has no separate .down() input.
                 check.refuse(
-                    ("down_enabled", "counter_type"),
+                    ("down_enabled", "kind"),
                     "count_down has no .down() input; only count_up does",
                     Reason.CONFLICT,
                 )
-            check.normalize("done_bit", "current", "preset")
-            done = check("done_bit", check_address, banks={"CT"})
-            current = check("current", check_address, banks={"CTD"})
-            if done is not None and current is not None and done.number != current.number:
+            check.normalize("done", "accumulator", "preset")
+            done = check("done", check_address, banks={"CT"})
+            accumulator = check("accumulator", check_address, banks={"CTD"})
+            if done is not None and accumulator is not None and done.number != accumulator.number:
                 check.refuse(
-                    ("current", "done_bit"),
-                    f"{self.current!r} must be CTD{done.number} to match Counter.done_bit "
-                    f"{self.done_bit!r}",
+                    ("accumulator", "done"),
+                    f"{self.accumulator!r} must be CTD{done.number} to match Counter.done "
+                    f"{self.done!r}",
                     Reason.CONFLICT,
                 )
             check(
@@ -116,20 +116,20 @@ class Counter(PinnedInstruction):
 
     @property
     def lead_rows(self) -> int:
-        return 1 if self.counter_type == "count_down" else 0
+        return 1 if self.kind == "count_down" else 0
 
     def pin_names(self) -> tuple[str, ...]:
-        return (".reset",) if self.counter_type == "count_down" else (".down", ".reset")
+        return (".reset",) if self.kind == "count_down" else (".down", ".reset")
 
     def pin_labels(self) -> tuple[str | None, ...]:
         reset = ".reset()" if self.reset_enabled else None
-        if self.counter_type == "count_down":
+        if self.kind == "count_down":
             return (reset,)
         return (".down()" if self.down_enabled else None, reset)
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Counter:
         if ".reset" not in pins:
-            raise CsvError(f"{self.counter_type} requires a .reset() pin row")
+            raise CsvError(f"{self.kind} requires a .reset() pin row")
         return replace(
             self,
             reset_enabled=True,
@@ -145,7 +145,7 @@ class Counter(PinnedInstruction):
         if not m:
             raise CsvError(f"Cannot parse counter: {token!r}")
 
-        counter_type = cast(Literal["count_up", "count_down"], m.group(1))
+        kind = cast(Literal["count_up", "count_down"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
@@ -157,40 +157,40 @@ class Counter(PinnedInstruction):
 
         if len(args) != 2:
             raise CsvError(
-                f"{counter_type} expects 2 positional args (done, current), got {len(args)}: {token!r}"
+                f"{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}"
             )
 
         preset = kwargs.get("preset", "")
         if not preset:
-            raise CsvError(f"{counter_type} missing preset kwarg: {token!r}")
+            raise CsvError(f"{kind} missing preset kwarg: {token!r}")
 
         return cls(
-            counter_type=counter_type,
-            done_bit=args[0],
-            current=args[1],
+            kind=kind,
+            done=args[0],
+            accumulator=args[1],
             preset=preset,
         )
 
     @property
     def mode_and_func_codes(self) -> tuple[str, str, str, str]:
-        key = (self.counter_type, self.down_enabled, self.reset_enabled)
+        key = (self.kind, self.down_enabled, self.reset_enabled)
         result = _VARIANT_TO_ENCODING.get(key)
         if result is None:
             raise EncodeError(
                 "Unsupported counter variant: "
-                f"{self.counter_type}(down={self.down_enabled}, reset={self.reset_enabled})"
+                f"{self.kind}(down={self.down_enabled}, reset={self.reset_enabled})"
             )
         return result
 
     def to_csv(self) -> str:
-        return f"{self.counter_type}({self.done_bit},{self.current},preset={self.preset})"
+        return f"{self.kind}({self.done},{self.accumulator},preset={self.preset})"
 
     def cell_params(self) -> dict:
         return {
             "visual_rows": self.pin_rows[-1] + 1,
             "sub_rows": 3,
             # Native count_down AF row 0 stores +0x1D=0 (while count_up uses 1).
-            "wire_right": 0 if self.counter_type == "count_down" else 1,
+            "wire_right": 0 if self.kind == "count_down" else 1,
         }
 
     def build_blob(self) -> bytes:
@@ -209,10 +209,10 @@ class Counter(PinnedInstruction):
         out += struct.pack("<I", 9)  # field count
 
         std_values = [
-            self.done_bit,
+            self.done,
             self.preset,
-            self.current,
-            self.done_bit,
+            self.accumulator,
+            self.done,
             mode,
         ]
         for tag, value in zip(_COUNTER_STD_TAGS, std_values, strict=True):
@@ -232,7 +232,7 @@ class Counter(PinnedInstruction):
 
 _COUNTER_TYPE_CODE = 0x2719
 
-# Mode byte value → (counter_type, down_enabled, reset_enabled).
+# Mode byte value → (kind, down_enabled, reset_enabled).
 _MODE_TO_VARIANT: dict[int, tuple[Literal["count_up", "count_down"], bool, bool]] = {
     0: ("count_up", False, True),
     1: ("count_down", False, True),
@@ -250,18 +250,18 @@ def from_tags(
     """Construct a Counter from tag data (shared by both decoders)."""
     if class_name != "Cnt" or type_code != _COUNTER_TYPE_CODE:
         return None
-    done_bit = tag_value(tags, 0x606B)
+    done = tag_value(tags, 0x606B)
     preset = tag_value(tags, 0x606A)
-    current = tag_value(tags, 0x606C)
+    accumulator = tag_value(tags, 0x606C)
     mode = tag_int(tags, 0x21FC)
     variant = _MODE_TO_VARIANT.get(mode)
-    if not all([done_bit, preset, current]) or variant is None:
+    if not all([done, preset, accumulator]) or variant is None:
         return None
-    counter_type, down_enabled, reset_enabled = variant
+    kind, down_enabled, reset_enabled = variant
     return Counter(
-        counter_type=counter_type,
-        done_bit=done_bit,
-        current=current,
+        kind=kind,
+        done=done,
+        accumulator=accumulator,
         preset=preset,
         down_enabled=down_enabled,
         reset_enabled=reset_enabled,

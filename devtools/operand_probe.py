@@ -605,36 +605,32 @@ PROBES: dict[str, Probe] = {
     ),
     "Timer": Probe(
         fields={
-            "timer_type": _lit("on_delay", "off_delay", "", "on"),
-            "done_bit": "op",
-            "current": "op",
-            "setpoint": "op",
+            "kind": _lit("on_delay", "off_delay", "", "on"),
+            "done": "op",
+            "accumulator": "op",
+            "preset": "op",
             "unit": TIMER_UNITS,
             "retained": "bool",
             "pin_rows": "pins",
         },
         baselines=lambda ns: {
-            "on": dict(
-                timer_type="on_delay", done_bit="T1", current="TD1", setpoint="3000", unit="Tms"
-            ),
+            "on": dict(kind="on_delay", done="T1", accumulator="TD1", preset="3000", unit="Tms"),
             "on_ret": dict(
-                timer_type="on_delay",
-                done_bit="T2",
-                current="TD2",
-                setpoint="5000",
+                kind="on_delay",
+                done="T2",
+                accumulator="TD2",
+                preset="5000",
                 unit="Tms",
                 retained=True,
             ),
-            "off": dict(
-                timer_type="off_delay", done_bit="T3", current="TD3", setpoint="2000", unit="Tms"
-            ),
+            "off": dict(kind="off_delay", done="T3", accumulator="TD3", preset="2000", unit="Tms"),
         },
     ),
     "Counter": Probe(
         fields={
-            "counter_type": _lit("count_up", "count_down", "", "up"),
-            "done_bit": "op",
-            "current": "op",
+            "kind": _lit("count_up", "count_down", "", "up"),
+            "done": "op",
+            "accumulator": "op",
             "preset": "op",
             "down_enabled": "bool",
             "reset_enabled": "bool",
@@ -642,24 +638,24 @@ PROBES: dict[str, Probe] = {
         },
         baselines=lambda ns: {
             "up": dict(
-                counter_type="count_up",
-                done_bit="CT1",
-                current="CTD1",
+                kind="count_up",
+                done="CT1",
+                accumulator="CTD1",
                 preset="100",
                 reset_enabled=True,
             ),
             "up_down": dict(
-                counter_type="count_up",
-                done_bit="CT2",
-                current="CTD2",
+                kind="count_up",
+                done="CT2",
+                accumulator="CTD2",
                 preset="100",
                 down_enabled=True,
                 reset_enabled=True,
             ),
             "down": dict(
-                counter_type="count_down",
-                done_bit="CT3",
-                current="CTD3",
+                kind="count_down",
+                done="CT3",
+                accumulator="CTD3",
                 preset="50",
                 reset_enabled=True,
             ),

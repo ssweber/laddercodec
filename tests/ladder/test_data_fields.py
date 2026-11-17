@@ -29,43 +29,43 @@ from tests.kept_refusals import kept
 
 def timer(**kw) -> Timer:
     args = {
-        "timer_type": "on_delay",
-        "done_bit": "T1",
-        "current": "TD1",
-        "setpoint": "100",
+        "kind": "on_delay",
+        "done": "T1",
+        "accumulator": "TD1",
+        "preset": "100",
         "unit": "Tms",
     }
     return Timer(**{**args, **kw})
 
 
 def counter(**kw) -> Counter:
-    args = {"counter_type": "count_up", "done_bit": "CT1", "current": "CTD1", "preset": "10"}
+    args = {"kind": "count_up", "done": "CT1", "accumulator": "CTD1", "preset": "10"}
     return Counter(**{**args, **kw})
 
 
 class TestTimer:
     def test_valid(self) -> None:
-        assert timer(done_bit="T500", current="TD500", setpoint="0").setpoint == "0"
-        assert timer(setpoint="DS4500").setpoint == "DS4500"
+        assert timer(done="T500", accumulator="TD500", preset="0").preset == "0"
+        assert timer(preset="DS4500").preset == "DS4500"
 
-    @pytest.mark.parametrize("done_bit", ["T0", "T501", "C1", "TD1", "X001", "abc"])
-    def test_done_bit(self, done_bit: str) -> None:
-        with pytest.raises(AddressError, match="Timer.done_bit"):
-            timer(done_bit=done_bit)
+    @pytest.mark.parametrize("done", ["T0", "T501", "C1", "TD1", "X001", "abc"])
+    def test_done(self, done: str) -> None:
+        with pytest.raises(AddressError, match="Timer.done"):
+            timer(done=done)
 
-    @pytest.mark.parametrize("current", ["DS1", "T1", "TD501", "CTD1"])
-    def test_current_bank(self, current: str) -> None:
-        with pytest.raises(AddressError, match="Timer.current"):
-            timer(current=current)
+    @pytest.mark.parametrize("accumulator", ["DS1", "T1", "TD501", "CTD1"])
+    def test_accumulator_bank(self, accumulator: str) -> None:
+        with pytest.raises(AddressError, match="Timer.accumulator"):
+            timer(accumulator=accumulator)
 
-    def test_current_number_matches_done_bit(self) -> None:
+    def test_accumulator_number_matches_done(self) -> None:
         with pytest.raises(FieldError, match="must be TD2"):
-            timer(done_bit="T2", current="TD1")
+            timer(done="T2", accumulator="TD1")
 
-    @pytest.mark.parametrize("setpoint", ["abc", "1.5", "-1", "DD1", "DS0", "TD1", ""])
-    def test_setpoint(self, setpoint: str) -> None:
-        with pytest.raises(FieldError, match="Timer.setpoint"):
-            timer(setpoint=setpoint)
+    @pytest.mark.parametrize("preset", ["abc", "1.5", "-1", "DD1", "DS0", "TD1", ""])
+    def test_preset(self, preset: str) -> None:
+        with pytest.raises(FieldError, match="Timer.preset"):
+            timer(preset=preset)
 
     def test_unit_checked_on_construction(self) -> None:
         with pytest.raises(FieldError, match="Timer.unit"):
@@ -80,21 +80,21 @@ class TestCounter:
     def test_valid(self) -> None:
         assert counter(preset="-5").preset == "-5"
         assert counter(preset="DS1").preset == "DS1"
-        assert counter(preset="DD1000", done_bit="CT250", current="CTD250")
+        assert counter(preset="DD1000", done="CT250", accumulator="CTD250")
 
-    @pytest.mark.parametrize("done_bit", ["CT0", "CT251", "C1", "CTD1"])
-    def test_done_bit(self, done_bit: str) -> None:
-        with pytest.raises(AddressError, match="Counter.done_bit"):
-            counter(done_bit=done_bit)
+    @pytest.mark.parametrize("done", ["CT0", "CT251", "C1", "CTD1"])
+    def test_done(self, done: str) -> None:
+        with pytest.raises(AddressError, match="Counter.done"):
+            counter(done=done)
 
-    @pytest.mark.parametrize("current", ["DS1", "CT1", "CTD251", "TD1"])
-    def test_current_bank(self, current: str) -> None:
-        with pytest.raises(AddressError, match="Counter.current"):
-            counter(current=current)
+    @pytest.mark.parametrize("accumulator", ["DS1", "CT1", "CTD251", "TD1"])
+    def test_accumulator_bank(self, accumulator: str) -> None:
+        with pytest.raises(AddressError, match="Counter.accumulator"):
+            counter(accumulator=accumulator)
 
-    def test_current_number_matches_done_bit(self) -> None:
+    def test_accumulator_number_matches_done(self) -> None:
         with pytest.raises(FieldError, match="must be CTD2"):
-            counter(done_bit="CT2", current="CTD1")
+            counter(done="CT2", accumulator="CTD1")
 
     @pytest.mark.parametrize("preset", ["abc", "1.5", "", "DS0", "Q1", "DS4501"])
     def test_preset(self, preset: str) -> None:
@@ -244,16 +244,16 @@ def _scr_refused(old: str, new: str, name: str = "coverage") -> list[tuple[str, 
 
 
 class TestRefusedBlobsDecode:
-    def test_timer_with_mismatched_current(self) -> None:
-        decoded = kept(_clipboard_decoded(timer(), "TD1", "TD2"), "Timer.current")
-        assert isinstance(decoded, Timer) and decoded.current == "TD2"
+    def test_timer_with_mismatched_accumulator(self) -> None:
+        decoded = kept(_clipboard_decoded(timer(), "TD1", "TD2"), "Timer.accumulator")
+        assert isinstance(decoded, Timer) and decoded.accumulator == "TD2"
 
-    def test_timer_scr_with_non_numeric_setpoint(self) -> None:
-        assert _scr_refused("3000", "abcd") == [("Timer", ["Timer.setpoint"])]
+    def test_timer_scr_with_non_numeric_preset(self) -> None:
+        assert _scr_refused("3000", "abcd") == [("Timer", ["Timer.preset"])]
 
-    def test_counter_scr_with_mismatched_current(self) -> None:
+    def test_counter_scr_with_mismatched_accumulator(self) -> None:
         refused = _scr_refused("CTD1", "CTD2", "counter_scr")
-        assert refused and set(map(str, refused)) == {str(("Counter", ["Counter.current"]))}
+        assert refused and set(map(str, refused)) == {str(("Counter", ["Counter.accumulator"]))}
 
     def test_counter_with_non_numeric_preset(self) -> None:
         af = counter(preset="100", reset_enabled=True)
@@ -306,29 +306,29 @@ def _decoded_after(model: object, *fields: str, **bad: object) -> object:
     return kept(decoded, *fields)
 
 
-class TestTimerSetpointRange:
+class TestTimerPresetRange:
     # 0..32767 for every unit; 32768 and any sign refused (OBJ-005).
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits_for_every_unit(self, tmp_path: Path, unit: str) -> None:
         for value in ("0", "32767"):
             token = f"on_delay(T1,TD1,preset={value},unit={unit})"
-            assert _read_af(tmp_path, token) == timer(setpoint=value, unit=unit)
+            assert _read_af(tmp_path, token) == timer(preset=value, unit=unit)
         with pytest.raises(
-            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+            FieldError, match=r"^Timer.preset: '32768' is outside 0 to 32767 \(OBJ-005\)"
         ):
             _read_af(tmp_path, f"on_delay(T1,TD1,preset=32768,unit={unit})")
         with pytest.raises(
-            FieldError, match=r"^Timer.setpoint: '32768' is outside 0 to 32767 \(OBJ-005\)"
+            FieldError, match=r"^Timer.preset: '32768' is outside 0 to 32767 \(OBJ-005\)"
         ):
-            timer(setpoint="32768", unit=unit)
+            timer(preset="32768", unit=unit)
 
-    @pytest.mark.parametrize("setpoint", ["-1", "+5", "1 0"])
-    def test_sign_refused(self, tmp_path: Path, setpoint: str) -> None:
-        with pytest.raises(FieldError, match="^Timer.setpoint"):
-            _read_af(tmp_path, f"off_delay(T1,TD1,preset={setpoint},unit=Ts)")
+    @pytest.mark.parametrize("preset", ["-1", "+5", "1 0"])
+    def test_sign_refused(self, tmp_path: Path, preset: str) -> None:
+        with pytest.raises(FieldError, match="^Timer.preset"):
+            _read_af(tmp_path, f"off_delay(T1,TD1,preset={preset},unit=Ts)")
 
-    def test_refused_setpoint_decodes(self) -> None:
-        _decoded_after(timer(), "Timer.setpoint", setpoint="40000")
+    def test_refused_preset_decodes(self) -> None:
+        _decoded_after(timer(), "Timer.preset", preset="40000")
 
 
 class TestCounterPresetRange:
@@ -547,17 +547,17 @@ class TestFieldNames:
         with pytest.raises(FieldError) as timer_unit:
             timer(unit="Tx")
         assert timer_unit.value.field == "Timer.unit"
-        with pytest.raises(FieldError) as timer_type:
-            timer(timer_type="bogus")
-        assert timer_type.value.field == "Timer.timer_type"
-        with pytest.raises(FieldError) as counter_type:
-            counter(counter_type="bogus")
-        assert counter_type.value.field == "Counter.counter_type"
+        with pytest.raises(FieldError) as kind:
+            timer(kind="bogus")
+        assert kind.value.field == "Timer.kind"
+        with pytest.raises(FieldError) as kind:
+            counter(kind="bogus")
+        assert kind.value.field == "Counter.kind"
 
     def test_a_refusal_across_fields_names_the_class_or_the_field_it_names(self) -> None:
         with pytest.raises(FieldError) as mismatch:
-            timer(current="TD2")
-        assert mismatch.value.field == "Timer.current"
+            timer(accumulator="TD2")
+        assert mismatch.value.field == "Timer.accumulator"
         with pytest.raises(FieldError) as ends:
             Shift(start_bit="C1", end_bit="C001")
         assert ends.value.field == "Shift.end_bit"
@@ -581,11 +581,11 @@ class TestLongDigitRuns:
                 with pytest.raises(FieldError, match=rf"^Drum.presets\[{index}\]"):
                     drum(kind, events_or_presets=presets)
 
-    @pytest.mark.parametrize("timer_type", ["on_delay", "off_delay"])
-    def test_timer_setpoint(self, timer_type: str) -> None:
-        assert timer(timer_type=timer_type, setpoint=self.ZEROS).setpoint == self.ZEROS
-        with pytest.raises(FieldError, match="^Timer.setpoint"):
-            timer(timer_type=timer_type, setpoint=self.ONES)
+    @pytest.mark.parametrize("kind", ["on_delay", "off_delay"])
+    def test_timer_preset(self, kind: str) -> None:
+        assert timer(kind=kind, preset=self.ZEROS).preset == self.ZEROS
+        with pytest.raises(FieldError, match="^Timer.preset"):
+            timer(kind=kind, preset=self.ONES)
 
     @pytest.mark.parametrize("value", [ZEROS, ONES])
     def test_counter_preset_refused(self, value: str) -> None:

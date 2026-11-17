@@ -476,7 +476,7 @@ default (`0`).
 
 A blank argument is its field left blank: `out()`, `on_delay(T1,TD1,preset=,unit=Tms)`
 and `blockcopy(,DS10..DS13)` are refused with a `FieldError` whose `reason` is
-`missing` and whose `field` is the blank one (`Coil.operand`, `Timer.setpoint`; both
+`missing` and whose `field` is the blank one (`Coil.operand`, `Timer.preset`; both
 ends of a range), as building the instruction with that field blank is. A range
 with a blank end is read so too: `..` where a range goes, and `..DS4` or `DS1..`,
 are how `write_csv` writes a range with both ends, or one end, blank. Elsewhere `..`
@@ -646,10 +646,10 @@ currently emit:
     (TXT, 1 to 128 printable ASCII characters in quotes such as `"A"` or `"AB"`, or `$41`; a quote
     is `$22`, and `"$41"` is text). A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
-  - Timer: done bit `T1`-`T500` with current value `TD` of the same number, and a
-    set point that is a `DS` address or digits only, `0`-`32767` for every unit.
-  - Counter: done bit `CT1`-`CT250` with current value `CTD` of the same number,
-    and a set point that is a `DS` or `DD` address or an integer from
+  - Timer: done `T1`-`T500` with accumulator `TD` of the same number, and a
+    preset that is a `DS` address or digits only, `0`-`32767` for every unit.
+  - Counter: done `CT1`-`CT250` with accumulator `CTD` of the same number,
+    and a preset that is a `DS` or `DD` address or an integer from
     `-2147483648` to `2147483647` (a `-` only in front, at most 12 characters).
   - Shift: both ends are `C` bits and differ (`shift(C1..C1)` and `shift(C1..C001)`
     are refused); `shift(C106..C99)` runs backwards.

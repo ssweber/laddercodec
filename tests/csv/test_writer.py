@@ -272,9 +272,9 @@ class TestDecodedRungToRows:
 
     def test_count_up_reset_collapses_middle_row(self) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT1",
-            current="CTD1",
+            kind="count_up",
+            done="CT1",
+            accumulator="CTD1",
             preset="100",
             down_enabled=False,
             reset_enabled=True,
@@ -299,9 +299,9 @@ class TestDecodedRungToRows:
 
     def test_count_up_down_emits_down_pin(self) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT2",
-            current="CTD2",
+            kind="count_up",
+            done="CT2",
+            accumulator="CTD2",
             preset="100",
             down_enabled=True,
             reset_enabled=True,
@@ -326,9 +326,9 @@ class TestDecodedRungToRows:
 
     def test_count_down_rehydrates_nop_shape(self) -> None:
         counter = Counter(
-            counter_type="count_down",
-            done_bit="CT3",
-            current="CTD3",
+            kind="count_down",
+            done="CT3",
+            accumulator="CTD3",
             preset="50",
             down_enabled=False,
             reset_enabled=True,
@@ -354,9 +354,9 @@ class TestDecodedRungToRows:
 
     def test_count_down_preserves_populated_top_row(self) -> None:
         counter = Counter(
-            counter_type="count_down",
-            done_bit="CT3",
-            current="CTD3",
+            kind="count_down",
+            done="CT3",
+            accumulator="CTD3",
             preset="50",
             down_enabled=False,
             reset_enabled=True,
@@ -384,9 +384,9 @@ class TestDecodedRungToRows:
     def test_count_down_drops_a_dead_wire_top_row(self) -> None:
         """A wire stub that joins nothing is not part of the circuit, so the layout drops it."""
         counter = Counter(
-            counter_type="count_down",
-            done_bit="CT3",
-            current="CTD3",
+            kind="count_down",
+            done="CT3",
+            accumulator="CTD3",
             preset="50",
             down_enabled=False,
             reset_enabled=True,
@@ -412,9 +412,9 @@ class TestDecodedRungToRows:
 
     def test_count_up_then_retained_timer_emits_both_blocks(self) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT5",
-            current="CTD5",
+            kind="count_up",
+            done="CT5",
+            accumulator="CTD5",
             preset="100",
             down_enabled=False,
             reset_enabled=True,
@@ -447,9 +447,9 @@ class TestDecodedRungToRows:
 
     def test_count_down_then_retained_timer_preserves_bridge_shape(self) -> None:
         counter = Counter(
-            counter_type="count_down",
-            done_bit="CT6",
-            current="CTD6",
+            kind="count_down",
+            done="CT6",
+            accumulator="CTD6",
             preset="25",
             down_enabled=False,
             reset_enabled=True,
@@ -735,9 +735,9 @@ class TestDehydrateHydrateWires:
 class TestMultiPinnedRoundTrip:
     def test_count_up_then_retained_timer_roundtrip(self, tmp_path: Path) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT8",
-            current="CTD8",
+            kind="count_up",
+            done="CT8",
+            accumulator="CTD8",
             preset="100",
             down_enabled=False,
             reset_enabled=True,
@@ -825,9 +825,9 @@ class TestRoundTripValidator:
             ],
             instructions=[
                 Counter(
-                    counter_type="count_down",
-                    done_bit="CT30",
-                    current="CTD30",
+                    kind="count_down",
+                    done="CT30",
+                    accumulator="CTD30",
                     preset="50",
                     down_enabled=False,
                     reset_enabled=True,
@@ -899,9 +899,9 @@ class TestRoundTripValidator:
             ],
             instructions=[
                 Counter(
-                    counter_type="count_down",
-                    done_bit="CT31",
-                    current="CTD31",
+                    kind="count_down",
+                    done="CT31",
+                    accumulator="CTD31",
                     preset="75",
                     down_enabled=False,
                     reset_enabled=True,

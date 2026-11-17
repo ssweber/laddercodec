@@ -94,9 +94,7 @@ def _debounce(**kw: Any) -> OutVariant:
 
 
 def _counter(**kw: Any) -> Counter:
-    fields: dict[str, Any] = dict(
-        counter_type="count_up", done_bit="CT1", current="CTD1", preset="100"
-    )
+    fields: dict[str, Any] = dict(kind="count_up", done="CT1", accumulator="CTD1", preset="100")
     return Counter(**{**fields, **kw})
 
 
@@ -129,8 +127,8 @@ def _counter(**kw: Any) -> Counter:
             [("OutVariant.operand", Reason.BANK), ("OutVariant.unit", Reason.CHOICE)],
         ),
         (
-            lambda: _counter(counter_type="up", preset="DH1"),
-            [("Counter.counter_type", Reason.CHOICE), ("Counter.preset", Reason.BANK)],
+            lambda: _counter(kind="up", preset="DH1"),
+            [("Counter.kind", Reason.CHOICE), ("Counter.preset", Reason.BANK)],
         ),
         (
             lambda: Shift("DS1", "DS2"),
@@ -222,13 +220,13 @@ def test_call_reports_its_one_field_once() -> None:
         (lambda: _variant(on_acc="DS1"), ("OutVariant.on_acc", Reason.BANK, None)),
         (lambda: _variant(operand="SC310"), ("OutVariant.operand", Reason.NOT_WRITABLE, None)),
         # Counter
-        (lambda: _counter(counter_type="up"), ("Counter.counter_type", Reason.CHOICE, None)),
+        (lambda: _counter(kind="up"), ("Counter.kind", Reason.CHOICE, None)),
         (lambda: _counter(reset_enabled=False), ("Counter.reset_enabled", Reason.CHOICE, None)),
         (
-            lambda: _counter(counter_type="count_down", down_enabled=True, pin_rows=(1,)),
+            lambda: _counter(kind="count_down", down_enabled=True, pin_rows=(1,)),
             ("Counter.down_enabled", Reason.CONFLICT, None),
         ),
-        (lambda: _counter(current="CTD2"), ("Counter.current", Reason.CONFLICT, None)),
+        (lambda: _counter(accumulator="CTD2"), ("Counter.accumulator", Reason.CONFLICT, None)),
         (lambda: _counter(preset="DH1"), ("Counter.preset", Reason.BANK, "OBJ-004")),
         (lambda: _counter(preset="99999999999"), ("Counter.preset", Reason.RANGE, "OBJ-005")),
         (lambda: _counter(pin_rows=(2, 1)), ("Counter.pin_rows", Reason.FORM, None)),
@@ -319,7 +317,9 @@ def test_a_pair_names_both_fields() -> None:
     assert _fields(lambda: _debounce(off_acc="TD1")) == [
         ("OutVariant.off_acc", "OutVariant.on_acc")
     ]
-    assert _fields(lambda: _counter(current="CTD2")) == [("Counter.current", "Counter.done_bit")]
+    assert _fields(lambda: _counter(accumulator="CTD2")) == [
+        ("Counter.accumulator", "Counter.done")
+    ]
     assert _fields(lambda: Shift("C1", "C1")) == [("Shift.end_bit", "Shift.start_bit")]
     assert _fields(lambda: _drum(outputs=["C1", "C1"])) == [("Drum.outputs[1]", "Drum.outputs[0]")]
     assert _fields(lambda: _search(source="0FFh")) == [("Search.source", "Search.table_start")]
@@ -335,8 +335,8 @@ def test_a_refused_operand_is_not_read_by_a_rule_that_needs_it() -> None:
         ("Contact.operand", Reason.ADDRESS, None)
     ]
     assert _errors(lambda: Shift("QQ9", "C2")) == [("Shift.start_bit", Reason.ADDRESS, None)]
-    assert _errors(lambda: _counter(done_bit="QQ9", current="CTD2")) == [
-        ("Counter.done_bit", Reason.ADDRESS, None)
+    assert _errors(lambda: _counter(done="QQ9", accumulator="CTD2")) == [
+        ("Counter.done", Reason.ADDRESS, None)
     ]
 
 

@@ -55,7 +55,7 @@ from laddercodec.instructions.search import Search
 from laddercodec.instructions.send_receive import Receive, Send
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
-from laddercodec.model import AfInstruction
+from laddercodec.model import AfInstruction, Reason
 from laddercodec.operands.unchecked import rebuilt, refusals, stored_blob
 from tests.kept_refusals import kept
 
@@ -68,8 +68,8 @@ CASES = [
     ("cond__eq", "DS1==5", "Y001==5", CompareContact, ["CompareContact.left"]),
     ("out__tag", "out(C23)", "out(X001)", Coil, ["Coil.operand"]),
     ("out__v4", "-,toggle(C1101)", "-,toggle(X001)", OutVariant, ["OutVariant.operand"]),
-    ("off_delay__tof", "off_delay(T3,", "off_delay(Y001,", Timer, ["Timer.done_bit"]),
-    ("count_down", "count_down(CT3,", "count_down(Y001,", Counter, ["Counter.done_bit"]),
+    ("off_delay__tof", "off_delay(T3,", "off_delay(Y001,", Timer, ["Timer.done"]),
+    ("count_down", "count_down(CT3,", "count_down(Y001,", Counter, ["Counter.done"]),
     ("shift__basic", "shift(C99..", "shift(Y001..", Shift, ["Shift.start_bit"]),
     (
         "event_drum__basic",
@@ -355,11 +355,17 @@ def test_warning_survives_pickle_and_copy(tmp_path) -> None:
         assert (clone.rung, clone.program) == (warning.rung, warning.program)
 
 
-def test_a_refusal_no_stored_instruction_holds_still_raises(tmp_path) -> None:
+@pytest.mark.parametrize("unchecked", [False, True])
+def test_a_refusal_no_stored_instruction_holds_still_raises(tmp_path, unchecked) -> None:
     """A timer unit that is none of CLICK's names no stored value."""
     path = _edited(tmp_path, "off_delay__tof", "unit=Tms", "unit=Tx")
-    with pytest.raises(ValueError, match="Unknown timer unit"):
-        read_csv(path, unchecked=True)
+    with pytest.raises(FieldError) as raised:
+        read_csv(path, unchecked=unchecked)
+    error = raised.value
+    assert error.field == "Timer.unit"
+    assert error.reason is Reason.CHOICE
+    assert error.location is not None
+    assert "'Tx' is not one of" in str(error)
 
 
 #: Each Math CLICK saved whose formula its dialog refuses: capture and rung.

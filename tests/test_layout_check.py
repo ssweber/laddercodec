@@ -317,10 +317,10 @@ def _out(name: str) -> Coil:
 
 def _timer(*, retained: bool = True) -> Timer:
     return Timer(
-        timer_type="on_delay",
-        done_bit="T1",
-        current="TD1",
-        setpoint="1",
+        kind="on_delay",
+        done="T1",
+        accumulator="TD1",
+        preset="1",
         unit="Tms",
         retained=retained,
     )

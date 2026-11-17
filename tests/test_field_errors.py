@@ -59,7 +59,7 @@ def _shape(errors: tuple[FieldError, ...]) -> list[tuple[str | None, str | None,
 
 def _timer(**kw: Any) -> Timer:
     fields: dict[str, Any] = dict(
-        timer_type="on_delay", done_bit="T1", current="TD1", setpoint="100", unit="Tms"
+        kind="on_delay", done="T1", accumulator="TD1", preset="100", unit="Tms"
     )
     return Timer(**{**fields, **kw})
 
@@ -106,7 +106,7 @@ def test_no_field() -> None:
 
 def test_pickle_keeps_every_refusal() -> None:
     with pytest.raises(FieldError) as caught:
-        _timer(done_bit="C1", setpoint="40000")
+        _timer(done="C1", preset="40000")
     copy = pickle.loads(pickle.dumps(caught.value))
     assert type(copy) is AddressError
     assert [str(e) for e in copy.errors] == [str(e) for e in caught.value.errors]
@@ -120,57 +120,55 @@ def test_pickle_keeps_every_refusal() -> None:
 
 
 def test_timer_gives_every_refusal() -> None:
-    """A wrong done bit and a set point of 40000: two refusals; the TD match is not checked."""
-    errors = _refusals(lambda: _timer(done_bit="C1", setpoint="40000"))
+    """A wrong done and a preset of 40000: two refusals; the TD match is not checked."""
+    errors = _refusals(lambda: _timer(done="C1", preset="40000"))
     assert _shape(errors) == [
-        ("Timer.done_bit", "bank", None),
-        ("Timer.setpoint", "range", "OBJ-005"),
+        ("Timer.done", "bank", None),
+        ("Timer.preset", "range", "OBJ-005"),
     ]
     assert all(isinstance(e.obj, Timer) for e in errors)
-    assert str(errors[1]) == "Timer.setpoint: '40000' is outside 0 to 32767 (OBJ-005)"
+    assert str(errors[1]) == "Timer.preset: '40000' is outside 0 to 32767 (OBJ-005)"
 
 
-def test_timer_current_against_done_bit() -> None:
-    (error,) = _refusals(lambda: _timer(current="TD2"))
-    assert error.fields == ("Timer.current", "Timer.done_bit")
+def test_timer_accumulator_against_done() -> None:
+    (error,) = _refusals(lambda: _timer(accumulator="TD2"))
+    assert error.fields == ("Timer.accumulator", "Timer.done")
     assert error.reason == Reason.CONFLICT
 
 
-def test_timer_checks_current_alone_when_done_bit_is_refused() -> None:
-    errors = _refusals(lambda: _timer(done_bit="T0", current="DS1"))
+def test_timer_checks_accumulator_alone_when_done_is_refused() -> None:
+    errors = _refusals(lambda: _timer(done="T0", accumulator="DS1"))
     assert _shape(errors) == [
-        ("Timer.done_bit", "address", None),
-        ("Timer.current", "bank", None),
+        ("Timer.done", "address", None),
+        ("Timer.accumulator", "bank", None),
     ]
 
 
 def test_timer_reasons() -> None:
-    errors = _refusals(
-        lambda: _timer(timer_type="bogus", unit="Tx", retained=2, setpoint="DS[DS1]")
-    )
+    errors = _refusals(lambda: _timer(kind="bogus", unit="Tx", retained=2, preset="DS[DS1]"))
     assert _shape(errors) == [
         ("Timer.retained", "flag", None),
-        ("Timer.timer_type", "choice", None),
+        ("Timer.kind", "choice", None),
         ("Timer.unit", "choice", None),
-        ("Timer.setpoint", "pointer", None),
+        ("Timer.preset", "pointer", None),
     ]
     # A refused flag keeps the value given.
     assert errors[0].obj.retained == 2
 
 
 def test_timer_retained_off_delay_needs_both_fields_taken() -> None:
-    (error,) = _refusals(lambda: _timer(timer_type="off_delay", retained=True))
-    assert error.fields == ("Timer.retained", "Timer.timer_type")
+    (error,) = _refusals(lambda: _timer(kind="off_delay", retained=True))
+    assert error.fields == ("Timer.retained", "Timer.kind")
     assert error.reason == Reason.CONFLICT
     # A refused flag value is not read again for the pair.
-    (flag,) = _refusals(lambda: _timer(timer_type="off_delay", retained=2))
+    (flag,) = _refusals(lambda: _timer(kind="off_delay", retained=2))
     assert flag.reason == Reason.FLAG
 
 
 def test_timer_pin_rows() -> None:
-    errors = _refusals(lambda: _timer(setpoint="40000", pin_rows=(0,)))
+    errors = _refusals(lambda: _timer(preset="40000", pin_rows=(0,)))
     assert _shape(errors) == [
-        ("Timer.setpoint", "range", "OBJ-005"),
+        ("Timer.preset", "range", "OBJ-005"),
         ("Timer.pin_rows", "range", None),
     ]
 
@@ -312,7 +310,7 @@ def test_coil_refusal_survives_a_later_crash() -> None:
 
 def test_a_crash_with_no_refusal_is_raised_as_is() -> None:
     with pytest.raises(TypeError):
-        _timer(setpoint=None)
+        _timer(preset=None)
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +411,7 @@ def test_an_error_raised_out_of_the_block_is_checked_as_a_refusal() -> None:
 
 def test_unconverted_class_raises_one_refusal() -> None:
     (error,) = _refusals(lambda: Counter("count_up", "CT1", "CTD2", "1", reset_enabled=True))
-    assert error.field == "Counter.current"
+    assert error.field == "Counter.accumulator"
 
 
 def test_labels_are_not_fields() -> None:
@@ -450,8 +448,8 @@ def test_drum_event_names_its_list_item() -> None:
 
 def test_display_form_refusal_names_the_field() -> None:
     with display_form_only():
-        errors = _refusals(lambda: _timer(done_bit="T01", setpoint="ds1"))
-    assert _shape(errors) == [("Timer.done_bit", "form", None), ("Timer.setpoint", "form", None)]
+        errors = _refusals(lambda: _timer(done="T01", preset="ds1"))
+    assert _shape(errors) == [("Timer.done", "form", None), ("Timer.preset", "form", None)]
 
 
 def test_sweep_refuses_a_field_that_is_no_dataclass_field() -> None:
@@ -538,7 +536,7 @@ def test_immediate_names_the_immediate_field() -> None:
 @pytest.mark.parametrize(
     ("build", "field", "click_id"),
     [
-        (lambda: _timer(setpoint="DD1"), "Timer.setpoint", "OBJ-004"),
+        (lambda: _timer(preset="DD1"), "Timer.preset", "OBJ-004"),
         (lambda: Shift("DS1", "C2"), "Shift.start_bit", "OBJ-004"),
         (lambda: Shift("C1", "C1"), "Shift.end_bit", "OBJ-012"),
         (lambda: Counter("count_up", "CT1", "CTD1", "DH1"), "Counter.preset", "OBJ-004"),

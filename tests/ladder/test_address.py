@@ -186,9 +186,9 @@ class TestConstructionRaises:
             Coil(InstructionType.COIL_OUT, "C1", range_end="C2001")
 
     def test_counter(self) -> None:
-        with pytest.raises(ValueError, match="^Counter.done_bit: 'CT251'"):
+        with pytest.raises(ValueError, match="^Counter.done: 'CT251'"):
             Counter("count_up", "CT251", "CTD1", "10")
-        with pytest.raises(ValueError, match="^Counter.current: 'CTD0'"):
+        with pytest.raises(ValueError, match="^Counter.accumulator: 'CTD0'"):
             Counter("count_up", "CT1", "CTD0", "10")
 
     def test_shift(self) -> None:
@@ -225,7 +225,7 @@ class TestConstructionRaises:
             Contact.from_csv_token("rise(Q1)")
         with pytest.raises(ValueError, match="^Coil.range_end: 'Y817'"):
             Coil.from_csv_token("out(Y801..Y817)")
-        with pytest.raises(ValueError, match="^Counter.current: 'CTD251'"):
+        with pytest.raises(ValueError, match="^Counter.accumulator: 'CTD251'"):
             Counter.from_csv_token("count_up(CT1,CTD251,preset=1)")
         with pytest.raises(ValueError, match="^Shift.end_bit: 'C2001'"):
             Shift.from_csv_token("shift(C1..C2001)")
@@ -260,8 +260,8 @@ class TestConstructionRaises:
             ("Coil.operand", lambda: Coil.from_csv_token("out(YD0u..YD1)")),
             # Set takes Y, C and SC only, so the range starts at Y1, not YD0.
             ("Coil.range_end", lambda: Coil(InstructionType.COIL_LATCH, "Y1", range_end="YD0u")),
-            ("Counter.done_bit", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
-            ("Counter.current", lambda: Counter("count_up", "CT1", "YD0u", "1")),
+            ("Counter.done", lambda: Counter("count_up", "XD0u", "CTD1", "1")),
+            ("Counter.accumulator", lambda: Counter("count_up", "CT1", "YD0u", "1")),
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
             # A shift runs over C only, so the range starts at C1, not XD0.
             ("Shift.end_bit", lambda: Shift(start_bit="C1", end_bit="XD0u")),
@@ -328,7 +328,7 @@ class TestDecodeRefusedAddress:
                 Counter("count_up", "CT1", "CTD1", "10", reset_enabled=True),
                 "CTD1",
                 "CTD0",
-                "Counter.current",
+                "Counter.accumulator",
             ),
             (Shift(start_bit="C1", end_bit="C10"), "C10", "C00", None),
             (ForLoop(limit="DS100"), "DS100", "DS000", None),

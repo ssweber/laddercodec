@@ -43,7 +43,7 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 
 #: A constant set point is digits only (no sign), 0 to 32767, for every unit.
 #: A digits-only value above 0x7fff is OBJ-005; the unit does not matter.
-_SETPOINT = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
+_PRESET = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
@@ -61,10 +61,10 @@ class Timer(PinnedInstruction):
     for the timer's visual height.
     """
 
-    timer_type: Literal["on_delay", "off_delay"]
-    done_bit: str  # e.g. "T1"
-    current: str  # accumulator register, e.g. "TD1"
-    setpoint: str  # preset value or operand, e.g. "1" or "DS1"
+    kind: Literal["on_delay", "off_delay"]
+    done: str  # e.g. "T1"
+    accumulator: str  # accumulator register, e.g. "TD1"
+    preset: str  # preset value or operand, e.g. "1" or "DS1"
     unit: str  # "Tms", "Ts", "Tm", "Th", "Td"
     retained: bool = False  # True = retentive (RTON)
     #: Row of the reset input.  OR legs under the enable input of a retentive
@@ -75,28 +75,26 @@ class Timer(PinnedInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.flag("retained")
-            if self.timer_type not in ("on_delay", "off_delay"):
-                check.refuse(
-                    "timer_type", f"{self.timer_type!r} is not on_delay or off_delay", Reason.CHOICE
-                )
+            if self.kind not in ("on_delay", "off_delay"):
+                check.refuse("kind", f"{self.kind!r} is not on_delay or off_delay", Reason.CHOICE)
             if self.unit not in tuple(TIMER_UNIT_TO_INDEX):
                 units = ", ".join(TIMER_UNIT_TO_INDEX)
                 check.refuse("unit", f"{self.unit!r} is not one of {units}", Reason.CHOICE)
-            check.normalize("done_bit", "current", "setpoint")
-            done = check("done_bit", check_address, banks={"T"})
-            current = check("current", check_address, banks={"TD"})
-            if done is not None and current is not None and done.number != current.number:
+            check.normalize("done", "accumulator", "preset")
+            done = check("done", check_address, banks={"T"})
+            accumulator = check("accumulator", check_address, banks={"TD"})
+            if done is not None and accumulator is not None and done.number != accumulator.number:
                 check.refuse(
-                    ("current", "done_bit"),
-                    f"{self.current!r} must be TD{done.number} to match Timer.done_bit "
-                    f"{self.done_bit!r}",
+                    ("accumulator", "done"),
+                    f"{self.accumulator!r} must be TD{done.number} to match Timer.done "
+                    f"{self.done!r}",
                     Reason.CONFLICT,
                 )
-            # An address set point is DS only, OBJ-004.
-            check("setpoint", check_operand, {"DS"}, _SETPOINT, bank_id="OBJ-004")
-            if self.timer_type == "off_delay" and self.retained:
+            # An address preset is DS only, OBJ-004.
+            check("preset", check_operand, {"DS"}, _PRESET, bank_id="OBJ-004")
+            if self.kind == "off_delay" and self.retained:
                 check.refuse(
-                    ("retained", "timer_type"),
+                    ("retained", "kind"),
                     "off_delay can't be retentive (no .reset() pin); CLICK's Timer dialog "
                     "offers Retentive only for an On Delay timer",
                     Reason.CONFLICT,
@@ -107,14 +105,14 @@ class Timer(PinnedInstruction):
     def from_csv_token(cls, token: str) -> Timer:
         """Parse v1 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
 
-        Positional: done_bit, current.  Kwargs: preset, unit.
+        Positional: done, accumulator.  Kwargs: preset, unit.
         Retained is never in the CSV — it's set by ``.reset()`` pin presence.
         """
         token = token.strip()
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
             raise CsvError(f"Cannot parse timer: {token!r}")
-        timer_type = cast(Literal["on_delay", "off_delay"], m.group(1))
+        kind = cast(Literal["on_delay", "off_delay"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
@@ -125,20 +123,18 @@ class Timer(PinnedInstruction):
                 args.append(seg)
         if len(args) != 2:
             raise CsvError(
-                f"{timer_type} expects 2 positional args (done, acc), got {len(args)}: {token!r}"
+                f"{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}"
             )
-        done_bit, current = args
-        setpoint = kwargs.get("preset", "")
+        done, accumulator = args
+        preset = kwargs.get("preset", "")
         unit = kwargs.get("unit", "")
-        if not setpoint or not unit:
-            raise CsvError(f"{timer_type} missing preset or unit kwargs: {token!r}")
-        if unit not in TIMER_UNIT_TO_INDEX:
-            raise CsvError(f"Unknown timer unit: {unit!r}")
+        if not preset or not unit:
+            raise CsvError(f"{kind} missing preset or unit kwargs: {token!r}")
         return cls(
-            timer_type=timer_type,
-            done_bit=done_bit,
-            current=current,
-            setpoint=setpoint,
+            kind=kind,
+            done=done,
+            accumulator=accumulator,
+            preset=preset,
             unit=unit,
             retained=False,
         )
@@ -151,7 +147,7 @@ class Timer(PinnedInstruction):
     def enable_func_code(self) -> str:
         """Compute the enable func_code: base + offset."""
         base = 8717 + int(self.unit_idx) * 6
-        if self.timer_type == "on_delay":
+        if self.kind == "on_delay":
             return str(base + (2 if self.retained else 0))
         return str(base + 1)  # off_delay
 
@@ -164,7 +160,7 @@ class Timer(PinnedInstruction):
         return str(base + 3)
 
     def to_csv(self) -> str:
-        return f"{self.timer_type}({self.done_bit},{self.current},preset={self.setpoint},unit={self.unit})"
+        return f"{self.kind}({self.done},{self.accumulator},preset={self.preset},unit={self.unit})"
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
@@ -195,11 +191,11 @@ class Timer(PinnedInstruction):
 
         # Fields 0–5: standard tagged fields.
         std_values = [
-            self.done_bit,
-            self.setpoint,
-            self.current,
+            self.done,
+            self.preset,
+            self.accumulator,
             self.unit_idx,
-            "0" if self.timer_type == "on_delay" else "1",
+            "0" if self.kind == "on_delay" else "1",
             "1" if self.retained else "0",
         ]
         for tag, value in zip(_TIMER_STD_TAGS, std_values, strict=True):
@@ -232,24 +228,24 @@ def from_tags(
     """Construct a Timer from tag data (shared by both decoders)."""
     if class_name != "Tmr" or type_code != _TIMER_TYPE_CODE:
         return None
-    done_bit = tag_value(tags, 0x6068)
-    setpoint = tag_value(tags, 0x606A)
-    current = tag_value(tags, 0x6069)
+    done = tag_value(tags, 0x6068)
+    preset = tag_value(tags, 0x606A)
+    accumulator = tag_value(tags, 0x6069)
     unit_idx = tag_value(tags, 0x21F9)
     unit = TIMER_UNITS.get(unit_idx)
-    if not done_bit or not current or not setpoint or unit is None:
+    if not done or not accumulator or not preset or unit is None:
         return None
     # SCR: 0x21FA absent = on_delay, present = off_delay.
     # Clipboard: byte tag value 0 = on_delay, 1 = off_delay.
-    timer_type = "off_delay" if tag_int(tags, 0x21FA) != 0 else "on_delay"
+    kind = "off_delay" if tag_int(tags, 0x21FA) != 0 else "on_delay"
     retained = tag_int(tags, 0x21FB) != 0
-    if timer_type == "off_delay" and retained:
+    if kind == "off_delay" and retained:
         return None  # CLICK's dialog never writes it; keep the blob raw
     return Timer(
-        timer_type=timer_type,
-        done_bit=done_bit,
-        current=current,
-        setpoint=setpoint,
+        kind=kind,
+        done=done,
+        accumulator=accumulator,
+        preset=preset,
         unit=unit,
         retained=retained,
     )

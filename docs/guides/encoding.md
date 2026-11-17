@@ -120,10 +120,10 @@ rung = Rung(
     ],
     instructions=[
         Timer(
-            timer_type="on_delay",
-            done_bit="T1",
-            current="TD1",
-            setpoint="1000",
+            kind="on_delay",
+            done="T1",
+            accumulator="TD1",
+            preset="1000",
             unit="Tms",
         ),
         "",
@@ -158,12 +158,12 @@ read from CSV. A quoted `"$41"` is text. Use `$00` for the blank (NUL) character
 from laddercodec import FieldError, Timer
 
 try:
-    Timer(timer_type="on_delay", done_bit="C1", current="TD1", setpoint="40000", unit="Tms")
+    Timer(kind="on_delay", done="C1", accumulator="TD1", preset="40000", unit="Tms")
 except FieldError as exc:
     for error in exc.errors:
         print(error.field, error.reason, error.click_id)
-# Timer.done_bit bank None
-# Timer.setpoint range OBJ-005
+# Timer.done bank None
+# Timer.preset range OBJ-005
 ```
 
 A value CLICK's dialog refuses raises `FieldError` (`AddressError` for an
@@ -183,7 +183,7 @@ before any `Send` or `Receive` holds it. The one check a `Receive` makes of its 
 | Attribute  | Holds                                                                                  |
 |------------|----------------------------------------------------------------------------------------|
 | `field`    | the field refused, `Class.attr`, or `Class.attr[i]` for an item of a list              |
-| `fields`   | `(field,)`, or both fields for a refused pair (`Timer.current`, `Timer.done_bit`)       |
+| `fields`   | `(field,)`, or both fields for a refused pair (`Timer.accumulator`, `Timer.done`)       |
 | `reason`   | a `Reason`, listed below                                                               |
 | `click_id` | CLICK's id for the error where it has one (`OBJ-005`), or `None`                       |
 | `obj`      | the instruction being built                                                            |
@@ -193,7 +193,7 @@ before any `Send` or `Receive` holds it. The one check a `Receive` makes of its 
 `Reason` in the [Codec API](../reference/api/codec.md)), or `None` for a refusal not
 given one yet. A blank in a field that requires a value is `missing`, whatever
 the field takes; a field that may be blank is accepted, and its blank is no refusal. A field that depends on a refused one is not checked:
-a Timer whose done bit is refused is not checked for a current value that
+a Timer whose done is refused is not checked for an accumulator that
 matches it.
 
 A decoded instruction can hold a refused value, with a `RefusedFieldWarning`

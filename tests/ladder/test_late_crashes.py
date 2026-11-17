@@ -68,8 +68,8 @@ def test_count_down_down_enabled_refused() -> None:
         Counter("count_down", "CT1", "CTD1", "5", down_enabled=True, reset_enabled=True)
 
 
-def test_counter_type_refused() -> None:
-    with pytest.raises(FieldError, match="Counter.counter_type"):
+def test_counter_kind_refused() -> None:
+    with pytest.raises(FieldError, match="Counter.kind"):
         Counter("count_sideways", "CT1", "CTD1", "5", reset_enabled=True)  # type: ignore[arg-type]
 
 
@@ -168,9 +168,9 @@ def test_unhashable_fields_raise_field_error(bad) -> None:
         Contact(InstructionType.CONTACT_EDGE, "X1", edge_kind=bad)
     with pytest.raises(FieldError, match="Timer.unit"):
         Timer("on_delay", "T1", "TD1", "5", bad)  # type: ignore[arg-type]
-    with pytest.raises(FieldError, match="Timer.timer_type"):
+    with pytest.raises(FieldError, match="Timer.kind"):
         Timer(bad, "T1", "TD1", "5", "Ts")  # type: ignore[arg-type]
-    with pytest.raises(FieldError, match="Counter.counter_type"):
+    with pytest.raises(FieldError, match="Counter.kind"):
         Counter(bad, "CT1", "CTD1", "5", reset_enabled=True)  # type: ignore[arg-type]
     with pytest.raises(FieldError, match="Coil.oneshot"):
         Coil(InstructionType.COIL_OUT, "C1", oneshot=bad)  # type: ignore[arg-type]

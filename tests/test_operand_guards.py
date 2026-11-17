@@ -396,14 +396,14 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("counter.py", "CsvError(f('Cannot parse counter: {token!r}'))"): 1,
     (
         "counter.py",
-        "EncodeError(f('Unsupported counter variant: {self.counter_type}(down={self.down_enabled}, reset={self.reset_enabled})'))",
+        "EncodeError(f('Unsupported counter variant: {self.kind}(down={self.down_enabled}, reset={self.reset_enabled})'))",
     ): 1,
     (
         "counter.py",
-        "CsvError(f('{counter_type} expects 2 positional args (done, current), got {len(args)}: {token!r}'))",
+        "CsvError(f('{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}'))",
     ): 1,
-    ("counter.py", "CsvError(f('{counter_type} missing preset kwarg: {token!r}'))"): 1,
-    ("counter.py", "CsvError(f('{self.counter_type} requires a .reset() pin row'))"): 1,
+    ("counter.py", "CsvError(f('{kind} missing preset kwarg: {token!r}'))"): 1,
+    ("counter.py", "CsvError(f('{self.kind} requires a .reset() pin row'))"): 1,
     ("drum.py", "CsvError('Drum requires a .reset() pin row')"): 1,
     ("drum.py", "CsvError(f('A pattern cell is 0 or 1: {row_str!r}'))"): 1,
     ("drum.py", "CsvError(f('Expected list: {val!r}'))"): 1,
@@ -468,12 +468,11 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("shift.py", "CsvError(f('Cannot parse shift: {token!r}'))"): 1,
     ("shift.py", "CsvError(f('shift expects a range arg (start..end): {token!r}'))"): 1,
     ("timer.py", "CsvError(f('Cannot parse timer: {token!r}'))"): 1,
-    ("timer.py", "CsvError(f('Unknown timer unit: {unit!r}'))"): 1,
     (
         "timer.py",
-        "CsvError(f('{timer_type} expects 2 positional args (done, acc), got {len(args)}: {token!r}'))",
+        "CsvError(f('{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}'))",
     ): 1,
-    ("timer.py", "CsvError(f('{timer_type} missing preset or unit kwargs: {token!r}'))"): 1,
+    ("timer.py", "CsvError(f('{kind} missing preset or unit kwargs: {token!r}'))"): 1,
     ("velocity.py", "CsvError(f('Not a Velocity token: {token!r}'))"): 1,
     ("velocity.py", "CsvError(f('Not a raw Velocity token: {token!r}'))"): 1,
 }
