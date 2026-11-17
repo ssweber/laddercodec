@@ -1,0 +1,4 @@
+Main Program : Rung 1 : error C0002: Short circuit error.
+Main Program : Rung 2 : error C0003: There is no Coil instruction in the rung.
+Main Program : Rung 3 : error C0003: There is no Coil instruction in the rung.
+NewProject1 - 3 error(s), 0 warning(s)

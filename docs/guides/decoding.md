@@ -306,6 +306,8 @@ shape with that code:
 | `no_rail` | a contact whose input no line connects to the rail, at the first contact of each such group | `C0202` |
 | `feeds_no_box` | a path from the rail that reaches no box input, at its last contact (the cell CLICK named in three captured rungs) | `C0202` |
 | `no_coil` | a path from the rail that reaches no box, once per rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
+| `nop_only_contact` | a contact the rail reaches that feeds a `NOP` and no other box, even when a coil is on another wire or leg of the rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
+| `shorted_contact` | a contact whose two sides a wire joins (in parallel with a wire-only leg); CLICK's text is "Short circuit error" | `C0002` |
 | `unwired_pin` | a timer's or counter's reset whose row holds nothing (no contact, no wire, no vertical into it), at its AF cell | `C0202` |
 | `output_above_pinned_box` | a box above a box with a used pin row (a `.reset()` row and the like), both off the pinned box's main input's net, once per group of boxes that share nets | `C000A` |
 | `shared_input_net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
@@ -333,14 +335,15 @@ into the marker) gets only its `undecoded` finding.
 and on a reset wired straight from the rail, or whose contacts are all another
 pin's (a contact two pins share counts as the earlier pin's), it has the box's code
 with `captured=False`. A `no_rail` or `feeds_no_box` finding on a loop of contacts is
-also `captured=False`. Other shapes (an unpowered box, a shorted contact, a pin circuit
+also `captured=False`. Other shapes (an unpowered box, a pin circuit
 that shares contacts with a main input (`pin_shares_main`) or another pin
 (`pin_shares_pin`) but has some of its own, and a pin circuit that is not
 series-parallel) are reported with `captured=False`; those kinds are
 provisional and may be renamed or dropped once CLICK's response to them is
 captured. A finding with `captured=False` may be a shape CLICK accepts. A `NOP` that
 no rail or contact reaches is not reported: CLICK's check drops it, and `read_csv`
-drops it from a rung with a circuit.
+drops it from a rung with a circuit. Neither is a `NOP` on the rail alone, nor one on a
+coil's net.
 
 ## Round-trip identity
 

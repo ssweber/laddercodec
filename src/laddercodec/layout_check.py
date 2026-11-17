@@ -7,7 +7,7 @@ syntax check.  laddercodec encodes and writes such rungs as drawn; ``check()`` r
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -37,6 +37,7 @@ FindingKind = Literal[
     "no_rail",
     "feeds_no_box",
     "no_coil",
+    "nop_only_contact",
     "unwired_pin",
     "output_above_pinned_box",
     "shared_input_net",
@@ -142,6 +143,12 @@ class _Rule:
     like: str = ""
 
 
+_NO_COIL_TEXT = (
+    "a path from the rail reaches no box (CLICK's text: no Coil instruction in the rung)"
+)
+_NO_COIL_NOP = (
+    "a contact feeds a NOP and no other box (CLICK's text: no Coil instruction in the rung)"
+)
 _C0001 = _Rule("not_series_parallel", "C0001", True)
 _C0001_PIN = _Rule("not_series_parallel", "C0001", False, "a main input")
 _NO_RAIL = _Rule("no_rail", "C0202", True)
@@ -168,7 +175,8 @@ _SHARED_NET_LIKE = _Rule(
 _PIN_SHARES = _Rule("pin_shares_main", None, False)
 _PIN_SHARES_PIN = _Rule("pin_shares_pin", None, False)
 _UNPOWERED = _Rule("unpowered_box", None, False)
-_SHORTED = _Rule("shorted_contact", None, False)
+_SHORTED = _Rule("shorted_contact", "C0002", True)
+_NOP_ONLY = _Rule("nop_only_contact", "C0003", True)
 
 #: CLICK's code for a pin with no contact of its own, per box class and pin: a
 #: retentive on_delay or a time drum.
@@ -321,10 +329,17 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
         broken.append(((s.row, AF_X), rule, "the pin's input has no line connection"))
     for cell, rule, what in sorted(broken, key=lambda b: b[0]):
         add(rule, cell, what)
+    nop_only = _nop_only_contact(net, c)
     if dead_ends:
-        rule = _NO_COIL_LOOP if all(loop for _, loop in dead_ends) else _NO_COIL
-        what = "a path from the rail reaches no box (CLICK's text: no Coil instruction in the rung)"
-        add(rule, None, what)
+        loops = all(loop for _, loop in dead_ends)
+        if nop_only and loops:
+            # a captured finding wins over the uncaptured one for a path that ends in a loop
+            add(_NOP_ONLY, None, _NO_COIL_NOP)
+        else:
+            rule = _NO_COIL_LOOP if loops else _NO_COIL
+            add(rule, None, _NO_COIL_TEXT)
+    elif nop_only:
+        add(_NOP_ONLY, None, _NO_COIL_NOP)
 
     for e in net.bypassed:
         add(_SHORTED, (e.row, e.col), "a wire joins the contact's two sides")
@@ -385,6 +400,33 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
         elif s.net in c.fwd and not _reduces(rail, s.net, mine):
             add(_C0001_PIN, (s.row, AF_X), "the pin's circuit is not series-parallel")
     return out
+
+
+def _nop_only_contact(net: Network, c: Circuits) -> bool:
+    """Whether a contact the rail reaches feeds a ``NOP`` and no other box, by any path.
+
+    No finding when every contact that reaches the ``NOP`` also reaches another box (a
+    coil on its net, or on another leg of the contact's own split); CLICK's check on that
+    shape is not captured.  A ``NOP`` on the rail alone is not this shape either.
+    """
+    to_nop = _reaching(net, lambda s: net.boxes[s.box].token == "NOP")
+    to_box = _reaching(net, lambda s: net.boxes[s.box].token != "NOP")
+    return any(e.src in c.fwd and e.dst in to_nop and e.dst not in to_box for e in net.edges)
+
+
+def _reaching(net: Network, wanted: Callable[[Sink], bool]) -> set[int]:
+    """The nets from which a sink ``wanted`` is reached through contacts, each net included."""
+    seen = {s.net for s in net.sinks if wanted(s)}
+    todo = list(seen)
+    back: dict[int, list[int]] = {}
+    for e in net.edges:
+        back.setdefault(e.dst, []).append(e.src)
+    while todo:
+        for src in back.get(todo.pop(), ()):
+            if src not in seen:
+                seen.add(src)
+                todo.append(src)
+    return seen
 
 
 def _no_rail(c: Circuits) -> list[tuple[Edge, bool]]:
