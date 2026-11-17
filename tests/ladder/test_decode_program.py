@@ -13,6 +13,7 @@ from laddercodec._layout import canonical
 from laddercodec.csv import read_csv
 from laddercodec.decode import AF_DOWN_WIRE, inspect_cells
 from laddercodec.decode_program import (
+    _is_trailing_placeholder,
     _parse_header,
     _parse_row_block,
     _parse_row_topology_block,
@@ -37,6 +38,7 @@ from laddercodec.instructions.send_receive import (
 )
 from laddercodec.instructions.send_receive import from_tags as send_receive_from_tags
 from laddercodec.instructions.timer import Timer
+from tests.scr_defaults import fixture_pairs, read_clipboard
 
 decode_program_module = importlib.import_module("laddercodec.decode_program")
 _SCR_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
@@ -848,10 +850,27 @@ def test_rung_walk_yields_a_topology_block_for_every_section():
         topo_map = _topology_blocks_by_section(scr_data)
 
         for rung_idx, block in topo_map.items():
-            assert block.stored_rows[0].flags == 3
-            assert len(block.rows_right_cols) == block.row_word - 1, (
-                f"{scr_path.name} rung {rung_idx}: row block count mismatch"
-            )
+            assert block.stored_rows[0].flags == 3, f"{scr_path.name} rung {rung_idx}"
+
+
+@pytest.mark.parametrize(
+    ("scr_path", "clip_path"), fixture_pairs(), ids=lambda path: path.parent.name + "/" + path.stem
+)
+def test_topology_block_has_a_row_for_each_clipboard_row(scr_path: Path, clip_path: Path):
+    """After its first stored row, a rung's topology block has one row for each grid row of
+    the same rung in the native clipboard capture."""
+    scr_data = scr_path.read_bytes()
+    records = _walk_rung_records(scr_data, _parse_header(scr_data))
+    # The empty rungs that CLICK keeps below the last programmed rung are not on the
+    # clipboard.
+    while records and _is_trailing_placeholder(records[-1]):
+        records.pop()
+    clip_rungs = decode(read_clipboard(clip_path))
+    assert len(records) == len(clip_rungs)
+    for rung_idx, (record, rung) in enumerate(zip(records, clip_rungs, strict=True)):
+        assert len(record.topology.rows_right_cols) == rung.logical_rows, (
+            f"{scr_path.name} rung {rung_idx}: row block count mismatch"
+        )
 
 
 def test_tag_wire_type_covers_all_implicit_tags():

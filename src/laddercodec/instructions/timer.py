@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: The CSV name of each timer unit, by the unit's index. The names are the names of
-#: pyrung's ``TimeUnit`` members.
+#: The CSV name of each timer unit, by the unit index that tag 0x21F9 stores. The units are
+#: milliseconds, seconds, minutes, hours and days.
 TIMER_UNITS: dict[str, str] = {
     "0": "Tms",
     "1": "Ts",

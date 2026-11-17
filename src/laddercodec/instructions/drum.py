@@ -3,8 +3,8 @@
 The binary class name is ``"Drum"``, and the type marker is 0x271B.
 
 There are three kinds of drum.  An event_drum is event-driven, and a time_drum is
-time-driven.  CLICK v4 adds the time_event_drum, in which each step ends on its preset
-time and/or its event.
+time-driven.  CLICK v4 adds the time_event_drum.  Each of its steps has a preset time, an
+event, or both.  A step with both ends when its time has elapsed and its event is on.
 
 Event and time drums use the 64-field v3 blob.  Two drums exist only in v4: the time &
 event drum, and a time drum with a register preset.  They use v4's 82-field blob, which
@@ -183,7 +183,8 @@ def _constant_preset_mask(presets: tuple[str, ...]) -> str:
 
     Bit *n* is set unless step *n*'s preset is a register.  When every preset is a
     constant or blank, all 16 bits are set and the value is ``-1``.  CLICK v4 writes the
-    tag on OK, and picks a time drum's func code series from it.
+    tag when you click OK in the drum's dialog.  CLICK picks a time drum's func code series
+    from the mask.
     """
     mask = -1
     for i, preset in enumerate(presets):
@@ -194,8 +195,9 @@ def _constant_preset_mask(presets: tuple[str, ...]) -> str:
 
 #: A constant step duration is digits only, from 0 to 32767 for every unit, with no ``-``
 #: or ``+``.  Any other constant is refused with OBJ-005.  A register duration must be a DS
-#: address, and another bank is refused with OBJ-004.  Whether the CPU accepts a register
-#: duration at all depends on the project, and laddercodec does not check it.
+#: address, and another bank is refused with OBJ-004.  Some CPUs do not support a register
+#: duration.  On such a CPU, CLICK's syntax check reports C0227.  A rung does not say which
+#: CPU the project selects, so laddercodec does not check this.
 _DURATION = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 

@@ -23,7 +23,8 @@ class Reason(StrEnum):
     RANGE = "range"
     """A number, a constant or a length outside the field's limits."""
     POINTER = "pointer"
-    """A pointer the field does not take: any pointer, one to this bank, or this index."""
+    """A pointer that the field does not take.  The field takes no pointer, or no pointer to
+    this bank, or the pointer's index is not a DS address."""
     KIND = "kind"
     """A constant of a kind the field does not take, or text that is no constant."""
     FORM = "form"
@@ -36,8 +37,9 @@ class Reason(StrEnum):
     CHOICE = "choice"
     """Not one of the field's named values, such as a timer unit."""
     CONFLICT = "conflict"
-    """A value the field takes, but not with another field's value; the refusal names both
-    fields (``Coil.operand`` with ``Coil.immediate`` for an immediate C bit)."""
+    """A value that the field takes, but not together with another field's value.  Most such
+    refusals name the other field in :attr:`FieldError.fields` as well.  An immediate
+    ``Coil`` on a C bit names ``Coil.operand`` and ``Coil.immediate``."""
     MISSING = "missing"
     """Blank where the field needs a value."""
 

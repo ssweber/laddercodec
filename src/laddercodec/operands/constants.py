@@ -251,7 +251,9 @@ def real_beyond_kept_digits(text: str, digits: int = REAL_DIGITS) -> str | None:
     return printed
 
 
-#: Enough significant digits to write any float32 value at or below its exact value.
+#: The largest number of significant digits that :func:`constant_text` tries for a real.  A shorter text
+#: can round up past the largest float32 value, and the search skips it.  At 17 digits, the
+#: text reads back as exactly the float32 value, so the search always finds a text.
 _REAL_DIGITS_MAX = 17
 
 

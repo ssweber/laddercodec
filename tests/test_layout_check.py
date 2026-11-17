@@ -188,7 +188,7 @@ def test_layoutq_kinds() -> None:
         (11, "output-above-box-inputs", "C000A", 1, 31),  # out, then a retentive timer
         (13, "output-above-box-inputs", "C000A", 1, 31),  # out, then a count_down
         (14, "input-without-contact", "C0205", 1, 31),  # timer Reset teed off its input
-        (15, "input-without-contact", "C0212", 1, 31),  # drum Reset teed off the Or merge
+        (15, "input-without-contact", "C0212", 1, 31),  # drum Reset teed off Or(C82, C83)
         (16, "feeds-no-box", "C0202", 1, 1),  # C94, the last contact of row 1
         (16, "no-coil", "C0003", None, None),
         (17, "feeds-no-box", "C0202", 1, 1),
@@ -284,7 +284,9 @@ _LADDER_FINDINGS = {
     "instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
     "mr-instr-cond__and": [(0, "contact-feeds-only-nop", "C0003", None, None)],
     "instr-2row-spread": [(0, "feeds-no-box", "C0202", 1, 10), (0, "no-coil", "C0003", None, None)],
-    # X001's output joins the rail through B's vertical and the row 2 wire.
+    # The T in column C drops a vertical from X001's output to row 2, and row 2's wire runs
+    # from the rail. So a wire joins X001's two sides. The | in column C has no right exit,
+    # so no rail or contact reaches out(Y002).
     "instr-3row-branch": [(0, "shorted-contact", "C0002", 0, 0), (0, "unpowered-box", None, 1, 31)],
     "instr-3row-scatter": [
         (0, "feeds-no-box", "C0202", 1, 5),
@@ -635,7 +637,8 @@ def test_contact_after_a_dead_contact_is_not_reported_again() -> None:
 def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
     """A loop of contacts that no rail reaches gets one uncaptured C0202, at X002.
 
-    X002 and X001 feed each other through B's vertical and the row 2 wire. Column A is blank.
+    X002 feeds X001.  X001's output runs down the vertical of the T in column D, along the
+    row 2 wire, and up the vertical below X002 into X002's input.  Column A is blank.
     """
     rung = _rung(
         [

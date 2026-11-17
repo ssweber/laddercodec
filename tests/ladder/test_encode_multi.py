@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import EncodeError, decode, encode, read_csv
-from laddercodec.decode import _DATA, _LOST, _walk_grid, _walk_row_cells
+from laddercodec import Contact, EncodeError, decode, encode, read_csv
+from laddercodec.decode import _DATA, _LOST, _walk_grid, _walk_row_cells, inspect_cells
 from laddercodec.encode_multi import encode_rungs
 from laddercodec.topology import (
     CELL_SIZE,
@@ -106,10 +106,17 @@ def test_multi_rung_nop_each_rung() -> None:
     assert len(result) > 0
 
 
-def test_multi_rung_nop_non_first_row() -> None:
-    """encode_rungs accepts a NOP on row 1, the second row, of a 2-row rung.
+def _nop_flags(data: bytes, rung: int, rows: int) -> list[tuple[int, int]]:
+    """Return (+0x15 of the column A cell, +0x1D of the AF cell) for each row of *rung*."""
+    cells = inspect_cells(data, [(rung, row, col) for row in range(rows) for col in ("A", "AF")])
+    return [(a.raw[0x15], af.raw[0x1D]) for a, af in zip(cells[::2], cells[1::2], strict=True)]
 
-    That row needs +0x15 = 1 in its column 0 cell. This test does not check that byte.
+
+def test_multi_rung_nop_non_first_row() -> None:
+    """A NOP on row 1, the second row, of a 2-row rung sets two flags on that row.
+
+    The AF cell has +0x1D = 1.  The rung holds no other instruction, so the column A cell
+    has +0x15 = 1 too.  Row 0 has neither flag.
     """
     result = encode_rungs(
         [
@@ -117,7 +124,21 @@ def test_multi_rung_nop_non_first_row() -> None:
             (1, [_empty()], [""]),
         ]
     )
-    assert len(result) > 0
+    assert _nop_flags(result, 0, 2) == [(0, 0), (1, 1)]
+
+
+def test_multi_rung_nop_non_first_row_beside_a_contact() -> None:
+    """A NOP on row 1 of a rung that also holds a contact sets only +0x1D in its AF cell.
+
+    The column A cell of row 1 keeps +0x15 = 0, because the rung holds another instruction.
+    """
+    result = encode_rungs(
+        [
+            (2, [[Contact("X001"), *_wire(30)], _empty()], ["", "NOP"]),
+            (1, [_empty()], [""]),
+        ]
+    )
+    assert _nop_flags(result, 0, 2)[1] == (0, 1)
 
 
 def test_multi_rung_three_rungs() -> None:

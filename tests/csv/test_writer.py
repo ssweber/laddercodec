@@ -155,10 +155,9 @@ def _event_drum() -> Drum:
 
 
 class TestGoldenRoundTrip:
-    """Each decoded golden .bin keeps its rung count and comments through write_csv and read_csv.
+    """Each decoded golden .bin reads back the same through write_csv and read_csv.
 
-    The test compares the number of rungs and each rung's comment. It does not compare the
-    rows.
+    The test compares each rung's row count, rows and comment.
     """
 
     @pytest.fixture(params=[p.stem for p in _golden_paths()], ids=lambda s: s)
@@ -171,23 +170,21 @@ class TestGoldenRoundTrip:
         out_csv = tmp_path / f"{golden_stem}.csv"
 
         result = decode(data)
-        if isinstance(result, list):
-            write_csv(out_csv, result)
-            round_tripped = read_csv(out_csv)
-            assert len(round_tripped) == len(result)
-            for rt, rung in zip(round_tripped, result, strict=True):
-                # For a non-retained timer, the CSV holds fewer rows than the binary,
-                # because the writer drops the padding row. read_csv adds it back.
-                assert rt.comment == rung.comment
-                assert len(rt.conditions) == rt.logical_rows
-                assert len(rt.instructions) == rt.logical_rows
-        else:
-            write_csv(out_csv, [result])
-            rt = read_csv(out_csv)[0]
-            # The CSV may hold fewer rows than the binary for a non-retained
-            # timer, because the writer drops the padding row.
-            assert rt.logical_rows <= result.logical_rows
-            assert rt.comment == result.comment
+        write_csv(out_csv, result)
+        round_tripped = read_csv(out_csv)
+        # For a non-retained timer, the CSV holds fewer rows than the binary, because the
+        # writer drops the padding row. read_csv adds it back.
+        assert [_rows(rung) for rung in round_tripped] == [_rows(rung) for rung in result]
+
+
+def _rows(rung: Rung) -> tuple[int, list[list[object]], list[object], str | None]:
+    """Return the row count, condition rows, AF tokens and comment of *rung*."""
+    return (
+        rung.logical_rows,
+        [list(row) for row in rung.conditions],
+        list(rung.instructions),
+        rung.comment,
+    )
 
 
 # ---------------------------------------------------------------------------

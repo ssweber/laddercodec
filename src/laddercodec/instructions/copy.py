@@ -253,7 +253,7 @@ def _is_text_constant(operand: str) -> bool:
 
 
 def _ascii_code(code: int) -> str:
-    """Spell a character code the way CLICK and pyrung do: ``$`` + two hex digits (``$0D``)."""
+    """Return a character code as CLICK writes it: ``$`` and two hex digits (``$0D``)."""
     if not 0 <= code <= 0xFF:
         raise FieldError(
             f"Copy.termination_code: ASCII code {code} is outside 0 to 0xFF",
@@ -870,8 +870,8 @@ def _check_source_value(source: str, field: str) -> Constant:
     - a signed hex constant (``-FFh``);
     - a hex constant of more than 8 digits (``0FFFFFFFFh``).
 
-    No CLICK answer covers a text that has a quote inside it. This function raises that
-    refusal without an id.
+    Whether CLICK refuses a text with a quote inside it, and with which id, is not known.
+    This function refuses it with no id.
     """
     try:
         return check_constant(source, field, _ANY_TEXT)
