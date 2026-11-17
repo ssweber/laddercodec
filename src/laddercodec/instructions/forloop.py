@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_value
 from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
 from ..operands.checks import Constants, Refusals, check_operand
-from ..operands.constants import Kind
+from ..operands.constants import INT32_MAX, Kind
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -38,9 +38,8 @@ _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
 #: A constant count is digits only (0 is allowed, a sign is not) up to 2147483647, else
 #: OBJ-005; a register count is DS, DD, TD, CTD or SD, else OBJ-004.
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
-FOR_MAX_LIMIT = 2**31 - 1
 FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
-_FOR_LIMIT_CONSTANTS = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=FOR_MAX_LIMIT)
+_FOR_LIMIT_CONSTANTS = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT32_MAX)
 
 # Class "Next" func codes (0x3218).  v3 writes Next without one; v4 writes 9220.
 _NEXT_FUNC_CODE = "9220"

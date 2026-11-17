@@ -1,4 +1,4 @@
-"""classify() and parse_digits(): each constant kind's accepted and refused forms."""
+"""classify(): each constant kind's accepted and refused forms."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from laddercodec.operands.constants import (
     Constant,
     Kind,
     classify,
-    parse_digits,
     printable,
 )
 
@@ -200,39 +199,6 @@ def test_kinds_are_strings() -> None:
     assert [str(k) for k in Kind] == ["integer", "float", "hex", "text", "char"]
 
 
-DIGITS: list[tuple[str, int | None]] = [
-    ("0", 0),
-    ("7", 7),
-    ("007", 7),
-    ("32767", 32767),
-    ("2147483648", 2147483648),
-    ("0" * 30 + "5", 5),
-    ("9" * 20, int("9" * 20)),
-    ("9" * 21, None),
-    ("1" * 5000, None),
-    ("", None),
-    (" ", None),
-    (" 5", None),
-    ("5 ", None),
-    ("1 0", None),
-    ("+1", None),
-    ("-1", None),
-    ("1.5", None),
-    ("1E5", None),
-    ("FFh", None),
-    ("1_000", None),
-    ("DS1", None),
-    ("٣", None),
-    ("1٣", None),
-    ("１", None),
-]
-
-
-@pytest.mark.parametrize(("text", "expected"), DIGITS, ids=[repr(t[:12]) for t, _ in DIGITS])
-def test_parse_digits(text: str, expected: int | None) -> None:
-    assert parse_digits(text) == expected
-
-
 #: More leading zeros than int() converts (it refuses text over 4300 digits).
 ZEROS = "0" * 5000
 
@@ -251,11 +217,6 @@ ZEROS = "0" * 5000
 )
 def test_leading_zeros(text: str, expected: Constant | None) -> None:
     assert classify(text) == expected
-
-
-def test_parse_digits_leading_zeros() -> None:
-    assert parse_digits(ZEROS + "5") == 5
-    assert parse_digits(ZEROS) == 0
 
 
 @pytest.mark.parametrize(

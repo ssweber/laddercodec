@@ -58,7 +58,15 @@ from ..model import (
     to_display,
 )
 from ..operands.banks import Bank, banks
-from ..operands.constants import FLOAT32_MAX, INT16_MAX, INT16_MIN, hex_display, real_display
+from ..operands.constants import (
+    FLOAT32_MAX,
+    INT16_MAX,
+    INT16_MIN,
+    INT32_MAX,
+    INT32_MIN,
+    hex_display,
+    real_display,
+)
 from ..operands.errors import Reason
 
 _NAME = "Math.expression"
@@ -107,7 +115,6 @@ MAX_NESTING = 8
 #: (OBJ-1008 "The Formula is too long"; a sum
 #: of 68 addresses fits, 69 does not).
 MAX_INTERNAL_LENGTH = 270
-_INT32_MIN, _INT32_MAX = -(2**31), 2**31 - 1
 #: :data:`FLOAT32_MAX` as a refusal names it: the shortest text, not above it, that float32
 #: reads back as it.
 _FLOAT32_MAX_TEXT = "3.402823466E+38"
@@ -517,15 +524,13 @@ def _decimal_internal(text: str) -> str | FieldError:
     low = (max(-(2**63), min(2**63 - 1, value)) + 2**31) % 2**32 - 2**31
     printed = f"+{low}" if text.startswith("+") else str(low)
     if len(printed) != len(text):
-        if not _INT32_MIN <= value <= _INT32_MAX:
+        if not INT32_MIN <= value <= INT32_MAX:
             reason = _integer_reason(text, body)
             if reason is Reason.FORM:
                 # Its leading zeros are refused: the value without them is taken.
                 rule = f"{text} is refused; an integer constant has no leading zeros"
             else:
-                rule = (
-                    f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
-                )
+                rule = f"{text} is outside {INT32_MIN}..{INT32_MAX}; an integer constant is 32-bit"
             return _error(rule, reason, "OBJ-1009")
         return _error(
             f"{text} is refused; CLICK reads it back as {printed}, which is not what was typed",
@@ -550,7 +555,7 @@ def _integer_reason(text: str, body: str) -> Reason:
         alone = _decimal_internal(stripped)
         refused = isinstance(alone, FieldError) and alone.reason is Reason.RANGE
         return Reason.RANGE if refused else Reason.FORM
-    return Reason.FORM if _INT32_MIN <= int(text) <= _INT32_MAX else Reason.RANGE
+    return Reason.FORM if INT32_MIN <= int(text) <= INT32_MAX else Reason.RANGE
 
 
 def _check_mode(tokens: Sequence[Token], mode: str, shown: str) -> list[FieldError]:

@@ -19,9 +19,6 @@ are constants.  It tries, in order:
 - a decimal integer: an int16 value, or an int32 value (wide); outside int32, no constant.
 - a floating-point number (text with ``.`` or ``E``).
 - a character code ``$hh``.
-
-:func:`parse_digits` is the digits-only test several dialogs make instead (a Timer set point,
-an Out variant preset, a For count).
 """
 
 from __future__ import annotations
@@ -31,8 +28,6 @@ import re
 import struct
 from enum import StrEnum
 from typing import NamedTuple
-
-from .errors import FieldError, Reason
 
 
 class Kind(StrEnum):
@@ -80,9 +75,6 @@ _FLOAT_RE = re.compile(r"[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:E[+-]?[0-9]+)?")
 # second kind.  A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``,
 # so only ``$`` and two hex digits is one.
 _CHAR_RE = re.compile(r"\$([0-9A-F]{2})")
-_DIGITS_RE = re.compile(r"[0-9]+")
-#: More significant digits than any CLICK limit needs (int() refuses very long text).
-_MAX_DIGITS = 20
 
 
 def classify(text: str) -> Constant | None:
@@ -303,25 +295,8 @@ def printable(text: str) -> bool:
     return PRINTABLE_ASCII.issuperset(text)
 
 
-#: Why a ``$`` value is refused; :func:`check_char_code` raises it in every field.
+#: Why a ``$`` value is refused; the shared field check raises it in every field.
 CHAR_CODE_RULE = "a character code is $ and two hex digits, $00 to $FF, such as $41"
-
-
-def check_char_code(text: str, field: str) -> int:
-    """Return the code ``text`` spells as ``$hh``; raise :class:`FieldError` naming
-    ``field`` for any other text.
-
-    A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``, so ``$``, ``$1``,
-    ``$100`` and ``$G1`` are refused.  Compare, Search, Fill, a single Copy source and a Copy
-    termination code call it on every ``$`` value; a single Copy writes a source ``$1`` as
-    ``$01`` first, as CLICK stores it.
-    """
-    m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
-    if m is None:
-        raise FieldError(
-            f"{field}: {text!r} is refused; {CHAR_CODE_RULE}", field=field, reason=Reason.FORM
-        )
-    return int(m.group(1), 16)
 
 
 def _hex(digits: str) -> Constant | None:
@@ -347,20 +322,3 @@ def _integer(sign: str, digits: str) -> Constant | None:
     if INT32_MIN <= value <= INT32_MAX:
         return Constant(Kind.INTEGER, value, wide=True)
     return None
-
-
-def parse_digits(text: str) -> int | None:
-    """Return the value of text that is ASCII digits only, or ``None``.
-
-    The digits-only test of a Timer set point, an Out variant preset and a For count: no
-    sign, no space, no decimal point.  A drum duration goes through the shared check's int16
-    kind with no sign allowed, which accepts the same text.  Leading zeros are allowed
-    (``007`` is 7).  Text with more than 20 significant digits is ``None``; every limit those
-    fields have is far below it.
-    """
-    if not _DIGITS_RE.fullmatch(text):
-        return None
-    significant = text.lstrip("0") or "0"
-    if len(significant) > _MAX_DIGITS:
-        return None
-    return int(significant)
