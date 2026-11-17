@@ -6,7 +6,8 @@ Every instruction the golden CSVs read to is rebuilt with one field replaced by 
 a tuple, a list and a list with a None item, and with one field refused while another holds
 None, 5 or 2.5.  Each rebuild is accepted (``a``), refused with ``FieldError`` (``F``) or
 ``AddressError`` (``A``), or fails with another exception (``X``).  The record keeps one
-string of these letters per instruction, keyed by a digest of its repr.
+string of these letters per instruction, keyed by a digest of its class name and CSV text, so
+renaming a field does not change a key.
 
 An instruction already in the record keeps its letters: only a change to the golden set
 changes the record.  ``tests/test_field_sweep.py`` compares the code with it.
@@ -32,8 +33,13 @@ RECORD = FIXTURES / "field_sweep" / "outcomes.json"
 _ODD: list[Any] = [None, 5, 2.5]
 
 
+def key_of(inst: Any) -> str:
+    """The record's key: a digest of the class name and the CSV text."""
+    return hashlib.sha1(f"{type(inst).__name__}|{inst.to_csv()}".encode()).hexdigest()[:12]
+
+
 def golden_instructions() -> dict[str, Any]:
-    """Every instruction object the golden CSVs read to, by a digest of its repr."""
+    """Every instruction object the golden CSVs read to, by ``key_of``."""
     found: dict[str, Any] = {}
     paths = itertools.chain(
         (FIXTURES / "coverage" / "golden").glob("*.csv"),
@@ -46,8 +52,7 @@ def golden_instructions() -> dict[str, Any]:
                 cells = [c for row in rung.conditions for c in row] + list(rung.instructions)
                 for cell in cells:
                     if isinstance(cell, (AfInstruction, ConditionInstruction)):
-                        key = hashlib.sha1(repr(cell).encode()).hexdigest()[:12]
-                        found.setdefault(key, cell)
+                        found.setdefault(key_of(cell), cell)
     return found
 
 
