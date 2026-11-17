@@ -27,9 +27,6 @@ from laddercodec import (
     Shift,
 )
 from laddercodec.instructions.out_variant import OutVariant
-from laddercodec.model import InstructionType
-
-NO, EDGE = InstructionType.CONTACT_NO, InstructionType.CONTACT_EDGE
 
 
 def _errors(build: Any) -> list[tuple[str | None, Reason | None, str | None]]:
@@ -107,12 +104,12 @@ def _counter(**kw: Any) -> Counter:
     ("build", "want"),
     [
         (
-            lambda: Contact(NO, "DS1", immediate=7),
+            lambda: Contact("DS1", immediate=7),
             [("Contact.immediate", Reason.FLAG), ("Contact.operand", Reason.BANK)],
         ),
         (
-            lambda: Contact(EDGE, "DS1", edge_kind="up"),
-            [("Contact.operand", Reason.BANK), ("Contact.edge_kind", Reason.CHOICE)],
+            lambda: Contact("DS1", kind="up"),  # type: ignore[arg-type]
+            [("Contact.operand", Reason.BANK), ("Contact.kind", Reason.CHOICE)],
         ),
         (
             lambda: CompareContact("==", "DS1", "QQ9"),
@@ -173,19 +170,14 @@ def test_call_reports_its_one_field_once() -> None:
     ("build", "want"),
     [
         # Contact
-        (lambda: Contact(InstructionType.COIL_OUT, "C1"), ("Contact.type", Reason.CHOICE, None)),
-        (lambda: Contact(NO, "DS1"), ("Contact.operand", Reason.BANK, None)),
-        (lambda: Contact(NO, "C1", immediate=True), ("Contact.immediate", Reason.CONFLICT, None)),
+        (lambda: Contact("C1", kind="out"), ("Contact.kind", Reason.CHOICE, None)),  # type: ignore[arg-type]
+        (lambda: Contact("DS1"), ("Contact.operand", Reason.BANK, None)),
+        (lambda: Contact("C1", immediate=True), ("Contact.immediate", Reason.CONFLICT, None)),
         (
-            lambda: Contact(EDGE, "X1", immediate=True, edge_kind="rise"),
+            lambda: Contact("X1", kind="rise", immediate=True),
             ("Contact.immediate", Reason.CONFLICT, None),
         ),
-        (lambda: Contact(EDGE, "X1"), ("Contact.edge_kind", Reason.CHOICE, None)),
-        (
-            lambda: Contact(NO, "X1", edge_kind="rise"),
-            ("Contact.edge_kind", Reason.CONFLICT, None),
-        ),
-        (lambda: Contact(NO, "X1", wire_down=2), ("Contact.wire_down", Reason.FLAG, None)),
+        (lambda: Contact("X1", wire_down=2), ("Contact.wire_down", Reason.FLAG, None)),
         # CompareContact
         (
             lambda: CompareContact("==", "DS1", "QQ9"),
@@ -308,7 +300,7 @@ def test_each_refusal_has_a_reason(build: Any, want: tuple[str, Reason, str | No
 
 
 def test_a_pair_names_both_fields() -> None:
-    assert _fields(lambda: Contact(NO, "C1", immediate=True)) == [
+    assert _fields(lambda: Contact("C1", immediate=True)) == [
         ("Contact.immediate", "Contact.operand")
     ]
     assert _fields(lambda: CompareContact("==", "DS1", "DH1")) == [
@@ -331,7 +323,7 @@ def test_a_pair_names_both_fields() -> None:
 
 
 def test_a_refused_operand_is_not_read_by_a_rule_that_needs_it() -> None:
-    assert _errors(lambda: Contact(NO, "QQ9", immediate=True)) == [
+    assert _errors(lambda: Contact("QQ9", immediate=True)) == [
         ("Contact.operand", Reason.ADDRESS, None)
     ]
     assert _errors(lambda: Shift("QQ9", "C2")) == [("Shift.start_bit", Reason.ADDRESS, None)]

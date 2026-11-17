@@ -26,7 +26,7 @@ Not public API.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, NamedTuple, TypedDict, TypeVar
@@ -59,6 +59,7 @@ __all__ = [
     "Refusals",
     "check_address",
     "check_constant",
+    "check_csv_flag",
     "check_flag",
     "check_operand",
     "check_out_target",
@@ -614,6 +615,21 @@ def check_flag(value: object, field: str) -> bool:
     raise FieldError(
         f"{field}: {value!r} is not True, False, 1 or 0", field=field, reason=Reason.FLAG
     )
+
+
+def check_csv_flag(kwargs: Mapping[str, str], name: str, field: str) -> bool:
+    """Read the CSV flag keyword ``name`` (``oneshot=1``) from ``kwargs``: ``1`` or ``0``,
+    off when absent.  A blank one (``oneshot=``) is refused as missing, and any other text
+    as no flag; each refusal names ``field``.  Every CSV parser reads its 0/1 keywords
+    with it."""
+    value = kwargs.get(name, "0")
+    if value in ("0", "1"):
+        return value == "1"
+    if not value.strip():
+        raise FieldError(
+            f"{field}: is blank; it needs a value, 1 or 0", field=field, reason=Reason.MISSING
+        )
+    raise FieldError(f"{field}: {value!r} is not 1 or 0", field=field, reason=Reason.FLAG)
 
 
 # ---------------------------------------------------------------------------

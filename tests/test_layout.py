@@ -22,7 +22,6 @@ from laddercodec.csv.parser import parse_csv_file
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact
-from laddercodec.model import InstructionType
 from tests.undecoded_captures import without_marker
 
 V4 = Path(__file__).parent / "fixtures" / "v4_captures"
@@ -135,7 +134,7 @@ def test_pasted_rung_lays_out_as_checked(pasted: int) -> None:
 
 
 def _contact(name: str, *, down: bool = False) -> Contact:
-    return Contact(type=InstructionType.CONTACT_NO, operand=name, wire_down=down)
+    return Contact(name, wire_down=down)
 
 
 def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
@@ -152,7 +151,7 @@ def test_bridge_is_not_series_parallel() -> None:
             ["", _contact("X005"), "|", "|"],
             [_contact("X002"), "-", _contact("X004")],
         ],
-        [Coil(type=InstructionType.COIL_OUT, operand="Y001"), "", ""],
+        [Coil("Y001"), "", ""],
     )
     with pytest.raises(LayoutError) as info:
         layout(rung)

@@ -29,7 +29,6 @@ from laddercodec.model import (
     ADDRESS_BANKS,
     XY_SLOTS,
     Address,
-    InstructionType,
     check_address,
     normalize_address,
 )
@@ -734,7 +733,7 @@ def copy_grid() -> Grid:
 
 def _out_check(case: dict[str, Any]) -> dict[str, Any]:
     f = case["fields"]
-    return verdict_of(lambda: Coil(InstructionType.COIL_OUT, f["address"], f.get("address_end")))
+    return verdict_of(lambda: Coil(f["address"], range_end=f.get("address_end")))
 
 
 def out_grid() -> Grid:

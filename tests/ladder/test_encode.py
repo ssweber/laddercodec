@@ -37,7 +37,6 @@ from laddercodec.instructions import (
     from_tags_af,
     from_tags_condition,
 )
-from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
 from tests.kept_refusals import kept
 
@@ -122,75 +121,75 @@ class TestInstructionRoundTrip:
     """Encode a rung with Contact + Coil, decode, verify identity."""
 
     def test_no_contact_out_coil(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        contact = Contact("X001")
+        coil = Coil("Y001")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact)
-        assert c.type == InstructionType.CONTACT_NO
+        assert c.kind == "no"
         assert c.operand == "X001"
         a = d.instructions[0]
         assert isinstance(a, Coil)
-        assert a.type == InstructionType.COIL_OUT
+        assert a.kind == "out"
         assert a.operand == "Y001"
 
     def test_nc_contact_latch_coil(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NC, "X002")
-        coil = Coil(InstructionType.COIL_LATCH, "Y002")
+        contact = Contact("X002", kind="nc")
+        coil = Coil("Y002", kind="latch")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
-        assert isinstance(c, Contact) and c.type == InstructionType.CONTACT_NC
+        assert isinstance(c, Contact) and c.kind == "nc"
         a = d.instructions[0]
-        assert isinstance(a, Coil) and a.type == InstructionType.COIL_LATCH
+        assert isinstance(a, Coil) and a.kind == "latch"
 
     def test_edge_rise_reset_coil(self) -> None:
-        contact = Contact(InstructionType.CONTACT_EDGE, "X003", edge_kind="rise")
-        coil = Coil(InstructionType.COIL_RESET, "Y003")
+        contact = Contact("X003", kind="rise")
+        coil = Coil("Y003", kind="reset")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
-        assert isinstance(c, Contact) and c.edge_kind == "rise"
+        assert isinstance(c, Contact) and c.kind == "rise"
         a = d.instructions[0]
-        assert isinstance(a, Coil) and a.type == InstructionType.COIL_RESET
+        assert isinstance(a, Coil) and a.kind == "reset"
 
     def test_edge_fall(self) -> None:
-        contact = Contact(InstructionType.CONTACT_EDGE, "X004", edge_kind="fall")
-        coil = Coil(InstructionType.COIL_OUT, "Y004")
+        contact = Contact("X004", kind="fall")
+        coil = Coil("Y004")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
-        assert isinstance(c, Contact) and c.edge_kind == "fall"
+        assert isinstance(c, Contact) and c.kind == "fall"
 
     def test_immediate_contact(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X005", immediate=True)
-        coil = Coil(InstructionType.COIL_OUT, "Y005")
+        contact = Contact("X005", immediate=True)
+        coil = Coil("Y005")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.immediate is True
 
     def test_immediate_coil(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
-        coil = Coil(InstructionType.COIL_OUT, "Y001", immediate=True)
+        contact = Contact("X001")
+        coil = Coil("Y001", immediate=True)
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         a = d.instructions[0]
         assert isinstance(a, Coil) and a.immediate is True
 
     def test_range_coil(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
-        coil = Coil(InstructionType.COIL_OUT, "C1", range_end="C2")
+        contact = Contact("X001")
+        coil = Coil("C1", range_end="C2")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
         [d] = decode(buf)
         a = d.instructions[0]
         assert isinstance(a, Coil) and a.range_end == "C2" and a.operand == "C1"
 
     def test_series_contacts(self) -> None:
-        c1 = Contact(InstructionType.CONTACT_NO, "X001")
-        c2 = Contact(InstructionType.CONTACT_NO, "X002")
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        c1 = Contact("X001")
+        c2 = Contact("X002")
+        coil = Coil("Y001")
         row: list[str | Contact] = [c1, "-", c2] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
         [d] = decode(buf)
@@ -201,8 +200,8 @@ class TestInstructionRoundTrip:
         assert d.conditions[0][2].operand == "X002"
 
     def test_contact_at_non_zero_col(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        contact = Contact("X001")
+        coil = Coil("Y001")
         buf = encode_rung(1, [_wire_row(contact, col=15)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][15]
@@ -210,7 +209,7 @@ class TestInstructionRoundTrip:
 
     def test_contact_only_no_coil(self) -> None:
         """Contact-only rung (no AF coil) still round-trips."""
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
+        contact = Contact("X001")
         buf = encode_rung(1, [_wire_row(contact)], [""])
         [d] = decode(buf)
         assert isinstance(d.conditions[0][0], Contact)
@@ -218,14 +217,14 @@ class TestInstructionRoundTrip:
 
     def test_coil_only_no_contact(self) -> None:
         """Coil-only rung (wire-in, no contact) still round-trips."""
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        coil = Coil("Y001")
         buf = encode_rung(1, [["-"] * 31], [coil])
         [d] = decode(buf)
         assert isinstance(d.instructions[0], Coil)
         assert d.instructions[0].operand == "Y001"
 
     def test_return_instruction(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "C233")
+        contact = Contact("C233")
         ret = Return()
         buf = encode_rung(1, [_wire_row(contact)], [ret])
         [d] = decode(buf)
@@ -242,7 +241,7 @@ class TestInstructionRoundTrip:
 
     def test_compare_eq(self) -> None:
         compare = CompareContact(op="==", left="DS1", right="1")
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        coil = Coil("Y001")
         buf = encode_rung(1, [_wire_row(compare)], [coil])
         [d] = decode(buf)
         c = d.conditions[0][0]
@@ -286,9 +285,9 @@ class TestInstructionRoundTrip:
 
     def test_compare_with_contact_and_coil(self) -> None:
         """CompareContact alongside a regular Contact and Coil."""
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
+        contact = Contact("X001")
         compare = CompareContact(op="==", left="DS1", right="5")
-        coil = Coil(InstructionType.COIL_OUT, "Y001")
+        coil = Coil("Y001")
         row: list[str | Contact | CompareContact] = [contact, "-", compare] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
         [d] = decode(buf)
@@ -299,7 +298,7 @@ class TestInstructionRoundTrip:
     # -- Timer round-trips --
 
     def test_timer_on_delay(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
+        contact = Contact("X001")
         timer = Timer(
             kind="on_delay",
             done="T1",
@@ -317,7 +316,7 @@ class TestInstructionRoundTrip:
         assert t.retained is False
 
     def test_timer_off_delay(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
+        contact = Contact("X001")
         timer = Timer(
             kind="off_delay",
             done="T2",
@@ -332,7 +331,7 @@ class TestInstructionRoundTrip:
         assert t.unit == "Ts"
 
     def test_timer_retentive(self) -> None:
-        contact = Contact(InstructionType.CONTACT_NO, "X001")
+        contact = Contact("X001")
         timer = Timer(
             kind="on_delay",
             done="T3",
@@ -350,7 +349,7 @@ class TestInstructionRoundTrip:
     def test_timer_all_units(self) -> None:
         """Verify all 5 time units round-trip correctly."""
         for unit in ("Tms", "Ts", "Tm", "Th", "Td"):
-            contact = Contact(InstructionType.CONTACT_NO, "X001")
+            contact = Contact("X001")
             timer = Timer(
                 kind="on_delay",
                 done="T1",

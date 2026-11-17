@@ -42,7 +42,7 @@ from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob
 from laddercodec.instructions.send_receive import ModbusAddress, ModbusRtuTarget, Receive
 from laddercodec.instructions.undecoded import Undecoded
-from laddercodec.model import ADDRESS_BANKS, AfInstruction, InstructionType
+from laddercodec.model import ADDRESS_BANKS, AfInstruction
 
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
@@ -417,7 +417,7 @@ def _accepts_address(field: dict[str, Any], bank: str, number: int) -> bool:
     kind, mode = field["instruction"], field.get("mode")
     try:
         if kind == "out":
-            Coil(InstructionType.COIL_OUT, address, None)
+            Coil(address, range_end=None)
         elif mode == "single":
             Copy("DS1", address)
         elif mode == "block":

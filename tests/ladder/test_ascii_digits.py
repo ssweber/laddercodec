@@ -31,7 +31,7 @@ from laddercodec.instructions.search import Search
 from laddercodec.instructions.send_receive import ModbusAddress
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
-from laddercodec.model import AddressError, InstructionType, check_address
+from laddercodec.model import AddressError, check_address
 from tests.kept_refusals import kept
 
 ASCII = "3"
@@ -52,7 +52,7 @@ def _time_drum(preset: str) -> Drum:
 # (id, constructor taking the digit text).
 CONSTRUCTORS: list[tuple[str, Callable[[str], object]]] = [
     ("address", lambda d: check_address(f"DS{d}", "x")),
-    ("contact", lambda d: Contact(InstructionType.CONTACT_NO, f"X00{d}")),
+    ("contact", lambda d: Contact(f"X00{d}")),
     ("compare", lambda d: CompareContact("==", "DS1", d)),
     ("copy", lambda d: Copy(d, "DS1")),
     ("copy-dest", lambda d: Copy("1", f"DS{d}")),

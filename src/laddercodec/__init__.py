@@ -8,11 +8,13 @@ from .decode_program import decode_program
 from .encode import encode
 from .errors import CsvError, DecodeError, EncodeError, LaddercodecError, WriterError
 from .instructions import (
+    AfToken,
     BlockCopy,
     Break,
     Call,
     Coil,
     CompareContact,
+    ConditionToken,
     Contact,
     Continue,
     Copy,
@@ -46,7 +48,15 @@ from .instructions import (
 )
 from .layout_check import Finding, check
 from .legacy import LegacyEncodingWarning
-from .model import AddressError, FieldError, Program, Project, Reason
+from .model import (
+    AddressError,
+    AfInstruction,
+    ConditionInstruction,
+    FieldError,
+    Program,
+    Project,
+    Reason,
+)
 from .operands.constants import constant_text
 from .refused import RefusedFieldWarning
 from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
@@ -77,6 +87,10 @@ __all__ = [
     "RefusedFieldWarning",
     "UndecodedRungWarning",
     "UndecodedCommentWarning",
+    "ConditionInstruction",
+    "AfInstruction",
+    "ConditionToken",
+    "AfToken",
     "BlockCopy",
     "Call",
     "Contact",

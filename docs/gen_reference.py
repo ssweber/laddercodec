@@ -64,6 +64,10 @@ PAGES: tuple[ReferencePage, ...] = (
         tier="Stable Core",
         summary="Domain objects for ladder logic instructions.",
         symbols=(
+            "ConditionInstruction",
+            "AfInstruction",
+            "ConditionToken",
+            "AfToken",
             "Contact",
             "CompareContact",
             "Coil",

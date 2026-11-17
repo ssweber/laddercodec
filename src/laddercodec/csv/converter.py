@@ -76,7 +76,6 @@ from ..model import (
     AfInstruction,
     ConditionInstruction,
     FieldError,
-    InstructionType,
     PinnedInstruction,
     check_address,
 )
@@ -513,18 +512,18 @@ def condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, VerticalPassThroughWire):
         return "|"
     if isinstance(node, ContactCondition):
-        itype = InstructionType.CONTACT_NC if node.negated else InstructionType.CONTACT_NO
         return Contact(
-            type=itype,
-            operand=node.operand,
+            node.operand,
+            kind="nc" if node.negated else "no",
             immediate=node.immediate,
             wire_down=node.wire_down,
         )
     if isinstance(node, EdgeCondition):
+        # An immediate edge contact is refused when it is built.
         return Contact(
-            type=InstructionType.CONTACT_EDGE,
-            operand=node.operand,
-            edge_kind=node.kind,
+            node.operand,
+            kind=node.kind,
+            immediate=node.immediate,
             wire_down=node.wire_down,
         )
     if isinstance(node, ComparisonCondition):

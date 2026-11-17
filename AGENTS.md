@@ -62,7 +62,8 @@ src/laddercodec/
 │   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
 │   ├── checks.py         # Shared field checks: check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
-│   │                     #   check_flag (re-exported by model.py); BIT_BANKS, REGISTER_BANKS;
+│   │                     #   check_flag (re-exported by model.py); check_csv_flag (a CSV 0/1 keyword:
+│   │                     #   Coil, Copy family); BIT_BANKS, REGISTER_BANKS;
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)

@@ -415,9 +415,7 @@ def _bits() -> list[Field]:
     for immediate in (False, True):
 
         def coil(ns: Any, value: str, immediate: bool = immediate) -> Any:
-            return ns.inst.Coil(
-                type=ns.InstructionType.COIL_OUT, operand=value, immediate=immediate
-            )
+            return ns.inst.Coil(value, kind="out", immediate=immediate)
 
         label = "Coil.operand (immediate)" if immediate else "Coil.operand"
         key = "Coil/out-immediate/operand" if immediate else "Coil/out/operand"

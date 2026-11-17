@@ -35,7 +35,7 @@ from laddercodec.instructions import (
     Velocity,
 )
 from laddercodec.instructions.raw import find_blob_boundary
-from laddercodec.model import FieldError, InstructionType
+from laddercodec.model import FieldError
 from laddercodec.topology import GRID_FIRST_ROW_START, PROGRAM_HEADER_BASE
 from tests.undecoded_captures import is_windy_road
 
@@ -151,9 +151,7 @@ def _short_email() -> RawInstruction:
     return RawInstruction("Email", Email().build_blob(), 1, visual_rows=1, sub_rows=1)
 
 
-@pytest.mark.parametrize(
-    "below", ["NOP", Coil(InstructionType.COIL_OUT, "Y001")], ids=["nop", "coil"]
-)
+@pytest.mark.parametrize("below", ["NOP", Coil("Y001")], ids=["nop", "coil"])
 def test_clipboard_short_box_stays_raw(below: object) -> None:
     rung = Rung(2, [["-"] * 31, ["-"] * 31], [_short_email(), below], None, None)
     data = encode(rung)

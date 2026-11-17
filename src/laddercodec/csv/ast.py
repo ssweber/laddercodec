@@ -70,6 +70,7 @@ class EdgeCondition:
     kind: Literal["rise", "fall"]
     operand: str
     wire_down: bool = False
+    immediate: bool = False  # never valid; the Contact built from it refuses it
 
 
 @dataclass(frozen=True)

@@ -189,6 +189,17 @@ def _decode_af_string_literal(arg: str) -> str:
     return "".join(chars)
 
 
+def _split_immediate(text: str) -> tuple[str, bool]:
+    """``text`` without its immediate suffix (``.immediate``) or wrapper
+    (``immediate(...)``), and whether it had one."""
+    if text.endswith(".immediate"):
+        return text[: -len(".immediate")], True
+    inner = re.fullmatch(r"immediate\((.+)\)", text)
+    if inner:
+        return inner.group(1).strip(), True
+    return text, False
+
+
 def _parse_contact(token: str) -> ContactCondition | None:
     text = token.strip()
     if not text:
@@ -198,15 +209,7 @@ def _parse_contact(token: str) -> ContactCondition | None:
     if negated:
         text = text[1:].strip()
 
-    immediate = text.endswith(".immediate")
-    if immediate:
-        text = text[: -len(".immediate")]
-
-    if not immediate:
-        inner = re.fullmatch(r"immediate\((.+)\)", text)
-        if inner:
-            immediate = True
-            text = inner.group(1).strip()
+    text, immediate = _split_immediate(text)
 
     if not OPERAND_RE.fullmatch(text):
         return None
@@ -241,7 +244,9 @@ def parse_condition_token(token: str) -> ConditionCellNode:
         wire_down = True
         text = text[2:]
 
-    edge_match = _EDGE_RE.fullmatch(text)
+    # An immediate edge contact (rise(X1).immediate) reads as one, and building it refuses it.
+    edge_text, edge_immediate = _split_immediate(text)
+    edge_match = _EDGE_RE.fullmatch(edge_text)
     if edge_match:
         operand = edge_match.group(2).strip()
         if OPERAND_RE.fullmatch(operand):
@@ -249,6 +254,7 @@ def parse_condition_token(token: str) -> ConditionCellNode:
                 kind=cast(Literal["rise", "fall"], edge_match.group(1)),
                 operand=operand,
                 wire_down=wire_down,
+                immediate=edge_immediate,
             )
         return GenericCondition(raw=token)
 

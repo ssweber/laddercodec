@@ -348,7 +348,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
 
 VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ("call.py", "CsvError(f('Cannot parse call instruction: {token!r}'))"): 1,
-    ("coil.py", "CsvError('coil oneshot must be 0 or 1')"): 1,
     ("coil.py", "CsvError(f(\"Range delimiter ':' is unsupported: {token!r}\"))"): 1,
     ("coil.py", "CsvError(f('Cannot parse coil keyword arg: {token!r}'))"): 1,
     ("coil.py", "CsvError(f('Cannot parse coil range: {token!r}'))"): 1,
@@ -359,7 +358,6 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "CsvError(f('Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}'))",
     ): 1,
     ("comparison.py", "CsvError(f('Cannot parse compare contact: {token!r}'))"): 1,
-    ("contact.py", "CsvError('Immediate edge contacts are unsupported')"): 1,
     ("copy.py", "CsvError(f(\"Expected range with '..': {arg!r}\"))"): 1,
     ("copy.py", "CsvError(f('Cannot parse convert value: {raw!r}'))"): 1,
     ("copy.py", "CsvError(f('Cannot parse copy: {token!r}'))"): 1,

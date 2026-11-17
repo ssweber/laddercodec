@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
-from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     ConditionInstruction,
@@ -21,45 +20,36 @@ from ..model import (
 from ..operands.checks import BIT_BANKS, Refusals
 from .family import ConditionInstructionFamilySpec
 
+#: A contact's kind, as its CSV token reads: ``X001``, ``~X001``, ``rise(X001)``,
+#: ``fall(X001)``.
+ContactKind = Literal["no", "nc", "rise", "fall"]
+
 # ---------------------------------------------------------------------------
-# Func code tables — NO/NC
+# Func code and type marker tables
 # ---------------------------------------------------------------------------
 
-CONTACT_FUNC_CODES: dict[tuple[InstructionType, bool], str] = {
-    (InstructionType.CONTACT_NO, False): "4097",
-    (InstructionType.CONTACT_NC, False): "4098",
-    (InstructionType.CONTACT_NO, True): "4099",
-    (InstructionType.CONTACT_NC, True): "4100",
+#: (kind, immediate) -> func_code.  An edge contact has no immediate form.
+CONTACT_FUNC_CODES: dict[tuple[ContactKind, bool], str] = {
+    ("no", False): "4097",
+    ("nc", False): "4098",
+    ("no", True): "4099",
+    ("nc", True): "4100",
+    ("rise", False): "4101",
+    ("fall", False): "4102",
 }
 
-# Reverse lookup: func_code string → (InstructionType, immediate, edge_kind).
-_FUNC_TO_CONTACT: dict[str, tuple[InstructionType, bool, Literal["rise", "fall"] | None]] = {}
-for (_ct, _imm), _fc in CONTACT_FUNC_CODES.items():
-    _FUNC_TO_CONTACT[_fc] = (_ct, _imm, None)
-
-# ---------------------------------------------------------------------------
-# Func code tables — Edge
-# ---------------------------------------------------------------------------
-
-CONTACT_EDGE_FUNC_CODES: dict[Literal["rise", "fall"], str] = {
-    "rise": "4101",
-    "fall": "4102",
+_KIND_TO_ITYPE: dict[ContactKind, InstructionType] = {
+    "no": InstructionType.CONTACT_NO,
+    "nc": InstructionType.CONTACT_NC,
+    "rise": InstructionType.CONTACT_EDGE,
+    "fall": InstructionType.CONTACT_EDGE,
 }
 
-# Reverse lookup: func_code string → (InstructionType, immediate, edge_kind).
-_FUNC_TO_EDGE: dict[str, tuple[InstructionType, bool, Literal["rise", "fall"] | None]] = {}
-for _edge, _fc in CONTACT_EDGE_FUNC_CODES.items():
-    _FUNC_TO_EDGE[_fc] = (InstructionType.CONTACT_EDGE, False, _edge)
+_EDGE_KINDS: tuple[ContactKind, ...] = ("rise", "fall")
 
 # ---------------------------------------------------------------------------
 # Tag constants
 # ---------------------------------------------------------------------------
-
-_CONTACT_TYPES = (
-    InstructionType.CONTACT_NO,
-    InstructionType.CONTACT_NC,
-    InstructionType.CONTACT_EDGE,
-)
 
 _CONTACT_NO_TAGS = (0x6065, 0x11F5, 0x3218, 0x0000)
 _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
@@ -71,28 +61,26 @@ _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 
 @dataclass
 class Contact(ConditionInstruction):
-    """A contact instruction (NO or NC)."""
+    """A contact: normally open (``no``), normally closed (``nc``), or an edge contact
+    (``rise``, ``fall``).
 
-    type: InstructionType  # CONTACT_NO, CONTACT_NC, or CONTACT_EDGE
+    ``Contact("X001", kind="nc", immediate=True)`` is the CSV token ``~X001.immediate``.
+    Only an NO or NC contact on X has an immediate form.
+    """
+
     operand: str  # e.g. "X001"
+    kind: ContactKind = "no"
     immediate: bool = False
-    edge_kind: Literal["rise", "fall"] | None = None
     wire_down: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.type not in _CONTACT_TYPES:
-                check.refuse(
-                    "type",
-                    f"{self.type!r} is not a contact (CONTACT_NO, CONTACT_NC or CONTACT_EDGE)",
-                    Reason.CHOICE,
-                )
             check.flag("immediate", "wire_down")
             check.normalize("operand")
             address = check("operand", check_address, BIT_BANKS)
-            if self.immediate is True and self.type == InstructionType.CONTACT_EDGE:
+            if self.immediate is True and self.kind in _EDGE_KINDS:
                 check.refuse(
-                    ("immediate", "type"),
+                    ("immediate", "kind"),
                     "an edge contact has no immediate form",
                     Reason.CONFLICT,
                 )
@@ -102,18 +90,12 @@ class Contact(ConditionInstruction):
                     f"{self.operand!r} is not allowed; an immediate contact takes X only",
                     Reason.CONFLICT,
                 )
-            if self.type == InstructionType.CONTACT_EDGE:
-                if self.edge_kind not in tuple(CONTACT_EDGE_FUNC_CODES):
-                    check.refuse(
-                        "edge_kind",
-                        f"{self.edge_kind!r} is not rise or fall; an edge contact needs one",
-                        Reason.CHOICE,
-                    )
-            elif self.edge_kind is not None:
+            # The kind is checked last, so a refused operand is reported first.
+            if self.kind not in tuple(_KIND_TO_ITYPE):  # tuple: an unhashable kind is refused
                 check.refuse(
-                    ("edge_kind", "type"),
-                    f"{self.edge_kind!r} is not allowed; only an edge contact has one",
-                    Reason.CONFLICT,
+                    "kind",
+                    f"{self.kind!r} is not a contact kind (no, nc, rise or fall)",
+                    Reason.CHOICE,
                 )
 
     @classmethod
@@ -149,38 +131,32 @@ class Contact(ConditionInstruction):
 
         edge_match = re.fullmatch(r"(rise|fall)\((.+)\)", token)
         if edge_match:
-            if immediate:
-                raise CsvError("Immediate edge contacts are unsupported")
-            edge_kind = cast(Literal["rise", "fall"], edge_match.group(1))
-            operand = edge_match.group(2).strip()
+            # An immediate edge contact is refused when it is built.
             return cls(
-                InstructionType.CONTACT_EDGE,
-                operand,
-                immediate=False,
-                edge_kind=edge_kind,
+                edge_match.group(2).strip(),
+                kind=cast(ContactKind, edge_match.group(1)),
+                immediate=immediate,
                 wire_down=wire_down,
             )
 
-        itype = InstructionType.CONTACT_NC if negated else InstructionType.CONTACT_NO
         return cls(
-            itype,
             token.strip(),
+            kind="nc" if negated else "no",
             immediate=immediate,
             wire_down=wire_down,
         )
 
     @property
     def func_code(self) -> str:
-        if self.type == InstructionType.CONTACT_EDGE:
-            return CONTACT_EDGE_FUNC_CODES[cast(Literal["rise", "fall"], self.edge_kind)]
-        return CONTACT_FUNC_CODES[(self.type, self.immediate)]
+        return CONTACT_FUNC_CODES[(self.kind, self.immediate)]
 
     def to_csv(self) -> str:
-        if self.type == InstructionType.CONTACT_EDGE:
-            inner = f"{self.edge_kind}({self.operand})"
+        suffix = ".immediate" if self.immediate else ""
+        if self.kind in _EDGE_KINDS:
+            # An immediate edge contact is only ever held as a refusal (read unchecked).
+            inner = f"{self.kind}({self.operand}){suffix}"
         else:
-            prefix = "~" if self.type == InstructionType.CONTACT_NC else ""
-            suffix = ".immediate" if self.immediate else ""
+            prefix = "~" if self.kind == "nc" else ""
             inner = f"{prefix}{self.operand}{suffix}"
         if self.wire_down:
             return f"T:{inner}"
@@ -194,11 +170,12 @@ class Contact(ConditionInstruction):
         """Build the instruction data blob for this contact cell."""
         from ..binary_helpers import _build_blob
 
-        if self.type == InstructionType.CONTACT_EDGE:
-            field1 = "0" if self.edge_kind == "rise" else "1"
+        type_marker = 0x2700 | _KIND_TO_ITYPE[self.kind]
+        if self.kind in _EDGE_KINDS:
+            field1 = "0" if self.kind == "rise" else "1"
             return _build_blob(
                 "Edge",
-                0x2700 | self.type,
+                type_marker,
                 _EDGE_TAGS,
                 [self.operand, field1, self.func_code, ""],
             )
@@ -206,7 +183,7 @@ class Contact(ConditionInstruction):
         field1 = "1" if self.immediate else "0"
         return _build_blob(
             "ContactNO",
-            0x2700 | self.type,
+            type_marker,
             _CONTACT_NO_TAGS,
             [self.operand, field1, self.func_code, ""],
         )
@@ -235,7 +212,8 @@ def from_tags(
         if not operand:
             return None
         immediate = tag_flag(tags, 0x11F5)
-        return Contact(type=itype, operand=operand, immediate=immediate)
+        kind: ContactKind = "nc" if itype == InstructionType.CONTACT_NC else "no"
+        return Contact(operand, kind=kind, immediate=immediate)
 
     if class_name == "Edge" and itype == InstructionType.CONTACT_EDGE:
         operand = tag_value(tags, 0x6065)
@@ -243,12 +221,8 @@ def from_tags(
             return None
         # SCR: tag absent = rise, present = fall.
         # Clipboard: tag always present, byte value 0 = rise, 1 = fall.
-        edge_kind: Literal["rise", "fall"] = "fall" if tag_int(tags, 0x21F6) != 0 else "rise"
-        return Contact(
-            type=InstructionType.CONTACT_EDGE,
-            operand=operand,
-            edge_kind=edge_kind,
-        )
+        edge: ContactKind = "fall" if tag_int(tags, 0x21F6) != 0 else "rise"
+        return Contact(operand, kind=edge)
 
     return None
 

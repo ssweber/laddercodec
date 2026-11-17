@@ -84,9 +84,16 @@ registry entry to the existing one (see `out_variant.py`).
 If the variant is covered by an existing family spec, update the family module's CSV parsing path rather than adding a new central converter branch. For example, extend `from_csv_token()` or the family's `parse_af_call()` hook so the new kwarg is understood:
 
 ```python
-oneshot = call.kwargs.get("oneshot") == "1"
+from ..operands.checks import check_csv_flag
+
+oneshot = check_csv_flag(call.kwargs, "oneshot", "Coil.oneshot")
 return Coil(..., oneshot=oneshot)
 ```
+
+Read a flag keyword with `check_csv_flag`: it takes `1` or `0` and reads an absent one
+as off. It refuses a blank one as missing, and any other text as no flag, each with a
+`FieldError` that names the field. A plain `== "1"` would read `oneshot=2` as off without
+a word.
 
 ### 4. Update the coverage CSV
 

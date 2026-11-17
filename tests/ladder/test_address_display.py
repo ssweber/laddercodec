@@ -34,7 +34,6 @@ from laddercodec.model import (
     ADDRESS_BANKS,
     AddressError,
     FieldError,
-    InstructionType,
     check_address,
     normalize_address,
 )
@@ -121,7 +120,7 @@ class TestNormalizeAddress:
     )
     def test_refused_forms_still_refused(self, typed: str, message: str) -> None:
         with pytest.raises(AddressError, match=message):
-            Contact(InstructionType.CONTACT_NO, typed)
+            Contact(typed)
 
     @pytest.mark.parametrize(
         ("typed", "message"),
@@ -258,9 +257,7 @@ class TestThroughCsv:
 
 class TestConstructor:
     def test_contact(self) -> None:
-        assert Contact(InstructionType.CONTACT_NO, "x1") == Contact(
-            InstructionType.CONTACT_NO, "X001"
-        )
+        assert Contact("x1") == Contact("X001")
 
     def test_copy_pointer(self) -> None:
         copy = Copy("dd[ds01]", "ds0002")
@@ -340,13 +337,13 @@ class TestDecodeKeepsText:
 
     @pytest.mark.parametrize("text", ["X1", "x1", "x001"])
     def test_contact(self, text: str) -> None:
-        blob = Contact(InstructionType.CONTACT_NO, "X001").build_blob()
-        assert parse_condition_blob(blob) == Contact(InstructionType.CONTACT_NO, "X001")
+        blob = Contact("X001").build_blob()
+        assert parse_condition_blob(blob) == Contact("X001")
         assert parse_condition_blob(_swap(blob, "X001", text)) is None
 
     @pytest.mark.parametrize("text", ["C001", "c1"])
     def test_coil(self, text: str) -> None:
-        blob = Coil(InstructionType.COIL_OUT, "C1").build_blob()
+        blob = Coil("C1").build_blob()
         assert parse_af_blob(_swap(blob, "C1", text)) is None
 
     @pytest.mark.parametrize(
