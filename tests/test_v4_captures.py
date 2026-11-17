@@ -82,8 +82,7 @@ COVERAGE_GOLDEN = Path(__file__).parent / "fixtures" / "coverage" / "golden"
 
 def _decode_file(path: Path | bytes) -> list[Rung]:
     """The rungs of a capture file, or of a buffer already read."""
-    decoded = decode(path if isinstance(path, bytes) else path.read_bytes())
-    return decoded if isinstance(decoded, list) else [decoded]
+    return decode(path if isinstance(path, bytes) else path.read_bytes())
 
 
 def _load_labelled() -> list[tuple[str, Rung]]:
@@ -1201,7 +1200,7 @@ def test_down_wire_in_the_output_column_is_refused() -> None:
     The rung decodes as an undecoded marker, with a warning.
     """
     with pytest.warns(UndecodedRungWarning) as caught:
-        rung = decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
+        [rung] = decode((CAPTURE_DIR / "windy_road_pasted.bin").read_bytes())
     error = (
         "the output column has a down wire, which isn't supported. CLICK's syntax check removes it."
     )

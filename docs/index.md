@@ -23,8 +23,8 @@ from laddercodec import read_csv, encode, decode
 rungs = read_csv("my_rung.csv")
 binary = encode(rungs[0])
 
-# Binary → structured data
-rung = decode(binary)
+# Binary → structured data: one Rung per rung on the clipboard
+[rung] = decode(binary)
 print(rung.logical_rows)
 print(rung.instructions)
 ```

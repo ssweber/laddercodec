@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from importlib import resources
 
+from .errors import EncodeError
 from .topology import (
     CELL_SIZE,
     COLS_PER_ROW,
@@ -32,7 +33,7 @@ def _validate_rows(logical_rows: int) -> None:
     if not isinstance(logical_rows, int):
         raise TypeError(f"logical_rows must be int; got {type(logical_rows).__name__}")
     if not (EMPTY_MULTIROW_MIN_ROWS <= logical_rows <= EMPTY_MULTIROW_MAX_ROWS):
-        raise ValueError(
+        raise EncodeError(
             f"logical_rows must be in [{EMPTY_MULTIROW_MIN_ROWS}, {EMPTY_MULTIROW_MAX_ROWS}], "
             f"got {logical_rows}"
         )
@@ -41,7 +42,7 @@ def _validate_rows(logical_rows: int) -> None:
 def _load_template() -> bytes:
     data = resources.files("laddercodec").joinpath(EMPTY_MULTIROW_TEMPLATE_RESOURCE).read_bytes()
     if len(data) < GRID_FIRST_ROW_START + GRID_ROW_STRIDE:
-        raise ValueError(f"Empty multi-row template is too short: {len(data)} bytes")
+        raise EncodeError(f"Empty multi-row template is too short: {len(data)} bytes")
     return data
 
 
@@ -67,7 +68,7 @@ def synthesize_empty_multirow(
 
     template_bytes = template if template is not None else _load_template()
     if len(template_bytes) < GRID_FIRST_ROW_START + GRID_ROW_STRIDE:
-        raise ValueError(f"template payload too short ({len(template_bytes)} bytes)")
+        raise EncodeError(f"template payload too short ({len(template_bytes)} bytes)")
 
     payload_len = empty_multirow_payload_length(logical_rows)
     out = bytearray(payload_len)

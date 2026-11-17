@@ -170,7 +170,7 @@ def test_each_answered_save_reads_in_display_form(
     data = encode(replace(rung, instructions=instructions))
     assert data == encode(rung)
     # Read back from the clipboard, it is the same instruction: a hex Math stays hex.
-    decoded = decode(data)
+    [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [back] = [t for t in decoded.instructions if isinstance(t, type(inst))]
     assert back == inst and not refusals(back)
@@ -292,7 +292,7 @@ def test_a_program_box_reads_back_from_the_clipboard(
     data = _one_box_of(box)
     with warnings.catch_warnings():
         warnings.simplefilter("error", RefusedFieldWarning)
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [back] = [t for t in decoded.instructions if isinstance(t, AfInstruction)]
     assert back == inst and not refusals(back)
@@ -307,7 +307,7 @@ def test_a_program_box_holding_a_refusal_reads_back_from_the_clipboard() -> None
     kept(box, "ForLoop.limit")
     data = _one_box_of(box)
     with pytest.warns(RefusedFieldWarning):
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [back] = [t for t in decoded.instructions if isinstance(t, AfInstruction)]
     assert isinstance(back, ForLoop) and back.oneshot and back.limit == "Y001"
@@ -354,7 +354,7 @@ def test_a_typed_clipboard_blob_reads_in_display_form(
     data = _one_box(blob)
     with warnings.catch_warnings():
         warnings.simplefilter("error", RefusedFieldWarning)
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [box] = decoded.instructions
     assert box == inst
@@ -382,7 +382,7 @@ def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
 ) -> None:
     data = _one_box(_retagged(inst.build_blob(), edits))
     with pytest.warns(RefusedFieldWarning):
-        decoded = decode(data)
+        [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [box] = decoded.instructions
     kept(box, field)
@@ -412,10 +412,6 @@ def test_a_form_no_save_shows_stays_raw(
 ) -> None:
     assert parse_af_blob(inst.build_blob()) == inst
     assert parse_af_blob(_retagged(inst.build_blob(), edits)) is None
-
-
-def _as_list(decoded: Rung | list[Rung]) -> list[Rung]:
-    return decoded if isinstance(decoded, list) else [decoded]
 
 
 def _clip_text(text: str) -> bytes:
@@ -472,7 +468,7 @@ def test_both_decoders_read_a_typed_address(
 
     with warnings.catch_warnings():
         warnings.simplefilter("error", RefusedFieldWarning)
-        from_clipboard = _as_list(decode(clipboard))
+        from_clipboard = decode(clipboard)
         from_program = decode_program(program).rungs
     index, inst = typed(from_clipboard)
     assert not refusals(inst)
@@ -485,7 +481,7 @@ def test_both_decoders_read_a_typed_address(
     monkeypatch.setattr(
         decode_mod, "parse_af_blob", lambda raw: None if (af := parse_af(raw)) == inst else af
     )
-    as_raw_clipboard = _as_list(decode(clipboard))
+    as_raw_clipboard = decode(clipboard)
     monkeypatch.undo()
     assert encode(from_clipboard) == encode(as_raw_clipboard)
 

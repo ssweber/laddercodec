@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
+from ..errors import CsvError, EncodeError
 from ..model import InstructionType, PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import Kind
@@ -128,7 +129,7 @@ class Counter(PinnedInstruction):
 
     def with_pins(self, pins: dict[str, tuple[str, ...]], pin_rows: tuple[int, ...]) -> Counter:
         if ".reset" not in pins:
-            raise ValueError(f"{self.counter_type} requires a .reset() pin row")
+            raise CsvError(f"{self.counter_type} requires a .reset() pin row")
         return replace(
             self,
             reset_enabled=True,
@@ -142,7 +143,7 @@ class Counter(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(count_up|count_down)\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse counter: {token!r}")
+            raise CsvError(f"Cannot parse counter: {token!r}")
 
         counter_type = cast(Literal["count_up", "count_down"], m.group(1))
         args: list[str] = []
@@ -155,13 +156,13 @@ class Counter(PinnedInstruction):
                 args.append(seg)
 
         if len(args) != 2:
-            raise ValueError(
+            raise CsvError(
                 f"{counter_type} expects 2 positional args (done, current), got {len(args)}: {token!r}"
             )
 
         preset = kwargs.get("preset", "")
         if not preset:
-            raise ValueError(f"{counter_type} missing preset kwarg: {token!r}")
+            raise CsvError(f"{counter_type} missing preset kwarg: {token!r}")
 
         return cls(
             counter_type=counter_type,
@@ -175,7 +176,7 @@ class Counter(PinnedInstruction):
         key = (self.counter_type, self.down_enabled, self.reset_enabled)
         result = _VARIANT_TO_ENCODING.get(key)
         if result is None:
-            raise ValueError(
+            raise EncodeError(
                 "Unsupported counter variant: "
                 f"{self.counter_type}(down={self.down_enabled}, reset={self.reset_enabled})"
             )

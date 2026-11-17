@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from ..errors import CsvError
+
 MARKER_COLUMN = "marker"
 OUTPUT_COLUMN = "AF"
 COMMENT_MARKER = "#"
@@ -38,6 +40,6 @@ def is_valid_marker(value: str) -> bool:
 
 def validate_header(fields: list[str]) -> None:
     if tuple(fields) != CSV_HEADER:
-        raise ValueError(
+        raise CsvError(
             f"Invalid CSV header. Expected: {','.join(CSV_HEADER)}; got: {','.join(fields)}"
         )

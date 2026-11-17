@@ -17,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import (
+    EncodeError,
     FieldError,
     Program,
     Rung,
@@ -46,7 +47,7 @@ COLUMNS = [*(chr(ord("A") + i) for i in range(26)), "AA", "AB", "AC", "AD", "AE"
 
 
 def _decoded(name: str) -> Rung:
-    rung = decode((GOLDEN / name).read_bytes())
+    [rung] = decode((GOLDEN / name).read_bytes())
     assert isinstance(rung, Rung)
     return replace(rung, comment_rtf=None)
 
@@ -67,7 +68,6 @@ def _decode(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         rungs = decode(data)
-    assert isinstance(rungs, list)
     return rungs, [w.message.marker for w in caught if isinstance(w.message, UndecodedRungWarning)]
 
 
@@ -142,8 +142,7 @@ def _rungs_and_markers(data: bytes) -> tuple[list[Rung], list[Undecoded]]:
     """Decode *data* (one rung or several); return its rungs and its warnings' markers."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        got = decode(data)
-    rungs = got if isinstance(got, list) else [got]
+        rungs = decode(data)
     return rungs, [w.message.marker for w in caught if isinstance(w.message, UndecodedRungWarning)]
 
 
@@ -177,7 +176,7 @@ def test_a_lost_first_rung_is_one_marker_from_every_decoder() -> None:
     row, column = _instruction_cell(RUNGS[0])
     data = _patched((_cell(0, row, column + 1) + 0x01, b"\x7f"))
     with pytest.warns(UndecodedRungWarning):
-        rung = decode(data)
+        [rung] = decode(data)
     with pytest.warns(UndecodedRungWarning):
         assert decode_rung(data) == rung
     with pytest.warns(UndecodedRungWarning):
@@ -197,7 +196,7 @@ def test_a_row_the_walk_cannot_read_in_a_native_copy_stops_decoding() -> None:
     """Rung 1 of 4 fails: rung 0 decodes, and one marker stands for rungs 1 to 3."""
     data = LOOP_EXITS.read_bytes()
     want = decode(data)
-    assert isinstance(want, list) and len(want) == 4
+    assert len(want) == 4
     (cell,) = inspect_cells(data, [(1, 0, "B")])
     assert data[cell.offset + 0x05] == 0x26
     assert isinstance(want[1].conditions[0][0], ConditionInstruction)
@@ -236,7 +235,7 @@ def test_a_preamble_flag_on_cell_0_only_stops_decoding(row: int) -> None:
     three = _decoded("nc-3row-t-junction.bin")
     data = encode([replace(three, comment=f"c{i}") for i in range(3)])
     want = decode(data)
-    assert isinstance(want, list) and len(want) == 3
+    assert len(want) == 3
     (cell0,) = inspect_cells(data, [(1, row, "A")])
     (cell1,) = inspect_cells(data, [(1, row, "B")])
     assert data[cell0.offset + 0x30] == data[cell1.offset + 0x30] == 0
@@ -286,7 +285,6 @@ def test_a_comment_that_does_not_decode_keeps_the_rung(index: int) -> None:
     """A comment in a code page other than 1252 is noted, and the rung keeps its logic."""
     with pytest.warns(UndecodedCommentWarning) as caught:
         rungs = decode(_with_code_page(DATA, index))
-    assert isinstance(rungs, list)
     (warning,) = [w.message for w in caught]
     assert isinstance(warning, UndecodedCommentWarning)
     assert (warning.rung, warning.program) == (index, None)
@@ -306,7 +304,6 @@ def test_a_comment_that_does_not_decode_on_a_marker_rung() -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         rungs = decode(data)
-    assert isinstance(rungs, list)
     kinds = [type(w.message) for w in caught]
     assert kinds == [UndecodedCommentWarning, UndecodedRungWarning]
     (marker,) = rungs[1].instructions
@@ -459,7 +456,7 @@ def test_scr_bytes_a_rung_cannot_be_built_from(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_scr_header_errors_still_raise() -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(DecodeError):
         decode_program(b"not an SCR file")
 
 
@@ -580,7 +577,7 @@ def test_write_csv_writes_a_marker_for_an_unwritable_rung(
 
 def test_write_csv_refuses_an_unknown_stop_before_writing(tmp_path: Path) -> None:
     """``stop`` is checked even when no rung needs a marker, and no file is made."""
-    with pytest.raises(ValueError, match=r"write_csv: stop='halt' must be 'end' or 'return'"):
+    with pytest.raises(WriterError, match=r"write_csv: stop='halt' must be 'end' or 'return'"):
         write_csv(tmp_path / "m.csv", RUNGS, stop="halt")  # type: ignore[arg-type]
     assert not (tmp_path / "m.csv").exists()
 
@@ -613,9 +610,9 @@ def test_write_csv_still_raises_when_the_round_trip_check_fails(
 
 def test_encode_refuses_a_marker() -> None:
     marker = marker_rung(Undecoded("why", 3, 0, 31))
-    with pytest.raises(ValueError, match=r"Row 0, AF: an undecoded marker .* can't be pasted"):
+    with pytest.raises(EncodeError, match=r"Row 0, AF: an undecoded marker .* can't be pasted"):
         encode(marker)
-    with pytest.raises(ValueError, match=r"^Rung 1: Row 0, AF: an undecoded marker"):
+    with pytest.raises(EncodeError, match=r"^Rung 1: Row 0, AF: an undecoded marker"):
         encode([RUNGS[0], marker])
 
 
@@ -675,7 +672,7 @@ def test_no_fixture_decodes_to_a_marker() -> None:
 
 def test_windy_road_decodes_to_a_marker() -> None:
     with pytest.warns(UndecodedRungWarning) as caught:
-        rung = decode(WINDY_ROAD.read_bytes())
+        [rung] = decode(WINDY_ROAD.read_bytes())
     assert len(caught) == 1
     assert isinstance(rung, Rung)
     (marker,) = rung.instructions

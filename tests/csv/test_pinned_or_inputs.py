@@ -21,7 +21,7 @@ import pytest
 from laddercodec import decode, encode
 from laddercodec.csv import read_csv
 from laddercodec.csv.contract import CSV_HEADER
-from laddercodec.csv.converter import ConvertError
+from laddercodec.csv.converter import CsvError
 from laddercodec.csv.writer import WriterError, decoded_rung_to_rows
 from laddercodec.decode import Rung
 from laddercodec.instructions import Coil, Contact, Counter, Drum, Timer
@@ -80,7 +80,7 @@ def _write(path: Path, rows: list[list[str]]) -> Path:
 
 
 def _roundtrip(rung: Rung) -> Rung:
-    back = decode(encode(rung))
+    [back] = decode(encode(rung))
     assert isinstance(back, Rung)
     assert back.logical_rows == rung.logical_rows
     assert back.conditions == rung.conditions
@@ -168,13 +168,13 @@ def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:
         ["", *conds[1], ""],
         ["", *_pin_row(0), "NOP"],
     ]
-    with pytest.raises(ConvertError, match="NOP bridge row"):
+    with pytest.raises(CsvError, match="NOP bridge row"):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 
 def test_timer_rejects_foreign_pin(tmp_path: Path) -> None:
     rows = _csv_rows("on_delay(T1,TD1,preset=3000,unit=Tms)", 2, (".down()",))
-    with pytest.raises(ConvertError, match="not supported for on_delay"):
+    with pytest.raises(CsvError, match="not supported for on_delay"):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 

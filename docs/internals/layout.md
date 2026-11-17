@@ -6,7 +6,7 @@ height takes, where OR legs and outputs sit, and where each pin of a pinned box 
 circuit never changes: only cells move, and a rung CLICK would split becomes several rungs.
 
 `encode()` and `decode()` don't lay out. `encode(rung)` writes the grid it is given, and
-`decode()` returns the grid the bytes hold, so `decode(encode(x)) == x` holds for any `Rung`.
+`decode()` returns the grid the bytes hold, so `decode(encode(x)) == [x]` holds for any `Rung`.
 
 The code is `laddercodec._layout`. Ground truth is CLICK v4's copy-back of pasted rungs before
 and after its syntax check (`tests/fixtures/v4_captures/*_pasted.bin` and `*_checked.bin`);

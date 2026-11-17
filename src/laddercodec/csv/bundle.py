@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..errors import CsvError
 from .ast import ProgramBundleAst
 from .location import located_in_file
 from .parser import parse_csv_file
@@ -19,7 +20,7 @@ def parse_bundle(directory: Path | str) -> ProgramBundleAst:
     main_path = dir_path / "main.csv"
     if not main_path.exists():
         with located_in_file(main_path):
-            raise ValueError(f"Bundle directory {dir_path} is missing required main.csv")
+            raise CsvError(f"Bundle directory {dir_path} is missing required main.csv")
 
     main = parse_csv_file(main_path, syntax="canonical")
 

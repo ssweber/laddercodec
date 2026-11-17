@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from laddercodec.csv.converter import ConvertError, convert_rung
+from laddercodec.csv.converter import CsvError, convert_rung
 from laddercodec.csv.parser import parse_csv_file
 from laddercodec.encode import AfToken, ConditionToken, encode_rung
 from laddercodec.encode_multi import encode_rungs
@@ -33,7 +33,7 @@ def _encode_csv(csv_path: Path) -> bytes:
     for idx, rung in enumerate(program.rungs):
         try:
             laid_out = convert_rung(rung)
-        except (ConvertError, NotImplementedError, ValueError) as exc:
+        except (CsvError, NotImplementedError, ValueError) as exc:
             raise ValueError(f"Cannot encode {csv_path.name} rung {idx}: {exc}") from exc
         converted.extend(
             (

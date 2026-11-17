@@ -55,10 +55,11 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
     CLICK's, a flag that is not 0 or 1, pin rows the box can't take) still
     raises.  By default every refusal raises.
 
-    An exception raised for a bad CSV keeps its class (``ValueError``,
-    ``FieldError``, ``AddressError``, ...) and carries a :class:`CsvLocation`
-    as its ``location``: the file, line, rung, row and column where they are
-    known.  ``CsvLocation.of(exc)`` reads it, and the message ends with it.
+    A file that isn't UTF-8 text, or a row, token or rung that can't be read, raises
+    ``CsvError``, and a value CLICK's dialog refuses ``FieldError`` (``AddressError``
+    for an address).  Each carries a :class:`CsvLocation` as its ``location``: the
+    file, line, rung, row and column where they are known.  ``CsvLocation.of(exc)``
+    reads it, and the message ends with it.
     Each refusal an instruction keeps when *unchecked* is ``True`` carries the
     location it would raise with.
     """

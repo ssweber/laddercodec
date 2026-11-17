@@ -55,7 +55,7 @@ def _corpus() -> dict[str, Instruction]:
     ]
     for path in _native_captures():
         decoded = decode(read_clipboard(path))
-        rungs.extend(decoded if isinstance(decoded, list) else [decoded])
+        rungs.extend(decoded)
 
     found: dict[str, Instruction] = {}
     for rung in rungs:

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
+from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     AddressError,
@@ -147,34 +148,34 @@ class Coil(AfInstruction):
         """Parse coil forms with inner immediate wrapper and ranges."""
         token = token.strip()
         if token.startswith("immediate("):
-            raise ValueError(
+            raise CsvError(
                 f"Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}"
             )
 
         m = re.fullmatch(r"(out|latch|reset)\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse coil: {token!r}")
+            raise CsvError(f"Cannot parse coil: {token!r}")
 
         coil_type = COIL_NAME_TO_TYPE[m.group(1)]
         inner = m.group(2).strip()
         parts = [seg.strip() for seg in inner.split(",") if seg.strip()]
         if not parts:
-            raise ValueError(f"Cannot parse coil: {token!r}")
+            raise CsvError(f"Cannot parse coil: {token!r}")
 
         arg = parts[0]
         kwargs: dict[str, str] = {}
         for seg in parts[1:]:
             if "=" not in seg:
-                raise ValueError(f"Cannot parse coil keyword arg: {token!r}")
+                raise CsvError(f"Cannot parse coil keyword arg: {token!r}")
             k, v = seg.split("=", 1)
             kwargs[k.strip()] = v.strip()
 
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
-            raise ValueError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvError(f"Coil does not support keyword argument(s): {sorted(unknown)}")
         oneshot_raw = kwargs.get("oneshot", "0")
         if oneshot_raw not in {"0", "1"}:
-            raise ValueError("coil oneshot must be 0 or 1")
+            raise CsvError("coil oneshot must be 0 or 1")
         oneshot = oneshot_raw == "1"
 
         immediate_inner = False
@@ -185,12 +186,12 @@ class Coil(AfInstruction):
 
         immediate = immediate_inner
         if ":" in arg:
-            raise ValueError(f"Range delimiter ':' is unsupported: {token!r}")
+            raise CsvError(f"Range delimiter ':' is unsupported: {token!r}")
 
         if ".." in arg:
             parts = [p.strip() for p in arg.split("..")]
             if len(parts) != 2 or not all(parts):
-                raise ValueError(f"Cannot parse coil range: {token!r}")
+                raise CsvError(f"Cannot parse coil range: {token!r}")
             return cls(
                 type=coil_type,
                 operand=parts[0],

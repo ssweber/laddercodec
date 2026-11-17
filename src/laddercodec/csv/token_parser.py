@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 from typing import Literal, cast
 
+from ..errors import CsvError
 from ..instructions.comparison import split_comparison
 from ..model import OPERAND_RE
 from .ast import (
@@ -88,7 +89,7 @@ def _split_top_level_csv_like(value: str) -> tuple[str, ...]:
         idx += 1
 
     if in_quote:
-        raise ValueError("Malformed AF token arguments: unmatched quote")
+        raise CsvError("Malformed AF token arguments: unmatched quote")
 
     parts.append(value[start:].strip())
     return tuple(parts)
@@ -150,7 +151,7 @@ def _decode_af_string_literal(arg: str) -> str:
         return arg
 
     if len(arg) < 2 or not arg.endswith('"'):
-        raise ValueError(f"Malformed AF quoted string argument: {arg!r}")
+        raise CsvError(f"Malformed AF quoted string argument: {arg!r}")
 
     chars: list[str] = []
     idx = 1
@@ -167,7 +168,7 @@ def _decode_af_string_literal(arg: str) -> str:
             idx += 2
             continue
 
-        raise ValueError(f"Malformed AF quoted string argument: {arg!r}")
+        raise CsvError(f"Malformed AF quoted string argument: {arg!r}")
 
     return "".join(chars)
 
@@ -287,7 +288,7 @@ def parse_af_token(token: str) -> AfNode:
             kwargs[key] = val
         else:
             if in_kwargs:
-                raise ValueError(f"Positional arg after keyword arg in AF token: {token!r}")
+                raise CsvError(f"Positional arg after keyword arg in AF token: {token!r}")
             positional.append(seg)
 
     return AfCall(

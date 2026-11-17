@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import _tagged_field, _utf16le_null, tag_flag, tag_value
+from ..errors import CsvError
 from ..model import AfInstruction
 from .family import (
     EMAIL_MOTION_CELL_PARAMS,
@@ -151,10 +152,10 @@ class Position(AfInstruction):
         from .raw import _FIELD_SPEC_RE, _split_raw_args, _take_fixed_cell_rows
 
         if not token.startswith("raw(") or not token.endswith(")"):
-            raise ValueError(f"Not a raw Position token: {token!r}")
+            raise CsvError(f"Not a raw Position token: {token!r}")
         parts = _split_raw_args(token[4:-1])
         if parts[0] != _CLASS_NAME:
-            raise ValueError(f"Not a Position token: {token!r}")
+            raise CsvError(f"Not a Position token: {token!r}")
 
         tags: dict[int, str] = {}
         for spec in _take_fixed_cell_rows(_CLASS_NAME, parts[3:], EMAIL_MOTION_CELL_PARAMS):

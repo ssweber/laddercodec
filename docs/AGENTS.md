@@ -27,4 +27,4 @@ Developers who work with CLICK PLC ladder logic programmatically. Assume familia
 - Instruction objects (Contact, Coil, etc.) placed directly in condition/AF grids.
 - Comments are plain text with optional markdown-style formatting (bold, italic, underline).
 - The encoder writes bytes directly from verified formulas — no ORM or intermediate representation.
-- Round-trip identity: `decode(encode(data)) == data` for all supported types.
+- Round-trip identity: `decode(encode(rungs)) == rungs` for all supported types.

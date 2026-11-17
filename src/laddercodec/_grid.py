@@ -8,7 +8,8 @@ orchestrating headers, comments, and page padding.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Any, cast
 
 from .cell import ClickCell, build_row
 
@@ -24,8 +25,17 @@ from .encode import (
     _compute_seg_boundaries,
     _normalize_af,
 )
-from .instructions import AfInstruction, ConditionInstruction, Copy, Fill, Undecoded
-from .operands.unchecked import refusals, stored_blob, stored_cell_rows
+from .errors import EncodeError
+from .instructions import (
+    AfInstruction,
+    ConditionInstruction,
+    Copy,
+    Fill,
+    Undecoded,
+    UnknownCondition,
+    UnknownInstruction,
+)
+from .operands.unchecked import checked, refusals, stored_blob, stored_cell_rows
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -52,10 +62,15 @@ def _text_constant_operands(token: object) -> tuple[str, ...]:
 def _check_text_constants(
     token: ConditionInstruction | AfInstruction, prefix: str, where: str
 ) -> None:
-    """Refuse an empty text constant ``""`` in *token*, set after the Copy or Fill was built."""
+    """Refuse an empty text constant ``""`` in *token*, set after the Copy or Fill was built.
+
+    It raises the ``FieldError`` building the Copy or Fill with that value raises.
+    """
     for operand in _text_constant_operands(token):
         if operand.strip() == _EMPTY_TEXT_CONSTANT:
-            raise ValueError(
+            with checked():
+                replace(cast("Any", token))
+            raise EncodeError(
                 f'{prefix}Empty text constant "" in {token.to_csv()} at {where}: '
                 "CLICK writes nothing for it; use $00 for the NUL character"
             )
@@ -95,47 +110,59 @@ def _validate_rung(
     prefix = f"{label}: " if label else ""
 
     if not (MIN_ROWS <= logical_rows <= MAX_ROWS):
-        raise ValueError(f"{prefix}logical_rows must be {MIN_ROWS}..{MAX_ROWS}, got {logical_rows}")
+        raise EncodeError(
+            f"{prefix}logical_rows must be {MIN_ROWS}..{MAX_ROWS}, got {logical_rows}"
+        )
     if len(condition_rows) != logical_rows:
-        raise ValueError(
+        raise EncodeError(
             f"{prefix}Expected {logical_rows} condition rows, got {len(condition_rows)}"
         )
     if len(af_tokens) != logical_rows:
-        raise ValueError(f"{prefix}Expected {logical_rows} AF tokens, got {len(af_tokens)}")
+        raise EncodeError(f"{prefix}Expected {logical_rows} AF tokens, got {len(af_tokens)}")
 
     for row_idx, row in enumerate(condition_rows):
         if len(row) != CONDITION_COLUMNS:
-            raise ValueError(
+            raise EncodeError(
                 f"{prefix}Row {row_idx}: expected {CONDITION_COLUMNS} columns, got {len(row)}"
             )
         for col_idx, token in enumerate(row):
+            if isinstance(token, UnknownCondition):
+                raise EncodeError(
+                    f"{prefix}Unknown condition at row={row_idx}, col={col_idx}: "
+                    "laddercodec can't write an instruction it couldn't read"
+                )
             if isinstance(token, ConditionInstruction):
                 _check_instruction(token, prefix, f"row={row_idx}, col={col_idx}")
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
-                raise ValueError(
+                raise EncodeError(
                     f"{prefix}Unsupported token {token!r} at row={row_idx}, col={col_idx}"
                 )
             if col_idx == 0 and token in ("|", "T"):
-                raise ValueError(
+                raise EncodeError(
                     f"{prefix}Vertical-down tokens are not allowed in column A "
                     f"(row={row_idx}, token={token!r})"
                 )
             if row_idx == logical_rows - 1 and token in ("|", "T"):
-                raise ValueError(
+                raise EncodeError(
                     f"{prefix}Vertical-down tokens are not allowed on the last row "
                     f"(row={row_idx}, col={col_idx}, token={token!r})"
                 )
 
     for row_idx, af in enumerate(af_tokens):
+        if isinstance(af, UnknownInstruction):
+            raise EncodeError(
+                f"{prefix}Unknown instruction at row={row_idx}, AF: "
+                "laddercodec can't write an instruction it couldn't read"
+            )
         if isinstance(af, Undecoded):
-            raise ValueError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
+            raise EncodeError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
         if isinstance(af, AfInstruction):
             _check_instruction(af, prefix, f"row={row_idx}, AF")
 
     nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
     if nop_count > 1:
-        raise ValueError(f"{prefix}Only one NOP per rung is allowed (got {nop_count})")
+        raise EncodeError(f"{prefix}Only one NOP per rung is allowed (got {nop_count})")
 
 
 # ---------------------------------------------------------------------------

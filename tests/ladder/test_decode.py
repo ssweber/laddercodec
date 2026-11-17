@@ -30,7 +30,7 @@ def test_golden_decode(csv_path: Path) -> None:
     data = bin_path.read_bytes()
 
     got = decode(data)
-    results = got if isinstance(got, list) else [got]
+    results = got
 
     assert len(results) == len(expected)
     for result, want in zip(results, expected, strict=True):
@@ -47,7 +47,7 @@ def test_encode_decode_roundtrip_empty() -> None:
     conds = [[""] * 31]
     afs = [""]
     data = encode_rung(1, conds, afs)
-    result = decode(data)
+    [result] = decode(data)
     assert result.logical_rows == 1
     assert result.conditions == conds
     assert result.instructions == afs
@@ -59,7 +59,7 @@ def test_encode_decode_roundtrip_wire_nop_comment() -> None:
     afs = ["NOP", ""]
     comment = "Hello **world**"
     data = encode_rung(2, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.logical_rows == 2
     assert result.conditions == conds
     assert result.instructions == afs
@@ -71,7 +71,7 @@ def test_encode_decode_roundtrip_multiline_comment() -> None:
     afs = [""]
     comment = "Line 1\nLine 2\nLine 3"
     data = encode_rung(1, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment == comment
 
 
@@ -80,7 +80,7 @@ def test_encode_decode_roundtrip_styled_comment() -> None:
     afs = [""]
     comment = "**bold** and *italic* and __underline__"
     data = encode_rung(1, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment == comment
 
 
@@ -186,7 +186,7 @@ def test_rtf_decode_unicode_escape_signed_16bit_arg() -> None:
 
 def test_decoded_rung_has_comment_rtf() -> None:
     data = encode_rung(1, [[""] * 31], [""], comment="Test")
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment_rtf is not None
     assert result.comment_rtf.startswith(_PREFIX)
     assert result.comment == "Test"
@@ -194,7 +194,7 @@ def test_decoded_rung_has_comment_rtf() -> None:
 
 def test_decoded_rung_no_comment_rtf_when_empty() -> None:
     data = encode_rung(1, [[""] * 31], [""])
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment_rtf is None
     assert result.comment is None
 
@@ -208,7 +208,7 @@ def test_encode_decode_roundtrip_special_chars() -> None:
     afs = [""]
     comment = "if (x > 0) { return x \\ y; }"
     data = encode_rung(1, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment == comment
 
 
@@ -218,7 +218,7 @@ def test_encode_decode_roundtrip_indented_comment() -> None:
     afs = [""]
     comment = "  indented line\n    double indented"
     data = encode_rung(1, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment == comment
 
 
@@ -228,7 +228,7 @@ def test_encode_decode_roundtrip_special_chars_multiline() -> None:
     afs = [""]
     comment = "func() {\n  x = 1;\n  y = 2;\n}"
     data = encode_rung(1, conds, afs, comment=comment)
-    result = decode(data)
+    [result] = decode(data)
     assert result.comment == comment
 
 
@@ -348,7 +348,7 @@ def test_drum_with_parallel_branch_roundtrips() -> None:
 
     bin_path = GOLDEN_DIR.parent / "drum_weird_branch.bin"
     result = decode(bin_path.read_bytes())
-    rung = result[0] if isinstance(result, list) else result
+    rung = result[0]
 
     assert rung.logical_rows == 7
     assert isinstance(rung.instructions[0], Drum)

@@ -5,6 +5,8 @@ Fixed-size 64-byte cell layout, program header, and rung preamble.
 
 from __future__ import annotations
 
+from .errors import EncodeError
+
 # --- Program header (0x0254–0x025F) ---
 PROGRAM_HEADER_BASE = 0x0254
 
@@ -39,7 +41,7 @@ CONDITION_COLUMNS = COLS_PER_ROW - 1  # A..AE (31 columns)
 
 def cell_offset(row: int, column: int) -> int:
     if row < 0:
-        raise ValueError(f"Row must be >= 0; got {row}")
+        raise EncodeError(f"Row must be >= 0; got {row}")
     if not (0 <= column < COLS_PER_ROW):
-        raise ValueError(f"Column out of range: {column}")
+        raise EncodeError(f"Column out of range: {column}")
     return GRID_FIRST_ROW_START + row * GRID_ROW_STRIDE + column * CELL_SIZE

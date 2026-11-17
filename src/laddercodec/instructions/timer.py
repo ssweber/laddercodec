@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
+from ..errors import CsvError
 from ..model import PinnedInstruction, Reason, check_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
@@ -112,7 +113,7 @@ class Timer(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse timer: {token!r}")
+            raise CsvError(f"Cannot parse timer: {token!r}")
         timer_type = cast(Literal["on_delay", "off_delay"], m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
@@ -123,16 +124,16 @@ class Timer(PinnedInstruction):
             else:
                 args.append(seg)
         if len(args) != 2:
-            raise ValueError(
+            raise CsvError(
                 f"{timer_type} expects 2 positional args (done, acc), got {len(args)}: {token!r}"
             )
         done_bit, current = args
         setpoint = kwargs.get("preset", "")
         unit = kwargs.get("unit", "")
         if not setpoint or not unit:
-            raise ValueError(f"{timer_type} missing preset or unit kwargs: {token!r}")
+            raise CsvError(f"{timer_type} missing preset or unit kwargs: {token!r}")
         if unit not in TIMER_UNIT_TO_INDEX:
-            raise ValueError(f"Unknown timer unit: {unit!r}")
+            raise CsvError(f"Unknown timer unit: {unit!r}")
         return cls(
             timer_type=timer_type,
             done_bit=done_bit,

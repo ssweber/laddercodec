@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_flag, tag_value
+from ..errors import CsvError
 from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
 from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT32_MAX, Kind
@@ -87,7 +88,7 @@ class ForLoop(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"for\((.+)\)", token)
         if not m:
-            raise ValueError(f"Cannot parse for instruction: {token!r}")
+            raise CsvError(f"Cannot parse for instruction: {token!r}")
 
         args: list[str] = []
         kwargs: dict[str, str] = {}
@@ -99,14 +100,14 @@ class ForLoop(AfInstruction):
                 args.append(seg)
 
         if len(args) != 1:
-            raise ValueError(f"for expects 1 positional arg (limit), got {len(args)}")
+            raise CsvError(f"for expects 1 positional arg (limit), got {len(args)}")
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
-            raise ValueError(f"for does not support keyword argument(s): {sorted(unknown)}")
+            raise CsvError(f"for does not support keyword argument(s): {sorted(unknown)}")
 
         oneshot_raw = kwargs.get("oneshot", "0")
         if oneshot_raw not in {"0", "1"}:
-            raise ValueError("for oneshot must be 0 or 1")
+            raise CsvError("for oneshot must be 0 or 1")
 
         return cls(limit=args[0], oneshot=oneshot_raw == "1")
 
@@ -142,7 +143,7 @@ class Next(AfInstruction):
     def from_csv_token(cls, token: str) -> Next:
         token = token.strip()
         if not re.fullmatch(r"next\(\s*\)", token):
-            raise ValueError(f"Cannot parse next instruction: {token!r}")
+            raise CsvError(f"Cannot parse next instruction: {token!r}")
         return cls()
 
     def to_csv(self) -> str:
@@ -165,7 +166,7 @@ class Break(AfInstruction):
     def from_csv_token(cls, token: str) -> Break:
         token = token.strip()
         if not re.fullmatch(r"break\(\s*\)", token):
-            raise ValueError(f"Cannot parse break instruction: {token!r}")
+            raise CsvError(f"Cannot parse break instruction: {token!r}")
         return cls()
 
     def to_csv(self) -> str:
@@ -188,7 +189,7 @@ class Continue(AfInstruction):
     def from_csv_token(cls, token: str) -> Continue:
         token = token.strip()
         if not re.fullmatch(r"continue\(\s*\)", token):
-            raise ValueError(f"Cannot parse continue instruction: {token!r}")
+            raise CsvError(f"Cannot parse continue instruction: {token!r}")
         return cls()
 
     def to_csv(self) -> str:

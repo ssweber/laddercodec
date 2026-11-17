@@ -117,7 +117,7 @@ def test_copy_source_every_writer_writes_clicks_form(
     assert _read_af(tmp_path, f"copy({typed},{destination})") == copy
     assert _written_af(tmp_path, copy) == f"copy({stored},{destination})"
     assert _fields(copy)[_COPY_SOURCE] == stored
-    assert decode(encode(_rung(copy))).instructions[0] == copy
+    assert decode(encode(_rung(copy)))[0].instructions[0] == copy
 
 
 @pytest.mark.parametrize(("typed", "mode", "display", "internal"), _MATH)
@@ -135,7 +135,7 @@ def test_math_constant_every_writer_writes_clicks_form(
     fields = _fields(math)
     assert fields[_MATH_DISPLAY] == display
     assert fields[_MATH_INTERNAL] == internal
-    assert decode(encode(_rung(math))).instructions[0] == math
+    assert decode(encode(_rung(math)))[0].instructions[0] == math
 
 
 _E_FIX = "write 0.0 for the real, or 14 for the value of hex E"

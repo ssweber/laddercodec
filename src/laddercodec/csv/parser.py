@@ -8,6 +8,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Literal
 
+from ..errors import CsvError
 from .ast import CanonicalRow, ParsedCsvFileAst, RowAst, RungAst
 from .contract import (
     TOTAL_COLUMNS,
@@ -31,7 +32,7 @@ def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | 
 def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
     marker = fields[0].strip() if fields else ""
     if not is_valid_marker(marker):
-        raise ValueError(
+        raise CsvError(
             f"Invalid marker {marker!r}; expected 'R' (optionally indexed, e.g. R1), '#', or blank"
         )
 
@@ -47,13 +48,13 @@ def _canonical_row_from_fields(fields: list[str]) -> CanonicalRow:
         column = next((i for i, cell in enumerate(conditions) if i and cell), None)
         if column is not None:
             raise at(
-                ValueError("Comment rows may only populate column A text"),
+                CsvError("Comment rows may only populate column A text"),
                 column=column if column <= AF_COLUMN else None,
             )
         return CanonicalRow(marker=marker, conditions=conditions, af="")
 
     if len(fields) != TOTAL_COLUMNS:
-        raise ValueError(f"Expected {TOTAL_COLUMNS} columns; got {len(fields)}")
+        raise CsvError(f"Expected {TOTAL_COLUMNS} columns; got {len(fields)}")
 
     conditions = tuple(cell.strip() for cell in fields[1:-1])
     af = fields[-1].strip()
@@ -140,14 +141,14 @@ def _segment_rungs(rows: tuple[RowAst, ...]) -> tuple[RungAst, ...]:
 
         if not current:
             raise at(
-                ValueError("Continuation row encountered before first 'R' marker"), line=row.line
+                CsvError("Continuation row encountered before first 'R' marker"), line=row.line
             )
 
         current.append(row)
 
     if pending_comments:
         raise at(
-            ValueError("Comment row encountered without following 'R' marker"),
+            CsvError("Comment row encountered without following 'R' marker"),
             line=pending_comments[0].line,
         )
 
@@ -162,9 +163,9 @@ def _parse_single_rung_rows(row_fields: Sequence[Sequence[str]]) -> RungAst:
     rows = _rows_ast((None, fields) for fields in row_fields)
     rungs = _segment_rungs(rows)
     if not rungs:
-        raise ValueError("Expected one rung in emitted CSV rows; got none")
+        raise CsvError("Expected one rung in emitted CSV rows; got none")
     if len(rungs) != 1:
-        raise ValueError(f"Expected one rung in emitted CSV rows; got {len(rungs)}")
+        raise CsvError(f"Expected one rung in emitted CSV rows; got {len(rungs)}")
     return rungs[0]
 
 
@@ -186,11 +187,14 @@ def _read_records(path: Path) -> Generator[tuple[int | None, Sequence[str]]]:
                     continue
                 yield start, parsed
         except csv.Error as exc:
-            add_location(exc, line=end + 1)  # the line the row being read starts on
-            raise
+            # At the line the row being read starts on.
+            raise at(CsvError(str(exc)), line=end + 1) from exc
+        except UnicodeDecodeError as exc:
+            # Read in blocks, so the line is not known: the location names the file only.
+            raise CsvError(str(exc)) from exc
 
     if header is None:
-        raise ValueError("CSV file is empty; expected header row")
+        raise CsvError("CSV file is empty; expected header row")
 
 
 def parse_row(row: str) -> CanonicalRow:

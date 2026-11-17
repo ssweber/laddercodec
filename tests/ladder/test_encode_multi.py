@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import decode, encode, read_csv
+from laddercodec import EncodeError, decode, encode, read_csv
 from laddercodec.decode import _DATA, _LOST, _walk_grid, _walk_row_cells
 from laddercodec.encode_multi import encode_rungs
 from laddercodec.topology import (
@@ -166,19 +166,19 @@ def test_multi_rung_buffer_size_three_1row() -> None:
 
 
 def test_multi_rung_rejects_one_rung() -> None:
-    with pytest.raises(ValueError, match="at least 2 rungs"):
+    with pytest.raises(EncodeError, match="at least 2 rungs"):
         encode_rungs([(1, [_empty()], [""])])
 
 
 def test_multi_rung_rejects_zero_rungs() -> None:
-    with pytest.raises(ValueError, match="at least 2 rungs"):
+    with pytest.raises(EncodeError, match="at least 2 rungs"):
         encode_rungs([])
 
 
 def test_multi_rung_rejects_vertical_col_a() -> None:
     row = _empty()
     row[0] = "|"
-    with pytest.raises(ValueError, match="column A"):
+    with pytest.raises(EncodeError, match="column A"):
         encode_rungs(
             [
                 (2, [row, _empty()], ["", ""]),
@@ -190,7 +190,7 @@ def test_multi_rung_rejects_vertical_col_a() -> None:
 def test_multi_rung_rejects_vertical_last_row() -> None:
     row = _empty()
     row[1] = "|"
-    with pytest.raises(ValueError, match="last row"):
+    with pytest.raises(EncodeError, match="last row"):
         encode_rungs(
             [
                 (1, [row], [""]),
@@ -200,14 +200,14 @@ def test_multi_rung_rejects_vertical_last_row() -> None:
 
 
 def test_multi_rung_rejects_out_of_range_rows() -> None:
-    with pytest.raises(ValueError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="logical_rows"):
         encode_rungs(
             [
                 (0, [], []),
                 (1, [_empty()], [""]),
             ]
         )
-    with pytest.raises(ValueError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="logical_rows"):
         encode_rungs(
             [
                 (33, [_empty() for _ in range(33)], [""] * 33),

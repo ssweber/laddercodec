@@ -163,7 +163,7 @@ def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
     placeholder = "A" * len(raw)
     data = encode(_rung(placeholder)).replace(placeholder.encode(), raw.encode())
     with pytest.warns(UndecodedCommentWarning) as caught:
-        broken = decode(_wrong_code_page(data))
+        [broken] = decode(_wrong_code_page(data))
     assert isinstance(broken, Rung)
     assert broken.comment_rtf is not None and b"ansicpg1251" in broken.comment_rtf
     (warning,) = [w.message for w in caught]
@@ -172,11 +172,11 @@ def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
     assert broken.comment is not None and broken.comment.startswith(note + "\n")
     assert broken.comment[len(note) + 1 :] == recover_text(broken.comment_rtf)
 
-    again = decode(encode(broken))
+    [again] = decode(encode(broken))
     assert isinstance(again, Rung)
     # the text after the note is what a normal comment with the same characters gives
     text = broken.comment[len(note) + 1 :]
-    plain = decode(encode(_rung(text)))
+    [plain] = decode(encode(_rung(text)))
     assert isinstance(plain, Rung)
     assert again.comment == f"{note}\n{plain.comment}"
 

@@ -19,7 +19,7 @@ V3_BINS = sorted(
 
 def _rungs(path: Path) -> list[Rung]:
     decoded = decode(path.read_bytes())
-    return decoded if isinstance(decoded, list) else [decoded]
+    return decoded
 
 
 def _flagged_ids(path: Path) -> set[str]:

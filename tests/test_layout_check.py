@@ -45,7 +45,7 @@ def _rungs(path: Path) -> list[Rung]:
     if path.suffix == ".csv":
         return read_csv(path)
     got = decode(path.read_bytes())
-    return got if isinstance(got, list) else [got]
+    return got
 
 
 def _cells(findings: list[Finding]) -> list[tuple[int, str, str | None, int | None, int | None]]:

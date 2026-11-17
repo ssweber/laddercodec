@@ -63,6 +63,7 @@ from typing import Any, cast
 from .._layout import canonical
 from ..decode import Rung
 from ..encode import AfToken, ConditionToken
+from ..errors import CsvError
 from ..instructions import (
     KNOWN_PIN_NAMES,
     CompareContact,
@@ -79,7 +80,6 @@ from ..model import (
     PinnedInstruction,
     check_address,
 )
-from ..operands.errors import Reason
 from ..operands.unchecked import checked, refusals, unchecked
 from .ast import (
     AfBlank,
@@ -219,7 +219,7 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
         pin_name = af_node.name
         if pin_name not in KNOWN_PIN_NAMES:
-            raise at(ConvertError(f"Unknown pin token: {pin_name!r}"), column=AF_COLUMN)
+            raise at(CsvError(f"Unknown pin token: {pin_name!r}"), column=AF_COLUMN)
         return _ParsedRow(
             conditions=conds,
             kind="pin",
@@ -295,7 +295,7 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
     order = token.pin_names()
     if row.kind == "nop" and token.lead_rows:
         if block.lead_conditions or block.continuations:
-            raise ConvertError(
+            raise CsvError(
                 f"{_call_name(token)} takes a NOP bridge row only directly under it, "
                 "with no row above it"
             )
@@ -312,10 +312,10 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
         return False
     pin_name = cast(str, row.pin_name)
     if pin_name not in order:
-        raise ConvertError(f"Pin token {pin_name!r} is not supported for {_call_name(token)}")
+        raise CsvError(f"Pin token {pin_name!r} is not supported for {_call_name(token)}")
     remaining = order[order.index(seen[-1]) + 1 :] if seen else order
     if pin_name not in remaining:
-        raise ConvertError(
+        raise CsvError(
             f"Pin token {pin_name!r} is out of order or repeated for "
             f"{_call_name(token)}: pins go {', '.join(f'{p}()' for p in order)}"
         )
@@ -394,7 +394,7 @@ def _finalize_pinned_block(
     try:
         boxed = token.with_pins(pins, slots)
     except ValueError as exc:
-        error = ConvertError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
+        error = CsvError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
         if isinstance(exc, FieldError):
             # A value a pin row sets is refused: locate it at that pin's row.
             culprit = _refused_pin(token, pins, slots)
@@ -534,7 +534,7 @@ def condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
             check_address(node.raw, "Contact.operand")  # digits outside 0-9 land here
-        raise ValueError(f"Cannot convert generic condition to encode token: {node.raw!r}")
+        raise CsvError(f"Cannot convert generic condition to encode token: {node.raw!r}")
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
 
@@ -555,7 +555,7 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     if refused is None:
         if token is None:
             if strict:
-                raise ValueError(f"Unsupported AF instruction: {call.name!r}")
+                raise CsvError(f"Unsupported AF instruction: {call.name!r}")
             return ""
         if not refusals(token):
             return token
@@ -688,47 +688,6 @@ def reads_back(token: object) -> bool:
 # ---------------------------------------------------------------------------
 
 
-class ConvertError(ValueError):
-    """Raised when a RungAst cannot be converted to encode arguments.
-
-    A ``FieldError`` refused while a box takes its pin rows is still wrapped: it arrives as
-    a ``ConvertError`` (not a ``FieldError``, so ``except FieldError`` does not catch it),
-    now carrying the refusal's data.  ``field``, ``fields``, ``reason`` and ``click_id``
-    are those of the first refusal, as ``FieldError`` has them, and ``errors`` holds every
-    refusal of the box, each a ``FieldError`` with its own ``location``; ``errors[0]`` is the
-    wrapped ``FieldError`` (also ``__cause__``), not this exception.  A refusal a pin row's
-    value causes is located at that pin's row, any other at the box's own row.  An error that is
-    no field refusal (a pin token that does not parse, a rung with no rows) has ``field``,
-    ``reason`` and ``click_id`` ``None``, empty ``fields``, and ``errors == (self,)``.
-    """
-
-    field: str | None
-    fields: tuple[str, ...]
-    reason: Reason | None
-    click_id: str | None
-    errors: tuple[FieldError, ...] | tuple[ConvertError]
-
-    def __init__(
-        self,
-        *args: object,
-        field: str | None = None,
-        refusal: FieldError | None = None,
-    ) -> None:
-        super().__init__(*args)
-        if refusal is None:
-            self.field = field
-            self.fields = () if field is None else (field,)
-            self.reason = None
-            self.click_id = None
-            self.errors = (self,)
-        else:
-            self.field = refusal.field
-            self.fields = refusal.fields
-            self.reason = refusal.reason
-            self.click_id = refusal.click_id
-            self.errors = refusal.errors
-
-
 def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
     """The CLICK rungs a CSV rung reads to, drawn as CLICK's syntax check draws them.
 
@@ -739,7 +698,7 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
 
     Raises
     ------
-    ConvertError
+    CsvError
         If the rung contains unsupported constructs.
     """
     rung_line = rung.rows[0].line if rung.rows else None
@@ -765,11 +724,11 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
 
     Raises
     ------
-    ConvertError
+    CsvError
         If the rung contains unsupported constructs.
     """
     if not rung.rows:
-        raise ConvertError("Rung has no rows")
+        raise CsvError("Rung has no rows")
 
     # --- Extract comment ---
     comment: str | None = None

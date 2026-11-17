@@ -19,8 +19,11 @@ from laddercodec import (
     CompareContact,
     Contact,
     Copy,
+    Drum,
+    EncodeError,
     FieldError,
     Return,
+    Rung,
     Timer,
     decode,
     encode,
@@ -28,7 +31,12 @@ from laddercodec import (
 )
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import _sanitize_to_ascii, encode_rung
-from laddercodec.instructions import from_tags_af, from_tags_condition
+from laddercodec.instructions import (
+    UnknownCondition,
+    UnknownInstruction,
+    from_tags_af,
+    from_tags_condition,
+)
 from laddercodec.model import InstructionType
 from tests.golden_io import GOLDEN_DIR
 from tests.kept_refusals import kept
@@ -56,28 +64,28 @@ def _empty(n: int = 31) -> list[str]:
 
 
 def test_encode_rung_rejects_multiple_nops() -> None:
-    with pytest.raises(ValueError, match="Only one NOP"):
+    with pytest.raises(EncodeError, match="Only one NOP"):
         encode_rung(2, [_empty(), _empty()], ["NOP", "NOP"])
 
 
 def test_encode_rung_rejects_vertical_col_a() -> None:
     row = _empty()
     row[0] = "|"
-    with pytest.raises(ValueError, match="column A"):
+    with pytest.raises(EncodeError, match="column A"):
         encode_rung(2, [row, _empty()], ["", ""])
 
 
 def test_encode_rung_rejects_vertical_last_row() -> None:
     row = _empty()
     row[1] = "|"
-    with pytest.raises(ValueError, match="last row"):
+    with pytest.raises(EncodeError, match="last row"):
         encode_rung(1, [row], [""])
 
 
 def test_encode_rung_rejects_out_of_range_rows() -> None:
-    with pytest.raises(ValueError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="logical_rows"):
         encode_rung(0, [], [])
-    with pytest.raises(ValueError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="logical_rows"):
         encode_rung(33, [_empty() for _ in range(33)], [""] * 33)
 
 
@@ -117,7 +125,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact)
         assert c.type == InstructionType.CONTACT_NO
@@ -131,7 +139,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NC, "X002")
         coil = Coil(InstructionType.COIL_LATCH, "Y002")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.type == InstructionType.CONTACT_NC
         a = d.instructions[0]
@@ -141,7 +149,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_EDGE, "X003", edge_kind="rise")
         coil = Coil(InstructionType.COIL_RESET, "Y003")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.edge_kind == "rise"
         a = d.instructions[0]
@@ -151,7 +159,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_EDGE, "X004", edge_kind="fall")
         coil = Coil(InstructionType.COIL_OUT, "Y004")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.edge_kind == "fall"
 
@@ -159,7 +167,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X005", immediate=True)
         coil = Coil(InstructionType.COIL_OUT, "Y005")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, Contact) and c.immediate is True
 
@@ -167,7 +175,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001", immediate=True)
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         a = d.instructions[0]
         assert isinstance(a, Coil) and a.immediate is True
 
@@ -175,7 +183,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "C1", range_end="C2")
         buf = encode_rung(1, [_wire_row(contact)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         a = d.instructions[0]
         assert isinstance(a, Coil) and a.range_end == "C2" and a.operand == "C1"
 
@@ -185,7 +193,7 @@ class TestInstructionRoundTrip:
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         row: list[str | Contact] = [c1, "-", c2] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         assert isinstance(d.conditions[0][0], Contact)
         assert d.conditions[0][0].operand == "X001"
         assert d.conditions[0][1] == "-"
@@ -196,7 +204,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(contact, col=15)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][15]
         assert isinstance(c, Contact) and c.operand == "X001"
 
@@ -204,7 +212,7 @@ class TestInstructionRoundTrip:
         """Contact-only rung (no AF coil) still round-trips."""
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         buf = encode_rung(1, [_wire_row(contact)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         assert isinstance(d.conditions[0][0], Contact)
         assert d.instructions[0] == ""
 
@@ -212,7 +220,7 @@ class TestInstructionRoundTrip:
         """Coil-only rung (wire-in, no contact) still round-trips."""
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [["-"] * 31], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         assert isinstance(d.instructions[0], Coil)
         assert d.instructions[0].operand == "Y001"
 
@@ -220,7 +228,7 @@ class TestInstructionRoundTrip:
         contact = Contact(InstructionType.CONTACT_NO, "C233")
         ret = Return()
         buf = encode_rung(1, [_wire_row(contact)], [ret])
-        d = decode(buf)
+        [d] = decode(buf)
         a = d.instructions[0]
         assert isinstance(a, Return)
 
@@ -236,7 +244,7 @@ class TestInstructionRoundTrip:
         compare = CompareContact(op="==", left="DS1", right="1")
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         buf = encode_rung(1, [_wire_row(compare)], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact)
         assert c.op == "==" and c.left == "DS1" and c.right == "1"
@@ -244,35 +252,35 @@ class TestInstructionRoundTrip:
     def test_compare_ne(self) -> None:
         compare = CompareContact(op="!=", left="DS2", right="DS3")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "!="
 
     def test_compare_gt(self) -> None:
         compare = CompareContact(op=">", left="DS1", right="100")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == ">"
 
     def test_compare_lt(self) -> None:
         compare = CompareContact(op="<", left="DS1", right="DS2")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "<"
 
     def test_compare_ge(self) -> None:
         compare = CompareContact(op=">=", left="DS1", right="1")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == ">="
 
     def test_compare_le(self) -> None:
         compare = CompareContact(op="<=", left="DS1", right="1")
         buf = encode_rung(1, [_wire_row(compare)], [""])
-        d = decode(buf)
+        [d] = decode(buf)
         c = d.conditions[0][0]
         assert isinstance(c, CompareContact) and c.op == "<="
 
@@ -283,7 +291,7 @@ class TestInstructionRoundTrip:
         coil = Coil(InstructionType.COIL_OUT, "Y001")
         row: list[str | Contact | CompareContact] = [contact, "-", compare] + ["-"] * 28
         buf = encode_rung(1, [row], [coil])
-        d = decode(buf)
+        [d] = decode(buf)
         assert isinstance(d.conditions[0][0], Contact)
         assert isinstance(d.conditions[0][2], CompareContact)
         assert isinstance(d.instructions[0], Coil)
@@ -300,7 +308,7 @@ class TestInstructionRoundTrip:
             unit="Tms",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode(buf)
+        [d] = decode(buf)
         t = d.instructions[0]
         assert isinstance(t, Timer)
         assert t.timer_type == "on_delay"
@@ -318,7 +326,7 @@ class TestInstructionRoundTrip:
             unit="Ts",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode(buf)
+        [d] = decode(buf)
         t = d.instructions[0]
         assert isinstance(t, Timer) and t.timer_type == "off_delay"
         assert t.unit == "Ts"
@@ -334,7 +342,7 @@ class TestInstructionRoundTrip:
             retained=True,
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-        d = decode(buf)
+        [d] = decode(buf)
         t = d.instructions[0]
         assert isinstance(t, Timer) and t.retained is True
         assert t.unit == "Tm"
@@ -351,7 +359,7 @@ class TestInstructionRoundTrip:
                 unit=unit,
             )
             buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
-            d = decode(buf)
+            [d] = decode(buf)
             t = d.instructions[0]
             assert isinstance(t, Timer) and t.unit == unit, f"Failed for unit={unit}"
 
@@ -385,21 +393,21 @@ def test_read_csv_refuses_empty_text_constant(
     assert str(exc.value).isascii()
 
 
-def test_encode_refuses_empty_text_constant_names_rung(tmp_path: Path) -> None:
-    # encode() checks again, for an instance changed after it was built.
+def test_encode_refuses_empty_text_constant_set_after_build(tmp_path: Path) -> None:
+    # encode() checks again, for an instance changed after it was built, and raises
+    # the FieldError building it with that value raises.
     ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
     bad = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))[0]
     bad.instructions[0].source = '""'  # type: ignore[union-attr]
-    with pytest.raises(
-        ValueError, match=r'^Rung 1: Empty text constant "" in copy\("",TXT813\) at row=0'
-    ):
+    with pytest.raises(FieldError, match=r"^Copy.source: '\"\"' is refused") as exc:
         encode([ok, bad])
+    assert exc.value.field == "Copy.source"
 
 
 def test_encode_refuses_empty_text_constant_in_objects() -> None:
     copy = Copy(source='"Q"', destination="TXT1")
     copy.source = '""'
-    with pytest.raises(ValueError, match="Empty text constant"):
+    with pytest.raises(FieldError, match="a text constant is 1 to 128 characters"):
         encode_rung(2, [_empty(), _empty()], [copy, ""])
 
 
@@ -426,7 +434,7 @@ def test_encode_accepts_nul_and_nonempty_text_constants(
     tmp_path: Path, condition: str, af: str
 ) -> None:
     rung = read_csv(_one_row_csv(tmp_path, condition, af))[0]
-    d = decode(encode(rung))
+    [d] = decode(encode(rung))
     assert d.conditions[0][0].to_csv() == condition  # type: ignore[union-attr]
     assert d.instructions[0].to_csv() == af  # type: ignore[union-attr]
 
@@ -483,5 +491,43 @@ class TestSanitizeToAscii:
     def test_comment_round_trip(self) -> None:
         """Encode a rung with non-ASCII comment, decode, verify sanitized."""
         buf = encode_rung(1, [_empty()], [""], comment="\u201chello\u201d \u2014 world")
-        d = decode(buf)
+        [d] = decode(buf)
         assert d.comment == '"hello" - world'
+
+
+def test_encode_refuses_an_unknown_condition() -> None:
+    # decode() keeps a condition cell it can't read as an UnknownCondition.
+    row: list = [UnknownCondition(b"\x00" * 8)] + ["-"] * 30
+    with pytest.raises(EncodeError, match=r"^Unknown condition at row=0, col=0: "):
+        encode(Rung(1, [row], [""], None))
+
+
+def test_encode_refuses_an_unknown_instruction() -> None:
+    # decode() keeps an AF cell it can't read as an UnknownInstruction.
+    rung = Rung(1, [["-"] * 31], [UnknownInstruction(b"\x00" * 8)], None)
+    with pytest.raises(EncodeError, match=r"^Rung 1: Unknown instruction at row=0, AF: "):
+        encode([Rung(1, [["-"] * 31], [""], None), rung])
+
+
+def test_encode_refuses_a_comment_too_long() -> None:
+    with pytest.raises(EncodeError, match="Comment body exceeds 1400 bytes"):
+        encode(Rung(1, [_empty()], [""], "x" * 1500))
+
+
+def test_encode_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None:
+    drum = Drum(
+        drum_kind="time_event",
+        outputs=["C1"],
+        pattern=[[1]],
+        events_or_presets=["1"],
+        events=["X1"],
+        unit="Ts",
+        accumulator="TD1",
+        current_step="DS1",
+        completion_flag="C2",
+    )
+    drum.accumulator = "DS5"
+    rows = drum.cell_params().get("visual_rows", 1)
+    rung = Rung(rows, [["-"] * 31 for _ in range(rows)], [drum] + [""] * (rows - 1), None)
+    with pytest.raises(EncodeError, match="accumulator must be a TD address: 'DS5'"):
+        encode(rung)

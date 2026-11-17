@@ -79,7 +79,7 @@ def test_pack_text_with_no_number_conversion_decodes_raw() -> None:
     edited = data.replace(
         stored, b"\x27\x22\xff\xff\xff\xff" + "C1".encode("utf-16-le") + b"\x00\x00"
     )
-    [token] = [t for t in decode(edited).instructions if t]
+    [token] = [t for t in decode(edited)[0].instructions if t]
     assert isinstance(token, RawInstruction)
     assert parse_af_blob(token.blob) is None
 

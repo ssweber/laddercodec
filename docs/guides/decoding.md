@@ -1,6 +1,6 @@
 # Decoding
 
-`decode()` reads a Click clipboard binary and returns structured data. It returns a `Rung` for a single-rung buffer and a `list[Rung]` for a multi-rung buffer.
+`decode()` reads a Click clipboard binary and returns structured data: a `list[Rung]`, one `Rung` per rung on the clipboard, a list of one for a single rung.
 
 ## Single rung
 
@@ -10,10 +10,10 @@ from laddercodec import decode
 with open("capture.bin", "rb") as f:
     data = f.read()
 
-decoded = decode(data)
+[rung] = decode(data)
 ```
 
-The returned `Rung` has the same fields that feed `encode()`:
+Each `Rung` has the same fields that feed `encode()`:
 
 | Field | Type | Description |
 |---|---|---|
@@ -142,13 +142,12 @@ RTF comment bodies are decoded to plain text with markdown formatting:
 
 ## Multi-rung buffers
 
-`decode()` detects multi-rung buffers automatically and returns a list:
+A buffer of several rungs decodes the same way, to a longer list:
 
 ```python
 from laddercodec import decode
 
-decoded_list = decode(data)
-for rung in decoded_list:
+for rung in decode(data):
     print(f"Rows: {rung.logical_rows}, Comment: {rung.comment}")
 ```
 
@@ -159,9 +158,7 @@ Write decoded data directly to a CSV file:
 ```python
 from laddercodec import decode, write_csv
 
-result = decode(data)
-rungs = result if isinstance(result, list) else [result]
-write_csv("output.csv", rungs)
+write_csv("output.csv", decode(data))
 ```
 
 `write_csv` writes each rung as CLICK's syntax check draws it. A rung copied
@@ -232,10 +229,10 @@ When the decoder can't find where the rest of the rungs start (a clipboard row
 whose cells can't be walked or that is cut off, or a program file record whose
 framing is broken), the rungs before it decode, and one marker stands for the
 first rung not known to be whole and every rung after it. When that happens in a
-clipboard's first rung, `decode()` returns the marker rung alone, since it can't
-tell one rung from several. A buffer the decoder can't read at all still raises:
-`DecodeError` for a clipboard whose magic or size is wrong, `ValueError` for a
-program file whose header doesn't parse.
+clipboard's first rung, `decode()` returns a list of the marker rung alone, since
+it can't tell one rung from several. A buffer the decoder can't read at all still
+raises `DecodeError`: a clipboard whose magic or size is wrong, or a program file
+whose header doesn't parse.
 
 A comment that doesn't decode does not make a marker: the rung keeps its logic,
 its comment becomes `UNDECODED comment: <error>`, its `comment_rtf` keeps the
@@ -353,7 +350,7 @@ For all supported instruction types:
 from laddercodec import encode, decode, Rung
 
 rung = Rung(lr, conds, afs, cmt)
-decoded = decode(encode(rung))
+[decoded] = decode(encode(rung))
 assert decoded.logical_rows == lr
 assert decoded.conditions == conds
 assert decoded.instructions == afs

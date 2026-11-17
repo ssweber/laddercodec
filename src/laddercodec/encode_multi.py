@@ -79,6 +79,7 @@ from .encode import (
     COMMENT_MAX_BYTES,
     _build_rtf_body,
 )
+from .errors import EncodeError
 from .topology import (
     COLS_PER_ROW,
     GRID_FIRST_ROW_START,
@@ -133,14 +134,14 @@ def encode_rungs(
     """
     N = len(rungs)
     if N < 2:
-        raise ValueError(f"encode_rungs requires at least 2 rungs, got {N}")
+        raise EncodeError(f"encode_rungs requires at least 2 rungs, got {N}")
 
     # Normalise comments to a list aligned with rungs.
     if comments is None:
         comments_list: list[str | None] = [None for _ in range(N)]
     else:
         if len(comments) != N:
-            raise ValueError(f"comments length ({len(comments)}) must match rungs length ({N})")
+            raise EncodeError(f"comments length ({len(comments)}) must match rungs length ({N})")
         comments_list = list(comments)
 
     # --- Validate ---
@@ -152,7 +153,7 @@ def encode_rungs(
         if cmt is not None and cmt != "":
             encoded = _build_rtf_body(cmt).encode("cp1252")
             if len(encoded) > COMMENT_MAX_BYTES:
-                raise ValueError(
+                raise EncodeError(
                     f"Rung {r_idx}: comment body exceeds {COMMENT_MAX_BYTES} bytes "
                     f"after RTF encoding (got {len(encoded)})"
                 )

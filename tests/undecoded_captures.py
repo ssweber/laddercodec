@@ -29,7 +29,7 @@ def without_marker(paths: Iterable[Path]) -> list[Path]:
     return [path for path in paths if not is_windy_road(path)]
 
 
-def decode_capture(path: Path) -> Rung | list[Rung]:
+def decode_capture(path: Path) -> list[Rung]:
     """``decode`` of the capture at *path*, expecting the marker where it holds one."""
     data = path.read_bytes()
     if not is_windy_road(path):

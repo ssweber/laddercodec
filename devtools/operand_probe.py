@@ -1242,6 +1242,8 @@ class Runner:
             decoded = ns.decode(data)
         except Exception as exc:
             return f"{_sha(data)} decode{error_text(exc)}"
+        if isinstance(decoded, list):  # a tree older than decode()'s list returns the Rung
+            decoded = decoded[0]
         token = self.main_token(decoded.conditions, decoded.instructions, condition)
         return f"{_sha(data)} {'=' if token == expect else token}"
 

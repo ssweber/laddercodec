@@ -25,7 +25,7 @@ from laddercodec.csv.ast import (
 )
 from laddercodec.csv.contract import CONDITION_COLUMNS, CSV_HEADER
 from laddercodec.csv.converter import (
-    ConvertError,
+    CsvError,
     _hydrate_wire_continuations,
     af_node_to_token,
     condition_node_to_token,
@@ -427,7 +427,7 @@ class TestPinRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ConvertError, match="Unknown pin"):
+        with pytest.raises(CsvError, match="Unknown pin"):
             _literal(rung)
 
 
@@ -750,7 +750,7 @@ class TestCounterRows:
         _write_csv(csv_path, [("R", _wire_row("rise(C80)"), "count_up(CT4,CTD4,preset=10)")])
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ConvertError, match="requires a .reset\\(\\) pin row"):
+        with pytest.raises(CsvError, match="requires a .reset\\(\\) pin row"):
             _literal(rung)
 
 
@@ -805,7 +805,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ConvertError, match="not supported for shift"):
+        with pytest.raises(CsvError, match="not supported for shift"):
             _literal(rung)
 
     def test_shift_clock_or_leg_pushes_reset_down(self, tmp_path: Path) -> None:
@@ -842,7 +842,7 @@ class TestShiftRows:
         )
 
         rung = parse_csv_file(csv_path).rungs[0]
-        with pytest.raises(ConvertError, match="out of order"):
+        with pytest.raises(CsvError, match="out of order"):
             _literal(rung)
 
 

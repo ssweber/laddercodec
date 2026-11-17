@@ -195,7 +195,7 @@ class TestCompare:
 
     def test_multi_character_text_encodes_and_decodes(self) -> None:
         compare = CompareContact.from_csv_token('TXT771=="AB"')
-        rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        [rung] = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
         assert rung.conditions[0][0] == compare
 
     def test_multi_character_blob_differs_in_the_text_field_only(self) -> None:
@@ -292,7 +292,7 @@ class TestCompare:
         compare = CompareContact.from_csv_token('TXT1!="a"')
         blob = compare.build_blob()
         assert '"a"'.encode("utf-16-le") + bytes(2) in blob
-        rung = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        [rung] = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
         assert rung.conditions[0][0] == compare
 
     def test_hex_suffix_case_keeps_bytes(self) -> None:
@@ -785,13 +785,13 @@ class TestOutVariant:
         values[3] = "Q77"
         bad = _build_blob("Out", 0x2715, _OUT_VARIANT_TAGS, values)
         assert bad != blob
-        rung = decode(encode_rung(1, [["-"] * 31], [RawInstruction("Out", bad)]))
+        [rung] = decode(encode_rung(1, [["-"] * 31], [RawInstruction("Out", bad)]))
         raw = rung.instructions[0]
         assert isinstance(raw, RawInstruction)
         assert raw.blob == bad
         again = RawInstruction.from_csv_token(raw.to_csv())
         assert again.blob == bad
-        assert decode(encode_rung(1, [["-"] * 31], [again])).instructions[0] == raw
+        assert decode(encode_rung(1, [["-"] * 31], [again]))[0].instructions[0] == raw
 
     def test_bad_unit_is_a_field_error_on_construction(self) -> None:
         with pytest.raises(FieldError, match="^OutVariant.unit"):

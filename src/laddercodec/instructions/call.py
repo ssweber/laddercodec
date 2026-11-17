@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from ..binary_helpers import tag_value
+from ..errors import CsvError
 from ..model import AfInstruction, Reason, check_program_name
 from ..operands.checks import Refusals
 from .family import AfInstructionFamilySpec
@@ -46,7 +47,7 @@ class Call(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r'call\("([^"]*)"\)', token)
         if not m:
-            raise ValueError(f"Cannot parse call instruction: {token!r}")
+            raise CsvError(f"Cannot parse call instruction: {token!r}")
         return cls(subroutine=m.group(1))
 
     def to_csv(self) -> str:

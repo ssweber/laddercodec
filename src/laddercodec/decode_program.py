@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from .binary_helpers import _STANDARD_SENTINEL, _tag_wire_type
 from .decode import AF_DOWN_WIRE, Rung, _drop_tall_span_nops, _fits_stored_span
+from .errors import DecodeError
 from .instructions import (
     RawInstruction,
     _with_pin_rows,
@@ -133,21 +134,24 @@ def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
 def _parse_header(data: bytes) -> _ScrHeader:
     """Read counted numeric widths, display flags, and the u16 rung count."""
     if len(data) < 0x43 or data[:8] != _SCR_MAGIC:
-        raise ValueError(f"Not an SC-SCR file (magic: {data[:8]!r})")
+        raise DecodeError(f"Not an SC-SCR file (magic: {data[:8]!r})")
 
     prog_idx = struct.unpack_from("<H", data, 0x40)[0]
     name_len = data[0x42]
     cursor = 0x43 + name_len
     if cursor + 2 > len(data):
-        raise ValueError("truncated SCR name or column count")
-    name = _read_utf16le(data, 0x43, name_len)
+        raise DecodeError("truncated SCR name or column count")
+    try:
+        name = _read_utf16le(data, 0x43, name_len)
+    except UnicodeDecodeError as exc:
+        raise DecodeError(f"SCR name is not UTF-16LE text: {exc}") from exc
     column_count = struct.unpack_from("<H", data, cursor)[0]
     cursor += 2
     if not 1 <= column_count <= _CONDITION_COLUMNS + 1:
-        raise ValueError(f"unsupported SCR column count: {column_count}")
+        raise DecodeError(f"unsupported SCR column count: {column_count}")
     widths_end = cursor + 2 * column_count
     if widths_end + 3 > len(data):
-        raise ValueError("truncated SCR column widths or display header")
+        raise DecodeError("truncated SCR column widths or display header")
     widths = struct.unpack_from(f"<{column_count}H", data, cursor)
     return _ScrHeader(
         name=name,
@@ -586,14 +590,14 @@ def _parse_section_entries(
 
 
 def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
-    """Walk the declared records; raise ``ValueError`` at malformed framing."""
+    """Walk the declared records; raise ``DecodeError`` at malformed framing."""
     records, error = _walk_until_framing_error(data, header)
     if error is not None:
-        raise ValueError(f"{error} (rung {len(records)})")
+        raise DecodeError(f"{error} (rung {len(records)})")
     return records
 
 
-class _UnconfirmedEnd(ValueError):
+class _UnconfirmedEnd(DecodeError):
     """A framing error that leaves the last record read unconfirmed.
 
     A record's end is confirmed only by the next record's prefix (its index), or for the
@@ -626,7 +630,7 @@ def _walk_until_framing_error(
 
 
 def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRecord]) -> None:
-    """Append each declared record to *records*; raise ``ValueError`` at malformed framing."""
+    """Append each declared record to *records*; raise ``DecodeError`` at malformed framing."""
     pos = header.rungs_start
     limit = len(data) - (2 if header.prog_idx == _MAIN_PROG_IDX else 0)
     for index in range(header.rung_count):
@@ -642,29 +646,29 @@ def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRe
         rtf_bytes: bytes | None = None
         if rtf_len:
             if pos + rtf_len > limit or data[pos : pos + 6] != b"{\\rtf1":
-                raise ValueError(f"invalid rung comment at 0x{pos:X}")
+                raise DecodeError(f"invalid rung comment at 0x{pos:X}")
             rtf_bytes = bytes(data[pos : pos + rtf_len])
             pos += rtf_len
 
         block = _parse_row_topology_block(data, pos, limit)
         if block is None:
-            raise ValueError(f"unparseable rung topology at 0x{pos:X}")
+            raise DecodeError(f"unparseable rung topology at 0x{pos:X}")
         if block.column_count != len(header.column_widths):
-            raise ValueError(f"column count mismatch at 0x{pos:X}")
+            raise DecodeError(f"column count mismatch at 0x{pos:X}")
         pos = block.end
 
         if pos + 2 > limit:
-            raise ValueError(f"truncated section count at 0x{pos:X}")
+            raise DecodeError(f"truncated section count at 0x{pos:X}")
         count = struct.unpack_from("<H", data, pos)[0]
         pos += 2
         instructions: list[_ScrSectionInstruction] = []
         if count:
             if count > _MAX_SECTION_INSTRUCTIONS or pos + 4 > limit:
-                raise ValueError(f"invalid section header at 0x{pos - 2:X}")
+                raise DecodeError(f"invalid section header at 0x{pos - 2:X}")
             pos += 4  # section_marker: opaque per-file constant
             parsed = _parse_section_entries(data, pos, count, limit)
             if parsed is None:
-                raise ValueError(f"unparseable section entries at 0x{pos:X}")
+                raise DecodeError(f"unparseable section entries at 0x{pos:X}")
             instructions, pos = parsed
 
         records.append(_ScrRungRecord(rtf_bytes, block, instructions))
@@ -861,7 +865,7 @@ def decode_program(data: bytes) -> Program:
 
     Raises
     ------
-    ValueError
+    DecodeError
         If the file header cannot be parsed.
     """
     header = _parse_header(data)
