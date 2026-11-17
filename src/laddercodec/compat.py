@@ -1,9 +1,9 @@
-"""CLICK version compatibility: which instructions need CLICK v4.
+"""Find the instructions that need CLICK v4.
 
-An older CLICK accepts a v4 rung on paste without complaint and silently
-changes it: Break and Continue (class ``Next``) copy back as plain Next,
-which closes the loop at the first one.  Check before pasting into a
-pre-v4 CLICK.
+An older CLICK accepts a v4 rung on paste with no warning, and changes it.  Break and
+Continue, which CLICK stores in its ``Next`` class, copy back as a plain Next.  The loop
+then closes at the first of them.  Check the rungs before you paste them into a CLICK
+older than v4.
 """
 
 from __future__ import annotations
@@ -26,13 +26,13 @@ from .instructions.raw import RawInstruction
 if TYPE_CHECKING:
     from .decode import Rung
 
-#: Math functions added in CLICK v4.  SUM is older, but not over a bit range.
+#: Math functions added in CLICK v4.  SUM is older, but SUM over a range of bits needs v4.
 _V4_MATH_RE = re.compile(r"\b(?:MAX|MIN|MDN|AVG|ABS|RAND)\s*\(")
 _V4_BIT_SUM_RE = re.compile(r"\bSUM\s*\(\s*(?:X|Y|C|T|CT|SC)[0-9]+\s*:")
 
 
 def is_v4_only(instruction: object) -> bool:
-    """Whether *instruction* exists only in CLICK v4 (an older CLICK would mangle it)."""
+    """Return True if *instruction* exists only in CLICK v4.  An older CLICK would change it."""
     if isinstance(instruction, (Break, Continue, OutVariant)):
         return True
     if isinstance(instruction, Drum):
@@ -40,7 +40,7 @@ def is_v4_only(instruction: object) -> bool:
         return instruction.v4_blob
     if isinstance(instruction, Math):
         expression = instruction.expression
-        # Past 500 range interiors the blob needs v4's capacity; v3 holds 500.
+        # A v3 blob has room for 500 addresses listed from ranges.  More than that needs v4.
         return bool(_v4_formula(expression) or len(range_interiors(expression)) > RESERVED_SLOTS)
     if isinstance(instruction, RawInstruction) and instruction.class_name == "Math":
         return _raw_math_is_v4_only(instruction.blob)
@@ -52,11 +52,13 @@ def _v4_formula(text: str) -> bool:
 
 
 def _raw_math_is_v4_only(blob: bytes) -> bool:
-    """The Math check on a Math blob laddercodec decodes as raw, read from its stored fields.
+    """Return True if a Math blob that laddercodec decodes as raw needs CLICK v4.
 
-    The internal formula (``0x61FD``) is read with spaces for its ``#``; the display
-    formula (``0x6228``) is read too, since the internal form writes ``RAND`` infix.  A blob
-    whose fields do not parse (``raw(Math,00)`` from CSV) is not flagged.
+    The function reads the formulas stored in the blob.  It reads the internal formula
+    (``0x61FD``) with each ``#`` replaced by a space.  It reads the display formula
+    (``0x6228``) too, because the internal formula writes ``RAND`` between its operands.
+    More than 500 filled reserved slots also need v4.  If the fields of the blob do not
+    parse, as for ``raw(Math,00)`` from a CSV, the function returns False.
     """
     stored = raw_formula_fields(blob)
     if stored is None:
@@ -68,9 +70,9 @@ def _raw_math_is_v4_only(blob: bytes) -> bool:
 
 
 def find_v4_only(rungs: Rung | Iterable[Rung]) -> list[tuple[int, object]]:
-    """Every v4-only instruction in *rungs*, as ``(rung index, instruction)`` pairs.
+    """Return every v4-only instruction in *rungs* as ``(rung index, instruction)`` pairs.
 
-    Empty means the rungs paste into an older CLICK unchanged.
+    An empty list means that the rungs paste into an older CLICK unchanged.
     """
     from .decode import Rung  # decode imports csv, which imports decode
 

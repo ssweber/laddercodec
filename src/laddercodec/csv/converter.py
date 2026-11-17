@@ -1,22 +1,22 @@
-"""RungAst → ``Rung`` converter.
+"""Convert a parsed CSV rung (``RungAst``) to ``Rung`` objects.
 
-``convert_rung`` reads a parsed CSV rung's circuit and lays it out as
-CLICK's syntax check draws it (``docs/internals/layout.md``): pin rows
-become the box's pin inputs, box heights come from ``cell_params()``, and
-pad rows the CSV holds or leaves out change nothing.  A rung with no
-layout keeps the grid ``convert_literal`` reads, described below.
+``convert_rung`` reads the circuit of a parsed CSV rung and lays it out the way CLICK's
+syntax check draws it (``docs/internals/layout.md``).  Pin rows become the pin inputs of
+the box, and the height of each box comes from ``cell_params()``.  The result is the same
+whether the CSV holds the pad rows or leaves them out.  A rung that cannot be laid out
+keeps the grid that ``convert_literal`` reads, as described below.
 
-``convert_literal`` handles:
+``convert_literal`` does this work:
 
-- Condition/contact/compare token conversion to model objects
-- AF token conversion (coils, timers, NOP)
-- Pin continuation rows (``.reset()``, ``.down()``, etc.) — absorbed into
-  the parent instruction rather than emitted as separate rows
-- Multi-row AF instructions: pinned boxes (``PinnedInstruction``: timers,
-  counters, shift, drums) absorb their pin and OR-leg rows; other tall AF
-  instructions keep blank-AF continuation rows as part of the same block
-- Auto-padding: tall AF instructions get blank continuation rows
-  appended when the user omits them
+- It converts condition, contact and compare tokens to model objects.
+- It converts AF tokens (coils, timers, NOP).
+- It folds each pin row (``.reset()``, ``.down()``, etc.) into the instruction it
+  belongs to.  A pin row does not become a row of its own.
+- It reads multi-row AF instructions.  A pinned box (``PinnedInstruction``: timers,
+  counters, shift, drums) takes in its pin rows and its OR-leg rows.  Any other tall AF
+  instruction keeps its blank-AF continuation rows as part of its block.
+- It appends blank continuation rows to a tall AF instruction when the CSV leaves them
+  out.
 
 Pin rows
 --------
@@ -28,29 +28,28 @@ the instruction on the row above:
     R, X001, -, ..., -, on_delay(T1,TD1,100,Tms)
     , X002, -, ..., -, .reset()
 
-The ``.reset()`` row makes the timer retentive (``retained=True``) and
-contributes its conditions/wires as the reset-enable branch.  It does
-**not** produce a separate AF instruction.
+The ``.reset()`` row makes the timer retentive (``retained=True``).  The conditions and
+wires on that row become the circuit that enables the reset.  The row does **not**
+produce a separate AF instruction.
 
-Blank-AF rows between the instruction and a pin are OR legs of the input
-above them, and push every later input down (``pin_rows``).  This is one
-rule for every pinned box; each instruction only declares its pins
-(``pin_names()``), how they set its flags (``with_pins()``), and how many
-slots sit above its main input (``lead_rows``, 1 for count_down).
+Blank-AF rows between the instruction and a pin are OR legs of the input above them.
+They push every later input down, and ``pin_rows`` records where each input lands.  The
+same rule applies to every pinned box.  Each instruction declares only its pins
+(``pin_names()``), how the pins set its flags (``with_pins()``), and how many slots sit
+above its main input (``lead_rows``, which is 1 for count_down).
 
 Tall instructions
 -----------------
 
-Some AF instructions occupy more than one grid row visually (timers = 2,
-search/copy = 2, send/receive = 3, etc.).  If the user CSV omits blank
-continuation rows, they are auto-appended so ``encode_rung()`` receives
-the correct ``logical_rows``.  A row that starts another AF instruction
-inside a tall box's span gets blank rows inserted above it, which push it
-and every later row down.
+Some AF instructions take up more than one grid row (timers 2, search and copy 2, send
+and receive 3, and so on).  If the CSV leaves out their blank continuation rows, the
+converter appends them, so that ``encode_rung()`` gets the correct ``logical_rows``.  If
+a row inside the span of a tall box starts another AF instruction, the converter inserts
+blank rows above that row.  This pushes it and every later row down.
 
-After padding, a wire-continuation hydration pass propagates ``T`` and
-``|`` tokens downward into blank cells, restoring vertical wire continuity
-that was stripped by the writer's dehydration pass.
+After padding, the converter copies ``T`` and ``|`` wires down into the blank cells
+below them.  This restores the vertical wires that the CSV writer leaves out when it
+drops the padding rows.
 """
 
 from __future__ import annotations
@@ -107,7 +106,7 @@ CONDITION_COLUMNS = 31
 
 @dataclass
 class _ParsedRow:
-    """One CSV data row converted into condition tokens plus AF classification."""
+    """One CSV data row, converted to condition tokens, with the ``kind`` of its AF cell."""
 
     conditions: list[ConditionToken]
     kind: str
@@ -141,7 +140,11 @@ def _is_blank_row(conditions: Sequence[object]) -> bool:
 
 
 def _unused_pin_blank_rows(gap: Sequence[Sequence[object]], unused: int) -> int:
-    """Blank rows at the end of a pre-pin gap that are read as unused pins' rows."""
+    """Return how many blank rows at the end of *gap* stand for the rows of unused pins.
+
+    *gap* holds the rows of a pinned box just before a used pin.  At most *unused* rows
+    count.
+    """
     count = 0
     while count < min(unused, len(gap)) and _is_blank_row(gap[-1 - count]):
         count += 1
@@ -149,11 +152,12 @@ def _unused_pin_blank_rows(gap: Sequence[Sequence[object]], unused: int) -> int:
 
 
 def pinned_gap_height(gap: Sequence[Sequence[object]], unused: int) -> int:
-    """Rows a pinned box's CSV gap before a used pin lays out to.
+    """Return the number of rows that a gap in the CSV of a pinned box lays out to.
 
-    The gap's rows are OR legs of the slot above; each of the ``unused`` pins
-    in between takes a row below them, unless a blank row at the gap's end
-    already stands for it.  The writer uses this to pick the rows it emits.
+    The gap is the rows between a used pin and the slot above it.  Those rows are OR legs
+    of the slot above.  Each of the ``unused`` pins between the two takes a row below the
+    legs, unless a blank row at the end of the gap already stands for it.  The CSV writer
+    uses this to choose the rows that it writes.
     """
     return len(gap) + unused - _unused_pin_blank_rows(gap, unused)
 
@@ -166,30 +170,27 @@ def _af_visual_rows(token: AfToken) -> int:
 
 
 def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> None:
-    """Propagate ``T`` / ``|`` tokens downward into blank cells (in-place).
+    """Copy ``T`` and ``|`` wires down into the blank cells below them, in place.
 
-    After block finalization and auto-padding, padding rows are all-blank.
-    This pass restores vertical wire continuity: wherever row *R* has a
-    ``T`` (junction-down), ``|`` (vertical pass-through), or a condition
-    instruction with ``wire_down=True``, row *R+1* gets a ``|`` if the
-    cell is currently blank — unless a horizontal wire from the left
-    already connects to that junction.
+    After the blocks are finished and padded, the padding rows are all blank.  This pass
+    restores their vertical wires.  Where row *R* has a ``T`` (junction down), a ``|``
+    (vertical pass-through) or a condition instruction with ``wire_down=True``, a blank
+    cell below it on row *R+1* becomes ``|``.
 
-    A vertical wire terminates when ``(R+1, C-1)`` carries a horizontal
-    path (anything other than ``""`` or ``"|"``), because the horizontal
-    wire auto-snaps to the vertical endpoint above.
+    The exception is a cell whose left neighbour ``(R+1, C-1)`` holds a horizontal path,
+    which is anything other than ``""`` or ``"|"``.  That horizontal wire joins the end of
+    the vertical wire above, so the vertical wire ends there and the cell stays blank.
 
-    Iterates top-to-bottom so multi-row vertical runs propagate correctly.
-    Stops one row short of the last row — vertical tokens on the last row
-    are invalid (they would point to a nonexistent row below).
+    The pass works from top to bottom, so a vertical wire that spans several rows is
+    copied all the way down.  It never writes the last row, because a vertical token
+    there would point to a row that does not exist.
     """
-    # range(len - 2): iterate rows 0..N-3, writing to rows 1..N-2.
-    # Row N-1 (last) is never written to.
+    # Read rows 0 to N-3 and write rows 1 to N-2.  The last row, N-1, is never written.
     for row_idx in range(len(condition_rows) - 2):
         for col_idx in range(len(condition_rows[row_idx])):
             token = condition_rows[row_idx][col_idx]
-            # A cell propagates | downward if it's a T/| wire token,
-            # or a Contact/CompareContact with wire_down=True.
+            # A T or | wire, or a contact with wire_down=True, continues down into the cell
+            # below.
             propagates_down = token in ("T", "|") or (
                 hasattr(token, "wire_down") and token.wire_down
             )
@@ -198,12 +199,12 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
                 if col_idx > 0:
                     left = condition_rows[row_idx + 1][col_idx - 1]
                     if left not in ("", "|"):
-                        continue  # horizontal path snaps to vertical — no | needed
+                        continue  # the horizontal wire ends the vertical wire here
                 condition_rows[row_idx + 1][col_idx] = cast(ConditionToken, "|")
 
 
 def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
-    """Convert one parsed CSV row into tokens plus AF-row classification."""
+    """Convert one parsed CSV row to condition tokens, and classify its AF cell."""
     conds: list[ConditionToken] = []
     try:
         for node in row.condition_nodes:
@@ -247,7 +248,7 @@ def _flush_plain_rows(
     condition_rows: list[list[ConditionToken]],
     af_tokens: list[AfToken],
 ) -> None:
-    """Append buffered non-block rows to the final decode-ready output."""
+    """Move the buffered rows that belong to no block to *condition_rows* and *af_tokens*."""
     for row in plain_rows:
         condition_rows.append(row.conditions)
         af_tokens.append(row.token)
@@ -271,7 +272,7 @@ def _start_active_block(
 
 
 def _max_continuations(block: _ActiveBlock) -> int:
-    """Maximum number of continuation rows a block type can absorb."""
+    """Return the most continuation rows that *block* can take in."""
     return max(0, _af_visual_rows(block.token) - 1)
 
 
@@ -280,15 +281,16 @@ def _call_name(token: AfInstruction) -> str:
 
 
 def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstruction) -> bool:
-    """Absorb pin rows (in pin order) and the leg rows between them.
+    """Take *row* into a pinned block if it belongs there, and return whether it did.
 
-    Nothing after the last pin belongs to the block: legs under it sit below
-    the box.  Blank rows after an earlier pin (or the main input) are absorbed
-    even when no later pin follows; ``_finalize_pinned_block`` hands back the
-    ones past the box.
+    The block takes its pin rows, in pin order, and the OR-leg rows between them.
+    Nothing after the last pin belongs to the block, so legs under the last pin sit below
+    the box.  The block takes blank rows after an earlier pin, or after the main input,
+    even when no later pin follows.  ``_finalize_pinned_block`` returns the blank rows
+    that fall below the box.
 
     A box with lead slots may put its main input on a NOP row right under the
-    instruction token (count_down's bridge form); the token row is then the
+    instruction token.  This is the bridge form of count_down.  The token row is then the
     lead row.
     """
     order = token.pin_names()
@@ -337,21 +339,24 @@ def _consume_active_row(block: _ActiveBlock, row: _ParsedRow) -> bool:
 def _finalize_pinned_block(
     block: _ActiveBlock,
 ) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
-    """Lay out a pinned block, placing each slot on its own row.
+    """Lay out a pinned block, with each slot on its own row.
 
-    Lead slots come first, then the main input.  Rows between two slots are
-    OR legs of the slot above.  An unused pin still takes a row of its own,
-    below those legs (as CLICK lays out a leg added with Insert Row: Reset 1,
-    leg 2, unused Jump 3, Jog 4).  Blank rows just above the next pin are
-    read as the unused pins' rows, not legs.  Unused pins after the last used
-    one sit directly under it, and the box ends at the last pin's row;
-    absorbed rows past it are returned as the tail.
+    Return the condition rows, the AF tokens and the tail.  The tail is the rows that the
+    block took in that fall below the box.
+
+    Lead slots come first, then the main input.  Rows between two slots are OR legs of
+    the slot above.  An unused pin still takes a row of its own, below those legs.  CLICK
+    lays out a leg added with Insert Row the same way: Reset on row 1, the leg on row 2,
+    an unused Jump on row 3 and Jog on row 4.  Blank rows just above the next pin are read
+    as the rows of the unused pins, not as legs.  Unused pins after the last used pin sit
+    directly under it.  The box ends at the row of its last pin.
     """
     token = cast(PinnedInstruction, block.token)
     lead = token.lead_rows
     lead_rows = [_blank_condition_row() for _ in range(lead - len(block.lead_conditions))]
     rows = [*lead_rows, *block.lead_conditions, block.main_conditions]
-    # Every slot after the first: the main input when there are lead slots.
+    # The rows of every slot after the first.  With lead slots, the list starts with the
+    # main input.
     slot_rows: list[int] = list(range(1, lead + 1))
     pins: dict[str, tuple[str, ...]] = {}
     pin_places: dict[str, dict[str, int | None]] = {}
@@ -395,14 +400,14 @@ def _finalize_pinned_block(
     except ValueError as exc:
         error = CsvError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
         if isinstance(exc, FieldError):
-            # A value a pin row sets is refused: locate it at that pin's row.
+            # The box refuses a value that a pin row sets.  Locate the error at that row.
             culprit = _refused_pin(token, pins, slots)
             if culprit is not None:
                 add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
             _locate_at_pins(token, pins, slots, exc.errors, pin_places)
         raise error from exc
-    # Read with ``unchecked=True``, the box keeps the refusals ``with_pins`` raises otherwise:
-    # each is located where it would be raised.
+    # Inside ``read_csv(..., unchecked=True)``, the box keeps the refusals that ``with_pins``
+    # would otherwise raise.  Locate each one where it would have been raised.
     _locate_at_pins(token, pins, slots, refusals(boxed), pin_places)
     locate_held([boxed], **block.place, column=AF_COLUMN)
     af_tokens: list[AfToken] = [boxed, *([""] * (len(rows) - 1))]
@@ -418,7 +423,7 @@ def _locate_at_pins(
     found: Sequence[FieldError],
     pin_places: dict[str, dict[str, int | None]],
 ) -> None:
-    """Locate each refusal in *found* that a pin row's value causes at that pin's row."""
+    """Locate each refusal in *found* that a value on a pin row causes at that pin's row."""
     for refusal in found:
         owner = _refusing_pin(token, pins, slot_rows, refusal)
         if owner is not None:
@@ -431,10 +436,12 @@ def _refusing_pin(
     slot_rows: tuple[int, ...],
     refusal: FieldError,
 ) -> str | None:
-    """The first used pin without which *refusal* is no longer raised, or None.
+    """Return the first used pin whose removal stops *refusal* from being raised, or None.
 
-    Each probe runs its checks, inside ``read_csv(..., unchecked=True)`` too, so a refusal
-    the box would hold there still tells the pins apart.
+    The function builds the box again without each pin in turn.  Each build runs its
+    checks inside ``checked()``, so it raises even inside ``read_csv(...,
+    unchecked=True)``.  This way a refusal that the box would only hold there still shows
+    which pin causes it.
     """
     for name in pins:
         try:
@@ -452,11 +459,11 @@ def _refusing_pin(
 def _refused_pin(
     token: PinnedInstruction, pins: dict[str, tuple[str, ...]], slot_rows: tuple[int, ...]
 ) -> str | None:
-    """The first used pin without which ``with_pins`` accepts the box, or None.
+    """Return the first used pin whose removal lets ``with_pins`` accept the box, or None.
 
-    That pin's row holds the refused value (a Drum's ``.jump(target)``) or is itself the
-    fault (a ``.reset()`` on a timer that can't be retentive).  Each probe runs its checks,
-    as :func:`_refusing_pin`'s do.
+    Either the row of that pin holds the refused value, such as a Drum's
+    ``.jump(target)``, or the pin is itself the fault, such as a ``.reset()`` on a timer
+    that can't be retentive.  Each build runs its checks, as in :func:`_refusing_pin`.
     """
     for name in pins:
         try:
@@ -489,10 +496,10 @@ def _finalize_generic_tall_block(
 def _finalize_active_block(
     block: _ActiveBlock,
 ) -> tuple[list[list[ConditionToken]], list[AfToken], list[_ParsedRow]]:
-    """Expand the current active block into decode-ready rows/tokens.
+    """Return the condition rows and AF tokens of *block*, and the rows that fall below it.
 
-    Also returns the absorbed rows that fall below the block (pinned blocks only).  An
-    error is located at the instruction token's cell.
+    Only a pinned block can have rows that fall below it.  An error is located at the cell
+    of the instruction token.
     """
     with located(**block.place, column=AF_COLUMN):
         if isinstance(block.token, PinnedInstruction):
@@ -532,7 +539,7 @@ def condition_node_to_token(node: object) -> ConditionToken:
         )
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
-            check_address(node.raw, "Contact.operand")  # digits outside 0-9 land here
+            check_address(node.raw, "Contact.operand")  # an address with digits not in 0-9
         raise CsvError(f"Cannot convert generic condition to encode token: {node.raw!r}")
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
@@ -540,11 +547,13 @@ def condition_node_to_token(node: object) -> ConditionToken:
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     """Convert a parsed AF call node to an encode-ready token.
 
-    A token that holds a blank argument and that its family's parser refuses (raises, or
-    inside ``read_csv(..., unchecked=True)`` builds holding refusals) is read with the
-    field that argument fills left blank (:func:`_with_blank_fields`): it is refused, or
-    kept, as building the instruction with that field blank refuses it (``missing``).  A
-    token the parser accepts is read as before.
+    If the parser for the instruction accepts the token, the function returns what the
+    parser built.  The parser refuses a token when it raises, or when it builds an
+    instruction that holds refusals inside ``read_csv(..., unchecked=True)``.  If the
+    parser refuses a token that holds a blank argument, the function reads the token
+    again with the field of that argument left blank (:func:`_with_blank_fields`).  The
+    instruction is then refused as it is when you build it with that field blank, with the
+    ``missing`` reason.  Inside ``read_csv(..., unchecked=True)`` it keeps that refusal.
     """
     refused: ValueError | None = None
     try:
@@ -567,16 +576,21 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
 
 
 def _with_blank_fields(call: AfCall) -> AfInstruction | None:
-    """The instruction *call* reads to with each blank argument's field blank, or None.
+    """Return the instruction that *call* reads to with each blank argument's field blank.
 
-    Each blank argument is read as a marker, in each of :data:`_MARKER_FORMS` until the
-    token parses: bare, quoted (a name), and as a range (``M..M``, two fields), where a
-    range with a blank end (``..``, ``..DS4``) is blank too.  The fields the marker lands
-    in are the argument's.  The instruction is then built again
-    from its fields, each marker blank, with the checks construction runs: inside
-    ``read_csv(..., unchecked=True)`` it keeps the refusals, else it raises them.  None
-    when the token holds no blank argument, does not parse with the markers, or a marker
-    lands in no field.
+    The function writes a marker into each blank argument and parses the token.  It tries
+    each form in :data:`_MARKER_FORMS` in turn until the token parses: the marker alone,
+    the marker in quotes (as a name), and the marker as a range (``M..M``, which fills two
+    fields).  In the range form, a range with a blank end (``..``, ``..DS4``) also counts
+    as a blank argument.  The fields that a marker lands in belong to that argument.
+
+    The function then builds the instruction again from its fields, with each marker made
+    blank, and runs the checks that construction runs.  Inside ``read_csv(...,
+    unchecked=True)`` the instruction keeps the refusals.  Anywhere else the build raises
+    them.
+
+    Return None when the token holds no blank argument, when it does not parse with the
+    markers, or when a marker lands in no field.
     """
     text = call.raw or call.to_token()
     for form, ranges in _MARKER_FORMS:
@@ -596,18 +610,21 @@ def _with_blank_fields(call: AfCall) -> AfInstruction | None:
     return None
 
 
-#: How a blank argument is written while its fields are found (``@`` stands for the
-#: marker), and whether it is read as a range (:func:`fill_blank_args`).
+#: The forms in which a blank argument is written to find its fields, and whether each
+#: form is read as a range (:func:`fill_blank_args`).  ``@`` stands for the marker.
 _MARKER_FORMS = (("@", False), ('"@"', False), ("@", True))
 
 
 def _marked(text: str, form: str, *, ranges: bool) -> tuple[str, set[str]] | None:
-    """*text* with each blank argument a marker written in *form*, read as a range when
-    *ranges*, and the markers; None when no argument is blank."""
+    """Return *text* with a marker in *form* in each blank argument, and the markers.
+
+    If *ranges* is true, each blank argument is read as a range.  Return None when no
+    argument is blank.
+    """
     marks: set[str] = set()
 
     def mark(i: int) -> str:
-        found = f"BLANK{i}Q"  # no address, constant or name
+        found = f"BLANK{i}Q"  # not an address, a constant or a name
         while found in text:
             found += "Q"
         marks.add(found)
@@ -618,7 +635,7 @@ def _marked(text: str, form: str, *, ranges: bool) -> tuple[str, set[str]] | Non
 
 
 def _holds_text(value: object, text: str) -> bool:
-    """Whether *value*, a field or one of its items, a dataclass's fields included, is *text*."""
+    """Return True if *value* is *text*, or holds *text* in an item or a dataclass field."""
     if is_dataclass(value) and not isinstance(value, type):
         return any(_holds_text(getattr(value, f.name), text) for f in fields(value))
     if isinstance(value, (list, tuple)):
@@ -627,8 +644,11 @@ def _holds_text(value: object, text: str) -> bool:
 
 
 def _built_with_blanks(value: object, marks: set[str]) -> object:
-    """*value* with each field or item that is a marker in *marks* blank; each dataclass it
-    holds, and *value* itself, built again with its checks."""
+    """Return *value* with each field or item that is a marker in *marks* made blank.
+
+    If *value* is a dataclass, the function builds it again, and each dataclass that it
+    holds, so that each one runs its checks.
+    """
     if is_dataclass(value) and not isinstance(value, type):
         changes = {
             f.name: _built_with_blanks(getattr(value, f.name), marks)
@@ -655,11 +675,12 @@ def af_node_to_token(node: AfNode, *, strict: bool = True) -> AfToken:
 
 
 def reads_back(token: object) -> bool:
-    """Whether an instruction's CSV token, with its pin rows, reads back to an equal one.
+    """Return True if the CSV token of *token*, with its pin rows, reads back equal to it.
 
-    Read as ``read_csv(..., unchecked=True)`` reads it, so an instruction that keeps
-    refusals is compared with one that keeps the same.  Any failure to write or read it
-    is a no: the CSV can't hold it.
+    The function reads the token as ``read_csv(..., unchecked=True)`` reads it.  This way
+    an instruction that holds refusals is compared with one that holds the same
+    refusals.  If writing or reading the token fails, the function returns False, because
+    the CSV cannot hold the instruction.
     """
     try:
         with unchecked():
@@ -688,12 +709,14 @@ def reads_back(token: object) -> bool:
 
 
 def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
-    """The CLICK rungs a CSV rung reads to, drawn as CLICK's syntax check draws them.
+    """Return the CLICK rungs that a CSV rung reads to, as CLICK's syntax check draws them.
 
-    The rung's circuit is read from its rows (:func:`convert_literal`) and laid out again
-    (``docs/internals/layout.md``).  A rung whose circuit CLICK would split comes back as
-    several rungs, the comment on the first.  A rung with no layout
-    (``laddercodec.check()`` reports it) comes back as written.
+    The circuit of the rung is read from its rows (:func:`convert_literal`) and laid out
+    again (``docs/internals/layout.md``).  If CLICK would split the circuit, the rung comes
+    back as several rungs, with the comment on the first.  A rung that cannot be laid out
+    comes back as written.  That happens when it holds only wires and unwired NOPs, when
+    the layout cannot draw it, or when ``laddercodec.check()`` reports a finding other
+    than an unwired box input or a contact that feeds only a NOP.
 
     Raises
     ------
@@ -710,7 +733,7 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
 
 
 def rung_tokens(rung: Rung) -> list[object]:
-    """Every cell token of *rung*, row by row, the AF cell last in each row."""
+    """Return every cell token of *rung*, row by row, with the AF cell last in each row."""
     return [
         token
         for conditions, af in zip(rung.conditions, rung.instructions, strict=False)
@@ -719,7 +742,8 @@ def rung_tokens(rung: Rung) -> list[object]:
 
 
 def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
-    """The rung's grid as written: pin rows on their slots, tall boxes padded to their height.
+    """Return the grid of the rung as written, with pin rows on their slots and tall boxes
+    padded to their height.
 
     Raises
     ------

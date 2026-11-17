@@ -1,14 +1,17 @@
 """A rung's wire nets and contact edges, read from its cell grid.
 
-A grid point ``(row, x)`` sits on row ``row`` at the left edge of column ``x``: ``x = 0`` is the
-left rail and ``x = 31`` is the AF column's left edge, where a box input lands.  A cell
-``(row, c)`` with its right flag joins ``(row, c)`` to ``(row, c + 1)``; a contact cell instead
-adds an edge from ``(row, c)`` to ``(row, c + 1)``.  A cell's down flag joins ``(row, c)`` to
-``(row + 1, c)``: the vertical on the column's left edge.  The AF cell's down flag joins
-``(row, 31)`` to ``(row + 1, 31)``.  Every ``(row, 0)`` is the rail.
+A grid point ``(row, x)`` sits on row ``row`` at the left edge of column ``x``.  ``x = 0`` is
+the left rail, and ``x = 31`` is the left edge of the AF column, where a box input lands.
+Every ``(row, 0)`` is the rail.
 
-Points joined by wires form one net.  Contacts conduct left to right only.  A ``NOP`` on a
-net that is not the rail and that no contact ends on is left out of the boxes.
+A cell ``(row, c)`` with its right flag set joins ``(row, c)`` to ``(row, c + 1)`` with a wire.
+A contact cell does not join them with a wire.  It adds an edge from ``(row, c)`` to
+``(row, c + 1)`` instead.  A cell's down flag joins ``(row, c)`` to ``(row + 1, c)``, as a
+vertical wire on the left edge of the column.  The down flag of the AF cell joins
+``(row, 31)`` to ``(row + 1, 31)``.
+
+Points joined by wires form one net.  Contacts conduct left to right only.  A ``NOP`` is left
+out of the boxes when its net is not the rail and no contact ends on that net.
 """
 
 from __future__ import annotations
@@ -34,7 +37,7 @@ class GridCell:
 
 
 def cell_of(token: object) -> GridCell:
-    """The flags a decoded or CSV-read condition token stands for."""
+    """Return the grid cell that a decoded or CSV-read condition token stands for."""
     if isinstance(token, (ConditionInstruction, UnknownCondition)):
         return GridCell(token, True, bool(getattr(token, "wire_down", False)))
     text = str(token)
@@ -54,10 +57,11 @@ class Edge:
 
 @dataclass(frozen=True)
 class Box:
-    """An AF box (or NOP) on the token row ``row``.
+    """An AF box, or a NOP, whose token is on row ``row``.
 
-    ``slots`` holds the absolute row of every input, top first (lead slots, the main input,
-    then the pins); ``used`` says which of them take a circuit.
+    ``slots`` holds the absolute row of every input, top first.  The lead slots come first,
+    then the main input, then the pins.  A lead slot is a row of the box above its main
+    input.  ``used`` says which of the inputs take a circuit.
     """
 
     token: object
@@ -69,7 +73,11 @@ class Box:
 
 @dataclass(frozen=True)
 class Sink:
-    """A box input: the net feeding AF on ``row``."""
+    """A box input that takes a circuit.
+
+    ``net`` is the net that feeds the AF column on ``row``.  ``box`` is the index of the box,
+    and ``slot`` is the index of the input in the box's ``slots``.
+    """
 
     net: int
     row: int
@@ -83,9 +91,9 @@ class Network:
     edges: list[Edge]
     sinks: list[Sink]
     boxes: list[Box]
-    #: Wire cells joined to no net that a sink or a contact uses.
+    #: The number of wire cells on a net that no contact and no box input uses.
     dead_wire_cells: int = 0
-    #: Contacts whose two sides are one net (a wire shorts them).
+    #: Contacts whose two sides are on one net, because a wire joins them.
     bypassed: list[Edge] = field(default_factory=list)
 
 
@@ -107,16 +115,17 @@ class _UnionFind:
 
 
 def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = False) -> list[Box]:
-    """Every box in an AF column, with the rows of its inputs.
+    """Return every box in an AF column, with the rows of its inputs.
 
-    With ``raw_pins``, a raw box of several parts takes an input on each part's row, every
-    one of them used: which of its pins the box uses is not known.
+    If ``raw_pins`` is true, a ``RawInstruction`` box of several parts gets an input on the
+    row of each part, and every one of those inputs counts as used.  laddercodec does not
+    know which of the pins a raw box uses.
     """
     boxes: list[Box] = []
     for r, token in enumerate(instructions):
         if token == "NOP":
             if any(r in b.slots for b in boxes):
-                continue  # count_down's main-input row
+                continue  # an earlier box's input row, such as count_down's main input
             boxes.append(Box("NOP", r, (r,), (True,), 0))
         elif isinstance(token, PinnedInstruction):
             lead = token.lead_rows
@@ -144,8 +153,10 @@ def network(
     *,
     raw_pins: bool = False,
 ) -> Network:
-    """The nets of a grid: ``cells`` is rows x 31, ``instructions`` one AF token per row.
+    """Return the nets, contact edges and boxes of a grid.
 
+    ``cells`` has one row of 31 condition cells for each grid row.  ``instructions`` has
+    one AF token for each row, and ``af_down`` has the down flag of each AF cell.
     ``raw_pins`` is passed to :func:`boxes_of`.
     """
     rows = len(cells)
@@ -177,8 +188,8 @@ def network(
             edge = Edge(net((r, c)), net((r, c + 1)), cell.contact, r, c)
             (bypassed if edge.src == edge.dst else edges).append(edge)
 
-    # A NOP that neither the rail nor a contact reaches is absent: CLICK's syntax check drops it
-    # with no error.
+    # Leave out a NOP that neither the rail nor a contact reaches.  CLICK's syntax check drops
+    # such a NOP and reports no error.
     fed = {rail} | {e.dst for e in edges}
     boxes = [
         box
