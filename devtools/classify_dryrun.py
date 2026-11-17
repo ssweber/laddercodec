@@ -286,7 +286,7 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
     def rule(ns: Any, value: str) -> None:
         constants = ns.constants(hex_high=0xFFFF, hex_sign=True, printable=False)
         text = ns.normalize(value)
-        op = ns.checks.check_operand(text, "Search.source", ns.checks.REGISTER_BANKS, constants)
+        op = ns.checks.check_operand(text, "Search.value", ns.checks.REGISTER_BANKS, constants)
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
             ns.refuse("the value's kind does not search this table")
         if op.constant and op.constant.kind == ns.Kind.TEXT:
@@ -324,7 +324,7 @@ def for_limit_rule(ns: Any, value: str) -> None:
     if re.fullmatch(r"[0-9]+(\s+[0-9]+)+", text):
         ns.refuse("a constant count is digits only")
     constants = ns.constants({ns.Kind.INTEGER}, signs="", low=0, high=2**31 - 1)
-    ns.checks.check_operand(ns.normalize(text), "ForLoop.limit", ns.for_limit_banks, constants)
+    ns.checks.check_operand(ns.normalize(text), "ForLoop.count", ns.for_limit_banks, constants)
 
 
 def counter_rule(ns: Any, value: str) -> None:
@@ -464,14 +464,14 @@ def _move() -> list[Field]:
     tables = {"DS": ("DS72", "DS81"), "DH": ("DH72", "DH81"), "TXT": ("TXT1", "TXT10")}
     for bank, (start, end) in tables.items():
         search = _make(
-            "Search", table_start=start, table_end=end, result="DS82", found="C81", comparison="=="
+            "Search", table_start=start, table_end=end, result="DS82", found="C81", op="=="
         )
         out.append(
             Field(
                 "move",
-                f"Search.source ({start}..{end} ==)",
-                f"Search/{start}..{end}/source",
-                search("source"),
+                f"Search.value ({start}..{end} ==)",
+                f"Search/{start}..{end}/value",
+                search("value"),
                 search_rule(bank),
             )
         )
@@ -530,7 +530,7 @@ def _data_flow_comm() -> list[Field]:
     )
     out.append(
         Field(
-            "flow", "ForLoop.limit", "ForLoop/int/limit", _make("ForLoop")("limit"), for_limit_rule
+            "flow", "ForLoop.count", "ForLoop/int/count", _make("ForLoop")("count"), for_limit_rule
         )
     )
     # Not here: the Modbus target's device_id, a number or a DS address.  The family keeps

@@ -340,7 +340,7 @@ _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
 _DOLLAR_FIELDS = [
     ("Copy.source", lambda code: Copy(code, "TXT2")),
     ("Fill.value", lambda code: Fill(code, "TXT2", "TXT5")),
-    ("Search.source", lambda code: Search("TXT1", "TXT10", code, "DS20", "C1", "==")),
+    ("Search.value", lambda code: Search("TXT1", "TXT10", code, "DS20", "C1", "==")),
     ("CompareContact.right", lambda code: CompareContact("==", "TXT1", code)),
     ("CompareContact.left", lambda code: CompareContact("==", code, "TXT1")),
     (

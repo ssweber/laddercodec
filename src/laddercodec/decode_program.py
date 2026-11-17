@@ -436,8 +436,8 @@ def _scr_raw(
         class_name=class_name,
         blob=_scr_blob(class_name, type_code, tags, part_rows),
         part_count=len(part_rows),
-        visual_rows=cell_rows[0] or None,
-        sub_rows=cell_rows[1] or None,
+        rows=cell_rows[0] or None,
+        sub=cell_rows[1] or None,
     )
 
 

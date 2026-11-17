@@ -34,17 +34,17 @@ def _read_af(tmp_path: Path, af: str) -> object:
         ("XD1..XD3 == 1", "result=DS1,found=C20", "Search.table_start: 'XD1' is not allowed"),
         ("DS1..DS10 == 1", "result=DD1,found=C20", "Search.result: 'DD1' is not allowed"),
         ("DS1..DS10 == 1", "result=C1,found=C20", "Search.result: 'C1' is not allowed"),
-        ("DS1..DS10 == X001", "result=DS20,found=C20", "Search.source: 'X001' is not allowed"),
-        ("DS1..DS10 == C5", "result=DS20,found=C20", "Search.source: 'C5' is not allowed"),
+        ("DS1..DS10 == X001", "result=DS20,found=C20", "Search.value: 'X001' is not allowed"),
+        ("DS1..DS10 == C5", "result=DS20,found=C20", "Search.value: 'C5' is not allowed"),
         ("DS1..DS10 == DS4501", "result=DS20,found=C20", "outside DS1-DS4500"),
         ("DS1..DS10 == 1", "result=DS20,found=C2001", "Search.found: 'C2001' is outside"),
-        ("DS1..DS10 == foo", "result=DS20,found=C20", "Search.source: 'foo' is not a CLICK"),
+        ("DS1..DS10 == foo", "result=DS20,found=C20", "Search.value: 'foo' is not a CLICK"),
         # the Result Flag is a C bit (OBJ-004)
         ("DS1..DS10 == 1", "result=DS20,found=Y001", "Search.found: 'Y001' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=XD0u", "Search.found: 'XD0u' is not allowed"),
         ("DS1..DS10 == 1", "result=DS20,found=YD0u", "Search.found: 'YD0u' is not allowed"),
         # no pointers
-        ("DS1..DS10 == DS[DS100]", "result=DS20,found=C1", "Search.source: 'DS\\[DS100\\]' is a"),
+        ("DS1..DS10 == DS[DS100]", "result=DS20,found=C1", "Search.value: 'DS\\[DS100\\]' is a"),
         ("DS1..DS10 == 1", "result=DS[DS1],found=C1", "Search.result: 'DS\\[DS1\\]' is a"),
         ("DS[DS1]..DS10 == 1", "result=DS20,found=C1", "Search.table_start: 'DS\\[DS1\\]' is a"),
         # the table is one bank, start before end (OBJ-009, OBJ-008, OBJ-012)
@@ -99,7 +99,7 @@ def test_direct_construction_is_checked() -> None:
 
 @pytest.mark.parametrize("comparison", ["=<", "=", "<>", ""])
 def test_unknown_comparison_is_refused(comparison: str) -> None:
-    with pytest.raises(FieldError, match="Search.comparison"):
+    with pytest.raises(FieldError, match="Search.op"):
         Search("DS1", "DS10", "5", "DS20", "C1", comparison)
 
 
@@ -126,10 +126,10 @@ _FINITE = "a real constant is a finite number"
 def test_source_refuses_what_the_constant_check_refuses(
     tmp_path: Path, table: str, source: str, message: str
 ) -> None:
-    with pytest.raises(FieldError, match=rf"^Search.source: .* {message}"):
+    with pytest.raises(FieldError, match=rf"^Search.value: .* {message}"):
         Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
     token = f"search({table}1..{table}10 == {source},result=DS20,found=C1)"
-    with pytest.raises(FieldError, match="^Search.source: "):
+    with pytest.raises(FieldError, match="^Search.value: "):
         _read_af(tmp_path, token)
 
 
@@ -156,7 +156,7 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
 @pytest.mark.parametrize("table", ["TXT", "DS"])
 @pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
 def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
-    with pytest.raises(FieldError, match="^Search.source: "):
+    with pytest.raises(FieldError, match="^Search.value: "):
         Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
 
 
@@ -168,12 +168,12 @@ def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
         ({0x6066: "DS10", 0x6067: "DS1"}, ["table_end"]),  # backwards
         (
             {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
-            ["comparison"],
+            ["op"],
         ),
-        ({0x6065: "TXT20", 0x21F7: "2"}, ["comparison"]),  # > on a TXT register
-        ({0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"}, ["source"]),  # a 32-bit hex value
-        ({0x6065: "3000000000"}, ["source"]),  # outside int32
-        ({0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"}, ["source"]),  # a signed hex value
+        ({0x6065: "TXT20", 0x21F7: "2"}, ["op"]),  # > on a TXT register
+        ({0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"}, ["value"]),  # a 32-bit hex value
+        ({0x6065: "3000000000"}, ["value"]),  # outside int32
+        ({0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"}, ["value"]),  # a signed hex value
     ],
 )
 def test_refused_blob_keeps_its_refusal(fields: dict[int, str], refused: list[str]) -> None:
@@ -223,5 +223,5 @@ def test_search_value_kind_fits_table(table: str, value: str) -> None:
     ],
 )
 def test_search_value_kind_must_fit_table(table: str, value: str) -> None:
-    with pytest.raises(FieldError, match="^Search.source: "):
+    with pytest.raises(FieldError, match="^Search.value: "):
         Search(f"{table}1", f"{table}10", value, "DS20", "C20", "==")

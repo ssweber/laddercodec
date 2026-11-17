@@ -148,7 +148,7 @@ def _program_box(raw: RawInstruction) -> AfInstruction:
     class_name, type_code, parts, _extra, fields = _decompose_blob(raw.blob)
     assert parts == 1
     tags = {tag: value for tag, _sentinel, value in fields}
-    rows = bytes([raw.visual_rows or 0, raw.sub_rows or 0])
+    rows = bytes([raw.rows or 0, raw.sub or 0])
     return _scr_box(class_name, type_code, tags, b"\x01", {}, {}, rows)
 
 
@@ -301,17 +301,17 @@ def test_a_program_box_reads_back_from_the_clipboard(
 
 def test_a_program_box_holding_a_refusal_reads_back_from_the_clipboard() -> None:
     """A box of another family that holds a refusal keeps its set flag through the clipboard."""
-    blob = _retagged(ForLoop(limit="3", oneshot=True).build_blob(), {0x6065: ("3", "Y001")})
+    blob = _retagged(ForLoop(count="3", oneshot=True).build_blob(), {0x6065: ("3", "Y001")})
     box = _from_program(blob, 1)
     assert isinstance(box, ForLoop) and box.oneshot
-    kept(box, "ForLoop.limit")
+    kept(box, "ForLoop.count")
     data = _one_box_of(box)
     with pytest.warns(RefusedFieldWarning):
         [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [back] = [t for t in decoded.instructions if isinstance(t, AfInstruction)]
-    assert isinstance(back, ForLoop) and back.oneshot and back.limit == "Y001"
-    kept(back, "ForLoop.limit")
+    assert isinstance(back, ForLoop) and back.oneshot and back.count == "Y001"
+    kept(back, "ForLoop.count")
     assert encode(decoded) == data
 
 
@@ -368,7 +368,7 @@ def test_a_typed_clipboard_blob_reads_in_display_form(
     ("inst", "edits", "field", "display"),
     [
         (Copy("DS2", "DS1"), {0x6076: ("DS1", "DS04501")}, "Copy.destination", "DS4501"),
-        (Math("DH2 + DH3", "YD0", "hex"), {0x6065: ("YD0", "YD09")}, "Math.result", "YD9"),
+        (Math("DH2 + DH3", "YD0", "hex"), {0x6065: ("YD0", "YD09")}, "Math.dest", "YD9"),
         (
             Math("DS1 + 1", "DS4"),
             {0x6228: ("DS1", "DS04501"), 0x61FD: ("DS1", "DS04501")},
@@ -434,7 +434,7 @@ COVERAGE_EDITS = [
         "expression",
         "DS65 + DS66",
     ),
-    ((("DH3", "dh3"),), Math, "result", "DH3"),
+    ((("DH3", "dh3"),), Math, "dest", "DH3"),
 ]
 
 

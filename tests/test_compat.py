@@ -68,7 +68,7 @@ def test_v4_captures_are_flagged() -> None:
     ],
 )
 def test_math_v4_functions(expression: str, v4_only: bool) -> None:
-    assert is_v4_only(Math(expression=expression, result="DS100")) is v4_only
+    assert is_v4_only(Math(expression=expression, dest="DS100")) is v4_only
 
 
 @pytest.mark.parametrize(

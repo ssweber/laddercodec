@@ -78,7 +78,7 @@ CASES = [
         Drum,
         ["Drum.current_step"],
     ),
-    ("forloop__basic", "for(3)", "for(Y001)", ForLoop, ["ForLoop.limit"]),
+    ("forloop__basic", "for(3)", "for(Y001)", ForLoop, ["ForLoop.count"]),
     ("call__basic", "coverage_sub", "x" * 25, Call, ["Call.subroutine"]),
     ("copy__tag", "copy(DS7,", "copy(Y001,", Copy, ["Copy.destination"]),
     (
@@ -99,7 +99,7 @@ CASES = [
     ("pack_text", "(TXT1..TXT4,DS170)", "(TXT1..TXT8,DH1)", Pack, ["Pack.source_end"]),
     ("unpack_to_bits", "(DS172,", "(Y001,", Unpack, ["Unpack.source"]),
     ("search__continuous", "search(DS144..", "search(Y001..", Search, ["Search.table_start"]),
-    ("math__decimal", "DS66,DS67", "DS66,C67", Math, ["Math.result"]),
+    ("math__decimal", "DS66,DS67", "DS66,C67", Math, ["Math.dest"]),
     ("send__tcp_click_coil", "success=C2", "success=C1", Send, ["Send.success"]),
     ("send__tcp_click_coil", "device_id=1", "device_id=256", Send, ["ModbusTcpTarget.device_id"]),
     ("receive__rtu_click_block", "dest=DS1..DS5", "dest=TD1..TD5", Receive, ["Receive.dest"]),

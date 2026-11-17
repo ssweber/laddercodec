@@ -707,8 +707,8 @@ def _decode_af_cell(data: bytes, pos: int, next_pos: int, has_instr: bool) -> Af
             class_name=class_name,
             blob=instr_raw[:blob_end],
             part_count=part_count,
-            visual_rows=data[pos + 0x09] or None,
-            sub_rows=data[pos + 0x0A] or None,
+            rows=data[pos + 0x09] or None,
+            sub=data[pos + 0x0A] or None,
         )
     except (ValueError, IndexError):
         return UnknownInstruction(raw=instr_raw)

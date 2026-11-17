@@ -28,14 +28,14 @@ _SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
 class TestForLoopBlobRoundTrip:
     def test_forloop_basic(self) -> None:
-        instr = ForLoop(limit="3", oneshot=False)
+        instr = ForLoop(count="3", oneshot=False)
         parsed = parse_af_blob(instr.build_blob())
         assert isinstance(parsed, ForLoop)
         assert parsed == instr
         assert parsed.to_csv() == "for(3)"
 
     def test_forloop_oneshot(self) -> None:
-        instr = ForLoop(limit="DS1", oneshot=True)
+        instr = ForLoop(count="DS1", oneshot=True)
         parsed = parse_af_blob(instr.build_blob())
         assert isinstance(parsed, ForLoop)
         assert parsed == instr
@@ -78,7 +78,7 @@ class TestNativeBlobParsing:
         )
         parsed = parse_af_blob(blob)
         assert isinstance(parsed, ForLoop)
-        assert parsed.limit == "3"
+        assert parsed.count == "3"
         assert parsed.oneshot is False
 
     def test_parses_native_next_blob_with_single_byte_terminator(self) -> None:
@@ -109,8 +109,8 @@ class TestNextBlobSize:
 class TestBlankFields:
     def test_blank_limit_is_a_field_error(self) -> None:
         for limit in ("", " ", "\t "):
-            with pytest.raises(FieldError, match="ForLoop.limit"):
-                ForLoop(limit=limit)
+            with pytest.raises(FieldError, match="ForLoop.count"):
+                ForLoop(count=limit)
 
     def test_empty_call_is_a_field_error(self) -> None:
         with pytest.raises(FieldError, match="Call.subroutine"):
@@ -121,7 +121,7 @@ class TestBlankFields:
             Call.from_csv_token('call("")')
 
     def test_whitespace_limit_blob_is_raw(self) -> None:
-        blob = ForLoop(limit="DS1").build_blob()
+        blob = ForLoop(count="DS1").build_blob()
         assert isinstance(parse_af_blob(blob), ForLoop)
         assert (
             parse_af_blob(blob.replace("DS1".encode("utf-16-le"), "   ".encode("utf-16-le")))
@@ -130,7 +130,7 @@ class TestBlankFields:
 
     def test_whitespace_limit_decodes_as_raw_clipboard(self) -> None:
         conditions = [["-"] * 31]
-        data = encode_rung(1, conditions, [ForLoop(limit="DS1")])
+        data = encode_rung(1, conditions, [ForLoop(count="DS1")])
         data = data.replace("DS1".encode("utf-16-le"), "   ".encode("utf-16-le"))
         [af] = decode(data)[0].instructions
         assert isinstance(af, RawInstruction)
@@ -173,54 +173,54 @@ class TestForCount:
 
     @pytest.mark.parametrize("limit", ["0", "1", "2147483647", "DS1", "DD1", "TD1", "CTD1", "SD1"])
     def test_accepted(self, tmp_path: Path, limit: str) -> None:
-        assert _read_af(tmp_path, f"for({limit})") == ForLoop(limit=limit)
+        assert _read_af(tmp_path, f"for({limit})") == ForLoop(count=limit)
 
     def test_above_2147483647_refused(self, tmp_path: Path) -> None:
-        message = r"^ForLoop.limit: '2147483648' is outside 0 to 2147483647 \(OBJ-005\)"
+        message = r"^ForLoop.count: '2147483648' is outside 0 to 2147483647 \(OBJ-005\)"
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, "for(2147483648)")
         with pytest.raises(FieldError, match=message):
-            ForLoop(limit="2147483648")
+            ForLoop(count="2147483648")
 
     def test_a_count_of_thousands_of_digits(self) -> None:
         # Beyond Python's 4300-digit int() limit: read as its value, or refused, never a bare
         # ValueError.
-        assert ForLoop(limit="0" * 5000 + "1").limit == "0" * 5000 + "1"
+        assert ForLoop(count="0" * 5000 + "1").count == "0" * 5000 + "1"
         with pytest.raises(FieldError):
-            ForLoop(limit="1" * 5000)
+            ForLoop(count="1" * 5000)
 
     @pytest.mark.parametrize("limit", ["-1", "+1", "1.5"])
     def test_sign_or_fraction_refused(self, limit: str) -> None:
-        with pytest.raises(FieldError, match="^ForLoop.limit"):
-            ForLoop(limit=limit)
+        with pytest.raises(FieldError, match="^ForLoop.count"):
+            ForLoop(count=limit)
 
     @pytest.mark.parametrize("limit", ["DF1", "DH1", "X001", "C1", "T1", "CT1", "TXT1", "XD0"])
     def test_other_banks_refused(self, tmp_path: Path, limit: str) -> None:
         message = (
-            rf"^ForLoop.limit: '{limit}' is not allowed; ForLoop.limit takes DS, DD, TD, CTD, SD"
+            rf"^ForLoop.count: '{limit}' is not allowed; ForLoop.count takes DS, DD, TD, CTD, SD"
             r" \(OBJ-004\)"
         )
         with pytest.raises(AddressError, match=message + _AT_AF):
             _read_af(tmp_path, f"for({limit})")
         with pytest.raises(AddressError, match=message + "$"):
-            ForLoop(limit=limit)
+            ForLoop(count=limit)
 
     def test_pointer_refused(self, tmp_path: Path) -> None:
         # The For count takes no pointer.
-        message = r"^ForLoop.limit: 'DS\[DS1\]' is a pointer"
+        message = r"^ForLoop.count: 'DS\[DS1\]' is a pointer"
         with pytest.raises(AddressError, match=message):
             _read_af(tmp_path, "for(DS[DS1])")
         with pytest.raises(AddressError, match=message):
-            ForLoop(limit="DS[DS1]")
+            ForLoop(count="DS[DS1]")
 
     @pytest.mark.parametrize("limit", ["1 0", "1  2 3"])
     def test_inner_space_refused(self, limit: str) -> None:
         # The dialog lets it through; it is not a number, so it is refused.
         with pytest.raises(FieldError, match="has a space inside"):
-            ForLoop(limit=limit)
+            ForLoop(count=limit)
 
     def test_outer_space_kept_as_before(self) -> None:
-        assert ForLoop(limit=" 5 ").limit == "5"
+        assert ForLoop(count=" 5 ").count == "5"
 
     @pytest.mark.parametrize(
         ("old", "new"),
@@ -228,9 +228,9 @@ class TestForCount:
     )
     def test_refused_blobs_keep_their_refusal(self, old: str, new: str) -> None:
         with pytest.warns(RefusedFieldWarning):
-            af = _clipboard_af(ForLoop(limit=old), old, new)
-        kept(af, "ForLoop.limit")
-        assert isinstance(af, ForLoop) and af.limit == new
+            af = _clipboard_af(ForLoop(count=old), old, new)
+        kept(af, "ForLoop.count")
+        assert isinstance(af, ForLoop) and af.count == new
 
     def test_refused_bank_keeps_its_refusal_scr(self) -> None:
         # coverage.scr: for(DS1), stored as a length byte then text and one NUL byte.
@@ -241,7 +241,7 @@ class TestForCount:
         with pytest.warns(RefusedFieldWarning):
             rungs = decode_program(data.replace(old, new)).rungs
         loops = [a for r in rungs for a in r.instructions if isinstance(a, ForLoop)]
-        assert [kept(a, "ForLoop.limit").limit for a in loops if a.limit == "DF1"] == ["DF1"]
+        assert [kept(a, "ForLoop.count").count for a in loops if a.count == "DF1"] == ["DF1"]
 
 
 class TestSubroutineNames:

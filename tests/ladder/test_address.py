@@ -197,9 +197,9 @@ class TestConstructionRaises:
             Shift(start_bit="C1", end_bit="C2001")
 
     def test_forloop(self) -> None:
-        with pytest.raises(ValueError, match="^ForLoop.limit: 'DS4501'"):
-            ForLoop(limit="DS4501")
-        assert ForLoop(limit="5").limit == "5"
+        with pytest.raises(ValueError, match="^ForLoop.count: 'DS4501'"):
+            ForLoop(count="DS4501")
+        assert ForLoop(count="5").count == "5"
 
     def test_out_variant(self) -> None:
         with pytest.raises(ValueError, match="^OutVariant.operand: 'Y017'"):
@@ -228,7 +228,7 @@ class TestConstructionRaises:
             Counter.from_csv_token("count_up(CT1,CTD251,preset=1)")
         with pytest.raises(ValueError, match="^Shift.end_bit: 'C2001'"):
             Shift.from_csv_token("shift(C1..C2001)")
-        with pytest.raises(ValueError, match="^ForLoop.limit: 'DS0'"):
+        with pytest.raises(ValueError, match="^ForLoop.count: 'DS0'"):
             ForLoop.from_csv_token("for(DS0)")
         with pytest.raises(ValueError, match="^OutVariant.operand: 'Y900'"):
             OutVariant.from_csv_token("toggle(immediate(Y900))")
@@ -264,7 +264,7 @@ class TestConstructionRaises:
             ("Shift.start_bit", lambda: Shift.from_csv_token("shift(XD0u..XD1)")),
             # A shift runs over C only, so the range starts at C1, not XD0.
             ("Shift.end_bit", lambda: Shift(start_bit="C1", end_bit="XD0u")),
-            ("ForLoop.limit", lambda: ForLoop.from_csv_token("for(XD0u)")),
+            ("ForLoop.count", lambda: ForLoop.from_csv_token("for(XD0u)")),
             ("OutVariant.operand", lambda: OutVariant.from_csv_token("toggle(YD0u)")),
             (
                 "OutVariant.on_acc",
@@ -330,7 +330,7 @@ class TestDecodeRefusedAddress:
                 "Counter.accumulator",
             ),
             (Shift(start_bit="C1", end_bit="C10"), "C10", "C00", None),
-            (ForLoop(limit="DS100"), "DS100", "DS000", None),
+            (ForLoop(count="DS100"), "DS100", "DS000", None),
             (OutVariant(kind="toggle", operand="C1"), "C1", "C0", "OutVariant.operand"),
             (
                 OutVariant(kind="timed", operand="C1", on_acc="TD1", on_preset="1", unit="Tms"),

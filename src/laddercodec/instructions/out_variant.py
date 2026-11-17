@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from ..binary_helpers import tag_value
 from ..errors import CsvError
 from ..model import AfInstruction, Reason, check_address
-from ..operands.checks import Constants, Refusals, check_operand, check_out_target
+from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand, check_out_target
 from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
 from .timer import TIMER_UNIT_TO_INDEX, TIMER_UNITS
@@ -266,9 +266,7 @@ class OutVariant(AfInstruction):
         unknown = set(kwargs) - allowed
         if unknown:
             raise CsvError(f"{kind} does not support keyword argument(s): {sorted(unknown)}")
-        maintained_raw = kwargs.get("maintained", "0")
-        if maintained_raw not in {"0", "1"}:
-            raise CsvError("timed maintained must be 0 or 1")
+        maintained = check_csv_flag(kwargs, "maintained", "OutVariant.maintained")
 
         return cls(
             kind=kind,
@@ -278,7 +276,7 @@ class OutVariant(AfInstruction):
             off_acc=kwargs.get("off_acc", ""),
             off_preset=kwargs.get("off_preset", ""),
             unit=kwargs["unit"],
-            maintained=maintained_raw == "1",
+            maintained=maintained,
         )
 
     @property

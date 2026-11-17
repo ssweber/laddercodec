@@ -82,8 +82,8 @@ BLANKS = [
     ("count_up(CT1,,preset=1)", ["Counter.accumulator"]),
     ("count_up(CT1,CTD1,preset=)", ["Counter.preset"]),
     ("call()", ["Call.subroutine"]),
-    ("for()", ["ForLoop.limit"]),
-    ("for(,oneshot=1)", ["ForLoop.limit"]),
+    ("for()", ["ForLoop.count"]),
+    ("for(,oneshot=1)", ["ForLoop.count"]),
     ("shift()", ["Shift.start_bit", "Shift.end_bit"]),
     ("blockcopy(,DS40..DS43)", ["BlockCopy.source_start", "BlockCopy.source_end"]),
     ("blockcopy(DS1..DS4,)", ["BlockCopy.dest_start", "BlockCopy.dest_end"]),
@@ -335,7 +335,7 @@ def test_a_range_with_a_blank_end_writes_and_reads_back(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     ("instruction", "attr"),
-    [(Copy(source="DS1", destination="DS2"), "source"), (Math("DS2 + 1", "DS1"), "result")],
+    [(Copy(source="DS1", destination="DS2"), "source"), (Math("DS2 + 1", "DS1"), "dest")],
 )
 def test_a_stored_dots_decodes_as_before(instruction: Any, attr: str) -> None:
     """A stored ``..`` in a one-value field decodes as the instruction holding it, refused

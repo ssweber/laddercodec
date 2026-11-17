@@ -35,7 +35,7 @@ from ..binary_helpers import tag_flag, tag_value
 from ..errors import CsvError
 from ..model import AfInstruction, FieldError, Reason, check_address
 from ..operands.address import read_as_typed
-from ..operands.checks import HEX_MATH_RESULT, Refusals, check_writable_sd
+from ..operands.checks import HEX_MATH_RESULT, Refusals, check_csv_flag, check_writable_sd
 from ..operands.constants import INT16_MAX, INT16_MIN
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
@@ -180,7 +180,7 @@ class Math(AfInstruction):
         space between tokens, uppercase function names, addresses in display form.  A
         formula CLICK's Math dialog refuses raises :class:`FieldError`, and so does a
         ``<nickname>``: Math takes addresses.
-    result:
+    dest:
         Destination register (e.g. ``"DS67"``).
     mode:
         ``"decimal"`` or ``"hex"``.
@@ -189,7 +189,7 @@ class Math(AfInstruction):
     """
 
     expression: str
-    result: str
+    dest: str
     mode: Literal["decimal", "hex"] = "decimal"
     oneshot: bool = False
 
@@ -204,15 +204,15 @@ class Math(AfInstruction):
                     "nicknames (laddercodec cannot resolve a nickname to its address)",
                     Reason.ADDRESS,
                 )
-            check.normalize("result")
+            check.normalize("dest")
             # The result's banks and the formula's reading depend on the mode.
             if not check.refused("mode"):
                 extra = HEX_MATH_RESULT if self.mode == "hex" else {}
                 banks = RESULT_BANKS[self.mode]
-                result = check("result", check_address, banks, bank_id="OBJ-004", **extra)
-                if result is not None:
+                dest = check("dest", check_address, banks, bank_id="OBJ-004", **extra)
+                if dest is not None:
                     # A decimal result writes only the writable SD registers (OBJ-003).
-                    check.run(check_writable_sd, result, check.field("result"), click_id="OBJ-003")
+                    check.run(check_writable_sd, dest, check.field("dest"), click_id="OBJ-003")
                 if not check.refused("expression"):
                     # Every refusal of the formula, each on Math.expression.
                     formula = check.run(parse, self.expression, self.mode)
@@ -221,7 +221,7 @@ class Math(AfInstruction):
             check.flag("oneshot")
 
     def to_csv(self) -> str:
-        parts = [self.expression, self.result]
+        parts = [self.expression, self.dest]
         kw: list[str] = [f"mode={self.mode}"]
         if self.oneshot:
             kw.append("oneshot=1")
@@ -256,7 +256,7 @@ class Math(AfInstruction):
         out += struct.pack("<I", 9 + _OPERAND_SLOTS + reserved_slots + 1)
 
         # --- 9 header fields (standard sentinel) ---
-        out += _tagged_field(_TAG_RESULT, self.result)
+        out += _tagged_field(_TAG_RESULT, self.dest)
         out += _tagged_field(_TAG_HEX_FLAG, "-1" if self.mode == "hex" else "0")
         out += _tagged_field(_TAG_ONESHOT, "-1" if self.oneshot else "0")
         out += _tagged_field(_TAG_TEMPLATE_DISPLAY, template_display)
@@ -311,15 +311,15 @@ def from_tags(
 
     # CLICK saves each address of the formula, and a hex Math's result, as typed (ds1,
     # DS001, XD0U, YD00); they read in display form.  A decimal result is saved in it.
-    stored_result = tag_value(tags, 0x6065)
-    result = read_as_typed(stored_result) if mode == "hex" else stored_result
+    stored_dest = tag_value(tags, 0x6065)
+    dest = read_as_typed(stored_dest) if mode == "hex" else stored_dest
     stored_internal = tag_value(tags, 0x61FD)
     internal = "#".join(read_as_typed(token) for token in stored_internal.split("#"))
     expression = _reconstruct_expression(
         tag_value(tags, 0x61FF),
         internal,
     ) or tag_value(tags, 0x6228)
-    if not result or not expression or _holds_nickname(expression):
+    if not dest or not expression or _holds_nickname(expression):
         # The display text of CLICK's nickname view names no addresses: it is not a
         # formula laddercodec can read, so the blob stays raw.
         return None
@@ -327,7 +327,7 @@ def from_tags(
     try:
         math = Math(
             expression=expression,
-            result=result,
+            dest=dest,
             mode=mode,
             oneshot=oneshot,
         )
@@ -335,7 +335,7 @@ def from_tags(
         # A refusal no decoded instruction keeps (see laddercodec.operands.unchecked)
         # leaves the blob raw; the decoders build the Math keeping any other.
         return None
-    if result != stored_result or internal != stored_internal:
+    if dest != stored_dest or internal != stored_internal:
         # Decoded, it writes the bytes CLICK stored, the text as typed.
         read_in_another_form(math)
     # Older laddercodec wrote H only for a decimal constant, which a hex Math refuses.
@@ -374,9 +374,9 @@ def _legacy_findings(formula_internal: str) -> list[tuple[str, str, str]]:
 def parse_af_call(call: AfCall) -> Math:
     """Parse an AF AST call into a Math instruction."""
     if len(call.args) != 2:
-        raise CsvError(f"math expects 2 positional args (expression, result), got {len(call.args)}")
+        raise CsvError(f"math expects 2 positional args (expression, dest), got {len(call.args)}")
 
-    expression, result = call.args
+    expression, dest = call.args
     mode_arg = call.kwargs.get("mode", "decimal")
     if mode_arg == "decimal":
         mode: Literal["decimal", "hex"] = "decimal"
@@ -387,9 +387,9 @@ def parse_af_call(call: AfCall) -> Math:
 
     return Math(
         expression=expression,
-        result=result,
+        dest=dest,
         mode=mode,
-        oneshot=call.kwargs.get("oneshot") == "1",
+        oneshot=check_csv_flag(call.kwargs, "oneshot", "Math.oneshot"),
     )
 
 

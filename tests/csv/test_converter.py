@@ -608,7 +608,7 @@ class TestAfNodeToToken:
         node = AfCall(name="for", args=("3",), known=True, kwargs={"oneshot": "0"})
         result = af_node_to_token(node)
         assert isinstance(result, ForLoop)
-        assert result.limit == "3"
+        assert result.count == "3"
         assert result.oneshot is False
 
     def test_next(self) -> None:

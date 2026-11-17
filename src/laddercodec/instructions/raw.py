@@ -346,9 +346,9 @@ class RawInstruction(AfInstruction):
     part_count:
         Number of parts (1 = single-row, >1 = multi-row).  Derived from
         the blob during construction.
-    visual_rows, sub_rows:
-        The box's cell header row bytes: ``visual_rows`` is the row span
-        (+0x09), ``sub_rows`` the sub-rows (+0x0A).  The decoders keep the
+    rows, sub:
+        The box's cell header row bytes: ``rows`` is the row span
+        (+0x09), ``sub`` the sub-rows (+0x0A).  The decoders keep the
         native cell's bytes, and leave a typed box raw when its stored row
         span is not its class's.  ``None`` takes the height from the class:
         the typed family's height when its blob alone gives it (Copy family,
@@ -358,7 +358,7 @@ class RawInstruction(AfInstruction):
         editor creates may store other sub-rows (Math ``01 03``, some
         Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR ``03 02``); for
         those classes CLICK keeps the height laddercodec writes.  With
-        ``visual_rows`` set and ``sub_rows`` None, the sub-rows equal the row
+        ``rows`` set and ``sub`` None, the sub-rows equal the row
         span.  The CSV token holds the two bytes the box encodes
         (``rows=``, ``sub=``) and, for a box of 2 or more parts, the extra
         part bytes (``pins=``).  Two boxes are equal when they encode the
@@ -369,8 +369,8 @@ class RawInstruction(AfInstruction):
     class_name: str
     blob: bytes
     part_count: int = 1
-    visual_rows: int | None = None
-    sub_rows: int | None = None
+    rows: int | None = None
+    sub: int | None = None
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, RawInstruction):
@@ -408,7 +408,7 @@ class RawInstruction(AfInstruction):
                     f"{part_count!r} is not a whole number from 0 to 65535",
                     Reason.RANGE,
                 )
-            for name in ("visual_rows", "sub_rows"):
+            for name in ("rows", "sub"):
                 rows = getattr(self, name)
                 if rows is None:
                     continue
@@ -420,13 +420,13 @@ class RawInstruction(AfInstruction):
 
     def cell_params(self) -> dict:
         """Return ClickCell kwargs intrinsic to this instruction."""
-        if self.visual_rows is None:
+        if self.rows is None:
             params = self._class_cell_params()
             span = int(params.get("visual_rows", 1))
-            sub = int(params.get("sub_rows", span)) if self.sub_rows is None else self.sub_rows
+            sub = int(params.get("sub_rows", span)) if self.sub is None else self.sub
         else:
-            span = self.visual_rows
-            sub = span if self.sub_rows is None else self.sub_rows
+            span = self.rows
+            sub = span if self.sub is None else self.sub
         if span == sub == 1:
             return {}
         return {"visual_rows": span} if sub == span else {"visual_rows": span, "sub_rows": sub}
@@ -521,8 +521,8 @@ class RawInstruction(AfInstruction):
             raw(ClassName,hex_blob,rows=R,sub=S)
 
         ``rows`` (row span) and ``sub`` (sub-rows) come right after the part count, or
-        after the hex.  Each is optional: an absent one is ``visual_rows`` or
-        ``sub_rows`` None, which takes the class's height.  ``pins`` (fields format
+        after the hex.  Each is optional: an absent one is ``rows`` or
+        ``sub`` None, which takes the class's height.  ``pins`` (fields format
         only, 2 or more parts) is the extra part bytes joined by ``/``; without it they
         are ``01 02 ...``.  A stated ``rows`` must be the last pin + 1.
         """
@@ -544,7 +544,7 @@ class RawInstruction(AfInstruction):
 
         # Legacy hex format.
         hex_blob, *rest_parts = (part.strip() for part in rest.split(","))
-        visual_rows, sub_rows, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
+        rows, sub, pins, extra = _take_box_rows(class_name, rest_parts, raw_token=True)
         if pins is not None:
             raise FieldError(
                 f"raw({class_name},hex,...): pins={pins} can't follow the hex; the blob "
@@ -564,7 +564,7 @@ class RawInstruction(AfInstruction):
             _, _, part_count = find_blob_boundary(blob)
         except (ValueError, IndexError):
             part_count = 1
-        return cls(class_name, blob, part_count, visual_rows, sub_rows)
+        return cls(class_name, blob, part_count, rows, sub)
 
     @classmethod
     def _from_fields_token(cls, class_name: str, rest: str) -> RawInstruction:
@@ -586,28 +586,26 @@ class RawInstruction(AfInstruction):
                 field=None,  # token syntax, not a field value
                 reason=Reason.RANGE,
             )
-        visual_rows, sub_rows, pins, field_specs = _take_box_rows(
-            class_name, parts[2:], raw_token=True
-        )
+        rows, sub, pins, field_specs = _take_box_rows(class_name, parts[2:], raw_token=True)
         extra_bytes = _pin_rows(class_name, part_count, pins)
-        if extra_bytes and visual_rows is not None and visual_rows != extra_bytes[-1] + 1:
+        if extra_bytes and rows is not None and rows != extra_bytes[-1] + 1:
             stated = "pins=" + pins if pins is not None else "no pins= (rows 1, 2, ...)"
             raise FieldError(
-                f"raw({class_name},...): rows={visual_rows} does not fit {stated}; the box "
+                f"raw({class_name},...): rows={rows} does not fit {stated}; the box "
                 f"ends one row below its last pin (rows={extra_bytes[-1] + 1})",
-                field="RawInstruction.visual_rows",
+                field="RawInstruction.rows",
                 reason=Reason.FORM,  # the token's rows= and pins= disagree
             )
 
         fields = _parse_field_specs(field_specs)
         blob = _compose_blob(class_name, type_marker, part_count, extra_bytes, fields)
-        return cls(class_name, blob, part_count, visual_rows, sub_rows)
+        return cls(class_name, blob, part_count, rows, sub)
 
 
 def _take_cell_rows(class_name: str, parts: list[str]) -> tuple[int | None, int | None, list[str]]:
     """Read the leading ``rows=`` and ``sub=`` of a raw token's *parts*.
 
-    Returns ``(visual_rows, sub_rows, remaining parts)``; an absent field is None.
+    Returns ``(rows, sub, remaining parts)``; an absent field is None.
     A ``pins=`` among the parts raises FieldError (see :func:`_take_box_rows`).
     """
     rows, sub, pins, rest = _take_box_rows(class_name, parts, raw_token=False)
@@ -625,7 +623,7 @@ def _take_box_rows(
 ) -> tuple[int | None, int | None, str | None, list[str]]:
     """Read the leading ``rows=``, ``sub=`` and ``pins=`` of a raw token's *parts*.
 
-    Returns ``(visual_rows, sub_rows, pins text, remaining parts)``; an absent
+    Returns ``(rows, sub, pins text, remaining parts)``; an absent
     field is None.  A box spans at most a rung's rows; its sub-rows byte may
     exceed its span (a native Drum stores ``04 05``).
 
@@ -646,11 +644,7 @@ def _take_box_rows(
                     f"raw({class_name},...): {key}={text!r} is not a whole number "
                     f"from 1 to {limits[key]}",
                     field=(
-                        (
-                            "RawInstruction.visual_rows"
-                            if key == "rows"
-                            else "RawInstruction.sub_rows"
-                        )
+                        ("RawInstruction.rows" if key == "rows" else "RawInstruction.sub")
                         if raw_token
                         else None
                     ),

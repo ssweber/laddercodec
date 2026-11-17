@@ -79,7 +79,7 @@ def test_comma_calls_are_stored_infix(display: str, internal: str) -> None:
 
 
 def test_hex_constant_round_trips_through_csv_form() -> None:
-    blob = Math(expression="DH221 + Ah", result="DH222", mode="hex").build_blob()
+    blob = Math(expression="DH221 + Ah", dest="DH222", mode="hex").build_blob()
     parsed = parse_af_blob(blob)
     assert isinstance(parsed, Math)
     assert parsed.to_csv() == "math(DH221 + Ah,DH222,mode=hex)"
@@ -94,7 +94,7 @@ def test_parse_blob_prefers_canonical_math_expression_over_internal_literal_form
 
     assert parsed is not None
     assert parsed.expression == "DS123 + 200"
-    assert parsed.result == "DS124"
+    assert parsed.dest == "DS124"
     assert parsed.mode == "decimal"
     assert parsed.to_csv() == "math(DS123 + 200,DS124,mode=decimal)"
 

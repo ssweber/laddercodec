@@ -517,7 +517,7 @@ def test_math_xy_range_refused_for_an_option_slot_end(
     with pytest.raises(FieldError, match=match):
         Math(formula, "DS1")
     assert isinstance(af, Math)
-    assert (af.expression, af.result) == (formula, "DS1")
+    assert (af.expression, af.dest) == (formula, "DS1")
     (error,) = refusals(af)
     assert re.search(match, str(error))
     blob = af.build_blob()

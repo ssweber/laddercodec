@@ -562,7 +562,7 @@ def test_text_click_cannot_keep_is_refused(text: str) -> None:
     no 16-bit character."""
     for build, field in (
         (lambda: Copy(text, "TXT1"), "Copy.source"),
-        (lambda: Search("TXT1", "TXT10", text, "DS1", "C1", "=="), "Search.source"),
+        (lambda: Search("TXT1", "TXT10", text, "DS1", "C1", "=="), "Search.value"),
     ):
         [error] = _errors(build)
         assert (error.field, error.reason) == (field, Reason.FORM)

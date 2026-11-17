@@ -154,19 +154,19 @@ class TestSearchEmptyText:
         return Search("TXT1", "TXT10", source, "DS20", "C20", "==")
 
     def test_empty_refused_through_constructor(self) -> None:
-        with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
+        with pytest.raises(FieldError, match=r"^Search.value: .*1 to 128"):
             self._search('""')
 
     def test_empty_refused_through_read_csv(self, tmp_path: Path) -> None:
         af = 'search(TXT1..TXT10 == "",result=DS20,found=C20)'
-        with pytest.raises(FieldError, match=r"^Search\.source: .*1 to 128"):
+        with pytest.raises(FieldError, match=r"^Search.value: .*1 to 128"):
             read_csv(_write(tmp_path, "C1", af))
 
     @pytest.mark.parametrize(
         "source", ['"A"', '"AB"', '"$41"', '"' + "x" * 128 + '"', "$00", "$41", '"é"']
     )
     def test_text_and_code_accepted(self, source: str) -> None:
-        assert self._search(source).source == source
+        assert self._search(source).value == source
 
     @pytest.mark.parametrize(
         "source",
@@ -174,24 +174,24 @@ class TestSearchEmptyText:
         ids=["129-chars", "inner-quote", "nul"],
     )
     def test_refused_text(self, source: str) -> None:
-        with pytest.raises(FieldError, match=r"^Search\.source: "):
+        with pytest.raises(FieldError, match=r"^Search.value: "):
             self._search(source)
 
     def test_refused_text_through_read_csv(self, tmp_path: Path) -> None:
         af = f'search(TXT1..TXT10 == "{"x" * 129}",result=DS20,found=C20)'
-        with pytest.raises(FieldError, match=r"^Search\.source: "):
+        with pytest.raises(FieldError, match=r"^Search.value: "):
             read_csv(_write(tmp_path, "C1", af))
 
     def test_quoted_character_code_is_text_and_round_trips(self, tmp_path: Path) -> None:
         af = 'search(TXT1..TXT10 == "$41",result=DS20,found=C20)'
         search = read_csv(_write(tmp_path, "C1", af))[0].instructions[0]
-        assert isinstance(search, Search) and search.source == '"$41"'
+        assert isinstance(search, Search) and search.value == '"$41"'
         bare = self._search("$41")
         blob = search.build_blob()
         assert blob != bare.build_blob()
         assert '"$41"'.encode("utf-16-le") in blob
         parsed = parse_af_blob(blob)
-        assert isinstance(parsed, Search) and parsed.source == '"$41"'
+        assert isinstance(parsed, Search) and parsed.value == '"$41"'
         assert parsed.to_csv() == search.to_csv()
 
     def test_native_blob_with_empty_text_keeps_its_refusal(self) -> None:
@@ -199,7 +199,7 @@ class TestSearchEmptyText:
         needle = '"A"'.encode("utf-16-le")
         assert blob.count(needle) == 1
         empty = blob.replace(needle, '""'.encode("utf-16-le"))
-        assert kept(parse_af_blob(empty), "Search.source").source == '""'
+        assert kept(parse_af_blob(empty), "Search.value").value == '""'
 
 
 @pytest.mark.parametrize("code", ["$\u0663", "$0x1", "$1_0", "$ 1", "$+1", "$", "$123", "$G1"])

@@ -9,7 +9,7 @@ continuous and oneshot flags.  Func code is 8964 + operator index
 
 Field layout (10 fields):
 
-- field[0]: tag=0x6065 — source (register or quoted text literal)
+- field[0]: tag=0x6065 — value (register or quoted text literal)
 - field[1]: tag=0x6066 — table_start
 - field[2]: tag=0x6067 — table_end
 - field[3]: tag=0x6079 — result register
@@ -36,6 +36,7 @@ from ..operands.checks import (
     Constants,
     Operand,
     Refusals,
+    check_csv_flag,
     check_quoted_text,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
@@ -101,7 +102,7 @@ _VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True, printable=False
 # ---------------------------------------------------------------------------
 
 _SEARCH_TAGS = (
-    0x6065,  # [0] source
+    0x6065,  # [0] value
     0x6066,  # [1] table_start
     0x6067,  # [2] table_end
     0x6079,  # [3] result
@@ -128,13 +129,13 @@ class Search(AfInstruction):
         Start of search table (e.g. ``"DS72"``).
     table_end:
         End of search table (e.g. ``"DS81"``).
-    source:
+    value:
         Value to search for — register (``"DS71"``) or literal (``"A"``).
     result:
         Destination register for the result index.
     found:
         Found flag bit (e.g. ``"C81"``).
-    comparison:
+    op:
         Comparison operator: ``"=="``, ``"!="``, ``">"``, ``"<"``,
         ``">="``, ``"<="``.
     continuous:
@@ -145,21 +146,21 @@ class Search(AfInstruction):
 
     table_start: str
     table_end: str
-    source: str
+    value: str
     result: str
     found: str
-    comparison: str
+    op: str
     continuous: bool = False
     oneshot: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             # A constant search value comes back from normalize_address as written.
-            check.normalize("table_start", "table_end", "source", "result", "found")
-            if self.comparison not in _OP_TO_FUNC:
+            check.normalize("table_start", "table_end", "value", "result", "found")
+            if self.op not in _OP_TO_FUNC:
                 check.refuse(
-                    "comparison",
-                    f"{self.comparison!r} is not allowed; it is one of {', '.join(_OP_TO_FUNC)}",
+                    "op",
+                    f"{self.op!r} is not allowed; it is one of {', '.join(_OP_TO_FUNC)}",
                     Reason.CHOICE,
                 )
             # Search has no pointer path, so no field takes one.  The table is
@@ -180,23 +181,23 @@ class Search(AfInstruction):
                 table = ends[0] if ends is not None else None
             check("result", check_box_operand, RESULT_BANKS)
             check("found", check_box_operand, FOUND_BANKS)
-            if len(self.source) >= 2 and self.source[0] == self.source[-1] == '"':
-                check("source", check_quoted_text, kept=True)
+            if len(self.value) >= 2 and self.value[0] == self.value[-1] == '"':
+                check("value", check_quoted_text, kept=True)
             # The search value is a constant or a data register, never a bit.
-            source = check("source", check_box_operand, REGISTER_BANKS, _VALUE)
-            if source is not None:
-                self._check_source(check, source, table)
+            value = check("value", check_box_operand, REGISTER_BANKS, _VALUE)
+            if value is not None:
+                self._check_value(check, value, table)
             check.flag("continuous", "oneshot")
 
-    def _check_source(self, check: Refusals, source: Operand, table: Address | None) -> None:
-        """The rules that tie the search value to the comparison and to the table."""
-        const = source.constant
-        if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or source.bank == "TXT":
-            if self.comparison not in _TEXT_OPS:
+    def _check_value(self, check: Refusals, value: Operand, table: Address | None) -> None:
+        """The rules that tie the search value to the operator and to the table."""
+        const = value.constant
+        if (const is not None and const.kind in (Kind.TEXT, Kind.CHAR)) or value.bank == "TXT":
+            if self.op not in _TEXT_OPS:
                 check.refuse(
-                    ("comparison", "source"),
-                    f"{self.comparison!r} is not offered for text "
-                    f"{self.source!r}; text searches with == or !=",
+                    ("op", "value"),
+                    f"{self.op!r} is not offered for text "
+                    f"{self.value!r}; text searches with == or !=",
                     Reason.CONFLICT,
                 )
         # The value's kind ties to the table banks.
@@ -206,18 +207,18 @@ class Search(AfInstruction):
             and table.bank not in SEARCH_TABLE_BANKS[const.kind]
         ):
             check.refuse(
-                ("source", "table_start"),
-                f"{self.source!r} is a {const.kind} value, which searches "
+                ("value", "table_start"),
+                f"{self.value!r} is a {const.kind} value, which searches "
                 f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
                 Reason.CONFLICT,
             )
 
     @property
     def func_code(self) -> str:
-        return str(_OP_TO_FUNC[self.comparison] + (_ONESHOT_FUNC_OFFSET if self.oneshot else 0))
+        return str(_OP_TO_FUNC[self.op] + (_ONESHOT_FUNC_OFFSET if self.oneshot else 0))
 
     def to_csv(self) -> str:
-        expr = f"{self.table_start}..{self.table_end} {self.comparison} {self.source}"
+        expr = f"{self.table_start}..{self.table_end} {self.op} {self.value}"
         kw = [f"result={self.result}", f"found={self.found}"]
         if self.continuous:
             kw.append("continuous=1")
@@ -231,14 +232,14 @@ class Search(AfInstruction):
     def build_blob(self) -> bytes:
         from ..binary_helpers import _build_blob
 
-        cmp_code = _OP_TO_CMP_CODE[self.comparison]
+        cmp_code = _OP_TO_CMP_CODE[self.op]
 
         return _build_blob(
             "Search",
             0x2722,
             _SEARCH_TAGS,
             [
-                self.source,  # [0]
+                self.value,  # [0]
                 self.table_start,  # [1]
                 self.table_end,  # [2]
                 self.result,  # [3]
@@ -270,24 +271,24 @@ def from_tags(
     if class_name != "Search" or type_code != _SEARCH_TYPE_CODE:
         return None
 
-    source = tag_value(tags, 0x6065)
+    value = tag_value(tags, 0x6065)
     table_start = tag_value(tags, 0x6066)
     table_end = tag_value(tags, 0x6067)
     result = tag_value(tags, 0x6079)
     found = tag_value(tags, 0x607A)
     cmp_idx = str(tag_int(tags, 0x21F7))
-    comparison = _CMP_CODE_TO_OP.get(cmp_idx)
+    op = _CMP_CODE_TO_OP.get(cmp_idx)
 
-    if not all([source, table_start, table_end, result, found]) or comparison is None:
+    if not all([value, table_start, table_end, result, found]) or op is None:
         return None
 
     return Search(
         table_start=table_start,
         table_end=table_end,
-        source=source,
+        value=value,
         result=result,
         found=found,
-        comparison=comparison,
+        op=op,
         continuous=tag_flag(tags, 0x1277),
         oneshot=tag_flag(tags, 0x11F8),
     )
@@ -312,12 +313,12 @@ def parse_af_call(call: AfCall) -> Search:
     return Search(
         table_start=m.group(1).strip(),
         table_end=m.group(2).strip(),
-        comparison=m.group(3),
-        source=m.group(4).strip(),
+        op=m.group(3),
+        value=m.group(4).strip(),
         result=result,
         found=found,
-        continuous=call.kwargs.get("continuous") == "1",
-        oneshot=call.kwargs.get("oneshot") == "1",
+        continuous=check_csv_flag(call.kwargs, "continuous", "Search.continuous"),
+        oneshot=check_csv_flag(call.kwargs, "oneshot", "Search.oneshot"),
     )
 
 

@@ -537,8 +537,8 @@ def test_immediate_names_the_immediate_field() -> None:
         (lambda: Shift("DS1", "C2"), "Shift.start_bit", "OBJ-004"),
         (lambda: Shift("C1", "C1"), "Shift.end_bit", "OBJ-012"),
         (lambda: Counter("count_up", "CT1", "CTD1", "DH1"), "Counter.preset", "OBJ-004"),
-        (lambda: ForLoop("DH1"), "ForLoop.limit", "OBJ-004"),
-        (lambda: Math("1", "C1"), "Math.result", "OBJ-004"),
+        (lambda: ForLoop("DH1"), "ForLoop.count", "OBJ-004"),
+        (lambda: Math("1", "C1"), "Math.dest", "OBJ-004"),
     ],
 )
 def test_click_id_where_the_dialog_is_known(build: Any, field: str, click_id: str) -> None:

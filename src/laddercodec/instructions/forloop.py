@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_value
 from ..errors import CsvError
 from ..model import AfInstruction, FieldError, InstructionType, Reason, normalize_address
-from ..operands.checks import Constants, Refusals, check_operand
+from ..operands.checks import Constants, Refusals, check_csv_flag, check_operand
 from ..operands.constants import INT32_MAX, Kind
 from .family import AfInstructionFamilySpec
 
@@ -49,23 +49,23 @@ _BREAK_FUNC_CODE = "9233"
 _LOOP_EXIT_TAGS = (0x3218, 0x0000)
 
 
-def _validate_for_limit(value: str) -> str:
+def _validate_for_count(value: str) -> str:
     text = value.strip()
     if not text:
         raise FieldError(
-            "ForLoop.limit: is blank; it needs a count",
-            field="ForLoop.limit",
+            "ForLoop.count: is blank; it needs a count",
+            field="ForLoop.count",
             reason=Reason.MISSING,
         )
     if _FOR_SPACED_RE.fullmatch(text):
         # The dialog lets ``1 0`` through; it is not a number, so it is refused.
         raise FieldError(
-            f"ForLoop.limit: {text!r} has a space inside; a constant count is digits only",
-            field="ForLoop.limit",
+            f"ForLoop.count: {text!r} has a space inside; a constant count is digits only",
+            field="ForLoop.count",
             reason=Reason.FORM,
         )
-    text = normalize_address(text, "ForLoop.limit")
-    check_operand(text, "ForLoop.limit", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
+    text = normalize_address(text, "ForLoop.count")
+    check_operand(text, "ForLoop.count", FOR_LIMIT_BANKS, _FOR_LIMIT_CONSTANTS, bank_id="OBJ-004")
     return text
 
 
@@ -73,14 +73,14 @@ def _validate_for_limit(value: str) -> str:
 class ForLoop(AfInstruction):
     """FOR loop instruction."""
 
-    limit: str
+    count: str
     oneshot: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            limit = check.run(_validate_for_limit, self.limit)
-            if limit is not None:
-                self.limit = limit
+            count = check.run(_validate_for_count, self.count)
+            if count is not None:
+                self.count = count
             check.flag("oneshot")
 
     @classmethod
@@ -100,16 +100,12 @@ class ForLoop(AfInstruction):
                 args.append(seg)
 
         if len(args) != 1:
-            raise CsvError(f"for expects 1 positional arg (limit), got {len(args)}")
+            raise CsvError(f"for expects 1 positional arg (count), got {len(args)}")
         unknown = set(kwargs) - {"oneshot"}
         if unknown:
             raise CsvError(f"for does not support keyword argument(s): {sorted(unknown)}")
 
-        oneshot_raw = kwargs.get("oneshot", "0")
-        if oneshot_raw not in {"0", "1"}:
-            raise CsvError("for oneshot must be 0 or 1")
-
-        return cls(limit=args[0], oneshot=oneshot_raw == "1")
+        return cls(count=args[0], oneshot=check_csv_flag(kwargs, "oneshot", "ForLoop.oneshot"))
 
     @property
     def func_code(self) -> str:
@@ -117,8 +113,8 @@ class ForLoop(AfInstruction):
 
     def to_csv(self) -> str:
         if self.oneshot:
-            return f"for({self.limit},oneshot=1)"
-        return f"for({self.limit})"
+            return f"for({self.count},oneshot=1)"
+        return f"for({self.count})"
 
     def cell_params(self) -> dict:
         return {}
@@ -131,7 +127,7 @@ class ForLoop(AfInstruction):
             FOR_TYPE_MARKER,
             _FOR_TAGS,
             # One Shot flag: CLICK writes 1.
-            [self.limit, self.func_code, "1" if self.oneshot else "0", ""],
+            [self.count, self.func_code, "1" if self.oneshot else "0", ""],
         )
 
 
@@ -223,11 +219,11 @@ def from_tags(
         return None
 
     if class_name == "For" and type_code == FOR_TYPE_MARKER:
-        limit = tag_value(tags, 0x6065)
-        if not limit:
+        count = tag_value(tags, 0x6065)
+        if not count:
             return None
         oneshot = tag_flag(tags, 0x11F8)
-        return ForLoop(limit=limit, oneshot=oneshot)
+        return ForLoop(count=count, oneshot=oneshot)
 
     return None
 
