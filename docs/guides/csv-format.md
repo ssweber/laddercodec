@@ -700,6 +700,27 @@ currently emit:
   32-bit integer and unsigned hex up to `FFFFFFFFh`, with at most 8 digits above
   `FFFFh`; a `search` value takes a 32-bit integer and unsigned hex up to `FFFFh`
   (`+1h` is refused).
+- A single `copy` source and a `math` constant are written as CLICK stores them,
+  in `to_csv()`, `write_csv` and the encoded rung alike:
+  - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
+    `0.5`, `1E5` is `100000.0`, and a typed `+2.5` stays. laddercodec prints a
+    real with 7 significant digits, which fits those answers, and keeps a typed
+    `+` (`+2.50` is written `+2.5`); CLICK has not answered for the rest. A real
+    that 7 significant digits would print in exponent form (from `1E+07` up and
+    below `1E-04`, such as `1.5E+10`) is kept as typed, and so is one whose
+    7-digit print is another float32 value (`1234567.89`);
+  - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
+    stays), and a hex constant with uppercase digits, its leading zeros and a
+    lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
+  - in a `math`, a hex constant with uppercase digits and no leading zeros
+    (`0ffh` is `FFh`, `0000h` is `0h`);
+  - in a `copy` to TXT, `$` and one hex digit as the code with two (`$1` is
+    `$01`); a `fill`, a compare and a search still refuse `$1`.
+
+  `copy(EH,DH1)` is refused: CLICK's Copy stores `EH` as the real `0.0`, so write
+  `0Eh` for hex E or `0.0` for the real. `constant_text()` writes a Python int,
+  float or str as building the instruction stores it (`constant_text(255, hex=True)`
+  is `FFh`).
 - Constants, counts and address numbers use the digits 0-9 only; a digit from
   another script (`٣`) is refused.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -707,9 +728,11 @@ currently emit:
 - In a decimal `math`, an integer constant must read back as typed: CLICK keeps
   its low 32 bits and refuses it when they print at a different length
   (`3000000000`, `007` and `-0` are refused). A decimal `math` takes no hex
-  constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`7`, `1.5`); a hex
-  constant has at most 4 digits, and an `H` suffix is written `h`, as CLICK
-  writes it (`7H` becomes `7h`).
+  constant (`1Fh` or `1FH`), and a hex `math` no decimal one (`1.5`). Hex digits
+  without `h` in a hex `math` (`7`, `005`, `FF`, `1e3`) are refused, though CLICK
+  reads them as hex: where CLICK takes the `h` form, the message names it (`7h`,
+  `5h`, `FFh`, `1E3h`). A hex constant has at most 4 digits, and an `H` suffix is
+  written `h`, as CLICK writes it (`7H` becomes `7h`).
 - Each `math` mode takes its own registers, and any other address is refused, in
   a `SUM` too:
   - A hex formula takes only hex values: hex constants and the DH, XD and YD
@@ -745,7 +768,7 @@ currently emit:
     (`RAND ( DS1 + 1 , 2 )` is refused), and the first argument of a shift or
     rotate is an address (`LSH ( 1h , 2h )` is refused). A `,` anywhere else is
     refused (`DS1 , DS2`, `MAX ( DS1 , DS2 )`): CLICK reads it as a decimal
-    comma.
+    comma (OBJ-037 for `DS1 , DS2`; `MAX ( DS1 , DS2 )` carries no id).
   - `SUM`, `MAX`, `MIN`, `MDN` and `AVG` take `( a : b )`, a range of two
     addresses (`SUM ( DS1 + DS2 )`, `SUM ( DS1 )` and `SUM ( 1 : 5 )` are
     refused). A `:` anywhere else is refused (`DS1 : DS5`, `ABS ( DS1 : DS3 )`).
@@ -754,8 +777,9 @@ currently emit:
     `SIN ( SUM ( DF1 : DF3 ) )` is accepted, `SIN ( MAX ( DF1 : DF3 ) )` is
     refused.
   - In a hex `math`, a constant whose digits run into an `E` (`1Eh`, `0Eh`,
-    `2E5h`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
-    number. `E1h` and `1Fh` are accepted.
+    `2E5Ah`, `001Eh`) is refused: CLICK reads the digits before the `E` as a real
+    number. `E1h` and `1Fh` are accepted, and so are digits, `E` and digits
+    then `h` (`1E3h`, `2E5h`): CLICK stores a hex constant typed `1e3` as `1E3h`.
 - A `math` range over X or Y with an end in the CPU's option slot, X021-X036 or
   Y021-Y036, is refused although CLICK accepts it, because CLICK v4 stores the
   wrong points for it (`SUM ( X001 : X036 )` would leave out X032..X035). A
@@ -764,12 +788,12 @@ currently emit:
   in [operand and reserved slots](../internals/instruction-blobs.md#operand-and-reserved-slots).
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`); an
   ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`), `$` and exactly
-  two hex digits from `$00` to `$FF`; `$`, `$1`, `$100` and `$4142` raise
-  `FieldError` in every field. CLICK writes one TXT register per character of a
-  text constant, so `""` writes nothing and `copy("TT",TXT1)` writes TXT1 and
-  TXT2; a `copy` whose text would run past TXT1000 raises `AddressError`. A
-  `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK
-  stores no end for it. A Copy source, a Fill value, a compare and a search take
+  two hex digits from `$00` to `$FF`; `$`, `$100` and `$4142` raise
+  `FieldError` in every field, and so does `$1` except as a `copy` source.
+  CLICK writes one TXT register per character of a text constant, so `""`
+  writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2; a `copy` whose
+  text would run past TXT1000 raises `AddressError`. A `copy` of text into a
+  pointer (`TXT[DS1]`) takes 1 to 128 characters; CLICK stores no end for it. A Copy source, a Fill value, a compare and a search take
   1 to 128 printable ASCII characters in quotes (`TXT771=="AB"` compares TXT771 and TXT772; a search
   matches the same window) and refuse `""`, a longer or non-ASCII text and a
   quote inside the text when it is read or built; spell any other character as

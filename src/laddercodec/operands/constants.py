@@ -12,7 +12,8 @@ are constants.  It tries, in order:
 
 - hex: hex digits then ``H``.  At most FFFFh is 16-bit; above that, at most eight digits
   is 32-bit (:attr:`Constant.wide`); longer text is no constant.  Hex comes before an
-  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants.
+  address, so ``DH``, ``EH`` and ``ABCH`` are hex constants (a single Copy refuses ``EH``,
+  which CLICK's Copy stores as the real 0.0).
 - text: ``"..."``, the text between the quotes (see :data:`TEXT_MAX`).
 - an address, which is no constant (:func:`classify` returns ``None``).
 - a decimal integer: an int16 value, or an int32 value (wide); outside int32, no constant.
@@ -148,6 +149,110 @@ def hex_display(digits: str) -> str:
     return f"{digits.upper().lstrip('0') or '0'}h"
 
 
+#: The significant digits CLICK prints a real constant with.
+REAL_DIGITS = 7
+
+
+def real_display(text: str) -> str:
+    """A real constant as laddercodec writes it: its value printed back, a typed ``+`` kept.
+
+    CLICK stores a real in a Math and a Copy source as it prints it back: ``1.50`` is
+    ``1.5``, ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and a typed
+    ``+2.5`` stays.  laddercodec prints with 7 significant digits, positional with at least
+    one digit after the point, as those answers do; the digit count and the rest are
+    laddercodec's until CLICK answers.  ``text`` comes back as given where that print is
+    another float32 value (more than 7 significant digits that count), and where 7 digits
+    print it in exponent form, from 1E+07 up and below 1E-04: CLICK keeps ``1.5E+10`` as
+    typed, and its form for the rest is not known.  ``text`` is a real :func:`classify`
+    reads: finite and within float32.
+    """
+    value = float(text)
+    printed = f"{value:.{REAL_DIGITS}G}"
+    if "E" in printed:
+        return text
+    if "." not in printed:
+        printed += ".0"
+    if struct.pack("<f", float(printed)) != struct.pack("<f", value):
+        return text
+    return f"+{printed}" if text.startswith("+") else printed
+
+
+#: The largest finite float32 value.
+_FLOAT32_MAX = struct.unpack("<f", b"\xff\xff\x7f\x7f")[0]
+#: Enough significant digits to write any float32 value at or below its exact value.
+_REAL_DIGITS_MAX = 17
+
+
+def constant_text(value: int | float | str, *, hex: bool = False) -> str:
+    """Write a Python value as the constant text a Math or a Copy source takes.
+
+    The text is the one building the instruction stores for that value:
+
+    - an ``int`` is a decimal integer, -2147483648 to 2147483647 (``-7``), or with
+      ``hex=True`` hex digits then ``h``, 0h to FFFFFFFFh (``255`` is ``FFh``);
+    - a ``float`` is the float32 value nearest it, in the fewest significant digits that
+      read back as that value and stay within float32, printed as laddercodec prints a real
+      (``1000.0``, ``0.5``);
+    - a ``str`` is a text constant in quotes (``"AB"``); one character outside printable
+      ASCII is its code, ``$`` and two hex digits (``$0D``).
+
+    Provisional until CLICK answers: a real that 7 significant digits print in exponent
+    form (from 1E+07 up and below 1E-04) is written in Python's ``G`` form (``1.5E+10``),
+    and one that needs more than 7 digits keeps them (``0.33333334``); how CLICK writes
+    either is not known.
+
+    Whether a field takes the text (an int above int16, a hex value above FFFFh, a real in
+    a hex Math) is the field's check, made when the instruction is built.  A value no
+    constant spells raises ``ValueError``: an int outside the ranges above, a real that is
+    not finite or is outside the float32 range, empty text, text with a quote or longer
+    than 128 characters, or a character above ``$FF``.  A ``bool``, a float with
+    ``hex=True`` or any other type raises ``TypeError``.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise TypeError(f"{value!r} is not an int, a float or a str")
+    if isinstance(value, str):
+        return _text_constant(value)
+    if hex:
+        if not isinstance(value, int):
+            raise TypeError(f"{value!r} is not an int; a hex constant is a whole number")
+        if not 0 <= value < 16**HEX32_DIGITS:
+            raise ValueError(f"{value} is outside 0h..FFFFFFFFh, the hex constants")
+        return hex_display(f"{value:X}")
+    if isinstance(value, int):
+        if not INT32_MIN <= value <= INT32_MAX:
+            raise ValueError(f"{value} is outside {INT32_MIN}..{INT32_MAX}, the integer constants")
+        return str(value)
+    if not fits_float32(value):
+        raise ValueError(f"{value!r} is not a finite float32 value")
+    # The float32 value nearest, then the fewest digits that read back as it.  A rounded
+    # print above the largest float32 value is skipped, though it may round back to it.
+    nearest = struct.unpack("<f", struct.pack("<f", value))[0]
+    text = repr(nearest)
+    for digits in range(1, _REAL_DIGITS_MAX + 1):
+        candidate = f"{nearest:.{digits}G}"
+        if abs(float(candidate)) > _FLOAT32_MAX:
+            continue
+        if struct.unpack("<f", struct.pack("<f", float(candidate)))[0] == nearest:
+            text = candidate
+            break
+    if "." not in text and "E" not in text:
+        text += ".0"  # a real, not an integer
+    return real_display(text)
+
+
+def _text_constant(value: str) -> str:
+    if len(value) == 1 and not printable(value):
+        if ord(value) > 0xFF:
+            raise ValueError(f"{value!r} is above $FF; a character code is $00 to $FF")
+        return f"${ord(value):02X}"
+    if not 1 <= len(value) <= TEXT_MAX or '"' in value:
+        raise ValueError(
+            f"{value!r} is no text constant: 1 to {TEXT_MAX} characters, with no quote "
+            "($22 spells one)"
+        )
+    return f'"{value}"'
+
+
 def _text(inner: str) -> Constant | None:
     # A quote inside the text is refused: the CSV token can't hold one ($22 spells it).
     if not 1 <= len(inner) <= TEXT_MAX or '"' in inner:
@@ -175,7 +280,8 @@ def check_char_code(text: str, field: str) -> int:
 
     A code is picked from CLICK's Embed ASCII Code table, ``$00`` to ``$FF``, so ``$``, ``$1``,
     ``$100`` and ``$G1`` are refused.  Compare, Search, Fill, a single Copy source and a Copy
-    termination code call it on every ``$`` value.
+    termination code call it on every ``$`` value; a single Copy writes a source ``$1`` as
+    ``$01`` first, as CLICK stores it.
     """
     m = _CHAR_RE.fullmatch(text.upper()) if text.isascii() else None
     if m is None:

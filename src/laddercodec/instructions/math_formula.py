@@ -9,15 +9,19 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
 1. :func:`_lex` splits the text as the dialog's tokenizer does (step 1): on spaces and
    tabs, on ``+ - * / ^ ( ) , :`` and on ``[ ]``.  A run of digits followed by ``.``,
    ``E`` or ``e`` is cut at the end of the longest real number it starts, so ``1.5E+10``
-   is one token and the hex ``1Eh`` is ``1`` then ``Eh``; a run cut that way is refused.
+   is one token and the hex ``1Eh`` is ``1`` then ``Eh``; a run cut that way is refused,
+   but for hex digits cut before a lone ``h``: ``1E3h`` is how CLICK stores a hex
+   constant typed ``1e3``, and is read as hex.
 2. :func:`_classify` names each word: a function or word operator, an address (which must
    pass the full address check), a constant of the Math's mode (step 6), or else a word,
-   which is refused (step 7).
+   which is refused (step 7).  A hex constant is kept in CLICK's form, uppercase digits
+   without leading zeros then ``h``.
 3. Parentheses balance and nest at most 8 deep (step 3).
 4. In a decimal Math a ``-`` or ``+`` at the start, after ``(`` or after ``,`` joins the
    decimal constant after it (step 5); in a hex Math a sign stays its own token.
-5. Each constant's value is checked (step 6), then the keys of the other mode's keypad are
-   refused (step 8).
+5. Each constant's value is checked (step 6), and a real is kept as CLICK prints it back
+   (``1.50`` is ``1.5``, ``1e3`` is ``1000.0``); then the keys of the other mode's keypad
+   are refused (step 8).
 6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
    starts and ends (step 9).
 7. :func:`_check_operands`: the banks each mode takes (:data:`_OPERANDS`), ranges, and
@@ -52,7 +56,7 @@ from ..model import (
     to_display,
 )
 from ..operands.banks import Bank, banks
-from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display
+from ..operands.constants import INT16_MAX, INT16_MIN, fits_float32, hex_display, real_display
 from ..operands.errors import Reason
 
 _NAME = "Math.expression"
@@ -293,6 +297,16 @@ def _signed(raws: Sequence[_Raw], i: int, word: str) -> str:
     return word
 
 
+def _in_call(raws: Sequence[_Raw], i: int) -> bool:
+    """Whether ``raws[i]`` starts an argument of RAND, LSH, RSH, LRO or RRO."""
+    if i < 1:
+        return False
+    before = raws[i - 1].text
+    return before == "," or (
+        before == "(" and i >= 2 and raws[i - 2].text.upper() in COMMA_FUNCTIONS
+    )
+
+
 def _word_refusal(word: str) -> FieldError:
     return _error(
         f"{word!r} is not an address, a function name or a constant; "
@@ -321,7 +335,10 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
     if any(c.isdecimal() and not c.isascii() for c in word):
         return refuse(_error(f"{word!r} has a digit outside 0-9", Reason.FORM), None)
     hex_digits = _hex_digits(word)
-    if raw.cut:
+    # CLICK stores a hex Math constant typed as a real number without h, such as 1e3, as
+    # the digits then h (1E3h): the cut there leaves only the h, and the constant is read.
+    stored_hex = raw.cut and hex_digits is not None and len(word) - raw.cut == 1
+    if raw.cut and not stored_hex:
         if hex_digits is not None and mode == "hex":
             first, rest = word[: raw.cut], word[raw.cut :]
             error = _error(
@@ -373,6 +390,17 @@ def _classify(raws: Sequence[_Raw], i: int, mode: str, found: list[FieldError]) 
         except FieldError as exc:
             return refuse(exc, "const")
         return Token("const", text, f"UH{int(hex_digits, 16)}")
+    if mode == "hex" and 0 < len(word) <= 4 and all(c in _HEX_DIGITS for c in word):
+        # CLICK's hex Math reads up to 4 hex digits without h as hex (005 is 5h, FF is FFh,
+        # 1e3 is 1E3h; it refuses 5 digits, 00005 too); laddercodec refuses the text and
+        # names the h form, which says what it means, where that form is taken.
+        signed = _signed(raws, i, word)
+        fixed = f"{signed[: len(signed) - len(word)]}{hex_display(word)}"
+        rule = f"{signed} has no h; a hex Math takes hex constants such as 7h"
+        if signed == word or not _in_call(raws, i - 1):
+            # A signed argument of RAND, LSH, RSH, LRO or RRO is refused with its h too.
+            rule = f"{signed} has no h; a hex Math takes hex constants, and CLICK reads it as {fixed}: write {fixed}"
+        return refuse(_error(rule, Reason.KIND), "const")
     if raw.number or (word and all(c in _DIGITS for c in word)):
         if mode == "hex":
             error = _error(
@@ -471,11 +499,15 @@ def _decimal_internal(text: str) -> str | FieldError:
     printed = f"+{low}" if text.startswith("+") else str(low)
     if len(printed) != len(text):
         if not _INT32_MIN <= value <= _INT32_MAX:
-            return _error(
-                f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit",
-                _integer_reason(text, body),
-                "OBJ-1009",
-            )
+            reason = _integer_reason(text, body)
+            if reason is Reason.FORM:
+                # Its leading zeros are refused: the value without them is taken.
+                rule = f"{text} is refused; an integer constant has no leading zeros"
+            else:
+                rule = (
+                    f"{text} is outside {_INT32_MIN}..{_INT32_MAX}; an integer constant is 32-bit"
+                )
+            return _error(rule, reason, "OBJ-1009")
         return _error(
             f"{text} is refused; CLICK reads it back as {printed}, which is not what was typed",
             Reason.FORM,
@@ -584,8 +616,8 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
                 return _error(rule, Reason.FORM, "OBJ-1001")
         if token.kind == "," and i not in call_separators:
             # A comma outside RAND ( a , b ) or LSH..RRO ( a , b ) reads as a decimal comma
-            # (OBJ-037: DS1 , DS2 and MAX ( DS1 , DS2 )
-            # are refused).
+            # (OBJ-037: DS1 , DS2 is refused).  MAX ( DS1 , DS2 ) is refused too, by the
+            # range shape at MAX before its comma is read; its id is not known.
             return _error(
                 "',' stands outside RAND, LSH, RSH, LRO or RRO ( a , b ); CLICK reads it as a "
                 "decimal comma: use a period (.) as the decimal point",
@@ -921,6 +953,10 @@ def parse(text: str, mode: str) -> Formula:
             if isinstance(internal, FieldError):
                 found.append(internal)
                 tokens[k] = Token("const", t.text, refused=True)
+            elif internal.startswith("F"):
+                # A real is stored as CLICK prints it back, in both forms (1.50 is F1.5).
+                printed = real_display(t.text)
+                tokens[k] = Token("const", printed, f"F{printed}")
             else:
                 tokens[k] = Token("const", t.text, internal)
         shown = " ".join(t.text for t in tokens)

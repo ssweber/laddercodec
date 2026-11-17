@@ -71,13 +71,15 @@ _REFUSED = [
     ("DS1 + ( -1FH )", "DD9", "decimal", "1Fh is a hex constant"),
     # a decimal constant in a hex Math
     ("DH1 + 70000", "DH9", "hex", "70000 is a decimal constant; a hex Math"),
-    ("DH1 + 7", "DH9", "hex", "7 is a decimal constant"),
-    ("DH1 + 007", "DH9", "hex", "007 is a decimal constant"),
     ("DH1 + 1.5", "DH9", "hex", "1.5 is a decimal constant"),
-    ("DH1 + 1E5", "DH9", "hex", "1E5 is a decimal constant"),
-    ("DH1 + ( -5 )", "DH9", "hex", "-5 is a decimal constant"),
-    ("LSH ( DH1 , 1 )", "DH9", "hex", "1 is a decimal constant"),
-    ("RAND ( 1 , 10 )", "DH9", "hex", "1 is a decimal constant"),
+    # hex digits without h: CLICK reads them as hex; the message names the h form
+    ("DH1 + 7", "DH9", "hex", "7 has no h; .* write 7h"),
+    ("DH1 + 007", "DH9", "hex", "007 has no h; .* write 7h"),
+    ("DH1 + 1E5", "DH9", "hex", "1E5 has no h; .* write 1E5h"),
+    ("DH1 + ( -5 )", "DH9", "hex", "-5 has no h; .* write -5h"),
+    ("DH1 + FF", "DH9", "hex", "FF has no h; .* write FFh"),
+    ("LSH ( DH1 , 1 )", "DH9", "hex", "1 has no h; .* write 1h"),
+    ("RAND ( 1 , 10 )", "DH9", "hex", "1 has no h; .* write 1h"),
     # a text constant in a formula, either mode
     ('DS1 + "A"', "DS9", "decimal", "holds a text constant"),
     ("DS1 + $41", "DS9", "decimal", "holds a text constant"),

@@ -415,12 +415,31 @@ def test_formula_long_digit_run_keeps_its_refusal(expression: str) -> None:
     assert any(e.click_id == "OBJ-1009" for e in found)
 
 
+@pytest.mark.parametrize(
+    ("expression", "message"),
+    [
+        # 6000000000 alone is taken, so the message names the leading zeros, not the range.
+        ("06000000000", "06000000000 is refused; an integer constant has no leading zeros"),
+        (
+            "3000000000",
+            "3000000000 is outside -2147483648..2147483647; an integer constant is 32-bit",
+        ),
+    ],
+)
+def test_integer_constant_message_says_what_is_refused(expression: str, message: str) -> None:
+    (error,) = _formula(expression)
+    assert str(error) == f"{_EXPR}: {message} (OBJ-1009)"
+
+
 @pytest.mark.parametrize("expression", ["sin ( DS1 )", "ds1 + 1", "DH1 + ffh"])
 def test_formula_display_form_refusal(expression: str) -> None:
     mode = "hex" if "ffh" in expression else "decimal"
     with display_form_only():
         (error,) = _formula(expression, mode)
     assert (error.field, error.reason) == (_EXPR, Reason.FORM)
+    # The field leads the message, as in every refusal.
+    assert str(error).startswith(f"{_EXPR}: ")
+    assert "is not CLICK's display form" in str(error)
 
 
 def test_formula_display_form_refusals_read_on() -> None:

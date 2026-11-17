@@ -166,11 +166,12 @@ The formula appears four times in the header:
   constant (`( -5 )`, `( +5 )`) and is spaced from an address (`- DS401`); in a
   hex formula it is its own token (`( - Ah )`).
 - **Internal form** is the display form with spaces replaced by `#` and each
-  bare decimal literal prefixed with `H` (`W` outside int16, `F` for a real, each
-  keeping the typed text: `H+5`, `F-2.5`) and each hex constant written `UH` and
-  its decimal value. Click splits it on `#`, so an
-  unspaced `ABS(` becomes a single unknown token. In CLICK v4 that pastes but
-  raises a Math instruction error.
+  bare decimal literal prefixed with `H` (`W` outside int16, `F` for a real: `H+5`,
+  `F-2.5`) and each hex constant written `UH` and its decimal value. An integer
+  keeps its typed text; a real is the value CLICK prints back, in both forms
+  (`1.50` is stored `1.5` and `F1.5`, `1e3` is `1000.0` and `F1000.0`). Click
+  splits it on `#`, so an unspaced `ABS(` becomes a single unknown token. In
+  CLICK v4 that pastes but raises a Math instruction error.
 - **Comma functions** (`RAND`, `LSH`, `RSH`, `LRO`, `RRO`) are stored infix in
   the internal form: `F ( a , b )` becomes `a#F#b`, followed by a trailing `#`
   when the call ends the formula (`H1#RAND#H100#`, `H1#RAND#H10#+#DS1`,
@@ -194,7 +195,9 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 1. **Tokenizer.** Tokens are split by spaces and tabs (no other white space)
    and by `+ - * / ^ ( ) , : [ ]`. A run of digits followed by `.`, `E` or `e` is
    cut at the end of the longest real number it starts, so `1.5E+10` is one
-   token and hex `1Eh` is `1` then `Eh`.
+   token and hex `1Eh` is `1` then `Eh`. A hex constant typed `1e3` is stored
+   `1E3h` (`UH483`), which this rule would cut as `1E3` then `h`; laddercodec
+   reads a word cut before a lone `h` as hex, so the stored formula decodes.
 2. **Keywords.** The names on the two keypads (`SIN` ... `RRO`, `PI`, `MOD`,
    `AND`, `OR`, `XOR`); everything else is an address, a constant or a word.
 3. **Parentheses** balance and nest at most 8 deep.
@@ -206,8 +209,9 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
    typed `+` kept) at the typed length, or a real that fits float32. Hex: CLICK
    uppercases the word and deletes its first `H`, wherever it is, then takes 1 to
-   4 hex digits, so it stores `7` as `7h` and `7H7` as `77h`. laddercodec takes
-   only 1 to 4 hex digits followed by `h` or `H`, and refuses `7` and `7H7`.
+   4 hex digits, so it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as `77h`.
+   laddercodec takes only 1 to 4 hex digits followed by `h` or `H`, and refuses
+   `7` and `1e3` naming the `h` form to write, and `7H7`.
 7. **Words** are refused (`FOO`), and so is a bracket. CLICK takes a pointer
    here; laddercodec refuses one.
 8. **Mode.** A hex formula refuses the decimal keypad's keys (`SIN` ... `DEG`,

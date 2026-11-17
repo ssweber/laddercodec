@@ -69,9 +69,6 @@ checks (pyrung's conformance probes use `raw(...)`; the decoders use the private
   proposal: `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed; None
   where no single stretch is at fault (empty, the length, a `(` left open, the mode conflict); a range refusal
   spans its `A : B`, SUM's CT and X/Y refusals the range argument. It is new public API.
-- **Math messages:** `06000000000` is refused as `form` (its leading zero) but its message says it is outside
-  int32; a `to_display` refusal inside a formula has no `Math.expression:` prefix; `MAX ( DS1 , DS2 )` gets the
-  range-shape refusal with no id while a comment records OBJ-037 for it. Fold these into item 4's Math work.
 - **The blanks a CSV token still reads as syntax:** a blank argument is now its field `missing` where it fills
   one text field or a range (a range with a blank end, `..DS4`, too). The family parsers check these before
   construction, so a blank is a syntax error with no field, where Python says `missing`: a Timer or time drum
@@ -198,8 +195,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 
 ## 4. Canonical constants (CLICK)
 
-Addresses are written canonical everywhere, and tested. Constants are written as typed:
-- `copy(0ffh,DS1)`, `copy(005,DS1)`, `copy(+5,DS1)`, `fill(0ffh,...)`;
+Addresses are written canonical everywhere, and tested. Math and a single Copy source are written as CLICK
+stores them (`feat/canon-math-copy`): a real as CLICK prints it back, a Copy integer without leading zeros, hex
+in CLICK's case, `$1` as `$01`; hex Math digits without `h` and a Copy `EH` stay refused, naming the form to
+write. `constant_text()` writes a Python value in that form. The other constants are written as typed:
+- `fill(0ffh,...)`, `fill(005,...)`;
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
 
@@ -209,40 +209,26 @@ Open: does a clipboard copy-back of a dialog-made Copy carry tag 0x1201 as "0"? 
 writes "0" (tumbler), and the SCR form keeps it empty or leaves it out; a pasted block Copy was saved without
 it. The encoder writes "0" in every Copy-family blob; no change until CLICK answers.
 
-**click's answers for Math and Copy (2026-11-16):**
-- Hex Math reads a constant without `h` as hex: `005` and `5` are stored `5h`, `FF` is `FFh`, `1e3` is `1E3h`
-  (483), and `1Eh` is refused. laddercodec refuses `005` and `FF`.
-- A real is stored as CLICK prints it back, in Math (display and internal) and in a Copy source: `1.50` is
-  `1.5`, `1e3` is `1000.0`, `.5` is `0.5`; in a Copy, `1E5` is `100000.0`; in a Math, `1.5E+10` stays as typed
-  (not asked in a Copy). laddercodec writes the typed text.
-- A Copy source is stored as CLICK reads it: a decimal integer without leading zeros but with a typed `+`
-  (`005` is `5`, `+5` stays `+5`); hex with its digits uppercased, leading zeros kept, then a lowercase `h`
-  (`0ffh` is `0FFh`, `ffh` is `FFh`, `ABCH` is `ABCh`, `DH` is `Dh`).
-- `EH` as a Copy source is stored as the real `0.0`; laddercodec reads it as hex 14.
-- `$1` into TXT is accepted and stored `$01`; laddercodec refuses it.
-- Decode: a hex Math holding `1E3h`, as CLICK itself stores it, decodes as `raw(Math, ...)`. Decode must read
-  what CLICK writes.
-
-**Ruling (Sam, 2026-11-16):**
-- The encoder writes the form CLICK's dialog stores wherever its correction keeps the meaning: `1.50` is
-  written `1.5`, `1e3` `1000.0`, `.5` `0.5`, `005` `5` in a Copy, `0ffh` `0FFh`, `$1` `$01`, and the rest of
-  click's answers. The canonical form is what CLICK stores, not a stripped form: a typed `+` and the leading
-  zeros of a hex Copy source are kept.
-- Where the dialog's correction would change what the CSV text says, keep refusing and name the fix in the
-  message:
-  - a hex Math constant without `h` (`005`, `FF`, `1e3`): the settled ruling stands;
-  - `EH` as a Copy source: refuse it, and say to write `0Eh` for hex or `0.0` for the real. Today the code
-    reads it as hex 14; that changes on this item's branch.
-
 **Question for CLICK:** what does each other dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into?
 Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
+Then one behaviour-change branch per answer set, as for Math and Copy.
 
-Then make one behaviour-change branch: a test that every writer's output is canonical, the golden `.bin` files
-that change, and Sam's paste checks of them.
-
-The same branch writes a constant from a Python value (an int as hex, a float as a Real, a str as text) in
-CLICK's canonical form, so pyrung stops spelling constants itself (its `click/ladder/translator.py` does today).
-Approved by Sam 2026-11-16.
+**Questions for CLICK on Math and Copy** (until answered, the code keeps the behaviour named):
+- **Reals in exponent form.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math
+  and a Copy: is the switch to exponent form between 1E6 and 1E7 (the code's 1E+07), and does CLICK write
+  `1E+07`, `1.0E+07` or `1E7`? The code writes a real positionally below 1E+07 and from 1E-04 up, and keeps any
+  other as typed.
+- **More than 7 significant digits.** Typed `1234567.89`, `0.123456789` and `0.30000001`: does CLICK store 7
+  digits, and what? The code keeps the first two as typed (7 digits are another float32 value) and writes the
+  third `0.3` (the same float32 value).
+- **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math and a Copy. The code writes `+2.5`.
+- **Integer `-0` in a Copy:** typed `-0` and `-00`. The code writes `-0` for both.
+- **`$0d` as a Copy source:** stored `$0d` or `$0D`? The code keeps the case typed, as for `$0d` everywhere.
+- **Other hex Copy sources with `E`:** `0EH`, `1EH`, `E0H`, `EEH`, `1E3H` in a Copy: hex or real? The code reads
+  them as hex and refuses only `EH`, whose message tells the user to write `0Eh`.
+- **Typed `1E3h` in a hex Math:** does the dialog take it, as CLICK stores `1e3` that way? The code takes it, so
+  that a stored `1E3h` decodes and reads back.
+- **`MAX ( DS1 , DS2 )`:** which id does the dialog give? The code refuses it with no id.
 
 ## Open CLICK questions (CLICK)
 
@@ -334,6 +320,9 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 
 - **Hex Math constants:** keep refusing `DH1 + 7` and `DH1 + 7H7`; never rewrite them as CLICK's dialog does
   (`7h`, `77h`). The error names the fix.
+- **Canonical constants (Sam, 2026-11-16):** the encoder writes the form CLICK's dialog stores wherever its
+  correction keeps the meaning, a typed `+` and a hex Copy source's leading zeros included; where it would change
+  what the CSV says (hex Math digits without `h`, a Copy `EH`), the text is refused and the message names the fix.
 - **`feat/productivity-codec`** stays as a branch for now.
 - **A last rung of only wires in an SCR save:** it can't be told from CLICK's own trailing empty rungs (both are
   records with no instruction and no comment, byte-identical; CLICK keeps 1 to 4 trailing empties), so

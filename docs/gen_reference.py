@@ -88,6 +88,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "ModbusTcpTarget",
             "RawInstruction",
             "Undecoded",
+            "constant_text",
         ),
     ),
 )
