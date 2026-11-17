@@ -40,7 +40,7 @@ All standard Click instruction types are decoded into domain objects:
 - **Flow control** → `Call`, `Return`, `End`, `ForLoop`, `Next`, `Break`, `Continue` (CLICK v4)
 - **Modbus** → `Send`, `Receive`
 
-Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline. A stored value CLICK's dialog refuses does not make a cell raw: the cell decodes as its instruction ([Values CLICK's dialog refuses](#values-clicks-dialog-refuses)).
+Unrecognised cells fall back to `RawInstruction` with the raw bytes preserved. This keeps the decoder forward-compatible — unknown instruction types don't crash the pipeline. A cell whose stored value CLICK's dialog refuses is not raw. It decodes as its instruction ([Values CLICK's dialog refuses](#values-clicks-dialog-refuses)).
 
 At the moment, Click `Email`, `Home`, `Position`, and `Velocity` instructions
 also surface this way. They are supported for binary/SCR round-trip, but they
@@ -49,9 +49,15 @@ are not yet modeled as dedicated DSL classes, so they currently emit
 
 ### Legacy encodings
 
-A rung saved from an older laddercodec can hold bytes that decode to the same text as today's but that CLICK runs differently. `decode()` and `decode_program()` still return the rungs and emit a `LegacyEncodingWarning`. At present the only case is a Math decimal constant outside -32768..32767 stored as 16-bit (`H70000`); CLICK runs it as its low 16 bits, so `70000` runs as 4464. Re-paste the rung to store it as 32-bit.
+A rung that an older laddercodec saved can hold bytes that decode to the same text
+as today's bytes, but that CLICK runs differently. `decode()` and
+`decode_program()` still return the rungs, and they emit a `LegacyEncodingWarning`.
+The only case today is a Math decimal constant outside -32768..32767 that was
+stored as 16-bit (`H70000`). CLICK runs it as its low 16 bits, so `70000` runs as
+4464. Re-paste the rung to store it as 32-bit.
 
-The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or `None`) and `program` (for `decode_program()`). To collect them:
+The warning carries `instruction`, `token`, `detail`, `rung` (0-based index, or
+`None`) and `program` (for `decode_program()`). To collect them:
 
 ```python
 import warnings
@@ -65,10 +71,11 @@ legacy = [w.message for w in caught if issubclass(w.category, LegacyEncodingWarn
 
 ### Values CLICK's dialog refuses
 
-A stored instruction can hold a value CLICK's dialog refuses: CLICK keeps what a
-paste holds, and CLICK v4 and older laddercodec versions store values that
-today's checks refuse. `decode()` and `decode_program()` build such an
-instruction with every value as stored and emit a `RefusedFieldWarning` for it:
+A stored instruction can hold a value that CLICK's dialog refuses. CLICK keeps
+whatever a paste holds. CLICK v4 and older laddercodec versions also store values
+that today's checks refuse. `decode()` and `decode_program()` build such an
+instruction with every value as stored, and they emit a `RefusedFieldWarning` for
+it:
 
 ```python
 import warnings
@@ -85,47 +92,62 @@ for w in caught:
 # Math.expression: SUM ( X001 : X036 ) is refused: X036 is in the option slot (X021-X036), and CLICK sums the wrong bits for this range.
 ```
 
-The warning carries `instruction`, `error` (the `FieldError` building the
-instruction raises), `errors` (every refusal, `error` first), `rung` (0-based
+The warning carries `instruction`, `error` (the `FieldError` that building the
+instruction raises), `errors` (every refusal, with `error` first), `rung` (0-based
 index, or `None`) and `program` (for `decode_program()`). The refusals are the
-ones construction raises ([Refused values](encoding.md#refused-values)).
+ones that construction raises ([Refused values](encoding.md#refused-values)).
 
-Left unchanged, the instruction encodes as it did when it decoded as
+If you encode the instruction unchanged, it encodes as it did when it decoded as
 `RawInstruction`, so `encode(decode(data))` writes the rung back as before:
-decoded from a clipboard, as the blob and cell rows CLICK stored; an output box
-decoded by `decode_program()`, as the blob its tags make. A condition decoded by
-`decode_program()` has no such blob, and `encode()` raises its `error`.
 
-Change a field the blob holds (any field but a contact's `wire_down`), and the
-instruction is checked again: `encode()` raises the refusal it holds now, or, if
-the change fixed it, encodes it as building it from its fields would (`ds2` is
-written `DS2`). Fix the field the error names, then encode.
+- If it was decoded from a clipboard, you get the blob and cell rows that CLICK
+  stored.
+- If it is an output box that `decode_program()` decoded, you get the blob that its
+  tags make.
+- If it is a condition that `decode_program()` decoded, it has no such blob, and
+  `encode()` raises its `error`.
 
-`write_csv()` writes the instruction as it is held, and
-`read_csv(path, unchecked=True)` reads it back with the same warning, each refusal
-located in the CSV ([Where a read error is](csv-format.md#where-a-read-error-is)); by
-default `read_csv` refuses it. A CSV holds no blob, so the instruction it reads compares
-equal to the decoded one but `encode()` raises its `error`.
+If you change a field that the blob holds, the instruction is checked again. Any
+field counts except a contact's `wire_down`. If the instruction is still refused,
+`encode()` raises the refusal that it holds now. If your change fixed it, `encode()`
+encodes it as building it from its fields would (`ds2` is written `DS2`). To fix
+a refusal, change the field that the error names, then encode.
 
-A value no stored instruction holds still decodes as `RawInstruction` (or an
-unknown condition) with its bytes kept: an address not in CLICK's display form
-outside the fields CLICK saves as typed (`C001` in an Out), a value outside a
-field's named values (a timer unit, a compare operator), text that is no number
-in a numeric field, pin rows the box can't take, a value a check crashes on, a
-Math stored in nickname view, and an instruction whose CSV would not read back as
-the same instruction. A Copy or Pack
-destination stored with a space at either edge decodes as the address without the
-space; left unchanged, it encodes as it did when it decoded as `RawInstruction`,
-space and all.
+`write_csv()` writes the instruction as it is held. `read_csv(path, unchecked=True)`
+reads it back with the same warning and locates each refusal in the CSV
+([Where a read error is](csv-format.md#where-a-read-error-is)). By default
+`read_csv` refuses it. A CSV file holds no blob, so the instruction that it reads
+compares equal to the decoded one, but `encode()` raises its `error`.
 
-CLICK saves some addresses as they were typed, not in display form: a Copy, Block
-Copy or Pack destination, each address in a Math formula, and a hex Math's result
-(`DS001`, `ds1`, `YD0U`, `DS[ds1]`). These decode in display form (`DS1`, `YD0u`,
-`DS[DS1]`), as CLICK's editor shows them, and the CSV holds that form. Left
-unchanged, the instruction encodes as the bytes CLICK saved; changed, it encodes
-in display form. A CSV holds no blob: read back from the CSV `write_csv` writes,
-the instruction encodes in display form. An address typed with fewer digits than
-its display form (`Y1`) is left raw, as is a typed address in any other field.
+A value that no stored instruction holds still decodes as `RawInstruction` (or an
+unknown condition), with its bytes kept. These cases do that:
+
+- an address not in CLICK's display form, outside the fields CLICK saves as typed
+  (`C001` in an Out)
+- a value outside a field's named values (a timer unit, a compare operator)
+- text that is not a number, in a numeric field
+- pin rows that the box can't take
+- a value that makes a check crash
+- a Math stored in nickname view
+- an instruction whose CSV would not read back as the same instruction
+
+If a Copy or Pack destination is stored with a space at either edge, it decodes as
+the address without the space. If you encode it unchanged, it encodes as it did
+when it decoded as `RawInstruction`, space and all.
+
+CLICK saves some addresses as you typed them, not in display form. These are a
+Copy, Block Copy or Pack destination, each address in a Math formula, and a hex
+Math's result (`DS001`, `ds1`, `YD0U`, `DS[ds1]`). They decode in display form
+(`DS1`, `YD0u`, `DS[DS1]`), as CLICK's editor shows them, and the CSV holds that
+form. When you encode such an instruction:
+
+- If you leave it unchanged, you get back the bytes CLICK saved.
+- If you change it, it encodes in display form.
+- If you read it back from the CSV that `write_csv` wrote, it encodes in display
+  form. A CSV file holds no blob.
+
+An address typed with fewer digits than its display form (`Y1`) is left raw. So is
+a typed address in any other field.
 
 ### Wire tokens
 
@@ -161,9 +183,10 @@ from laddercodec import decode, write_csv
 write_csv("output.csv", decode(data))
 ```
 
-`write_csv` writes each rung as CLICK's syntax check draws it. A rung copied
-before the check can come out redrawn, or split where its outputs' circuits
-meet only at the rail; the logic is the same ([CSV layout](csv-format.md#layout)).
+`write_csv` writes each rung the way CLICK's syntax check draws it. If you copied a
+rung before the check, the CSV can hold it redrawn. It can also split the rung
+where its outputs' circuits meet only at the rail. The logic stays the same
+([CSV layout](csv-format.md#layout)).
 
 ## Decode a program file
 
@@ -194,8 +217,9 @@ Each `Rung` in `program.rungs` has the same structure as clipboard-decoded rungs
 
 ## Rungs that don't decode
 
-A rung laddercodec can't read decodes as an undecoded marker rung, and the rungs
-around it decode as usual. Each marker emits an `UndecodedRungWarning`:
+If laddercodec can't read a rung, it decodes that rung as an undecoded marker
+rung. The rungs around it decode as usual. Each marker emits an
+`UndecodedRungWarning`:
 
 ```python
 import warnings
@@ -210,52 +234,61 @@ for marker in program.undecoded:
 ```
 
 The marker rung is one row, wired from the rail into an `Undecoded` output. Its
-comment is the marker's headline, `UNDECODED: rung N, row R: <error>`, then the
-rung's own comment when that decoded. `Undecoded` has `error`, `rung`, `row`,
-`column` and `stop`; `rung`, `row` and `column` count from 0 (column 31 is AF),
-and `row` and `column` are `None` when the failure is not at one row or cell. The
-warning carries the `marker`, and the `program` name for `decode_program()`.
+comment starts with the marker's headline, `UNDECODED: rung N, row R: <error>`.
+The rung's own comment follows, if that decoded.
+
+`Undecoded` has `error`, `rung`, `row`, `column` and `stop`. `rung`, `row` and
+`column` count from 0 (column 31 is AF). `row` and `column` are `None` when the
+failure is not at one row or cell. The warning carries the `marker`, and the
+`program` name for `decode_program()`.
 
 The marker stops the program where the rung was. Its `stop` is `"end"` in the
-main program and `"return"` in a subroutine, and a consumer that runs the program
+main program and `"return"` in a subroutine. A consumer that runs the program
 runs the marker as that instruction. A program that ran past a rung it could not
-read would run wrong: the missing rung may set a bit a later rung reads, or hold the
-`end()` or `return()` itself. `decode()` reads a clipboard with no program, so its
-markers have `stop="end"`.
+read would run wrong. The missing rung may set a bit that a later rung reads, or
+it may hold the `end()` or `return()` itself. `decode()` reads a clipboard with no
+program, so its markers have `stop="end"`.
 
-A rung decodes as a marker when a cell's bytes don't decode (wire flags no token
-has) or its output column has a down wire. Each such rung has its own marker.
-When the decoder can't find where the rest of the rungs start (a clipboard row
-whose cells can't be walked or that is cut off, or a program file record whose
-framing is broken), the rungs before it decode, and one marker stands for the
-first rung not known to be whole and every rung after it. When that happens in a
-clipboard's first rung, `decode()` returns a list of the marker rung alone, since
-it can't tell one rung from several. A buffer the decoder can't read at all still
-raises `DecodeError`: a clipboard whose magic or size is wrong, or a program file
-whose header doesn't parse.
+A rung decodes as a marker in two cases:
 
-A comment that doesn't decode does not make a marker: the rung keeps its logic,
-its comment becomes `UNDECODED comment: <error>`, its `comment_rtf` keeps the
-comment's bytes, and the decoder emits an `UndecodedCommentWarning` with the
-`rung`, the `error` and the `program` name. `Program.undecoded` does not list
-the rung.
+- a cell's bytes don't decode (wire flags that no token has)
+- its output column has a down wire
 
-The note is followed on the next line by the plain text that can be read from the
-comment's bytes: styling is dropped, paragraph breaks become line breaks, and
-non-ASCII characters are kept, as in a comment that decodes. Text that would
-make the comment too long to encode is cut and ends with `...`; so is an error
-message too long to leave room for it. When no text can be read, the comment is
-the note alone.
-`encode()` writes the note and the text like any comment. A `*` or `_` pair in
-the text reads as styling when it is encoded, as it does in any comment.
+Each such rung gets its own marker.
 
-A marker never reaches CLICK: `encode()` refuses it, and `check()` reports it as an
-`undecoded` finding. `write_csv()` writes it as an `undecoded(...)` token that
-`read_csv()` reads back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).
+Sometimes the decoder can't find where the rest of the rungs start. This happens
+when a clipboard row has cells that can't be walked or is cut off, and when a
+program file record has broken framing. The rungs before that point decode. One
+marker stands for the first rung not known to be whole and for every rung after
+it. If this happens in a clipboard's first rung, `decode()` returns a list of the
+marker rung alone, because it can't tell one rung from several.
+
+The decoder still raises `DecodeError` for a buffer it can't read at all. That
+means a clipboard whose magic or size is wrong, or a program file whose header
+doesn't parse.
+
+A comment that doesn't decode does not make a marker. The rung keeps its logic.
+Its comment becomes `UNDECODED comment: <error>`, and its `comment_rtf` keeps the
+comment's bytes. The decoder emits an `UndecodedCommentWarning` with the `rung`,
+the `error` and the `program` name. `Program.undecoded` does not list the rung.
+
+The line after the note holds the plain text that can be read from the comment's
+bytes. Styling is dropped. Paragraph breaks become line breaks. Non-ASCII
+characters are kept, as in a comment that decodes. If the text would make the
+comment too long to encode, it is cut and ends with `...`. An error message too
+long to leave room for the text is cut the same way. If no text can be read, the
+comment is the note alone.
+
+`encode()` writes the note and the text like any comment. A `*` or `_` pair in the
+text reads as styling when you encode it, as it does in any comment.
+
+A marker never reaches CLICK. `encode()` refuses it, and `check()` reports it as an
+`undecoded` finding. `write_csv()` writes it as an `undecoded(...)` token, and
+`read_csv()` reads that token back ([CSV format](csv-format.md#supported-instruction-tokens-canonical-producer-set)).
 
 ## Check for CLICK v4 instructions
 
-An older CLICK pastes v4 rungs without complaint and changes them: Break and
+A pre-v4 CLICK pastes v4 rungs without complaint and then changes them. Break and
 Continue come back as plain Next, which closes the loop early. Check before
 pasting into a pre-v4 CLICK:
 
@@ -266,18 +299,24 @@ for index, instruction in find_v4_only(rungs):
     print(f"rung {index}: {instruction.to_csv()} needs CLICK v4")
 ```
 
-v4-only: `Break`, `Continue`, `OutVariant`, a time & event `Drum`, a time `Drum`
-with a duration from a register, and `Math` using MAX, MIN, MDN, AVG, ABS, RAND,
-SUM over a bit range, or ranges past 500 interior addresses. `is_v4_only()` checks
-a single instruction.
+`find_v4_only` reports these as v4-only:
+
+- `Break`, `Continue` and `OutVariant`
+- a time & event `Drum`
+- a time `Drum` with a duration from a register
+- `Math` using MAX, MIN, MDN, AVG, ABS, RAND, SUM over a bit range, or ranges past
+  500 interior addresses
+
+`is_v4_only()` checks a single instruction.
 
 <a id="check-for-line-connection-errors"></a>
 
 ## Check for rungs CLICK's syntax check rejects or redraws
 
-CLICK pastes and saves a rung whose lines its syntax check refuses, and reports
-it only at that check. laddercodec encodes and writes such a rung as drawn;
-`check()` reports it, on decoded rungs or rungs read from CSV:
+CLICK pastes and saves a rung even if its syntax check refuses the lines. It
+reports the problem only when you run that check. laddercodec encodes and writes
+such a rung as you drew it. `check()` reports it. It accepts decoded rungs and
+rungs read from CSV:
 
 ```python
 from laddercodec import check, read_csv
@@ -289,14 +328,15 @@ for finding in check(read_csv("main.csv")):
 
 Each `Finding` has `rung`, `kind`, `code`, `captured`, `row`, `column` and
 `message`. The `rung`, `row` and `column` fields count from 0 (column 0 is A, 31
-is AF); `row` and `column` are `None` for a finding about the whole rung. A
-captured C0202 message names the cell as CLICK prints it, rows from 1:
-`row=2, column=3` reads "row 3, column D in CLICK's numbering". When the rung's
-first row is blank, the count starts on the second row; that rests on one capture,
+is AF). `row` and `column` are `None` for a finding about the whole rung.
+
+A captured C0202 message names the cell as CLICK prints it, with rows counted from
+1. `row=2, column=3` reads "row 3, column D in CLICK's numbering". If the rung's
+first row is blank, the count starts on the second row. That rests on one capture,
 and CLICK may count otherwise. Every other message gives the cell counted from 0.
+
 `captured` is `True` where a CLICK capture shows its syntax check reporting the
 shape with that code:
-
 | `kind` | shape | `code` |
 |---|---|---|
 | `not_series_parallel` | the circuit into a main box input is not series-parallel (a bridge) | `C0001` |
@@ -311,36 +351,54 @@ shape with that code:
 | `pin_without_contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 | `undecoded` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
 
-The net of a C000A finding is one the rail reaches through a contact, not the rail.
-A rung whose rail reaches no box gets no `not_series_parallel` finding, as in CLICK.
+The net of a C000A finding is one that the rail reaches through a contact, not the
+rail itself. A rung whose rail reaches no box gets no `not_series_parallel`
+finding, as in CLICK.
+
 A rung whose circuit is not series-parallel gets no C000A finding and no finding
-about a pin's contacts, and the boxes of a C000A finding get no finding about their
-pins' contacts. CLICK does the same on the two shapes captured: a bridge with an
-output above a retentive timer on its net, and a timer's reset on an output's net.
-Whether CLICK does so on other shapes, such as a reset teed off its box's main input
-with another box below on that net, is not captured.
-C000A has `captured=False` for a `NOP` as the other box, for a box with a used pin
-as the box above, for a pin's net shared with another pin or with a main input
-above the pin, and for a box below the pinned box on a reset teed off its main input.
-`unwired_pin` on other pins (a shift's clock, a drum's jog, a counter's down), or in
-a rung whose rail reaches no box, has `C0202` with `captured=False`, and so does a pin
-whose row holds a wire or a contact but that no rail or contact reaches.
+about a pin's contacts. The boxes of a C000A finding also get no finding about
+their pins' contacts. CLICK does the same on the two shapes captured: a bridge
+with an output above a retentive timer on its net, and a timer's reset on an
+output's net. Whether CLICK does so on other shapes is not captured. One example
+is a reset teed off its box's main input, with another box below on that net.
+
+C000A has `captured=False` in these cases:
+
+- a `NOP` is the other box
+- a box with a used pin is the box above
+- a pin's net is shared with another pin, or with a main input above the pin
+- a box is below the pinned box, on a reset teed off its main input
+
+`unwired_pin` has `C0202` with `captured=False` in these cases:
+
+- the pin is not a timer's or counter's reset (a shift's clock, a
+  drum's jog, a counter's down)
+- the rung's rail reaches no box
+- the pin's row holds a wire or a contact, but no rail or contact reaches it
+
 A rung that holds an undecoded marker gets an `undecoded` finding for each marker,
-then its other findings; a marker rung as the decoders make it (one row of wires
+then its other findings. A marker rung as the decoders make it (one row of wires
 into the marker) gets only its `undecoded` finding.
-`pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code,
-and on a reset wired straight from the rail, or whose contacts are all another
-pin's (a contact two pins share counts as the earlier pin's), it has the box's code
-with `captured=False`. A `no_rail` or `feeds_no_box` finding on a loop of contacts is
-also `captured=False`. Other shapes (an unpowered box, a pin circuit
-that shares contacts with a main input (`pin_shares_main`) or another pin
-(`pin_shares_pin`) but has some of its own, and a pin circuit that is not
-series-parallel) are reported with `captured=False`; those kinds are
-provisional and may be renamed or dropped once CLICK's response to them is
-captured. A finding with `captured=False` may be a shape CLICK accepts. A `NOP` that
-no rail or contact reaches is not reported: CLICK's check drops it, and `read_csv`
-drops it from a rung with a circuit. Neither is a `NOP` on the rail alone, nor one on a
-coil's net.
+
+`pin_without_contact` on other pins (a counter's reset, a drum's jog) has no code.
+On a reset wired straight from the rail, or a reset whose contacts are all another
+pin's, it has the box's code with `captured=False`. A contact that two pins share
+counts as the earlier pin's. A `no_rail` or `feeds_no_box` finding on a loop of
+contacts is also `captured=False`.
+
+These shapes are also reported with `captured=False`:
+
+- an unpowered box
+- a pin circuit that shares contacts with a main input (`pin_shares_main`) or
+  another pin (`pin_shares_pin`) but has some of its own
+- a pin circuit that is not series-parallel
+
+Those kinds are provisional. They may be renamed or dropped once CLICK's response
+to them is captured. A finding with `captured=False` may be a shape CLICK accepts.
+
+CLICK's check drops a `NOP` that no rail or contact reaches. `check()` does not
+report it, and `read_csv` drops it from a rung with a circuit. Neither happens to
+a `NOP` on the rail alone, or to one on a coil's net.
 
 ## Round-trip identity
 

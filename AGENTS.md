@@ -25,6 +25,16 @@ make docs-serve     # local docs dev server (auto-reload)
 make docs-build     # build docs site (strict mode)
 ```
 
+## Writing
+
+Prose in this repo follows the `writing` skill in the bob plugin (`/bob:writing`, or `skills/writing/SKILL.md` in https://github.com/ssweber/bob). Read it before you write a commit message, a changelog entry, docs, a docstring, a comment or a message. The rules below are only the ones specific to this repo.
+
+- Everything you write says what a CLICK rule is. It never says where the rule came from.
+- A CHANGELOG entry is stated against the last release, v0.4.0. It never describes a state that no release had.
+- When a change revises behaviour that an Unreleased entry already describes, rewrite that entry. Do not add one that contradicts it.
+- An entry says when the exception class that a caller catches changes.
+- Docs follow `docs/AGENTS.md`.
+
 ## Shell Hygiene
 
 Never inline multi-line content in bash commands (echo, printf, python -c, cat <<EOF).
@@ -89,13 +99,30 @@ src/laddercodec/
 
 ## Key Modules
 
-- **Encoding.** `encode()` accepts a `Rung` or `list[Rung]`. `encode_rung()` runs: validate → compute metadata → build grid → insert comment → pad to page. `encode()` writes the grid it is given; it does not lay out.
-- **Decoding.** `decode()` returns a `list[Rung]` (a list of one for a single-rung buffer), walks the variable-length cell grid, parses instruction blobs into domain objects, and decodes RTF comments to markdown. A blob that no parser accepts (unknown type, or a value no stored instruction holds, such as an address not in display form) becomes `RawInstruction` (AF) or an unknown condition, with its bytes kept; a stored value the field checks refuse decodes as the instruction, holding the refusal, with a `RefusedFieldWarning`; unchanged, it encodes as the blob it was decoded from (CLICK's, or one composed from SCR tags) and the cell rows; changed, it is checked again, and `encode()` refuses one read from CSV. The fields CLICK saves as typed (a Copy, Block Copy or Pack destination, Math formula addresses, a hex Math result: `DS001`, `ds1`, `YD0U`) are read in display form (`read_as_typed`), except an X or Y number typed short (`Y1`), and the instruction keeps the blob it was decoded from in the same way; typed text in any other field stays raw. A rung that can't be decoded (a down wire in the AF column, a cell that doesn't decode, a row the walk can't read, broken framing) becomes one undecoded marker rung with an `UndecodedRungWarning`; a comment that doesn't decode keeps the rung's logic, with an `UndecodedCommentWarning`; only a bad envelope (magic, size, SCR header) raises. `decode_program()` reads Click's `Scr*.tmp` program files (~17x smaller than the clipboard form) with the same instruction parsing and different framing.
-- **Instructions.** Each dataclass knows how to serialize itself: the grid loop calls `token.build_blob()` and `token.cell_params()`. `ConditionInstruction` and `AfInstruction` subclasses are recognized by isinstance dispatch.
-- **Operand rules.** A refused field raises `FieldError` (`AddressError` for an address) at construction; a decoder builds the instruction anyway and keeps the refusal (`operands/unchecked.py`). `tests/test_operand_guards.py` counts, in `instructions/`, each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` or a `laddercodec.errors` class outside blob parsing, against an allowlist; a new one fails the test, and an entry the code no longer has must be removed. `devtools/classify_dryrun.py` reports where the shared checks in `operands/checks.py`, called with each field's parameters, disagree with today's checks.
-- **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it; a rung CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).
+- **Encoding.** `encode()` accepts a `Rung` or `list[Rung]`. `encode_rung()` runs these steps: validate, compute metadata, build the grid, insert the comment, pad to a page. `encode()` writes the grid it is given. It does not lay out.
+- **Decoding.** `decode()` returns a `list[Rung]`, a list of one for a single-rung buffer. It walks the variable-length cell grid, parses instruction blobs into domain objects, and decodes RTF comments to markdown.
+  - A blob that no parser accepts becomes `RawInstruction` (AF) or an unknown condition, and its bytes are kept. That covers an unknown type, and a value that no stored instruction holds, such as an address that is not in display form.
+  - A stored value that the field checks refuse decodes as the instruction, which holds the refusal, with a `RefusedFieldWarning`. While you leave it unchanged, it encodes as the blob it was decoded from (CLICK's, or one composed from SCR tags) and the cell rows. If you change it, it is checked again. If it was read from CSV, `encode()` refuses it.
+  - CLICK saves some fields as typed: a Copy, Block Copy or Pack destination, the addresses in a Math formula, and a hex Math result (`DS001`, `ds1`, `YD0U`). `read_as_typed` reads these in display form, except an X or Y number typed short (`Y1`). The instruction keeps the blob it was decoded from in the same way. Typed text in any other field stays raw.
+  - A rung that can't be decoded becomes one undecoded marker rung with an `UndecodedRungWarning`. That covers a down wire in the AF column, a cell that doesn't decode, a row the walk can't read, and broken framing.
+  - A comment that doesn't decode keeps the rung's logic and gives an `UndecodedCommentWarning`.
+  - Only a bad envelope (magic, size, SCR header) raises.
+  - `decode_program()` reads Click's `Scr*.tmp` program files, which are about 17x smaller than the clipboard form. It parses instructions the same way and uses different framing.
+- **Instructions.** Each dataclass knows how to serialize itself. The grid loop calls `token.build_blob()` and `token.cell_params()`. Isinstance dispatch recognizes `ConditionInstruction` and `AfInstruction` subclasses.
+- **Operand rules.**
+  - A refused field raises `FieldError` at construction (`AddressError` for an address).
+  - A decoder builds the instruction anyway and keeps the refusal (`operands/unchecked.py`).
+  - `tests/test_operand_guards.py` counts three things in `instructions/` and compares the counts with an allowlist. They are each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` or a `laddercodec.errors` class outside blob parsing.
+  - A new one fails the test. Remove an allowlist entry when the code no longer has it.
+  - `devtools/classify_dryrun.py` calls the shared checks in `operands/checks.py` with each field's parameters. It reports where they disagree with today's checks.
+- **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it. A rung that CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).
 - **csv/.** `read_csv` takes a canonical CSV (33 columns: marker + A..AE + AF; wire tokens `T`, `-`, `|`, blank). `converter.py` handles pin rows (`.reset()` → retentive timers) and tall-instruction padding.
-- **Devtools.** `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs; `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV. `make editor-grids` writes `tests/fixtures/editor_grids/` (the cases ClickNick's runner types into CLICK's dialogs, with laddercodec's verdict on each) and checks the files. `make field-sweep` records, for a golden instruction new to `tests/fixtures/field_sweep/` (keyed by class name and CSV text), what odd field values do to it; `tests/test_field_sweep.py` lets a crash there become a refusal and nothing else. Agent tooling (BOB, the test-run guard) comes from the `bob` plugin; this repo's settings are in `.claude/bob/`.
+- **Devtools.**
+  - `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs.
+  - `devtools/compare_csv.py <dir>` compares an scr decode with its clipboard CSV.
+  - `make editor-grids` writes `tests/fixtures/editor_grids/` and checks the files. They hold the cases that ClickNick's runner types into CLICK's dialogs, with laddercodec's verdict on each.
+  - `make field-sweep` records what odd field values do to a golden instruction that is new to `tests/fixtures/field_sweep/` (keyed by class name and CSV text). `tests/test_field_sweep.py` lets a crash there become a refusal and nothing else.
+  - Agent tooling (BOB, the test-run guard) comes from the `bob` plugin. This repo's settings are in `.claude/bob/`.
 
 ## Tests
 
@@ -111,7 +138,7 @@ Fixtures are in `tests/fixtures/`:
 
 ## Golden Fixtures
 
-Ladder goldens are verified through a CLICK paste round-trip. Ground truth (native captures, `verify_progress.log` paste checks, CLICK's own DLLs and help files) is authoritative: never edit a ground-truth expectation to fit the code.
+Ladder goldens are verified through a CLICK paste round-trip. Ground truth is authoritative. It is the native captures, the `verify_progress.log` paste checks, and CLICK's own DLLs and help files. Nobody edits a ground-truth expectation to fit the code, and nobody edits CLICK's recorded answers.
 
 - Edit the golden `.csv`, then `make golden` (or `make coverage-golden`) regenerates the `.bin` and prunes the `verify_progress.log` entries of changed goldens.
 - `make test` fails if any golden lacks a `: worked` entry in `verify_progress.log`. A golden whose `.bin` changed needs a paste check in CLICK.
@@ -127,21 +154,21 @@ Other specs: [wire rendering](docs/internals/wire-rendering.md) (flag bytes, lef
 
 ## Validation Rules
 
-- T/| tokens rejected on the last row (vertical-down has nowhere to go)
-- T/| tokens rejected on column A
-- At most one NOP per rung (multiple NOPs render as tiny dots in Click)
-- Wire tokens are classified by (right, down) only; the segment flag is ignored on decode, and the encoder treats row 0 as exempt from segment-flag computation.
+- T/| tokens are rejected on the last row, because a vertical-down wire has nowhere to go.
+- T/| tokens are rejected on column A.
+- A rung has at most one NOP. Several NOPs render as tiny dots in Click.
+- Wire tokens are classified by (right, down) only. Decode ignores the segment flag. The encoder exempts row 0 from segment-flag computation.
 
 ## Important Patterns
 
-- **Rung preamble model.** Every rung has a 0x40-byte preamble at a fixed offset. Rung 0's is at 0x0260; rung N>0's is cell 0 of the preamble row preceding its data rows. Comment flag (+0x30), length (+0x34), and body (+0x38) live at the same offsets in every preamble.
-- **Payload push model.** The cell grid always lives at 0x0A60 in a no-payload buffer. A comment payload inserted into a preamble pushes everything after it forward. Wire flags written to cell grid positions before insertion land at the right absolute addresses after insertion — no special stride encoding needed.
-- **Buffer sizing for comments.** Truncate the base buffer to `GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE` before inserting the payload. This keeps the page-aligned final size consistent: `pad_to_page(minimal_end + payload_len)`.
-- **Comment max depends on row count.** Inserting > 1400-byte body is rejected outright. The practical per-row limit is determined by where `minimal_end + payload_len` crosses the next page boundary (e.g. 2-row: body ≤ 1324 bytes stays at 0x2000; 1325+ bumps to 0x3000).
+- **Rung preamble model.** Every rung has a 0x40-byte preamble at a fixed offset. Rung 0's is at 0x0260. For rung N>0, the preamble is cell 0 of the preamble row before its data rows. The comment flag (+0x30), length (+0x34) and body (+0x38) are at the same offsets in every preamble.
+- **Payload push model.** In a no-payload buffer the cell grid always lives at 0x0A60. A comment payload that you insert into a preamble pushes everything after it forward. Wire flags that you write to cell grid positions before the insertion land at the right absolute addresses after it. No special stride encoding is needed.
+- **Buffer sizing for comments.** Truncate the base buffer to `GRID_FIRST_ROW_START + rows * GRID_ROW_STRIDE` before you insert the payload. That keeps the page-aligned final size consistent: `pad_to_page(minimal_end + payload_len)`.
+- **Comment max depends on row count.** Inserting a body of more than 1400 bytes is rejected outright. The practical limit for each row count is where `minimal_end + payload_len` crosses the next page boundary. For 2 rows, a body of up to 1324 bytes stays at 0x2000, and 1325 bytes or more bumps it to 0x3000.
 - **Empty multi-row payload length** is `0x1000 * (ceil((rows+1)/2) + 1)` for 1–32 rows.
-- **Native captures are the ground truth.** When something doesn't work, capture a native rung with the same shape and diff against synthetic.
-- **RE-first.** Understand the format through native captures and byte-level diffing before building a decode layer. The encoder writes bytes directly from verified formulas, with no abstraction over structure that is not understood.
-- **Cross-version CLICK.** Each CLICK version accepts the other's blob form and copies back its own; keep the v3 encoding for instructions both versions share.
+- **Native captures are the ground truth.** When something doesn't work, capture a native rung with the same shape and diff it against the synthetic one.
+- **RE-first.** Understand the format through native captures and byte-level diffing before you build a decode layer. The encoder writes bytes directly from verified formulas. It puts no abstraction over structure that is not understood.
+- **Cross-version CLICK.** Each CLICK version accepts the other's blob form and copies back its own. Keep the v3 encoding for instructions that both versions share.
 
 ## Adding Instruction Support
 

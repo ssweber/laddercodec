@@ -117,14 +117,14 @@ accepts the skipped code. CLICK v4 pastes it, then fails the syntax check with
 C000A ("All inputs of the box instruction must originate from the same branch")
 until the drum is reopened and OK'd (`v4_captures/drum_jog.bin`).
 
-`0x428A` marks which presets are constants: bit *n* is cleared when step *n*'s
+`0x428A` marks which presets are constants. Bit *n* is cleared when step *n*'s
 preset is a register, so all-constant is `-1` and `presets=[DS1,DS2]` is `-4`.
-CLICK v4 computes it on OK. A time drum with any register
-preset then takes the func code series 1792 codes up (Tms 10247/10248, Th jog
-10272…); time & event drums keep the 10503 series either way. A paste keeps the
-field as written and treats a missing one as `-1`, so a 64-field time drum with
-a register preset would paste as an 8455-series drum, a state the dialog never
-writes; the encoder gives such drums the 82-field layout.
+CLICK v4 computes it on OK. A time drum with any register preset then takes the
+func code series 1792 codes up (Tms 10247/10248, Th jog 10272…). Time & event
+drums keep the 10503 series either way. A paste keeps the field as written and
+treats a missing one as `-1`. So a 64-field time drum with a register preset would
+paste as an 8455-series drum, a state that the dialog never writes. The encoder
+gives such drums the 82-field layout.
 
 ## Break and Continue (CLICK v4)
 
@@ -158,66 +158,93 @@ A single Copy (class `Copy`, type 0x2721, `0x2223` = 0) holds its conversion in 
 | `7` | a value converted between a real and a 32-bit integer |
 | `8` | a binary copy |
 
-CLICK saves type `7` for a copy between DF and DD or CTD (either way, addresses, and a DF,
-DD or CTD pointer source such as `DF[DS1]` into DD1), for a real constant into DD or CTD (an
-address or a pointer), and for an integer constant outside int16 into DF (an address or a
-pointer: `32768`, `-32769`, `65535`, `65536`, `2147483647`). A real into DS, DH, TD, YD or
-DF, an integer into DD, and `5`, `-5`, `32767`, `-32768`, `FFh`, `FFFFh` or `0FFFFh` into
-DF keep type `0`, the hex source as typed. The type follows the bank pair, a pointer
-on either side: CLICK saves `DF1` into `CTD[DS1]` as type `7`. The encoder writes the
-same. CLICK refuses `10000h` into DF1 (OBJ-024), as laddercodec does.
+CLICK saves type `7` in these cases:
 
-For each pair CLICK saves as type `7`, its dialog also offers Copy Binary, saved as type `8`
-with `0x2206` = 1, a pointer on either side included (`DF[DS1]` into `CTD1`, `CTD1` into
-`DF[DS1]`); the encoder writes that for `convert=to_binary`.
+- a copy between DF and DD or CTD, either way. This holds for addresses, and for a DF, DD
+  or CTD pointer source such as `DF[DS1]` into DD1.
+- a real constant into DD or CTD (an address or a pointer)
+- an integer constant outside int16 into DF (an address or a pointer: `32768`, `-32769`,
+  `65535`, `65536`, `2147483647`)
+
+These keep type `0`: a real into DS, DH, TD, YD or DF, an integer into DD, and `5`, `-5`,
+`32767`, `-32768`, `FFh`, `FFFFh` or `0FFFFh` into DF. The hex source is kept as typed.
+
+The type follows the bank pair, with a pointer on either side. CLICK saves `DF1` into
+`CTD[DS1]` as type `7`. The encoder writes the same. CLICK refuses `10000h` into DF1
+(OBJ-024), as laddercodec does.
+
+For each pair that CLICK saves as type `7`, its dialog also offers Copy Binary. CLICK saves
+it as type `8` with `0x2206` = 1, with a pointer on either side too (`DF[DS1]` into `CTD1`,
+`CTD1` into `DF[DS1]`). The encoder writes that for `convert=to_binary`.
 
 CLICK keeps 7 significant digits of a real constant: `3.4028235E+38` is saved as
-`3.402823E+38`, into DF1 and into TXT1 alike. laddercodec refuses a real typed with more,
-and the message names the constant of 7 digits to write.
+`3.402823E+38`, into DF1 and into TXT1 alike. laddercodec rejects a real typed with more.
+The message names the constant of 7 digits to write.
 
-A number constant or register copied into TXT needs a converter: CLICK's dialog saves Copy
-Value as text, by default with suppress zero (type `1`) or, for a real or DF source,
-real numbering (type `3`), or Copy Binary, never type `0`, and
-laddercodec refuses a plain copy. A number constant copied into a TXT address is written as
-its text, one TXT a character, and CLICK saves the end it fills, counted on the constant as stored, `h` and a `+`
-included: `-5`, `1h` and `+5` into TXT1 end in TXT2, `10h` and `1.5` in TXT3, `0FFh` in
-TXT4, `FFFFh` in TXT5, `2147483647` in TXT10. One character (`5`) and a pointer
-(`TXT[DS1]`) have no end, as for quoted text. An end past TXT1000 is refused (OBJ-003), as
-for quoted text: `-5` into TXT1000 would end in TXT1001. The type is `1` or `2` for an
-integer or hex constant and `3` (real numbering) or `4` (exponential numbering, with
-`0x2206` = 1) for a real (`1.5` into TXT1 ends in TXT3 either way, `3.402823E+38` in
-TXT12). `123` into TXT1 with zeros kept saves type `2`, `0x2206` = 1 and end TXT3. The
-encoder writes the same. Decode reads a number with its end or with none.
+A number constant or register copied into TXT needs a converter. CLICK's dialog saves Copy
+Value as text, or Copy Binary. It never saves type `0` here. Copy Value as text is by
+default with suppress zero (type `1`), or, for a real or DF source, with real numbering
+(type `3`). laddercodec rejects a plain copy.
 
-CLICK's Copy dialog offers real or exponential numbering, and no suppress zero, for a DF
-address, a DF pointer (`DF[DS1]`) or a real constant copied to text, and suppress zero or
-not for any other source, a DD or DS pointer included. A pointer source saves no end.
-Decode reads type `4` only for such a source.
+A number constant copied into a TXT address is written as its text, one TXT register for
+each character. CLICK saves the end that the text fills. It counts the constant as stored,
+so an `h` and a `+` count. Into TXT1:
+
+- `-5`, `1h` and `+5` end in TXT2
+- `10h` and `1.5` end in TXT3
+- `0FFh` ends in TXT4
+- `FFFFh` ends in TXT5
+- `2147483647` ends in TXT10
+
+One character (`5`) and a pointer (`TXT[DS1]`) have no end, as for quoted text. An end past
+TXT1000 is refused (OBJ-003), as for quoted text. For example, `-5` into TXT1000 would end
+in TXT1001.
+
+The type is `1` or `2` for an integer or hex constant. It is `3` (real numbering) or `4`
+(exponential numbering, with `0x2206` = 1) for a real. `1.5` into TXT1 ends in TXT3 either
+way, and `3.402823E+38` ends in TXT12. `123` into TXT1 with zeros kept saves type `2`,
+`0x2206` = 1 and end TXT3. The encoder writes the same. Decode reads a number with its end
+or with none.
+
+For text, CLICK's Copy dialog offers:
+
+- real or exponential numbering, and no suppress zero, for a DF address, a DF pointer
+  (`DF[DS1]`) or a real constant
+- suppress zero or not, for any other source, including a DD or DS pointer
+
+A pointer source saves no end. Decode reads type `4` only for a DF address, a DF pointer or
+a real constant.
 
 For a TXT register or pointer copied to a number register, CLICK's dialog asks for the
-character's value (type `5`, `0x2206` = 0) or its ASCII code (type `6`, `0x2206` = 1) and
-offers no suppress zero; for TXT into DF it offers neither, and saves type `0`. For TXT
-copied to TXT it offers a
-termination code alone: tag `0x1221` is its flag and `0x3216` the code in decimal (`$0D` is
-`13`). The clipboard holds `0x3216` = `0` for `$00`; the program file leaves `0x3216` out,
-and decode reads a set flag with no `0x3216` as `$00`. A Block Copy (`0x2223` = 1) of TXT
-into TXT holds its code in the same two tags. CLICK v4 sets the text flag `0x1201` on every
-Copy it saves and ignores it on load; the encoder sets it for a termination code or a text
-constant. Captures: `tests/fixtures/v4_captures/copy_txt/`.
+character's value (type `5`, `0x2206` = 0) or its ASCII code (type `6`, `0x2206` = 1). It
+offers no suppress zero. For TXT into DF it offers neither, and CLICK saves type `0`.
 
-Quoted text keeps its characters as typed, any 16-bit character but NUL and a surrogate
-(`"é"`, a tab, `"€"`, U+0001), stored in UTF-16LE and ended by a NUL; write NUL as
-`$00`. A quoted text or `$hh` source has no conversion type, and a source that is not a
-real or DF has no real numbering (type `3` or `4`): decode leaves such a save raw.
-CLICK's dialog saves the end the text fills (`"HALLO"` into
-TXT1 ends in TXT5); its paste keeps the text and drops `0x6077`, even from its own
-clipboard. Decode reads quoted text with its end or with none, and keeps the OBJ-003
-refusal for text past TXT1000; the encoder writes the end. Captures:
-`tests/fixtures/v4_captures/copy_forms/`.
+For TXT copied to TXT, the dialog offers a termination code alone. Tag `0x1221` is its flag,
+and `0x3216` is the code in decimal (`$0D` is `13`). The clipboard holds `0x3216` = `0` for
+`$00`. The program file leaves `0x3216` out, and decode reads a set flag with no `0x3216` as
+`$00`. A Block Copy (`0x2223` = 1) of TXT into TXT holds its code in the same two tags.
 
-A decoded single Copy whose `0x2227` and `0x6077` differ from what the encoder writes for
-its fields, or whose save is a type `7` or `8` other than DD to or from DF or a number with
-an end, writes the blob it was decoded from while it is unchanged.
+CLICK v4 sets the text flag `0x1201` on every Copy it saves, and ignores it on load. The
+encoder sets it for a termination code or a text constant. Captures:
+`tests/fixtures/v4_captures/copy_txt/`.
+
+Quoted text keeps its characters as typed. It can be any 16-bit character except NUL and a
+surrogate (`"é"`, a tab, `"€"`, U+0001). It is stored in UTF-16LE and ended by a NUL. Write
+NUL as `$00`.
+
+A quoted text or `$hh` source has no conversion type. A source that is not a real or DF has
+no real numbering (type `3` or `4`). Decode leaves such a save raw.
+
+CLICK's dialog saves the end that the text fills (`"HALLO"` into TXT1 ends in TXT5). Its
+paste keeps the text and drops `0x6077`, even from its own clipboard. Decode reads quoted
+text with its end or with none, and keeps the OBJ-003 refusal for text past TXT1000. The
+encoder writes the end. Captures: `tests/fixtures/v4_captures/copy_forms/`.
+
+A decoded single Copy writes the blob it was decoded from while you leave it unchanged, if
+either of these holds:
+
+- its `0x2227` and `0x6077` differ from what the encoder writes for its fields
+- its save is a type `7` or `8` other than DD to or from DF, or a number with an end
 
 ## Math formulas
 
@@ -270,9 +297,9 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 
 1. **Tokenizer.** Tokens are split by spaces and tabs (no other white space)
    and by `+ - * / ^ ( ) , : [ ]`. A run of digits followed by `.`, `E` or `e` is
-   cut at the end of the longest real number it starts, so `1.5E+10` is one
-   token and hex `1Eh` is `1` then `Eh`. A hex constant typed `1e3` is stored
-   `1E3h` (`UH483`), which this rule would cut as `1E3` then `h`; laddercodec
+   cut at the end of the longest real number that it starts. So `1.5E+10` is one
+   token, and hex `1Eh` is `1` then `Eh`. A hex constant typed `1e3` is stored
+   `1E3h` (`UH483`). This rule would cut it as `1E3` then `h`. laddercodec
    reads a word cut before a lone `h` as hex, so the stored formula decodes.
 2. **Keywords.** The names on the two keypads (`SIN` ... `RRO`, `PI`, `MOD`,
    `AND`, `OR`, `XOR`); everything else is an address, a constant or a word.
@@ -282,16 +309,17 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
 5. **Sign merge** (decimal only): at the start, after `(` and after `,`, a `-` or
    `+` joins the number after it (`( + 5 )` is `+5`, stored `H+5`,
    `v4_captures/math_unary_plus_pi.bin`). Nowhere else, and never in hex.
-6. **Constants.** Decimal: an integer whose low 32 bits print back with `%d` (a
-   typed `+` kept) at the typed length, or a real whose value, read as a double, is at
-   most float32's largest, 3.402823466E+38, in size (`3.4028235E+38`, which float32
-   rounds to that value, is refused with OBJ-1009). CLICK keeps 6 significant digits of
-   a real (`0.33333334` is saved as `0.333333`); laddercodec refuses a real typed with
-   more, naming the constant of 6 digits to write (`3.40282E+38` for float32's largest). Hex: CLICK
-   uppercases the word and deletes its first `H`, wherever it is, then takes 1 to
-   4 hex digits, so it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as `77h`.
-   laddercodec takes only 1 to 4 hex digits followed by `h` or `H`, and refuses
-   `7` and `1e3` naming the `h` form to write, and `7H7`.
+6. **Constants.**
+   - Decimal: an integer whose low 32 bits print back with `%d` (a typed `+` kept) at
+     the typed length, or a real whose value, read as a double, is at most float32's
+     largest, 3.402823466E+38, in size. `3.4028235E+38`, which float32 rounds to that
+     value, is refused with OBJ-1009. CLICK keeps 6 significant digits of a real
+     (`0.33333334` is saved as `0.333333`). laddercodec rejects a real typed with more,
+     and names the constant of 6 digits to write (`3.40282E+38` for float32's largest).
+   - Hex: CLICK uppercases the word and deletes its first `H`, wherever it is. Then it
+     takes 1 to 4 hex digits. So it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as
+     `77h`. laddercodec takes only 1 to 4 hex digits followed by `h` or `H`. It rejects
+     `7` and `1e3` and names the `h` form to write. It also rejects `7H7`.
 7. **Words** are refused (`FOO`), and so is a bracket. CLICK takes a pointer
    here; laddercodec refuses one.
 8. **Mode.** A hex formula refuses the decimal keypad's keys (`SIN` ... `DEG`,
@@ -322,14 +350,16 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
      in `math_unary_plus_pi.bin`). laddercodec also refuses a `:` outside a range
      function.
 
-Each address must lie inside its bank's range (`DS1 + DS0` is refused). The
-internal template (`0x6229`) holds at most 270 characters. A `RAND` bound is a
-DS or DD register or an integer in a decimal formula, and a DH register or a hex
-constant in a hex one (OBJ-1002 for another bank, OBJ-1001 for a real); its two
-bounds differ (OBJ-1001). A range `a : b` stays in one bank (OBJ-1015) and runs
-low to high (OBJ-1014); CLICK refuses those before an address in a bank the
-mode does not take (OBJ-1002), so `SUM ( DH2 : DH1 )` in a decimal formula is
-OBJ-1014.
+These limits apply:
+
+- Each address must lie inside its bank's range (`DS1 + DS0` is refused).
+- The internal template (`0x6229`) holds at most 270 characters.
+- A `RAND` bound is a DS or DD register or an integer in a decimal formula, and a DH
+  register or a hex constant in a hex one (OBJ-1002 for another bank, OBJ-1001 for a real).
+  Its two bounds differ (OBJ-1001).
+- A range `a : b` stays in one bank (OBJ-1015) and runs low to high (OBJ-1014). CLICK
+  refuses those before an address in a bank the mode does not take (OBJ-1002). So
+  `SUM ( DH2 : DH1 )` in a decimal formula is OBJ-1014.
 
 ### Operand and reserved slots
 
@@ -344,8 +374,8 @@ An `XD` or `YD` range also lists the upper half of address 0:
 `MAX ( XD0 : XD3 )` stores XD0u, XD1 and XD2.
 
 An `X` or `Y` range lists only points that exist (1-16, 21-36, 101-116 ...
-801-816), and an end in the CPU's option slot (21-36) counts as numbered right
-after the CPU slot, 4 less than its number. The range lists each point whose
+801-816). An end in the CPU's option slot (21-36) counts as numbered right
+after the CPU slot, which is 4 less than its number. The range lists each point whose
 number lies strictly between the two counted ends:
 
 | Range | Counted ends | Reserved slots |
@@ -359,24 +389,29 @@ number lies strictly between the two counted ends:
 
 This rule is fitted to the thirteen X and Y ranges of
 `v4_captures/math_ranges_x_t.bin`, `math_ranges_xy_slots.bin`,
-`math_ranges_xy_slots2.bin` and `math_ranges_x25_x101.bin`, typed in a C2-03CPU
-project with no I/O modules;
-it is not read from CLICK's code. They include ranges with both ends in the
-option slot (`X025 : X026`, `X025 : X027`), a range ending at X021, one between
-two expansion slots (`X101 : X201`, which lists X102..X116) and two Y ranges,
-which follow the same rule as X, and one that starts in the option slot past
-X021 and ends in another slot (`X025 : X101`). None spans more than two
-expansion slots, and no Y range starts in the option slot.
+`math_ranges_xy_slots2.bin` and `math_ranges_x25_x101.bin`. They were typed in a
+C2-03CPU project with no I/O modules. The rule is not read from CLICK's code. The
+ranges include:
 
-The list for `X001 : X036` leaves out X032..X035, the list for
-`X021 : X116` holds X021, an endpoint, and the list for `X025 : X027` holds
-X022 in place of X026. laddercodec refuses a Math with an X or Y range that has
-an end in the option slot, except a range from the CPU slot to X021, a range of
-one point, and a range of two points numbered one apart (`X025 : X026`;
-`X036 : X101` is refused). The refused ranges are the ones whose list by this
-rule is not every point strictly between their ends. A stored Math with a
-refused range, CLICK's own included, decodes as that Math
-with a `RefusedFieldWarning`, and encodes as its stored bytes while unchanged.
+- ranges with both ends in the option slot (`X025 : X026`, `X025 : X027`)
+- a range ending at X021
+- one between two expansion slots (`X101 : X201`, which lists X102..X116)
+- two Y ranges, which follow the same rule as X
+- one that starts in the option slot past X021 and ends in another slot
+  (`X025 : X101`)
+
+None spans more than two expansion slots, and no Y range starts in the option slot.
+
+The list for `X001 : X036` leaves out X032..X035. The list for `X021 : X116` holds X021,
+an endpoint. The list for `X025 : X027` holds X022 in place of X026.
+
+laddercodec rejects a Math with an X or Y range that has an end in the option slot. It
+accepts three exceptions: a range from the CPU slot to X021, a range of one point, and a
+range of two points numbered one apart (`X025 : X026`; `X036 : X101` is rejected). The
+rejected ranges are the ones whose list by this rule is not every point strictly between
+their ends. A stored Math with a rejected range, CLICK's own included, decodes as that
+Math with a `RefusedFieldWarning`. It encodes as its stored bytes while you leave it
+unchanged.
 
 CLICK v4 copies Math back with 5000 reserved slots, not 500, for 5510 fields.
 A 500-slot blob still pastes into both v3 and v4, so the encoder writes 500
