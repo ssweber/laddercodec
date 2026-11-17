@@ -52,11 +52,18 @@ Key cell field differences from single-rung
               preamble rows   all cols:  rung_idx+1
     +0x3D   0 on data row col31; 1 on preamble col31  (untested, kept)
 
-CLICK also writes these fields.  They are cosmetic, and the encoder does
-not write them:
-    +0x0B = 0x30   multi-rung marker on every cell
-    +0x15 = 1      rung-start flag on col0 of rung rows
-    PH+0x17 = 0x30 multi-rung type flag in program header
+The encoder does not copy CLICK's values for these bytes, in a single-rung
+or a multi-rung buffer:
+
+    +0x0B, +0x0C   Cell header.  CLICK's values vary from cell to cell.
+                   The encoder writes 0x00 at +0x0B, and at +0x0C the
+                   value that ``cell.py`` sets.  The decoder reads
+                   neither byte.
+    +0x15          Cell header.  CLICK writes 1 in column A of almost
+                   every rung's first row.  The encoder writes 1 only
+                   where ``ClickCell.build_header`` sets it.
+    PH+0x17        Program header.  CLICK's value varies from buffer to
+                   buffer.  The encoder writes 0x40, the template's value.
 
 The encoder writes bytes +0x01..+0x04 of the terminal row to match
 CLICK's, although no test shows whether CLICK needs them.  CLICK finds
