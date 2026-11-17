@@ -188,6 +188,27 @@ def test_formula_refused_word_reads_on_as_what_it_looks_like() -> None:
     ]
 
 
+def test_formula_rand_refuses_each_bound_then_its_banks() -> None:
+    """A real bound and equal bounds come before a bound's bank; each is one refusal.  A bound
+    refused while it was read (DS0) is not checked again."""
+    assert _shape(_formula("RAND ( DF1 , DF1 )")) == [
+        (_EXPR, "form", "OBJ-1001"),
+        (_EXPR, "bank", "OBJ-1002"),
+        (_EXPR, "bank", "OBJ-1002"),
+    ]
+    assert _shape(_formula("RAND ( 1.5 , 1.5 )")) == [
+        (_EXPR, "kind", "OBJ-1001"),
+        (_EXPR, "kind", "OBJ-1001"),
+        (_EXPR, "form", "OBJ-1001"),
+    ]
+    assert _shape(_formula("RAND ( TD1 , 1.5 ) + RAND ( DS0 , DS0 )")) == [
+        (_EXPR, "address", None),
+        (_EXPR, "address", None),
+        (_EXPR, "kind", "OBJ-1001"),
+        (_EXPR, "bank", "OBJ-1002"),
+    ]
+
+
 def test_formula_refused_address_is_not_checked_again() -> None:
     """DS0 is refused once, not again as the end of a range running high to low."""
     assert _shape(_formula("SUM ( DS5 : DS0 )")) == [(_EXPR, "address", None)]
@@ -373,6 +394,12 @@ def test_formula_length_is_checked_only_without_a_refused_constant() -> None:
         ("SUM ( DS5 : DS1 )", "decimal", "form", "OBJ-1014"),
         ("MDN ( DS1 : DS900 )", "decimal", "range", "OBJ-1013"),
         ("SUM ( X001 : X036 )", "decimal", "range", None),
+        # A RAND bound: its bank, a real constant, equal bounds.
+        ("RAND ( DF1 , 10 )", "decimal", "bank", "OBJ-1002"),
+        ("RAND ( XD0 , Ah )", "hex", "bank", "OBJ-1002"),
+        ("RAND ( 1.5 , 10 )", "decimal", "kind", "OBJ-1001"),
+        ("RAND ( 1 , 1 )", "decimal", "form", "OBJ-1001"),
+        ("RAND ( DH1 , DH1 )", "hex", "form", "OBJ-1001"),
         # The length.
         (_LONG, "decimal", "range", "OBJ-1008"),
     ],

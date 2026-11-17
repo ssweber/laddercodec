@@ -113,7 +113,7 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       `SUM`.
     - The `math_hex` and `math_decimal` answers confirm both tables in every position (alone, beside a
       constant, a range end, a `SUM`), XD and YD in hex and DH, XD, YD, TXT and CT in decimal included,
-      except a RAND bound (follow-ups, below).
+      except a RAND bound, which takes fewer banks (RAND bounds, below).
     - A `SUM` whose ends are reversed is OBJ-1014, and one whose ends are in two banks OBJ-1015, ahead of
       OBJ-1002 for a refused bank (`SUM ( DH2 : DH1 )`, `SUM ( X001 : TXT2 )`); the rules give OBJ-1002.
   - An edge space is accepted in Math's result and formula, Copy's source and destination, a Block source, a
@@ -174,9 +174,18 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   - Hex Math words without `h` stay refused (Settled), but a word shaped like an address (`C0`, `DD0`,
     `DF0`, `DH0`, `DH501`, alone, beside `+ 1h` or as a RAND bound) is refused as outside its bank's range.
     That message is to name the `h` form (`C0h`, `D0h`), as the message for `5` or `abc` does.
-  - RAND bounds: a bound in DF, TD, CTD or SD (decimal) or in XD or YD (hex, each spelling) is OBJ-1002;
-    equal bounds (`RAND(1,1)`, `RAND(DH1,DH1)`) and a real bound (`RAND(1.5,10)`) are OBJ-1001. The rules
-    accept all of them.
+  - RAND bounds (closed): one table per mode in `math_formula._OPERANDS`. A decimal bound is a DS or DD
+    register or an integer constant, a hex bound a DH register or a hex constant; any other bank is
+    OBJ-1002, a real bound and equal bounds OBJ-1001, as the answers give. Open (CLICK):
+    - Are bounds equal by their text or their value? The rules take the narrowest reading: the same text
+      in display form, so `RAND(1h,01h)` and `RAND(DS1,ds1)` are refused and `RAND(1,+1)` is taken.
+      `RAND(1,01)` is refused anyway (leading zeros, OBJ-1009) and `RAND(DS1,DS 1)` by its shape.
+    - Which id comes first where one RAND has two refusals: `RAND(DF1,DF1)`, `RAND(DF1,1.5)`? The rules
+      give the real bound and equal bounds (OBJ-1001) before a bound's bank (OBJ-1002).
+    - A hex `RAND(-5,Ah)` is OBJ-1001; the rules refuse `-5` with no id for its missing `h` (Settled), then
+      give OBJ-1001 for the shape.
+    - Do the shift and rotate arguments (`LSH ( XD0 , 1h )`) take XD and YD, as the rules do? No answer
+      covers them.
   - `3.4028235E+38` in a decimal Math, alone or as an operand, is OBJ-1009; the rules accept it. A Copy
     source takes it (`3.4028236E+38` is OBJ-005 there).
   - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (above).

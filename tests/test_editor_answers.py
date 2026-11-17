@@ -82,12 +82,6 @@ EDGE_SPACE_KEPT = (
 )
 
 # Math (roadmap item 3, except where marked).
-RAND_BANK = (
-    "to do: a RAND bound in a bank CLICK refuses there (DF, TD, CTD and SD in decimal, XD and "
-    "YD in hex) is OBJ-1002; the rules accept it"
-)
-RAND_EQUAL = "to do: equal RAND bounds are OBJ-1001; the rules accept them"
-RAND_REAL = "to do: a real RAND bound is OBJ-1001; the rules accept it"
 FLOAT_EDGE = "to do: the constant 3.4028235E+38 in a decimal Math is OBJ-1009; the rules accept it"
 SUM_ORDER = (
     "to do: a SUM whose ends are reversed is OBJ-1014, over a bank the mode refuses too; the "
@@ -289,87 +283,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "hex DH1 = RAND(DH0,Ah)",
             "hex DH1 = RAND(DH501,Ah)",
             "hex DH1 = abc",
-        ),
-    ),
-    (
-        RAND_BANK,
-        "math_decimal",
-        "outcome",
-        (
-            "dec DS1 = RAND(1,CTD1)",
-            "dec DS1 = RAND(1,CTD250)",
-            "dec DS1 = RAND(1,DF1)",
-            "dec DS1 = RAND(1,DF500)",
-            "dec DS1 = RAND(1,SD1)",
-            "dec DS1 = RAND(1,SD1000)",
-            "dec DS1 = RAND(1,TD1)",
-            "dec DS1 = RAND(1,TD500)",
-            "dec DS1 = RAND(CTD1,10)",
-            "dec DS1 = RAND(CTD250,10)",
-            "dec DS1 = RAND(DF1,10)",
-            "dec DS1 = RAND(DF500,10)",
-            "dec DS1 = RAND(SD1,10)",
-            "dec DS1 = RAND(SD1000,10)",
-            "dec DS1 = RAND(TD1,10)",
-            "dec DS1 = RAND(TD500,10)",
-        ),
-    ),
-    (
-        RAND_BANK,
-        "math_hex",
-        "outcome",
-        (
-            "hex DH1 = RAND(1h,XD0)",
-            "hex DH1 = RAND(1h,XD00)",
-            "hex DH1 = RAND(1h,XD0U)",
-            "hex DH1 = RAND(1h,XD0u)",
-            "hex DH1 = RAND(1h,XD1)",
-            "hex DH1 = RAND(1h,XD8)",
-            "hex DH1 = RAND(1h,YD0)",
-            "hex DH1 = RAND(1h,YD00)",
-            "hex DH1 = RAND(1h,YD0U)",
-            "hex DH1 = RAND(1h,YD0u)",
-            "hex DH1 = RAND(1h,YD1)",
-            "hex DH1 = RAND(1h,YD8)",
-            "hex DH1 = RAND(XD0,Ah)",
-            "hex DH1 = RAND(XD00,Ah)",
-            "hex DH1 = RAND(XD0U,Ah)",
-            "hex DH1 = RAND(XD0u,Ah)",
-            "hex DH1 = RAND(XD1,Ah)",
-            "hex DH1 = RAND(XD8,Ah)",
-            "hex DH1 = RAND(YD0,Ah)",
-            "hex DH1 = RAND(YD00,Ah)",
-            "hex DH1 = RAND(YD0U,Ah)",
-            "hex DH1 = RAND(YD0u,Ah)",
-            "hex DH1 = RAND(YD1,Ah)",
-            "hex DH1 = RAND(YD8,Ah)",
-        ),
-    ),
-    (
-        RAND_EQUAL,
-        "math_decimal",
-        "outcome",
-        (
-            "dec DS1 = RAND(1,1)",
-            "dec DS1 = RAND(DS1,DS1)",
-        ),
-    ),
-    (
-        RAND_EQUAL,
-        "math_hex",
-        "outcome",
-        (
-            "hex DH1 = RAND(1h,1h)",
-            "hex DH1 = RAND(DH1,DH1)",
-        ),
-    ),
-    (
-        RAND_REAL,
-        "math_decimal",
-        "outcome",
-        (
-            "dec DS1 = RAND(1,1.5)",
-            "dec DS1 = RAND(1.5,10)",
         ),
     ),
     (
@@ -758,7 +671,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 2768
+CODES_COMPARED = 2814
 
 
 @pytest.fixture(scope="module")

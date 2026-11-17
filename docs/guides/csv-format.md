@@ -747,6 +747,18 @@ currently emit:
     TXT register into a DS first, or use a hex `math` for a DH, XD or YD value;
     pack CT bits into a DH, then copy the DH into a DS or use it in a hex
     `math`.
+- A bound of `RAND ( a , b )` takes fewer values than the rest of the formula:
+  - In a decimal formula, a DS or DD register or an integer constant
+    (`RAND ( -5 , DD1 )`). A DF, TD, CTD or SD register is refused
+    (`RAND ( DF1 , 10 )`), and so is a real constant (`RAND ( 1.5 , 10 )`):
+    copy the register into a DS or DD first.
+  - In a hex formula, a DH register or a hex constant (`RAND ( DH1 , FFh )`).
+    An XD or YD register is refused (`RAND ( XD0 , Ah )`): copy it into a DH
+    first.
+  - The two bounds differ: `RAND ( 1 , 1 )` and `RAND ( DH1 , DH1 )` are
+    refused. Bounds are equal when they read the same as CLICK shows them
+    (`01h` is `1h`, `ds1` is `DS1`), so `RAND ( 1h , 01h )` is refused and
+    `RAND ( 1 , +1 )` is taken. Reversed bounds are taken (`RAND ( 10 , 1 )`).
 - A `math` formula is at most 270 characters as CLICK stores it: a sum of 68
   addresses fits, 69 does not; constants, functions and parentheses count too.
 - A `math` formula is read as CLICK's Math dialog reads it, and one CLICK would

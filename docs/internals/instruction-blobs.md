@@ -243,7 +243,10 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
      function.
 
 Each address must lie inside its bank's range (`DS1 + DS0` is refused). The
-internal template (`0x6229`) holds at most 270 characters.
+internal template (`0x6229`) holds at most 270 characters. A `RAND` bound is a
+DS or DD register or an integer in a decimal formula, and a DH register or a hex
+constant in a hex one (OBJ-1002 for another bank, OBJ-1001 for a real); its two
+bounds differ (OBJ-1001).
 
 ### Operand and reserved slots
 
