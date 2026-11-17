@@ -176,19 +176,24 @@ _REFUSED = [
         "SUM ( X001 : X036 )",
         "DS9",
         "decimal",
-        "Math.expression: SUM \\( X001 : X036 \\) is refused; an X range may not start or end "
-        "in X021-X036, except a range from X001-X016 to X021, a range of one point, or a range "
-        "of two points numbered one apart: on a CPU with no I/O modules, CLICK stores the "
-        "wrong points for any other such range",
+        "Math.expression: SUM \\( X001 : X036 \\) is refused: X036 is in the "
+        "option slot \\(X021-X036\\), and CLICK sums the wrong bits for this range\\.",
     ),
     (
-        "SUM ( Y001 : Y036 )",
+        "SUM ( Y016 : Y022 )",
         "DS9",
         "decimal",
-        "a Y range may not start or end in Y021-Y036, .* Y001-Y016 to Y021",
+        "SUM \\( Y016 : Y022 \\) is refused: Y022 is in the option slot \\(Y021-Y036\\), and "
+        "CLICK sums the wrong bits for this range\\.",
     ),
-    ("SUM ( X021 : X116 )", "DS9", "decimal", "SUM \\( X021 : X116 \\) is refused; an X range"),
-    ("SUM ( X025 : X036 )", "DS9", "decimal", "SUM \\( X025 : X036 \\) is refused"),
+    ("SUM ( Y001 : Y036 )", "DS9", "decimal", "refused: Y036 is in the option slot"),
+    ("SUM ( X021 : X116 )", "DS9", "decimal", "refused: X021 is in the option slot"),
+    (
+        "SUM ( X025 : X036 )",
+        "DS9",
+        "decimal",
+        "SUM \\( X025 : X036 \\) is refused: X025 and X036 are in the option slot",
+    ),
     ("SUM ( X036 : X101 )", "DS9", "decimal", "SUM \\( X036 : X101 \\) is refused"),
     ("SUM ( X016 : X022 )", "DS9", "decimal", "SUM \\( X016 : X022 \\) is refused"),
     ("SUM ( Y021 : Y023 )", "DS9", "decimal", "SUM \\( Y021 : Y023 \\) is refused"),

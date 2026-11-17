@@ -771,15 +771,13 @@ def _check_xy_range(function: str, bank: str, start: int, end: int) -> FieldErro
         return None
     if end - start <= 1 or (start <= _CPU_SLOT[1] and end == first):
         return None
-    cpu_first, cpu_last = (Address(bank, n).display for n in _CPU_SLOT)
     first_shown, last_shown = Address(bank, first).display, Address(bank, last).display
-    article = "an" if bank == "X" else "a"
+    inside = [Address(bank, n).display for n in (start, end) if first <= n <= last]
+    where = f"{inside[0]} is" if len(inside) == 1 else f"{inside[0]} and {inside[1]} are"
     return _error(
         f"{function} ( {Address(bank, start).display} : {Address(bank, end).display} ) is "
-        f"refused; {article} {bank} range may not start or end in {first_shown}-{last_shown}, "
-        f"except a range from {cpu_first}-{cpu_last} to {first_shown}, a range of one point, "
-        f"or a range of two points numbered one apart: on a CPU with no I/O modules, CLICK "
-        f"stores the wrong points for any other such range",
+        f"refused: {where} in the option slot ({first_shown}-{last_shown}), and CLICK sums "
+        f"the wrong bits for this range.",
         Reason.RANGE,
     )
 
