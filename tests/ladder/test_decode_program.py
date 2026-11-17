@@ -868,10 +868,9 @@ def test_topology_block_has_a_row_for_each_clipboard_row(scr_path: Path, clip_pa
     clip_rungs = decode(read_clipboard(clip_path))
     assert len(records) == len(clip_rungs)
     for rung_idx, (record, rung) in enumerate(zip(records, clip_rungs, strict=True)):
-        if record.instructions:
-            assert len(record.topology.rows_right_cols) == rung.logical_rows, (
-                f"{scr_path.name} rung {rung_idx}: row block count mismatch"
-            )
+        assert len(record.topology.rows_right_cols) == rung.logical_rows, (
+            f"{scr_path.name} rung {rung_idx}: row block count mismatch"
+        )
 
 
 def test_tag_wire_type_covers_all_implicit_tags():

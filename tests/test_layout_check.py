@@ -638,7 +638,7 @@ def test_contacts_in_a_loop_no_rail_reaches_are_c0202_once() -> None:
     """A loop of contacts that no rail reaches gets one uncaptured C0202, at X002.
 
     X002 feeds X001.  X001's output runs down the vertical of the T in column D, along the
-    row 2 wire, and up the vertical of X002's T into X002's input.  Column A is blank.
+    row 2 wire, and up the vertical below X002 into X002's input.  Column A is blank.
     """
     rung = _rung(
         [

@@ -870,8 +870,8 @@ def _check_source_value(source: str, field: str) -> Constant:
     - a signed hex constant (``-FFh``);
     - a hex constant of more than 8 digits (``0FFFFFFFFh``).
 
-    The id that CLICK gives a text with a quote inside it is not known. This function
-    raises that refusal with no id.
+    Whether CLICK refuses a text with a quote inside it, and with which id, is not known.
+    This function refuses it with no id.
     """
     try:
         return check_constant(source, field, _ANY_TEXT)

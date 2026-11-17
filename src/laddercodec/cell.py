@@ -169,8 +169,8 @@ class ClickCell:
                 tail[13] = (self.local_row + 1) & 0xFF
             else:  # col 31
                 if is_last_row and self.is_last_rung:
-                    # Native Click writes the instruction count at tail[12]
-                    # for AF data cells in instruction-bearing rungs.
+                    # The encoder writes the rung's instruction count at tail[12]
+                    # (+0x3C).  CLICK often writes another value there.
                     if self.instr_count > 0:
                         tail[12] = self.instr_count & 0xFF
                 else:
