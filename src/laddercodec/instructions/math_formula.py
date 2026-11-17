@@ -24,17 +24,18 @@ numbers below are that section's.  :func:`parse` raises :class:`FieldError` on
    are refused (step 8).
 6. :func:`_check_order`: what may follow each token, the call forms, and how the formula
    starts and ends (step 9).
-7. :func:`_check_operands`: the banks each mode takes (:data:`_OPERANDS`), ranges, and
-   then the 270-character cap of the internal template.
+7. :func:`_check_rand`: a RAND bound is not a real constant, and its two bounds differ.
+8. :func:`_check_operands`: the banks each mode takes (:data:`_OPERANDS`), a RAND bound's
+   among them, ranges, and then the 270-character cap of the internal template.
 
 A refusal of the text's characters, a bracket, unbalanced or too deeply nested parentheses
 and a token out of order each end the reading there.  Every other refusal is one of many:
-each word refused, each constant's value, each key of the other mode, each address in a bank
-its mode does not take and each range, and the reading goes on past it, taking a refused
-word as what it looks like (an address, a constant, a function name).  After a word that
-looks like none of those, the order is not checked, nor are the banks and ranges.  The
-length is not checked after a refused constant or such a word, which have no internal form
-to count.
+each word refused, each constant's value, each key of the other mode, each RAND bound
+refused, each address in a bank its mode does not take and each range, and the reading goes
+on past it, taking a refused word as what it looks like (an address, a constant, a function
+name).  After a word that looks like none of those, the order is not checked, nor are the
+RAND bounds, the banks and the ranges.  The length is not checked after a refused constant
+or such a word, which have no internal form to count.
 
 :class:`Formula` holds the tokens; its properties print the display formula, the template,
 the nickname display and the two internal ``#`` forms.
@@ -125,24 +126,36 @@ class _Operands:
     in_sum: frozenset[str]
     #: The rule, as each refusal states it.
     rule: str
+    #: Registers taken as a bound of ``RAND ( a , b )``; a bound takes no other bank.
+    in_rand: frozenset[str]
+    #: RAND's rule, as each refusal of a bound states it.
+    rand_rule: str
 
 
 #: The operand banks of each mode.  A decimal SUM takes no CT range.  An older CPU takes no
 #: bit range in a SUM at all; :func:`~laddercodec.compat.find_v4_only` reports those, and
-#: construction accepts them.
+#: construction accepts them.  A RAND bound takes fewer banks than the rest of the formula,
+#: and a decimal one no real constant (:func:`_check_rand`).
 _OPERANDS = {
     "decimal": _Operands(
         banks(Bank.DS | Bank.DD | Bank.DF | Bank.TD | Bank.CTD | Bank.SD),
         banks(Bank.X | Bank.Y | Bank.C | Bank.T | Bank.SC),
         "a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, "
         "and X, Y, C, T and SC bits only as the range of SUM ( a : b )",
+        banks(Bank.DS | Bank.DD),
+        "a decimal RAND bound is a DS or DD register or an integer constant",
     ),
     "hex": _Operands(
         banks(Bank.DH | Bank.XD | Bank.YD),
         frozenset(),
         "a hex Math takes only DH, XD and YD registers and hex constants",
+        banks(Bank.DH),
+        "a hex RAND bound is a DH register or a hex constant",
     ),
 }
+#: The register a RAND bound of each mode copies another register into, as the refusal
+#: says.
+_RAND_COPY_INTO = {"decimal": "a DS or DD", "hex": "a DH"}
 _WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: XD/YD addresses in order: ``MAX ( XD0 : XD3 )`` stores XD0u, XD1, XD2.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
@@ -687,16 +700,54 @@ def _range_position(bank: str, number: str) -> int:
     return int(number.rstrip("u"))
 
 
+def _rand_calls(tokens: Sequence[Token]) -> list[int]:
+    """Where each ``RAND`` stands; its bounds are 2 and 4 tokens after it.
+
+    Only for tokens whose order passed :func:`_check_order`, which gives each RAND the
+    shape ``RAND ( a , b )``.
+    """
+    return [i for i, t in enumerate(tokens) if t.kind == "func" and t.text == "RAND"]
+
+
+def _check_rand(tokens: Sequence[Token], mode: str) -> list[FieldError]:
+    """Each RAND bound is not a real constant, and its two bounds differ (OBJ-1001).
+
+    The bounds are equal when they are the same text in display form (``RAND ( 1h , 01h )``
+    is ``RAND ( 1h , 1h )``); ``RAND ( 1 , +1 )`` is taken.  A bound refused while it was
+    read is not checked again.  The banks of a bound are checked with the other addresses
+    (:func:`_check_operands`).
+    """
+    rule = _OPERANDS[mode].rand_rule
+    found: list[FieldError] = []
+    for i in _rand_calls(tokens):
+        low, high = tokens[i + 2], tokens[i + 4]
+        for bound in (low, high):
+            if bound.kind == "const" and not bound.refused and bound.internal.startswith("F"):
+                rule_text = f"{bound.text} is a real constant; {rule}"
+                found.append(_error(rule_text, Reason.KIND, "OBJ-1001"))
+        if not (low.refused or high.refused) and low.text == high.text:
+            found.append(
+                _error(
+                    f"RAND ( {low.text} , {high.text} ) has equal bounds; RAND takes two "
+                    "different bounds",
+                    Reason.FORM,
+                    "OBJ-1001",
+                )
+            )
+    return found
+
+
 def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     """Each address is in a bank its mode takes; a range stays in one bank and runs low : high.
 
-    :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, and the
-    bits it takes only as the range of ``SUM ( a : b )``.  An address of any other bank is
-    refused with OBJ-1002.  An X or Y range with an end in the option slot is refused too
-    (:func:`_check_xy_range`).  One refusal for each address refused outside a SUM, one for
-    each SUM refused, and at most one for each range.  An address refused while it was read
-    (``DS0``) is not checked again; a range with an end refused for its bank is still checked
-    for its banks, its order and a median's size, but not for its option-slot ends.
+    :data:`_OPERANDS` names the banks of each mode: the registers it takes anywhere, the
+    bits it takes only as the range of ``SUM ( a : b )``, and the registers a bound of
+    ``RAND ( a , b )`` takes.  An address of any other bank is refused with OBJ-1002.  An X
+    or Y range with an end in the option slot is refused too (:func:`_check_xy_range`).  One
+    refusal for each address refused outside a SUM, one for each SUM refused, and at most one
+    for each range.  An address refused while it was read (``DS0``) is not checked again; a
+    range with an end refused for its bank is still checked for its banks, its order and a
+    median's size, but not for its option-slot ends.
     """
     operands = _OPERANDS[mode]
     texts = [t.text for t in tokens]
@@ -705,6 +756,7 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
     for i in range(len(texts) - 5):
         if texts[i : i + 2] == ["SUM", "("] and texts[i + 3] == ":" and texts[i + 5] == ")":
             sum_at.update({i + 2: i, i + 4: i})
+    rand_bounds = {i + k for i in _rand_calls(tokens) for k in (2, 4)}
     sum_refused: set[int] = set()  # the SUMs refused for their bank, once each
     bank_refused: set[int] = set()  # the addresses refused for their bank, in a SUM or not
     for i, token in enumerate(tokens):
@@ -712,6 +764,15 @@ def _check_operands(tokens: Sequence[Token], mode: str) -> list[FieldError]:
         if token.refused or parts is None:
             continue
         bank = parts[0]
+        if i in rand_bounds:
+            if bank in operands.in_rand:
+                continue
+            rule = f"{token.text} is refused; {operands.rand_rule}"
+            if bank in operands.anywhere:
+                # A register the rest of the formula takes: a Copy into the bound's bank works.
+                rule += f": copy {token.text} into {_RAND_COPY_INTO[mode]} register first"
+            found.append(_error(rule, Reason.BANK, "OBJ-1002"))
+            continue
         if bank in operands.anywhere or (i in sum_at and bank in operands.in_sum):
             continue
         bank_refused.add(i)
@@ -947,6 +1008,7 @@ def parse(text: str, mode: str) -> Formula:
         _raise(found)
     if (error := _check_order(tokens)) is not None:
         _raise([*found, error])
+    found += _check_rand(tokens, mode)
     found += _check_operands(tokens, mode)
     formula = Formula(tuple(tokens))
     # The cap is on CLICK's internal template, which the blob stores as 0x6229.  At

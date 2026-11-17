@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import FieldError, RefusedFieldWarning, decode, read_csv
+from laddercodec import FieldError, RefusedFieldWarning, Rung, decode, encode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.math import Math
@@ -21,13 +21,17 @@ from laddercodec.operands.unchecked import refusals
 from tests.kept_refusals import kept
 
 
-def _read_af(tmp_path: Path, af: str) -> object:
+def _read_af_rung(tmp_path: Path, af: str) -> Rung:
     path = tmp_path / "rung.csv"
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(CSV_HEADER)
         w.writerow(["R", "C1"] + ["-"] * 30 + [af])
-    return read_csv(path)[0].instructions[0]
+    return read_csv(path)[0]
+
+
+def _read_af(tmp_path: Path, af: str) -> object:
+    return _read_af_rung(tmp_path, af).instructions[0]
 
 
 def _sum_of(n: int) -> str:
@@ -40,6 +44,10 @@ _DECIMAL_ONLY = (
     "a decimal Math takes only DS, DD, DF, TD, CTD and SD registers and decimal constants, "
     "and X, Y, C, T and SC bits only as the range of SUM \\( a : b \\) \\(OBJ-1002\\)"
 )
+_DECIMAL_RAND = "a decimal RAND bound is a DS or DD register or an integer constant"
+_HEX_RAND = "a hex RAND bound is a DH register or a hex constant"
+_COPY_DS = ": copy .* into a DS or DD register first \\(OBJ-1002\\)"
+_COPY_DH = ": copy .* into a DH register first \\(OBJ-1002\\)"
 
 _REFUSED = [
     # result banks per mode: decimal DS, DD, DF, TD, CTD, SD; hex DH, YD
@@ -158,6 +166,23 @@ _REFUSED = [
     ("RAND ( DS1 , Ah )", "DH9", "hex", "DS1 is refused"),
     ("MAX ( DD1 : DD3 )", "DH9", "hex", "DD1 is refused"),
     ("LSH ( DS1 , 1h )", "DH9", "hex", "DS1 is refused"),
+    # a RAND bound: a DS or DD register or an integer in decimal, a DH register or a hex
+    # constant in hex (OBJ-1002 for a bank); no real bound and no equal bounds (OBJ-1001)
+    ("RAND ( DF1 , 10 )", "DS9", "decimal", "DF1 is refused; " + _DECIMAL_RAND + _COPY_DS),
+    ("RAND ( 1 , TD500 )", "DS9", "decimal", "TD500 is refused; " + _DECIMAL_RAND + _COPY_DS),
+    ("RAND ( CTD1 , 10 )", "DS9", "decimal", "CTD1 is refused; " + _DECIMAL_RAND + _COPY_DS),
+    ("RAND ( 1 , SD1 )", "DS9", "decimal", "SD1 is refused; " + _DECIMAL_RAND + _COPY_DS),
+    ("RAND ( X001 , 10 )", "DS9", "decimal", "X001 is refused; " + _DECIMAL_RAND + " \\(OBJ"),
+    ("RAND ( 1 , DH1 )", "DS9", "decimal", "DH1 is refused; " + _DECIMAL_RAND + " \\(OBJ"),
+    ("RAND ( 1.5 , 10 )", "DS9", "decimal", "1.5 is a real constant; " + _DECIMAL_RAND),
+    ("RAND ( 1 , 1e3 )", "DS9", "decimal", "1000.0 is a real constant; " + _DECIMAL_RAND),
+    ("RAND ( 1 , 1 )", "DS9", "decimal", "RAND \\( 1 , 1 \\) has equal bounds; RAND takes"),
+    ("RAND ( DS1 , ds1 )", "DS9", "decimal", "RAND \\( DS1 , DS1 \\) has equal bounds"),
+    ("RAND ( 1h , 01h )", "DH9", "hex", "RAND \\( 1h , 1h \\) has equal bounds"),
+    ("RAND ( DH1 , DH1 )", "DH9", "hex", "RAND \\( DH1 , DH1 \\) has equal bounds"),
+    ("RAND ( XD0 , Ah )", "DH9", "hex", "XD0 is refused; " + _HEX_RAND + _COPY_DH),
+    ("RAND ( 1h , YD0u )", "DH9", "hex", "YD0u is refused; " + _HEX_RAND + _COPY_DH),
+    ("RAND ( 1h , DS1 )", "DH9", "hex", "DS1 is refused; " + _HEX_RAND + " \\(OBJ"),
     # a decimal result in SD is a writable SD register (OBJ-003)
     ("DS1 + 1", "SD1", "decimal", "Math.result: 'SD1' is not a writable SD register"),
     ("DS1 + 1", "SD62", "decimal", "Math.result: 'SD62' is not a writable SD register"),
@@ -278,6 +303,15 @@ def test_unknown_mode_refused() -> None:
         ("( " * 8 + "DS1" + " )" * 8, "DS9", "decimal"),
         ("ABS ( DS1 ) ^ 2 + PI", "DF9", "decimal"),
         ("LSH ( DH1 , 1h ) XOR DH2", "DH9", "hex"),
+        # RAND bounds: DS, DD and integers in decimal, DH and hex constants in hex, reversed
+        # too; equal bounds are the same text, so 1 and +1 differ
+        ("RAND ( DS1 , DD1000 )", "DS9", "decimal"),
+        ("RAND ( -5 , 2147483647 )", "DD9", "decimal"),
+        ("RAND ( 10 , 1 )", "DS9", "decimal"),
+        ("RAND ( 1 , +1 )", "DS9", "decimal"),
+        ("DF1 + RAND ( DS1 , 10 )", "DF9", "decimal"),
+        ("RAND ( DH500 , FFFFh )", "DH9", "hex"),
+        ("RAND ( Ah , 1h ) + XD0", "DH9", "hex"),
         (_sum_of(68), "DD1", "decimal"),
         # the shortest formulas
         ("1", "DS9", "decimal"),
@@ -398,3 +432,47 @@ def test_pasted_formula_over_the_cap_keeps_its_refusal() -> None:
     )
     kept(wide, "Math.expression")
     assert isinstance(by_name["math_operands__spacing_add"].instructions[0], Math)
+
+
+#: A RAND CLICK's dialog takes, the same-length edits of its stored text that make one it
+#: refuses, and the refusal: (formula, result, mode, edits, message).
+_STORED_RAND = [
+    ("RAND ( DD1 , 10 )", "DS9", "decimal", [("DD1", "DF1")], "DF1 is refused"),
+    ("RAND ( DH1 , Ah )", "DH9", "hex", [("DH1", "XD1")], "XD1 is refused"),
+    ("RAND ( DS1 , DS2 )", "DD9", "decimal", [("DS2", "DS1")], "has equal bounds"),
+    ("RAND ( DH1 , DH2 )", "DH9", "hex", [("DH2", "DH1")], "has equal bounds"),
+    (
+        "RAND ( 1 , 1000 )",
+        "DS9",
+        "decimal",
+        [("H1000", "F10.5"), ("1000", "10.5")],
+        "10.5 is a real constant",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("expression", "result", "mode", "edits", "message"),
+    _STORED_RAND,
+    ids=[case[3][0][1] for case in _STORED_RAND],
+)
+def test_a_stored_rand_its_dialog_refuses_decodes_and_writes_its_bytes(
+    tmp_path: Path,
+    expression: str,
+    result: str,
+    mode: str,
+    edits: list[tuple[str, str]],
+    message: str,
+) -> None:
+    rung = _read_af_rung(tmp_path, f"math({expression},{result},mode={mode})")
+    data = encode(rung)
+    for old, new in edits:
+        assert old.encode("utf-16-le") in data, old
+        data = data.replace(old.encode("utf-16-le"), new.encode("utf-16-le"))
+    with pytest.warns(RefusedFieldWarning, match=message):
+        decoded = decode(data)
+    assert isinstance(decoded, Rung)
+    [math] = decoded.instructions
+    assert isinstance(math, Math)
+    kept(math, "Math.expression")
+    assert encode(decoded) == data
