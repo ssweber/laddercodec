@@ -308,6 +308,137 @@ def test_copy_destination_bank_id_follows_the_source_kind(
     assert (error.field, error.reason, error.click_id) == ("Copy.destination", "bank", click_id)
 
 
+@pytest.mark.parametrize(
+    "destination", ["X000", "X017", "X020", "X817", "T0", "T501", "CT251", "SC1001"]
+)
+@pytest.mark.parametrize(
+    "source",
+    [
+        "DS2",
+        # laddercodec's own: no answer covers a number or a bit into these addresses.
+        pytest.param("5", id="own-5"),
+        pytest.param("C1", id="own-C1"),
+    ],
+)
+def test_copy_into_an_address_outside_its_bit_bank_is_obj_004(
+    source: str, destination: str
+) -> None:
+    # Outside its bank, in a bit bank a Copy does not write: OBJ-004 from DS2 (CLICK's
+    # answer), and from any other source.
+    (error,) = _errors(lambda: Copy(source, destination))
+    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "bank", "OBJ-004")
+
+
+@pytest.mark.parametrize(
+    ("source", "destination", "reason"),
+    [
+        ("$41", "DS1", "conflict"),
+        ("$1", "DS1", "conflict"),
+        ("$ff", "DS1", "conflict"),
+        ("$41", "DD1", "conflict"),
+        ("$41", "Y001", "conflict"),
+        ("$41", "C[DS1]", "conflict"),
+        ("$41", "YD0", "conflict"),
+        ("$41", "X001", "bank"),
+        ("$41", "T1", "bank"),
+        ("$41", "XD0", "bank"),
+        # A pointer of a bank the field takes no pointer to.
+        ("$41", "X[DS1]", "pointer"),
+        ("$41", "Y[DS1]", "pointer"),
+        ("$41", "T[DS1]", "pointer"),
+        ("$41", "CT[DS1]", "pointer"),
+        ("$41", "SC[DS1]", "pointer"),
+        ("$41", "XD[DS1]", "pointer"),
+        ("$41", "SD[DS1]", "pointer"),
+    ],
+)
+def test_copy_of_a_character_code_outside_txt_is_obj_004(
+    source: str, destination: str, reason: str
+) -> None:
+    # A $hh code copies to TXT only; anywhere else CLICK can't use the address (OBJ-004),
+    # where quoted text is a pairing of kinds (OBJ-024).
+    (error,) = _errors(lambda: Copy(source, destination))
+    assert (error.field, error.reason, error.click_id) == ("Copy.destination", reason, "OBJ-004")
+    assert Copy(source, "TXT1").destination == "TXT1"
+    assert Copy(source, "TXT[DS1]").destination == "TXT[DS1]"
+
+
+@pytest.mark.parametrize(
+    ("source", "destination"),
+    [
+        ("DS2", "X[DS1]"),
+        ("DS2", "XD[DS1]"),
+        ("DS2", "SD[DS1]"),
+        ("$41", "DS[DS0]"),
+        ("$41", "X[DS[DS1]]"),
+    ],
+)
+def test_copy_into_a_refused_pointer_keeps_no_id(source: str, destination: str) -> None:
+    # Only a $hh code into a pointer CLICK reads takes OBJ-004 here.  CLICK gives DS2 into
+    # X[DS1] OBJ-005 and into XD[DS1] or SD[DS1] OBJ-004, which the rules leave without an
+    # id for now; the malformed pointers have no answer.
+    (error,) = _errors(lambda: Copy(source, destination))
+    assert (error.field, error.reason, error.click_id) == ("Copy.destination", "pointer", None)
+
+
+@pytest.mark.parametrize(
+    ("source", "reason"),
+    [
+        ('""', "range"),
+        ("0FFFFFFFFh", "range"),
+        ("100000000h", "range"),
+        ("FFFFFFFFFh", "range"),
+        ("+FFh", "form"),
+        ("-FFh", "form"),
+        (f'"{"A" * 129}"', "range"),
+    ],
+)
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "DS1",
+        # laddercodec's own: CLICK answered these sources into DS1 only.
+        pytest.param("DD1", id="own-DD1"),
+        pytest.param("TXT1", id="own-TXT1"),
+        pytest.param("Y001", id="own-Y001"),
+    ],
+)
+def test_copy_source_value_comes_before_the_pairing(
+    source: str, reason: str, destination: str
+) -> None:
+    # CLICK refuses an empty text, a text of 129 characters, a signed hex constant and one of
+    # more than 8 digits into DS1 as values (OBJ-005); the pairing, which depends on the
+    # refused source, is not checked.
+    (error,) = _errors(lambda: Copy(source, destination))
+    assert (error.field, error.reason, error.click_id) == ("Copy.source", reason, "OBJ-005")
+    assert str(error).endswith("(OBJ-005)")
+
+
+@pytest.mark.parametrize("source", ['"""', '"a"b"'])
+def test_copy_source_with_a_quote_inside_keeps_no_id(source: str) -> None:
+    # No answer covers a quote inside the text.
+    (error,) = _errors(lambda: Copy(source, "DS1"))
+    assert (error.field, error.reason, error.click_id) == ("Copy.source", "form", None)
+
+
+def test_copy_text_characters_come_after_the_pairing() -> None:
+    # Text outside printable ASCII is refused after the pairing: "é" into DS1 is OBJ-024.
+    assert _shape(_errors(lambda: Copy('"é"', "DS1"))) == [
+        ("Copy.destination", "conflict", "OBJ-024"),
+        ("Copy.source", "form", None),
+    ]
+
+
+@pytest.mark.parametrize(
+    "source", ["X001", "Y001", "C1", "T1", "CT1", "SC1", '"A"', '"AB"', "10000h"]
+)
+def test_copy_pairing_comes_before_the_writable_sd(source: str) -> None:
+    # A source no SD takes is a pairing (OBJ-024), even into an SD a Copy does not write.
+    assert _shape(_errors(lambda: Copy(source, "SD1"))) == [
+        ("Copy.destination", "conflict", "OBJ-024")
+    ]
+
+
 def test_copy_destination_bank_has_no_id_after_a_refused_source() -> None:
     error, dest = _errors(lambda: Copy("DS0", "X001"))
     assert error.field == "Copy.source"

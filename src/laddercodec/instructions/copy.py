@@ -30,6 +30,7 @@ from ..model import (
     AfInstruction,
     FieldError,
     Reason,
+    check_address,
     xy_slot,
 )
 from ..operands.checks import (
@@ -45,7 +46,7 @@ from ..operands.checks import (
     check_writable_sd,
     constant_shape,
 )
-from ..operands.constants import TEXT_MAX, Kind, copy_real_display
+from ..operands.constants import TEXT_MAX, Constant, Kind, copy_real_display
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -228,6 +229,9 @@ _COPY_DEST_BANKS = _REGISTER_DEST_BANKS | {"Y", "C"}
 #: A Copy source or Fill value takes a constant of any kind; a signed hex text reads as a hex
 #: constant, which the field then refuses.
 _CONSTANTS = Constants(ALL_KINDS, hex_sign=True)
+#: The same, with text of any characters: a single Copy checks its source's characters after
+#: the pairing with the destination.
+_ANY_TEXT = replace(_CONSTANTS, printable=False)
 #: A termination code is a ``$hh`` character code.
 _TERMINATION = Constants(frozenset({Kind.CHAR}))
 
@@ -305,8 +309,9 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
     """The kind of a Copy source or Fill value: ``bit``, ``word``, ``txt``, ``number`` or
     ``text``.
 
-    An address or pointer is checked here.  A constant's limits wait for the caller, whose
-    pairing with the destination comes first (a ``$hh`` code is read at once).
+    An address or pointer is checked here.  A constant's limits wait for the caller: a Fill
+    pairs the value with its range first, and a single Copy checks the constant's value
+    after the destination (a ``$hh`` code is read at once).
     """
     shape = constant_shape(value, _CONSTANTS)
     if shape is Kind.CHAR:
@@ -607,29 +612,103 @@ _FILL_PAIRS: dict[str, frozenset[str]] = {
 }
 
 
-def _copy_dest_bank_id(kind: str | None, source: str, dest_bank: str) -> str | None:
-    """CLICK's id for a single Copy destination in a bank a Copy does not write, by the
-    source's kind.
+def _copy_dest_bank_id(kind: str | None, source: str, destination: str) -> str | None:
+    """CLICK's id for a single Copy destination in a bank a Copy does not write.
 
-    CLICK refuses a bit copied into a bit bank it does not write as an address the
+    A ``$hh`` character code copies to TXT only, and CLICK refuses it anywhere else as an
+    address the instruction can't use (OBJ-004: ``$41`` into X001 or XD0), as its pairing
+    with a register is.  In a bit bank a Copy does not write (X, T, CT and SC: it writes no
+    bit bank but Y and C), an address outside its bank is OBJ-004 from any source (DS2 into
+    X017, T501, CT251 or SC1001).  Inside it, CLICK refuses a bit as an address the
     instruction can't use (OBJ-004: X001 into X001, C1 into SC50 and SC303), and anything
-    else copied into a bit bank as a pairing of kinds (OBJ-024: DS2 and 5 into X001), the
-    id of every other pairing a single Copy refuses.  T and CT take the X and SC answers,
-    since a Copy writes no bit bank but Y and C.  XD, the one register bank a Copy does not
-    write, has no answer and no id.
+    else as a pairing of kinds (OBJ-024: DS2 and 5 into X001), the id of every other pairing
+    a single Copy refuses.  XD, the one register bank a Copy does not write, has no id from
+    another source.
 
     A source that is refused has no id here: an address ``_source_kind`` refuses (``kind``
     None), and a constant the source's own check refuses later (out of range, or text it
     can't hold); that refusal stays after the destination's.
     """
-    if kind is None or dest_bank not in BIT_BANKS:
+    if kind is None:
         return None
     if kind in ("number", "text"):
         try:
             check_constant(source, "Copy.source", _CONSTANTS)
         except FieldError:
             return None
-    return "OBJ-004" if kind == "bit" else "OBJ-024"
+    if source.startswith("$"):
+        return "OBJ-004"
+    if _bank_prefix(destination) not in BIT_BANKS:
+        return None
+    if kind == "bit" or not _in_its_bank(destination):
+        return "OBJ-004"
+    return "OBJ-024"
+
+
+def _check_copy_destination(destination: str, field: str, source: str, kind: str | None) -> Operand:
+    """A single Copy destination: an address or pointer of a bank a Copy writes.
+
+    A ``$hh`` code copies to TXT only: CLICK refuses it into a pointer of any other bank
+    (``X[DS1]``, ``XD[DS1]``, ``SD[DS1]``) as an address the instruction can't use (OBJ-004),
+    as into an address.
+    """
+    try:
+        return check_operand(
+            destination, field, _COPY_DEST_BANKS, pointer=True,
+            bank_id=_copy_dest_bank_id(kind, source, destination),
+        )  # fmt: skip
+    except AddressError as exc:
+        if (
+            exc.click_id is not None
+            or exc.reason is not Reason.POINTER
+            or kind is None
+            or not source.startswith("$")
+            or not _is_pointer(destination, field)
+        ):
+            raise
+        raise AddressError(
+            f"{exc} (OBJ-004)", field=exc.fields, reason=exc.reason, click_id="OBJ-004"
+        ) from None
+
+
+def _is_pointer(value: str, field: str) -> bool:
+    """Whether ``value`` is ``BANK[DSn]``: a bank's name and a DS address in brackets."""
+    bank, bracket, index = value.partition("[")
+    if not bracket or bank not in ADDRESS_BANKS or not index.endswith("]"):
+        return False
+    try:
+        return check_address(index[:-1], field).bank == "DS"
+    except AddressError:
+        return False
+
+
+def _in_its_bank(address: str) -> bool:
+    """Whether ``address`` is a CLICK address: its number inside its bank's range."""
+    try:
+        check_address(address, "Copy.destination")
+    except AddressError:
+        return False
+    return True
+
+
+def _check_source_value(source: str, field: str) -> Constant:
+    """A single Copy source constant's own value, its characters aside.
+
+    CLICK refuses as values, with OBJ-005 as for a hex constant above FFFFFFFFh: an empty
+    text, a text of more than 128 characters, a signed hex constant (``-FFh``) and one of
+    more than 8 digits (``0FFFFFFFFh``).  A quote inside the text has no answer and no id.
+    """
+    try:
+        return check_constant(source, field, _ANY_TEXT)
+    except FieldError as exc:
+        shape = constant_shape(source, _ANY_TEXT)
+        if exc.click_id is not None or not (
+            shape is Kind.HEX or (shape is Kind.TEXT and '"' not in source[1:-1])
+        ):
+            raise
+        raise FieldError(
+            f"{exc} (OBJ-005)", field=exc.fields, reason=exc.reason, click_id="OBJ-005"
+        ) from None
 
 
 #: Where a single Copy puts a hex constant above FFFFh: the 32-bit integer registers
@@ -637,14 +716,9 @@ def _copy_dest_bank_id(kind: str | None, source: str, dest_bank: str) -> str | N
 _HEX32_DEST_BANKS = frozenset({"DD", "CTD"})
 
 
-def _check_copy_constant(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
-    """Refuse an integer outside 32 bits, or a hex constant above FFFFh that ``dest_bank``
-    can't take."""
+def _check_hex32(source: str, dest_field: str, destination: str, dest_bank: str) -> None:
+    """Refuse a hex constant above FFFFh that ``dest_bank`` can't take."""
     shape = constant_shape(source, _CONSTANTS)
-    if shape is Kind.INTEGER:
-        # Repeated on purpose by the full constant check at the end of __post_init__: this call
-        # puts the 32-bit integer refusal ahead of the format and termination refusals.
-        check_constant(source, "Copy.source", _CONSTANTS)
     if shape is Kind.HEX and int(source[:-1], 16) > 0xFFFF and dest_bank not in _HEX32_DEST_BANKS:
         raise _refusal(
             "Copy",
@@ -938,26 +1012,33 @@ class Copy(AfInstruction):
                         f"{getattr(self, option)!r} is not allowed; it is '0' or '1'",
                         Reason.CHOICE,
                     )
+            # CLICK's order: the source's address, the destination's, the source constant's
+            # own value, the pairing of the two, then an SD the Copy does not write.
             kind = check("source", _source_kind, BIT_BANKS | REGISTER_BANKS, pointer=True)
-            dst = check(
-                "destination", check_operand, _COPY_DEST_BANKS, pointer=True,
-                bank_id=_copy_dest_bank_id(kind, self.source, _bank_prefix(self.destination)),
-            )  # fmt: skip
+            dst = check("destination", _check_copy_destination, self.source, kind)
+            const = None
+            if kind in ("number", "text"):
+                # Before the pairing: "" and 100000000h into DS1 are refused values (OBJ-005).
+                # Text outside printable ASCII is refused at the end ("é" into DS1 is OBJ-024).
+                const = check("source", _check_source_value)
+            if kind is not None and dst is not None:
+                assert dst.bank is not None
+                # A $hh code into any bank but TXT is OBJ-004; any other pairing, OBJ-024.
+                check.run(
+                    _check_pair, "Copy", "source", self.source, kind,
+                    "destination", self.destination, dst.bank, _COPY_PAIRS,
+                    "OBJ-004" if self.source.startswith("$") else "OBJ-024",
+                )  # fmt: skip
+                if kind == "number":
+                    check.run(_check_hex32, self.source, "destination", self.destination, dst.bank)
             if dst is not None and dst.address is not None:
-                # A Copy writes only the writable SD registers (OBJ-004).
+                # A Copy writes only the writable SD registers (OBJ-004), after the pairing:
+                # a bit, quoted text or 10000h into SD1 is OBJ-024.
                 check.run(
                     check_writable_sd, dst.address, check.field("destination"), click_id="OBJ-004"
                 )
             if kind is not None and dst is not None:
                 assert dst.bank is not None
-                check.run(
-                    _check_pair, "Copy", "source", self.source, kind,
-                    "destination", self.destination, dst.bank, _COPY_PAIRS, "OBJ-024",
-                )  # fmt: skip
-                if kind == "number":
-                    check.run(
-                        _check_copy_constant, self.source, "destination", self.destination, dst.bank
-                    )
                 self._check_format(check, kind, dst.bank)
                 if self.termination_code != "0" and not (
                     self.format in ("text", "binary") and kind == "word" and dst.bank == "TXT"
@@ -992,11 +1073,11 @@ class Copy(AfInstruction):
                     Reason.FORM,
                     "OBJ-036",
                 )
-            if kind in ("number", "text"):
+            if const is not None:
                 const = check("source", check_constant, _CONSTANTS)
-                if const is not None:
-                    # Written as CLICK stores it.
-                    self.source = _source_display(self.source, const.kind)
+            if const is not None:
+                # Written as CLICK stores it.
+                self.source = _source_display(self.source, const.kind)
             if not check.refused("source", "destination"):
                 end = _text_fill_end(self.source, self.destination)
                 if end is not None and end.number > _TXT_LAST:

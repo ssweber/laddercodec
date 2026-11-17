@@ -12,11 +12,12 @@ from typing import TYPE_CHECKING
 from ..binary_helpers import tag_flag, tag_value
 from ..model import (
     TYPE_CODE_TO_ITYPE,
+    AddressError,
     AfInstruction,
     InstructionType,
     Reason,
 )
-from ..operands.checks import Refusals, check_out_target
+from ..operands.checks import Refusals, check_operand, check_out_target
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -66,6 +67,16 @@ _FUNC_TO_COIL: dict[str, tuple[InstructionType, bool, bool, bool]] = {
 
 _COIL_TAGS = (0x6066, 0x6067, 0x11F8, 0x11F5, 0x3218, 0x0000)
 
+
+def _bank_of(value: str) -> str | None:
+    """The bank of ``value`` if it is a CLICK address or a pointer CLICK reads (``DS[DS1]``,
+    not ``X[DS1]``), of any bank; else None."""
+    try:
+        return check_operand(value, "Coil.range_end", pointer=True).bank
+    except AddressError:
+        return None
+
+
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
@@ -106,19 +117,22 @@ class Coil(AfInstruction):
             start = check("operand", check_out_target, immediate=immediate, **ids)
             if self.range_end is None:
                 return
-            # An SC range needs both ends writable; the bits between are not checked.
-            end = check("range_end", check_out_target, immediate=immediate, **ids)
-            if start is None or end is None:
-                return
-            if end.bank != start.bank:
+            # An end in another bank is OBJ-008 before the end's own checks, even where its
+            # bank is refused too (C1..DS1) and where it is a pointer (Y001..DS[DS1]).
+            end_bank = _bank_of(self.range_end)
+            if start is not None and end_bank is not None and end_bank != start.bank:
                 check.refuse(
                     ("range_end", "operand"),
-                    f"{self.range_end!r} is in bank {end.bank}; the range starts in bank "
+                    f"{self.range_end!r} is in bank {end_bank}; the range starts in bank "
                     f"{start.bank} and must stay in it",
                     Reason.CONFLICT,
                     "OBJ-008",
                 )
-            elif end.number <= start.number:
+            # An SC range needs both ends writable; the bits between are not checked.
+            end = check("range_end", check_out_target, immediate=immediate, **ids)
+            if start is None or end is None:
+                return
+            if end.number <= start.number:
                 # An end below the start is OBJ-009; the same address at both ends, OBJ-012.
                 check.refuse(
                     ("range_end", "operand"),

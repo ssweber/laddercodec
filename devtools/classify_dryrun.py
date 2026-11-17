@@ -188,10 +188,10 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
     Every kind at the shared check's limits; a signed hex text reads as a (refused) hex
     constant.  The family keeps the pairing, in its own class (AddressError): text and
     ``$hh`` go to TXT only, hex above FFFFh to DD or CTD only, bits to Y and C only.  A
-    number constant goes to every register, TXT included.  The pairing comes before a
-    constant's limits (``constant_shape``), except that a ``$hh`` code is read first.  The
-    family writes ``$`` and one hex digit with two first (``$1`` is ``$01``), as CLICK
-    stores it.
+    number constant goes to every register, TXT included.  A constant's own limits come
+    before the pairing (``""`` and ``100000000h`` into DS1 are refused values), except
+    text outside printable ASCII, refused after it.  The family writes ``$`` and one
+    hex digit with two first (``$1`` is ``$01``), as CLICK stores it.
     """
 
     def rule(ns: Any, value: str) -> None:
@@ -200,8 +200,9 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
             text = f"$0{text[1]}"
         constants = ns.constants(hex_sign=True)
         shape = ns.checks.constant_shape(text, constants)
-        if shape == ns.Kind.CHAR:
-            ns.checks.check_constant(text, "Copy.source", constants)
+        if shape is not None:
+            any_text = ns.constants(hex_sign=True, printable=False)
+            ns.checks.check_constant(text, "Copy.source", any_text)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
             ns.refuse("text copies to TXT", address=True)
         if shape == ns.Kind.HEX and _wide_hex(text) and dest not in ("DD", "CTD"):

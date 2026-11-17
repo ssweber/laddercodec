@@ -262,20 +262,22 @@ def test_accepted_through_read_csv(tmp_path: Path, token: str) -> None:
 _TEXT_129 = '"' + "A" * 129 + '"'
 _TEXT_128 = '"' + "A" * 128 + '"'
 _HEX_SIGN = "a hex constant has no sign$"
+_COPY_HEX_SIGN = r"a hex constant has no sign \(OBJ-005\)$"
 _HEX_ABOVE = r"is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh \(OBJ-005\)"
-_HEX_PADDED = "a hex constant above FFFFh has at most 8 digits$"
+_HEX_PADDED = r"a hex constant above FFFFh has at most 8 digits \(OBJ-005\)$"
+_FILL_HEX_PADDED = "a hex constant above FFFFh has at most 8 digits$"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _TEXT_ONE = "a text constant is one character in quotes, with no quote inside"
 _INT32 = INT_RULE
 _FINITE = "a real constant is a finite number"
 
 _COPY_SOURCE_REFUSED = [
-    ("+1h", "DS9", _HEX_SIGN),
-    ("-1h", "DS9", _HEX_SIGN),
-    ("+1h", "DD1", _HEX_SIGN),
-    ("-1h", "DF1", _HEX_SIGN),
-    ("+1h", "DH1", _HEX_SIGN),
-    ("-1h", "TXT2", _HEX_SIGN),
+    ("+1h", "DS9", _COPY_HEX_SIGN),
+    ("-1h", "DS9", _COPY_HEX_SIGN),
+    ("+1h", "DD1", _COPY_HEX_SIGN),
+    ("-1h", "DF1", _COPY_HEX_SIGN),
+    ("+1h", "DH1", _COPY_HEX_SIGN),
+    ("-1h", "TXT2", _COPY_HEX_SIGN),
     ("100000000h", "DD1", _HEX_ABOVE),
     ("0FFFFFFFFh", "DD1", _HEX_PADDED),
     ('""', "TXT2", _TEXT_RULE),
@@ -423,7 +425,7 @@ _FILL_VALUE_REFUSED = [
     ("+1h", "DS52", "DS55", _HEX_SIGN),
     ("-1h", "DS52", "DS55", _HEX_SIGN),
     ("100000000h", "DS52", "DS55", _HEX_ABOVE),
-    ("0FFFFFFFFh", "DS52", "DS55", _HEX_PADDED),
+    ("0FFFFFFFFh", "DS52", "DS55", _FILL_HEX_PADDED),
     ("2147483648", "TXT2", "TXT5", _INT32),
     ("+1h", "TXT2", "TXT5", _HEX_SIGN),
     ("100000000h", "TXT2", "TXT5", _HEX_ABOVE),

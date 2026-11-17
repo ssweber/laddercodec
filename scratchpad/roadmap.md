@@ -145,14 +145,30 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
     - Pack into Y, C, T, CT or SC (in range or past it) is OBJ-004, and into XD, YD or TXT OBJ-004 (OBJ-033
       for 32 X or Y bits), as the rules give.
     - A bit (C1, X001, T1, CT1, SC1), quoted text or `10000h` into SD1, which a Copy does not write, is
-      OBJ-024: the pairing comes first (`$41` into SD1 is OBJ-004). A follow-up, below. SD43 is not
+      OBJ-024: the pairing comes first (`$41` into SD1 is OBJ-004). The rules give it. SD43 is not
       answered.
     - A DS into an X, T, CT or SC address outside its bank (`DS2 -> X017`, `T501`, `SC1001`) is OBJ-004,
-      not OBJ-005. A follow-up, below. A bit source there (`C1 -> X017`) is not answered.
-    - Still open: does CLICK report a refused constant source (`99999999999`, `1e99`, `FFFFFFFFFh`, `"é"`,
-      text of 200 characters) before the destination, and with which id, when the destination is a bit
-      bank (X001)? The rules give the destination's bank refusal no id then, and refuse the constant after
-      it.
+      not OBJ-005. The rules give OBJ-004 there from any source; a bit source (`C1 -> X017`) is not
+      answered.
+    - A `$` code source (`$41`, `$1`) into any bank but TXT is OBJ-004, into a pointer of another bank too
+      (`X[DS1]`, `XD[DS1]`, `SD[DS1]`), where quoted text is OBJ-024; the rules give it.
+    - A single Copy's checks run in the order the answers support: the source's address; the destination's
+      (OBJ-004 for an address outside its bank in X, T, CT or SC); the source constant's value (`""`,
+      `0FFFFFFFFh`, `100000000h`, `+FFh` and 129 characters of text into DS1 are OBJ-005); the pairing
+      (OBJ-024, OBJ-004 for a `$` code); an SD the Copy does not write (OBJ-004). Text outside printable
+      ASCII is refused last: CLICK gives `"é"` and a tab into DS1 OBJ-024, the pairing, whether or not it
+      refuses the characters.
+    - The order is supported where the destination is refused for its address (DS2 into X017, T501,
+      SC1001: OBJ-004 before any pairing). It is still open where the destination is a bit bank address
+      and the source a refused constant: does CLICK report `99999999999`, `1e99`, `FFFFFFFFFh`, `"é"` or
+      text of 200 characters into X001 for the constant or for the destination, and with which id? The
+      rules give the destination's bank refusal first, with no id, and refuse the constant after it.
+    - The single Copy gives its source value refusals OBJ-005, as CLICK does; the shared constant check,
+      which Math and Fill use too, gives an empty text, a signed hex constant and one of more than 8 digits
+      no id. A quote inside the text (`"a"b"`) has no answer and no id.
+    - Not answered, rules None: DS2 or 5 into `X[DS1]`, `Y[DS1]`, `T[DS1]`, `CT[DS1]` or `SC[DS1]` is
+      OBJ-005 in CLICK, and into `XD[DS1]` or `SD[DS1]` OBJ-004; the rules refuse each as a pointer with no
+      id. `-$41` into DS1 is OBJ-005; the rules refuse it as no address, with no id.
   - Receive TXT count: confirmed, in characters, 2 to 250 and even (OBJ-010 outside the range, 1 and 251
     included; OBJ-029 for an odd count inside it); the rules match, with both ids. The dialog holds 2 when
     the count is unset, which the rules accept. `receive.answers.json` (rx2) recorded no count, so its
@@ -231,12 +247,6 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
       only into DS and DD). The rules give the count first (OBJ-040, OBJ-041).
     - A DH into a Y range across two slots with 16 points or fewer (`Y016..Y021`), and into the option
       slot alone (`Y021..Y036`): the rules give OBJ-1009 for the first and accept the second.
-  - Copy ids: a `$` code source (`$41`, `$1`) into any bank but TXT is OBJ-004; `""` and a hex source of
-    more than 8 digits into DS1 are OBJ-005; a bit, quoted text or `10000h` into SD1 is OBJ-024 (above); a
-    DS into an X, T, CT or SC address outside its bank (`X000`, `X017`, `T501`, `SC1001`) is OBJ-004
-    (above). The rules give OBJ-024, OBJ-024, OBJ-004 and OBJ-024.
-  - Out: a range whose end is in another bank is OBJ-008 even where that bank is refused (`C1..DS1`); the
-    rules give OBJ-004.
   - Saves that decode as `raw(...)`: CLICK saves an address as typed (`DS001`, `DS01`, `ds1`, `XD00`,
     `YD0U`, `DS[ds1]`) in Copy, Block Copy, Pack and Math.
   - Saves that decode as `raw(...)`: conversion type 7. A single Copy saves it for exactly these answered
@@ -250,7 +260,13 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
   SC310 and 12 more) with OBJ-003 and accepts SC50 and SC162. `WRITABLE_SC` stands; Out, Set and Reset give
   OBJ-003 for it.
 - **Ids confirmed:** Out, Set and Reset share one validator: OBJ-004 for a bank, OBJ-008 for a range across
-  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends.
+  banks, OBJ-009 for an end below the start, OBJ-012 for the same address at both ends. An end in another
+  bank is OBJ-008 before the end's own checks, even where the field refuses that bank (`C1..DS1`) and
+  where it is a pointer CLICK reads (`Y001..DS[DS1]`; `Y001..X[DS1]` is OBJ-005, and the rules give it no
+  id). Not answered, where the rules now give OBJ-008 before the end's own refusal: an SC bit a coil can't
+  write (`C1..SC1`, which was OBJ-003 for the end) and an immediate range whose end is in another bank
+  (`immediate(Y001..C2)`, which was refused as not immediate). Not answered either: an end outside its bank
+  in another bank (`C1..DS0`), which the rules give the end's bank refusal (OBJ-004).
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog; an
   id that can't be backed stays None. Open:
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
@@ -453,8 +469,9 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches, since
   their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them or wire them.
 - **Search's refusal message** says "is a integer value". Fix the article.
-- **Hex message without an OBJ id (CLICK):** the refusal for a padded 32-bit constant ("a hex constant above
-  FFFFh has at most 8 digits") carries no OBJ id. Find the id CLICK shows, if any.
+- **Hex message without an OBJ id (CLICK):** in Fill and Math, the refusal for a padded 32-bit constant ("a hex
+  constant above FFFFh has at most 8 digits") carries no OBJ id. Find the id CLICK shows there, if any; a
+  single Copy source gives it OBJ-005, as CLICK does.
 - **Kind-mismatch refusal for junk input:** "<field> takes a decimal integer", for a blank or a stray character,
   states the rule but not what was wrong with the input.
 - **Operand probe recheck:** recheck, against the operand probe, every operand field it finds surprising, and fix

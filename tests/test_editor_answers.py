@@ -105,27 +105,6 @@ TEXT_AS_REAL = (
     "value too (0.0, filling TXT1..TXT3); the rules accept it as text, and decode reads the "
     "save as raw(...)"
 )
-ASCII_SOURCE = (
-    "to do: a $ code source ($41, $1) into a bank other than TXT is OBJ-004; the rules give OBJ-024"
-)
-SOURCE_VALUE = (
-    'to do: an empty text ("") or a hex source of more than 8 digits into DS1 is OBJ-005; the '
-    "rules give OBJ-024"
-)
-SD_PAIRING = (
-    'to do: a bit, quoted text ("A") or 10000h into an SD a Copy does not write (SD1) is '
-    "OBJ-024, the pairing first; the rules give OBJ-004"
-)
-BIT_PAST_RANGE = (
-    "to do: a DS into an X, T, CT or SC address outside its bank (X000, X017, T501, SC1001) is "
-    "OBJ-004; the rules give OBJ-024"
-)
-
-# Out (roadmap item 3).
-OUT_ACROSS = (
-    "to do: an Out range whose end is in another bank is OBJ-008, where that bank is refused "
-    "too; the rules give OBJ-004"
-)
 
 # Saves decode reads as raw(...) (roadmap item 3).
 TYPED_ADDRESS = (
@@ -279,101 +258,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
     (TEXT_AS_REAL, "copy_single", "stored", ('single "HELLO" -> TXT1',)),
     (
-        ASCII_SOURCE,
-        "copy_single",
-        "code",
-        (
-            "single $00 -> DS1",
-            "single $1 -> DS1",
-            "single $0D -> DS1",
-            "single $41 -> C1",
-            "single $41 -> CT1",
-            "single $41 -> CTD1",
-            "single $41 -> CTD[DS1]",
-            "single $41 -> C[DS1]",
-            "single $41 -> DD1",
-            "single $41 -> DD[DS1]",
-            "single $41 -> DF1",
-            "single $41 -> DF[DS1]",
-            "single $41 -> DH1",
-            "single $41 -> DH[DS1]",
-            "single $41 -> DS1",
-            "single $41 -> DS[DS1]",
-            "single $41 -> SC1",
-            "single $41 -> T1",
-            "single $41 -> TD1",
-            "single $41 -> TD[DS1]",
-            "single $41 -> X001",
-            "single $41 -> Y001",
-            "single $41 -> YD0",
-            "single $41 -> YD[DS1]",
-            "single $FF -> DS1",
-            "single $ff -> DS1",
-        ),
-    ),
-    (
-        SOURCE_VALUE,
-        "copy_single",
-        "code",
-        (
-            'single "" -> DS1',
-            "single 0FFFFFFFFh -> DS1",
-            "single 100000000h -> DS1",
-            "single FFFFFFFFFh -> DS1",
-        ),
-    ),
-    (
-        SD_PAIRING,
-        "copy_single",
-        "code",
-        (
-            'single "A" -> SD1',
-            'single "AB" -> SD1',
-            "single 10000h -> SD1",
-            "single C1 -> SD1",
-            "single CT1 -> SD1",
-            "single SC1 -> SD1",
-            "single T1 -> SD1",
-            "single X001 -> SD1",
-            "single Y001 -> SD1",
-        ),
-    ),
-    (
-        BIT_PAST_RANGE,
-        "copy_single",
-        "code",
-        (
-            "single DS2 -> CT0",
-            "single DS2 -> CT251",
-            "single DS2 -> SC0",
-            "single DS2 -> SC1001",
-            "single DS2 -> T0",
-            "single DS2 -> T501",
-            "single DS2 -> X000",
-            "single DS2 -> X017",
-            "single DS2 -> X020",
-            "single DS2 -> X037",
-            "single DS2 -> X100",
-            "single DS2 -> X117",
-            "single DS2 -> X817",
-        ),
-    ),
-    (
-        OUT_ACROSS,
-        "out",
-        "code",
-        (
-            "out C1..DS1",
-            "out C1..TXT1",
-            "out C1..X001",
-            "out Y001..DS001",
-            "out Y001..DS1",
-            "out Y001..TXT1",
-            "out Y001..X001",
-            "out Y001..ds1",
-        ),
-    ),
-    (
         TYPED_ADDRESS,
         "copy_single",
         "stored",
@@ -461,7 +345,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 2823
+CODES_COMPARED = 2835
 
 
 @pytest.fixture(scope="module")
