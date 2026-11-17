@@ -233,10 +233,20 @@ class TestInstructionRoundTrip:
         assert isinstance(a, Return)
 
     def test_mixed_wire_and_instruction(self) -> None:
-        """encode_rung encodes a one-row rung that holds nothing."""
-        result = encode_rung(1, [_empty()], [""])
-        # The golden tests check the exact bytes. This test checks only that bytes come back.
-        assert len(result) > 0
+        """encode_rung writes the bytes of the golden instr-series for two contacts, wires and
+        a coil, and the bytes decode to the same row and coil.
+
+        The test builds the row by hand, so the CSV reader plays no part. The CSV file of the
+        golden has X002 in column C, and read_csv packs it into column B. The row here puts
+        X002 in column B, as the golden's bytes hold it.
+        """
+        row = _wire_row(Contact("X001"))
+        row[1] = Contact("X002")
+        buf = encode_rung(1, [row], [Coil("Y001")])
+        assert buf == (GOLDEN_DIR / "instr-series.bin").read_bytes()
+        [d] = decode(buf)
+        assert d.conditions == [row]
+        assert d.instructions == [Coil("Y001")]
 
     # -- CompareContact round-trips --
 

@@ -366,12 +366,13 @@ class RawInstruction(AfInstruction):
     rows, sub:
         The row bytes of the box's cell header.  ``rows`` is the row span
         (+0x09), and ``sub`` is the sub-rows (+0x0A).  The decoders keep the
-        bytes of the cell that CLICK wrote.  They leave a typed box raw when
-        its stored row span is not the row span of its class.  ``None`` takes
-        the height from the class.  If the blob alone gives the height of the
-        typed family, the box takes that height: the Copy family, Search,
-        Send, Receive, Out variants, and 3 rows for Email, Home, Position and
-        Velocity.  Otherwise the box ends one row below the row of its last
+        bytes of the cell that CLICK wrote.  They leave a box raw when its
+        stored row span is not the height of the typed instruction.  If
+        ``rows`` is None, the box takes its height from its class name and
+        its blob.  If the blob alone gives the height of the typed family,
+        the box takes that height: the Copy family, Search, Send, Receive,
+        Out variants, and 3 rows for Email, Home, Position and Velocity.
+        Otherwise the box ends one row below the row of its last
         part, as the extra part bytes of the blob give it.  A 1-part box is 1
         row.  Boxes made in CLICK's editor may store other sub-rows: Math
         ``01 03``, some Search ``02 03``, Tmr ``02 03``, Drum ``04 05``, SR
@@ -381,7 +382,7 @@ class RawInstruction(AfInstruction):
         (``rows=``, ``sub=``).  For a box of 2 or more parts, it also holds
         the extra part bytes (``pins=``).  Two boxes are equal when they
         encode the same bytes, even if one has ``None`` and the other states
-        the height of its class.
+        the height that ``None`` gives.
     """
 
     class_name: str
@@ -562,11 +563,11 @@ class RawInstruction(AfInstruction):
 
         ``rows`` (row span) and ``sub`` (sub-rows) come right after the part count, or
         right after the hex.  Each is optional, and an absent one is None.  If both are
-        absent, the box takes the height of its class.  If only ``sub`` is absent, the
-        sub-rows equal ``rows``.  ``pins`` is the extra part bytes joined by ``/``.  It is
-        allowed only in the decoded-fields form, for a box of 2 or more parts.  Without
-        it, the part bytes are ``01 02 ...``.  If ``rows`` is given, it must be one more
-        than the last pin.
+        absent, the box takes its height from its class name and its blob.  If only
+        ``sub`` is absent, the sub-rows equal ``rows``.  ``pins`` is the extra part bytes
+        joined by ``/``.  It is allowed only in the decoded-fields form, for a box of 2 or
+        more parts.  Without it, the part bytes are ``01 02 ...``.  If ``rows`` is given,
+        it must be one more than the last pin.
         """
         token = token.strip()
         if not token.startswith("raw(") or not token.endswith(")"):

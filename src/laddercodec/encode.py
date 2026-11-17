@@ -19,10 +19,10 @@ Cell:
     wire flags and bytes that describe the grid's structure. An
     instruction cell also holds its index among the rung's instructions,
     at +0x0D. The encoder numbers the condition instructions row by row,
-    then the AF instructions. When the AF cell on the buffer's last row
-    is a 0x40-byte cell, blank or a NOP, the encoder writes the number of
-    the last rung's instructions at its +0x3C. A NOP is not counted.
-    CLICK often writes another value there.
+    then the AF instructions. When the AF cell on the last row of the
+    last rung is a 0x40-byte cell, blank or a NOP, the encoder writes the
+    number of that rung's instructions at its +0x3C. A NOP is not
+    counted. CLICK often writes another value there.
 
 Wire topology:
     The arrangement of horizontal wires ("-"), vertical pass-throughs

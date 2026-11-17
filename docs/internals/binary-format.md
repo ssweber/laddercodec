@@ -107,7 +107,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 | +0x05 | 4B | Row byte (uint32 LE, `global_row + 1`) |
 | +0x09 | 1B | Row span (0x01 for single-row, 0x02+ for multi-row AF) |
 | +0x0A | 1B | Visual sub-rows (0x01 for wire cells and most single-row instructions, 0x02+ for tall boxes; 0x03 in a Math cell the editor creates, 0x01 under a row span of 3 in an Email/Home/Position/Velocity cell pasted at 1 row and then saved by its dialog) |
-| +0x0B–0x0C | 2B | Structural: +0x0C = 0x01 in wire-only rungs, 0x00 in instruction-bearing rungs |
+| +0x0B–0x0C | 2B | CLICK's values vary from cell to cell. The decoder reads neither byte. The encoder writes 0x00 at +0x0B, except in rung 0's preamble, where it writes the template's 0x40 (at 0x026B). At +0x0C it writes 0x01 in a preamble cell and in each cell of a rung that has no instruction (a NOP does not count), and 0x00 in every other cell. |
 | +0x0D | 4B | Instruction index (int32 LE; 0xFFFFFFFF for data cells) |
 | +0x11 | 4B | Structural flag (always 0x00000001) |
 | +0x15 | 4B | Row-start flag: stored row bit 0 at column A, zero elsewhere (uint32 LE) |
@@ -121,7 +121,7 @@ Wire and blank cells are exactly 0x40 bytes: a 0x25-byte header, 0x0B bytes of p
 |---|---|
 | +0x08 | Marker (0x01 for condition cells and non-last-row AF data cells) |
 | +0x09 | Rung index, little-endian, carrying into +0x0A past 255 |
-| +0x0C | Instruction count (AF data cell, last row of last rung only) |
+| +0x0C | Instruction count. In the AF data cell on the last row of the last rung, the encoder writes the number of that rung's instructions. It does not count a NOP. CLICK often writes another value. |
 | +0x0D | Row hint (condition: `local_row + 1`; AF last rung: `local_row + 2`) |
 
 ### Cell structure (instruction cells)

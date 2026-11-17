@@ -481,9 +481,9 @@ class TestDrumDurations:
 
 
 class TestDrumEventsAndOutputs:
-    # An event is an X, Y, C, T, CT or SC bit, or it is refused with OBJ-004. Each output
-    # must differ from the other outputs and from the completion flag, or it is refused with
-    # OBJ-014. The check compares addresses, not text, so C050 and C50 are the same.
+    # An event is an X, Y, C, T, CT or SC bit, or it is refused. Each output must differ
+    # from the other outputs and from the completion flag, or it is refused with OBJ-014.
+    # The check compares addresses, not text, so C050 and C50 are the same.
     @pytest.mark.parametrize("event", ["X001", "Y001", "C5", "T1", "CT1", "SC1"])
     def test_event_banks_accepted(self, event: str) -> None:
         assert drum(events=[event, "C10"]).events[0] == event

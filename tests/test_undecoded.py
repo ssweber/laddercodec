@@ -1,8 +1,9 @@
 """Tests of undecoded markers.
 
 When a decoder cannot read a rung, it returns one marker rung in its place and warns. It
-does not raise. A buffer that the decoders cannot read at all still raises. Such a buffer
-has a bad magic, size or SCR header.
+does not raise. If the decoder cannot tell where that rung ends, decoding stops. One
+marker then stands for that rung and every rung after it. A buffer that the decoders
+cannot read at all still raises. Such a buffer has a bad magic, size or SCR header.
 
 Most buffers here are golden fixtures that were encoded and then damaged, so most tests
 need no capture of their own.

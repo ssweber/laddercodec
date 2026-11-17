@@ -5,9 +5,9 @@ records the result of pasting each fixture into CLICK.
 
 Subcommands:
     generate  — Encode each .csv file and write the result to the .bin file of the same name.
-    prune     — Remove the log entry of each fixture whose .bin file has uncommitted changes
-                or whose .csv file is gone. Delete each .note.txt and .png file, and each
-                .bin file that has no .csv file.
+    prune     — Remove the log entry of each fixture whose .bin file has changes that
+                are not staged in git, or whose .csv file is gone. Delete each .note.txt
+                and .png file, and each .bin file that has no .csv file.
     sync      — Run generate, then prune. This is the default when you give no subcommand.
 
 Usage:
@@ -85,7 +85,7 @@ def prune() -> None:
         print("No verify_progress.log found — nothing to prune.")
         return
 
-    # Find .bin files with uncommitted changes
+    # Find .bin files with changes that are not staged
     result = subprocess.run(
         ["git", "diff", "--name-only", "--", "tests/fixtures/ladder_captures/golden/*.bin"],
         capture_output=True,

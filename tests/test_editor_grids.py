@@ -129,8 +129,9 @@ ROW_COUNTS = {
     "out.ranges.mixed": 60,
 }
 
-#: The most cases that one grid file may hold. devtools/editor_grids.py splits a longer file,
-#: because the runner takes about 4 seconds a case.
+#: The most cases that one grid file may hold. Split a longer file by hand, because the
+#: runner takes about 4 seconds a case. devtools/editor_grids.py marks such a file as over
+#: the split limit, and it does not split the file.
 MAX_CASES = 2000
 
 

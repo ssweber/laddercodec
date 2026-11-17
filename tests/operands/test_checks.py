@@ -120,8 +120,8 @@ REFUSED: list[tuple[str, Constants, str]] = [
     # limits
     ("32768", DIGITS, "outside 0 to 32767"),
     ("0", Constants(frozenset({N}), signs="", low=1, high=32767), "outside 1 to 32767"),
-    # An integer beyond int32 is refused by the field's own sign rule or limits. The low
-    # limit in the message is 0 when the field accepts no '-'.
+    # An integer beyond int32 is refused by the field's own kind, sign rule or limits. The
+    # low limit in the message is 0 when the field accepts no '-'.
     ("3000000000", DIGITS, "outside 0 to 32767 (OBJ-005)"),
     ("-3000000000", COUNTER, "outside -2147483648 to 2147483647 (OBJ-005)"),
     ("3000000000", Constants(frozenset({N}), signs="", low=0, high=2**31 - 1), "outside 0 to"),
