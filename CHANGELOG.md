@@ -11,6 +11,7 @@
 ## Unreleased
 
 ### Added
+- **More top-level exports**: `laddercodec` exports `DecodeError`, `WriterError`, `ConvertError`, `UnknownCondition`, `UnknownInstruction`, `Email`, `Home`, `Position` and `Velocity`, so none needs a submodule import.
 - **Undecoded marker rungs**: `decode()` and `decode_program()` return a rung they can't read as a one-row rung into an `Undecoded` marker, with an `UndecodedRungWarning`, and the rungs around it decode; the marker acts as `end()` in the main program and `return()` in a subroutine, since a program that ran past a rung it could not read would run wrong.
 - **`Program.undecoded`**: lists a program's undecoded markers, empty when every rung decoded.
 - **`undecoded(...)` CSV token**: `write_csv` writes a marker and `read_csv` reads it back; `encode()` refuses it, so it never reaches CLICK, and `check()` reports it as an `undecoded` finding.
