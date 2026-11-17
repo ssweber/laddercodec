@@ -1,4 +1,8 @@
-"""Where in a CSV ``read_csv`` found the value it raised about, or a refusal it kept."""
+"""Record where in a CSV file ``read_csv`` found each error that it raises.
+
+``CsvLocation`` holds the place. The helpers here attach one to an exception, or to a
+refusal that ``read_csv`` keeps when it reads with ``unchecked=True``.
+"""
 
 from __future__ import annotations
 
@@ -21,46 +25,53 @@ AF_COLUMN = len(CONDITION_COLUMNS)
 
 @dataclass(frozen=True)
 class CsvLocation:
-    """Where in a CSV an error ``read_csv`` raised, or a refusal it kept, was found.
+    """The place in a CSV file of an error that ``read_csv`` raises, or of a refusal that
+    it keeps.
 
-    Every exception ``read_csv`` raises for a bad CSV carries one as its ``location``
-    attribute, whatever its class: ``CsvError`` (a row or token it can't read),
-    ``FieldError`` and ``AddressError`` keep their class and gain the attribute.
-    :meth:`of` reads it.  A ``csv.Error`` or ``UnicodeDecodeError`` (a file that isn't
-    UTF-8) arrives as a ``CsvError`` with the same message and the original as its
-    ``__cause__``; for a file that isn't UTF-8, the location holds ``file`` only.  Each
-    message ends with `` (at <location>)``.  A
-    ``FieldError`` refused while a box takes its pin rows (a ``.jump()`` target, a
-    ``.reset()`` on a timer that can't be retentive) arrives as a ``CsvError``, with the
-    refusal's data.  Each refusal in a
-    ``FieldError``'s ``errors`` carries its own location.  Each field is ``None``
-    where it is not known or does not apply.
+    Every exception that ``read_csv`` raises for a bad CSV has a ``CsvLocation`` as its
+    ``location`` attribute. This is so for a ``CsvError``, which is raised for a row or
+    token that ``read_csv`` can't read. It is also so for a ``FieldError`` or an
+    ``AddressError``, which keeps its own class. :meth:`of` returns the location of an
+    exception. The message of each exception ends with `` (at <location>)``.
 
-    Read with ``unchecked=True``, each refusal an instruction keeps (each in a
-    :class:`~laddercodec.RefusedFieldWarning`'s ``errors``) carries the location the
-    default read gives it when it raises; its message is unchanged.
+    ``read_csv`` raises a ``csv.Error``, or a ``UnicodeDecodeError`` for a file that isn't
+    UTF-8, as a ``CsvError`` with the same message. The original exception is its
+    ``__cause__``. For a file that isn't UTF-8, the location holds only ``file``.
+
+    A check can refuse a value while a box takes its pin rows. Examples are a ``.jump()``
+    target, or a ``.reset()`` on a timer that can't be retentive. ``read_csv`` then raises a
+    ``CsvError`` that carries the data of the refusal. Each refusal in the ``errors`` of a
+    ``FieldError`` has its own location. Each field of the location is ``None`` where it is
+    not known or does not apply.
+
+    When ``read_csv`` reads with ``unchecked=True``, an instruction keeps each refusal
+    instead of raising it. The refusal appears in the ``errors`` of a
+    :class:`~laddercodec.RefusedFieldWarning`. Each kept refusal has the location that the
+    default read would give it when it raised. Its message does not end with the location.
 
     Attributes
     ----------
     file:
         The CSV file being read.
     line:
-        The line of the CSV file the row at fault starts on, counted from 1 as an editor
-        counts them, blank lines included: the header is line 1 only when no blank line
-        comes before it.  ``None`` for an error about the whole file.
+        The line of the CSV file that the bad row starts on. Lines are counted from 1, as an
+        editor counts them, and blank lines count. The header is line 1 only when no blank
+        line comes before it. It is ``None`` for an error about the whole file.
     rung_line:
-        The line of the ``R`` row that starts the rung the row is in, counted the same way.
-        ``None`` when the row is in no rung: the header, a comment row, and a row with no
-        ``R`` row between it and the last comment row or the header above it.
+        The line of the ``R`` row that starts the rung that holds the bad row, counted the
+        same way. It is ``None`` when the row is in no rung. The header and a comment row are
+        in no rung. So is a row that has no ``R`` row between it and the nearest comment row
+        or header above it.
     row:
-        The row within that rung, from 0: the ``R`` row is row 0, and the comment rows above
-        it are not counted.  Rows are counted as the CSV holds them, before layout.  ``None``
-        when ``rung_line`` is.  A refusal of what a pin row holds is at that pin row; a pin
-        row that is missing is at the box's row.
+        The index of the row within its rung, from 0. The ``R`` row is row 0, and the comment
+        rows above it are not counted. Rows are counted as they appear in the CSV file,
+        before laddercodec lays out the rung. It is ``None`` when ``rung_line`` is ``None``.
+        If a check refuses the value that a pin row holds, the row is that pin row. If a pin
+        row is missing, the row is the box's row.
     column:
-        The cell's column, from 0: 0 is ``A``, 30 is ``AE`` and 31 is ``AF``, as
-        :class:`laddercodec.Finding` counts them.  ``None`` for an error about a whole row or
-        its marker.  :attr:`column_name` gives the letters.
+        The cell's column, counted from 0 as :class:`laddercodec.Finding` counts columns.
+        0 is ``A``, 30 is ``AE`` and 31 is ``AF``. It is ``None`` for an error about a whole
+        row or its marker. :attr:`column_name` returns the letters.
     """
 
     file: Path | None = None
@@ -76,7 +87,7 @@ class CsvLocation:
 
     @staticmethod
     def of(exc: BaseException) -> CsvLocation | None:
-        """The location *exc* carries, or ``None`` when it carries none."""
+        """Return the location that *exc* carries, or ``None`` if it carries none."""
         location = getattr(exc, "location", None)
         return location if isinstance(location, CsvLocation) else None
 
@@ -96,7 +107,10 @@ class CsvLocation:
 
 
 def add_own_location(exc: BaseException, **known: object) -> None:
-    """Give *exc* alone, not the refusals in its ``errors``, the fields of *known* it lacks."""
+    """Add to the location of *exc* each field of *known* that the location does not have yet.
+
+    Leave the refusals in the ``errors`` of *exc* unchanged.
+    """
     old = CsvLocation.of(exc) or CsvLocation()
     new = {
         f.name: known[f.name]
@@ -107,8 +121,8 @@ def add_own_location(exc: BaseException, **known: object) -> None:
 
 
 def add_location(exc: BaseException, **known: object) -> None:
-    """Give *exc*, and every refusal in its ``errors``, the fields of *known* its location
-    does not have yet."""
+    """Add each field of *known* to the location of *exc*, and of every refusal in its
+    ``errors``, where that location does not have the field yet."""
     add_own_location(exc, **known)
     for nested in getattr(exc, "errors", ()):
         if nested is not exc and isinstance(nested, BaseException):
@@ -116,11 +130,12 @@ def add_location(exc: BaseException, **known: object) -> None:
 
 
 def locate_held(tokens: Iterable[object], **known: object) -> None:
-    """Give every refusal each instruction in *tokens* holds the fields of *known* its
-    location does not have yet, as :func:`add_location` gives a raised one.
+    """Add the fields of *known* to the location of every refusal that an instruction in
+    *tokens* holds, as :func:`add_location` does for a raised exception.
 
-    ``read_csv(..., unchecked=True)`` builds an instruction its checks refuse and keeps the
-    refusals on it (:func:`~laddercodec.operands.unchecked.refusals`).
+    ``read_csv(..., unchecked=True)`` builds an instruction even when its checks refuse a
+    value, and the instruction keeps the refusals.
+    :func:`~laddercodec.operands.unchecked.refusals` returns them.
     """
     if all(value is None for value in known.values()):
         return
@@ -130,7 +145,10 @@ def locate_held(tokens: Iterable[object], **known: object) -> None:
 
 
 def at(exc: _E, **known: object) -> _E:
-    """*exc*, its location given the fields of *known*: ``raise at(ValueError(...), line=3)``."""
+    """Add the fields of *known* to the location of *exc*, and return *exc*.
+
+    Use it in a raise statement: ``raise at(ValueError(...), line=3)``.
+    """
     add_location(exc, **known)
     return exc
 
@@ -150,8 +168,8 @@ def located_in_file(path: Path) -> Generator[None]:
     """Add *path* to the location of any exception raised in the block, and end its message
     with the location.
 
-    The outermost step of reading one file: an exception that already names a file passes
-    through unchanged.
+    Wrap the whole read of one file in this block. If the location of an exception already
+    names a file, the exception passes through unchanged.
     """
     try:
         yield
@@ -164,10 +182,10 @@ def located_in_file(path: Path) -> Generator[None]:
 
 
 def _append_to_message(exc: BaseException) -> None:
-    """End a one-string message with `` (at <location>)``.
+    """Add `` (at <location>)`` to the end of the message of *exc*.
 
-    Only a ``ValueError`` or ``csv.Error`` whose only argument is its message is changed; a
-    ``UnicodeError`` builds its message from other arguments and is left as it is.
+    Change only a ``ValueError`` or ``csv.Error`` whose only argument is its message. Leave a
+    ``UnicodeError`` as it is, because it builds its message from other arguments.
     """
     if not isinstance(exc, (ValueError, csv.Error)) or isinstance(exc, UnicodeError):
         return

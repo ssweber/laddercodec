@@ -1,7 +1,8 @@
-"""Tmr — timer instructions (type marker 0x2718).
+"""The Timer instruction.
 
-Binary class name: ``"Tmr"``.
-Timer types: on_delay, off_delay (retentive flag set separately).
+CLICK stores a timer with the binary class name ``"Tmr"`` and the type marker 0x2718. A
+timer is ``on_delay`` or ``off_delay``. A separate flag, ``retained``, makes an on-delay
+timer retentive.
 """
 
 from __future__ import annotations
@@ -26,7 +27,8 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: Timer time unit index -> CSV name (matches pyrung TimeUnit.name).
+#: The CSV name of each timer unit, by the unit's index. The names are the names of
+#: pyrung's ``TimeUnit`` members.
 TIMER_UNITS: dict[str, str] = {
     "0": "Tms",
     "1": "Ts",
@@ -42,8 +44,8 @@ TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
 # Tag constants
 # ---------------------------------------------------------------------------
 
-#: A constant set point is digits only (no sign), 0 to 32767, for every unit.
-#: A digits-only value above 0x7fff is OBJ-005; the unit does not matter.
+#: A constant preset is digits only, with no sign, from 0 to 32767, whatever the unit.
+#: CLICK refuses a digits-only value above 0x7fff with OBJ-005, whatever the unit.
 _PRESET = Constants(frozenset({Kind.INTEGER}), signs="", low=0, high=INT16_MAX)
 
 _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
@@ -55,11 +57,11 @@ _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 
 @dataclass
 class Timer(PinnedInstruction):
-    """A timer instruction (on_delay / off_delay).
+    """An on-delay or off-delay timer instruction.
 
-    Occupies the AF column.  The binary class name is ``Tmr``
-    (type marker 0x2718).  Each timer rung adds an extra grid row
-    for the timer's visual height.
+    The timer sits in the AF column. CLICK stores it with the binary class name ``Tmr``
+    and the type marker 0x2718. The box spans the grid rows from its own row down to the
+    row of the reset input, which ``pin_rows`` gives, so it is at least two rows tall.
     """
 
     kind: Literal["on_delay", "off_delay"]
@@ -68,9 +70,10 @@ class Timer(PinnedInstruction):
     preset: str  # preset value or operand, e.g. "1" or "DS1"
     unit: str  # "Tms", "Ts", "Tm", "Th", "Td"
     retained: bool = False  # True = retentive (RTON)
-    #: Row of the reset input.  OR legs under the enable input of a retentive
-    #: timer push it down.  A timer without ``.reset()`` stays 2 rows with its
-    #: legs beside and below it.
+    #: The row of the reset input within the box. Rows of OR branches under the
+    #: enable input of a retentive timer push the reset input down. A timer without
+    #: ``.reset()`` is always 2 rows tall, and the OR branch rows of its enable input
+    #: sit beside and below the box.
     pin_rows: tuple[int, ...] = (1,)
 
     def __post_init__(self) -> None:
@@ -102,7 +105,7 @@ class Timer(PinnedInstruction):
                     Reason.CONFLICT,
                     code=Code.TIMER_PAIR_MISMATCH,
                 )
-            # An address preset is DS only, OBJ-004.
+            # A preset address must be in DS. CLICK refuses any other bank with OBJ-004.
             check("preset", check_operand, {"DS"}, _PRESET, bank_id="OBJ-004")
             if self.kind == "off_delay" and self.retained:
                 check.refuse(
@@ -116,10 +119,11 @@ class Timer(PinnedInstruction):
 
     @classmethod
     def from_csv_token(cls, token: str) -> Timer:
-        """Parse v1 timer: ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
+        """Parse a timer token such as ``on_delay(T1,TD1,preset=1000,unit=Tms)``.
 
-        Positional: done, accumulator.  Kwargs: preset, unit.
-        Retained is never in the CSV — it's set by ``.reset()`` pin presence.
+        The positional arguments are done and accumulator. The keyword arguments are
+        preset and unit. The token never names ``retained``. A ``.reset()`` pin row makes
+        the timer retentive.
         """
         token = token.strip()
         m = re.fullmatch(r"(on_delay|off_delay)\((.+)\)", token)
@@ -158,7 +162,11 @@ class Timer(PinnedInstruction):
 
     @property
     def enable_func_code(self) -> str:
-        """Compute the enable func_code: base + offset."""
+        """Return the func code of the enable input.
+
+        It is 8717 plus 6 times the unit index, plus 1 for an off-delay timer or 2 for a
+        retentive on-delay timer.
+        """
         base = 8717 + int(self.unit_idx) * 6
         if self.kind == "on_delay":
             return str(base + (2 if self.retained else 0))
@@ -166,7 +174,11 @@ class Timer(PinnedInstruction):
 
     @property
     def reset_func_code(self) -> str:
-        """Compute the reset func_code (retentive only; "0" otherwise)."""
+        """Return the func code of the reset input.
+
+        For a retentive timer it is 8717 plus 6 times the unit index, plus 3. For any other
+        timer it is ``"0"``.
+        """
         if not self.retained:
             return "0"
         base = 8717 + int(self.unit_idx) * 6
@@ -176,7 +188,8 @@ class Timer(PinnedInstruction):
         return f"{self.kind}({self.done},{self.accumulator},preset={self.preset},unit={self.unit})"
 
     def cell_params(self) -> dict:
-        """Return ClickCell kwargs intrinsic to this instruction."""
+        """Return the ``ClickCell`` keyword arguments that the timer sets: the box's height
+        in grid rows and its number of sub-rows."""
         return {"visual_rows": self.pin_rows[-1] + 1, "sub_rows": 2}
 
     def pin_names(self) -> tuple[str, ...]:
@@ -238,7 +251,11 @@ def from_tags(
     variant_u16_tags: dict[int, dict[int, int]] | None = None,
     variant_string_tags: dict[int, dict[int, str]] | None = None,
 ) -> Timer | None:
-    """Construct a Timer from tag data (shared by both decoders)."""
+    """Construct a Timer from the tags of a decoded blob.
+
+    Return None if the blob is not a timer, lacks a field, or is a retentive off-delay
+    timer. The clipboard and program-file decoders both use it.
+    """
     if class_name != "Tmr" or type_code != _TIMER_TYPE_CODE:
         return None
     done = tag_value(tags, 0x6068)
@@ -248,12 +265,12 @@ def from_tags(
     unit = TIMER_UNITS.get(unit_idx)
     if not done or not accumulator or not preset or unit is None:
         return None
-    # SCR: 0x21FA absent = on_delay, present = off_delay.
-    # Clipboard: byte tag value 0 = on_delay, 1 = off_delay.
+    # A program file (SCR) leaves out 0x21FA for an on-delay timer and stores it for an
+    # off-delay timer. The clipboard stores the byte 0 for on-delay and 1 for off-delay.
     kind = "off_delay" if tag_int(tags, 0x21FA) != 0 else "on_delay"
     retained = tag_int(tags, 0x21FB) != 0
     if kind == "off_delay" and retained:
-        return None  # CLICK's dialog never writes it; keep the blob raw
+        return None  # CLICK's dialog never writes this, so the decoder keeps the raw blob
     return Timer(
         kind=kind,
         done=done,
