@@ -35,6 +35,10 @@ if TYPE_CHECKING:
 SHIFT_BANKS = frozenset({"C"})
 
 _SHIFT_FUNC_CODES = ("8448", "8449", "8450")
+_SHIFT_FORM = (
+    "Could not read {token!r} as a shift register. Write it as shift(start..end), such as "
+    "shift(C1..C8)."
+)
 _SHIFT_SUB_MARKERS = (b"\x00\x00\x00\x00", b"\x01\x00\x00\x00", b"\x02\x00\x00\x00")
 
 # ---------------------------------------------------------------------------
@@ -90,14 +94,14 @@ class Shift(PinnedInstruction):
         token = token.strip()
         m = re.fullmatch(r"shift\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse shift: {token!r}")
+            raise CsvError(_SHIFT_FORM.format(token=token))
 
         inner = m.group(1).strip()
         if ".." not in inner:
             raise CsvError(f"shift expects a range arg (start..end): {token!r}")
         parts = [p.strip() for p in inner.split("..")]
         if len(parts) != 2 or not all(parts):
-            raise CsvError(f"Cannot parse shift range: {token!r}")
+            raise CsvError(_SHIFT_FORM.format(token=token))
 
         return cls(
             start_bit=parts[0],

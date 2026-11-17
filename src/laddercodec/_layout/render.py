@@ -153,7 +153,8 @@ class _Painter:
             if end is None:
                 return start, 0
             raise LayoutError(
-                "an empty Or leg (a wire around the block) shorts it",
+                "an empty Or leg (a wire around the block) shorts it. Remove that wire, or put "
+                "a contact on it.",
                 code=Code.SHORTED_CONTACT,
             )
         net, height = start, 0
@@ -196,7 +197,9 @@ class _Painter:
         def claim(row: int, col: int, net: int) -> None:
             if points.setdefault((row, col), net) != net:
                 raise LayoutError(
-                    f"two nets meet at row {row}, column {col}", code=Code.LAYOUT_CANNOT_DRAW
+                    f"laddercodec can't lay out this rung: two separate wires meet at row "
+                    f"{row}, column {col} of the drawing",
+                    code=Code.LAYOUT_CANNOT_DRAW,
                 )
 
         def put(row: int, col: int, value: object) -> None:
@@ -206,7 +209,9 @@ class _Painter:
                 )
             if across[row][col] is not None:
                 raise LayoutError(
-                    f"two cells drawn at row {row}, column {col}", code=Code.LAYOUT_CANNOT_DRAW
+                    f"laddercodec can't lay out this rung: two cells fall on row {row}, "
+                    f"column {col} of the drawing",
+                    code=Code.LAYOUT_CANNOT_DRAW,
                 )
             across[row][col] = value
 
@@ -256,7 +261,9 @@ def _with_down(contact: object, down: bool) -> object:
         return rebuilt(cast(Any, contact), wire_down=down)
     if down:
         raise LayoutError(
-            "a contact this layout cannot mark with a down wire", code=Code.LAYOUT_CANNOT_DRAW
+            f"laddercodec can't lay out this rung: a {type(contact).__name__} needs a wire "
+            "down from its cell, and laddercodec can't draw one there",
+            code=Code.LAYOUT_CANNOT_DRAW,
         )
     return contact
 

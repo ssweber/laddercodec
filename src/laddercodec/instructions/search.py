@@ -315,12 +315,18 @@ def parse_af_call(call: AfCall) -> Search:
     # DOTALL: a text value may hold a line break.
     m = re.fullmatch(r"(.+?)\.\.(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)", expr, re.DOTALL)
     if not m:
-        raise CsvError(f"Cannot parse search expression: {expr!r}")
+        raise CsvError(
+            f"Could not read the search expression {expr!r}. Write the table, an operator "
+            "and a value, such as DS1..DS10 == DS20."
+        )
 
     result = call.kwargs.get("result")
     found = call.kwargs.get("found")
     if not result or not found:
-        raise CsvError("search missing result or found kwargs")
+        raise CsvError(
+            "search needs result= and found=, such as "
+            "search(DS1..DS10 == DS20,result=DS30,found=C1)."
+        )
 
     return Search(
         table_start=m.group(1).strip(),

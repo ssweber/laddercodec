@@ -118,7 +118,7 @@ def _parse_simple_list(val: str) -> tuple[str, ...]:
     """Parse ``"[a,b,c]"`` into a tuple of strings."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise CsvError(f"Expected list: {val!r}")
+        raise CsvError(f"{val!r} is not a list. Write it in square brackets, such as [Y001,Y002].")
     inner = val[1:-1].strip()
     if not inner:
         return ()
@@ -131,7 +131,10 @@ def _parse_pattern(val: str) -> tuple[tuple[int | str, ...], ...]:
     A cell other than 0 or 1 stays text, for the Drum to refuse."""
     val = val.strip()
     if not val.startswith("[") or not val.endswith("]"):
-        raise CsvError(f"Expected nested list: {val!r}")
+        raise CsvError(
+            f"{val!r} is not a pattern. Write one bracketed row of 0s and 1s per step, such as "
+            "[[1,0],[0,1]]."
+        )
     inner = val[1:-1].strip()
     rows: list[str] = []
     depth = 0

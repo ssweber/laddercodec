@@ -131,14 +131,16 @@ def _validate_rung(
             if isinstance(token, UnknownCondition):
                 raise EncodeError(
                     f"{prefix}Unknown condition at row={row_idx}, col={col_idx}: "
-                    "laddercodec can't write an instruction it couldn't read"
+                    "laddercodec can't write an instruction it couldn't read. Replace the "
+                    "cell, or remove it."
                 )
             if isinstance(token, ConditionInstruction):
                 _check_instruction(token, prefix, f"row={row_idx}, col={col_idx}")
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
                 raise EncodeError(
-                    f"{prefix}Unsupported token {token!r} at row={row_idx}, col={col_idx}"
+                    f"{prefix}Unsupported token {token!r} at row={row_idx}, col={col_idx}. "
+                    "Use a contact, or one of '', '-', '|' or 'T'."
                 )
             if col_idx == 0 and token in ("|", "T"):
                 raise EncodeError(
@@ -155,7 +157,8 @@ def _validate_rung(
         if isinstance(af, UnknownInstruction):
             raise EncodeError(
                 f"{prefix}Unknown instruction at row={row_idx}, AF: "
-                "laddercodec can't write an instruction it couldn't read"
+                "laddercodec can't write an instruction it couldn't read. Replace the "
+                "instruction, or remove it."
             )
         if isinstance(af, Undecoded):
             raise EncodeError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")

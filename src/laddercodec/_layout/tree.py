@@ -354,7 +354,9 @@ def trees(net: Network) -> list[RungTree]:
         # laddercodec knows how CLICK splits a rung of coils or Copy boxes.  It has no
         # capture of CLICK splitting a rung that holds a NOP.
         raise LayoutError(
-            "no capture shows CLICK splitting a rung that holds a NOP", code=Code.LAYOUT_NOP_SPLIT
+            "laddercodec can't split a rung that holds a NOP into CLICK rungs. Write each "
+            "output in a rung of its own, or remove the NOP.",
+            code=Code.LAYOUT_NOP_SPLIT,
         )
     out: list[RungTree] = []
     for item in items:

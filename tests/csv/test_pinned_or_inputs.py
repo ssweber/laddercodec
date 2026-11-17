@@ -175,7 +175,7 @@ def test_count_down_rejects_bridge_below_legs(tmp_path: Path) -> None:
         ["", *conds[1], ""],
         ["", *_pin_row(0), "NOP"],
     ]
-    with pytest.raises(CsvError, match="NOP bridge row"):
+    with pytest.raises(CsvError, match="the row with NOP in column AF is the box.s Down input"):
         read_csv(_write(tmp_path / "main.csv", rows))
 
 

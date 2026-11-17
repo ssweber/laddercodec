@@ -220,17 +220,26 @@ def _emit_pinned_block(
     lead = af.lead_rows
     needed = start + height
     if len(condition_rows) < needed or len(af_tokens) < needed:
-        raise WriterError(f"{name} requires {needed} decoded rows; got {len(condition_rows)}")
+        raise WriterError(
+            f"{name} on row {start} is {height} rows tall, but the rung has only "
+            f"{len(condition_rows)} rows"
+        )
     for offset in range(1, height):
         if offset == lead:
             if af_tokens[start + offset] != "NOP":
-                raise WriterError(f"{name} requires a NOP bridge row on its main input")
+                raise WriterError(
+                    f"{name}: row {start + offset} is the box's main input. Its instruction "
+                    f"must be 'NOP', not {af_tokens[start + offset]!r}"
+                )
             continue
         _require_blank_af(af_tokens[start + offset], message=f"{name} pin rows must be blank AF")
 
     main = af.pin_rows[lead - 1] if lead else 0
     if main != lead:
-        raise WriterError(f"{name} lead slots must sit directly above its main input")
+        raise WriterError(
+            f"{name}: pin_rows {af.pin_rows} puts the main input on row {main} of the box. "
+            f"It must be on row {lead}."
+        )
     first_lead = next(
         (i for i in range(lead) if not _is_blank_row(condition_rows[start + i])), lead
     )
@@ -275,7 +284,8 @@ def _emit_generic_tall_block(
     needed = start + visual_rows
     if len(condition_rows) < needed or len(af_tokens) < needed:
         raise WriterError(
-            f"{type(af).__name__} requires {needed} decoded rows; got {len(condition_rows)}"
+            f"{type(af).__name__} on row {start} is {visual_rows} rows tall, but the rung has "
+            f"only {len(condition_rows)} rows"
         )
 
     keep = _followed_by_floating_row(af_tokens, needed)

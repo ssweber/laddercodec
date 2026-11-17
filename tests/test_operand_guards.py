@@ -359,27 +359,32 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
 }
 
 VALUE_ERROR_ALLOWED: dict[Key, int] = {
-    ("call.py", "CsvError(f('Cannot parse call instruction: {token!r}'))"): 1,
-    ("coil.py", "CsvError(f(\"Range delimiter ':' is unsupported: {token!r}\"))"): 1,
-    ("coil.py", "CsvError(f('Cannot parse coil keyword arg: {token!r}'))"): 1,
-    ("coil.py", "CsvError(f('Cannot parse coil range: {token!r}'))"): 1,
-    ("coil.py", "CsvError(f('Cannot parse coil: {token!r}'))"): 2,
+    (
+        "call.py",
+        "CsvError(f('Could not read {token!r} as a Call instruction. Write it as call(\"name\"), with the subroutine name in double quotes.'))",
+    ): 1,
     ("coil.py", "CsvError(f('Coil does not support keyword argument(s): {sorted(unknown)}'))"): 1,
     (
         "coil.py",
         "CsvError(f('Immediate must be an inner wrapper (e.g. out(immediate(Y1))): {token!r}'))",
     ): 1,
-    ("comparison.py", "CsvError(f('Cannot parse compare contact: {token!r}'))"): 1,
+    ("coil.py", "CsvError(_COIL_FORM.format(token=token))"): 3,
+    (
+        "coil.py",
+        "CsvError(f(\"Could not read the range in {token!r}. Write it as two addresses joined by '..', such as out(C1..C8).\"))",
+    ): 1,
+    (
+        "coil.py",
+        "CsvError(f(\"{token!r} writes a range with ':'. Write it with '..', such as out(C1..C8).\"))",
+    ): 1,
+    (
+        "comparison.py",
+        "CsvError(f('Could not read {token!r} as a compare contact. Write two operands joined by ==, !=, <, >, <= or >=, such as DS1==1.'))",
+    ): 1,
     ("copy.py", "CsvError(f(\"Expected range with '..': {arg!r}\"))"): 1,
-    ("copy.py", "CsvError(f('Cannot parse convert value: {raw!r}'))"): 1,
-    ("copy.py", "CsvError(f('Cannot parse copy: {token!r}'))"): 1,
-    ("copy.py", "CsvError(f('Cannot parse range: {arg!r}'))"): 1,
     ("copy.py", "WriterError(f('Unknown convert: {self.convert!r}'))"): 1,
     ("copy.py", "CsvError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,
-    (
-        "copy.py",
-        "CsvError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))",
-    ): 1,
+    ("copy.py", "CsvError(f('{name} does not support keyword argument(s): {sorted(unknown)}'))"): 1,
     (
         "copy.py",
         "CsvError(f('blockcopy expects 2 positional args (src_range, dest_range), got {len(call.args)}'))",
@@ -406,7 +411,18 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "copy.py",
         "CsvError(f('{call.name} expects 2 positional args (src_range, dest), got {len(call.args)}'))",
     ): 1,
-    ("counter.py", "CsvError(f('Cannot parse counter: {token!r}'))"): 1,
+    (
+        "copy.py",
+        "CsvError(f(\"Could not read the range {arg!r}. Write two addresses joined by '..', such as DS1..DS10.\"))",
+    ): 1,
+    (
+        "copy.py",
+        "CsvError(f('Could not read convert={raw}. Write to_value, to_ascii, to_text(...) or to_binary(...), such as convert=to_value.'))",
+    ): 1,
+    (
+        "copy.py",
+        "CsvError(f('Could not read {token!r} as a copy. Write it as copy(source,dest), such as copy(DS1,DS2).'))",
+    ): 1,
     (
         "counter.py",
         "EncodeError(f('Unsupported counter variant: {self.kind}(down={self.down_enabled}, reset={self.reset_enabled})'))",
@@ -417,9 +433,11 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     ): 1,
     ("counter.py", "CsvError(f('{kind} missing preset kwarg: {token!r}'))"): 1,
     ("counter.py", "CsvError(f('{self.kind} requires a .reset() pin row'))"): 1,
+    (
+        "counter.py",
+        "CsvError(f('Could not read {token!r} as a counter. Write it as count_up(done,accumulator,preset=...) or count_down(...), such as count_up(CT1,CTD1,preset=100).'))",
+    ): 1,
     ("drum.py", "CsvError('Drum requires a .reset() pin row')"): 1,
-    ("drum.py", "CsvError(f('Expected list: {val!r}'))"): 1,
-    ("drum.py", "CsvError(f('Expected nested list: {val!r}'))"): 1,
     ("drum.py", "CsvError('time_event_drum needs accumulator=')"): 1,
     ("drum.py", "CsvError(f('{call.name} needs unit='))"): 1,
     ("drum.py", "EncodeError(f('Unsupported {self.kind} unit: {self.unit!r}'))"): 1,
@@ -432,18 +450,34 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "drum.py",
         "CsvError(f('time_event_drum needs one preset and one event per step (None for unused): {len(presets)} presets, {len(events)} events'))",
     ): 1,
+    (
+        "drum.py",
+        "CsvError(f('{val!r} is not a list. Write it in square brackets, such as [Y001,Y002].'))",
+    ): 1,
+    (
+        "drum.py",
+        "CsvError(f('{val!r} is not a pattern. Write one bracketed row of 0s and 1s per step, such as [[1,0],[0,1]].'))",
+    ): 1,
     ("email.py", "CsvError(f('Not a raw Email token: {token!r}'))"): 1,
     ("email.py", "CsvError(f('Not an Email token: {token!r}'))"): 1,
-    ("end.py", "CsvError(f('Cannot parse end instruction: {token!r}'))"): 1,
-    ("forloop.py", "CsvError(f('Cannot parse break instruction: {token!r}'))"): 1,
-    ("forloop.py", "CsvError(f('Cannot parse continue instruction: {token!r}'))"): 1,
-    ("forloop.py", "CsvError(f('Cannot parse for instruction: {token!r}'))"): 1,
-    ("forloop.py", "CsvError(f('Cannot parse next instruction: {token!r}'))"): 1,
+    (
+        "end.py",
+        "CsvError(f('Could not read {token!r} as an End instruction. Write it as end().'))",
+    ): 1,
+    ("forloop.py", "CsvError(f('for does not support keyword argument(s): {sorted(unknown)}'))"): 1,
+    ("forloop.py", "CsvError(_FOR_FORM.format(token=token))"): 2,
     (
         "forloop.py",
-        "CsvError(f('for does not support keyword argument(s): {sorted(unknown)}'))",
+        "CsvError(f('Could not read {token!r} as a Break instruction. Write it as break().'))",
     ): 1,
-    ("forloop.py", "CsvError(f('for expects 1 positional arg (count), got {len(args)}'))"): 1,
+    (
+        "forloop.py",
+        "CsvError(f('Could not read {token!r} as a Continue instruction. Write it as continue().'))",
+    ): 1,
+    (
+        "forloop.py",
+        "CsvError(f('Could not read {token!r} as a Next instruction. Write it as next().'))",
+    ): 1,
     ("home.py", "CsvError(f('Not a Home token: {token!r}'))"): 1,
     ("home.py", "CsvError(f('Not a raw Home token: {token!r}'))"): 1,
     ("math.py", "CsvError(f(\"math mode must be 'decimal' or 'hex', got {mode_arg!r}\"))"): 1,
@@ -451,8 +485,6 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "math.py",
         "CsvError(f('math expects 2 positional args (expression, dest), got {len(call.args)}'))",
     ): 1,
-    ("out_variant.py", "CsvError(f('Cannot parse Out variant: {token!r}'))"): 1,
-    ("out_variant.py", "CsvError(f('Cannot parse {kind} keyword arg: {token!r}'))"): 1,
     ("out_variant.py", "CsvError(f('toggle takes no keyword arguments: {token!r}'))"): 1,
     (
         "out_variant.py",
@@ -463,26 +495,45 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
         "CsvError(f('{kind} missing keyword argument(s) {sorted(missing)}: {token!r}'))",
     ): 1,
     ("out_variant.py", "CsvError(f('{kind} needs a target operand: {token!r}'))"): 1,
+    (
+        "out_variant.py",
+        'CsvError(f("Could not read {token!r} as a toggle, debounce, flasher or timed coil. Write the coil\'s address first, such as toggle(C1) or timed(C1,on_acc=TD1,on_preset=1000,unit=Tms)."))',
+    ): 1,
+    (
+        "out_variant.py",
+        'CsvError(f("Could not read {token!r}. After the coil\'s address, {kind} takes only keyword arguments, such as on_acc=TD1."))',
+    ): 1,
     ("position.py", "CsvError(f('Not a Position token: {token!r}'))"): 1,
     ("position.py", "CsvError(f('Not a raw Position token: {token!r}'))"): 1,
     ("return_.py", "CsvError('return expects no arguments')"): 1,
-    ("return_.py", "CsvError(f('Cannot parse return instruction: {token!r}'))"): 1,
+    (
+        "return_.py",
+        "CsvError(f('Could not read {token!r} as a Return instruction. Write it as return().'))",
+    ): 1,
     ("send_receive.py", "CsvError(f('{call.name} needs a {name}= keyword'))"): 1,
-    ("search.py", "CsvError('search missing result or found kwargs')"): 1,
-    ("search.py", "CsvError(f('Cannot parse search expression: {expr!r}'))"): 1,
     (
         "search.py",
         "CsvError(f('search expects 1 positional arg (expression), got {len(call.args)}'))",
     ): 1,
-    ("shift.py", "CsvError(f('Cannot parse shift range: {token!r}'))"): 1,
-    ("shift.py", "CsvError(f('Cannot parse shift: {token!r}'))"): 1,
+    (
+        "search.py",
+        "CsvError('search needs result= and found=, such as search(DS1..DS10 == DS20,result=DS30,found=C1).')",
+    ): 1,
+    (
+        "search.py",
+        "CsvError(f('Could not read the search expression {expr!r}. Write the table, an operator and a value, such as DS1..DS10 == DS20.'))",
+    ): 1,
     ("shift.py", "CsvError(f('shift expects a range arg (start..end): {token!r}'))"): 1,
-    ("timer.py", "CsvError(f('Cannot parse timer: {token!r}'))"): 1,
+    ("shift.py", "CsvError(_SHIFT_FORM.format(token=token))"): 2,
     (
         "timer.py",
         "CsvError(f('{kind} expects 2 positional args (done, accumulator), got {len(args)}: {token!r}'))",
     ): 1,
     ("timer.py", "CsvError(f('{kind} missing preset or unit kwargs: {token!r}'))"): 1,
+    (
+        "timer.py",
+        "CsvError(f('Could not read {token!r} as a timer. Write it as on_delay(done,accumulator,preset=...,unit=...) or off_delay(...), such as on_delay(T1,TD1,preset=1000,unit=Tms).'))",
+    ): 1,
     ("velocity.py", "CsvError(f('Not a Velocity token: {token!r}'))"): 1,
     ("velocity.py", "CsvError(f('Not a raw Velocity token: {token!r}'))"): 1,
 }

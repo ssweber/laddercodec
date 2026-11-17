@@ -108,12 +108,13 @@ BLANKS = [
 #: Tokens that are malformed in another way, whether or not an argument is blank, each with
 #: the pattern of its error message. Each raises a syntax error that names no field.
 SYNTAX = [
-    ("out(C1", "Unsupported AF instruction"),  # without a closing paren it is not a call
-    ("bogus()", "Unsupported AF instruction"),
+    # Without a closing paren it is not a call.
+    ("out(C1", r"Could not read 'out\(C1' as an instruction"),
+    ("bogus()", r"Could not read 'bogus\(\)' as an instruction"),
     ("on_delay(T1,TD1,,preset=1,unit=Tms)", "expects 2 positional args"),  # beyond the arity
     ("on_delay(,TD1)", "missing preset or unit"),
     ("count_up(CT1,CTD1,preset=,)", "Positional arg after keyword arg"),
-    ("call(,)", "Cannot parse call instruction"),
+    ("call(,)", r"Could not read 'call\(,\)' as a Call instruction"),
     ("toggle(C1,on_acc=)", "toggle takes no keyword arguments"),
 ]
 
@@ -156,7 +157,7 @@ def test_a_blank_argument_is_its_field_missing(
     want = CsvLocation(file=path, line=3, rung_line=3, row=0, column=AF)
     for error in raised.value.errors:
         assert error.reason is Reason.MISSING
-        assert ": is blank" in str(error)  # the same text that a blank field raises in Python
+        assert "is blank" in str(error)  # the same text that a blank field raises in Python
         assert CsvLocation.of(error) == want
 
 

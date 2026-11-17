@@ -219,7 +219,13 @@ def _parse_rung_row(row: RowAst, *, strict: bool) -> _ParsedRow:
     if isinstance(af_node, AfCall) and af_node.name.startswith("."):
         pin_name = af_node.name
         if pin_name not in KNOWN_PIN_NAMES:
-            raise at(CsvError(f"Unknown pin token: {pin_name!r}"), column=AF_COLUMN)
+            raise at(
+                CsvError(
+                    f"{pin_name}() is not a pin token. Use the pin that the box above takes, "
+                    f"one of {', '.join(f'{p}()' for p in sorted(KNOWN_PIN_NAMES))}."
+                ),
+                column=AF_COLUMN,
+            )
         return _ParsedRow(
             conditions=conds,
             kind="pin",
@@ -297,8 +303,8 @@ def _consume_pinned_row(block: _ActiveBlock, row: _ParsedRow, token: PinnedInstr
     if row.kind == "nop" and token.lead_rows:
         if block.lead_conditions or block.continuations:
             raise CsvError(
-                f"{_call_name(token)} takes a NOP bridge row only directly under it, "
-                "with no row above it"
+                f"{_call_name(token)}: the row with NOP in column AF is the box's Down "
+                f"input. Put that row directly under the {_call_name(token)} row."
             )
         block.lead_conditions = [block.main_conditions]
         block.main_conditions = row.conditions
@@ -540,7 +546,10 @@ def condition_node_to_token(node: object) -> ConditionToken:
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
             check_address(node.raw, "Contact.operand")  # an address with digits not in 0-9
-        raise CsvError(f"Cannot convert generic condition to encode token: {node.raw!r}")
+        raise CsvError(
+            f"Could not read {node.raw!r} as a condition cell. Write a contact such as X001, "
+            "~X001 or rise(X001), a compare such as DS1==1, or a wire: -, | or T."
+        )
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
 
 
@@ -564,7 +573,10 @@ def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
     if refused is None:
         if token is None:
             if strict:
-                raise CsvError(f"Unsupported AF instruction: {call.name!r}")
+                raise CsvError(
+                    f"Could not read {call.to_token()!r} as an instruction. Check its name "
+                    "and its parentheses."
+                )
             return ""
         if not refusals(token):
             return token

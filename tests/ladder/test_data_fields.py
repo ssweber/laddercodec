@@ -643,7 +643,7 @@ class TestDrumCsvChecks:
         assert error.value.reason is Reason.CHOICE
 
     def test_a_pattern_that_is_no_list_is_a_csv_error(self, tmp_path: Path) -> None:
-        with pytest.raises(CsvError, match="Expected nested list"):
+        with pytest.raises(CsvError, match="is not a pattern. Write one bracketed row"):
             _read_af(tmp_path, self._time(pattern="1"))
 
 

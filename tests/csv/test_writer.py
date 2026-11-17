@@ -565,7 +565,9 @@ class TestDecodedRungToRows:
             comment=None,
         )
 
-        with pytest.raises(WriterError, match="shift requires 3 decoded rows"):
+        with pytest.raises(
+            WriterError, match="shift on row 0 is 3 rows tall, but the rung has only 2 rows"
+        ):
             decoded_rung_to_rows(rung)
 
     def test_forloop_serializes(self) -> None:

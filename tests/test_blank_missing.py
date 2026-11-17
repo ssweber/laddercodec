@@ -148,7 +148,7 @@ def test_a_blank_field_is_missing(inst: Any, field: str, rebuild: Callable[[Any]
         )
         for e in exc.errors:
             if e.field == field and len(e.fields) == 1:  # a pair's message names both fields
-                assert ": is blank" in str(e), str(e)
+                assert "is blank" in str(e), str(e)
     else:
         assert _key(inst, field) in ACCEPTS_BLANK, f"{inst!r} accepts {field} blank"
 

@@ -1133,7 +1133,10 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     """
     m = _CONVERT_CALL_RE.fullmatch(raw.strip())
     if not m:
-        raise CsvError(f"Cannot parse convert value: {raw!r}")
+        raise CsvError(
+            f"Could not read convert={raw}. Write to_value, to_ascii, to_text(...) or "
+            "to_binary(...), such as convert=to_value."
+        )
 
     fmt = m.group(1)  # "text", "value", "binary", "ascii"
     inner = (m.group(2) or "").strip()
@@ -1170,7 +1173,10 @@ def _parse_range(arg: str) -> tuple[str, str]:
         raise CsvError(f"Expected range with '..': {arg!r}")
     parts = [p.strip() for p in arg.split("..")]
     if len(parts) != 2 or not all(parts):
-        raise CsvError(f"Cannot parse range: {arg!r}")
+        raise CsvError(
+            f"Could not read the range {arg!r}. Write two addresses joined by '..', such as "
+            "DS1..DS10."
+        )
     return parts[0], parts[1]
 
 
@@ -1559,7 +1565,10 @@ class Copy(AfInstruction):
         token = token.strip()
         m = re.fullmatch(r"copy\((.+)\)", token)
         if not m:
-            raise CsvError(f"Cannot parse copy: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a copy. Write it as copy(source,dest), such as "
+                "copy(DS1,DS2)."
+            )
 
         segments = _split_paren_aware(m.group(1))
 
@@ -1754,8 +1763,9 @@ class BlockCopy(AfInstruction):
                             cls,
                             ("dest_start", *spans),
                             f"{self.source_start}..{self.source_end} into "
-                            f"{self.dest_start} crosses a Y slot; crossing a slot is not "
-                            "supported yet: it needs a capture",
+                            f"{self.dest_start} runs past the end of its Y slot. laddercodec "
+                            "can't write a destination that crosses a Y slot. Start the "
+                            "destination where the whole range fits in one slot.",
                             Reason.CONFLICT,
                             code=Code.RANGE_CROSSES_SLOT,
                         )

@@ -28,7 +28,7 @@ class End(AfInstruction):
     def from_csv_token(cls, token: str) -> End:
         token = token.strip()
         if not re.fullmatch(r"end\(\s*\)", token):
-            raise CsvError(f"Cannot parse end instruction: {token!r}")
+            raise CsvError(f"Could not read {token!r} as an End instruction. Write it as end().")
         return cls()
 
     def to_csv(self) -> str:

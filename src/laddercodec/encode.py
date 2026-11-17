@@ -264,7 +264,7 @@ def _normalize_af(token: AfToken) -> str:
         return "NOP"
     if stripped == "":
         return ""
-    raise EncodeError(f"Unsupported AF token: {token!r}")
+    raise EncodeError(f"Unsupported AF token: {token!r}. Use an instruction, 'NOP' or ''.")
 
 
 def _compute_seg_boundaries(
@@ -409,7 +409,7 @@ def encode_rung(
         if len(encoded) > COMMENT_MAX_BYTES:
             raise EncodeError(
                 f"Comment body exceeds {COMMENT_MAX_BYTES} bytes after RTF encoding "
-                f"(got {len(encoded)})"
+                f"(got {len(encoded)}). Shorten the comment."
             )
         payload = _PREFIX + encoded + _SUFFIX
 

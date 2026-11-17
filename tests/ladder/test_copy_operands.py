@@ -154,7 +154,7 @@ _REFUSED = [
     # A Block Copy source stays in one slot. laddercodec refuses a Y destination that
     # crosses a slot, because no capture shows how CLICK saves one.
     ("blockcopy(X001..X101,C1..C101)", "spans two X slots; the range stays in one 16-point"),
-    ("blockcopy(C1..C16,Y010..Y025)", "into Y010 crosses a Y slot; crossing a slot is not"),
+    ("blockcopy(C1..C16,Y010..Y025)", "into Y010 runs past the end of its Y slot"),
     ("blockcopy(X001..X008,Y010..Y021)", "crosses a Y slot"),
     ("blockcopy(C1..C16,Y010..Y101)", "crosses a Y slot"),
     # Pack pairs. X, Y, T, CT and SC pack into DH only. DS packs into DD or DF, and DH into DD.

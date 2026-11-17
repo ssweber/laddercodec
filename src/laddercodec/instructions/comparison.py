@@ -190,7 +190,10 @@ class CompareContact(ConditionInstruction):
 
         parts = split_comparison(token)
         if parts is None:
-            raise CsvError(f"Cannot parse compare contact: {token!r}")
+            raise CsvError(
+                f"Could not read {token!r} as a compare contact. Write two operands joined by "
+                "==, !=, <, >, <= or >=, such as DS1==1."
+            )
         left, op, right = parts
         return cls(op=cast(CompareOp, op), left=left, right=right, wire_down=wire_down)
 
