@@ -190,7 +190,7 @@ def test_conformance_count_down_rungs() -> None:
     for rung in rungs:
         counter = rung.instructions[0]
         assert isinstance(counter, Counter)
-        assert counter.counter_type == "count_down"
+        assert counter.kind == "count_down"
         assert counter.reset_enabled
         assert counter.pin_rows == expected[rung.comment or ""]
         assert rung.instructions[1] == "NOP"

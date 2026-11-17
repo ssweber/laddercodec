@@ -3,7 +3,7 @@
 A dialog field that takes a constant first runs its text through one check shared by every
 instruction dialog, then applies its own limits.
 :func:`classify` reads text the same way: it says which kind of constant the text is and
-returns its value.  It applies no field's limits: a set point's 0 to 32767, the hex
+returns its value.  It applies no field's limits: a preset's 0 to 32767, the hex
 constants a Copy puts in DD only, the printable-ASCII text of a Compare (:func:`printable`),
 or which kinds a field takes at all belong to the field.
 

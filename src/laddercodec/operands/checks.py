@@ -87,7 +87,7 @@ class Constants:
     #: The kinds the field takes.
     kinds: frozenset[Kind]
     #: The signs a decimal integer or a real may start with: ``"+-"``, ``"-"`` (a
-    #: counter preset) or ``""`` (digits only: a timer set point).
+    #: counter preset) or ``""`` (digits only: a timer preset).
     signs: str = "+-"
     #: The lowest and highest decimal integer.
     low: int = INT32_MIN
@@ -613,11 +613,11 @@ class Refusals:
 
         with Refusals(self) as check:
             check.flag("retained")
-            check.normalize("done_bit", "current")
-            done = check("done_bit", check_address, banks={"T"})
-            current = check("current", check_address, banks={"TD"})
-            if done is not None and current is not None and done.number != current.number:
-                check.refuse(("current", "done_bit"), "...", Reason.CONFLICT)
+            check.normalize("done", "accumulator")
+            done = check("done", check_address, banks={"T"})
+            accumulator = check("accumulator", check_address, banks={"TD"})
+            if done is not None and accumulator is not None and done.number != accumulator.number:
+                check.refuse(("accumulator", "done"), "...", Reason.CONFLICT)
 
     A field is named by its attribute (``"outputs[2]"`` for an item); the error names
     ``Class.attr``.  Once a field is refused, a later check or refusal that names it is

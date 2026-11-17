@@ -443,8 +443,8 @@ class TestEveryRefusal:
         _assert_every_refusal_located(info.value, path)
         by_field = {e.field: e for e in info.value.errors}
         assert len(by_field) == len(info.value.errors)
-        assert by_field["Timer.setpoint"].click_id == "OBJ-005"
-        assert "Timer.current" in by_field  # a refusal CLICK has no id for
+        assert by_field["Timer.preset"].click_id == "OBJ-005"
+        assert "Timer.accumulator" in by_field  # a refusal CLICK has no id for
 
     def test_refused_pin_row_keeps_its_row_and_reason(self, tmp_path: Path) -> None:
         rows: list[Row | list[str]] = [

@@ -265,10 +265,10 @@ def test_parse_scr_tags_handles_compact_timer_variant_fields():
     )
 
     assert parsed == Timer(
-        timer_type="on_delay",
-        done_bit="T141",
-        current="TD141",
-        setpoint="DS588",
+        kind="on_delay",
+        done="T141",
+        accumulator="TD141",
+        preset="DS588",
         unit="Ts",
         retained=True,
     )

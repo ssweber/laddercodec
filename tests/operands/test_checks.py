@@ -29,7 +29,7 @@ N, F, H, T, C = Kind.INTEGER, Kind.FLOAT, Kind.HEX, Kind.TEXT, Kind.CHAR
 
 #: Every kind at classify()'s limits (a Copy source).
 ANY = Constants(ALL_KINDS)
-#: A timer set point: digits only, 0 to 32767.
+#: A timer preset: digits only, 0 to 32767.
 DIGITS = Constants(frozenset({N}), signs="", high=32767)
 #: A counter preset: an int32 integer, a leading '-' only, at most 12 characters.
 COUNTER = Constants(frozenset({N}), signs="-", max_length=12)

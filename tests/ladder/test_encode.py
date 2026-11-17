@@ -301,43 +301,43 @@ class TestInstructionRoundTrip:
     def test_timer_on_delay(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         timer = Timer(
-            timer_type="on_delay",
-            done_bit="T1",
-            current="TD1",
-            setpoint="1000",
+            kind="on_delay",
+            done="T1",
+            accumulator="TD1",
+            preset="1000",
             unit="Tms",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
         [d] = decode(buf)
         t = d.instructions[0]
         assert isinstance(t, Timer)
-        assert t.timer_type == "on_delay"
-        assert t.done_bit == "T1" and t.current == "TD1"
-        assert t.setpoint == "1000" and t.unit == "Tms"
+        assert t.kind == "on_delay"
+        assert t.done == "T1" and t.accumulator == "TD1"
+        assert t.preset == "1000" and t.unit == "Tms"
         assert t.retained is False
 
     def test_timer_off_delay(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         timer = Timer(
-            timer_type="off_delay",
-            done_bit="T2",
-            current="TD2",
-            setpoint="500",
+            kind="off_delay",
+            done="T2",
+            accumulator="TD2",
+            preset="500",
             unit="Ts",
         )
         buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])
         [d] = decode(buf)
         t = d.instructions[0]
-        assert isinstance(t, Timer) and t.timer_type == "off_delay"
+        assert isinstance(t, Timer) and t.kind == "off_delay"
         assert t.unit == "Ts"
 
     def test_timer_retentive(self) -> None:
         contact = Contact(InstructionType.CONTACT_NO, "X001")
         timer = Timer(
-            timer_type="on_delay",
-            done_bit="T3",
-            current="TD3",
-            setpoint="10",
+            kind="on_delay",
+            done="T3",
+            accumulator="TD3",
+            preset="10",
             unit="Tm",
             retained=True,
         )
@@ -352,10 +352,10 @@ class TestInstructionRoundTrip:
         for unit in ("Tms", "Ts", "Tm", "Th", "Td"):
             contact = Contact(InstructionType.CONTACT_NO, "X001")
             timer = Timer(
-                timer_type="on_delay",
-                done_bit="T1",
-                current="TD1",
-                setpoint="1",
+                kind="on_delay",
+                done="T1",
+                accumulator="TD1",
+                preset="1",
                 unit=unit,
             )
             buf = encode_rung(2, [_wire_row(contact), _empty()], [timer, ""])

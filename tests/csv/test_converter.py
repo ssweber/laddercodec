@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import check
+from laddercodec import FieldError, check
 from laddercodec._layout import circuit
 from laddercodec.csv.ast import (
     AfBlank,
@@ -50,7 +50,7 @@ from laddercodec.instructions import (
 )
 from laddercodec.instructions.raw import _decompose_blob
 from laddercodec.instructions.timer import from_tags as timer_from_tags
-from laddercodec.model import InstructionType
+from laddercodec.model import InstructionType, Reason
 
 
 def _write_csv(path: Path, rows: list[tuple[str, list[str], str]]) -> None:
@@ -502,9 +502,9 @@ class TestAfNodeToToken:
         )
         result = af_node_to_token(node)
         assert isinstance(result, Timer)
-        assert result.timer_type == "on_delay"
-        assert result.done_bit == "T1"
-        assert result.setpoint == "1000"
+        assert result.kind == "on_delay"
+        assert result.done == "T1"
+        assert result.preset == "1000"
 
     def test_timer_rejects_unknown_unit(self) -> None:
         node = AfCall(
@@ -513,8 +513,10 @@ class TestAfNodeToToken:
             known=True,
             kwargs={"preset": "1000", "unit": "BadUnit"},
         )
-        with pytest.raises(ValueError, match="Unknown timer unit"):
+        with pytest.raises(FieldError) as raised:
             af_node_to_token(node)
+        assert raised.value.field == "Timer.unit"
+        assert raised.value.reason is Reason.CHOICE
 
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_time_drum_accepts_known_unit(self, unit: str) -> None:
@@ -588,9 +590,9 @@ class TestAfNodeToToken:
         )
         result = af_node_to_token(node)
         assert isinstance(result, Counter)
-        assert result.counter_type == "count_up"
-        assert result.done_bit == "CT1"
-        assert result.current == "CTD1"
+        assert result.kind == "count_up"
+        assert result.done == "CT1"
+        assert result.accumulator == "CTD1"
         assert result.preset == "100"
         assert result.down_enabled is False
         assert result.reset_enabled is True
@@ -630,7 +632,7 @@ class TestCounterRows:
         lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
-        assert afs[0].counter_type == "count_up"
+        assert afs[0].kind == "count_up"
         assert afs[0].down_enabled is False
         assert afs[0].reset_enabled is True
         assert afs[1] == ""
@@ -657,7 +659,7 @@ class TestCounterRows:
         lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
-        assert afs[0].counter_type == "count_up"
+        assert afs[0].kind == "count_up"
         assert afs[0].down_enabled is True
         assert afs[0].reset_enabled is True
         assert afs[1] == ""
@@ -681,7 +683,7 @@ class TestCounterRows:
         lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
-        assert afs[0].counter_type == "count_down"
+        assert afs[0].kind == "count_down"
         assert afs[0].down_enabled is False
         assert afs[0].reset_enabled is True
         assert afs[1] == "NOP"
@@ -708,7 +710,7 @@ class TestCounterRows:
         lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
-        assert afs[0].counter_type == "count_down"
+        assert afs[0].kind == "count_down"
         assert afs[1] == "NOP"
         assert afs[2] == ""
         assert isinstance(conds[0][0], Contact)
@@ -734,7 +736,7 @@ class TestCounterRows:
         lr, conds, afs, _ = _literal(rung)
         assert lr == 3
         assert isinstance(afs[0], Counter)
-        assert afs[0].counter_type == "count_down"
+        assert afs[0].kind == "count_down"
         assert afs[1] == "NOP"
         assert afs[2] == ""
         assert isinstance(conds[0][0], Contact)

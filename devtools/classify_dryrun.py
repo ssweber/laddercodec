@@ -464,13 +464,11 @@ def _data_flow_comm() -> list[Field]:
     out = [
         Field(
             "data",
-            "Timer.setpoint (on_delay)",
+            "Timer.preset (on_delay)",
             "Timer/on/setpoint",
-            _make("Timer", timer_type="on_delay", done_bit="T1", current="TD1", unit="Tms")(
-                "setpoint"
-            ),
+            _make("Timer", kind="on_delay", done="T1", accumulator="TD1", unit="Tms")("preset"),
             # Digits only, 0 to 32767 for every unit; any other text is an address.
-            digits_rule("Timer.setpoint", frozenset({"DS"}), 0, 32767, letter_first=False),
+            digits_rule("Timer.preset", frozenset({"DS"}), 0, 32767, letter_first=False),
         ),
         Field(
             "data",
@@ -478,9 +476,9 @@ def _data_flow_comm() -> list[Field]:
             "Counter/up/preset",
             _make(
                 "Counter",
-                counter_type="count_up",
-                done_bit="CT1",
-                current="CTD1",
+                kind="count_up",
+                done="CT1",
+                accumulator="CTD1",
                 reset_enabled=True,
             )("preset"),
             counter_rule,

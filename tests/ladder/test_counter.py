@@ -8,9 +8,9 @@ from laddercodec.instructions import Counter, parse_af_blob
 class TestCounterBlobRoundTrip:
     def test_count_up_reset(self) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT1",
-            current="CTD1",
+            kind="count_up",
+            done="CT1",
+            accumulator="CTD1",
             preset="100",
             down_enabled=False,
             reset_enabled=True,
@@ -22,9 +22,9 @@ class TestCounterBlobRoundTrip:
 
     def test_count_up_down_reset(self) -> None:
         counter = Counter(
-            counter_type="count_up",
-            done_bit="CT2",
-            current="CTD2",
+            kind="count_up",
+            done="CT2",
+            accumulator="CTD2",
             preset="100",
             down_enabled=True,
             reset_enabled=True,
@@ -36,9 +36,9 @@ class TestCounterBlobRoundTrip:
 
     def test_count_down_reset(self) -> None:
         counter = Counter(
-            counter_type="count_down",
-            done_bit="CT3",
-            current="CTD3",
+            kind="count_down",
+            done="CT3",
+            accumulator="CTD3",
             preset="50",
             down_enabled=False,
             reset_enabled=True,

@@ -320,9 +320,9 @@ def test_drop_tall_span_nops_keeps_count_down_bridge() -> None:
     from laddercodec.decode import _drop_tall_span_nops
 
     counter = Counter(
-        counter_type="count_down",
-        done_bit="CT1",
-        current="CTD1",
+        kind="count_down",
+        done="CT1",
+        accumulator="CTD1",
         preset="10",
     )
     instrs = [counter, "NOP", ""]

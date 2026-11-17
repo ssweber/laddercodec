@@ -37,7 +37,7 @@ _MASKS = [
     (0xF3C0, send_receive._SEND_LOCAL_REGS_FC16, "Send local registers FC16"),
     (0x6, send_receive._RECEIVE_LOCAL_BITS, "Receive local bits FC01/02"),
     (0x8BC0, send_receive._RECEIVE_LOCAL_REGS, "Receive local registers"),
-    (0xC0, counter.COUNTER_PRESET_BANKS, "Counter set point"),
+    (0xC0, counter.COUNTER_PRESET_BANKS, "Counter preset"),
     (0x3F, BIT_BANKS, "Drum event"),
     (0x70C0, forloop.FOR_LIMIT_BANKS, "For count"),
     (0x4, search.FOUND_BANKS, "Search Result Flag"),
@@ -79,7 +79,7 @@ def _literal_banks(module: str, field: str) -> frozenset[str]:
     raise AssertionError(f"no check_address for {field} in {module}")
 
 
-_MASKS.append((0x40, _literal_banks("timer.py", "Timer.setpoint"), "Timer set point"))
+_MASKS.append((0x40, _literal_banks("timer.py", "Timer.preset"), "Timer preset"))
 
 
 @pytest.mark.parametrize(("value", "expected", "field"), _MASKS, ids=[m[2] for m in _MASKS])
