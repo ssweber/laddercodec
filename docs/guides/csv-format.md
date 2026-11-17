@@ -693,7 +693,7 @@ currently emit:
     refused: what CLICK writes for it is not captured yet.
   - `pack_*`: X, Y, T, CT and SC bits pack into DH; C bits into DS, DD, DH or
     DF; DS words into DD or DF; DH words into DD; TXT into DS, DD, DH, DF, TD
-    or CTD.
+    or CTD, and at most 4 characters into DH (`pack_text(TXT1..TXT4,DH1)`).
   - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
 - A single `copy` takes a 32-bit integer constant, and a hex constant above
   `FFFFh` copies only to DD or CTD. A `copy` source and a `fill` value take a

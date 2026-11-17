@@ -506,14 +506,52 @@ def _check_kind(
 
 #: Most bits one register packs into or unpacks from.
 _BITS_PER_REGISTER = {"DS": 16, "DH": 16, "DD": 32, "DF": 32}
+#: Most bits any one pack moves.
+_MAX_BITS = max(_BITS_PER_REGISTER.values())
 #: Most words one pack or unpack moves.
 _MAX_WORDS = 2
-#: CLICK's id for a count over the limit: (bits or words, limit) -> (Pack's id, Unpack's id).
-_COUNT_IDS = {
+#: Most TXT characters a pack of text reads into a DH.  Only DH has a limit yet.
+_DH_TEXT_CHARS = 4
+#: How a count of each kind reads in a message.
+_UNITS = {"bits": "bits", "words": "words", "text": "characters"}
+#: CLICK's id for a count over the limit: (kind, limit) -> (Pack's id, Unpack's id).
+_COUNT_IDS: dict[tuple[str, int], tuple[str, str | None]] = {
     ("bits", 16): ("OBJ-027", "OBJ-032"),
-    ("bits", 32): ("OBJ-041", "OBJ-039"),
+    ("bits", _MAX_BITS): ("OBJ-041", "OBJ-039"),
     ("words", _MAX_WORDS): ("OBJ-040", "OBJ-042"),
+    ("text", _DH_TEXT_CHARS): ("OBJ-003", None),
 }
+
+
+def _count_limit(kind: str, bank: str | None) -> int | None:
+    """Most bits, words or characters one register of ``bank`` packs or unpacks; None for
+    no limit."""
+    if kind == "bits":
+        return _BITS_PER_REGISTER.get(bank or "")
+    if kind == "text":
+        return _DH_TEXT_CHARS if bank == "DH" else None
+    return _MAX_WORDS
+
+
+def _pack_kind(bank: str) -> str:
+    """The pack a source bank makes: ``bits``, ``words``, or ``text`` from TXT."""
+    if bank == "TXT":
+        return "text"
+    return "bits" if bank in BIT_BANKS else "words"
+
+
+def _pack_limit(kind: str, source_bank: str, dest_bank: str, paired: bool) -> int | None:
+    """Most a Pack source of ``kind`` holds, checked before the pairing.
+
+    Where the source packs into the destination (``paired``), the destination's room. Where
+    it doesn't, bits are held to 32, the most any destination takes, and a DH source to two
+    words; a DS source is not counted then.
+    """
+    if paired:
+        return _count_limit(kind, dest_bank)
+    if kind == "bits":
+        return _MAX_BITS
+    return _MAX_WORDS if source_bank == "DH" else None
 
 
 def _check_count(
@@ -524,20 +562,27 @@ def _check_count(
     span_text: str,
     count: int | None,
     kind: str,
-    bank: str | None,
-    single: str,
+    limit: int | None,
+    single: str | None,
 ) -> None:
-    """Refuse a pack source or unpack destination longer than the single register holds: a
-    refusal of the range's end with its start and the single register's field."""
-    limit = _BITS_PER_REGISTER.get(bank or "") if kind == "bits" else _MAX_WORDS
+    """Refuse a pack source or unpack destination longer than ``limit``: a refusal of the
+    range's end with its start and the single register's field.
+
+    ``single`` names the register in the message; None states the limit of every pack of
+    ``kind`` (for a Pack whose source does not pack into its destination).
+    """
     if limit is not None and count is not None and count > limit:
-        unit = "bits" if kind == "bits" else "words"
-        verb = "a pack into" if cls == "Pack" else "an unpack from"
-        pack_id, unpack_id = _COUNT_IDS[(unit, limit)]
+        unit = _UNITS[kind]
+        if single is None:
+            rule = f"a pack of {unit} takes at most {limit}"
+        else:
+            verb = "a pack into" if cls == "Pack" else "an unpack from"
+            rule = f"{verb} {single!r} takes at most {limit}"
+        pack_id, unpack_id = _COUNT_IDS[(kind, limit)]
         raise _refusal(
             cls,
             (end_field, start_field, other_field),
-            f"{span_text} is {count} {unit}; {verb} {single!r} takes at most {limit}",
+            f"{span_text} is {count} {unit}; {rule}",
             Reason.RANGE,
             pack_id if cls == "Pack" else unpack_id,
             FieldError,
@@ -675,9 +720,16 @@ def _destinations(rows: _Rows) -> frozenset[str]:
 
 
 #: CLICK's id for a destination bank the source's row leaves out: an Unpack's destination
-#: field gives OBJ-004 for every bank its source greys out; Block Copy and Pack give OBJ-024
-#: for a pairing.
+#: field gives OBJ-004 for every bank its source greys out but Y (:data:`_UNPACK_Y_ID`);
+#: Block Copy and Pack give OBJ-024 for a pairing.
 _ROW_IDS = {"BlockCopy": "OBJ-024", "Pack": "OBJ-024", "Unpack": "OBJ-004"}
+#: CLICK's id for an Unpack into Y from a source other than DH: a pairing of kinds.
+_UNPACK_Y_ID = "OBJ-024"
+
+
+def _source_row(rows: _Rows, source_bank: str) -> frozenset[str]:
+    """The destination banks of the first row holding ``source_bank``."""
+    return next(dst for src, dst in rows if source_bank in src)
 
 
 def _check_row(
@@ -692,7 +744,7 @@ def _check_row(
 ) -> None:
     """Refuse a destination bank the source bank's pairing row leaves out: a refusal of the
     destination with the source."""
-    allowed = next(dst for src, dst in rows if source_bank in src)
+    allowed = _source_row(rows, source_bank)
     if dest_bank not in allowed:
         what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
         raise _refusal(
@@ -701,7 +753,7 @@ def _check_row(
             f"{destination!r} can't take {source!r}; "
             f"{what} from {source_bank} goes to {_bank_list(allowed)}",
             Reason.CONFLICT,
-            _ROW_IDS[cls],
+            _UNPACK_Y_ID if cls == "Unpack" and dest_bank == "Y" else _ROW_IDS[cls],
         )
 
 
@@ -1412,9 +1464,19 @@ class Pack(AfInstruction):
             )
             if first is not None and dest is not None:
                 assert dest.bank is not None
+                source = f"{self.source_start}..{self.source_end}"
+                # The source's length comes before the pairing (_pack_limit).
+                if last is not None and _pack_kind(first.bank) == self.pack_type:
+                    paired = dest.bank in _source_row(_PACK_ROWS, first.bank)
+                    check.run(
+                        _check_count, "Pack", "source_start", "source_end", "destination",
+                        source, _span(first, last), self.pack_type,
+                        _pack_limit(self.pack_type, first.bank, dest.bank, paired),
+                        self.destination if paired else None,
+                    )  # fmt: skip
                 check.run(
-                    _check_row, "Pack", _PACK_ROWS, f"{self.source_start}..{self.source_end}",
-                    "source_start", first.bank, "destination", self.destination, dest.bank,
+                    _check_row, "Pack", _PACK_ROWS, source, "source_start", first.bank,
+                    "destination", self.destination, dest.bank,
                 )  # fmt: skip
             if first is not None and not check.refused("pack_type"):
                 if (first.bank == "TXT") != (self.pack_type == "text"):
@@ -1435,12 +1497,6 @@ class Pack(AfInstruction):
                         _check_kind, "Pack", "source_start", self.source_start, first.bank,
                         self.pack_type, "pack_type",
                     )  # fmt: skip
-                    if last is not None and dest is not None:
-                        check.run(
-                            _check_count, "Pack", "source_start", "source_end", "destination",
-                            f"{self.source_start}..{self.source_end}", _span(first, last),
-                            self.pack_type, dest.bank, self.destination,
-                        )  # fmt: skip
             check.flag("allow_whitespace", "oneshot")
 
     @property
@@ -1544,16 +1600,23 @@ class Unpack(AfInstruction):
             # source, and for X, SC and SD destinations, as for a bank the source's row
             # leaves out (_ROW_IDS).
             src = check("source", check_box_operand, _sources(_UNPACK_ROWS), bank_id="OBJ-004")
-            first, last = _check_range(
-                check, "dest_start", self.dest_start, "dest_end", self.dest_end,
-                _destinations(_UNPACK_ROWS), one_module=True, bank_id="OBJ-004",
-                module_id="OBJ-019",
-            )  # fmt: skip
+            # The destination's start is paired with the source before the range's end is
+            # read, so a pairing refusal comes ahead of the end's (OBJ-008, OBJ-009, OBJ-012,
+            # the Y slot), and the end's fit with a refused start is not checked.
+            banks = _destinations(_UNPACK_ROWS)
+            first = check("dest_start", _range_end, banks, "OBJ-004")
             if src is not None and first is not None:
                 assert src.bank is not None
                 check.run(
                     _check_row, "Unpack", _UNPACK_ROWS, self.source, "source", src.bank,
                     "dest_start", self.dest_start, first.bank,
+                )  # fmt: skip
+            last = check("dest_end", _range_end, banks, "OBJ-004")
+            if first is not None and last is not None:
+                check.run(
+                    _check_relation, "Unpack", "dest_start", self.dest_start, "dest_end",
+                    self.dest_end, first, last, one_module=True, ordered=True,
+                    module_id="OBJ-1009", ids=True,
                 )  # fmt: skip
             if first is not None and not check.refused("unpack_type"):
                 check.run(
@@ -1564,7 +1627,7 @@ class Unpack(AfInstruction):
                     check.run(
                         _check_count, "Unpack", "dest_start", "dest_end", "source",
                         f"{self.dest_start}..{self.dest_end}", _span(first, last),
-                        self.unpack_type, src.bank, self.source,
+                        self.unpack_type, _count_limit(self.unpack_type, src.bank), self.source,
                     )  # fmt: skip
             check.flag("oneshot")
 

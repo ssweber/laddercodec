@@ -120,27 +120,6 @@ BIT_PAST_RANGE = (
     "to do: a DS into an X, T, CT or SC address outside its bank (X000, X017, T501, SC1001) is "
     "OBJ-004; the rules give OBJ-024"
 )
-PACK_TXT = "to do: a Pack of TXT into DH is OBJ-003; the rules accept it"
-PACK_TWO_BOXES = (
-    "to do: a Pack of 33 T, CT or SC bits into DS or DD shows OBJ-041 (the count), then "
-    "OBJ-024; the rules give OBJ-024"
-)
-PACK_DH_COUNT = (
-    "to do: a Pack of DH1..DH16 or DH1..DH500 into DH is OBJ-040 (the count; DH1..DH2 is "
-    "OBJ-024); the rules give OBJ-024"
-)
-UNPACK_BANK_FIRST = (
-    "to do: an Unpack into a bank its source can't unpack to is OBJ-004 before the range "
-    "checks; the rules give OBJ-008, OBJ-009 or OBJ-012"
-)
-UNPACK_Y_PAIRING = (
-    "to do: an Unpack of DS, DD or DF into Y is OBJ-024 before the range checks; the rules give "
-    "OBJ-004, OBJ-009, OBJ-012 or OBJ-019"
-)
-UNPACK_Y_COUNT = (
-    "to do: an Unpack of DH into Y001..Y032 or Y001..Y036 is OBJ-1009 (into Y001..Y016 it is "
-    "accepted); the rules give OBJ-019"
-)
 
 # Out (roadmap item 3).
 OUT_ACROSS = (
@@ -380,94 +359,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (
-        PACK_TXT,
-        "copy_pack",
-        "outcome",
-        (
-            "pack TXT1..TXT1000 -> DH1",
-            "pack TXT1..TXT16 -> DH1",
-        ),
-    ),
-    (
-        PACK_TWO_BOXES,
-        "copy_pack",
-        "code",
-        (
-            "pack CT1..CT33 -> DD1",
-            "pack CT1..CT33 -> DS1",
-            "pack SC1..SC33 -> DD1",
-            "pack SC1..SC33 -> DS1",
-            "pack T1..T33 -> DD1",
-            "pack T1..T33 -> DS1",
-        ),
-    ),
-    (
-        PACK_DH_COUNT,
-        "copy_pack",
-        "code",
-        (
-            "pack DH1..DH16 -> DH1",
-            "pack DH1..DH500 -> DH1",
-        ),
-    ),
-    (
-        UNPACK_BANK_FIRST,
-        "copy_unpack",
-        "code",
-        (
-            "unpack DH1 -> DS1..DS1",
-            "unpack DS1 -> DH1..DH1",
-            "unpack DS1 -> DH2..DH1",
-            "unpack DS1 -> DH500..DH500",
-            "unpack DS1 -> DS001..C16",
-            "unpack DS1 -> DS1..DS1",
-            "unpack DS1 -> DS2..DS1",
-            "unpack DS1 -> DS4500..DS4500",
-            "unpack DS1 -> ds1..C16",
-        ),
-    ),
-    (
-        UNPACK_Y_PAIRING,
-        "copy_unpack",
-        "code",
-        (
-            "unpack DD1 -> Y001..Y001",
-            "unpack DD1 -> Y001..Y002",
-            "unpack DD1 -> Y001..Y016",
-            "unpack DD1 -> Y001..Y032",
-            "unpack DD1 -> Y001..Y033",
-            "unpack DD1 -> Y001..Y036",
-            "unpack DF1 -> Y001..Y016",
-            "unpack DF1 -> Y001..Y032",
-            "unpack DF1 -> Y001..Y036",
-            "unpack DS1 -> Y001..Y001",
-            "unpack DS1 -> Y001..Y002",
-            "unpack DS1 -> Y001..Y016",
-            "unpack DS1 -> Y001..Y021",
-            "unpack DS1 -> Y001..Y032",
-            "unpack DS1 -> Y001..Y033",
-            "unpack DS1 -> Y001..Y036",
-            "unpack DS1 -> Y002..Y001",
-            "unpack DS1 -> Y016..Y016",
-            "unpack DS1 -> Y021..Y021",
-            "unpack DS1 -> Y036..Y036",
-            "unpack DS1 -> Y101..Y101",
-            "unpack DS1 -> Y101..Y116",
-            "unpack DS1 -> Y101..Y201",
-            "unpack DS1 -> Y815..Y816",
-            "unpack DS1 -> Y816..Y816",
-        ),
-    ),
-    (
-        UNPACK_Y_COUNT,
-        "copy_unpack",
-        "code",
-        (
-            "unpack DH1 -> Y001..Y032",
-            "unpack DH1 -> Y001..Y036",
-        ),
-    ),
-    (
         OUT_ACROSS,
         "out",
         "code",
@@ -570,7 +461,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 )
 
 #: The codes compared today: both CLICK and the rules refuse, and the rules give a ``click_id``.
-CODES_COMPARED = 2816
+CODES_COMPARED = 2823
 
 
 @pytest.fixture(scope="module")
