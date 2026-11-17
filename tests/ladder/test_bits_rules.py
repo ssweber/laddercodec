@@ -1,4 +1,7 @@
-"""Field rules of the bit instructions: contacts, compare, coils, Out variants."""
+"""Tests of the checks that the bit instructions run on their fields.
+
+The bit instructions are Contact, CompareContact, Coil and OutVariant.
+"""
 
 from __future__ import annotations
 
@@ -65,7 +68,8 @@ class TestContact:
 
 
 class TestCompare:
-    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    # Python's int() refuses a string of more than 4300 digits. The check must still read
+    # 5000 zeros and a 1 as the integer 1, and refuse 5000 ones with a FieldError, not crash.
     def test_long_leading_zeros_read_as_their_value(self) -> None:
         long_one = "0" * 5000 + "1"
         for side in ("left", "right"):
@@ -95,8 +99,9 @@ class TestCompare:
             "TXT1==TXT2",
             'TXT1==" "',
             'TXT1!="~"',
-            # a constant on the left, two constants, and an
-            # integer constant inside int32 against a 16-bit register.
+            # The cases below put a constant on the left, compare two constants, compare a
+            # 16-bit register with integer constants inside int32, and write a hex constant
+            # with a leading zero.
             "100<DS1",
             "1==1",
             "DS1>40000",
@@ -125,7 +130,7 @@ class TestCompare:
         with pytest.raises(AddressError):
             CompareContact(op="==", left="DS[DS1]", right="1")
 
-    # an integer constant outside int32 is refused, OBJ-005.
+    # An integer constant outside the int32 range is refused with OBJ-005.
     @pytest.mark.parametrize(
         ("token", "field"),
         [
@@ -143,7 +148,7 @@ class TestCompare:
         ):
             CompareContact.from_csv_token(token)
 
-    # a hex constant above FFFFh is refused on either side, OBJ-005.
+    # A hex constant above FFFFh is refused with OBJ-005 on either side.
     @pytest.mark.parametrize(
         ("token", "field"),
         [("DH1==10000h", "right"), ("10000H==DH1", "left"), ("XD0==FFFFFFFFh", "right")],
@@ -152,7 +157,8 @@ class TestCompare:
         with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
             CompareContact.from_csv_token(token)
 
-    # the dialog takes 1 to 128 printable ASCII characters in quotes.
+    # CLICK's compare dialog accepts a quoted text of 1 to 128 printable ASCII characters.
+    # Each case breaks that rule.
     @pytest.mark.parametrize(
         "token",
         [
@@ -199,10 +205,11 @@ class TestCompare:
         text_one = '"A"'.encode("utf-16-le") + bytes(2)
         text_two = '"AB"'.encode("utf-16-le") + bytes(2)
         assert two == one.replace(text_one, text_two)
-        # The tag's length prefix is derived from the text, not stored apart.
+        # No length field elsewhere in the blob changes with the text. The blob grows by
+        # exactly the bytes that the text grows by.
         assert len(two) - len(one) == len(text_two) - len(text_one)
 
-    # with text as Data A the dialog hides >, <, >= and <=.
+    # When Data A is text, CLICK's compare dialog hides >, <, >= and <=.
     @pytest.mark.parametrize(
         "token", ['TXT1>"A"', "TXT1<TXT2", "TXT1>=$41", '"B"<=TXT1', "$41>TXT1"]
     )
@@ -218,7 +225,8 @@ class TestCompare:
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, cell)
 
-    # The quote character would end the text in the CSV token; $22 spells it.
+    # A quote inside a quoted text would end the text in the CSV token. Write the quote
+    # character as $22 instead.
     @pytest.mark.parametrize(
         ("left", "right", "field"), [('"""', "TXT1", "left"), ("TXT1", '"""', "right")]
     )
@@ -230,7 +238,7 @@ class TestCompare:
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
-    # A $ code is $ and two hex digits, $00-$FF.
+    # A character code is $ and two hex digits, $00 to $FF. Each case has another form.
     @pytest.mark.parametrize("code", ["$1", "$D", "$100", "$4142", "$G1"])
     @pytest.mark.parametrize("field", ["left", "right"])
     def test_other_dollar_forms_refused(self, code: str, field: str) -> None:
@@ -256,7 +264,8 @@ class TestCompare:
         with pytest.raises(FieldError, match="^CompareContact"):
             _read_condition(tmp_path, 'TXT1=="a"b"')
 
-    # ``\d`` would match Unicode digits; CLICK's classifier takes 0-9 only.
+    # In a Python regex, ``\d`` matches any Unicode digit, such as U+0663. CLICK reads only
+    # 0 to 9 as digits, so these constants are refused.
     @pytest.mark.parametrize("token", ["DS1==\u0663", "DS1==1\u0663", "DF1==\u0663.5"])
     def test_unicode_digits_refused(self, token: str) -> None:
         with pytest.raises(FieldError, match="^CompareContact.right"):
@@ -283,7 +292,8 @@ class TestCompare:
         assert (parsed.left, parsed.op, parsed.right) == ("TXT1", op, right)
 
     def test_text_blob_keeps_the_text_as_written(self) -> None:
-        # text_compare.bin: CLICK stores the one-character "A" as typed, quotes included.
+        # The capture text_compare.bin shows that CLICK stores the one-character text "A" as
+        # typed, quotes included.
         compare = CompareContact.from_csv_token('TXT1!="a"')
         blob = compare.build_blob()
         assert '"a"'.encode("utf-16-le") + bytes(2) in blob
@@ -303,7 +313,8 @@ class TestCompare:
             ('TXT1==">"', "TXT1", "==", '">"'),
             ('"<"==TXT1', '"<"', "==", "TXT1"),
             ('">"!=TXT1', '">"', "!=", "TXT1"),
-            # The splitter pairs quotes around the whole text.
+            # split_comparison skips the operators inside a pair of quotes, so it splits
+            # this cell at !=.
             ('"a>=b"!=TXT1', '"a>=b"', "!=", "TXT1"),
         ],
     )
@@ -346,7 +357,7 @@ class TestCoil:
         coil = _read_af(tmp_path, f"{name}({op})")
         assert isinstance(coil, Coil) and coil.operand == op
 
-    # Out, Set and Reset: OBJ-004.
+    # Out, Set and Reset refuse a bank they do not take with OBJ-004.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("op", ["X001", "T1", "CT1", "DS1"])
     def test_other_banks_refused(self, tmp_path: Path, name: str, op: str) -> None:
@@ -372,7 +383,7 @@ class TestCoil:
             Coil(op, kind=name)
 
     def test_writable_sc_is_the_dialog_list(self) -> None:
-        # the 25 bits CLICK's address picker lists.
+        # These are the 25 SC bits that CLICK's address picker lists.
         assert WRITABLE_SC == {
             50, 51, 53, 55, 60, 61, 65, 66, 67, 75, 76, 120, 121,
             162, 165, 168, 171, 303, 304, 305, 306, 323, 324, 325, 326,
@@ -388,7 +399,8 @@ class TestCoil:
 
     @pytest.mark.parametrize("name", _COILS)
     def test_sc_range_checks_both_ends(self, tmp_path: Path, name: str) -> None:
-        # an SC range is accepted; the bits between are not checked.
+        # The check tests only the two ends of an SC range. SC50..SC53 is accepted although
+        # SC52 is not writable.
         coil = _read_af(tmp_path, f"{name}(SC50..SC53)")
         assert isinstance(coil, Coil) and coil.range_end == "SC53"
         assert isinstance(_read_af(tmp_path, f"{name}(SC50..SC51)"), Coil)
@@ -411,17 +423,15 @@ class TestCoil:
 
     @pytest.mark.parametrize("name", _COILS)
     def test_immediate_range_crosses_a_module(self, tmp_path: Path, name: str) -> None:
-        # immediate Y001..Y101 is accepted.
         coil = _read_af(tmp_path, f"{name}(immediate(Y001..Y101))")
         assert isinstance(coil, Coil) and coil.immediate and coil.range_end == "Y101"
 
     @pytest.mark.parametrize("name", _COILS)
     def test_whole_c_bank_range(self, tmp_path: Path, name: str) -> None:
-        # C1..C2000 is accepted.
         coil = _read_af(tmp_path, f"{name}(C1..C2000)")
         assert isinstance(coil, Coil) and coil.range_end == "C2000"
 
-    # Out, Set and Reset: OBJ-008.
+    # Out, Set and Reset refuse a range whose ends are in different banks with OBJ-008.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C5..Y5", "C1..SC50", "Y1..C2"])
     def test_range_same_bank(self, tmp_path: Path, name: str, token: str) -> None:
@@ -431,7 +441,9 @@ class TestCoil:
         with pytest.raises(FieldError, match="^Coil.range_end"):
             Coil(start, kind=name, range_end=end)
 
-    # Out, Set and Reset: OBJ-009 for C9..C1, OBJ-012 for C5..C5.
+    # Out, Set and Reset refuse a range whose end is below its start, such as C9..C1, with
+    # OBJ-009. They refuse a range with the same address at both ends, such as C5..C5, with
+    # OBJ-012.
     @pytest.mark.parametrize("name", _COILS)
     @pytest.mark.parametrize("token", ["C9..C1", "C5..C5", "Y101..Y16", "Y001..Y1"])
     def test_range_ascends(self, tmp_path: Path, name: str, token: str) -> None:
@@ -490,7 +502,7 @@ class TestOutVariant:
     def test_debounce_presets(self, preset: str) -> None:
         debounce(on_preset=preset, off_preset=preset)
 
-    # 32768 is refused for all three kinds, OBJ-005.
+    # Debounce, timed and flasher refuse a preset above 32767 with OBJ-005.
     @pytest.mark.parametrize("preset", ["32768", "99999", "9" * 5000])
     def test_preset_above_32767_refused(self, preset: str) -> None:
         with pytest.raises(
@@ -517,7 +529,8 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="is outside [01] to 32767"):
             _read_af(tmp_path, good.replace("32767", "32768"))
 
-    # one TD for both phases is refused for debounce and flasher, OBJ-012.
+    # Debounce and flasher refuse one TD register for both the on phase and the off phase,
+    # with OBJ-012.
     @pytest.mark.parametrize(("on_acc", "off_acc"), [("TD1", "TD1"), ("TD1", "TD001")])
     def test_same_accumulator_refused(self, tmp_path: Path, on_acc: str, off_acc: str) -> None:
         message = "^OutVariant.off_acc: .* needs two different TD registers"
@@ -527,7 +540,7 @@ class TestOutVariant:
         with pytest.raises(FieldError, match=message):
             _read_af(tmp_path, token)
 
-    # A debounce saves with one phase.
+    # CLICK saves a debounce that has only an on phase or only an off phase.
     @pytest.mark.parametrize(
         "token",
         [
@@ -543,11 +556,12 @@ class TestOutVariant:
     def test_one_phase_debounce_fields(self) -> None:
         on_only = debounce(off_acc="", off_preset="")
         assert (on_only.off_acc, on_only.off_preset) == ("", "")
-        # One TD for both is checked only when both phases are filled.
+        # The check that the two phases use different TD registers runs only when both
+        # phases are filled.
         debounce(on_acc="", on_preset="", off_acc="TD1")
 
     def test_debounce_needs_a_phase(self, tmp_path: Path) -> None:
-        # both phases empty is refused, OBJ-006.
+        # A debounce with both phases empty is refused with OBJ-006.
         message = "^OutVariant.on_preset: debounce needs an on phase or an off phase"
         with pytest.raises(FieldError, match=message):
             debounce(on_acc="", on_preset="", off_acc="", off_preset="")
@@ -580,7 +594,8 @@ class TestOutVariant:
         with pytest.raises(FieldError, match="takes no sign"):
             debounce(on_preset=preset)
 
-    # More than 4300 digits is the integer 1 behind its zeros, not a crash in int().
+    # Python's int() refuses a string of more than 4300 digits. The check must still read
+    # 5000 zeros and a 1 as the integer 1, and refuse 5000 ones with a FieldError, not crash.
     def test_long_leading_zeros_read_as_their_value(self) -> None:
         long_one = "0" * 5000 + "1"
         for make in (debounce, timed):
@@ -802,8 +817,9 @@ class TestOutVariant:
 
 
 class TestDecodeRefusal:
-    """A stored blob whose values the checks refuse decodes as that instruction, keeping
-    the refusal; a value not in display form leaves it unparsed."""
+    """A blob whose stored values fail the checks decodes as its instruction, and the
+    instruction keeps the refusal. A blob that stores a value not in CLICK's display form,
+    such as X1 for X001, is left unparsed."""
 
     @pytest.mark.parametrize(
         ("left", "right", "type_idx", "field"),

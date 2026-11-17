@@ -1,4 +1,7 @@
-"""Field rules for Timer, Counter, Shift and Drum (CLICK dialog limits)."""
+"""Tests of the field checks on Timer, Counter, Shift and Drum.
+
+The checks follow the limits of CLICK's instruction dialogs.
+"""
 
 from __future__ import annotations
 
@@ -201,9 +204,11 @@ class TestDrumPatternCells:
             drum(steps=1, outs=1, pattern=[[cell]])
 
 
-# A native-shaped blob the rules refuse decodes as that instruction, keeping the
-# refusal; one not in display form, or the parser can't read, decodes as raw(...).  The
-# bytes come from a valid instruction, edited past the checks.
+# A blob that the parser can read, but whose values the checks refuse, decodes as its
+# instruction, and the instruction keeps the refusal. A blob with a value that is not in
+# CLICK's display form, or that the parser can't read, decodes as raw(...). Each test
+# starts from a valid instruction and changes a value in its bytes or its fields after the
+# checks have run.
 
 _SCR_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "scr_captures"
 
@@ -233,7 +238,8 @@ def _scr_raw_names(old: str, new: str, name: str = "coverage") -> list[str]:
 
 
 def _scr_refused(old: str, new: str, name: str = "coverage") -> list[tuple[str, list[str]]]:
-    """Each instruction of the edited SCR program that keeps refusals: class and fields."""
+    """Replace ``old`` with ``new`` in an SCR fixture and decode it. Return the class name
+    and the refused fields of each instruction that keeps refusals."""
     data = (_SCR_DIR / f"{name}.scr").read_bytes()
     assert data.count(_scr_text(old)) >= 1
     with pytest.warns(RefusedFieldWarning):
@@ -283,7 +289,10 @@ class TestRefusedBlobsDecode:
 
 
 def _read_af(tmp_path: Path, af: str) -> object:
-    """Read one rung holding ``af``; a counter or drum gets its required ``.reset()`` row."""
+    """Write a one-rung CSV that holds ``af``, read it, and return the first instruction.
+
+    A counter or drum also gets the ``.reset()`` row that it needs.
+    """
     path = tmp_path / "rung.csv"
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -294,13 +303,15 @@ def _read_af(tmp_path: Path, af: str) -> object:
     return read_csv(path)[0].instructions[0]
 
 
-#: The location ``read_csv`` ends a message about ``_read_af``'s AF cell with.
+#: The location that ``read_csv`` puts at the end of an error message about the AF cell
+#: that ``_read_af`` writes.
 _AT_AF = r" \(at .*rung\.csv, line 2, rung at line 2, row 0 from 0, column AF\)$"
 
 
 def _decoded_after(model: object, *fields: str, **bad: object) -> object:
-    """Encode ``model`` with ``bad`` fields set past the checks; decode it back as the same
-    instruction, holding them and keeping the refusals of ``fields``."""
+    """Set the ``bad`` fields on ``model`` without running the checks, then encode and
+    decode it. Assert that the decoded instruction equals ``model`` and keeps a refusal for
+    each name in ``fields``, and return it."""
     for name, value in bad.items():
         object.__setattr__(model, name, value)
     with pytest.warns(RefusedFieldWarning):
@@ -310,7 +321,8 @@ def _decoded_after(model: object, *fields: str, **bad: object) -> object:
 
 
 class TestTimerPresetRange:
-    # 0..32767 for every unit; 32768 and any sign refused (OBJ-005).
+    # A timer preset is 0 to 32767 for every unit. 32768 and a preset with a sign are
+    # refused with OBJ-005.
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits_for_every_unit(self, tmp_path: Path, unit: str) -> None:
         for value in ("0", "32767"):
@@ -335,7 +347,8 @@ class TestTimerPresetRange:
 
 
 class TestCounterPresetRange:
-    # a 32-bit signed constant (OBJ-005); registers DS and DD only (OBJ-004).
+    # A counter preset is a signed 32-bit constant or a DS or DD register. A constant out of
+    # range is refused with OBJ-005, and any other register with OBJ-004.
     @pytest.mark.parametrize("preset", ["2147483647", "-2147483648", "0", "DS1", "DD1"])
     def test_accepted(self, tmp_path: Path, preset: str) -> None:
         parsed = _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
@@ -355,7 +368,8 @@ class TestCounterPresetRange:
             _read_af(tmp_path, f"count_up(CT1,CTD1,preset={preset})")
 
     def test_text_under_13_characters(self) -> None:
-        # Counter: a constant's text is under 13 characters (OBJ-005).
+        # A counter's constant preset is at most 12 characters long, leading zeros
+        # included. A longer one is refused with OBJ-005.
         assert counter(preset="000000000001").preset == "000000000001"
         with pytest.raises(
             FieldError, match="13 characters; a constant here is at most 12 .OBJ-005."
@@ -378,7 +392,8 @@ class TestCounterPresetRange:
 
 
 class TestShiftRules:
-    # C only (OBJ-004); start == end refused (OBJ-012); start > end allowed.
+    # A shift range takes C bits only, or it is refused with OBJ-004. The same address at
+    # both ends is refused with OBJ-012. A start above the end is accepted.
     def test_c_range(self, tmp_path: Path) -> None:
         assert _read_af(tmp_path, "shift(C1..C2000)") == Shift(start_bit="C1", end_bit="C2000")
         assert _read_af(tmp_path, "shift(C106..C99)") == Shift(start_bit="C106", end_bit="C99")
@@ -417,14 +432,15 @@ class TestShiftRules:
         assert isinstance(decoded, RawInstruction) and decoded.class_name == "SR"
 
     def test_scr_same_address_decodes(self) -> None:
-        # shift_scr: two shift(C1..C2) rungs; C2 occurs only as their end bits.
+        # shift_scr.scr holds two shift(C1..C2) rungs, and C2 appears only as their end bits.
         data = (_SCR_DIR / "shift_scr.scr").read_bytes()
         assert data.count(_scr_text("C2")) == 2
         assert _scr_refused("C2", "C1", "shift_scr") == [("Shift", ["Shift.end_bit"])] * 2
 
 
 class TestDrumDurations:
-    # 0..32767 for every unit, digits only (OBJ-005); a register is DS (OBJ-004).
+    # A drum duration is 0 to 32767 for every unit, written in digits only, or it is refused
+    # with OBJ-005. A register duration must be DS, or it is refused with OBJ-004.
     @pytest.mark.parametrize("kind", ["time_drum", "time_event_drum"])
     @pytest.mark.parametrize("unit", ["Tms", "Ts", "Tm", "Th", "Td"])
     def test_limits(self, kind: str, unit: str) -> None:
@@ -465,8 +481,9 @@ class TestDrumDurations:
 
 
 class TestDrumEventsAndOutputs:
-    # events X, Y, C, T, CT or SC (OBJ-004); outputs differ from each other and
-    # from the completion flag (OBJ-014), compared as addresses.
+    # An event is an X, Y, C, T, CT or SC bit, or it is refused with OBJ-004. Each output
+    # must differ from the other outputs and from the completion flag, or it is refused with
+    # OBJ-014. The check compares addresses, not text, so C050 and C50 are the same.
     @pytest.mark.parametrize("event", ["X001", "Y001", "C5", "T1", "CT1", "SC1"])
     def test_event_banks_accepted(self, event: str) -> None:
         assert drum(events=[event, "C10"]).events[0] == event
@@ -492,7 +509,7 @@ class TestDrumEventsAndOutputs:
             _read_af(tmp_path, token)
 
     def test_y_output_twice_refused(self) -> None:
-        # CLICK writes Y1 as Y001: the same output.
+        # CLICK writes Y1 as Y001, so the two are the same output.
         with pytest.raises(FieldError, match="OBJ-014"):
             drum(outputs=["Y001", "Y1"])
 
@@ -522,12 +539,14 @@ class TestDrumEventsAndOutputs:
         ],
     )
     def test_scr_refused_blobs_decode(self, old: str, new: str, field: str) -> None:
-        # coverage: event_drum(outputs=[C183,C184],events=[C185,C186],...,completion_flag=C187).
+        # coverage.scr holds
+        # event_drum(outputs=[C183,C184],events=[C185,C186],...,completion_flag=C187).
         assert _scr_refused(old, new) == [("Drum", [field])]
 
 
 class TestDrumNames:
-    """A Drum's fields are its CSV keywords, its lists are tuples, and its kind is the CSV name."""
+    """A Drum's field names are its CSV keywords, it stores its lists as tuples, and its
+    ``kind`` is the name of its CSV call."""
 
     def test_lists_are_stored_as_tuples(self) -> None:
         d = drum("time_event_drum")
@@ -570,8 +589,8 @@ class TestDrumNames:
 
 
 class TestDrumCsvChecks:
-    """A drum token missing a keyword is a CSV error; a value it holds that the Drum refuses is
-    that Drum's FieldError."""
+    """A drum token that lacks a required keyword raises CsvError. A value in the token that
+    the Drum refuses raises the Drum's FieldError."""
 
     TIME = (
         "time_drum(outputs=[C1,C2],presets=[100,200],{unit}pattern={pattern},"
@@ -629,7 +648,8 @@ class TestDrumCsvChecks:
 
 
 class TestFieldNames:
-    """A refusal names the dataclass field it came from, where the message does not."""
+    """A refusal's ``field`` names the dataclass field that it is about, even when its
+    message does not name that field."""
 
     def test_drum_names_the_field_of_a_message_without_one(self) -> None:
         with pytest.raises(FieldError) as steps:
@@ -669,7 +689,9 @@ class TestFieldNames:
 
 
 class TestLongDigitRuns:
-    """5001 digits: leading zeros read as their value, above the limit is refused."""
+    """A preset of 5000 or 5001 digits is checked without a crash. A timer or drum reads
+    5000 zeros and a 1 as the value 1, and refuses 5000 ones as above its limit. A counter
+    refuses both."""
 
     ZEROS = "0" * 5000 + "1"
     ONES = "1" * 5000

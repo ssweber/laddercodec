@@ -1,9 +1,10 @@
-"""Inputs a constructor used to accept that crashed later raise FieldError up front.
+"""Tests that a constructor raises FieldError for an input that would make a later step crash.
 
-Each case names its field.  The first group are combinations CLICK has no dialog for
-(Set/Reset one-shot, count_down's Down input, off_delay retention); the rest are
-malformed values (a type, an edge kind, pin rows, a raw part count).  Native blobs still
-decode: a blob whose pin rows the checks refuse stays raw.
+Each FieldError names its field. The first tests cover combinations that no CLICK dialog
+can make: a one-shot Set or Reset, a Down input on count_down, and a retained off_delay. The
+rest cover malformed values: a wrong type, a wrong kind, bad pin rows and a bad part count
+on a raw instruction. A blob that CLICK wrote still decodes. A blob whose pin rows the
+checks refuse stays a raw instruction.
 """
 
 from __future__ import annotations

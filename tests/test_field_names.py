@@ -1,11 +1,17 @@
-"""Every field name written out in the source names a dataclass field of its class.
+"""Tests that every field name written as a string in the source names a field of its class.
 
-A refusal's ``field`` is ``Class.attr`` (``Class.attr[i]`` for an item).  This reads the
-source for each literal one: ``field=`` given to an error, the field argument of the shared
-checks and of the display-form helpers, and the attributes given to a ``Refusals`` block's
-``check(...)``, ``refuse(...)``, ``flag(...)`` and ``normalize(...)``, which name fields of
-the class whose ``__post_init__`` holds the block.  The conftest sweep checks the refusals
-the suite builds; this checks the ones it never builds.
+A refusal's ``field`` is ``Class.attr``, or ``Class.attr[i]`` for an item of a list. This
+module reads laddercodec's source for each field name written as a string literal, in these
+places:
+
+- the ``field=`` argument of an error;
+- the field argument of the shared checks and of the display-form helpers;
+- the attributes passed to ``check(...)``, ``refuse(...)``, ``flag(...)`` and
+  ``normalize(...)`` in a ``Refusals`` block. These name fields of the class whose
+  ``__post_init__`` holds the block.
+
+A fixture in ``tests/conftest.py`` checks the refusals that the test suite builds. This
+module checks the ones that no test builds.
 """
 
 from __future__ import annotations
@@ -34,7 +40,8 @@ _FIELD_SECOND = {
     "normalize_address",
     "check_box_operand",
 }
-#: The Refusals methods whose string arguments (the first only, for ``check``) are attributes.
+#: The ``Refusals`` methods whose every string argument names an attribute. For ``check(...)``
+#: and ``refuse(...)``, only the first argument names one.
 _REFUSALS_ALL = {"flag", "normalize", "refused"}
 
 
@@ -73,7 +80,8 @@ def _call_name(call: ast.Call) -> str | None:
 
 
 def _refusals_names(tree: ast.AST) -> Iterator[tuple[str, str, int]]:
-    """``(class, attr, line)`` for each attribute named to a ``Refusals`` block."""
+    """Yield ``(class, attr, line)`` for each attribute named in a call on a ``Refusals``
+    block."""
     for cls in (n for n in ast.walk(tree) if isinstance(n, ast.ClassDef)):
         for with_ in (n for n in ast.walk(cls) if isinstance(n, ast.With)):
             names = {
@@ -144,7 +152,7 @@ def test_every_literal_field_is_a_dataclass_field() -> None:
 
 
 def test_the_scan_reads_the_field_names() -> None:
-    """The scan finds the names it is meant to: a sample of each kind."""
+    """The scan finds a sample of each kind of field name that it looks for."""
     tree = ast.parse((SRC / "instructions" / "timer.py").read_text(encoding="utf-8"))
     attrs = {(c, a) for c, a, _ in _refusals_names(tree)}
     assert {("Timer", "retained"), ("Timer", "preset"), ("Timer", "accumulator")} <= attrs
