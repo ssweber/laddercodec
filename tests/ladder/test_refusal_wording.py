@@ -1,7 +1,8 @@
-"""A refusal states the rule of the field it is raised on.
+"""A refusal of a constant states the rule of the field that refused it.
 
-The shared constant check words a refusal by the field's own kinds, signs and limits; these
-pin the message of one field per case.
+One check of constants serves every field. It builds each message from that field's own
+kinds of constant, signs and limits. Each test here fixes the whole message for one field
+and one case.
 """
 
 from __future__ import annotations
