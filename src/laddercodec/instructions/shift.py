@@ -48,20 +48,22 @@ class Shift(PinnedInstruction):
 
     start_bit: str
     end_bit: str
-    #: Rows of the clock and reset inputs below the main row.  OR legs under
-    #: the data input push both down; legs under ``.clock()`` push ``.reset()``.
+    #: Rows of the clock and reset inputs, counted down from the main row. An OR leg
+    #: under the data input pushes both down. An OR leg under ``.clock()`` pushes
+    #: ``.reset()`` down.
     pin_rows: tuple[int, ...] = (1, 2)
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.normalize("start_bit", "end_bit")
-            # Both ends are C; another bank, or an end in another bank than the start, is
-            # OBJ-004.
+            # Both ends must be C bits. CLICK refuses any other bank with OBJ-004, and that
+            # includes an end in another bank than the start.
             start = check("start_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
             end = check("end_bit", check_address, SHIFT_BANKS, bank_id="OBJ-004")
-            # The end check refuses an end equal to the start, OBJ-012.  CLICK normalizes an
-            # address as it is typed (C001 becomes C1), so the
-            # parsed addresses are compared.  Start > end stays allowed: it reverses the shift.
+            # CLICK refuses an end equal to the start with OBJ-012. CLICK normalizes an
+            # address as it is typed (C001 becomes C1), so this compares the parsed
+            # addresses, not the text. A start above the end is allowed, and it reverses
+            # the shift.
             if start is not None and end is not None and end == start:
                 check.refuse(
                     ("end_bit", "start_bit"),

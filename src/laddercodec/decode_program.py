@@ -1,4 +1,4 @@
-"""Program file decoder — Scr*.tmp binary to structured Rung data.
+"""Decode a CLICK program file (``Scr*.tmp``) into ``Rung`` objects.
 
 Reads Click Programming Software's internal temp files and produces
 the same ``Rung`` objects as the clipboard decoder.
@@ -8,9 +8,10 @@ Public API
 
     decode_program(data)  -> Program
 
-The SCR format is compact (~17x smaller than clipboard) and represents
-the full program as stored on disk.  Instruction tag IDs and operand
-values are identical to clipboard format — only the framing differs.
+An SCR file holds the whole program as CLICK stores it on disk. It is
+about 17 times smaller than the clipboard form. It uses the same
+instruction tag IDs and operand values as the clipboard. Only the
+framing differs.
 """
 
 from __future__ import annotations
@@ -52,7 +53,8 @@ from .undecoded import (
 
 _SCR_MAGIC = b"SC-SCR  "
 _MAX_SECTION_INSTRUCTIONS = 512
-#: The main program's index; its file has a two-byte tail, and its markers stop with End.
+#: The main program's index. Its file ends with two extra bytes, and an undecoded marker
+#: in it acts as ``end()``.
 _MAIN_PROG_IDX = 1
 
 
@@ -64,7 +66,7 @@ _ScrSectionInstruction = tuple[
     str,
     int,
     dict[int, str],
-    bytes,  # part rows, 1-based, main row first
+    bytes,  # part rows: each part's 1-based rung row, top part first
     _ScrVariantU16Tags,
     _ScrVariantStringTags,
     bytes,  # cell rows: the entry's row span and sub-rows (clipboard +0x09, +0x0A)
@@ -73,7 +75,7 @@ _ScrSectionInstruction = tuple[
 
 @dataclass(frozen=True)
 class _ScrRow:
-    """Stored row flags and placement-ordered (segment, column) wire entries."""
+    """One stored row: its flags and its (segment, column) wire entries, in stored order."""
 
     flags: int
     entries: tuple[tuple[int, int], ...]
@@ -85,17 +87,18 @@ class _ScrRow:
 
 @dataclass(frozen=True)
 class _ScrRowTopologyBlock:
-    """Counted rows, including the special first row, followed by down lists.
+    """A rung's stored rows, then the down list of each column.
 
-    Row flags bit 0 maps to column A's clipboard +0x15 field; entry bit 0
-    maps to +0x19. Entry presence supplies +0x1D. The first stored row is the
-    comment/preamble row, not a fixed three-byte prefix.
+    The first stored row is the comment (preamble) row. It is a full row
+    block, not a fixed three-byte prefix. Bit 0 of a row's flags is the
+    clipboard's +0x15 field in column A. An entry's segment bit is +0x19,
+    and a column with an entry has +0x1D set.
     """
 
     start: int
     stored_rows: tuple[_ScrRow, ...]
     column_count: int
-    wiredown: dict[int, tuple[int, ...]]  # ordinary grid row indices, zero-based
+    wiredown: dict[int, tuple[int, ...]]  # zero-based grid rows; the comment row is not one
     end: int
 
     @property
@@ -115,7 +118,7 @@ class _ScrHeader:
     # Bits: nicknames, address comments, rung comments, freeze coil area.
     display_flags: int
     rung_count: int
-    rungs_start: int  # the u16 index of rung zero
+    rungs_start: int  # offset of rung zero's record, which starts with its u16 index
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +127,7 @@ class _ScrHeader:
 
 
 def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
-    """Read a length-prefixed UTF-16LE string."""
+    """Return *byte_count* bytes at *offset* decoded as UTF-16LE, without trailing NULs."""
     raw = data[offset : offset + byte_count]
     if len(raw) % 2 == 1:
         raw = raw + b"\x00"
@@ -132,7 +135,7 @@ def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
 
 
 def _parse_header(data: bytes) -> _ScrHeader:
-    """Read counted numeric widths, display flags, and the u16 rung count."""
+    """Return the file header: program index, name, column widths, display flags, rung count."""
     if len(data) < 0x43 or data[:8] != _SCR_MAGIC:
         raise DecodeError(f"Not an SC-SCR file (magic: {data[:8]!r})")
 
@@ -169,11 +172,12 @@ def _parse_header(data: bytes) -> _ScrHeader:
 
 
 def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int, bytes] | None:
-    """Parse SCR instruction blob at pos.
+    """Parse the SCR instruction blob at *pos*.
 
-    Returns (class_name, type_code, end_offset, part_rows) or None.  ``part_rows``
-    holds one 1-based row per part, main row first (``01 02 03 04`` for a drum;
-    OR legs under a pin push the later parts down, e.g. ``01 02 04 05``).
+    Returns (class_name, type_code, end_offset, part_rows), or None if the bytes
+    are not a blob. ``part_rows`` holds one 1-based rung row per part, top part
+    first. A drum on the first row stores ``01 02 03 04``. An OR leg under a pin
+    pushes the later parts down, as in ``01 02 04 05``.
     """
     if not data_len:
         data_len = len(data)
@@ -207,8 +211,8 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         eo_pos = after_type + 7 + part_count
         if eo_pos + 4 > data_len:
             return None
-        # end_offset is the explicit blob boundary pointer — the same boundary
-        # that clipboard's find_blob_boundary() derives by scanning tag fields.
+        # end_offset points at the end of the blob. For the clipboard,
+        # find_blob_boundary() finds the same end by scanning the tag fields.
         end_offset = struct.unpack_from("<I", data, eo_pos)[0]
         if not (pos < end_offset < data_len):
             return None
@@ -228,9 +232,11 @@ def _parse_scr_tags(
     end_offset: int,
     part_count: int,
 ) -> tuple[str, int, dict[int, str], _ScrVariantU16Tags, _ScrVariantStringTags]:
-    """Parse SCR blob into scalar tags plus compact variant-tag collections.
+    """Parse the SCR blob at *blob_start* into its class name, type code and tags.
 
-    Wire type is inferred from each tag's high byte via ``_tag_wire_type``.
+    Plain tags come back in one dict. Variant tags come back in two more dicts, one
+    for u16 values and one for strings. ``_tag_wire_type`` reads the value type of
+    each tag from its high byte.
     """
     pos = blob_start
     sl = data[pos]
@@ -241,7 +247,7 @@ def _parse_scr_tags(
     pos += 2
     pos += (
         6 + 1 + part_count + 4
-    )  # skip the six zero bytes, part count, part-row bytes and end_offset
+    )  # skip the six bytes after the type code, part count, part-row bytes and end_offset
 
     tags: dict[int, str] = {}
     variant_u16_tags: _ScrVariantU16Tags = {}
@@ -332,10 +338,12 @@ def _parse_scr_tags(
 
 
 def _clipboard_part_rows(part_rows: bytes) -> bytes:
-    """SCR part rows as the clipboard blob's extra bytes (rows below the main part).
+    """Return SCR part rows as the clipboard blob's extra bytes.
 
-    SCR rows are the parts' 1-based rung rows: a count_down whose main part
-    sits on rung row 1 stores ``02 03 04``.
+    The SCR file stores each part's rung row, counting from 1. The clipboard
+    stores the row of each part after the first, counted from the first part. A
+    count_down whose first part is on rung row 1, counting from 0, stores
+    ``02 03 04``, and this returns ``01 02``.
     """
     return bytes(row - part_rows[0] for row in part_rows[1:])
 
@@ -368,7 +376,7 @@ def _infer_af_visual_rows(
     variant_string_tags: _ScrVariantStringTags,
     cell_rows: bytes,
 ) -> int:
-    """Rows the AF box of an SCR entry spans: those of the box ``_scr_box`` builds."""
+    """Return the number of rows spanned by the AF box that ``_scr_box`` builds for an entry."""
     box = _scr_box(
         class_name, type_code, tags, part_rows, variant_u16_tags, variant_string_tags, cell_rows
     )
@@ -384,10 +392,12 @@ def _scr_box(
     variant_string_tags: _ScrVariantStringTags,
     cell_rows: bytes,
 ) -> AfInstruction:
-    """The AF box of an SCR entry: typed when its class height is the stored row span.
+    """Return the AF box of an SCR entry.
 
-    Otherwise, as in the clipboard decoder, it stays raw with the entry's row bytes
-    (the clipboard cell's +0x09 and +0x0A).
+    The box is the typed instruction if the height of its class matches the row span
+    that the entry stores, or if the entry stores none. Otherwise the box is a
+    ``RawInstruction`` that keeps the entry's row bytes, which are the clipboard cell's
+    +0x09 and +0x0A. The clipboard decoder does the same.
     """
     parsed_af = _scr_af(
         class_name,
@@ -399,9 +409,10 @@ def _scr_box(
     )
     if parsed_af is not None and _fits_stored_span(parsed_af, cell_rows[0]):
         if needs_stored_blob(parsed_af):
-            # It writes the blob a raw box of the entry writes, while it is unchanged: one
-            # that holds refusals, or that reads a stored address in another form (without
-            # its edge space, or in display form where CLICK saved it as typed).
+            # The instruction holds refusals, or it read a stored address in another form:
+            # without a space at its start or end, or in display form where CLICK saved it
+            # as typed. While its fields are unchanged, it writes the blob that a raw box
+            # of this entry would write.
             keep_stored_blob(parsed_af, _scr_blob(class_name, type_code, tags, part_rows))
             keep_cell_rows(parsed_af, cell_rows[0], cell_rows[1])
         return parsed_af
@@ -409,7 +420,7 @@ def _scr_box(
 
 
 def _scr_blob(class_name: str, type_code: int, tags: dict[int, str], part_rows: bytes) -> bytes:
-    """The clipboard blob composed from an SCR entry's tags, as a raw box writes it."""
+    """Return the clipboard blob that a raw box writes, built from an SCR entry's tags."""
     from .instructions.raw import _compose_blob
 
     return _compose_blob(
@@ -428,9 +439,10 @@ def _scr_raw(
     part_rows: bytes,
     cell_rows: bytes,
 ) -> RawInstruction:
-    """A minimal RawInstruction from SCR tag data.
+    """Return a ``RawInstruction`` built from the tags of an SCR entry.
 
-    The entry's row bytes are the clipboard cell's +0x09 and +0x0A.
+    Its rows and sub-rows come from the entry's row bytes, which are the clipboard
+    cell's +0x09 and +0x0A.
     """
     return RawInstruction(
         class_name=class_name,
@@ -447,7 +459,10 @@ def _scr_raw(
 
 
 def _parse_row_block(data: bytes, pos: int, data_len: int) -> tuple[_ScrRow, int] | None:
-    """Read flags u8, count u16, and count (segment u8, column u8) pairs."""
+    """Return one stored row and the offset after it, or None if the bytes are not a row.
+
+    A row is a u8 of flags, a u16 count, and that many (segment u8, column u8) pairs.
+    """
     if pos < 0 or pos + 3 > data_len:
         return None
     flags = data[pos]
@@ -475,10 +490,11 @@ def _parse_wiredown_table(
     column_count: int = 32,
     stored_row_count: int | None = None,
 ) -> tuple[dict[int, tuple[int, ...]], int] | None:
-    """Read a u16 count and that many stored-row index bytes per column.
+    """Return the down list of each column and the offset after the table, or None.
 
-    Stored row zero is special. Down lists refer to ordinary rows starting
-    at one; convert them to zero-based grid coordinates.
+    For each column the table holds a u16 count and that many stored-row indices,
+    one byte each. Stored row 0 is the comment row, so a down list cannot name it,
+    and grid row 0 is stored row 1. The returned lists hold zero-based grid rows.
     """
     result: dict[int, tuple[int, ...]] = {}
     for col in range(column_count):
@@ -502,7 +518,11 @@ def _parse_row_topology_block(
     pos: int,
     data_len: int = 0,
 ) -> _ScrRowTopologyBlock | None:
-    """Read every counted row, then the counted column down lists."""
+    """Return the rows and down lists of one rung, or None if the bytes are not valid.
+
+    The block is a u16 row count, that many rows, a u16 column count, and the down
+    list of each column.
+    """
     if not data_len:
         data_len = len(data)
     if pos < 0 or pos + 2 > data_len:
@@ -548,7 +568,7 @@ def _parse_row_topology_block(
 
 @dataclass(frozen=True)
 class _ScrRungRecord:
-    """One complete rung record from the linear walk."""
+    """One rung's record from an SCR file: its comment RTF, rows and instructions."""
 
     comment_rtf: bytes | None
     topology: _ScrRowTopologyBlock
@@ -558,12 +578,13 @@ class _ScrRungRecord:
 def _parse_section_entries(
     data: bytes, pos: int, count: int, data_len: int
 ) -> tuple[list[_ScrSectionInstruction], int] | None:
-    """Parse ``count`` instruction entries; returns (instructions, end_pos).
+    """Parse ``count`` instruction entries. Returns (instructions, end_pos), or None.
 
-    Each entry is a fixed 8-byte header followed by a blob whose explicit
-    ``end_offset`` plus the 1-byte trailer length at that offset determine the
-    next entry position.  Header bytes 2 and 3 are the box's row span and
-    sub-rows, the bytes a clipboard cell holds at +0x09 and +0x0A.
+    Each entry is a fixed 8-byte header followed by a blob. At the blob's
+    ``end_offset`` is a 1-byte trailer length, and the next entry starts
+    ``2 + trailer length`` bytes after ``end_offset``. Header bytes 2 and 3 are
+    the box's row span and sub-rows, which a clipboard cell holds at +0x09 and
+    +0x0A.
     """
     results: list[_ScrSectionInstruction] = []
     cursor = pos
@@ -590,7 +611,7 @@ def _parse_section_entries(
 
 
 def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
-    """Walk the declared records; raise ``DecodeError`` at malformed framing."""
+    """Return every record that the header declares. Raise ``DecodeError`` on bad framing."""
     records, error = _walk_until_framing_error(data, header)
     if error is not None:
         raise DecodeError(f"{error} (rung {len(records)})")
@@ -598,24 +619,24 @@ def _walk_rung_records(data: bytes, header: _ScrHeader) -> list[_ScrRungRecord]:
 
 
 class _UnconfirmedEnd(DecodeError):
-    """A framing error that leaves the last record read unconfirmed.
+    """Raised for a framing error after which the last record read may be wrong.
 
-    A record's end is confirmed only by the next record's prefix (its index), or for the
-    last record by the file's end.  When that check fails, the record before may have
-    ended in the wrong place: a section count one too low ends it early, and it would
-    decode as a wrong rung.
+    Only the next record's prefix, which holds its index, confirms where a record ends.
+    For the last record, the end of the file confirms it. When that check fails, the
+    record before may have ended in the wrong place. For example, a section count one
+    too low ends the record early, and it would decode as the wrong rung.
     """
 
 
 def _walk_until_framing_error(
     data: bytes, header: _ScrHeader
 ) -> tuple[list[_ScrRungRecord], str | None]:
-    """The records before the first malformed one, and the framing error, or None.
+    """Return the records before the first malformed one, and the framing error or None.
 
-    The walk never searches for a later rung to resume at: the records after a framing
-    error are lost.  So is the record before one whose prefix is cut off or holds the
-    wrong index, or the last record when the file does not end after it: its end is not
-    confirmed (:class:`_UnconfirmedEnd`).
+    The function does not search for a later rung to resume at, so it loses every record
+    from the framing error on. It also drops the record before a prefix that is cut off
+    or holds the wrong index, and the last record when the file does not end after it.
+    The end of such a record is not confirmed (:class:`_UnconfirmedEnd`).
     """
     records: list[_ScrRungRecord] = []
     try:
@@ -630,7 +651,10 @@ def _walk_until_framing_error(
 
 
 def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRecord]) -> None:
-    """Append each declared record to *records*; raise ``DecodeError`` at malformed framing."""
+    """Append each record that the header declares to *records*.
+
+    Raise ``DecodeError`` when the framing of a record is malformed.
+    """
     pos = header.rungs_start
     limit = len(data) - (2 if header.prog_idx == _MAIN_PROG_IDX else 0)
     for index in range(header.rung_count):
@@ -665,7 +689,7 @@ def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRe
         if count:
             if count > _MAX_SECTION_INSTRUCTIONS or pos + 4 > limit:
                 raise DecodeError(f"invalid section header at 0x{pos - 2:X}")
-            pos += 4  # section_marker: opaque per-file constant
+            pos += 4  # section_marker: the same in every rung of a file, meaning unknown
             parsed = _parse_section_entries(data, pos, count, limit)
             if parsed is None:
                 raise DecodeError(f"unparseable section entries at 0x{pos:X}")
@@ -678,12 +702,13 @@ def _read_rung_records(data: bytes, header: _ScrHeader, records: list[_ScrRungRe
 
 
 def _is_trailing_placeholder(record: _ScrRungRecord) -> bool:
-    """Trailing content-less rung: no instructions and no comment.
+    """Return True if *record* has no instructions and no comment.
 
-    Click programs keep 1..4 ordinary empty rungs in the editor below the
-    last programmed rung (some carry a fully-wired row).  They are real rung
-    records, but content-less — only instructions or a comment make a
-    trailing record worth emitting.
+    Click programs keep 1..4 empty rungs in the editor below the last
+    programmed rung, and some of them hold a row wired all the way across.
+    They are real rung records. The decoder drops such records from the end
+    of a program, because only instructions or a comment make one worth
+    returning.
     """
     return not record.instructions and record.comment_rtf is None
 
@@ -695,11 +720,12 @@ def _build_topology_backed_rung(
     comment: str | None,
     comment_rtf: bytes | None,
 ) -> Rung:
-    """Map ordinary stored rows directly to grid rows.
+    """Build the rung, with each stored row after the comment row as one grid row.
 
-    Preserve wires above later rail-connected rows. Segment patterns depend
-    on editing history and cannot establish that an earlier row is debris.
-    The semantic Rung model does not retain raw row/segment flags.
+    Keep the wires in a row even when a later row connects to the rail. The
+    segment flags depend on how the rung was edited, so they cannot show that
+    an earlier row is left over from editing. The Rung model does not keep the
+    stored row and segment flags.
     """
     rows = topology_block.rows_right_cols
     wiredown = topology_block.wiredown
@@ -778,8 +804,8 @@ def _build_rung(
                 cell_rows,
             )
 
-    # A stored row whose block carries an AF right-wire but no real AF
-    # instruction is a NOP (this includes count_down / drum bridge rows).
+    # A stored row with a right wire in the AF column but no AF instruction holds
+    # a NOP. The bridge rows of count_down and drum boxes are such rows.
     if _CONDITION_COLUMNS in row0_flags and instructions[0] == "":
         instructions[0] = "NOP"
     for row_idx, right_wires in enumerate(extra_rows_right_wires, start=1):
@@ -824,8 +850,8 @@ def _build_rung(
             elif isinstance(cell, (Contact, CompareContact)):
                 cell.wire_down = True
 
-    # Drop stray NOPs that land inside a tall instruction's row span (e.g. a
-    # NOP left stranded on a drum pin row) — same rule as the clipboard decoder.
+    # Drop stray NOPs inside a tall instruction's rows, such as a NOP left behind
+    # on a drum pin row. The clipboard decoder does the same.
     _drop_tall_span_nops(instructions)
 
     return Rung(
@@ -853,15 +879,18 @@ def decode_program(data: bytes) -> Program:
     Returns
     -------
     Program
-        Program with name, prog_idx, and rungs parsed from the file.  A rung that can't
-        be decoded comes back as an undecoded marker rung, with an
-        ``UndecodedRungWarning``.  After a framing error (a truncated record, or a
-        topology or section the walk can't read) the rungs before it decode, and one
-        marker stands for that rung and every rung after it.  When the error is in a
-        record's prefix, or the file does not end after the last record, the record
-        before is not known to have ended in the right place, so the marker starts at
-        that record.  Markers act as ``end()`` in the main program and as ``return()``
-        in a subroutine.
+        Program with name, prog_idx, and rungs parsed from the file. If a rung can't
+        be decoded, an undecoded marker rung takes its place, and the decoder warns
+        with ``UndecodedRungWarning``.
+
+        A framing error is a truncated record, or rows or an instruction section that
+        the decoder can't read. The rungs before the error decode, and one marker takes
+        the place of that rung and every rung after it. If the error is in a record's
+        prefix, or the file does not end after the last record, the record before may
+        have ended in the wrong place. The marker then starts at that record.
+
+        A marker acts as ``end()`` in the main program and as ``return()`` in a
+        subroutine.
 
     Raises
     ------
@@ -872,10 +901,10 @@ def decode_program(data: bytes) -> Program:
     records, framing_error = _walk_until_framing_error(data, header)
     stop: Stop = "end" if header.prog_idx == _MAIN_PROG_IDX else "return"
 
-    # Drop trailing content-less rungs — the ordinary empty rungs Click keeps
-    # below the last programmed rung (a rung-scoped clipboard copy excludes
-    # them too).  After a framing error they are dropped before the marker, which
-    # then stands for the first of them: an empty rung does nothing when run.
+    # Drop the empty rungs that Click keeps below the last programmed rung. A
+    # clipboard copy of the rungs leaves them out too. After a framing error they
+    # are dropped before the marker is added, so the marker takes the place of the
+    # first of them. That is safe because an empty rung does nothing when it runs.
     while records and _is_trailing_placeholder(records[-1]):
         records.pop()
 
@@ -895,9 +924,10 @@ def decode_program(data: bytes) -> Program:
 def _record_rung(
     record: _ScrRungRecord, index: int, stop: Stop, failed: list[tuple[int, str]]
 ) -> Rung:
-    """Rung *index* of the program from its record, or an undecoded marker rung.
+    """Return rung *index* of the program, built from *record*, or an undecoded marker rung.
 
-    A comment that does not decode is noted in the comment and added to *failed*.
+    If the comment does not decode, the rung's comment says so, and ``(index, error)``
+    is added to *failed*.
     """
     comment = read_comment(record.comment_rtf, index, failed)
 
@@ -958,5 +988,5 @@ def _record_rung(
 
 
 def _column(col: int) -> int | None:
-    """*col* as an :class:`Undecoded` column, or None past AF."""
+    """Return *col* as an :class:`Undecoded` column, or None if it is past AF."""
     return col if col <= _CONDITION_COLUMNS else None

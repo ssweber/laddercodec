@@ -74,10 +74,10 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 
 @dataclass
 class Email(AfInstruction):
-    """Email instruction — opaque fields stored as tag-keyed strings.
+    """The Email instruction, with each field kept as a string under its CLICK tag id.
 
-    Provisional: the fields are named after CLICK's tag ids (``tag_3218``). A later release
-    will rename them.
+    laddercodec does not interpret these fields. Their names, such as ``tag_3218``, are
+    provisional, and a later release will rename them.
 
     Binary class name ``"Email"`` (type marker 0x2737).
     """
