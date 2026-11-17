@@ -244,8 +244,11 @@ written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisions.md`.
 
 Addresses are written canonical everywhere, and tested. Math and a single Copy source are written as CLICK
 stores them (`feat/canon-math-copy`): a real as CLICK prints it back, a Copy integer without leading zeros, hex
-in CLICK's case, `$1` as `$01`; hex Math digits without `h` and a Copy `EH` stay refused, naming the form to
-write. `constant_text()` writes a Python value in that form. The other constants are written as typed:
+in CLICK's case, `$1` as `$01`; hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, naming the
+form to write. A Copy source also follows CLICK's save of `-0` (`0`), a real's `+` (dropped) and a real typed
+in exponent form that 7 significant digits don't print exactly (written in 7: `3.4028235E+38` is `3.402823E+38`,
+a slightly smaller value), `fix/copy-constants`. `constant_text()` writes a Python value in that form, but for
+such a real, which it writes in the fewest digits that hold its float32 value. The other constants are written as typed:
 - `fill(0ffh,...)`, `fill(005,...)`;
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
 - timer `preset=0050`, Search `005`.
@@ -264,27 +267,26 @@ Then one behaviour-change branch per answer set, as for Math and Copy.
 - **Reals in exponent form.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math
   and a Copy: is the switch to exponent form between 1E6 and 1E7 (the code's 1E+07), and does CLICK write
   `1E+07`, `1.0E+07` or `1E7`? The code writes a real positionally below 1E+07 and from 1E-04 up, and keeps any
-  other as typed.
-- **More than 7 significant digits.** Typed `1234567.89`, `0.123456789` and `0.30000001`: does CLICK store 7
-  digits, and what? The code keeps the first two as typed (7 digits are another float32 value) and writes the
-  third `0.3` (the same float32 value).
-- **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math and a Copy. The code writes `+2.5`.
-- **Integer `-0` in a Copy:** typed `-0` and `-00`. The code writes `-0` for both.
+  other as typed, but for a Copy real typed in exponent form that 7 digits don't print exactly (below).
+- **More than 7 significant digits.** A Copy stores `3.4028235E+38` as `3.402823E+38`, so the code writes a Copy
+  real typed in exponent form in 7 digits where they don't print it exactly; `constant_text()` keeps the digits
+  that hold the value, which a Math keeps and a Copy rounds. Open: typed `1234567.89`, `0.123456789` and `0.30000001` in a Math and a Copy,
+  and an exponent-form real with more than 7 digits in a Math. The code keeps the first two as typed (7 digits
+  are another float32 value), writes the third `0.3` (the same float32 value), and keeps the last as typed.
+- **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math. The code writes `+2.5`. A Copy drops
+  a real's `+` (`+1.5` is `1.5`), and the code writes `2.5` there.
+- **Integer `-00` in a Copy:** CLICK stores `-0` as `0`; the code writes `-00` as `0` too, not answered.
 - **`$0d` as a Copy source:** stored `$0d` or `$0D`? The code keeps the case typed, as for `$0d` everywhere.
-- **Other hex Copy sources with `E`:** `0EH`, `1EH`, `E0H`, `EEH`, `1E3H` in a Copy: hex or real? The code reads
-  them as hex and refuses only `EH`, whose message tells the user to write `0Eh`.
+- **Other hex Copy sources with `E`:** `0EH`, `01EH`, `E0H`, `EEH`, `1E3H` in a Copy: hex or real? CLICK stores
+  `EH` as `0.0` and `1Eh` as `1.0`, as if it read any text with an `E` as a real, so these may be reals too. The
+  code refuses only `EH` and `1EH`, and reads the rest as hex; the refusal names the real and the hex value as a
+  decimal integer, not a hex spelling, since none with an `E` is known to be read as hex.
 - **Typed `1E3h` in a hex Math:** does the dialog take it, as CLICK stores `1e3` that way? The code takes it, so
   that a stored `1E3h` decodes and reads back.
 - **`MAX ( DS1 , DS2 )`:** which id does the dialog give? The code refuses it with no id.
 
 **Answered by the full Copy and Math grids**, where CLICK stores another form than the code writes now (each
 case is in the `copy_single` and `math_decimal` answers; the code is unchanged until a branch takes them):
-- A Copy `-0` into DS1 is stored `0`; the code writes `-0`. (`-00` is not answered.)
-- A Copy `+1.5` into DS1 is stored `1.5`, the `+` dropped; the code writes `+1.5`. A Math keeps it (`+1.5`), as
-  the code writes, and a Copy keeps the `+` of an integer (`+5`, `+0`).
-- A Copy `1Eh` into DS1 is stored as the real `1.0`, as `EH` is stored `0.0`; the code reads `1Eh` as hex 30.
-  So at least `1EH` among the hex Copy sources with `E` above is a real; the rest are not answered.
-- A Copy `3.4028235E+38` into DS1 is stored `3.402823E+38` (7 significant digits); the code keeps it as typed.
 - A decimal Math `1E5` is stored `100000`, and `1.5E+3` and `1.5E3` are stored `1500` (alone and as `DS1 + ...`);
   the code writes `100000.0` and `1500.0`. A lowercase `1e5` in a decimal Math, alone and as `DS1 + 1e5`,
   is stored `100000.0`, as the code writes. A Copy stores both `1E5` and `1e5` as `100000.0`, as the code
@@ -396,7 +398,8 @@ From the ecosystem plan's item 2; each waits until pyrung's export reaches it, a
   (`7h`, `77h`). The error names the fix.
 - **Canonical constants (Sam, 2026-11-16):** the encoder writes the form CLICK's dialog stores wherever its
   correction keeps the meaning, a typed `+` and a hex Copy source's leading zeros included; where it would change
-  what the CSV says (hex Math digits without `h`, a Copy `EH`), the text is refused and the message names the fix.
+  what the CSV says (hex Math digits without `h`, a Copy `EH` or `1Eh`), the text is refused and the message names
+  the fix.
 - **Hex Math words without `h` (Sam):** CLICK reads a word of hex digits typed without `h` as a hex constant:
   `abc`, `5`, `-5`, `005`, `C0`, `DD0`, `DF0`, `1E5`, `1-2`, `RAND(5,Ah)`, and `DH0` as `D0h`. laddercodec
   keeps refusing them: a CSV says what it means, and `DH0` meaning `D0h`, or `10` meaning 16, is what to
