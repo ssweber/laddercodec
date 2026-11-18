@@ -37,6 +37,7 @@ from laddercodec.model import (
     check_address,
     normalize_address,
 )
+from laddercodec.operands.address import display_form_only
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -449,3 +450,25 @@ def test_fixture_csv_reads_the_same_with_loose_addresses(tmp_path: Path, path: P
     with loose.open("w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerows(loosened)
     assert read_csv(loose) == rungs
+
+
+@pytest.mark.parametrize(
+    ("value", "field"),
+    [("DS0", "Copy.source"), ("ds0", "Copy.dest"), ("QQ1", "Fill.value"), ("ds5000", None)],
+)
+def test_a_refused_address_is_refused_each_time(value: str, field: str | None) -> None:
+    """An address read a second time is refused again, with the field of the second read."""
+    for name in ("A.first", field or "B.second", "A.first"):
+        with pytest.raises(AddressError) as caught:
+            check_address(normalize_address(value), name)
+        assert str(caught.value).startswith(f"{name}: ")
+        assert caught.value.field == name
+
+
+def test_display_form_only_is_read_after_the_cache() -> None:
+    assert normalize_address("ds1") == "DS1"
+    with display_form_only(), pytest.raises(FieldError, match="not CLICK's display form"):
+        normalize_address("ds1", "Copy.source")
+    with display_form_only(), pytest.raises(FieldError, match="'ds1' is not CLICK's"):
+        normalize_address("DS[ds1]", "Copy.source")
+    assert normalize_address("ds1") == "DS1"

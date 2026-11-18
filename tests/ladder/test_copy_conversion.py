@@ -273,6 +273,65 @@ def test_a_real_into_txt_writes_its_numbering_and_end(
     )
 
 
+@pytest.mark.parametrize(
+    ("typed", "saved", "end"),
+    [
+        # CLICK saves these, typed into the dialog as the source of a Copy into TXT1.
+        ("10000000000.0", "1E+10", "TXT5"),
+        ("1.50", "1.5", "TXT3"),
+        ("1.234568E+08", "1.234568E+08", "TXT12"),
+        ("1.234568E+07", "1.234568E+07", "TXT12"),
+        ("100000000.0", "1E+08", "TXT5"),
+        ("1.5E+10", "1.5E+10", "TXT7"),
+        # The same rule: a real typed without an E from 1E+07 up in size.
+        # 1E+07 itself. The text is built in code, because test_no_dll_addresses.py
+        # reads its eight digits as a DLL address.
+        (f"{10**7}.0", "1E+07", "TXT5"),
+        ("20000000.0", "2E+07", "TXT5"),
+        ("-12345670.0", "-1.234567E+07", "TXT13"),
+        ("+10000000000.0", "1E+10", "TXT5"),
+        ("9999999.0", "9999999.0", "TXT9"),
+        # CLICK's form is not known for these, and the real is written as typed.
+        ("1E10", "1E10", "TXT4"),
+        ("0.00001", "0.00001", "TXT7"),
+    ],
+)
+def test_a_real_into_txt_is_written_as_click_saves_it(typed: str, saved: str, end: str) -> None:
+    """The source text that a Copy into TXT writes, and the end that counts its characters."""
+    copy = Copy(typed, "TXT1", convert="to_text")
+    assert copy.source == saved
+    written = _tags(copy.build_blob())
+    assert (written[0x6074], written[0x6077]) == (saved, end)
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+@pytest.mark.parametrize(
+    ("typed", "dest", "saved", "conv"),
+    [
+        # CLICK saves these.
+        ("10000000000.0", "DF1", "1E+10", "0"),
+        ("10000000000.0", "DD1", "1E+10", "7"),
+        # The same rule.
+        ("-12345670.0", "DF1", "-1.234567E+07", "0"),
+    ],
+)
+def test_a_real_into_a_register_is_written_as_click_saves_it(
+    typed: str, dest: str, saved: str, conv: str
+) -> None:
+    copy = Copy(typed, dest)
+    written = _tags(copy.build_blob())
+    assert (copy.source, written[0x6074], written[0x2227]) == (saved, saved, conv)
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
+def test_a_positional_real_fits_txt1000_in_its_saved_form() -> None:
+    # 1E+10 fills five TXT registers: TXT996..TXT1000.
+    copy = Copy("10000000000.0", "TXT996", convert="to_text")
+    assert _tags(copy.build_blob())[0x6077] == "TXT1000"
+    with pytest.raises(FieldError, match="past TXT1000"):
+        Copy("10000000000.0", "TXT997", convert="to_text")
+
+
 def test_a_number_with_zeros_kept_writes_its_end() -> None:
     """A number copied into TXT with zeros kept writes type 2 and the end of its text.
 

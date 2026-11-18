@@ -167,9 +167,10 @@ def real_display(text: str) -> str:
     ``text`` comes back as given in two cases.  The first is when the 7-digit print is a
     different float32 value, because ``text`` has more than 7 significant digits that
     count.  The second is when 7 digits print the value in exponent form: from 1E+07 up, or
-    below 1E-04.  CLICK keeps ``1.5E+10`` as typed, and its form for the other values is
-    not known.  ``text`` must be a real that :func:`classify` reads: finite and within
-    float32.
+    below 1E-04.  CLICK keeps ``1.5E+10`` as typed.  A single Copy writes a real typed
+    without an ``E`` from 1E+07 up in exponent form instead (:func:`copy_real_display`).
+    CLICK's form for the other values is not known.  ``text`` must be a real that
+    :func:`classify` reads: finite and within float32.
     """
     value = float(text)
     printed = f"{value:.{REAL_DIGITS}G}"
@@ -185,22 +186,31 @@ def real_display(text: str) -> str:
 def copy_real_display(text: str) -> str:
     """Return the text that a single Copy source stores for the real constant ``text``.
 
-    The text is the one :func:`real_display` returns, with two differences that CLICK's Copy
-    shows.  First, a typed ``+`` is dropped: ``+1.5`` is ``1.5``.  Second, a real may be
-    typed in exponent form, and 7 significant digits may print its float32 value in
-    exponent form but not exactly.  Such a real is written as that print: ``3.4028235E+38``
-    is ``3.402823E+38``, a slightly smaller float32 value.  A real that 7 digits print
-    exactly is kept as typed, as ``1E-45`` and ``1E-50`` are.  CLICK's form for one typed
-    otherwise, such as ``1e7`` or ``1.0E-10``, is not known.  ``text`` must be a real that
-    :func:`classify` reads: finite and within float32.  A single Copy refuses a real typed
-    with more than 7 significant digits before it calls this function
-    (:func:`real_beyond_kept_digits`).
+    The text is the one :func:`real_display` returns, with these differences that CLICK's
+    Copy shows:
+
+    - A typed ``+`` is dropped: ``+1.5`` is ``1.5``.
+    - A real may be typed in exponent form, and 7 significant digits may print its float32
+      value in exponent form but not exactly.  Such a real is written as that print:
+      ``3.4028235E+38`` is ``3.402823E+38``, a slightly smaller float32 value.  A real that
+      7 digits print exactly is kept as typed, as ``1E-45`` and ``1E-50`` are.  CLICK's
+      form for one typed otherwise, such as ``1e7`` or ``1.0E-10``, is not known.
+    - A real typed without an ``E`` from 1E+07 up in size is written in exponent form,
+      with 7 significant digits and trailing zeros cut: ``10000000000.0`` is ``1E+10`` and
+      ``-12345670.0`` is ``-1.234567E+07``, whatever the destination.  CLICK's form for a
+      real typed without an ``E`` below 1E-04, such as ``0.00001``, is not known.
+
+    ``text`` must be a real that :func:`classify` reads: finite and within float32.  A
+    single Copy refuses a real typed with more than 7 significant digits before it calls
+    this function (:func:`real_beyond_kept_digits`).
     """
     text = text.removeprefix("+")
     value = _float32(float(text))
     printed = f"{value:.{REAL_DIGITS}G}"
     if "E" in text.upper() and "E" in printed and _float32(float(printed)) != value:
         return printed
+    if "E" not in text.upper() and abs(float(text)) >= _POSITIONAL_BELOW:
+        return f"{float(text):.{REAL_DIGITS}G}"
     return real_display(text)
 
 

@@ -268,17 +268,17 @@ def test_pair_refusals_name_both_fields_with_the_id(
 
 def test_blockcopy_bank_and_ends() -> None:
     # A bank that no Block Copy source accepts is refused with OBJ-004. So is a bank that no
-    # Block Copy destination accepts.
-    error, end = _errors(lambda: BlockCopy("XD1", "XD2", "DS1", "DS2"))
-    assert (end.field, end.click_id) == ("BlockCopy.source_end", "OBJ-004")
-    assert (error.field, error.reason, error.click_id) == (
-        "BlockCopy.source_start",
+    # Block Copy destination accepts. Both ends are refused for the same reason, so the
+    # range is refused once.
+    (error,) = _errors(lambda: BlockCopy("XD1", "XD2", "DS1", "DS2"))
+    assert (error.fields, error.reason, error.click_id) == (
+        ("BlockCopy.source_start", "BlockCopy.source_end"),
         "bank",
         "OBJ-004",
     )
-    error, _ = _errors(lambda: BlockCopy("DS1", "DS2", "X1", "X2"))
-    assert (error.field, error.reason, error.click_id) == (
-        "BlockCopy.dest_start",
+    (error,) = _errors(lambda: BlockCopy("DS1", "DS2", "X1", "X2"))
+    assert (error.fields, error.reason, error.click_id) == (
+        ("BlockCopy.dest_start", "BlockCopy.dest_end"),
         "bank",
         "OBJ-004",
     )
@@ -543,6 +543,97 @@ def test_blockcopy_into_writable_sd() -> None:
     assert BlockCopy("DS1", "DS3", "SD34", "SD36").dest_end == "SD36"
 
 
+# A Fill into SD writes every SD of its range. CLICK refuses the range with OBJ-004 when any
+# of them is not writable, wherever it is in the range.
+_FILL_SD_UNWRITABLE = [
+    (value, start, end, first)
+    for value in ("5", "DS1")
+    for start, end, first in [
+        ("SD29", "SD38", "SD30"),
+        ("SD140", "SD149", "SD148"),
+        ("SD214", "SD223", "SD216"),
+        ("SD106", "SD225", "SD109"),
+        ("SD205", "SD214", "SD205"),
+        ("SD212", "SD215", "SD212"),
+        ("SD1", "SD2", "SD1"),
+    ]
+] + [
+    ("5", "SD1", "SD1000", "SD1"),
+    ("5", "SD999", "SD1000", "SD999"),
+    *(
+        (value, "SD1", "SD2", "SD1")
+        for value in (
+            "DD1", "DH1", "DF1", "XD0", "YD0", "TD1", "CTD1", "SD1",
+            "-5", "2147483647", "1.5", "FFh", "FFFFh",
+        )
+    ),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize(("value", "start", "end", "first"), _FILL_SD_UNWRITABLE)
+def test_fill_into_sd_needs_every_address_writable(
+    value: str, start: str, end: str, first: str
+) -> None:
+    (error,) = _errors(lambda: Fill(value, start, end))
+    assert (error.fields, error.reason, error.code, error.click_id) == (
+        ("Fill.dest_start", "Fill.dest_end"),
+        "not_writable",
+        "not-writable",
+        "OBJ-004",
+    )
+    assert str(error).startswith(f"Fill.dest_start: '{start}..{end}' holds {first}, which is not")
+
+
+@pytest.mark.parametrize("value", ["5", "DS1"])
+@pytest.mark.parametrize(("start", "end"), [("SD140", "SD147"), ("SD40", "SD42")])
+def test_fill_into_writable_sd(value: str, start: str, end: str) -> None:
+    assert Fill(value, start, end).dest_end == end
+
+
+@pytest.mark.parametrize(
+    ("value", "start", "end"),
+    [
+        # CLICK refuses each of these for a reason other than an SD that is not writable.
+        # test_fill_of_hex_above_ffffh_into_sd_refuses_the_value has 10000h and FFFFFFFFh.
+        ("0FFFFFFFFh", "SD1", "SD2"),
+        ("100000000h", "SD1", "SD2"),
+        ("5", "SD1000", "SD1001"),
+        ("5", "SD2", "SD1"),
+        ("5", "SD1", "SD1"),
+        ("5", "SD1", "SD0"),
+        ("5", "SD1", "SD1001"),
+        ("5", "SD1", "X001"),
+        ("5", "SD1", "C1"),
+        ("5", "SD1", "DS1"),
+        ("5", "SD1", "TXT1"),
+        ("X001", "SD1", "SD2"),
+        ("Y001", "SD1", "SD2"),
+        ("C1", "SD1", "SD2"),
+        ("T1", "SD1", "SD2"),
+        ("CT1", "SD1", "SD2"),
+        ("SC1", "SD1", "SD2"),
+        ("TXT1", "SD1", "SD2"),
+        ('"A"', "SD1", "SD2"),
+        ('"AB"', "SD1", "SD2"),
+        ("$41", "SD1", "SD2"),
+    ],
+)
+def test_fill_into_sd_refused_for_another_reason(value: str, start: str, end: str) -> None:
+    errors = _errors(lambda: Fill(value, start, end))
+    assert errors[0].code != "not-writable"
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="CLICK refuses a Fill of hex above FFFFh with OBJ-005, and laddercodec "
+    "accepts the value and refuses SD1..SD2 with OBJ-004",
+)
+@pytest.mark.parametrize("value", ["10000h", "FFFFFFFFh"])
+def test_fill_of_hex_above_ffffh_into_sd_refuses_the_value(value: str) -> None:
+    errors = _errors(lambda: Fill(value, "SD1", "SD2"))
+    assert errors[0].click_id == "OBJ-005"
+
+
 def test_fill_reasons() -> None:
     (error,) = _errors(lambda: Fill("TXT1", "DS1", "DS4"))
     assert (error.fields, error.reason) == (("Fill.dest_start", "Fill.value"), "conflict")
@@ -745,6 +836,155 @@ def test_search_table_range_refusals_carry_reason_and_id(
     assert error.fields == ("Search.table_end", "Search.table_start")
     assert (error.reason, error.click_id) == ("conflict", click_id)
     assert str(error).endswith(f" ({click_id})")
+
+
+# ---------------------------------------------------------------------------
+# One refusal for a range whose two ends are refused for the same reason
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("build", "fields", "message"),
+    [
+        (
+            lambda: Fill("1", "C1", "C2"),
+            ("Fill.dest_start", "Fill.dest_end"),
+            "Fill.dest_start: 'C1..C2' is not allowed; Fill.dest_start takes DS, ",
+        ),
+        (
+            lambda: BlockCopy("DS1", "DS2", "YD1", "YD2"),
+            ("BlockCopy.dest_start", "BlockCopy.dest_end"),
+            "BlockCopy.dest_start: 'YD1..YD2' is not allowed; ",
+        ),
+        (
+            lambda: Pack("XD1", "XD2", "DD1", kind="pack_words"),
+            ("Pack.source_start", "Pack.source_end"),
+            "Pack.source_start: 'XD1..XD2' is not allowed; ",
+        ),
+        (
+            lambda: Unpack("DD1", "X1", "X2", kind="unpack_to_words"),
+            ("Unpack.dest_start", "Unpack.dest_end"),
+            "Unpack.dest_start: 'X1..X2' (X001..X002) is not allowed; ",
+        ),
+        (
+            lambda: Search("C1", "C10", "5", "DS20", "C1", "=="),
+            ("Search.table_start", "Search.table_end"),
+            "Search.table_start: 'C1..C10' is not allowed; ",
+        ),
+        (
+            lambda: Fill("1", "DS5000", "DS5001"),
+            ("Fill.dest_start", "Fill.dest_end"),
+            "Fill.dest_start: 'DS5000..DS5001' is outside DS1-DS4500",
+        ),
+        (
+            # a range of one address is named once
+            lambda: Fill("5", "X001", "X001"),
+            ("Fill.dest_start", "Fill.dest_end"),
+            "Fill.dest_start: 'X001' is not allowed; ",
+        ),
+        (
+            # ends in two banks that the field does not take
+            lambda: Search("T1", "X001", "5", "DS20", "C1", "=="),
+            ("Search.table_start", "Search.table_end"),
+            "Search.table_start: 'T1..X001' is not allowed; ",
+        ),
+    ],
+)
+def test_a_range_refused_as_a_whole_is_one_refusal(
+    build: Any, fields: tuple[str, str], message: str
+) -> None:
+    (error,) = _errors(build)
+    assert error.fields == fields
+    assert str(error).startswith(message)
+
+
+def test_a_range_refusal_names_the_typed_text() -> None:
+    (error,) = _errors(lambda: Fill("1", "c001", "c002"))
+    assert str(error).startswith("Fill.dest_start: 'c001..c002' (C1..C2) is not allowed")
+
+
+@pytest.mark.parametrize(
+    ("build", "fields"),
+    [
+        # the ends are refused for different reasons
+        (lambda: Fill("1", "C1", "DS5000"), ["Fill.dest_start", "Fill.dest_end"]),
+        (lambda: Fill("1", "QQ1", "C2"), ["Fill.dest_start", "Fill.dest_end"]),
+        # the same code, but different rules: a bank that does not exist and a bad shape
+        (lambda: Fill("1", "QQ1", "1Z"), ["Fill.dest_start", "Fill.dest_end"]),
+        # a pointer and a bank
+        (lambda: Fill("1", "DS[DS1]", "C2"), ["Fill.dest_start", "Fill.dest_end"]),
+        # blank ends stay a refusal each
+        (lambda: Fill("1", "", ""), ["Fill.dest_start", "Fill.dest_end"]),
+    ],
+)
+def test_ends_refused_for_different_reasons_stay_two_refusals(
+    build: Any, fields: list[str]
+) -> None:
+    assert [e.field for e in _errors(build)] == fields
+
+
+@pytest.mark.parametrize(
+    ("build", "messages"),
+    [
+        (
+            lambda: Fill("1", "5", "6"),
+            ["Fill.dest_start: '5' is not", "Fill.dest_end: '6' is not"],
+        ),
+        (
+            lambda: Fill("1", "QQ1", "QQ2"),
+            ["Fill.dest_start: 'QQ1' has no CLICK bank", "Fill.dest_end: 'QQ2' has no CLICK bank"],
+        ),
+        (
+            lambda: Fill("1", "DS[DS1]", "DS[DS2]"),
+            ["Fill.dest_start: 'DS[DS1]' is a pointer", "Fill.dest_end: 'DS[DS2]' is a pointer"],
+        ),
+        (
+            lambda: Search("5", "6", "5", "DS20", "C1", "=="),
+            ["Search.table_start: '5' is not", "Search.table_end: '6' is not"],
+        ),
+    ],
+)
+def test_ends_that_are_not_addresses_stay_two_refusals(build: Any, messages: list[str]) -> None:
+    # Only the bank rule and the out-of-range rule merge. A message such as
+    # "'5..6' is not a CLICK address" would read as if the range were one value.
+    errors = _errors(build)
+    assert len(errors) == len(messages)
+    for error, message in zip(errors, messages, strict=True):
+        assert str(error).startswith(message)
+
+
+@pytest.mark.parametrize(
+    ("build", "rule"),
+    [
+        (
+            lambda: Unpack("DD1", "Y101", "Y116", kind="unpack_to_bits"),
+            "an unpack to bits from DD goes to C (OBJ-024)",
+        ),
+        (
+            lambda: Unpack("DD1", "Y101", "Y102", kind="unpack_to_words"),
+            "an unpack to words from DD goes to DS, DH (OBJ-024)",
+        ),
+        (
+            lambda: Unpack("DS1", "Y001", "Y016", kind="unpack_to_bits"),
+            "an unpack to bits from DS goes to C (OBJ-024)",
+        ),
+        (
+            lambda: Unpack("DH1", "DS1", "DS2", kind="unpack_to_words"),
+            "an unpack to words takes its source from DD, DF (OBJ-004)",
+        ),
+        (
+            lambda: Unpack("DS1", "DS10", "DS11", kind="unpack_to_words"),
+            "an unpack to words takes its source from DD, DF (OBJ-004)",
+        ),
+        (
+            lambda: Unpack("DS1", "Y001", "Y016", kind="bogus"),
+            "an unpack from DS goes to C (OBJ-024)",
+        ),
+    ],
+)
+def test_an_unpack_message_names_the_destinations_of_its_kind(build: Any, rule: str) -> None:
+    pair = next(e for e in _errors(build) if e.code == "copy-bank-incompatible")
+    assert str(pair).endswith(f"; {rule}")
 
 
 def test_a_refused_pack_kind_is_not_counted() -> None:

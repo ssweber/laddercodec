@@ -268,7 +268,8 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
   - a Block Copy whose start is not listed;
   - an unlisted SD below SD29 in each field.
 
-  A Fill into SD still accepts every SD, because no answer covers it.
+  A Fill into SD needs every SD in its range to be writable. CLICK refuses any other SD range with OBJ-004, and
+  so does the code.
 - **The picker's lists for 8 more fields are in.** They are Pack's destination (with nothing filled first,
   with an X source, and with a C source), Unpack's destination and destination end (with nothing, a DH source
   and a DS source), and a hex Math result. None of them lists an SC or SD address, and the rules accept none.
@@ -415,8 +416,8 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
   refusal (OBJ-004).
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog. An
   id that can't be backed stays None. Open:
-  - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?), and a Fill into TXT of more
-    than one character (OBJ-023?).
+  - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?). For a Fill into TXT of an
+    integer or hex constant of more than one character, CLICK shows OBJ-023 (**Fill of a number into TXT**).
   - Block Copy, a source range spanning two X/Y modules. CLICK's answer for Pack is OBJ-033 (set). No recorded
     answer covers Block Copy's, so it stays None. What OBJ-035 is for is still unknown.
   - Receive, one C bit for two status fields (Send's is OBJ-014).
@@ -432,6 +433,15 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     its bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
     from CLICK's own code. The math grids confirm every one that the rules report.
+- **Fill of hex above FFFFh (to do).** CLICK refuses a Fill of hex above FFFFh, such as `10000h` or
+  `FFFFFFFFh`, into every bank with OBJ-005. The code accepts up to `FFFFFFFFh`. Into `SD1..SD2` it refuses
+  the range with OBJ-004 instead, and `test_fill_of_hex_above_ffffh_into_sd_refuses_the_value` is a strict
+  xfail until the fix. `FILL_HEX` in `tests/test_editor_answers.py` lists the cases
+  and CLICK's answer. A single Copy accepts such a constant into DD or CTD only.
+- **Fill of a number into TXT (to do).** CLICK refuses a Fill into TXT of an integer or hex constant of more
+  than one character, such as `-5`, `123` or `FFh`, with OBJ-023. It accepts a real, such as `1.5`. The code
+  accepts any number. `FILL_TXT_NUMBER` in `tests/test_editor_answers.py` lists the
+  cases and CLICK's answer.
 - **A unit on an instruction that has none.** An event drum accepts any `unit`, and `to_csv()` and `encode()`
   drop it. A toggle accepts any falsy `unit`, such as `None` or `0`. Both should refuse a `unit` other than `""`
   with `OPTION_NOT_OFFERED`. The annotations `TimeUnit | Literal[""]` on `Drum.unit` and
@@ -447,7 +457,9 @@ stores them (`feat/canon-math-copy`):
 - `$1` as `$01`.
 
 Hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, and the refusal names the form to write. A
-Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A real that CLICK saves as
+Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A Copy real typed without
+an `E` and of size 1E+07 or more is written in its `E` form, because CLICK saves it so (`10000000000.0` as
+`1E+10`). A real that CLICK saves as
 another value (more than 7 significant digits in a Copy; in a Math, the rule in **Math real form**) is
 refused, and the refusal names CLICK's form. It is not rewritten (Settled). `constant_text()` writes a Python value in the form that the instruction stores. For such a real,
 it writes the fewest digits that hold its float32 value. The other constants are written as typed:
@@ -573,13 +585,16 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
   saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type
   changes what the Math computes, and which other positional reals CLICK stores as integers.
-- **Fill with hex above FFFFh:** does the Fill dialog accept such a constant, and into which banks? A single
-  Copy accepts it into DD or CTD only. The code's Fill accepts it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
   they store? The code refuses both.
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the TXT
-  where its text ends (item 3 has the open cases). What does a Fill of such a number store? The code accepts
-  it.
+  where its text ends (item 3 has the open cases). CLICK refuses a Fill of such an integer or hex number
+  (**Fill of a number into TXT**). What CLICK stores for a Fill of a real into TXT is not known.
+- **Termination code with other options.** The code accepts a termination code on a single Copy of a constant
+  into TXT with `suppress_zero=0`, such as `copy(5,TXT1,convert=to_text(suppress_zero=0,termination_code=$0D))`,
+  and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
+  CLICK has saved neither. The ClickNick runner types both into the Copy dialog, and laddercodec compares
+  CLICK's saves with the blobs that the encoder writes.
 - **Fill text and a bare number.** For `fill(5,TXT1..TXT2)` with no option touched, what does the dialog
   default to and save? Does Fill accept quoted text with a character outside space to `~` (`"é"`, a tab)? The
   code accepts the bare number and refuses both characters. It also accepts a real with more than 7
@@ -723,8 +738,6 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   stray character, states the rule but not what was wrong with the input.
 - **Operand probe recheck:** recheck, against the operand probe, every operand field that it finds surprising,
   and fix or delete.
-- **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
-  blob stores it. The encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):
   - One frozen dataclass per instruction class: its ordered tags, defaults, array sizes and func code.
   - SCR decode lays the sparse tags that it stores over that dataclass to build the full blob. An unknown

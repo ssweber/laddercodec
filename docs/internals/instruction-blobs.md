@@ -222,7 +222,9 @@ offers no suppress zero. For TXT into DF it offers neither, and CLICK saves type
 For TXT copied to TXT, the dialog offers a termination code alone. Tag `0x1221` is its flag,
 and `0x3216` is the code in decimal (`$0D` is `13`). The clipboard holds `0x3216` = `0` for
 `$00`. The program file leaves `0x3216` out, and decode reads a set flag with no `0x3216` as
-`$00`. A Block Copy (`0x2223` = 1) of TXT into TXT holds its code in the same two tags.
+`$00`. A Block Copy (`0x2223` = 1) of TXT into TXT holds its code in the same two tags. So
+does a single Copy of quoted text, a decimal integer or a real into TXT (`0x1221` = -1,
+`0x3216` = `13` for `$0D`). Its end `0x6077` counts only the constant's characters.
 
 CLICK v4 sets the text flag `0x1201` on every Copy it saves, and ignores it on load. The
 encoder sets it for a termination code or a text constant. Captures:

@@ -43,7 +43,7 @@ from ..operands.checks import (
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
 from ..operands.unchecked import read_in_another_form
 from .comparison import GROUP_BANKS, CompareOp, bank_group
-from .copy import check_box_operand, check_range
+from .copy import check_box_operand, check_range, check_range_ends
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -180,9 +180,12 @@ class Search(AfInstruction):
                 )
             # No Search field takes a pointer.  The table's two ends are in one bank,
             # and the end comes after the start.  check_range refuses a table that
-            # breaks this with OBJ-008, OBJ-009 or OBJ-012.
-            start = check("table_start", check_box_operand, TABLE_BANKS)
-            end = check("table_end", check_box_operand, TABLE_BANKS)
+            # breaks this with OBJ-008, OBJ-009 or OBJ-012.  Two ends that the bank rule
+            # or the out-of-range rule refuses for the same reason are one refusal of the
+            # table.
+            start, end = check_range_ends(
+                check, "table_start", self.table_start, "table_end", self.table_end, TABLE_BANKS
+            )
             table = None
             if start is not None and end is not None:
                 ends = check.run(

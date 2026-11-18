@@ -255,13 +255,9 @@ START_984_ID = (
     "kept: both refuse a 984 start of a kind that the function code does not write. CLICK "
     "refuses the slave address with OBJ-010. laddercodec refuses the source with OBJ-004"
 )
-FILL_SD = (
-    "to do: CLICK refuses a Fill into an SD range unless every SD in the range is writable "
-    "(OBJ-004). The rules accept every SD"
-)
 FILL_HEX = (
     "to do: CLICK refuses a Fill of hex above FFFFh into every bank (OBJ-005). The rules "
-    "accept up to FFFFFFFFh"
+    "accept up to FFFFFFFFh. Into SD1..SD2 they refuse the range with OBJ-004 instead"
 )
 FILL_TXT_NUMBER = (
     "to do: CLICK refuses a Fill into TXT of an integer or hex constant of more than one "
@@ -608,7 +604,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "fill 10000h -> DH1..DH2",
             "fill 10000h -> DS1..DS2",
             "fill 10000h -> DS10..DS11",
-            "fill 10000h -> SD1..SD2",
             "fill 10000h -> TD1..TD2",
             "fill 10000h -> TXT1..TXT2",
             "fill 10000h -> YD0..YD1",
@@ -618,46 +613,18 @@ DISAGREEMENTS: dict[Key, str] = _table(
             "fill FFFFFFFFh -> DH1..DH2",
             "fill FFFFFFFFh -> DS1..DS2",
             "fill FFFFFFFFh -> DS10..DS11",
-            "fill FFFFFFFFh -> SD1..SD2",
             "fill FFFFFFFFh -> TD1..TD2",
             "fill FFFFFFFFh -> TXT1..TXT2",
             "fill FFFFFFFFh -> YD0..YD1",
         ),
     ),
     (
-        FILL_SD,
+        FILL_HEX,
         "copy_fill",
-        "outcome",
+        "code",
         (
-            "fill -5 -> SD1..SD2",
-            "fill 1.5 -> SD1..SD2",
-            "fill 2147483647 -> SD1..SD2",
-            "fill 5 -> SD1..SD1000",
-            "fill 5 -> SD1..SD2",
-            "fill 5 -> SD106..SD225",
-            "fill 5 -> SD140..SD149",
-            "fill 5 -> SD205..SD214",
-            "fill 5 -> SD212..SD215",
-            "fill 5 -> SD214..SD223",
-            "fill 5 -> SD29..SD38",
-            "fill 5 -> SD999..SD1000",
-            "fill CTD1 -> SD1..SD2",
-            "fill DD1 -> SD1..SD2",
-            "fill DF1 -> SD1..SD2",
-            "fill DH1 -> SD1..SD2",
-            "fill DS1 -> SD1..SD2",
-            "fill DS1 -> SD106..SD225",
-            "fill DS1 -> SD140..SD149",
-            "fill DS1 -> SD205..SD214",
-            "fill DS1 -> SD212..SD215",
-            "fill DS1 -> SD214..SD223",
-            "fill DS1 -> SD29..SD38",
-            "fill FFFFh -> SD1..SD2",
-            "fill FFh -> SD1..SD2",
-            "fill SD1 -> SD1..SD2",
-            "fill TD1 -> SD1..SD2",
-            "fill XD0 -> SD1..SD2",
-            "fill YD0 -> SD1..SD2",
+            "fill 10000h -> SD1..SD2",
+            "fill FFFFFFFFh -> SD1..SD2",
         ),
     ),
     (
@@ -1005,7 +972,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 3969
+CODES_COMPARED = 4000
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
