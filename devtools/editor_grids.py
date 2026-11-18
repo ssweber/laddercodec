@@ -20,7 +20,7 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
@@ -30,6 +30,15 @@ from laddercodec.instructions.drum import _MAX_DRUM_SIZE, Drum
 from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.search import Search
+from laddercodec.instructions.send_receive import (
+    ModbusAddress,
+    ModbusRtuPort,
+    ModbusRtuTarget,
+    ModbusTcpPort,
+    ModbusTcpTarget,
+    Send,
+    SendFunctionCode,
+)
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer, TimerKind, TimeUnit
 from laddercodec.model import (
@@ -1624,6 +1633,422 @@ def drum_grid() -> Grid:
 
 
 # ---------------------------------------------------------------------------
+# Send
+# ---------------------------------------------------------------------------
+#
+# The runner does not drive the Send dialog yet. A field or list that mirrors one in the
+# runner's Receive dialog has Receive's name. ``sending`` and ``ip`` have the names of
+# laddercodec's fields, Send's and ModbusTcpTarget's. ``server_port`` is the Server Port
+# Number, ModbusTcpTarget's ``port``. A list item is the text that the list shows.
+
+#: Each item of the Com Port list, and the laddercodec port that it picks.
+SEND_PORTS: dict[str, str] = {
+    "CPU Port1": "ethernet",
+    "WLAN Port": "wlan",
+    "CPU Port2": "cpu2",
+    "CPU Port3": "cpu3",
+    "Slot0 Port1": "slot0_1",
+    "Slot0 Port2": "slot0_2",
+    "Slot1 Port1": "slot1_1",
+    "Slot1 Port2": "slot1_2",
+}
+assert set(SEND_PORTS.values()) == set(get_args(ModbusRtuPort)) | set(get_args(ModbusTcpPort))
+TCP_PORTS = frozenset(get_args(ModbusTcpPort))
+#: Each item of the Modbus Function Code list, by its function code.
+SEND_FUNCTIONS: dict[SendFunctionCode, str] = {
+    5: "05 - Write Single Coil",
+    6: "06 - Write Single Register",
+    15: "15 - Write Multiple Coils",
+    16: "16 - Write Multiple Registers",
+}
+assert set(SEND_FUNCTIONS) == set(get_args(SendFunctionCode))
+#: Each item of the Addressing Type list, by the short name that a case label uses.
+SEND_ADDRESSING: dict[str, str] = {
+    "984": "Modbus 984 Addressing",
+    "hex": "Modbus Hex Addressing",
+    "click": "CLICK Addressing",
+}
+#: The function codes that write bits.
+BIT_FUNCTIONS = (5, 15)
+#: The function codes that write one element. A case of one of these leaves the count out,
+#: except in the row that types the count.
+SINGLE_FUNCTIONS = (5, 6)
+#: The local banks that only function code 16 can send.
+FC16_BANKS = ("DD", "DF", "CTD")
+#: The IP address and server port that a case on a TCP port types, unless it changes them.
+SEND_IP = "192.168.1.10"
+SEND_SERVER_PORT = "502"
+#: The status fields of a Send that laddercodec accepts.
+SEND_STATUS = {"sending": "C100", "success": "C101", "error": "C102", "exception": "DS100"}
+
+
+def _send_number(text: str) -> Any:
+    """Return ``text`` as an int if it is decimal digits, with an optional minus sign.
+
+    Return any other text as it is. laddercodec then refuses it as not a number, or reads a
+    Slave ID as a DS address."""
+    if len(text) <= 4300 and text[1 if text.startswith("-") else 0 :].isdigit() and text.isascii():
+        return int(text)
+    return text
+
+
+def _send_check(case: dict[str, Any]) -> dict[str, Any]:
+    f, choices = case["fields"], case["choices"]
+    com_port = SEND_PORTS[choices["port"]]
+    code = next(n for n, item in SEND_FUNCTIONS.items() if item == choices["function"])
+    addressing = choices["addressing"]
+
+    def build() -> Send:
+        device_id = _send_number(f["slave_id"])
+        target: ModbusRtuTarget | ModbusTcpTarget
+        if com_port in TCP_PORTS:
+            target = ModbusTcpTarget(
+                name="send",
+                ip=f["ip"],
+                port=_send_number(f["server_port"]),
+                device_id=device_id,
+                com_port=cast(ModbusTcpPort, com_port),
+            )
+        else:
+            target = ModbusRtuTarget(
+                name="send",
+                com_port=cast(ModbusRtuPort, com_port),
+                device_id=device_id,
+            )
+        text = f["slave_address"]
+        remote: str | ModbusAddress
+        if addressing == SEND_ADDRESSING["click"]:
+            remote = text
+        elif addressing == SEND_ADDRESSING["hex"]:
+            remote = ModbusAddress(text, "coil" if code in BIT_FUNCTIONS else "holding")
+        else:
+            remote = ModbusAddress(text)
+        return Send(
+            target=target,
+            remote_start=remote,
+            source=f["master_address"],
+            quantity=_send_number(f.get("count", "1")),
+            sending=f["sending"],
+            success=f["success"],
+            error=f["error"],
+            exception_response=f["exception"],
+            word_swap=choices.get("word_swap") == "ON",
+            function_code=code,
+        )
+
+    return verdict_of(build)
+
+
+def _send_remote(code: SendFunctionCode, addressing: str) -> str:
+    """Return a slave address that laddercodec accepts for ``code`` in ``addressing``."""
+    bit = code in BIT_FUNCTIONS
+    if addressing == "984":
+        return "1" if bit else "400001"
+    if addressing == "hex":
+        return "0h"
+    return "C1" if bit else "DS1"
+
+
+def _send_code(bank: str) -> SendFunctionCode:
+    """Return the function code that sends one element from ``bank``.
+
+    The code is 05 for a bit bank, 16 for DD, DF and CTD, and 06 for any other bank."""
+    if bank in BIT_BANKS:
+        return 5
+    return 16 if bank in FC16_BANKS else 6
+
+
+def _send_takes_remote(code: SendFunctionCode, bank: str) -> bool:
+    """Return True unless laddercodec refuses ``bank`` as the CLICK slave address of ``code``."""
+    source = "C1" if code in BIT_FUNCTIONS else "DS1"
+    fields = {"slave_id": "1", "slave_address": low(bank), "master_address": source}
+    case = {
+        "fields": fields | {"count": "1"} | SEND_STATUS,
+        "choices": {
+            "port": "CPU Port2",
+            "function": SEND_FUNCTIONS[code],
+            "addressing": SEND_ADDRESSING["click"],
+        },
+    }
+    return _send_check(case).get("field") != "Send.remote_start"
+
+
+def send_grid() -> Grid:
+    """Return the grid of the Modbus Send dialog.
+
+    Each case starts from a Send that laddercodec accepts with the case's function code and
+    addressing, and changes one field or list. The FC06 Send in 984 addressing writes DS1 to
+    the holding register 400001 of slave 1 on CPU Port2, with the status fields in
+    SEND_STATUS. A case types every field that its port shows, and picks an item in the port,
+    function and addressing lists.
+
+    laddercodec checks the fields in its own order, so a refusal does not always name the
+    field that the case changed. For example, laddercodec refuses a 984 start of a kind that
+    the function code does not write on the source."""
+    grid = Grid(_send_check)
+
+    def send(
+        row: str,
+        code: SendFunctionCode = 6,
+        addressing: str = "984",
+        remote: str | None = None,
+        source: str | None = None,
+        count: str | None = None,
+        *,
+        port: str = "CPU Port2",
+        slave_id: str = "1",
+        ip: str = SEND_IP,
+        server_port: str = SEND_SERVER_PORT,
+        word_swap: str | None = None,
+        status: dict[str, str] | None = None,
+    ) -> None:
+        """Add a Send case. ``remote`` and ``source`` default to addresses that suit ``code``.
+
+        A case whose function code writes more than one element types a count of 2, unless
+        ``count`` names one. A code that writes one element leaves the count out unless
+        ``count`` names one. ``status`` changes the status fields by name."""
+        remote = _send_remote(code, addressing) if remote is None else remote
+        if source is None:
+            source = "C1" if code in BIT_FUNCTIONS else "DS1"
+        if count is None and code not in SINGLE_FUNCTIONS:
+            count = "2"
+        # laddercodec reads a slave address that ends in h as hex, and one of digits only as
+        # MODBUS 984. So laddercodec can't build a case that types 1h in 984 addressing, or 10
+        # in hex addressing.
+        hex_text = remote.endswith(("h", "H"))
+        assert not (addressing == "984" and hex_text), remote
+        assert not (addressing == "hex" and remote.isdigit()), remote
+        fields = {"slave_id": slave_id}
+        if SEND_PORTS[port] in TCP_PORTS:
+            fields |= {"ip": ip, "server_port": server_port}
+        fields |= {"slave_address": remote, "master_address": source}
+        if count is not None:
+            fields["count"] = count
+        status = status or {}
+        assert set(status) <= set(SEND_STATUS), status
+        fields |= {name: status.get(name, text) for name, text in SEND_STATUS.items()}
+        choices = {
+            "port": port,
+            "function": SEND_FUNCTIONS[code],
+            "addressing": SEND_ADDRESSING[addressing],
+        }
+        if word_swap is not None:
+            choices["word_swap"] = word_swap
+        label = f"send fc{code:02d} {addressing} {remote} <- {source}"
+        if count is not None:
+            label += f" x{count}"
+        extras = {"port": port} if port != "CPU Port2" else {}
+        if slave_id != "1":
+            extras["id"] = slave_id
+        if SEND_PORTS[port] in TCP_PORTS:
+            extras |= {"ip": ip} if ip != SEND_IP else {}
+            extras |= {"server_port": server_port} if server_port != SEND_SERVER_PORT else {}
+        extras |= {k: v for k, v in status.items() if v != SEND_STATUS[k]}
+        if word_swap is not None:
+            extras["word_swap"] = word_swap
+        label += "".join(f" {k}={v}" for k, v in extras.items())
+        grid.add_case(f"send.{row}", label, "send", None, fields, choices=choices)
+
+    # Each function code with 984 addressing, then each code with CLICK addressing, from C1
+    # to C1 and from DS1 to DS1.
+    for code in SEND_FUNCTIONS:
+        send("control", code)
+    for code in SEND_FUNCTIONS:
+        send("control", code, "click")
+    # Each port. A TCP port shows the IP address and the server port.
+    for port in SEND_PORTS:
+        send("ports", port=port)
+    # Each function code with a 984 start of each kind: coil, input, input register and
+    # holding register.
+    for code in SEND_FUNCTIONS:
+        for remote in ("1", "100001", "300001", "400001"):
+            send("function.remote", code, remote=remote)
+    # Each function code with each bank as the source, to a 984 start that suits the code.
+    for code in SEND_FUNCTIONS:
+        for bank in BANKS:
+            send("function.source-banks", code, source=low(bank))
+    # With CLICK addressing, each bit bank against each bit bank under the bit codes, and
+    # each register bank against each register bank under the register codes. A remote bank
+    # that laddercodec refuses for the code gets one case, with the code's plain source.
+    for code in SEND_FUNCTIONS:
+        order = BIT_ORDER if code in BIT_FUNCTIONS else REGISTER_ORDER
+        for remote_bank in order:
+            if not _send_takes_remote(code, remote_bank):
+                send("function.click-pairs", code, "click", low(remote_bank))
+                continue
+            for source_bank in order:
+                send("function.click-pairs", code, "click", low(remote_bank), low(source_bank))
+    # Each bank as the source, with the code that sends one element from it.
+    for bank in BANKS:
+        code = _send_code(bank)
+        for text in samples(bank):
+            send("source.banks", code, source=text, count="1" if code == 16 else None)
+    for text in address_forms("DS") + FORMS_SHORT:
+        send("source.forms", source=text)
+    for text in address_forms("C"):
+        send("source.forms", 5, source=text)
+    for text in FEW:
+        send("source.constants", source=text)
+    # The count with a code that writes one element: one, two and none.
+    for code in SINGLE_FUNCTIONS:
+        for text in ("1", "2", "0"):
+            send("count.single", code, count=text)
+    # The count at its caps, from the first address of a bank, and past the end of the bank.
+    for code, start, counts in (
+        (15, "C1", ("1968", "1969", "0", "-1")),
+        (16, "DS1", ("123", "124", "0", "-1")),
+        (16, "DD1", ("61", "62")),
+        (16, "DF1", ("61", "62")),
+        (16, "CTD1", ("61", "62")),
+        (16, "DH1", ("123", "124")),
+        (16, "TD1", ("123", "124")),
+        (16, "SD1", ("123", "124")),
+    ):
+        for text in counts:
+            send("count.edges", code, source=start, count=text)
+    for bank in ("C", "T", "CT", "SC", "DS", "DD", "DH", "DF", "TD", "CTD", "SD"):
+        last = ADDRESS_BANKS[bank][1]
+        code = 15 if bank in BIT_BANKS else 16
+        for text in ("1", "2"):
+            send("count.edges", code, source=addr(bank, last), count=text)
+        # The room left near the end, and one more.
+        for text in ("10", "11"):
+            send("count.edges", code, source=addr(bank, last - 9), count=text)
+    # X and Y counts from X001, X005 and Y001. The slots X001-X016 and X021-X036 make 32
+    # points from X001, and the slots through X816 make 160.
+    for start, counts in (
+        ("X001", ("16", "17", "32", "33", "160", "161")),
+        ("X005", ("12", "13", "28", "29", "156", "157")),
+        ("Y001", ("16", "17", "32", "33", "160", "161")),
+        ("X101", ("16", "17")),
+        ("X816", ("1", "2")),
+    ):
+        for text in counts:
+            send("count.xy", 15, source=start, count=text)
+    for remote in ("C1", "Y001", "C1990"):
+        for start, counts in (("X001", ("16", "17", "32", "33")), ("X005", ("28", "29"))):
+            for text in counts:
+                send("count.xy", 15, "click", remote, start, text)
+    # An X source with a register as the remote start.
+    for start in ("X001", "X005"):
+        send("click.x-to-register", 6, "click", "DS1", start)
+        send("click.x-to-register", 16, "click", "DS1", start, "1")
+        send("click.x-to-register", 16, "click", "DS1", start, "16")
+    # The TXT count: in characters or in registers, odd or even, and its limits.
+    for text in ("1", "2", "3", "4", "122", "123", "124", "125", "126", "246", "247", "248",
+                 "249", "250", "251", "252", "0"):  # fmt: skip
+        send("count.txt", 16, source="TXT1", count=text)
+    for start, counts in (("TXT999", ("1", "2", "3")), ("TXT1000", ("1", "2"))):
+        for text in counts:
+            send("count.txt", 16, source=start, count=text)
+    send("count.txt", 6, source="TXT1")
+    send("count.txt", 6, source="TXT1000")
+    for text in ("1", "2", "3", "250", "251"):
+        send("count.txt", 16, "click", "TXT1", "TXT1", text)
+        send("count.txt", 16, "hex", "0h", "TXT1", text)
+    # Each spelling of a 984 slave address. A coil spelling goes with the coil code and a
+    # holding register spelling with the register code, since function.remote asks each code
+    # with a start of the other kind. Any other spelling goes with both codes.
+    for text in ("0", "01", "000001", "65535", "065535", "65536"):
+        send("remote.984", 5, remote=text)
+    for text in ("400000", "0400001", "465535", "465536", "4000001"):
+        send("remote.984", 6, remote=text)
+    for text in ("165535", "1.5", "-1", "+1", "1 0", "abc", "DS1"):
+        send("remote.984", 5, remote=text)
+        send("remote.984", 6, remote=text)
+    # Each spelling of a hex slave address, with a coil code and a register code: the edges
+    # 0h and FFFEh, past FFFEh, other cases and leading zeros, h alone, and an h typed twice.
+    for text in ("0h", "0H", "1h", "00001h", "ffh", "FFFDh", "FFFEh", "0FFFEh", "FFFFh",
+                 "10000h", "h", "H", "1HH", "1hh", "hh", "-1h", "+1h", "1.5h", "Gh", "1 0h",
+                 "FFFE", "ABC"):  # fmt: skip
+        send("remote.hex", 5, "hex", text)
+        send("remote.hex", 16, "hex", text)
+    # A hex start near FFFEh with a 32-bit, real or text source: one element and two.
+    for source in ("DS1", "DD1", "DF1", "CTD1", "TXT1"):
+        for text in ("FFFCh", "FFFDh", "FFFEh"):
+            for count in ("1", "2"):
+                send("remote.hex-wide", 16, "hex", text, source, count)
+    for count in ("13", "14", "15"):
+        send("remote.hex-wide", 16, "hex", "FFF0h", "DD1", count)
+    # Each bank as a CLICK slave address, with a code and a source that suit the bank.
+    for bank in BANKS:
+        code = _send_code(bank)
+        source = "DD1" if code == 16 else ("C1" if code == 5 else "DS1")
+        count = "1" if code == 16 else None
+        for text in samples(bank):
+            send("remote.click.banks", code, "click", text, source, count)
+    for text in address_forms("DS") + ["DS[DS1]", "400001", "0h"]:
+        send("remote.click.forms", 6, "click", text)
+    # The Slave ID on an RTU port and on a TCP port: each edge, a DS address and other text.
+    ids = ["0", "1", "01", "247", "248", "255", "256", "-1", "1.5", "abc"]
+    ids += ["DS1", "DS4500", "DS4501", "DS0", "ds1", "DS001", "DD1", "C1", "DS[DS1]"]
+    for text in ids:
+        send("slave-id.rtu", slave_id=text)
+        send("slave-id.tcp", port="CPU Port1", slave_id=text)
+    for port in SEND_PORTS:
+        for text in ("0", "247", "248", "255", "256"):
+            send("slave-id.ports", port=port, slave_id=text)
+    # The server port and the IP address of a TCP port.
+    for text in ("1", "502", "65535", "0", "65536", "abc"):
+        send("tcp.server-port", port="CPU Port1", server_port=text)
+    for text in ("0.0.0.0", "255.255.255.255", "10.0.0.1"):
+        send("tcp.ip", port="CPU Port1", ip=text)
+    # Each bank in each status field, then other ways to type a status address. laddercodec
+    # checks the success and error bits as it checks the sending bit, so they get only the
+    # first address of each bank.
+    for name in SEND_STATUS:
+        for bank in BANKS:
+            texts = [low(bank)] if name in ("success", "error") else samples(bank)
+            for text in texts:
+                send(f"status.{name}.banks", status={name: text})
+    for text in address_forms("C"):
+        send("status.forms", status={"sending": text})
+    for text in address_forms("DS"):
+        send("status.forms", status={"exception": text})
+    # One C bit in two status fields, or in all three.
+    for status in (
+        {"success": "C100"},
+        {"error": "C100"},
+        {"error": "C101"},
+        {"success": "C100", "error": "C100"},
+        {"success": "c100"},
+        {"error": "C0101"},
+    ):
+        send("status.shared", status=status)
+    # A status bit inside the source range.
+    send("status.shared", 15, source="C100", count="2")
+    send("status.shared", 15, "click", "C1", "C99", "2")
+    # Word Swap on a 32-bit or real source, on DS and TXT, and on bits.
+    for source, code, count in (
+        ("DD1", 16, "1"),
+        ("DF1", 16, "1"),
+        ("CTD1", 16, "1"),
+        ("DD1", 16, "2"),
+        ("DS1", 16, "2"),
+        ("DS1", 6, None),
+        ("TXT1", 16, "2"),
+        ("C1", 15, "2"),
+    ):
+        send("word-swap", code, source=source, count=count, word_swap="ON")
+    send("word-swap", 16, source="DD1", count="1", word_swap="OFF")
+    # The risky spellings: empty, a space at either end, a tab, a character outside ASCII,
+    # and more than RISKY_LENGTH characters.
+    overlong = "DS" + "0" * RISKY_LENGTH + "1"
+    for text in ("", " DS1", "DS1 ", "DS\t1", "DS1é", overlong):
+        send("source.risky", source=text)
+    for text in ("", " 400001", "400001 ", "4000\t01", "40000١", "4" + "0" * RISKY_LENGTH + "1"):
+        send("remote.risky", remote=text)
+    for text in ("", " 1", "1 ", "1\t", "١", "0" * RISKY_LENGTH + "1"):
+        send("slave-id.risky", slave_id=text)
+        send("count.risky", 16, count=text)
+    for name, sample in SEND_STATUS.items():
+        long_text = _bank_of(sample) + "0" * RISKY_LENGTH + "1"
+        for text in ("", f" {sample}", f"{sample} ", f"{sample}\t", f"{sample}é", long_text):
+            send(f"status.{name}.risky", status={name: text})
+    return grid
+
+
+# ---------------------------------------------------------------------------
 # Files
 # ---------------------------------------------------------------------------
 
@@ -1658,6 +2083,7 @@ WHOLE: dict[str, Callable[[], Grid]] = {
     "shift": shift_grid,
     "for": for_grid,
     "drum": drum_grid,
+    "send": send_grid,
 }
 
 #: The whole grids that ``preflight.json`` and ``risky.json`` take their cases from, in order.
@@ -1667,7 +2093,7 @@ PREFLIGHT_GRIDS = ("math", "copy", "out", "search")
 
 #: The dialogs that the runner does not drive yet. Each has a grid, a preflight file and a
 #: risky file of its own.
-UNDRIVEN = ("timer", "counter", "shift", "for", "drum")
+UNDRIVEN = ("timer", "counter", "shift", "for", "drum", "send")
 
 
 @functools.cache
@@ -1706,6 +2132,7 @@ def check_case(case: dict[str, Any]) -> dict[str, Any]:
         "shift": _shift_check,
         "for": _for_check,
         "drum": _drum_check,
+        "send": _send_check,
     }
     return checks[case["instruction"]](case)
 
