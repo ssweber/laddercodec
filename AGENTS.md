@@ -47,7 +47,7 @@ Instead:
 
 ```
 src/laddercodec/
-├── __init__.py           # Public API: encode(), decode(), decode_program(), read_csv(), write_csv(), check(), Rung, ...
+├── __init__.py           # Public API: encode(), decode(), decode_program(), read_csv(), write_csv(), read_bundle(), write_bundle(), check(), Rung, ...
 ├── encode.py             # encode() + internal encode_rung(), constants, RTF helpers
 ├── encode_multi.py       # Internal encode_rungs(): N rungs in one buffer
 ├── _grid.py              # Shared grid building: _validate_rung, _compute_rung_metadata, _build_rung_grid
@@ -92,7 +92,8 @@ src/laddercodec/
 │   ├── raw.py            # RawInstruction: opaque blob passthrough with row span, sub-rows and pin rows
 │   └── undecoded.py      # Undecoded: the marker for a rung that did not decode; no blob, encode() refuses it
 ├── csv/                  # ast.py, contract.py, parser.py, token_parser.py, converter.py (RungAst to Rung, uses _layout),
-│                         #   writer.py (Rung to CSV), bundle.py (main.csv + subroutines/*.csv),
+│                         #   writer.py (Rung to CSV), reader.py (one file to rungs, for read_csv and read_bundle),
+│                         #   bundle.py (read_bundle, write_bundle: main.csv + subroutines/*.csv),
 │                         #   location.py (CsvLocation: the file, line, rung, row and column a read error names)
 └── resources/
     └── empty_multirow_rule_minimal.scaffold.bin  # Template for multi-row synthesis

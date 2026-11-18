@@ -47,6 +47,8 @@ EXPECTED_ROOT_EXPORTS = (
     "write_csv",
     "csv_rows",
     "CSV_HEADER",
+    "read_bundle",
+    "write_bundle",
     "CsvLocation",
     "find_v4_only",
     "is_v4_only",

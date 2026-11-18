@@ -46,7 +46,8 @@ class RefusedFieldWarning(UserWarning):
     rung:
         0-based rung index in the decoded buffer, program or CSV, or ``None`` if unknown.
     program:
-        Program name for :func:`laddercodec.decode_program`, else ``None``.
+        The program name for :func:`laddercodec.decode_program` and
+        :func:`laddercodec.read_bundle`, else ``None``.
     """
 
     def __reduce__(self):

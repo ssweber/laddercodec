@@ -583,8 +583,8 @@ def _csv_rows(
 ) -> list[list[str]]:
     """Return the rows of :func:`csv_rows`, with *caller* named in a bad-``stop`` error.
 
-    Only ``csv_rows`` and ``write_csv`` call this.  The ``UndecodedRungWarning``
-    points two frames up, at the line that called either of them.
+    Only ``csv_rows``, ``write_csv`` and ``write_bundle`` call this.  The
+    ``UndecodedRungWarning`` points two frames up, at the line that called one of them.
     """
     if stop not in get_args(UndecodedStop):
         raise WriterError(f"{caller}: stop={stop!r} must be 'end' or 'return'")
@@ -652,8 +652,12 @@ def write_csv(
         every row before it opens *path*.  If it raises ``WriterError``, it has not
         created or changed the file.
     """
-    rows = _csv_rows(rungs, index=index, stop=stop, caller="write_csv")
-    with open(Path(path), "w", newline="", encoding="utf-8") as f:
+    write_rows(Path(path), _csv_rows(rungs, index=index, stop=stop, caller="write_csv"))
+
+
+def write_rows(path: Path, rows: Iterable[Sequence[str]]) -> None:
+    """Write ``CSV_HEADER`` and then *rows* to the file at *path*, replacing the file."""
+    with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
         writer.writerows(rows)

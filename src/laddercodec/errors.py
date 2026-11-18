@@ -1,8 +1,9 @@
 """The exceptions that laddercodec raises. Each one is a subclass of :class:`LaddercodecError`.
 
 ``decode()``, ``decode_program()``, ``encode()``, ``read_csv()``, ``write_csv()``,
-``csv_rows()`` and ``check()`` raise a ``LaddercodecError`` for input they can't read or
-write.  Each class is a ``ValueError``, so ``except ValueError`` catches every one of them.
+``csv_rows()``, ``read_bundle()``, ``write_bundle()`` and ``check()`` raise a
+``LaddercodecError`` for input they can't read or write.  Each class is a ``ValueError``,
+so ``except ValueError`` catches every one of them.
 ``FieldError`` and ``AddressError`` are defined in :mod:`laddercodec.operands.errors`, and
 they are subclasses of :class:`LaddercodecError` too.
 """
@@ -44,11 +45,18 @@ class EncodeError(LaddercodecError):
 
 
 class CsvError(LaddercodecError):
-    """Raised when ``read_csv`` cannot read a CSV.
+    """Raised when ``read_csv`` or ``read_bundle`` cannot read a CSV.
 
     ``read_csv`` raises it for a file that isn't UTF-8 text, and for a row, a token or a
     rung that it can't read.  Like every error that ``read_csv`` raises for a bad CSV, it
     has a :class:`~laddercodec.CsvLocation` as its ``location`` attribute.
+
+    ``read_bundle`` raises it for the same reasons in any file of the bundle.  It also
+    raises it when ``main.csv`` is missing, when CLICK refuses the name of a file in
+    ``subroutines/`` as a subroutine name, when one of those names starts or ends with
+    whitespace, and when two of them are equal with case ignored.  For a name that CLICK
+    refuses, the ``CsvError`` copies the refusal's data in the same way as for a pin row,
+    described next.
 
     Some boxes, such as a counter, take inputs from pin rows below the box's own row.
     ``read_csv`` builds such a box from all of its rows.  If the box refuses a value at that
@@ -101,6 +109,11 @@ class WriterError(LaddercodecError):
 
     ``stop=`` must be ``"end"`` or ``"return"``.  ``write_csv`` builds every row before it
     opens the file.  If it raises ``WriterError``, it has not created or changed the file.
+
+    ``write_bundle`` raises it for a rung that the CSV can't hold, for two subroutines whose
+    names are equal when case is ignored, for a subroutine name that holds a control
+    character, and for a path that it would write that exists and is of the wrong kind.  It
+    raises before it writes any file.
     """
 
 

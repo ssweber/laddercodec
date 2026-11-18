@@ -16,6 +16,7 @@
 - **`RefusedFieldWarning` and `read_csv(..., unchecked=True)`.** `decode()` and `decode_program()` emit a `RefusedFieldWarning` for each instruction that holds a value CLICK's dialog refuses. `read_csv(..., unchecked=True)` reads such an instruction as written, with the same warning.
 - **`constant_text()`.** It returns the text that a `Math` or `Copy` source stores for a Python int, float or str. `constant_text(255, hex=True)` is `FFh`.
 - **`csv_rows()` and `CSV_HEADER`.** `csv_rows(rungs, *, index=False, stop="end")` returns the rows that `write_csv` writes after the header, each as a list of strings. You can use them without writing a file. `laddercodec` also exports `CSV_HEADER`, the header row, as a tuple of strings.
+- **`write_bundle()` and `read_bundle()`.** `write_bundle(directory, project, *, index=False)` writes a `Project` as `main.csv` and one `subroutines/<name>.csv` for each subroutine. `read_bundle(directory, *, strict=True, unchecked=False)` reads that folder back into a `Project`. An error from any file has that file in its `CsvLocation`.
 
 ### Fixed
 - **Copy conversions that CLICK saves.** A single Copy between DF and CTD, of a real constant into DD or CTD, or of an integer constant outside int16 into DF now encodes with conversion type 7, as CLICK saves it. `convert=to_binary` on these copies now works. v0.4.0 wrote a plain copy and rejected `to_binary`. CLICK's saves of these copies now decode as the `Copy`. v0.4.0 decoded them as `raw(Copy,...)`.
@@ -32,6 +33,7 @@
 - **No partial file from `write_csv`.** When `write_csv` raises `WriterError` for a rung, it now creates no file and leaves a file already at the path unchanged. v0.4.0 left a file that held only the header and the rows before that rung, in place of any file that was there.
 
 ### Changed
+- **`parse_bundle` file order.** `laddercodec.csv.bundle.parse_bundle` now lists the subroutine files sorted by name with case ignored, the same on every OS. It now lists a file named `.csv`, and reads `subroutines/main.csv` as a subroutine. v0.4.0 sorted by path, which ignores case only on Windows, skipped `.csv`, and read `subroutines/main.csv` as the main program.
 - **Receive TXT count.** A Receive into TXT now accepts an even count of 2 to 250 characters, as CLICK does. v0.4.0 rejected a count over 124.
 - **Refusal order.** A single `Copy` whose constant source is invalid now raises `FieldError` on `Copy.source` before laddercodec checks the destination. v0.4.0 raised `AddressError` on `Copy.destination` for `copy("",DS1)`. An Out, Set or Reset range whose end is in another bank now raises `FieldError` with reason `conflict` and `OBJ-008`. v0.4.0 raised `AddressError` on `Coil.range_end`.
 - **`FieldError.field` names more fields.** It is `Class.attr` of the instruction refused, such as `Send.quantity` or `ModbusTcpTarget.port`, for more refusals than in v0.4.0.
