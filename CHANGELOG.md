@@ -37,6 +37,7 @@
 - **Rungs of more than 32 rows.** For a rung that needs more than 32 rows, `read_csv` raises `CsvError` and `write_csv` raises `WriterError`, both with the code `layout-too-tall`. `read_bundle`, `csv_rows` and `write_bundle` raise the same errors, and `check()` reports a `layout-too-tall` finding. v0.4.0 read and wrote such a rung, and `check()` reported nothing.
 - **Long strings in program files.** `decode_program()` now reads a Compare or Search text of 127 characters or more, such as one of 130 characters. v0.4.0 decoded the Compare as an `UnknownCondition` and the Search as `raw(Search,...)`.
 - **No partial file from `write_csv`.** When `write_csv` raises `WriterError` for a rung, it now creates no file and leaves a file already at the path unchanged. v0.4.0 left a file that held only the header and the rows before that rung, in place of any file that was there.
+- **Comments in which one style follows another.** A comment such as `*a***b**` now encodes as an italic `a` and then a bold `b`. v0.4.0 encoded the `b` as italic, not bold.
 
 ### Changed
 - **`parse_bundle` file order.** `laddercodec.csv.bundle.parse_bundle` now lists the subroutine files sorted by name with case ignored, the same on every OS. It now lists a file named `.csv`, and reads `subroutines/main.csv` as a subroutine. v0.4.0 sorted by path, which ignores case only on Windows, skipped `.csv`, and read `subroutines/main.csv` as the main program.
@@ -169,6 +170,14 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - `ModbusRtuTarget.com_port`, `ModbusTcpTarget.com_port` and `ModbusAddress.register_type`
   - `Send.function_code` and `Receive.function_code`
   - Do: Narrow the value to the alias first, for example with `typing.cast(TimeUnit, unit)`.
+- **Backslash escapes in comments.** In a comment, a backslash before `*`, `_` or `\` now makes that character text. `decode()` and `decode_program()` now write that backslash where a `*`, `_` or `\` would otherwise read as a style or an escape. v0.4.0 had no escape, so CLICK's text `_x_` decoded as `_x_` and encoded again as an italic `x`.
+  - Do: Write `\\` for a backslash that comes before `*`, `_` or another backslash. An underscore inside a word, as in `Pump_1_Run`, and a backslash before any other character, as in `C:\temp`, need no change.
+- **Underline inside a word in a decoded comment.** `decode()` and `decode_program()` now drop an underline that covers part of a word, such as `y` in `xyz`, and keep the text. v0.4.0 decoded it as `x__y__z`, which encodes as that text.
+- **`*` and `_` next to whitespace in comments.** In a comment, a `*`, `**`, `_` or `__` with whitespace after it no longer starts a style, and one with whitespace before it no longer ends one. So `2 * 3 * 4` and `use _ or _` encode as that text, while `a *b* c` still has an italic `b`. v0.4.0 encoded `2 * 3 * 4` as `2 `, then an italic ` 3 `, then ` 4`, and `use _ or _` as `use ` and then an italic ` or `.
+  - Do: To style text between spaced markers, put each marker next to the text, as in `*3*`.
+- **Styled whitespace in a decoded comment.** `decode()` and `decode_program()` now leave whitespace unstyled at the edge of a bold, italic or underlined stretch, such as the space in a bold `a `. v0.4.0 decoded it as `**a **`.
+- **How the `*` and `_` of a comment pair.** A run of `*` or `_` that can end a style now pairs with the nearest run of the same character before it that can start one, by the rules in [Comment styles and escapes](https://pyrung.com/laddercodec/guides/csv-format/#comment-styles-and-escapes). So `*****WARNING*****` encodes as a bold italic `WARNING`, `*1 see *Auto* mode` as `*1 see ` and then an italic `Auto`, and `*foo**bar*` as an italic `foo**bar`. v0.4.0 encoded the first as a bold `WARNING`, the second as an italic `1 see ` and then `Auto* mode`, and the third as an italic `foobar`.
+  - Do: Read back a comment that has three or more `*` or `_` in a row, or one with no partner, and add a backslash where you meant the character as text.
 
 ## 0.4.0 (2026-11-14)
 

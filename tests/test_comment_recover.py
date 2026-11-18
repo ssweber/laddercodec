@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from laddercodec import Rung, UndecodedCommentWarning, decode, decode_program, encode
+from laddercodec._comment import PLAIN, parse, write_text
 from laddercodec.encode import COMMENT_MAX_BYTES, _build_rtf_body
 from laddercodec.undecoded import comment_note, recover_text, recovered_comment
 from tests.ladder.test_decode_program import _synthetic_scr
@@ -161,7 +162,9 @@ def _rung(comment: str) -> Rung:
 def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
     """After an encode and a decode, a recovered comment holds its note and then its text.
 
-    The text is what a plain comment with the same characters decodes to.
+    The recovered comment is Markdown that reads back as the note and the plain text. After
+    an encode and a decode, the text is what a plain comment with the same characters
+    decodes to.
     """
     placeholder = "A" * len(raw)
     data = encode(_rung(placeholder)).replace(placeholder.encode(), raw.encode())
@@ -172,16 +175,23 @@ def test_a_recovered_comment_survives_encode_and_decode(raw: str) -> None:
     (warning,) = [w.message for w in caught]
     assert isinstance(warning, UndecodedCommentWarning)
     note = comment_note(warning.error)
-    assert broken.comment is not None and broken.comment.startswith(note + "\n")
-    assert broken.comment[len(note) + 1 :] == recover_text(broken.comment_rtf)
+    plain_text = recover_text(broken.comment_rtf)
+    assert broken.comment is not None
+    assert _read(broken.comment) == f"{note}\n{plain_text}"
 
     [again] = decode(encode(broken))
-    assert isinstance(again, Rung)
-    # the text after the note is what a normal comment with the same characters gives
-    text = broken.comment[len(note) + 1 :]
-    [plain] = decode(encode(_rung(text)))
-    assert isinstance(plain, Rung)
-    assert again.comment == f"{note}\n{plain.comment}"
+    assert isinstance(again, Rung) and again.comment is not None
+    # the text after the note is what a plain comment with the same characters gives
+    [plain] = decode(encode(_rung(write_text(plain_text))))
+    assert isinstance(plain, Rung) and plain.comment is not None
+    assert _read(again.comment) == f"{note}\n{_read(plain.comment)}"
+
+
+def _read(markdown: str) -> str:
+    """Return the text that *markdown* reads as, and check that none of it is styled."""
+    runs = parse(markdown)
+    assert all(style == PLAIN for style, _ in runs), runs
+    return "".join(text for _, text in runs)
 
 
 def test_scr_comment_text_is_recovered() -> None:

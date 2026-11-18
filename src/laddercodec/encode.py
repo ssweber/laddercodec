@@ -107,11 +107,10 @@ not assume that any cell sits at a fixed offset in the grid.
 
 from __future__ import annotations
 
-import re
-import unicodedata
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, cast
 
+from ._comment import rtf_body as _build_rtf_body
 from .empty_multirow import synthesize_empty_multirow
 from .errors import EncodeError
 from .instructions import AfInstruction, ConditionInstruction, Tee
@@ -163,89 +162,6 @@ _PREFIX = (
 _SUFFIX = b"\r\n\\par }\r\n\x00"
 
 _PAGE_SIZE = 0x1000
-
-# Patterns for the Markdown inline styles. _build_rtf_body applies the double markers
-# before the single ones. Underscore delimiters require non-word chars (or string edge)
-# on the outside so that identifiers like count_up_down are not misinterpreted as markup.
-_RE_BOLD = re.compile(r"\*\*(.+?)\*\*", re.DOTALL)
-_RE_UNDERLINE = re.compile(r"(?<!\w)__(.+?)__(?!\w)", re.DOTALL)
-_RE_ITALIC_STAR = re.compile(r"\*(.+?)\*", re.DOTALL)
-_RE_ITALIC_UNDER = re.compile(r"(?<!\w)_(.+?)_(?!\w)", re.DOTALL)
-
-
-# ---------------------------------------------------------------------------
-# ASCII sanitization
-# ---------------------------------------------------------------------------
-
-_ASCII_SUBSTITUTIONS: dict[str, str] = {
-    "\u2014": "-",  # em-dash
-    "\u2013": "-",  # en-dash
-    "\u2192": "->",  # →
-    "\u2190": "<-",  # ←
-    "\u2265": ">=",  # ≥
-    "\u2264": "<=",  # ≤
-    "\u2260": "!=",  # ≠
-    "\u201c": '"',  # left double curly quote
-    "\u201d": '"',  # right double curly quote
-    "\u2018": "'",  # left single curly quote
-    "\u2019": "'",  # right single curly quote
-}
-
-
-def _sanitize_to_ascii(text: str) -> str:
-    """Replace non-ASCII characters with ASCII equivalents.
-
-    Applies explicit substitutions for common Unicode symbols, then
-    NFKD-normalises remaining non-ASCII to strip diacritics.  Anything
-    still outside ASCII is replaced with ``?``.
-    """
-    for src, dst in _ASCII_SUBSTITUTIONS.items():
-        text = text.replace(src, dst)
-    text = unicodedata.normalize("NFKD", text)
-    out: list[str] = []
-    for ch in text:
-        if ord(ch) < 128:
-            out.append(ch)
-        elif unicodedata.category(ch).startswith("M"):
-            pass  # drop combining marks (accents stripped by NFKD)
-        else:
-            out.append("?")
-    return "".join(out)
-
-
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _build_rtf_body(text: str) -> str:
-    """Return comment text as the body of an RTF string.
-
-    The function first replaces non-ASCII characters with
-    :func:`_sanitize_to_ascii`. Then it converts:
-
-    - Line endings: ``\\r\\n`` and a lone ``\\r`` → ``\\n``; ``\\n`` → ``\\par ``
-    - Inline styles, double markers first, so that ``**`` is not read as two ``*``:
-        ``**text**`` → ``{\\b text}``  (bold)
-        ``__text__`` → ``{\\ul text}`` (underline)
-        ``*text*``   → ``{\\i text}``  (italic, asterisk)
-        ``_text_``   → ``{\\i text}``  (italic, underscore)
-
-    It escapes the RTF special characters (``\\``, ``{``, ``}``) in the text
-    before it converts the Markdown, so they appear as typed.
-    """
-    text = _sanitize_to_ascii(text)
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    # Escape RTF special characters (order matters: backslash first).
-    text = text.replace("\\", "\\\\")
-    text = text.replace("{", "\\{")
-    text = text.replace("}", "\\}")
-    text = _RE_BOLD.sub(r"{\\b \1}", text)
-    text = _RE_UNDERLINE.sub(r"{\\ul \1}", text)
-    text = _RE_ITALIC_STAR.sub(r"{\\i \1}", text)
-    text = _RE_ITALIC_UNDER.sub(r"{\\i \1}", text)
-    text = text.replace("\n", "\\par ")
-    return text
 
 
 def _pad_to_page(data: bytearray) -> bytes:
@@ -362,6 +278,7 @@ def encode_rung(
             ``__text__``  → underline
             ``*text*``    → italic (asterisk)
             ``_text_``    → italic (underscore)
+        A backslash before ``*``, ``_`` or ``\\`` makes that character text.
         Line breaks: ``\\n`` becomes an RTF paragraph break (``\\par``).
         ``\\r\\n`` and a lone ``\\r`` are normalized to ``\\n`` first.
 

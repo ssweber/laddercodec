@@ -49,6 +49,7 @@ Instead:
 src/laddercodec/
 ├── __init__.py           # Public API: encode(), decode(), decode_program(), read_csv(), write_csv(), read_bundle(), write_bundle(), check(), Rung, ...
 ├── encode.py             # encode() + internal encode_rung(), constants, RTF helpers
+├── _comment.py           # Comment Markdown: rtf_body() reads it for encode, write_runs() writes it for decode; backslash escapes
 ├── encode_multi.py       # Internal encode_rungs(): N rungs in one buffer
 ├── _grid.py              # Shared grid building: _validate_rung, _compute_rung_metadata, _build_rung_grid
 ├── binary_helpers.py     # UTF-16LE, tagged-field read/write primitives

@@ -144,9 +144,53 @@ R,X001,-,-,...,-,out(Y001)
 ```
 
 Comment rows are metadata. Consumers may ignore them or display them as rung
-annotations. Writers preserve comment text verbatim; some toolchains use
-markdown-style markers inside the text (for example `**bold**`, `*italic*`,
-`__underline__`) to represent styled Click comments.
+annotations.
+
+### Comment styles and escapes
+
+```csv
+#,**Bold** and *italic* and __underline__
+#,Pump_1_Run waits for \_init\_ in C:\temp
+#,DS1 is 2 * 3 * 4 and *only* then
+#,*****WARNING*****
+```
+
+A comment is Markdown with three styles: `**bold**`, `*italic*` or `_italic_`,
+and `__underline__`. An underscore inside a word, as in `Pump_1_Run`, is text.
+A `*`, `**`, `_` or `__` with whitespace after it can't start a style, and one
+with whitespace before it can't end one. So in the third line above,
+`2 * 3 * 4` is text and `only` is italic. A `*` or `_` that has no partner is
+text, as in `DS1*2`.
+
+A run of `*` that can end a style pairs with the nearest run of `*` before it
+that can start one. The same holds for `_`. When both runs have at least two
+characters left, two characters of each make bold for `*` or underline for `_`.
+Otherwise one character of each makes italic. So the last line above is a bold
+italic `WARNING`, and in `*1 see *Auto* mode` only `Auto` is italic.
+
+If one of the two runs can both start and end a style, they don't pair when
+their lengths add up to a multiple of 3, unless both lengths are multiples of 3.
+So in `*a**b**c*`, the `**` after `a` can't end the `*` before it, because 1
+and 2 add up to 3. The text is italic throughout, with a bold `b`. A run doesn't
+pair with itself, so `a******a` is text. Two runs don't pair if only runs of the
+other character lie between them, so `**__**__` is text.
+
+To write a `*` or `_` as text where it would otherwise start or end a style,
+put a backslash before it. To write a backslash before `*`, `_` or another
+backslash, write `\\`. The second line above reads as
+`Pump_1_Run waits for _init_ in C:\temp`, with no styling. A backslash before
+any other character is a backslash, so `C:\temp` reads as it is written.
+
+`decode()` and `decode_program()` return each comment as Markdown. The Markdown
+has a backslash before a `*`, `_` or `\` only where `read_csv` would otherwise
+read a style or an escape. `write_csv` writes the comment as it is, so the
+comment reads back with the same text and styles. CLICK can style two kinds of
+text that this Markdown can't. The decoders keep the text of each and drop the
+style:
+
+- an underline on part of a word, such as `y` in `xyz`;
+- a style on whitespace at the edge of a styled stretch, such as the space in a
+  bold `a `.
 
 ## Condition grid cell vocabulary (`A..AE`)
 

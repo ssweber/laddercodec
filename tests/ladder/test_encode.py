@@ -31,8 +31,9 @@ from laddercodec import (
     read_csv,
     replace,
 )
+from laddercodec._comment import sanitize_to_ascii as _sanitize_to_ascii
 from laddercodec.csv import CSV_HEADER
-from laddercodec.encode import _sanitize_to_ascii, encode_rung
+from laddercodec.encode import encode_rung
 from laddercodec.instructions import (
     UnknownCondition,
     UnknownInstruction,

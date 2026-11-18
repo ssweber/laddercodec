@@ -723,9 +723,6 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   stray character, states the rule but not what was wrong with the input.
 - **Operand probe recheck:** recheck, against the operand probe, every operand field that it finds surprising,
   and fix or delete.
-- **Comment styling characters (Sam).** Comment text with a literal `_x_` pair (or other styling characters)
-  comes back as `*x*`, because neither the comment writer nor the reader escapes styling characters. Decide on
-  an escape such as `\*` and `\_`.
 - **Copy termination encoding:** the `to_text_term` variant greys out the termination value in the UI, yet the
   blob stores it. The encoding may need revisiting.
 - **SCR blob dataclass** (Sam's idea):
