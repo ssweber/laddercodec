@@ -569,6 +569,11 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   `duplicate-subroutine-name` (GUI-036). Does CLICK's Add New Subroutine refuse them too?
 - **An address number of six or more digits.** laddercodec reads at most five digits in an address, so it
   refuses `C000001`. Does CLICK's editor accept it?
+- **The length form of a long string in a program file.** CLICK saves a string of up to 63 characters with a
+  one-byte count, and one of 130 characters as `ff`, then a u16 count. `decode_program()` reads a one-byte
+  count up to 0xFE. If CLICK saves 64 to 126 characters in another form, `decode_program()` reads them wrong.
+  Save a Compare whose text is 64, 126 and 127 characters long, and a Math formula of 500 characters to see
+  that Math uses the same form.
 
 ## For pyrung's export (later; another repo first)
 

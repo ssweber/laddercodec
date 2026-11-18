@@ -124,12 +124,38 @@ class _ScrHeader:
 # ---------------------------------------------------------------------------
 
 
-def _read_utf16le(data: bytes, offset: int, byte_count: int) -> str:
-    """Return *byte_count* bytes at *offset* decoded as UTF-16LE, without trailing NULs."""
-    raw = data[offset : offset + byte_count]
+#: The first count byte that means a u16 LE count follows it.
+_LONG_COUNT_MARKER = 0xFF
+
+
+def _read_scr_string(
+    data: bytes, pos: int, limit: int | None = None, *, errors: str = "strict"
+) -> tuple[str, int] | None:
+    """Read the counted UTF-16LE string at *pos*.
+
+    Return the text and the offset after it, or None when the string runs past
+    *limit* (the end of *data* by default). The count is in bytes. A count below
+    0xFF is one byte. Otherwise the byte is 0xFF and a u16 LE count follows. The
+    stored bytes end with a NUL byte. The returned text leaves it out. *errors* is
+    passed to ``bytes.decode``.
+    """
+    limit = len(data) if limit is None else min(limit, len(data))
+    if pos >= limit:
+        return None
+    byte_count = data[pos]
+    pos += 1
+    if byte_count == _LONG_COUNT_MARKER:
+        if pos + 2 > limit:
+            return None
+        byte_count = struct.unpack_from("<H", data, pos)[0]
+        pos += 2
+    end = pos + byte_count
+    if end > limit:
+        return None
+    raw = data[pos:end]
     if len(raw) % 2 == 1:
         raw = raw + b"\x00"
-    return raw.decode("utf-16-le").rstrip("\x00")
+    return raw.decode("utf-16-le", errors=errors).rstrip("\x00"), end
 
 
 def _parse_header(data: bytes) -> _ScrHeader:
@@ -138,14 +164,13 @@ def _parse_header(data: bytes) -> _ScrHeader:
         raise DecodeError(f"Not an SC-SCR file (magic: {data[:8]!r})")
 
     prog_idx = struct.unpack_from("<H", data, 0x40)[0]
-    name_len = data[0x42]
-    cursor = 0x43 + name_len
-    if cursor + 2 > len(data):
-        raise DecodeError("truncated SCR name or column count")
     try:
-        name = _read_utf16le(data, 0x43, name_len)
+        read = _read_scr_string(data, 0x42)
     except UnicodeDecodeError as exc:
         raise DecodeError(f"SCR name is not UTF-16LE text: {exc}") from exc
+    if read is None or read[1] + 2 > len(data):
+        raise DecodeError("truncated SCR name or column count")
+    name, cursor = read
     column_count = struct.unpack_from("<H", data, cursor)[0]
     cursor += 2
     if not 1 <= column_count <= _CONDITION_COLUMNS + 1:
@@ -181,12 +206,15 @@ def _parse_blob(data: bytes, pos: int, data_len: int = 0) -> tuple[str, int, int
         data_len = len(data)
     if pos >= data_len - 20:
         return None
+    # A class name is short enough for the one-byte length.
     sl = data[pos]
     if not (3 <= sl <= 60 and pos + 1 + sl + 2 <= data_len):
         return None
     try:
-        text = _read_utf16le(data, pos + 1, sl)
-        type_off = pos + 1 + sl
+        read = _read_scr_string(data, pos, data_len)
+        if read is None:
+            return None
+        text, type_off = read
         marker = struct.unpack_from("<H", data, type_off)[0]
         if not (text and text[0].isupper() and text.isascii() and all(c.isalnum() for c in text)):
             return None
@@ -236,11 +264,10 @@ def _parse_scr_tags(
     for u16 values and one for strings. ``_tag_wire_type`` reads the value type of
     each tag from its high byte.
     """
-    pos = blob_start
-    sl = data[pos]
-    pos += 1
-    class_name = _read_utf16le(data, pos, sl)
-    pos += sl
+    read = _read_scr_string(data, blob_start, end_offset)
+    if read is None:
+        raise DecodeError(f"truncated SCR class name at {blob_start:#x}")
+    class_name, pos = read
     type_code = struct.unpack_from("<H", data, pos)[0]
     pos += 2
     pos += (
@@ -283,19 +310,11 @@ def _parse_scr_tags(
                 pos += 2
                 if sub_idx == 0xFFFF:
                     break
-                if pos + 1 > len(data):
+                read = _read_scr_string(data, pos, end_offset, errors="replace")
+                if read is None:
+                    pos = end_offset  # a cut-off string ends the tag walk
                     break
-                str_len = data[pos]
-                pos += 1
-                if pos + str_len > len(data):
-                    break
-                value_raw = data[pos : pos + str_len]
-                if len(value_raw) % 2 == 1:
-                    value_raw = value_raw + b"\x00"
-                entries_str[sub_idx] = value_raw.decode("utf-16-le", errors="replace").rstrip(
-                    "\x00"
-                )
-                pos += str_len
+                entries_str[sub_idx], pos = read
             variant_string_tags[tag] = entries_str
             continue
 
@@ -320,18 +339,10 @@ def _parse_scr_tags(
             continue
 
         # Default: length-prefixed UTF-16LE string (wire == "string" or "unknown")
-        if pos + 1 > len(data):
+        read = _read_scr_string(data, pos, end_offset, errors="replace")
+        if read is None:
             break
-        str_len = data[pos]
-        pos += 1
-        if pos + str_len > len(data):
-            break
-        value_raw = data[pos : pos + str_len]
-        if len(value_raw) % 2 == 1:
-            value_raw = value_raw + b"\x00"
-        str_value = value_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
-        tags[tag] = str_value
-        pos += str_len
+        tags[tag], pos = read
     return class_name, type_code, tags, variant_u16_tags, variant_string_tags
 
 
