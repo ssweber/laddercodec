@@ -7,6 +7,7 @@ Public API
 ----------
 
     write_csv(path, rungs)              — list[Rung] → CSV file
+    csv_rows(rungs)                     — list[Rung] → the file's rows after the header
     decoded_rung_to_rows(rung)          — Rung → list of CSV row lists
 
 Layout
@@ -42,7 +43,7 @@ from __future__ import annotations
 
 import csv as csv_mod
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from contextlib import nullcontext
 from pathlib import Path
 from typing import get_args
@@ -528,19 +529,99 @@ def _rung_rows(rung: Rung) -> list[list[str]]:
 # ---------------------------------------------------------------------------
 
 
+def csv_rows(
+    rungs: Iterable[Rung],
+    *,
+    index: bool = False,
+    stop: UndecodedStop = "end",
+) -> list[list[str]]:
+    """Return the CSV rows that ``write_csv`` writes for *rungs*, without the header.
+
+    The file that ``write_csv(path, rungs)`` writes has the rows
+    ``[list(CSV_HEADER), *csv_rows(rungs)]``.  A data row is a list of 33 strings: the
+    marker, the cells of columns A to AE, and the AF cell.  A comment row is
+    ``["#", text]``, with one line of the rung's comment in column A.
+
+    When laddercodec can lay out a rung, its rows are the rung as CLICK's syntax
+    check draws it.  If CLICK would split a rung, the rows hold each rung that it
+    splits into, each with its own ``R`` row.  A rung that has no layout keeps its
+    cells where they are (see :func:`decoded_rung_to_rows`).
+
+    No CSV token can hold the bytes of an unknown condition or instruction.  A
+    rung that holds one becomes an undecoded marker rung, with an
+    ``UndecodedRungWarning``.
+
+    Parameters
+    ----------
+    rungs:
+        Any iterable of decoded rungs, such as the list ``decode()`` returns.
+    index:
+        When ``True``, each rung's ``R`` marker gets the rung's number, counted
+        from 1 across the whole call: ``R1``, ``R2``, ``R3`` and so on.  A rung
+        that CLICK would split gets one number for each rung it splits into.  Each
+        call starts again at ``R1``.  To number the rungs of each program from
+        ``R1``, call ``csv_rows`` once for the main program and once for each
+        subroutine.  With
+        the default, ``False``, each marker is a plain ``R``.  ``read_csv()``
+        ignores the digits, so an indexed file reads back the same.
+    stop:
+        Whether the marker that stands in for a rung with an unknown token acts as
+        ``end()`` or as ``return()``.  Pass ``"end"`` in the main program and
+        ``"return"`` in a subroutine.
+
+    Raises
+    ------
+    WriterError
+        If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
+        written, such as one whose shape the CSV can't hold.
+    """
+    return _csv_rows(rungs, index=index, stop=stop, caller="csv_rows")
+
+
+def _csv_rows(
+    rungs: Iterable[Rung], *, index: bool, stop: UndecodedStop, caller: str
+) -> list[list[str]]:
+    """Return the rows of :func:`csv_rows`, with *caller* named in a bad-``stop`` error.
+
+    Only ``csv_rows`` and ``write_csv`` call this.  The ``UndecodedRungWarning``
+    points two frames up, at the line that called either of them.
+    """
+    if stop not in get_args(UndecodedStop):
+        raise WriterError(f"{caller}: stop={stop!r} must be 'end' or 'return'")
+    out: list[list[str]] = []
+    rung_number = 0  # Counts the rungs written. A rung CLICK would split counts as several.
+    for rung_index, rung in enumerate(rungs):
+        unknown = _unknown_cell(rung)
+        if unknown is None:
+            rows = decoded_rung_to_rows(rung)
+        else:
+            row, column, error = unknown
+            marker = Undecoded(error, rung_index, row, column, stop)
+            warnings.warn(UndecodedRungWarning(marker), stacklevel=3)
+            rows = decoded_rung_to_rows(marker_rung(marker, rung.comment))
+        for row in rows:
+            if row and row[0] == "R":
+                rung_number += 1
+                if index:
+                    row = [f"R{rung_number}", *row[1:]]
+            out.append(row)
+    return out
+
+
 def write_csv(
     path: Path | str,
-    rungs: list[Rung],
+    rungs: Iterable[Rung],
     *,
     index: bool = False,
     stop: UndecodedStop = "end",
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
-    When laddercodec can lay out a rung, it is written as CLICK's syntax check
-    draws it.  If CLICK would split a rung, the file holds the rungs it splits
-    into, so the file can hold more rungs than *rungs*.  A rung that has no
-    layout is written with its cells where they are (see
+    The file holds ``CSV_HEADER`` and then the rows that :func:`csv_rows` returns
+    for the same arguments.  When laddercodec can lay out a rung, it is written as
+    CLICK's syntax check draws it.  If CLICK would split a rung, the file holds the
+    rungs it splits into, so the file can hold more rungs than *rungs*.  A rung
+    that has no layout is written with its cells where they are (see
     :func:`decoded_rung_to_rows`).
 
     No CSV token can hold the bytes of an unknown condition or instruction.
@@ -552,7 +633,7 @@ def write_csv(
     path:
         Output file path.
     rungs:
-        One or more decoded rungs, such as the list ``decode()`` returns.
+        Any iterable of decoded rungs, such as the list ``decode()`` returns.
     index:
         When ``True``, each rung's ``R`` marker gets the rung's number, counted
         from 1 across the whole file: ``R1``, ``R2``, ``R3`` and so on.  The
@@ -566,31 +647,16 @@ def write_csv(
     Raises
     ------
     WriterError
-        If *stop* is neither ``"end"`` nor ``"return"`` (nothing is written), or if a
-        rung can't be written, such as one whose shape the CSV can't hold.
+        If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
+        written, such as one whose shape the CSV can't hold.  ``write_csv`` builds
+        every row before it opens *path*.  If it raises ``WriterError``, it has not
+        created or changed the file.
     """
-    if stop not in get_args(UndecodedStop):
-        raise WriterError(f"write_csv: stop={stop!r} must be 'end' or 'return'")
-    path = Path(path)
-    with open(path, "w", newline="", encoding="utf-8") as f:
+    rows = _csv_rows(rungs, index=index, stop=stop, caller="write_csv")
+    with open(Path(path), "w", newline="", encoding="utf-8") as f:
         writer = csv_mod.writer(f)
         writer.writerow(CSV_HEADER)
-        rung_number = 0  # Counts the rungs written. A rung CLICK would split counts as several.
-        for rung_index, rung in enumerate(rungs):
-            unknown = _unknown_cell(rung)
-            if unknown is None:
-                rows = decoded_rung_to_rows(rung)
-            else:
-                row, column, error = unknown
-                marker = Undecoded(error, rung_index, row, column, stop)
-                warnings.warn(UndecodedRungWarning(marker), stacklevel=2)
-                rows = decoded_rung_to_rows(marker_rung(marker, rung.comment))
-            for row in rows:
-                if row and row[0] == "R":
-                    rung_number += 1
-                    if index:
-                        row = [f"R{rung_number}", *row[1:]]
-                writer.writerow(row)
+        writer.writerows(rows)
 
 
 def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:

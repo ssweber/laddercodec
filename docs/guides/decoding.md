@@ -205,6 +205,18 @@ rung before the check, the CSV can hold it redrawn. It can also split the rung
 where its outputs' circuits meet only at the rail. The logic stays the same
 ([CSV layout](csv-format.md#layout)).
 
+To get the rows without writing a file, call `csv_rows`:
+
+```python
+from laddercodec import CSV_HEADER, csv_rows, decode
+
+rows = [list(CSV_HEADER), *csv_rows(decode(data))]
+```
+
+`csv_rows` returns the rows that `write_csv` writes after the header, each as a list of
+strings. It accepts the same `index` and `stop` arguments as `write_csv`. `CSV_HEADER` is
+the header row, as a tuple.
+
 ## Decode a program file
 
 `decode_program()` reads a Click program file (`Scr*.tmp`) and returns a `Program` containing all rungs. These are the internal temp files Click Programming Software writes to disk — much more compact than clipboard format (~17x smaller).
