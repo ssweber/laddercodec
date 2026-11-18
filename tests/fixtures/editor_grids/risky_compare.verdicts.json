@@ -1,0 +1,13 @@
+{
+  "compare  DS1 == DS2": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.left", "message": "CompareContact.left: ' DS1' is not a CLICK address"},
+  "compare DS1 ==  DS1": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: ' DS1' is not a CLICK address"},
+  "compare DS1  == DS2": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.left", "message": "CompareContact.left: 'DS1 ' is not a CLICK address"},
+  "compare DS1 == DS1 ": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: 'DS1 ' is not a CLICK address"},
+  "compare TXT1 == \"\u00e9\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.right", "message": "CompareContact.right: '\"\u00e9\"' is refused; text holds printable ASCII only (space to ~); write another character as its $hh code"},
+  "compare TXT1 == \"\t\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.right", "message": "CompareContact.right: '\"\\t\"' is refused; text holds printable ASCII only (space to ~); write another character as its $hh code"},
+  "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"": {"verdict": "accepted"},
+  "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.right", "message": "CompareContact.right: '\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"' is refused; a text constant is 1 to 128 characters in quotes, with no quote inside (write the quote character as $22)"},
+  "compare DS1 == ": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: is blank; it needs a value"},
+  "compare DS1 ==  ": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: ' ' is not a CLICK address"},
+  "compare DS1 == \u0663": {"verdict": "refused", "error": "AddressError", "field": "CompareContact.right", "message": "CompareContact.right: '\u0663' is not a CLICK address"}
+}

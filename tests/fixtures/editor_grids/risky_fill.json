@@ -1,0 +1,18 @@
+{
+ "cases": [
+  {"row": "copy.fill.text.characters", "case": "fill \"\u00e9\" -> TXT1..TXT2", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\u00e9\"", "destination": "TXT1", "destination_end": "TXT2"}},
+  {"row": "copy.fill.text.characters", "case": "fill \"\u20ac\" -> TXT1..TXT2", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\u20ac\"", "destination": "TXT1", "destination_end": "TXT2"}},
+  {"row": "copy.fill.text.characters", "case": "fill \"\t\" -> TXT1..TXT2", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\t\"", "destination": "TXT1", "destination_end": "TXT2"}},
+  {"row": "copy.fill.value.forms", "case": "fill  DS1 -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": " DS1", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.forms", "case": "fill DS1  -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "DS1 ", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill \"\u00e9\" -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\u00e9\"", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill \"\t\" -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\t\"", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill  -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill   -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": " ", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill \u0663 -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "\u0663", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.destination-start.forms", "case": "fill 5 ->  DS1..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": " DS1", "destination_end": "DS11"}},
+  {"row": "copy.fill.destination-end.forms", "case": "fill 5 -> DS10.. DS1", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "DS10", "destination_end": " DS1"}}
+ ]
+}

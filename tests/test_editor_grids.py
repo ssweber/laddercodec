@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -19,22 +20,70 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 GRIDS = ROOT / "tests" / "fixtures" / "editor_grids"
 
-#: Each dialog that the runner fills, mapped to the names of its fields and to its modes.
-#: Out has no modes.
+_OPERATORS = ("==", "!=", ">", "<", ">=", "<=")
+
+
+@dataclass(frozen=True)
+class Dialog:
+    """A dialog as the runner's ``INSTRUCTIONS`` names it.
+
+    ``modes`` is empty for a dialog without modes. ``fields`` holds the names of all its
+    fields, whatever the mode, and ``options`` the control ids of its option buttons. A
+    ``contact`` is placed only with ``--wire``."""
+
+    modes: tuple[str, ...]
+    fields: frozenset[str]
+    options: frozenset[str] = frozenset()
+    contact: bool = False
+
+
+#: Each dialog that the runner fills, as its ``INSTRUCTIONS`` has it.
 DIALOGS = {
-    "math": ({"result", "formula"}, {"decimal", "hex"}),
-    "copy": (
-        {"source", "source_end", "destination", "destination_end"},
-        {"single", "block", "pack", "unpack"},
+    "math": Dialog(("decimal", "hex"), frozenset({"result", "formula"})),
+    "copy": Dialog(
+        ("single", "block", "pack", "unpack"),
+        frozenset({"source", "source_end", "destination", "destination_end", "termination_code"}),
+        frozenset({"5019", "5020", "5036", "5037", "5021", "5024"}),
     ),
-    "out": ({"address", "address_end"}, set()),
+    "out": Dialog((), frozenset({"address", "address_end"})),
+    "receive": Dialog(
+        (),
+        frozenset(
+            {"slave_id", "slave_address", "master_address", "count"}
+            | {"receiving", "success", "error", "exception"}
+        ),
+    ),
+    "compare": Dialog(_OPERATORS, frozenset({"a", "b"}), contact=True),
+    "search": Dialog(
+        _OPERATORS,
+        frozenset({"value", "start", "end", "result", "found"}),
+        frozenset({"5021", "5022"}),
+    ),
 }
+#: Copy's Fill mode, which the runner does not drive yet. A Fill case names its fields as the
+#: runner names the Copy dialog's fields. Only the files in FILL_FILES hold Fill cases, and
+#: they hold nothing else.
+FILL = ("copy", "fill")
+FILL_FIELDS = {"source", "destination", "destination_end"}
+FILL_FILES = {"copy_fill.json", "preflight_fill.json", "risky_fill.json"}
 #: The runner takes these keys of a case and no others.
-CASE_KEYS = {"row", "case", "instruction", "mode", "fields"}
-#: The number of cases in each row, over the dialog grids and risky.json, as committed. If a
+CASE_KEYS = {"row", "case", "instruction", "mode", "fields", "choices", "options"}
+#: The number of cases in each row, over the dialog grids and the risky files, as committed. If a
 #: generator loop drops cases, the files still match the generator, but a count here changes.
 #: A deliberate change to the cases also changes a count here.
 ROW_COUNTS = {
+    "compare.a.banks": 85,
+    "compare.a.constants": 9,
+    "compare.a.forms": 54,
+    "compare.b.banks": 88,
+    "compare.b.constants": 107,
+    "compare.b.forms": 54,
+    "compare.control": 3,
+    "compare.mixed.operators": 60,
+    "compare.operators": 28,
+    "compare.pairs.banks": 86,
+    "compare.pairs.constants": 77,
+    "compare.text.operators": 29,
     "copy.block.control": 1,
     "copy.block.destination.banks": 95,
     "copy.block.destination.constants": 9,
@@ -48,6 +97,26 @@ ROW_COUNTS = {
     "copy.block.source.forms": 5,
     "copy.block.source.mixed-banks": 64,
     "copy.block.source.ranges": 104,
+    "copy.fill.control": 1,
+    "copy.fill.destination-end.banks": 54,
+    "copy.fill.destination-end.constants": 9,
+    "copy.fill.destination-end.forms": 5,
+    "copy.fill.destination-start.constants": 9,
+    "copy.fill.destination-start.forms": 5,
+    "copy.fill.destination.mixed-banks": 63,
+    "copy.fill.destination.ranges": 101,
+    "copy.fill.hex-wide": 50,
+    "copy.fill.pairs.banks": 251,
+    "copy.fill.pairs.constants": 118,
+    "copy.fill.real-digits": 6,
+    "copy.fill.sd": 18,
+    "copy.fill.text.characters": 3,
+    "copy.fill.text.constants": 20,
+    "copy.fill.text.numbers": 14,
+    "copy.fill.text.registers": 5,
+    "copy.fill.value.banks": 87,
+    "copy.fill.value.constants": 111,
+    "copy.fill.value.forms": 53,
     "copy.pack.bits.widths": 167,
     "copy.pack.bits.xy-spans": 20,
     "copy.pack.control": 1,
@@ -127,6 +196,24 @@ ROW_COUNTS = {
     "out.range-start.forms": 5,
     "out.ranges": 104,
     "out.ranges.mixed": 60,
+    "search.control": 2,
+    "search.found.banks": 87,
+    "search.found.forms": 5,
+    "search.operators": 23,
+    "search.options": 8,
+    "search.result.banks": 88,
+    "search.result.forms": 5,
+    "search.table-end.banks": 24,
+    "search.table-end.forms": 5,
+    "search.table-start.banks": 36,
+    "search.table-start.forms": 5,
+    "search.table.mixed-banks": 61,
+    "search.table.ranges": 104,
+    "search.text.operators": 41,
+    "search.value.banks": 88,
+    "search.value.constants": 106,
+    "search.value.forms": 54,
+    "search.value.pairs": 81,
 }
 
 #: The most cases that one grid file may hold. Split a longer file by hand, because the
@@ -177,7 +264,7 @@ def test_rows_keep_their_cases() -> None:
     counts: dict[str, int] = {}
     for name in (
         "math_decimal", "math_hex", "copy_single", "copy_block", "copy_pack", "copy_unpack",
-        "out", "risky",
+        "out", "copy_fill", "compare", "search", "risky", "risky_compare", "risky_fill",
     ):  # fmt: skip
         for case in json.loads((GRIDS / f"{name}.json").read_text(encoding="utf-8"))["cases"]:
             counts[case["row"]] = counts.get(case["row"], 0) + 1
@@ -211,18 +298,34 @@ def test_cases_are_in_the_runners_shape() -> None:
         assert 0 < len(cases) <= MAX_CASES, path.name
         labels = [c["case"] for c in cases]
         assert len(labels) == len(set(labels)), f"{path.name} repeats a case label"
+        fill_file = path.name in FILL_FILES
         for case in cases:
             where = f"{path.name}: {case['case']}"
             assert set(case) <= CASE_KEYS, where
             assert case["row"] and case["case"], where
-            fields, modes = DIALOGS[case["instruction"]]
-            if modes:
-                assert case["mode"] in modes, where
+            dialog = DIALOGS[case["instruction"]]
+            is_fill = (case["instruction"], case.get("mode")) == FILL
+            assert is_fill == fill_file, where
+            if is_fill:
+                fields = FILL_FIELDS
+            elif dialog.modes:
+                assert case["mode"] in dialog.modes, where
+                fields = dialog.fields
             else:
                 assert "mode" not in case, where
+                fields = dialog.fields
             assert case["fields"], where
             assert set(case["fields"]) <= fields, where
             assert all(isinstance(v, str) for v in case["fields"].values()), where
+            # No grid chooses an item from a list yet.
+            assert "choices" not in case, where
+            options = case.get("options", {})
+            assert set(options) <= dialog.options, where
+            assert all(type(v) is int and v in (0, 1) for v in options.values()), where
+        # The runner places a contact only with --wire, which applies to the whole file, so a
+        # file holds only contacts or none.
+        contacts = {DIALOGS[c["instruction"]].contact for c in cases}
+        assert len(contacts) == 1, f"{path.name} mixes contacts with other instructions"
 
 
 def test_verdicts_are_accepted_or_refused() -> None:

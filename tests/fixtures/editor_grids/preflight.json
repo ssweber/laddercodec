@@ -91,6 +91,24 @@
   {"row": "out.ranges.mixed", "case": "out X001..C1", "instruction": "out", "fields": {"address": "X001", "address_end": "C1"}},
   {"row": "out.range-end.forms", "case": "out Y001..DS[DS1]", "instruction": "out", "fields": {"address": "Y001", "address_end": "DS[DS1]"}},
   {"row": "out.range-start.forms", "case": "out DS[DS1]..Y002", "instruction": "out", "fields": {"address": "DS[DS1]", "address_end": "Y002"}},
-  {"row": "out.range-end.constants", "case": "out Y001..5", "instruction": "out", "fields": {"address": "Y001", "address_end": "5"}}
+  {"row": "out.range-end.constants", "case": "out Y001..5", "instruction": "out", "fields": {"address": "Y001", "address_end": "5"}},
+  {"row": "search.control", "case": "search DS1..DS10 == DS20 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.options", "case": "search DS1..DS10 == DS20 -> DS30,C1 [5021=1]", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}, "options": {"5021": 1}},
+  {"row": "search.operators", "case": "search DS1..DS10 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.text.operators", "case": "search TXT1..TXT10 != \"A\" -> DS30,C1", "instruction": "search", "mode": "!=", "fields": {"value": "\"A\"", "start": "TXT1", "end": "TXT10", "result": "DS30", "found": "C1"}},
+  {"row": "search.table.ranges", "case": "search X001..X002 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "X001", "end": "X002", "result": "DS30", "found": "C1"}},
+  {"row": "search.table-start.banks", "case": "search DS4500..DS4500 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DS4500", "end": "DS4500", "result": "DS30", "found": "C1"}},
+  {"row": "search.table-end.banks", "case": "search DS1..DS0 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DS1", "end": "DS0", "result": "DS30", "found": "C1"}},
+  {"row": "search.table.mixed-banks", "case": "search X001..C1 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "X001", "end": "C1", "result": "DS30", "found": "C1"}},
+  {"row": "search.table-start.forms", "case": "search DS[DS1]..DS10 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DS[DS1]", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.table-end.forms", "case": "search DS1..DS[DS1] == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DS1", "end": "DS[DS1]", "result": "DS30", "found": "C1"}},
+  {"row": "search.value.banks", "case": "search DS1..DS10 == X001 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "X001", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.value.forms", "case": "search DS1..DS10 == X[DS1] -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "X[DS1]", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.value.constants", "case": "search DS1..DS10 == 0 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "0", "start": "DS1", "end": "DS10", "result": "DS30", "found": "C1"}},
+  {"row": "search.value.pairs", "case": "search DD1..DD10 == 5 -> DS30,C1", "instruction": "search", "mode": "==", "fields": {"value": "5", "start": "DD1", "end": "DD10", "result": "DS30", "found": "C1"}},
+  {"row": "search.result.banks", "case": "search DS1..DS10 == DS20 -> X001,C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "X001", "found": "C1"}},
+  {"row": "search.found.banks", "case": "search DS1..DS10 == DS20 -> DS30,X001", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "X001"}},
+  {"row": "search.result.forms", "case": "search DS1..DS10 == DS20 -> DS[DS1],C1", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS[DS1]", "found": "C1"}},
+  {"row": "search.found.forms", "case": "search DS1..DS10 == DS20 -> DS30,DS[DS1]", "instruction": "search", "mode": "==", "fields": {"value": "DS20", "start": "DS1", "end": "DS10", "result": "DS30", "found": "DS[DS1]"}}
  ]
 }

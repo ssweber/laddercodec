@@ -635,9 +635,27 @@ def test_a_chain_of_boxes_starts_with_the_code() -> None:
         assert case["boxes"][0] == [case["code"], case["message"]], (grid, case["case"])
 
 
+#: The dialogs and modes that the answers to ``preflight.json`` and ``risky.json`` cover.
+#: Those two grids also hold Search cases, which CLICK has not answered.
+ANSWERED_DIALOGS = {
+    ("math", "decimal"),
+    ("math", "hex"),
+    ("copy", "single"),
+    ("copy", "block"),
+    ("copy", "pack"),
+    ("copy", "unpack"),
+    ("out", None),
+}
+
+
 def test_answers_are_the_grids_cases() -> None:
     """The answer files of the nine editor grids that the loop names hold the cases of their
-    grid files, with the same labels in the same order and the same fields."""
+    grid files, with the same labels in the same order, the same instruction, mode and fields,
+    and no lists or options set.
+
+    In ``preflight.json`` and ``risky.json``, only the cases of the dialogs in
+    ``ANSWERED_DIALOGS`` are compared. Every case of the other seven grids must be of one of
+    those dialogs."""
     for grid in (
         "preflight",
         "risky",
@@ -649,8 +667,16 @@ def test_answers_are_the_grids_cases() -> None:
         "math_decimal",
         "math_hex",
     ):
-        cases = json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
+        every = json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
+        cases = [c for c in every if (c["instruction"], c.get("mode")) in ANSWERED_DIALOGS]
+        if grid not in ("preflight", "risky"):
+            assert cases == every, grid
         answered = _answers(grid)
         assert [c["case"] for c in answered] == [c["case"] for c in cases], grid
         for case, answer in zip(cases, answered, strict=True):
-            assert answer["fields"] == case["fields"], (grid, case["case"])
+            where = (grid, case["case"])
+            assert answer["instruction"] == case["instruction"], where
+            assert answer.get("mode") == case.get("mode"), where
+            assert answer["fields"] == case["fields"], where
+            # CLICK answered each case with its lists and options as the dialog opened them.
+            assert "choices" not in case and "options" not in case, where

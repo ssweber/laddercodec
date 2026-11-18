@@ -1,0 +1,15 @@
+{
+ "cases": [
+  {"row": "compare.a.forms", "case": "compare  DS1 == DS2", "instruction": "compare", "mode": "==", "fields": {"a": " DS1", "b": "DS2"}},
+  {"row": "compare.b.forms", "case": "compare DS1 ==  DS1", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": " DS1"}},
+  {"row": "compare.a.forms", "case": "compare DS1  == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "DS1 ", "b": "DS2"}},
+  {"row": "compare.b.forms", "case": "compare DS1 == DS1 ", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "DS1 "}},
+  {"row": "compare.b.constants", "case": "compare TXT1 == \"\u00e9\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"\u00e9\""}},
+  {"row": "compare.b.constants", "case": "compare TXT1 == \"\t\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"\t\""}},
+  {"row": "compare.b.constants", "case": "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "compare.b.constants", "case": "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "compare", "mode": "==", "fields": {"a": "TXT1", "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "compare.b.constants", "case": "compare DS1 == ", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": ""}},
+  {"row": "compare.b.constants", "case": "compare DS1 ==  ", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": " "}},
+  {"row": "compare.b.constants", "case": "compare DS1 == \u0663", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "\u0663"}}
+ ]
+}
