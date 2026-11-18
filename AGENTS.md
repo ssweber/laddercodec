@@ -136,6 +136,8 @@ src/laddercodec/
 
 Under `tests/`: `test_*.py` for the cross-cutting checks (public API, v4 captures, coverage goldens, layout and `check()`, operand rules, operand-guard ratchet, compat, legacy warning, refusals kept by decode), `ladder/` for encode, decode, instruction and operand rules, `csv/` for the CSV pipeline, `operands/` for `classify()`. `tests/golden_io.py` reads and writes golden CSV/BIN files; `tests/kept_refusals.py` checks the refusals a decoded instruction keeps.
 
+`tests/test_pyclickplc_parity.py` fails when laddercodec's bank facts disagree with pyclickplc. Most of the facts are in `operands/address.py` and `operands/banks.py`. Some modules in `instructions/` keep their own copies, such as the bank sets that follow from a bank's data type or register width. pyclickplc is in the dev group. The test skips when pyclickplc is not installed or is older than 0.9.1. The test lists each kind of address text that the two libraries read differently by design.
+
 Fixtures are in `tests/fixtures/`:
 
 - `ladder_captures/golden/` and `coverage/golden/`: `.csv` is the source of truth, `.bin` is generated from it.

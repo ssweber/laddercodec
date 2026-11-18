@@ -567,6 +567,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Subroutine names that differ in case outside A-Z.** `write_bundle` and `read_bundle` compare names with
   `str.casefold()`, so they refuse `Straße` beside `STRASSE`, and `é` beside `É`, as
   `duplicate-subroutine-name` (GUI-036). Does CLICK's Add New Subroutine refuse them too?
+- **An address number of six or more digits.** laddercodec reads at most five digits in an address, so it
+  refuses `C000001`. Does CLICK's editor accept it?
 
 ## For pyrung's export (later; another repo first)
 
@@ -653,10 +655,6 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 
 ## Later (nothing unless marked)
 
-- **Parity test** for the private bank copy, with pyclickplc (0.6.0 or later, which has the `parse_address`
-  change) as a dev-only dependency. It must convert units: XD here is 0-8 plus `u`, and in pyclickplc it is
-  0-16 Modbus units. Don't compare `WRITABLE_SC`. In pyclickplc it means writable in Data View, which is a
-  different fact from the ladder-writable list here.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
