@@ -20,6 +20,7 @@ from laddercodec import (
     decode_program,
     read_csv,
 )
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import encode_rung
 from laddercodec.instructions.counter import Counter
@@ -195,6 +196,21 @@ class TestDrum:
     def test_unit(self) -> None:
         with pytest.raises(FieldError, match="Drum.unit"):
             drum("time_drum", unit="x")
+
+    def test_event_drum_has_no_unit(self) -> None:
+        message = "^Drum.unit: an event drum has no time unit. Leave unit blank."
+        with pytest.raises(FieldError, match=message) as e:
+            drum("event_drum", unit="Ts")
+        assert e.value.code is Code.OPTION_NOT_OFFERED
+        assert drum("event_drum").unit == ""
+
+    def test_event_drum_unit_in_csv(self, tmp_path: Path) -> None:
+        base = (
+            "event_drum(outputs=[C3],events=[C2],pattern=[[1]],current_step=DS1,completion_flag=C1"
+        )
+        with pytest.raises(FieldError, match="Drum.unit: an event drum has no time unit"):
+            _read_af(tmp_path, base + ",unit=Ts)")
+        assert _read_af(tmp_path, base + ",unit=)").unit == ""
 
 
 class TestDrumPatternCells:

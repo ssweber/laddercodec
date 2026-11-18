@@ -417,7 +417,7 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
 - **Ids left None until CLICK answers.** `click_id` is set only where the code records the field's dialog. An
   id that can't be backed stays None. Open:
   - Fill: its pairing and range ends (Copy's OBJ-024, OBJ-008, OBJ-009, OBJ-012?). For a Fill into TXT of an
-    integer or hex constant of more than one character, CLICK shows OBJ-023 (**Fill of a number into TXT**).
+    integer or hex constant of more than one character, CLICK shows OBJ-023. The rules refuse it with no id.
   - Block Copy, a source range spanning two X/Y modules. CLICK's answer for Pack is OBJ-033 (set). No recorded
     answer covers Block Copy's, so it stays None. What OBJ-035 is for is still unknown.
   - Receive, one C bit for two status fields (Send's is OBJ-014).
@@ -433,15 +433,6 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     its bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
     from CLICK's own code. The math grids confirm every one that the rules report.
-- **Fill of hex above FFFFh (to do).** CLICK refuses a Fill of hex above FFFFh, such as `10000h` or
-  `FFFFFFFFh`, into every bank with OBJ-005. The code accepts up to `FFFFFFFFh`. Into `SD1..SD2` it refuses
-  the range with OBJ-004 instead, and `test_fill_of_hex_above_ffffh_into_sd_refuses_the_value` is a strict
-  xfail until the fix. `FILL_HEX` in `tests/test_editor_answers.py` lists the cases
-  and CLICK's answer. A single Copy accepts such a constant into DD or CTD only.
-- **Fill of a number into TXT (to do).** CLICK refuses a Fill into TXT of an integer or hex constant of more
-  than one character, such as `-5`, `123` or `FFh`, with OBJ-023. It accepts a real, such as `1.5`. The code
-  accepts any number. `FILL_TXT_NUMBER` in `tests/test_editor_answers.py` lists the
-  cases and CLICK's answer.
 - **A unit on an instruction that has none.** An event drum accepts any `unit`, and `to_csv()` and `encode()`
   drop it. A toggle accepts any falsy `unit`, such as `None` or `0`. Both should refuse a `unit` other than `""`
   with `OPTION_NOT_OFFERED`. The annotations `TimeUnit | Literal[""]` on `Drum.unit` and
@@ -588,8 +579,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
   they store? The code refuses both.
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the TXT
-  where its text ends (item 3 has the open cases). CLICK refuses a Fill of such an integer or hex number
-  (**Fill of a number into TXT**). What CLICK stores for a Fill of a real into TXT is not known.
+  where its text ends (item 3 has the open cases). CLICK refuses a Fill of such an integer or hex number,
+  and the rules do too. What CLICK stores for a Fill of a real into TXT is not known.
 - **Termination code with other options.** The code accepts a termination code on a single Copy of a constant
   into TXT with `suppress_zero=0`, such as `copy(5,TXT1,convert=to_text(suppress_zero=0,termination_code=$0D))`,
   and with `exponential=1`, such as `copy(1.5,TXT1,convert=to_text(exponential=1,termination_code=$0D))`.
@@ -731,7 +722,7 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches,
   because their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them
   or wire them.
-- **Hex message without an OBJ id (CLICK):** in Fill and Math, the refusal for a padded 32-bit constant ("a hex
+- **Hex message without an OBJ id (CLICK):** in Math, the refusal for a padded 32-bit constant ("a hex
   constant above FFFFh has at most 8 digits") carries no OBJ id. Find the id that CLICK shows there, if any. A
   single Copy source reports OBJ-005 for it, as CLICK does.
 - **Kind-mismatch refusal for junk input:** the message "<field> takes a decimal integer", for a blank or a

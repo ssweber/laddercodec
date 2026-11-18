@@ -5,7 +5,7 @@
   "time_drum unit=min": {"verdict": "accepted"},
   "time_drum unit=hour": {"verdict": "accepted"},
   "time_drum unit=day": {"verdict": "accepted"},
-  "event_drum unit=sec": {"verdict": "accepted"},
+  "event_drum unit=sec": {"verdict": "refused", "error": "FieldError", "field": "Drum.unit", "message": "Drum.unit: an event drum has no time unit. Leave unit blank."},
   "time_drum unit=ms presets[0]=0": {"verdict": "accepted"},
   "time_drum unit=ms presets[0]=32767": {"verdict": "accepted"},
   "time_drum unit=ms presets[0]=32768": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: '32768' is outside 0 to 32767 (OBJ-005)"},

@@ -795,11 +795,15 @@ currently emit:
       `accumulator=` on a time and event drum is a `FieldError` (`missing`).
     - A `unit=` that is not `Tms`, `Ts`, `Tm`, `Th` or `Td` raises `FieldError`. So
       does an accumulator that is not `TD`, and a pattern cell that is not `0` or `1`.
+    - An event drum has no time unit. `event_drum(...,unit=Ts)` and
+      `Drum(kind="event_drum", unit="Ts", ...)` raise `FieldError` with the code
+      `option-not-offered`. A blank `unit=` is accepted.
   - Drum events are X, Y, C, T, CT or SC. A duration is `0`-`32767` (no sign) or a
     `DS` address. No output appears twice or equals the completion flag, compared as
     addresses (`C1` and `C001` are the same bit).
 - `for(count)`: a `DS`, `DD`, `TD`, `CTD` or `SD` address, or digits only from `0` to
-  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are rejected.
+  `2147483647`. A pointer (`DS[DS1]`) and a space inside the number are rejected. `-0` is
+  accepted and read as `0`. Any other sign is rejected.
 - `call("name")` names a subroutine as CLICK's Add New Subroutine dialog allows.
   After outer spaces are trimmed, the name:
   - is not blank
@@ -846,8 +850,10 @@ currently emit:
 - Constants:
   - A single `copy` takes a 32-bit integer constant. A hex constant above `FFFFh`
     copies only to DD or CTD.
-  - A `copy` source and a `fill` value take a 32-bit integer and unsigned hex up to
-    `FFFFFFFFh`, with at most 8 digits above `FFFFh`.
+  - A `copy` source takes a 32-bit integer and unsigned hex up to `FFFFFFFFh`, with at
+    most 8 digits above `FFFFh`. A `fill` value takes a 32-bit integer and unsigned hex
+    up to `FFFFh`. A `fill` into TXT takes an integer or hex constant of one character
+    (`5`) and a real (`1.5`). It rejects `-5`, `123` and `10h`.
   - A `search` value takes a 32-bit integer and unsigned hex up to `FFFFh` (`+1h` is
     rejected).
 - A single `copy` source and a `math` constant are written as CLICK stores them,

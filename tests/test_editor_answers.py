@@ -197,10 +197,6 @@ FOR_BLANK = (
     "kept: CLICK accepts a For count of one space and stores the space. A space states no "
     "count, so laddercodec refuses it as blank. CLICK refuses an empty count (OBJ-006)"
 )
-FOR_MINUS_ZERO = (
-    "to do: CLICK accepts -0 as a For count and stores 0. The rules read -0 as an address and "
-    "refuse it"
-)
 COUNTER_NOT_NUMBER = (
     "kept: CLICK stores the Counter preset 1-2 as typed. It is not a number, so laddercodec "
     "refuses it"
@@ -255,14 +251,6 @@ START_984_ID = (
     "kept: both refuse a 984 start of a kind that the function code does not write. CLICK "
     "refuses the slave address with OBJ-010. laddercodec refuses the source with OBJ-004"
 )
-FILL_HEX = (
-    "to do: CLICK refuses a Fill of hex above FFFFh into every bank (OBJ-005). The rules "
-    "accept up to FFFFFFFFh. Into SD1..SD2 they refuse the range with OBJ-004 instead"
-)
-FILL_TXT_NUMBER = (
-    "to do: CLICK refuses a Fill into TXT of an integer or hex constant of more than one "
-    "character (OBJ-023). It accepts a real, such as 1.5. The rules accept any number"
-)
 SEND_PAIRS = (
     "to do: with CLICK addressing, CLICK pairs a Send's slave bank with the data type of the "
     "source (OBJ-004). A DS or TD slave takes DS, TD or SD. A DH or YD slave takes DH, XD or "
@@ -287,10 +275,6 @@ SEND_HEX_TXT = (
 SEND_WORD_SWAP = (
     "to do: CLICK offers Word Swap for a Send only with FC16, from a 32-bit source (DD, DF or "
     "CTD) or from DS with a count of 2 or more. The rules accept Word Swap on any Send"
-)
-EVENT_DRUM_UNIT = (
-    "to do: an event drum has no time unit, and CLICK closes the unit list. The rules accept "
-    "a unit, and the encoder drops it"
 )
 
 
@@ -579,52 +563,12 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ),
     ),
     (
-        EVENT_DRUM_UNIT,
-        "drum",
-        "outcome",
-        ("event_drum unit=sec",),
-    ),
-    (
         E_REAL_FILL,
         "copy_fill",
         "outcome",
         (
             "fill 1E -> DS10..DS11",
             "fill E5 -> DS10..DS11",
-        ),
-    ),
-    (
-        FILL_HEX,
-        "copy_fill",
-        "outcome",
-        (
-            "fill 10000h -> CTD1..CTD2",
-            "fill 10000h -> DD1..DD2",
-            "fill 10000h -> DF1..DF2",
-            "fill 10000h -> DH1..DH2",
-            "fill 10000h -> DS1..DS2",
-            "fill 10000h -> DS10..DS11",
-            "fill 10000h -> TD1..TD2",
-            "fill 10000h -> TXT1..TXT2",
-            "fill 10000h -> YD0..YD1",
-            "fill FFFFFFFFh -> CTD1..CTD2",
-            "fill FFFFFFFFh -> DD1..DD2",
-            "fill FFFFFFFFh -> DF1..DF2",
-            "fill FFFFFFFFh -> DH1..DH2",
-            "fill FFFFFFFFh -> DS1..DS2",
-            "fill FFFFFFFFh -> DS10..DS11",
-            "fill FFFFFFFFh -> TD1..TD2",
-            "fill FFFFFFFFh -> TXT1..TXT2",
-            "fill FFFFFFFFh -> YD0..YD1",
-        ),
-    ),
-    (
-        FILL_HEX,
-        "copy_fill",
-        "code",
-        (
-            "fill 10000h -> SD1..SD2",
-            "fill FFFFFFFFh -> SD1..SD2",
         ),
     ),
     (
@@ -640,23 +584,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
         (
             'fill "\t" -> TXT1..TXT2',
             'fill "€" -> TXT1..TXT2',
-        ),
-    ),
-    (
-        FILL_TXT_NUMBER,
-        "copy_fill",
-        "outcome",
-        (
-            "fill -5 -> TXT1..TXT2",
-            "fill -5 -> TXT999..TXT1000",
-            "fill 10h -> TXT1..TXT2",
-            "fill 10h -> TXT999..TXT1000",
-            "fill 123 -> TXT1..TXT2",
-            "fill 123 -> TXT999..TXT1000",
-            "fill 2147483647 -> TXT1..TXT2",
-            "fill FFFFh -> TXT1..TXT2",
-            "fill FFh -> TXT1..TXT2",
-            "fill FFh -> TXT999..TXT1000",
         ),
     ),
     (
@@ -676,12 +603,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
         "risky_for",
         "outcome",
         ("for  ",),
-    ),
-    (
-        FOR_MINUS_ZERO,
-        "for",
-        "outcome",
-        ("for -0",),
     ),
     (
         FOR_SPACE,
@@ -972,7 +893,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4000
+CODES_COMPARED = 4028
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no

@@ -11,7 +11,7 @@
   "for 005": {"verdict": "accepted"},
   "for -005": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '-005' is not a CLICK address"},
   "for +0": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '+0' is not a CLICK address"},
-  "for -0": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '-0' is not a CLICK address"},
+  "for -0": {"verdict": "accepted"},
   "for 32767": {"verdict": "accepted"},
   "for 32768": {"verdict": "accepted"},
   "for -32768": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: '-32768' is not a CLICK address"},

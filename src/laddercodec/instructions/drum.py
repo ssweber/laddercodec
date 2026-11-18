@@ -321,7 +321,14 @@ class Drum(PinnedInstruction):
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
                     )
-                elif kind == "time_drum" and self.events:
+                if kind == "event_drum" and self.unit:
+                    check.refuse(
+                        "unit",
+                        "an event drum has no time unit. Leave unit blank.",
+                        Reason.CONFLICT,
+                        code=Code.OPTION_NOT_OFFERED,
+                    )
+                if kind == "time_drum" and self.events:
                     check.refuse(
                         "events",
                         "a time drum has presets, not events",
@@ -822,6 +829,8 @@ def parse_af_call(call: AfCall) -> Drum:
             pattern=pattern,
             current_step=current_step,
             completion_flag=completion_flag,
+            # The Drum refuses a unit on an event drum.
+            unit=cast("TimeUnit | Literal['']", call.kwargs.get("unit", "")),
         )
 
     # The Drum refuses a unit that is not a TimeUnit.

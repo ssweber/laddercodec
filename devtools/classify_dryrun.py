@@ -296,8 +296,9 @@ def termination_rule(ns: Any, value: str) -> None:
 def fill_rule(dest: str) -> Callable[[Any, str], None]:
     """Return the rule for the value of a Fill into a ``dest`` range.
 
-    The rule accepts a constant of every kind within the shared check's limits, including
-    hex above FFFFh. A Fill into TXT accepts text of one character. The Fill family checks
+    The rule accepts a constant of every kind within the shared check's limits, except
+    hex above FFFFh. A Fill into TXT accepts text of one character, a real, or an integer or
+    hex constant of one character. The Fill family checks
     the pairing itself, and raises AddressError when it refuses one. Text fills TXT only. A
     numeric register fills the numeric banks only, and a TXT register fills TXT only. A
     number constant fills every register, TXT included. The rule checks the pairing
@@ -308,13 +309,22 @@ def fill_rule(dest: str) -> Callable[[Any, str], None]:
     def rule(ns: Any, value: str) -> None:
         text = ns.normalize(value)
         text_max = 1 if dest == "TXT" else 128
-        constants = ns.constants(hex_sign=True, text_max=text_max)
+        constants = ns.constants(hex_sign=True, text_max=text_max, hex_high=0xFFFF)
         shape = ns.checks.constant_shape(text, constants)
         if shape == ns.Kind.CHAR:
             ns.checks.check_constant(text, "Fill.value", constants)
         if shape in (ns.Kind.TEXT, ns.Kind.CHAR) and dest != "TXT":
             ns.refuse("text fills TXT", address=True, code="COPY_BANK_INCOMPATIBLE")
         op = ns.checks.check_operand(text, "Fill.value", ns.checks.REGISTER_BANKS, constants)
+        if (
+            dest == "TXT"
+            and op.constant is not None
+            and op.constant.kind in (ns.Kind.INTEGER, ns.Kind.HEX)
+            and len(text) > 1
+        ):
+            ns.refuse(
+                "an integer or hex constant fills one character", code="CONSTANT_OUT_OF_RANGE"
+            )
         if op.constant is None and (op.bank == "TXT") != (dest == "TXT"):
             ns.refuse(
                 "a TXT fills TXT, a numeric register the numeric banks",
@@ -380,12 +390,15 @@ def digits_rule(
 def for_limit_rule(ns: Any, value: str) -> None:
     """Check a For count. Strip spaces from both ends, then accept digits only from 0 to
     2147483647, or a register in DS, DD, TD, CTD or SD. The For family makes two refusals
-    itself: a blank count, and digits with a space between them."""
+    itself: a blank count, and digits with a space between them. It also reads ``-0`` as
+    ``0``, so the rule accepts it."""
     text = value.strip()
     if not text:
         ns.refuse("a For count is not blank", code="BLANK_FIELD")
     if re.fullmatch(r"[0-9]+(\s+[0-9]+)+", text):
         ns.refuse("a constant count is digits only", code="INVALID_CONSTANT")
+    if re.fullmatch(r"-0+", text):
+        return
     constants = ns.constants({ns.Kind.INTEGER}, signs="", low=0, high=2**31 - 1)
     ns.checks.check_operand(ns.normalize(text), "ForLoop.count", ns.for_limit_banks, constants)
 

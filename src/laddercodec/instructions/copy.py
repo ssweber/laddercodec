@@ -1190,6 +1190,29 @@ def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
     )
 
 
+#: The highest hex constant that a Fill takes, in every bank.
+_HEX16_HIGH = 0xFFFF
+
+
+def _check_fill_txt_number(value: str, const: Constant) -> None:
+    """Refuse an integer or hex constant of more than one character as a Fill into TXT.
+
+    A Fill into TXT writes the text of its value into each register, and a register takes one
+    character. ``5`` is accepted. ``-5``, ``10h`` and ``123`` are refused. A real is
+    accepted whatever its length (``1234567.8``).
+    """
+    if const.kind in (Kind.INTEGER, Kind.HEX) and len(value) > 1:
+        raise _refusal(
+            "Fill",
+            ("value",),
+            f"{value!r} is {len(value)} characters, and a Fill into TXT takes one. Write one "
+            "character, such as '5', or a real, such as 1.5.",
+            Reason.RANGE,
+            error=FieldError,
+            code=Code.CONSTANT_OUT_OF_RANGE,
+        )
+
+
 def _check_fill_sd(first: Address, last: Address) -> None:
     """Refuse a Fill into an SD range that holds an SD register that is not writable.
 
@@ -2067,9 +2090,13 @@ class Fill(AfInstruction):
                     code=Code.COPY_BANK_INCOMPATIBLE,
                 )  # fmt: skip
                 if kind in ("number", "text"):
-                    # A Fill into TXT takes one character of text.
+                    # A Fill takes a hex constant of 16 bits at most, in every bank. A Fill
+                    # into TXT takes one character of text.
                     text_max = 1 if dest.bank == "TXT" else TEXT_MAX
-                    check("value", check_constant, replace(_CONSTANTS, text_max=text_max))
+                    constants = replace(_CONSTANTS, text_max=text_max, hex_high=_HEX16_HIGH)
+                    const = check("value", check_constant, constants)
+                    if const is not None and dest.bank == "TXT":
+                        check.run(_check_fill_txt_number, self.value, const)
             if dest is not None and last is not None and not check.refused("dest_end"):
                 # A Fill into SD needs every SD in its range to be writable (OBJ-004).
                 # CLICK checks this after the pairing of the value with the range. It

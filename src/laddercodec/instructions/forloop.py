@@ -37,8 +37,9 @@ _FOR_FUNC_CODES: dict[bool, str] = {
     True: "9219",
 }
 _FOR_TAGS = (0x6065, 0x3218, 0x11F8, 0x0000)
-#: A constant count is digits only, from 0 to 2147483647, with no sign. Any other constant
-#: is refused with OBJ-005. A register count must be a DS, DD, TD, CTD or SD address. Any
+#: A constant count is digits only, from 0 to 2147483647, with no sign. The one exception is
+#: a minus sign before zero (``-0``), which is stored as ``0``. Any other constant is refused
+#: with OBJ-005. A register count must be a DS, DD, TD, CTD or SD address. Any
 #: other bank is refused with OBJ-004.
 _FOR_SPACED_RE = re.compile(r"[0-9]+(\s+[0-9]+)+")
 FOR_LIMIT_BANKS = frozenset({"DS", "DD", "TD", "CTD", "SD"})
@@ -58,8 +59,9 @@ _FOR_FORM = (
 
 
 def _normalized_count(value: str) -> str:
-    """Return *value* without the spaces at either end, and in display form if it is an
-    address. Raise :class:`FieldError` if it is blank or has a space inside it."""
+    """Return *value* without the spaces at either end, in display form if it is an address,
+    and as ``0`` if it is ``-0``. Raise :class:`FieldError` if it is blank or has a space
+    inside it."""
     text = value.strip()
     if not text:
         raise FieldError(
@@ -78,6 +80,8 @@ def _normalized_count(value: str) -> str:
             reason=Reason.FORM,
             code=Code.INVALID_CONSTANT,
         )
+    if len(text) > 1 and text[0] == "-" and not text[1:].strip("0"):
+        return "0"
     return normalize_address(text, "ForLoop.count")
 
 
