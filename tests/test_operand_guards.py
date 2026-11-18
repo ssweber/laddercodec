@@ -11,7 +11,12 @@ change that removes an instance must also remove its entry.
   by ``import re``, ``import re as x`` or ``from re import ...``.
 - ``BANK_NAMES``: a set, tuple or list literal, or a ``set`` or ``frozenset`` call on one,
   whose items are all text and include at least one bank name. A dict literal counts when
-  its keys meet the same test.
+  its keys meet the same test. A call of :func:`laddercodec.operands.banks.banks` or
+  :func:`~laddercodec.operands.banks.mask`, such as ``banks(Bank.DS | Bank.DD)``, counts
+  too, under any name that an import binds and through the module (``b.banks(...)``). So
+  does a ``Bank`` member, a ``Bank`` call, a ``Bank`` subscript with a constant key, or an
+  operator chain of them, outside such a call: ``Bank.DD | Bank.DF``, ``Bank(0x3f)``,
+  ``Bank['DS']``. A ``mask()`` call inside a ``banks()`` call is part of that call.
 - ``VALUE_ERROR``: a raise of ``ValueError``, with or without a call. A raise of a name
   bound to ``ValueError`` counts too, and so does a raise of a ``ValueError`` subclass
   defined in ``instructions/`` or of a class of :mod:`laddercodec.errors` (``CsvError``,
@@ -26,9 +31,11 @@ import ast
 import copy
 from collections import Counter
 from pathlib import Path
+from typing import NamedTuple
 
 from laddercodec import errors
 from laddercodec.operands.address import ADDRESS_BANKS
+from laddercodec.operands.banks import Bank
 
 INSTRUCTIONS = Path(__file__).resolve().parents[1] / "src" / "laddercodec" / "instructions"
 
@@ -118,18 +125,142 @@ def _is_regex(node: ast.AST, modules: set[str], funcs: set[str]) -> bool:
     )
 
 
+class BankNames(NamedTuple):
+    """The names that one module binds to parts of :mod:`laddercodec.operands.banks`."""
+
+    #: The names bound to :func:`~laddercodec.operands.banks.banks` and to
+    #: :func:`~laddercodec.operands.banks.mask`.
+    calls: frozenset[str]
+    #: The names bound to the module itself, as in ``from ..operands import banks as b``.
+    modules: frozenset[str]
+    #: The names bound to :class:`~laddercodec.operands.banks.Bank`.
+    flags: frozenset[str]
+
+
+def bank_names(tree: ast.Module) -> BankNames:
+    """Return the names in ``tree`` bound to :mod:`laddercodec.operands.banks`, to its
+    ``banks`` and ``mask`` functions and to its ``Bank`` class.
+
+    A name imported from a package (``from ..operands import banks``) is the module. A
+    ``banks``, ``mask`` or ``Bank`` imported from any other module is the function or the
+    class, so a re-export (``from ..model import Bank``) binds it too.
+    """
+    calls: set[str] = set()
+    modules: set[str] = set()
+    flags: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            source = (node.module or "").split(".")[-1]
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if source in {"operands", ""} and alias.name == "banks":
+                    modules.add(bound)
+                elif alias.name in {"banks", "mask"}:
+                    calls.add(bound)
+                elif alias.name == "Bank":
+                    flags.add(bound)
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[-1] == "banks" and alias.asname:
+                    modules.add(alias.asname)
+    return BankNames(frozenset(calls), frozenset(modules), frozenset(flags))
+
+
+def _is_banks_module(expr: ast.expr, names: BankNames) -> bool:
+    if isinstance(expr, ast.Name):
+        return expr.id in names.modules
+    # ``laddercodec.operands.banks`` or ``operands.banks``, read through a parent package.
+    return isinstance(expr, ast.Attribute) and ast.unparse(expr).endswith("operands.banks")
+
+
+def _is_banks_call(node: ast.AST, names: BankNames) -> bool:
+    """Return whether ``node`` calls ``banks()`` or ``mask()``, by a bound name or through
+    the module."""
+    if not isinstance(node, ast.Call):
+        return False
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in names.calls
+    return (
+        isinstance(func, ast.Attribute)
+        and func.attr in {"banks", "mask"}
+        and _is_banks_module(func.value, names)
+    )
+
+
+def _is_flags_class(expr: ast.expr, names: BankNames) -> bool:
+    """Return whether ``expr`` names the ``Bank`` class, by a bound name or through the
+    module."""
+    if isinstance(expr, ast.Name):
+        return expr.id in names.flags
+    return (
+        isinstance(expr, ast.Attribute)
+        and expr.attr == "Bank"
+        and _is_banks_module(expr.value, names)
+    )
+
+
+def _is_member(node: ast.AST, names: BankNames) -> bool:
+    """Return whether ``node`` makes ``Bank`` flags: a member (``Bank.DS``), a call
+    (``Bank(0x3f)``) or a subscript with a constant key (``Bank['DS']``)."""
+    if isinstance(node, ast.Attribute):
+        return node.attr in Bank.__members__ and _is_flags_class(node.value, names)
+    if isinstance(node, ast.Call):
+        return _is_flags_class(node.func, names)
+    if isinstance(node, ast.Subscript):
+        return isinstance(node.slice, ast.Constant) and _is_flags_class(node.value, names)
+    return False
+
+
+def _member_names(node: ast.AST) -> list[str]:
+    """Return the names of the banks that a node accepted by :func:`_is_member` makes."""
+    if isinstance(node, ast.Attribute):
+        return [node.attr]
+    if isinstance(node, ast.Subscript):
+        assert isinstance(node.slice, ast.Constant)
+        return [str(node.slice.value)]
+    assert isinstance(node, ast.Call)
+    value = node.args[0] if len(node.args) == 1 else None
+    if isinstance(value, ast.Constant) and isinstance(value.value, int):
+        return [name for name, bank in Bank.__members__.items() if value.value & bank]
+    return []
+
+
+def _members(node: ast.AST, names: BankNames) -> list[str]:
+    """Return the names of the banks that each ``Bank`` member, call and subscript in
+    ``node`` makes."""
+    return [name for n in ast.walk(node) if _is_member(n, names) for name in _member_names(n)]
+
+
+def _is_flags(node: ast.AST, names: BankNames) -> bool:
+    """Return whether ``node`` is a ``Bank`` member, call or subscript, or an operator chain
+    that holds one, such as ``Bank.DD | Bank.DF``."""
+    if isinstance(node, (ast.BinOp, ast.UnaryOp)):
+        return any(_is_member(n, names) for n in ast.walk(node))
+    return _is_member(node, names)
+
+
 def _text_items(elts: list[ast.expr]) -> list[str] | None:
     items = [e.value for e in elts if isinstance(e, ast.Constant) and isinstance(e.value, str)]
     return items if items and len(items) == len(elts) else None
 
 
-def _bank_items(node: ast.AST) -> list[str] | None:
+def _bank_items(node: ast.AST, names: BankNames) -> list[str] | None:
     """Return the text items of a set, tuple or list literal, or the keys of a dict literal.
 
     A ``set`` or ``frozenset`` call on a set, tuple or list literal counts as that literal.
-    Return None for any other node, for an empty literal, and for one with an item or key
-    that is not text.
+    ``names`` holds the names that the module binds to :mod:`laddercodec.operands.banks`.
+    For a call of ``banks()``, and for a ``Bank`` member or an operator chain of them,
+    return the name of each ``Bank`` member in it. For a call of ``mask()``, return its text
+    arguments. The list is empty for a call such as ``banks(BITS)``. Return None for any
+    other node, for an empty literal, and for one with an item or key that is not text.
     """
+    if _is_banks_call(node, names):
+        assert isinstance(node, ast.Call)
+        texts = [a.value for a in node.args if isinstance(a, ast.Constant)]
+        return _members(node, names) + [t for t in texts if isinstance(t, str)]
+    if _is_flags(node, names):
+        return _members(node, names)
     if isinstance(node, _SEQUENCES):
         return _text_items(node.elts)
     if isinstance(node, ast.Dict):
@@ -146,21 +277,35 @@ def _bank_items(node: ast.AST) -> list[str] | None:
     return None
 
 
-def _names_banks(node: ast.AST) -> bool:
-    items = _bank_items(node)
+def _names_banks(node: ast.AST, names: BankNames) -> bool:
+    if _is_banks_call(node, names) or _is_flags(node, names):
+        return True
+    items = _bank_items(node, names)
     # One bank name among the items is enough, so a set with a misspelled bank still counts.
     # This also counts a few literals that are not bank sets, such as the wire tokens
     # ``("T", "|")`` and the blob names ``("RD", "SD")``.
     return items is not None and any(item in ADDRESS_BANKS for item in items)
 
 
-def _is_bank_literal(node: ast.AST, parent: ast.AST | None) -> bool:
-    if not _names_banks(node):
+def _is_bank_literal(node: ast.AST, parents: dict[ast.AST, ast.AST], names: BankNames) -> bool:
+    """Return whether ``node`` is one instance of a bank-name literal.
+
+    ``parents`` maps each node of the module to its parent. ``frozenset({...})`` is one
+    instance, not two. A ``Bank`` chain, and a call of ``banks()`` or ``mask()``, is one
+    instance. Inside another of these, it is part of that one's instance.
+    """
+    if not _names_banks(node, names):
         return False
-    # ``frozenset({...})`` is one instance, not two.
-    return not (
-        isinstance(node, _SEQUENCES) and isinstance(parent, ast.Call) and _names_banks(parent)
-    )
+    parent = parents.get(node)
+    if isinstance(node, _SEQUENCES) and isinstance(parent, ast.Call):
+        return not _names_banks(parent, names)
+    if not (_is_banks_call(node, names) or _is_flags(node, names)):
+        return True
+    while parent is not None:
+        if _is_banks_call(parent, names) or _is_flags(parent, names):
+            return False
+        parent = parents.get(parent)
+    return True
 
 
 def _value_error_names(trees: list[ast.Module]) -> set[str]:
@@ -213,6 +358,7 @@ def scan(root: Path = INSTRUCTIONS) -> dict[str, Counter[Key]]:
     for path, tree in zip(paths, trees, strict=True):
         name = path.name
         modules, funcs = _re_names(tree)
+        names = bank_names(tree)
         parents: dict[ast.AST, ast.AST] = {
             child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)
         }
@@ -227,7 +373,7 @@ def scan(root: Path = INSTRUCTIONS) -> dict[str, Counter[Key]]:
         for node in ast.walk(tree):
             if _is_regex(node, modules, funcs):
                 found["REGEX"][(name, _key(node))] += 1
-            elif _is_bank_literal(node, parents.get(node)):
+            elif _is_bank_literal(node, parents, names):
                 found["BANK_NAMES"][(name, _key(node))] += 1
             elif (
                 _raises_value_error(node, error_names)
@@ -248,13 +394,9 @@ REGEX_ALLOWED: dict[Key, int] = {
     ("coil.py", "re.fullmatch('immediate\\\\((.+)\\\\)', arg)"): 1,
     ("contact.py", "re.fullmatch('(rise|fall)\\\\((.+)\\\\)', token)"): 1,
     ("contact.py", "re.fullmatch('immediate\\\\((.+)\\\\)', token)"): 1,
-    ("copy.py", "re.compile('DD[0-9]+')"): 1,
-    ("copy.py", "re.compile('DF[0-9]+')"): 1,
     ("copy.py", "re.compile('^to_(text|value|binary|ascii)(?:\\\\((.*)\\\\))?$', re.DOTALL)"): 1,
     ("copy.py", "re.fullmatch('copy\\\\((.+)\\\\)', token)"): 1,
-    ("copy.py", "re.match('[A-Z]*', operand)"): 1,
     ("counter.py", "re.fullmatch('(count_up|count_down)\\\\((.+)\\\\)', token)"): 1,
-    ("drum.py", "re.compile('[A-Z]+[0-9]+')"): 1,
     ("end.py", "re.fullmatch('end\\\\(\\\\s*\\\\)', token)"): 1,
     ("forloop.py", "re.compile('[0-9]+(\\\\s+[0-9]+)+')"): 1,
     ("forloop.py", "re.fullmatch('break\\\\(\\\\s*\\\\)', token)"): 1,
@@ -278,8 +420,6 @@ REGEX_ALLOWED: dict[Key, int] = {
         "send_receive.py",
         "re.compile('([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})\\\\.([0-9]{1,3})')",
     ): 1,
-    ("send_receive.py", "re.compile('DS([1-9][0-9]*)')"): 1,
-    ("send_receive.py", "re.compile('^([A-Z]+)([0-9]+)$')"): 1,
     ("send_receive.py", "re.compile('^([A-Za-z_][A-Za-z0-9_]*)\\\\((.+)\\\\)$', re.DOTALL)"): 1,
     ("shift.py", "re.fullmatch('shift\\\\((.+)\\\\)', token)"): 1,
     ("timer.py", "re.fullmatch('(on_delay|off_delay)\\\\((.+)\\\\)', token)"): 1,
@@ -290,8 +430,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("comparison.py", "frozenset({'TXT'})"): 1,
     ("comparison.py", "frozenset({'XD', 'YD', 'DH'})"): 1,
     ("contact.py", "('T', '|')"): 1,
-    ("copy.py", "('X', 'Y')"): 1,
-    ("copy.py", "('XD', 'YD')"): 2,
     ("copy.py", "frozenset({'C', 'DS', 'DH'})"): 1,
     ("copy.py", "frozenset({'C'})"): 2,
     ("copy.py", "frozenset({'DD', 'CTD'})"): 1,
@@ -307,7 +445,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("copy.py", "frozenset({'TXT'})"): 5,
     ("copy.py", "frozenset({'X', 'Y', 'T', 'CT', 'SC'})"): 1,
     ("copy.py", "frozenset({'Y', 'C'})"): 3,
-    ("copy.py", "{'DS': 16, 'DH': 16, 'DD': 32, 'DF': 32}"): 1,
     ("copy.py", "{'TXT'}"): 2,
     ("copy.py", "{'XD'}"): 1,
     ("copy.py", "{'Y', 'C'}"): 1,
@@ -319,6 +456,11 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("drum.py", "{'TD'}"): 1,
     ("drum.py", "{'Y', 'C'}"): 1,
     ("forloop.py", "frozenset({'DS', 'DD', 'TD', 'CTD', 'SD'})"): 1,
+    ("math_formula.py", "banks(Bank.DH | Bank.XD | Bank.YD)"): 1,
+    ("math_formula.py", "banks(Bank.DH)"): 1,
+    ("math_formula.py", "banks(Bank.DS | Bank.DD | Bank.DF | Bank.TD | Bank.CTD | Bank.SD)"): 1,
+    ("math_formula.py", "banks(Bank.DS | Bank.DD)"): 1,
+    ("math_formula.py", "banks(Bank.X | Bank.Y | Bank.C | Bank.T | Bank.SC)"): 1,
     ("math.py", "frozenset({'DH', 'YD'})"): 1,
     ("math.py", "frozenset({'DS', 'DD', 'DF', 'TD', 'CTD', 'SD'})"): 1,
     ("out_variant.py", "frozenset({'TD'})"): 1,
@@ -329,7 +471,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("send_receive.py", "('DD', 'DF')"): 1,
     ("send_receive.py", "('DS', 'DH')"): 1,
     ("send_receive.py", "('RD', 'SD')"): 1,
-    ("send_receive.py", "('XD', 'YD')"): 2,
     ("send_receive.py", "('YD', 'TXT')"): 1,
     ("send_receive.py", "frozenset({'C'})"): 1,
     ("send_receive.py", "frozenset({'CTD', 'DD', 'DF'})"): 1,
@@ -345,7 +486,6 @@ BANK_NAMES_ALLOWED: dict[Key, int] = {
     ("send_receive.py", "frozenset({'DS', 'DH', 'XD', 'YD', 'TD', 'SD', 'TXT'})"): 1,
     ("send_receive.py", "frozenset({'DS', 'TD', 'SD'})"): 1,
     ("send_receive.py", "frozenset({'TXT'})"): 1,
-    ("send_receive.py", "frozenset({'X', 'Y'})"): 1,
     ("send_receive.py", "frozenset({'Y', 'C'})"): 2,
     (
         "send_receive.py",
@@ -590,6 +730,10 @@ _SAMPLE = """
 import re
 import re as regex
 from re import fullmatch as fm
+from ..operands import banks as bank_module
+from ..operands.banks import Bank, banks as bank_names, mask
+from ..operands.banks import Bank as Flags
+from ..model import Bank as Reexported
 
 _HEX = re.compile(r"[0-9A-F]+h")
 _WORD = regex.compile(r"[A-Z]*")
@@ -599,6 +743,18 @@ OPS = frozenset({"==", "!="})
 WORDS = ("XD", "YD")
 ROWS = ["DS", "DD"]
 LIMITS = {"DS": 1, "DD": 2}
+WIDE = bank_names(Bank.DD | Bank.DF)
+NOT_BANKS = banks(0x40)
+VIA_MODULE = bank_module.banks(Flags.DS | Flags.DH)
+FLAGS = Flags.DD | Flags.DF
+ONE = Flags.TXT
+MODULE_FLAG = bank_module.Bank.CTD
+MASKED = mask("DS", "DD")
+NOT_FLAGS = Other.DD | Other.DF
+VIA_MODEL = Reexported.SD
+BY_VALUE = Flags(0x3f)
+BY_NAME = Flags["DS"]
+NESTED = bank_names(mask("DH"))
 FIELDS = {"source": 1}
 Refused = ValueError
 
@@ -652,6 +808,16 @@ def test_scan_finds_each_kind(tmp_path: Path) -> None:
             ("raw.py", "('XD', 'YD')"): 1,
             ("raw.py", "['DS', 'DD']"): 1,
             ("raw.py", "{'DS': 1, 'DD': 2}"): 1,
+            ("raw.py", "bank_names(Bank.DD | Bank.DF)"): 1,
+            ("raw.py", "bank_module.banks(Flags.DS | Flags.DH)"): 1,
+            ("raw.py", "Flags.DD | Flags.DF"): 1,
+            ("raw.py", "Flags.TXT"): 1,
+            ("raw.py", "bank_module.Bank.CTD"): 1,
+            ("raw.py", "mask('DS', 'DD')"): 1,
+            ("raw.py", "Reexported.SD"): 1,
+            ("raw.py", "Flags(63)"): 1,
+            ("raw.py", "Flags['DS']"): 1,
+            ("raw.py", "bank_names(mask('DH'))"): 1,
         }
     )
     # The scan skips the ValueError in find_blob_boundary, which BLOB_PARSE lists, and finds

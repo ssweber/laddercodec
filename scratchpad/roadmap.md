@@ -106,6 +106,14 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
 - **Rung names.** A refusal that `encode()` raises does not name the rung it came from.
 - **Non-string operands.** A Contact or Coil built with a non-string operand raises `TypeError`. It should
   raise `FieldError`.
+- **A number too long for `int()`.** `int()` raises Python's plain `ValueError` for a string of more than 4300
+  digits, where a `LaddercodecError` is expected. `send_receive._parse_range_quantity` and `_addr_end` call it
+  with no guard, so `send(source=DS<5000 ones>..DS5)` raises it. The Slave ID check tests the length first.
+- **Three pointer readers.** `split_pointer` (`operands/address.py`), `_LOOSE_POINTER_RE` in
+  `normalize_address` and the partition in `check_box_operand` (`copy.py`) each read a pointer. They disagree
+  on a line break in the index, on nested brackets and on lower case. A Pack destination `DS[DS1\n]` is
+  refused as `pointer-outside-copy` today, and `split_pointer` would make it `not-an-address`. Making them one
+  reader is a rule change.
 - **Drum wording.** A time-event drum with events only is refused as `Drum.presets: 0 steps`. The guide does
   not say that a time drum's blank `accumulator=` is a `FieldError`.
 

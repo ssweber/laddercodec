@@ -3,7 +3,8 @@
 - :func:`~laddercodec.operands.address.check_address`: an address in the field's banks.
 - :func:`check_constant`: a constant of the kinds and limits a :class:`Constants` names.
 - :func:`check_operand`: an address, a pointer or a constant, in one field;
-  :func:`constant_shape` names the kind of constant a text is spelled as, limits aside.
+  :func:`constant_shape` names the kind of constant a text is spelled as, limits aside;
+  :func:`bank_of` returns the bank of an address or pointer that the check accepts.
 - :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it;
   :func:`check_kept_text`: text a single Copy source or a Search value holds.
 - :func:`check_out_target`: an address a coil writes.
@@ -12,6 +13,7 @@
 - :class:`Refusals`: runs one instruction's checks and raises every refusal as one error.
 
 :data:`BIT_BANKS` and :data:`REGISTER_BANKS` are the bank sets more than one family uses.
+They are defined in :mod:`laddercodec.operands.banks`, and this module imports them.
 
 Every refusal is a :class:`~laddercodec.operands.errors.FieldError`, or an
 :class:`~laddercodec.operands.errors.AddressError` for an address or a pointer.  Its
@@ -32,7 +34,8 @@ from types import TracebackType
 from typing import Any, NamedTuple, TypedDict, TypeVar
 
 from ..codes import Code
-from .address import ADDRESS_BANKS, Address, check_address, normalize_fields
+from .address import ADDRESS_BANKS, Address, check_address, normalize_fields, split_pointer
+from .banks import BIT_BANKS, REGISTER_BANKS
 from .constants import (
     CHAR_CODE_RULE,
     INT32_MAX,
@@ -58,6 +61,7 @@ __all__ = [
     "Constants",
     "Operand",
     "Refusals",
+    "bank_of",
     "check_address",
     "check_constant",
     "check_csv_flag",
@@ -72,11 +76,6 @@ __all__ = [
 
 #: Every constant kind.
 ALL_KINDS: frozenset[Kind] = frozenset(Kind)
-
-#: The bit banks.
-BIT_BANKS = frozenset({"X", "Y", "C", "T", "CT", "SC"})
-#: The register banks.
-REGISTER_BANKS = frozenset({"DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "SD", "TXT"})
 
 #: The highest 32-bit hex constant.
 _HEX32_HIGH = 0xFFFFFFFF
@@ -511,8 +510,6 @@ def check_quoted_text(
 #: The banks a pointer ``BANK[DSn]`` can address.
 POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "TXT"})
 
-_POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
-
 
 def check_operand(
     value: str,
@@ -554,8 +551,8 @@ def check_operand(
             is_constant = constant_shape(value, constants) in constants.kinds
         if is_constant:
             return Operand(constant=check_constant(value, field, constants, label=label))
-    m = _POINTER_RE.fullmatch(value)
-    if m is not None:
+    parts = split_pointer(value)
+    if parts is not None:
         if not pointer:
             raise at.error(
                 value,
@@ -564,7 +561,7 @@ def check_operand(
                 cls=AddressError,
                 code=Code.POINTER_OUTSIDE_COPY,
             )
-        bank = m.group(1)
+        bank, index_text = parts
         allowed = POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks)
         if bank not in allowed:
             listed = ", ".join(b for b in ADDRESS_BANKS if b in allowed)
@@ -576,7 +573,7 @@ def check_operand(
                 code=Code.POINTER_BANK_NOT_ALLOWED,
             )
         try:
-            index = check_address(m.group(2), field, {"DS"}, label=f"{at.label} pointer")
+            index = check_address(index_text, field, {"DS"}, label=f"{at.label} pointer")
         except AddressError as exc:
             # Whatever refused the index, the pointer's index is no DS address.
             exc.reason = Reason.POINTER
@@ -585,6 +582,20 @@ def check_operand(
         return Operand(bank=bank, index=index)
     address = check_address(value, field, banks, label=label, bank_id=bank_id, bank_code=bank_code)
     return Operand(bank=address.bank, address=address)
+
+
+def bank_of(value: str, field: str, *, pointer: bool = False) -> str | None:
+    """Return the bank of ``value`` if :func:`check_operand` accepts it as an address in any
+    bank. Return None for any other text.
+
+    ``field`` names the field that ``value`` is read for, as for :func:`check_operand`. With
+    ``pointer``, also return the bank of a pointer that :func:`check_operand` accepts, such
+    as DD for ``DD[DS1]``. A pointer that it refuses, such as ``X[DS1]``, returns None.
+    """
+    try:
+        return check_operand(value, field, pointer=pointer).bank
+    except AddressError:
+        return None
 
 
 # ---------------------------------------------------------------------------

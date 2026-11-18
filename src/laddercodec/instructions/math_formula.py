@@ -66,7 +66,8 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.banks import Bank, banks
+from ..operands.address import bank_prefix
+from ..operands.banks import WORD_IO_BANKS, XY_BANKS, Bank, banks, bits_per_register
 from ..operands.constants import (
     FLOAT32_MAX,
     INT16_MAX,
@@ -137,10 +138,7 @@ MAX_INTERNAL_LENGTH = 270
 _FLOAT32_MAX_TEXT = "3.402823466E+38"
 #: The longest integer CLICK prints back: ``-2147483648``.
 _MAX_PRINTED = 11
-#: The banks whose registers are 2 bytes wide and 4 bytes wide. A median may cover at most
-#: 1024 bytes (OBJ-1013).
-_TWO_BYTE_BANKS = banks(Bank.DS | Bank.DH | Bank.TD | Bank.SD)
-_FOUR_BYTE_BANKS = banks(Bank.DD | Bank.DF | Bank.CTD)
+#: The most bytes that the registers of a median may cover (OBJ-1013).
 _MEDIAN_MAX_BYTES = 1024
 
 
@@ -189,11 +187,9 @@ _OPERANDS = {
 #: For each mode, the registers that the refusal of a RAND bound tells you to copy the bound
 #: into.
 _RAND_COPY_INTO = {"decimal": "a DS or DD", "hex": "a DH"}
-_WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
 #: The numbers of the XD and YD addresses, in order. The addresses between the ends of
 #: ``MAX ( XD0 : XD3 )`` are XD0u, XD1 and XD2, and CLICK stores those.
 _XY_WORD_ORDER = ("0", "0u", "1", "2", "3", "4", "5", "6", "7", "8")
-_XY_BANKS = banks(Bank.X | Bank.Y)
 #: The CPU slot (1-16) and its option slot (21-36), and the 4 numbers between them (17-20).
 _CPU_SLOT, _OPTION_SLOT = XY_SLOTS[0], XY_SLOTS[1]
 _OPTION_GAP = _OPTION_SLOT[0] - _CPU_SLOT[1] - 1
@@ -229,13 +225,11 @@ def address_parts(text: str) -> tuple[str, str] | None:
     After XD or YD, a ``u`` may follow the digits (``DS1``, ``X001``, ``XD0u``). This
     function does not check that the number is in range.
     """
-    i = 0
-    while i < len(text) and "A" <= text[i] <= "Z":
-        i += 1
-    bank, number = text[:i], text[i:]
+    bank = bank_prefix(text)
+    number = text[len(bank) :]
     if bank not in ADDRESS_BANKS:
         return None
-    digits = number[:-1] if bank in _WORD_IO_BANKS and number.endswith("u") else number
+    digits = number[:-1] if bank in WORD_IO_BANKS and number.endswith("u") else number
     if not digits or not all(c in _DIGITS for c in digits):
         return None
     return bank, number
@@ -807,7 +801,7 @@ def _check_order(tokens: Sequence[Token]) -> FieldError | None:
 
 
 def _range_position(bank: str, number: str) -> int:
-    if bank in _WORD_IO_BANKS:
+    if bank in WORD_IO_BANKS:
         return _XY_WORD_ORDER.index(number) if number in _XY_WORD_ORDER else -1
     return int(number.rstrip("u"))
 
@@ -962,7 +956,7 @@ def _check_ranges(
             rule = f"{shown} runs high to low; a range runs low : high"
             shapes.append(_error(rule, Reason.FORM, "OBJ-1014", code=Code.MATH_RANGE_NOT_ASCENDING))
             continue
-        width = 2 if low[0] in _TWO_BYTE_BANKS else 4 if low[0] in _FOUR_BYTE_BANKS else 0
+        width = (bits_per_register(low[0]) or 0) // 8
         if texts[i - 3 : i - 1] == ["MDN", "("] and width and count * width > _MEDIAN_MAX_BYTES:
             sizes.append(
                 _error(
@@ -976,7 +970,7 @@ def _check_ranges(
             continue
         # Only a SUM accepts a bit range. A bit range anywhere else is already refused for
         # its bank.
-        if low[0] in _XY_BANKS and i - 1 not in bank_refused:
+        if low[0] in XY_BANKS and i - 1 not in bank_refused:
             error = _check_xy_range(texts[i - 3], low[0], int(low[1]), int(high[1]))
             if error is not None:
                 sizes.append(error)
@@ -1044,12 +1038,12 @@ def range_interiors(texts: Sequence[str]) -> list[str]:
         if low is None or high is None or low[0] != high[0]:
             continue
         bank, start, end = low[0], low[1], high[1]
-        if bank in _WORD_IO_BANKS:
+        if bank in WORD_IO_BANKS:
             if start in _XY_WORD_ORDER and end in _XY_WORD_ORDER:
                 inside = _XY_WORD_ORDER[_XY_WORD_ORDER.index(start) + 1 : _XY_WORD_ORDER.index(end)]
                 interiors.extend(f"{bank}{n}" for n in inside)
             continue
-        if bank in _XY_BANKS:
+        if bank in XY_BANKS:
             listed = _xy_points_between(_xy_bound(int(start)), _xy_bound(int(end)))
             interiors.extend(Address(bank, n).display for n in listed)
             continue

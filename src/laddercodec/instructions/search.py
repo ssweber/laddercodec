@@ -30,9 +30,9 @@ from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
 from ..errors import CsvError
 from ..model import Address, AfInstruction, Reason
+from ..operands.banks import REGISTER_BANKS
 from ..operands.checks import (
     ALL_KINDS,
-    REGISTER_BANKS,
     Constants,
     Operand,
     Refusals,

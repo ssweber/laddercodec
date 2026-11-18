@@ -20,7 +20,8 @@ from ..model import (
     Reason,
     check_address,
 )
-from ..operands.checks import BIT_BANKS, Refusals
+from ..operands.banks import BIT_BANKS
+from ..operands.checks import Refusals
 from .family import ConditionInstructionFamilySpec
 
 ContactKind = Literal["no", "nc", "rise", "fall"]

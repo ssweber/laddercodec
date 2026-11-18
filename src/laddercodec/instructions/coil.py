@@ -15,12 +15,11 @@ from ..codes import Code
 from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
-    AddressError,
     AfInstruction,
     InstructionType,
     Reason,
 )
-from ..operands.checks import Refusals, check_csv_flag, check_operand, check_out_target
+from ..operands.checks import Refusals, bank_of, check_csv_flag, check_out_target
 from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
@@ -79,17 +78,6 @@ _COIL_FORM = (
 )
 
 
-def _bank_of(value: str) -> str | None:
-    """Return the bank of ``value``, or None if ``value`` is not an address CLICK accepts.
-
-    ``value`` may be an address in any bank, or a pointer that CLICK accepts, such as
-    ``DS[DS1]``. A pointer that CLICK does not accept, such as ``X[DS1]``, returns None."""
-    try:
-        return check_operand(value, "Coil.range_end", pointer=True).bank
-    except AddressError:
-        return None
-
-
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
@@ -145,7 +133,7 @@ class Coil(AfInstruction):
             # If the end of the range is in another bank, refuse it with OBJ-008 before the
             # end's own checks run. This applies even when a coil does not accept the end's
             # bank at all (C1..DS1), and when the end is a pointer (Y001..DS[DS1]).
-            end_bank = _bank_of(self.range_end)
+            end_bank = bank_of(self.range_end, "Coil.range_end", pointer=True)
             if start is not None and end_bank is not None and end_bank != start.bank:
                 check.refuse(
                     ("range_end", "operand"),
