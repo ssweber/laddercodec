@@ -7,6 +7,7 @@ exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for 
 exclude-newer-span = "P7D"
 
 [options.exclude-newer-package]
+pyclickplc = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 ty = { timestamp = "0001-01-01T00:00:00Z", span = "PT0S" }
 
 [[package]]
@@ -84,6 +85,7 @@ source = { editable = "." }
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyclickplc" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "striprtf" },
@@ -98,6 +100,7 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pyclickplc", specifier = ">=0.9.1" },
     { name = "pytest", specifier = ">=8.3.5" },
     { name = "ruff", specifier = ">=0.16.0" },
     { name = "striprtf", specifier = ">=0.0.29" },
@@ -379,6 +382,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pyclickplc"
+version = "0.9.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pymodbus" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/f9/0d3b25918e4e66c0756ee7d2d546cfcd9a4dfb8e4ffa09f9a8992ffdc680/pyclickplc-0.9.1.tar.gz", hash = "sha256:84f96c974670b5b821dcabaed3e775356d2e546a295ec37830af3055a6519efb", size = 267488, upload-time = "2026-11-18T15:25:38.958Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/45/39/75c398232eeaadc7bdf67bea9c81e969e818404c9743d51b09d8e07bea67/pyclickplc-0.9.1-py3-none-any.whl", hash = "sha256:57145f10c70d772f1b1049e46d84f9f4ebc19071d42039b64e540195eb6c3132", size = 90912, upload-time = "2026-11-18T15:25:37.332Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.21.0"
 source = { registry = "https://pypi.org/simple" }
@@ -398,6 +413,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f3/fe/ac50ee24a80a1b344e643f6fb626063cc7041b978cd1dd9a7f9963ae1cd1/pymdown_extensions-12.3.tar.gz", hash = "sha256:a7f2a4e0bc60c6e6babfa7922cfb3b01cd640eb00fb208f3c582e12bae00ea67", size = 870532, upload-time = "2026-10-14T22:40:43.252Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8a/d0/758afe732c2da502c051b4d03ff88daa3c0fc1a1e671e6c5a6318177bab4/pymdown_extensions-12.3-py3-none-any.whl", hash = "sha256:345493a8e3497e24382902903a1c43a28e34a52f2b7571a1c9641429b820ca74", size = 277597, upload-time = "2026-10-14T22:40:41.543Z" },
+]
+
+[[package]]
+name = "pymodbus"
+version = "3.16.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/44/e8/910c866f041769d323df554835965571b054b10e1a3265427d246c4d2ccb/pymodbus-3.16.2.tar.gz", hash = "sha256:64057981fac117ed4b75ea8ef6035369f6ae803247700a5efdf75d76a2be8aef", size = 170282, upload-time = "2026-11-03T12:04:07.347Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/d4/ac60401cb41999f375887c8dee0902db0bf9d0f43dc6f8b0695483b7016c/pymodbus-3.16.2-py3-none-any.whl", hash = "sha256:385ad145955a7af15020ee55c266f7a2c6d9af2180d45c3755a56db9a5014078", size = 168896, upload-time = "2026-11-03T12:04:05.255Z" },
 ]
 
 [[package]]
