@@ -232,3 +232,20 @@ def network(
             if cell.contact is None and (cell.right or cell.down) and net((r, c)) not in live:
                 dead += 1
     return Network(rail, edges, sinks, boxes, dead, bypassed)
+
+
+def without_rail_nops(net: Network) -> Network:
+    """Return *net* without its NOPs on the rail's net, if the rung has another box.
+
+    CLICK's syntax check drops a NOP that the rail feeds through wires alone, with no
+    contact, when the rung has another output.  It then lays the rung out without the NOP.
+    A rung whose only boxes are such NOPs keeps them.
+    """
+    on_rail = {s.box for s in net.sinks if s.net == net.rail and net.boxes[s.box].token == "NOP"}
+    if not on_rail or len(on_rail) == len(net.boxes):
+        return net
+    kept = [b for b in range(len(net.boxes)) if b not in on_rail]
+    index = {b: i for i, b in enumerate(kept)}
+    sinks = [Sink(s.net, s.row, index[s.box], s.slot) for s in net.sinks if s.box in index]
+    boxes = [net.boxes[b] for b in kept]
+    return Network(net.rail, net.edges, sinks, boxes, net.dead_wire_cells, net.bypassed)

@@ -21,7 +21,7 @@ from ..circuit import Box, Branch, Circuit, Parallel, Series, Term
 from ..codes import Code
 from ..errors import LayoutError
 from ..model import PinnedInstruction
-from .network import WIRE_LEG, BoxNode, Edge, Network, Sink
+from .network import WIRE_LEG, BoxNode, Edge, Network, Sink, without_rail_nops
 from .render import render
 from .tree import trees
 
@@ -41,9 +41,10 @@ _MESSAGES = {
         "Circuit(Branch((Contact('X001'),), (Box(Coil('Y001')),)))."
     ),
     Code.LAYOUT_NOP_SPLIT: (
-        "The outputs of this circuit meet only at the rail, and one of them is a NOP. "
-        "laddercodec can't split such a circuit into CLICK rungs. Put the NOP in a Circuit of "
-        "its own, such as Circuit(Branch((), (Box('NOP'),)))."
+        "The outputs of this circuit meet only at the rail, and one of them is a NOP behind a "
+        "contact, or all of them are NOPs. laddercodec can't split such a circuit into CLICK "
+        "rungs. Put the NOP in a Circuit of its own, such as Circuit(Branch((), (Box('NOP'),))), "
+        "or remove the NOP."
     ),
 }
 _SHARED_NET = (
@@ -146,7 +147,7 @@ def lay_out(circuit: Circuit) -> list[Rung]:
     from ..decode import Rung
     from ..encode import MAX_ROWS
 
-    net = network_of(circuit)
+    net = without_rail_nops(network_of(circuit))
     shared = _box_beside_pinned(net)
     if shared is not None:
         raise LayoutError(_SHARED_NET, "C000A", code=shared)

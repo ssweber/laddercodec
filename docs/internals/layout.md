@@ -63,6 +63,21 @@ CSV rows ──read──> literal grid ──nets──> network ──reduce�
    stubs at A and C, an unwired `NOP` and a blank row as one row. `check()` reports any other
    box that no rail or contact reaches as `unpowered-box`, and its rung stays as drawn.
    CLICK's check on one is not known.
+   The layout also drops a `NOP` that the rail feeds through wires alone, with no contact,
+   when the rung has another output. It lays the rest of the rung out without the `NOP`, and
+   rule 9 splits it. CLICK's answers are known for four shapes:
+   - `C1 -> out(Y1)` with `- -> NOP` on a row of its own: one rung of one row;
+   - a rail wire to `NOP` and a rail wire to `out(Y001)`: one rung;
+   - a rail wire to `NOP` above `X001 -> out(Y002)`: one rung;
+   - `X001 -> out(Y003)`, `X002 -> out(Y004)` and a rail wire to `NOP`: two rungs, with
+     the comment on the first.
+
+   In all four, CLICK's check drops the `NOP` and gives no error. The other boxes in them
+   are coils. CLICK's check on such a `NOP` beside another kind of box, such as a Copy or a
+   pinned box, is not known. The layout drops the `NOP` there too.
+
+   When every box of the rung is a `NOP` that the rail feeds with no contact, the `NOP`s
+   stay. A `NOP` behind a contact stays too.
 9. Outputs whose circuits meet only at the rail are one CLICK rung each, in order, the comment
    on the first. So `read_csv` can return more rungs than the CSV holds.
 
@@ -116,16 +131,13 @@ Three more shapes are kept as drawn, with no capture of CLICK's check on them:
   contact once per input. `check()` reports the later pin. The finding is
   `input-without-contact` when all its contacts are the other pin's (a pin with no contact of
   its own). Otherwise it is `inputs-share-contacts` or `input-shares-enable`.
-- A rung that would split (rule 9) and holds a `NOP` that a rail or contact reaches. The
-  splits known are of coils and Copy boxes.
+- A rung that would split (rule 9) and holds a `NOP` behind a contact, or whose outputs are
+  all `NOP`s. CLICK's splits are known only for rungs of coils or Copy boxes, and for rungs
+  whose `NOP` the rail feeds with no contact (rule 8).
 - A rung the render cannot fit in 31 columns, or whose nets would cross.
 
-CLICK's check rewrites two more rungs with no error. Both are kept as drawn:
-
-- a `NOP` on a row of its own beside a coil's rung (`C1 -> out(Y1)`, `- -> NOP`). CLICK
-  drops the `NOP` and leaves one row.
-- a rung of wires alone. CLICK wires it through AF, so that it decodes as wires into a
-  `NOP`.
+CLICK's check rewrites one more rung with no error, and it is kept as drawn. That rung holds
+wires alone. CLICK wires it through AF, so that it decodes as wires into a `NOP`.
 
 ## Check rules
 
@@ -197,7 +209,9 @@ straight from it, and `trees()` and `render()` draw it as they draw a grid's net
   contact's two nets into one net, and the network lists the contact in `bypassed`.
 - **Errors.** `lay_out()` raises `LayoutError` for a rung of more than 32 rows
   (`layout-too-tall`), more than 31 condition columns (`layout-too-wide`), nets that cross
-  (`layout-cannot-draw`), and a split rung that holds a `NOP` (`layout-nop-split`). It also
+  (`layout-cannot-draw`), and a split rung that holds a `NOP` behind a contact or whose
+  outputs are all `NOP`s (`layout-nop-split`). It drops a `NOP` that the rail feeds with no contact, by rule 8,
+  before it splits the rung. It also
   raises `C000A` for a box before or after a box with a used pin, where the other box hangs
   off the pinned box's main input circuit. The code is `output-above-box-inputs` for a box
   before the pinned box, as `check()` reports it. It is `shared-input-net` for a box after

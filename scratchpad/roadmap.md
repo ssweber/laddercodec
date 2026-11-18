@@ -758,19 +758,19 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   - a pin row of wires that no rail or contact reaches: C0202 at AF, as for an empty row, or elsewhere;
   - two groups of boxes that share nets in one rung: one C000A line or two;
   - C0206-C0214.
-- **`read_csv` and CLICK's check rewrites (Sam).** CLICK's check makes two rewrites:
-  - It drops a `NOP` on a row of its own beside a coil's rung (`C1 -> out(Y1)`, `- -> NOP`; one row left).
-    It does the same for a `NOP` fed from the rail:
-    - a rail wire to `NOP` and a rail wire to `out(Y001)`: the `NOP` is dropped, and one rung is left;
-    - a rail wire to `NOP` above `X001 -> out(Y002)`: the `NOP` is dropped, and one rung is left;
-    - `X001 -> out(Y003)`, `X002 -> out(Y004)` and a rail wire to `NOP`: the `NOP` is dropped, and the
-      two coils are split into two rungs, with the comment on the first.
-  - It wires a rung of only wires through AF, which decodes as wires into a `NOP`
-    (`tests/test_check_shapes.py`, rungs 13 and 14).
+- **`read_csv` and CLICK's check rewrite of a wires-only rung (Sam).** CLICK's check wires a rung of only
+  wires through AF, and the rung then decodes as wires into a `NOP` (`tests/test_check_shapes.py`, rung 14).
+  `read_csv` keeps the rung as drawn, with no `NOP`. Should it return the post-check form? A `NOP` in a rung
+  of wires is a token that the CSV does not hold.
 
-  `read_csv` keeps each of these as drawn, `NOP` included. Without the `NOP` row, it splits the third into
-  two rungs, as CLICK does. Should it return the post-check form? Dropping that `NOP` is like the unpowered
-  `NOP` that it drops already. A `NOP` in a rung of wires is a token that the CSV does not hold.
+  CLICK's other rewrite is built. When a rung has another output, the layout drops a `NOP` that the rail
+  feeds with no contact, then lays out and splits the rest (`docs/internals/layout.md`, rule 8).
+  `read_csv`, `write_csv` and `lay_out()` all use that layout. A `NOP` behind a contact stays, and so does a
+  `NOP` that is the rung's only output.
+
+  **CLICK question.** CLICK's answers are known only for a rail-fed `NOP` beside coils. The layout drops it
+  beside every kind of box. What does CLICK's check do with a rail-fed `NOP` beside a counter with
+  `.reset()`, beside a Copy, and beside `end()`? The sandbox runner or Sam answers it.
 - The Home `11f5` flag doesn't round-trip.
 - RawInstruction's hex fallback breaks when the hex contains `,` or `)`.
 - A guard that a REFUSED entry has gone stale.

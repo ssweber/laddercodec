@@ -226,6 +226,8 @@ def lay_out(circuit: Circuit) -> list[Rung]:
     The list has more than one rung when outputs meet only at the rail.  CLICK splits such a
     circuit into one rung for each output, in order.  The comment goes on the first rung.
     Or legs and outputs are drawn from the top down in the order that the circuit gives.
+    If the circuit has another output, ``lay_out`` drops a ``NOP`` that the rail feeds with
+    no contact, and lays out the rest.  CLICK's syntax check does the same.
 
     ``lay_out`` draws any circuit that CLICK can hold, including the shapes that only CLICK's
     syntax check refuses, such as a wire-only Or leg or a contact that feeds only a ``NOP``.
@@ -237,7 +239,8 @@ def lay_out(circuit: Circuit) -> list[Rung]:
     - ``layout-too-tall``: a rung needs more than 32 rows;
     - ``layout-too-wide``: a rung needs more than the 31 condition columns, A to AE;
     - ``layout-cannot-draw``: two cells or two wires would fall on one place in the drawing;
-    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a ``NOP``;
+    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a ``NOP``
+      behind a contact, or all of them are ``NOP`` boxes;
     - ``output-above-box-inputs`` or ``shared-input-net``, with ``click_id`` ``C000A``: an
       output comes before or after a box whose pin is used, and it hangs off the net of that
       box's main input, or off a net that the main input's circuit runs through.  The code is

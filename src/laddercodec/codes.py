@@ -220,7 +220,7 @@ class Code(StrEnum):
     LAYOUT_TOO_TALL = "layout-too-tall"
     """A rung that needs more than the 32 rows that a CLICK rung holds."""
     LAYOUT_NOP_SPLIT = "layout-nop-split"
-    """A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung."""
+    """A rung that CLICK would split into several rungs, and that holds a NOP behind a contact or has only NOPs as outputs. laddercodec does not know how CLICK splits such a rung."""
     LAYOUT_CANNOT_DRAW = "layout-cannot-draw"
     """Nets that collide, cells that overlap, or a contact drawn twice."""
 

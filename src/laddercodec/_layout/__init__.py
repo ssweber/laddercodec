@@ -18,7 +18,7 @@ from ..codes import Code
 from ..encode import MAX_ROWS
 from ..model import AfInstruction, PinnedInstruction
 from ..operands.unchecked import stored_cell_rows
-from .network import GridCell, Network, cell_of, network
+from .network import GridCell, Network, cell_of, network, without_rail_nops
 from .render import render
 from .tree import LayoutError, Leaf, Node, Out, OutputBranch, RungTree, SeriesNode, trees
 
@@ -90,9 +90,14 @@ def drawn(rung: Any, subject: str = "The rung") -> tuple[list[Any], bool]:
 
 
 def network_of_rung(rung: Any, af_down: Sequence[bool] | None = None) -> Network:
-    """Return the network of a ``Rung`` that was decoded or read from CSV."""
+    """Return the network that the layout draws for a ``Rung`` that was decoded or read
+    from CSV.
+
+    If the rung has a box that is not a NOP on the rail's net, the network leaves out each NOP
+    on the rail's net.
+    """
     cells = [[cell_of(t) for t in row] for row in rung.conditions]
-    return network(cells, list(rung.instructions), af_down)
+    return without_rail_nops(network(cells, list(rung.instructions), af_down))
 
 
 def layout_grid(
@@ -101,7 +106,7 @@ def layout_grid(
     af_down: Sequence[bool] | None = None,
 ) -> list[tuple[list[list[object]], list[object]]]:
     """Lay out a cell grid and return each CLICK rung it makes, as (condition rows, AF tokens)."""
-    net = network(cells, instructions, af_down)
+    net = without_rail_nops(network(cells, instructions, af_down))
     return [render(net, t) for t in trees(net)]
 
 

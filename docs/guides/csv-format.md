@@ -194,6 +194,9 @@ R    X001   X002   -      -...- out(Y001)
   join nothing are dropped.
 - A pinned box's pins go on the rows CLICK gives them
   ([Pin continuation rows](#pin-continuation-rows)).
+- A `NOP` that the rail feeds through wires alone, with no contact, is dropped when
+  the rung has another output. A `NOP` that no rail or contact reaches is dropped too, in a rung
+  with a circuit.
 
 The logic never changes. If the circuits of several outputs meet only at the rail,
 `read_csv` makes one rung of each, in order, with the comment on the first. CLICK

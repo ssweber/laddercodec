@@ -165,5 +165,5 @@ These codes come from laying a rung out. `check()` reports only `layout-too-tall
 |---|---|---|
 | `layout-too-wide` | A layout that needs more than 31 condition columns. |  |
 | `layout-too-tall` | A rung that needs more than the 32 rows that a CLICK rung holds. |  |
-| `layout-nop-split` | A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung. |  |
+| `layout-nop-split` | A rung that CLICK would split into several rungs, and that holds a NOP behind a contact or has only NOPs as outputs. laddercodec does not know how CLICK splits such a rung. |  |
 | `layout-cannot-draw` | Nets that collide, cells that overlap, or a contact drawn twice. |  |

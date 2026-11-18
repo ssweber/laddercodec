@@ -436,8 +436,10 @@ Those codes are provisional. They may be renamed or dropped once CLICK's respons
 to them is captured. A finding with `captured=False` may be a shape CLICK accepts.
 
 CLICK's check drops a `NOP` that no rail or contact reaches. `check()` does not
-report it, and `read_csv` drops it from a rung with a circuit. Neither happens to
-a `NOP` on the rail alone, or to one on a coil's net.
+report it, and `read_csv` drops it from a rung with a circuit. CLICK's check also
+drops a `NOP` that the rail feeds through wires alone, when the rung has another
+output. `check()` does not report that `NOP` either, and `read_csv` drops it. A
+`NOP` that is the rung's only output stays, and so does a `NOP` on a coil's net.
 
 ## Round-trip identity
 
