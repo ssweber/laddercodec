@@ -1,0 +1,16 @@
+{
+ "cases": [
+  {"row": "compare.control", "case": "compare DS1 == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "DS2"}},
+  {"row": "compare.operators", "case": "compare DS1 != DS2", "instruction": "compare", "mode": "!=", "fields": {"a": "DS1", "b": "DS2"}},
+  {"row": "compare.text.operators", "case": "compare TXT1 != TXT2", "instruction": "compare", "mode": "!=", "fields": {"a": "TXT1", "b": "TXT2"}},
+  {"row": "compare.mixed.operators", "case": "compare DH1 == DS1", "instruction": "compare", "mode": "==", "fields": {"a": "DH1", "b": "DS1"}},
+  {"row": "compare.a.banks", "case": "compare X001 == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "X001", "b": "DS2"}},
+  {"row": "compare.b.banks", "case": "compare DS1 == X001", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "X001"}},
+  {"row": "compare.a.forms", "case": "compare X[DS1] == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "X[DS1]", "b": "DS2"}},
+  {"row": "compare.b.forms", "case": "compare DS1 == X[DS1]", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "X[DS1]"}},
+  {"row": "compare.b.constants", "case": "compare DS1 == 0", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "0"}},
+  {"row": "compare.a.constants", "case": "compare 5 == DS2", "instruction": "compare", "mode": "==", "fields": {"a": "5", "b": "DS2"}},
+  {"row": "compare.pairs.banks", "case": "compare DS1 == XD0", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "XD0"}},
+  {"row": "compare.pairs.constants", "case": "compare DS1 == 1.5", "instruction": "compare", "mode": "==", "fields": {"a": "DS1", "b": "1.5"}}
+ ]
+}

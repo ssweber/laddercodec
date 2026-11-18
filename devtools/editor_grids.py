@@ -5,8 +5,8 @@
     uv run devtools/editor_grids.py --check    # exit 1 if the committed files differ
 
 A grid is a case list in the runner's own shape (``{"cases": [{"row", "case", "instruction",
-"mode", "fields"}, ...]}``), one file per dialog, built from laddercodec's own bank lists,
-constant kinds and field rules so the lists keep in step with the code. Each grid has a
+"mode", "fields", "options"}, ...]}``), one file per dialog, built from laddercodec's own bank
+lists, constant kinds and field rules so the lists keep in step with the code. Each grid has a
 verdicts file beside it, ``<grid>.verdicts.json``: what laddercodec's rules say about each
 case today, keyed by the case's label, for comparing with CLICK's answers when they come. The
 runner reads only the grid.
@@ -23,8 +23,10 @@ from pathlib import Path
 from typing import Any
 
 from laddercodec.instructions.coil import Coil
-from laddercodec.instructions.copy import BlockCopy, Copy, Pack, Unpack
+from laddercodec.instructions.comparison import CompareContact
+from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.math import Math
+from laddercodec.instructions.search import Search
 from laddercodec.model import (
     ADDRESS_BANKS,
     XY_SLOTS,
@@ -298,6 +300,25 @@ def all_constants() -> list[str]:
     return [text for kind in Kind for text in CONSTANTS[kind]] + NOT_CONSTANTS
 
 
+#: A hex spelling that the Fill, Compare and Search grids add to CONSTANTS: lower case digits
+#: after a leading zero.
+LOWER_HEX = "0ffh"
+
+
+def kinds_of_constants() -> list[tuple[Kind | None, str]]:
+    """Return every constant spelling with its kind, then the texts that are not constants.
+
+    The kind is the one that CONSTANTS lists the spelling under, and ``None`` for a text
+    that is not a constant. ``0ffh`` is added to the hex spellings. The Fill, Compare and
+    Search grids use this list. The Math, Copy and Out grids use ``all_constants()``. CLICK
+    has answered those grids, so their list does not change."""
+    pairs: list[tuple[Kind | None, str]] = []
+    for kind in Kind:
+        extra = [LOWER_HEX] if kind is Kind.HEX else []
+        pairs += [(kind, text) for text in CONSTANTS[kind] + extra]
+    return pairs + [(None, text) for text in NOT_CONSTANTS]
+
+
 # ---------------------------------------------------------------------------
 # Cases
 # ---------------------------------------------------------------------------
@@ -317,13 +338,20 @@ class Grid:
         label: str,
         instruction: str,
         mode: str | None,
+        *,
+        options: dict[str, int] | None = None,
         **fields: str,
     ) -> None:
-        """Add a case. If the file already has a case with this label, keep only the first."""
+        """Add a case. If the file already has a case with this label, keep only the first.
+
+        ``options`` maps a button's control id, as a decimal string, to 1 (on) or 0 (off). A
+        case without it leaves every option as the dialog opens."""
         case: dict[str, Any] = {"row": row, "case": label, "instruction": instruction}
         if mode is not None:
             case["mode"] = mode
         case["fields"] = fields
+        if options is not None:
+            case["options"] = options
         if label in self.labels:
             kept = self.labels[label]
             # The two cases must match in all but the row. The row may differ, because two
@@ -510,6 +538,8 @@ def _txt_default(source: str, destination: str) -> tuple[bool | None, bool] | No
 
 def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
     f, mode = case["fields"], case["mode"]
+    if mode == "fill":
+        return verdict_of(lambda: Fill(f["source"], f["destination"], f["destination_end"]))
     # A copy from TXT into a number register other than DF uses the dialog's default, Copy
     # Character Value.
     txt_choice = _bank_of(f["source"]) == "TXT" and _bank_of(f["destination"]) in _TXT_CHOICE
@@ -796,6 +826,372 @@ def out_grid() -> Grid:
 
 
 # ---------------------------------------------------------------------------
+# Fill
+# ---------------------------------------------------------------------------
+
+
+def _fill_value(dest_bank: str) -> str:
+    """Return a value to fill ``dest_bank`` with.
+
+    The value is one character of text for TXT, 1 for a bit bank and 5 for any other bank."""
+    if dest_bank == "TXT":
+        return '"A"'
+    return "1" if dest_bank in BIT_BANKS else "5"
+
+
+def _fill_range(source_bank: str) -> tuple[str, str]:
+    """Return a destination range for a Fill from ``source_bank``.
+
+    The range is TXT10..TXT11 for TXT, C10..C11 for a bit bank and DS10..DS11 for any other
+    bank."""
+    bank = "TXT" if source_bank == "TXT" else "C" if source_bank in BIT_BANKS else "DS"
+    return f"{bank}10", f"{bank}11"
+
+
+#: SD ranges for a Fill. The comment on each range says which of its SD addresses are
+#: writable.
+FILL_SD = [
+    ("SD140", "SD147"),  # all writable
+    ("SD40", "SD42"),  # all writable
+    ("SD29", "SD38"),  # starts writable, reaches read-only SD
+    ("SD140", "SD149"),  # SD148 and SD149 are read-only
+    ("SD214", "SD223"),  # SD216 on is read-only
+    ("SD106", "SD225"),  # read-only SD on both sides of SD215
+    ("SD205", "SD214"),  # starts read-only, ends writable
+    ("SD212", "SD215"),  # starts read-only, ends at SD215
+    ("SD1", "SD2"),  # read-only
+]
+
+
+def fill_grid() -> Grid:
+    """Return the grid of the Copy dialog in its Fill mode.
+
+    The fields have the names that the runner gives the Copy dialog's fields: the value is
+    the ``source``, and the range is ``destination`` to ``destination_end``."""
+    grid = Grid(_copy_check)
+
+    def fill(row: str, value: str, start: str, end: str) -> None:
+        grid.add(
+            f"copy.fill.{row}",
+            f"fill {value} -> {start}..{end}",
+            "copy",
+            "fill",
+            source=value,
+            destination=start,
+            destination_end=end,
+        )
+
+    fill("control", "DS1", "DS10", "DS11")
+    # The rows of the open questions come first. When a later row tries the same case, the
+    # case stays in the row of its question.
+    # Hex above FFFFh into each register bank, with FFFFh to compare. The pairs rows try a
+    # constant into a bit bank.
+    for text in ("FFFFh", "10000h", "FFFFFFFFh", "0FFFFFFFFh", "100000000h"):
+        for bank in REGISTER_ORDER:
+            fill("hex-wide", text, low(bank), run_to(bank, 2))
+    # A number into TXT. No case touches an option. The text of some numbers takes more
+    # than one TXT.
+    for text in ("5", "-5", "123", "1.5", "FFh", "10h", "1234567.8"):
+        for start, end in (("TXT1", "TXT2"), ("TXT999", "TXT1000")):
+            fill("text.numbers", text, start, end)
+    # Text into TXT: one character, several, none, and a character code.
+    for text in ('"A"', '"AB"', '"ABC"', '"HELLO"', '""', '" "', '"~"', '"$41"', "$41", "$00"):
+        for start, end in (("TXT1", "TXT2"), ("TXT999", "TXT1000")):
+            fill("text.constants", text, start, end)
+    # A character outside space to ~.
+    for text in ('"é"', '"€"', '"\t"'):
+        fill("text.characters", text, "TXT1", "TXT2")
+    # A register into TXT.
+    for value, start, end in (
+        ("TXT1", "TXT2", "TXT3"),
+        ("DS1", "TXT1", "TXT2"),
+        ("DD1", "TXT1", "TXT2"),
+        ("DH1", "TXT1", "TXT2"),
+        ("DF1", "TXT1", "TXT2"),
+    ):
+        fill("text.registers", value, start, end)
+    # Reals with 7 significant digits and with more.
+    for text in ("123456.7", "1.234567", "1234567.8", "1.2345678", "0.33333334", "3.4028235E+38"):
+        fill("real-digits", text, "DF1", "DF2")
+    # Into SD.
+    for start, end in FILL_SD:
+        for value in ("5", "DS1"):
+            fill("sd", value, start, end)
+
+    # Each bank, pointer form and constant spelling as the value.
+    for bank in BANKS:
+        for text in samples(bank):
+            fill("value.banks", text, *_fill_range(bank))
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        fill("value.forms", text, "DS10", "DS11")
+    for _, text in kinds_of_constants():
+        fill("value.constants", text, "DS10", "DS11")
+    # Each bank as the destination range, with its ends.
+    for bank in BANKS:
+        for start, end in ranges(bank):
+            fill("destination.ranges", _fill_value(bank), start, end)
+        for text in samples(bank):
+            fill("destination-end.banks", _fill_value(bank), low(bank), text)
+    for first in BANKS:
+        for second in PARTNERS:
+            fill("destination.mixed-banks", "5", low(first), low(second))
+    for text in FORMS_SHORT:
+        fill("destination-start.forms", "5", text, "DS11")
+        fill("destination-end.forms", "5", "DS10", text)
+    for text in REPRESENTATIVES:
+        fill("destination-start.constants", "5", text, "DS11")
+        fill("destination-end.constants", "5", "DS10", text)
+    # Each value bank against each destination bank, and each constant against each bank.
+    for src in BANKS:
+        for dst in BANKS:
+            fill("pairs.banks", low(src), low(dst), run_to(dst, 2))
+    for text in REPRESENTATIVES:
+        for dst in BANKS:
+            fill("pairs.constants", text, low(dst), run_to(dst, 2))
+    return grid
+
+
+# ---------------------------------------------------------------------------
+# Compare
+# ---------------------------------------------------------------------------
+
+#: The operators of the Compare and Search dialogs, in the dialogs' order.
+OPERATORS = ("==", "!=", ">", "<", ">=", "<=")
+
+#: The register bank to pair with a constant of each kind. Each bank is in the compare group
+#: of its kind. An integer, and a text that is no constant, go with DS.
+_KIND_BANK = {Kind.HEX: "DH", Kind.FLOAT: "DF", Kind.TEXT: "TXT", Kind.CHAR: "TXT"}
+
+
+def _kind_bank(kind: Kind | None) -> str:
+    """Return the register bank to pair with a constant of ``kind``."""
+    return _KIND_BANK.get(kind, "DS") if kind is not None else "DS"
+
+
+def _group_bank(bank: str) -> str:
+    """Return a register bank in the compare group of ``bank``.
+
+    The bank is DH for XD, YD and DH, TXT for TXT and DS for any other bank."""
+    if bank in ("XD", "YD", "DH"):
+        return "DH"
+    return "TXT" if bank == "TXT" else "DS"
+
+
+def _compare_check(case: dict[str, Any]) -> dict[str, Any]:
+    f = case["fields"]
+    return verdict_of(lambda: CompareContact(op=case["mode"], left=f["a"], right=f["b"]))
+
+
+def compare_grid() -> Grid:
+    """Return the grid of the Compare dialog."""
+    grid = Grid(_compare_check)
+
+    def compare(row: str, a: str, op: str, b: str) -> None:
+        grid.add(f"compare.{row}", f"compare {a} {op} {b}", "compare", op, a=a, b=b)
+
+    for a, b in (("DS1", "DS2"), ("TXT1", "TXT2"), ("DH1", "DH2")):
+        compare("control", a, "==", b)
+    # The rows that try every operator come first. When a later row tries the same case
+    # under ==, the case stays in the row that tries every operator.
+    for a, b in (("DS1", "DS2"), ("DS1", "5"), ("DF1", "1.5"), ("DH1", "DH2"), ("DH1", "Fh")):
+        for op in OPERATORS:
+            compare("operators", a, op, b)
+    # Two texts under each operator.
+    for a, b in (
+        ("TXT1", "TXT2"),
+        ("TXT1", '"T"'),
+        ('"T"', "TXT1"),
+        ("TXT1", "$41"),
+        ("TXT1", '"AB"'),
+    ):
+        for op in OPERATORS:
+            compare("text.operators", a, op, b)
+    # Operands of two groups under each operator: hex against a number, and a number
+    # against text.
+    for a, b in (
+        ("DH1", "DS1"),
+        ("DS1", "DH1"),
+        ("XD1", "DS1"),
+        ("DH1", "5"),
+        ("DS1", "5h"),
+        ("DF1", "FFh"),
+        ("DS1", "TXT1"),
+        ("TXT1", "DS1"),
+        ("DS1", '"A"'),
+        ("TXT1", "5"),
+    ):
+        for op in OPERATORS:
+            compare("mixed.operators", a, op, b)
+    # Each bank and pointer form as A and as B.
+    for bank in BANKS:
+        for text in samples(bank):
+            compare("a.banks", text, "==", f"{_group_bank(bank)}2")
+            compare("b.banks", f"{_group_bank(bank)}1", "==", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        compare("a.forms", text, "==", "DS2")
+        compare("b.forms", "DS1", "==", text)
+    # Every constant spelling as B, and one constant of each kind and width as A, against a
+    # register of its own group.
+    for kind, text in kinds_of_constants():
+        compare("b.constants", f"{_kind_bank(kind)}1", "==", text)
+    for text in REPRESENTATIVES:
+        constant = classify(text)
+        bank = _kind_bank(constant.kind if constant is not None else None)
+        compare("a.constants", text, "==", f"{bank}2")
+    # Each register bank against each register bank, and against a constant of each kind.
+    # The bank rows above try each bit bank.
+    for a_bank in REGISTER_ORDER:
+        for b_bank in REGISTER_ORDER:
+            compare("pairs.banks", low(a_bank), "==", low(b_bank))
+    for bank in REGISTER_ORDER:
+        for text in REPRESENTATIVES:
+            compare("pairs.constants", low(bank), "==", text)
+    return grid
+
+
+# ---------------------------------------------------------------------------
+# Search
+# ---------------------------------------------------------------------------
+
+#: The control ids of the Search dialog's options. Both are off when the dialog opens.
+CONTINUOUS = "5021"
+ONE_SHOT = "5022"
+
+
+def _search_check(case: dict[str, Any]) -> dict[str, Any]:
+    f, options = case["fields"], case.get("options", {})
+    return verdict_of(
+        lambda: Search(
+            table_start=f["start"],
+            table_end=f["end"],
+            value=f["value"],
+            result=f["result"],
+            found=f["found"],
+            op=case["mode"],
+            continuous=options.get(CONTINUOUS) == 1,
+            oneshot=options.get(ONE_SHOT) == 1,
+        )
+    )
+
+
+def _search_value(table_bank: str) -> str:
+    """Return a value to search a table in ``table_bank`` for.
+
+    The value is text for TXT, a hex constant for XD, YD and DH, and 5 for any other bank."""
+    if table_bank == "TXT":
+        return '"A"'
+    return "Fh" if table_bank in ("XD", "YD", "DH") else "5"
+
+
+def _search_table(bank: str) -> tuple[str, str]:
+    """Return a table of ten registers in the compare group of ``bank``."""
+    group = _group_bank(bank)
+    return f"{group}1", f"{group}10"
+
+
+def search_grid() -> Grid:
+    """Return the grid of the Search dialog."""
+    grid = Grid(_search_check)
+
+    def search(
+        row: str,
+        start: str,
+        end: str,
+        op: str,
+        value: str,
+        result: str = "DS30",
+        found: str = "C1",
+        options: dict[str, int] | None = None,
+    ) -> None:
+        label = f"search {start}..{end} {op} {value} -> {result},{found}"
+        if options:
+            label += " [" + ",".join(f"{k}={v}" for k, v in options.items()) + "]"
+        grid.add(
+            f"search.{row}",
+            label,
+            "search",
+            op,
+            options=options,
+            value=value,
+            start=start,
+            end=end,
+            result=result,
+            found=found,
+        )
+
+    search("control", "DS1", "DS10", "==", "DS20")
+    search("control", "TXT1", "TXT10", "==", '"A"')
+    # Each option alone, both, and both set off, on a number search and a text search.
+    for start, end, value in (("DS1", "DS10", "DS20"), ("TXT1", "TXT10", '"A"')):
+        for options in (
+            {CONTINUOUS: 1},
+            {ONE_SHOT: 1},
+            {CONTINUOUS: 1, ONE_SHOT: 1},
+            {CONTINUOUS: 0, ONE_SHOT: 0},
+        ):
+            search("options", start, end, "==", value, options=options)
+    # The rows that try every operator come before the rows that try only ==.
+    for start, end, value in (
+        ("DS1", "DS10", "5"),
+        ("DS1", "DS10", "DS20"),
+        ("DF1", "DF10", "1.5"),
+        ("DH1", "DH10", "Fh"),
+    ):
+        for op in OPERATORS:
+            search("operators", start, end, op, value)
+    # A text search under each operator, and a DS table searched for a TXT register.
+    for start, end, value in (
+        ("TXT1", "TXT10", '"A"'),
+        ("TXT1", "TXT10", "TXT20"),
+        ("TXT1", "TXT10", "65"),
+        ("TXT1", "TXT10", "$41"),
+        ("TXT1", "TXT10", '"AB"'),
+        ("TXT1", "TXT10", '"A""B"'),
+        ("DS1", "DS10", "TXT20"),
+    ):
+        for op in OPERATORS:
+            search("text.operators", start, end, op, value)
+    # Each bank as the table. For a register bank, each end of the bank as the start and as
+    # the end of the table too.
+    for bank in BANKS:
+        for start, end in ranges(bank):
+            search("table.ranges", start, end, "==", _search_value(bank))
+    for bank in REGISTER_ORDER:
+        last = addr(bank, ADDRESS_BANKS[bank][1])
+        for text in samples(bank):
+            search("table-start.banks", text, last, "==", _search_value(bank))
+            search("table-end.banks", low(bank), text, "==", _search_value(bank))
+    for first in BANKS:
+        for second in PARTNERS:
+            search("table.mixed-banks", low(first), low(second), "==", "5")
+    for text in FORMS_SHORT:
+        search("table-start.forms", text, "DS10", "==", "5")
+        search("table-end.forms", "DS1", text, "==", "5")
+    # Each bank, pointer form and constant spelling as the value.
+    for bank in BANKS:
+        for text in samples(bank):
+            search("value.banks", *_search_table(bank), "==", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        search("value.forms", "DS1", "DS10", "==", text)
+    for kind, text in kinds_of_constants():
+        bank = _kind_bank(kind)
+        search("value.constants", f"{bank}1", f"{bank}10", "==", text)
+    # The table rows above try each bit bank as the table.
+    for text in REPRESENTATIVES:
+        for bank in REGISTER_ORDER:
+            search("value.pairs", low(bank), run_to(bank, 10), "==", text)
+    # Each bank as the result and as the found flag.
+    for bank in BANKS:
+        for text in samples(bank):
+            search("result.banks", "DS1", "DS10", "==", "DS20", result=text)
+            search("found.banks", "DS1", "DS10", "==", "DS20", found=text)
+    for text in FORMS_SHORT:
+        search("result.forms", "DS1", "DS10", "==", "DS20", result=text)
+        search("found.forms", "DS1", "DS10", "==", "DS20", found=text)
+    return grid
+
+
+# ---------------------------------------------------------------------------
 # Files
 # ---------------------------------------------------------------------------
 
@@ -808,29 +1204,47 @@ def is_risky(case: dict[str, Any]) -> bool:
     """Return True if a field's text may not survive typing into the dialog.
 
     Such a field is empty, has a space at either end, holds a tab or a character outside
-    ASCII, or is longer than RISKY_LENGTH. The runner stops the whole run when a field does
-    not read back as typed, so these cases go in a file of their own."""
+    ASCII, or is longer than RISKY_LENGTH. These cases go in the risky files. The other
+    files then hold only text that a field is expected to read back as typed."""
     return any(
         not v or v != v.strip() or "\t" in v or not v.isascii() or len(v) > RISKY_LENGTH
         for v in case["fields"].values()
     )
 
 
+#: The builder of each whole grid. Fill is a mode of the Copy dialog, but its grid is built
+#: on its own.
+WHOLE: dict[str, Callable[[], Grid]] = {
+    "math": math_grid,
+    "copy": copy_grid,
+    "out": out_grid,
+    "fill": fill_grid,
+    "compare": compare_grid,
+    "search": search_grid,
+}
+
+#: The whole grids that ``preflight.json`` and ``risky.json`` take their cases from, in order.
+#: The runner places Compare only with ``--wire``, because Compare is a contact. The runner
+#: does not drive Fill yet. So Compare and Fill each have a preflight and a risky file.
+PREFLIGHT_GRIDS = ("math", "copy", "out", "search")
+
+
 @functools.cache
 def _whole(name: str) -> Grid:
-    return {"math": math_grid, "copy": copy_grid, "out": out_grid}[name]()
+    return WHOLE[name]()
 
 
-def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
-    """Return a function that builds a grid of the cases of dialog ``name`` in ``mode``.
+def only(name: str, mode: str | None = None, *, every_mode: bool = False) -> Callable[[], Grid]:
+    """Return a function that builds a grid of the cases of grid ``name`` in ``mode``.
 
-    The grid leaves out the risky cases."""
+    With ``every_mode``, the grid holds the cases of every mode. Compare and Search use it,
+    because their mode is the operator. The grid leaves out the risky cases."""
 
     def part() -> Grid:
         whole = _whole(name)
         grid = Grid(whole.check)
         for case in whole.cases:
-            if case.get("mode") == mode and not is_risky(case):
+            if (every_mode or case.get("mode") == mode) and not is_risky(case):
                 grid.labels[case["case"]] = case
                 grid.cases.append(case)
         return grid
@@ -840,43 +1254,63 @@ def only(name: str, mode: str | None = None) -> Callable[[], Grid]:
 
 def check_case(case: dict[str, Any]) -> dict[str, Any]:
     """Return laddercodec's verdict on a case from any dialog."""
-    checks = {"math": _math_check, "copy": _copy_check, "out": _out_check}
+    checks = {
+        "math": _math_check,
+        "copy": _copy_check,
+        "out": _out_check,
+        "compare": _compare_check,
+        "search": _search_check,
+    }
     return checks[case["instruction"]](case)
 
 
-def risky_grid() -> Grid:
-    """Return a grid of the risky cases from every dialog."""
-    grid = Grid(check_case)
-    for name in ("math", "copy", "out"):
-        for case in _whole(name).cases:
-            if is_risky(case):
-                grid.labels[case["case"]] = case
-                grid.cases.append(case)
-    return grid
+def risky(*names: str) -> Callable[[], Grid]:
+    """Return a function that builds a grid of the risky cases of the grids ``names``."""
+
+    def part() -> Grid:
+        grid = Grid(check_case)
+        for name in names:
+            for case in _whole(name).cases:
+                if is_risky(case):
+                    grid.labels[case["case"]] = case
+                    grid.cases.append(case)
+        return grid
+
+    return part
 
 
-def preflight_grid() -> Grid:
-    """Return a grid of the first case that is not risky from each row of every dialog.
+def preflight(*names: str) -> Callable[[], Grid]:
+    """Return a function that builds a grid of the first case that is not risky from each
+    row of the grids ``names``.
 
     The grid tries once each field and state that the control cases do not type into, such
-    as Out's range end, or a constant or pointer in a range end. If a field will not accept
-    text, it stops this short run and not a long one."""
-    grid = Grid(check_case)
-    for name in ("math", "copy", "out"):
-        seen: set[str] = set()
-        for case in _whole(name).cases:
-            if case["row"] not in seen and not is_risky(case):
-                seen.add(case["row"])
-                grid.labels[case["case"]] = case
-                grid.cases.append(case)
-    return grid
+    as Out's range end, or a constant or pointer in a range end. A field that will not take
+    text then shows in this short run and not in a long one."""
+
+    def part() -> Grid:
+        grid = Grid(check_case)
+        for name in names:
+            seen: set[str] = set()
+            for case in _whole(name).cases:
+                if case["row"] not in seen and not is_risky(case):
+                    seen.add(case["row"])
+                    grid.labels[case["case"]] = case
+                    grid.cases.append(case)
+        return grid
+
+    return part
 
 
 #: The preflight and risky files, then one file for each dialog and mode. Math and Copy have a
-#: file for each mode because their lists are long.
+#: file for each mode because their lists are long. Compare and Search have one file each,
+#: which holds every operator.
 GRIDS: dict[str, Callable[[], Grid]] = {
-    "preflight": preflight_grid,
-    "risky": risky_grid,
+    "preflight": preflight(*PREFLIGHT_GRIDS),
+    "risky": risky(*PREFLIGHT_GRIDS),
+    "preflight_compare": preflight("compare"),
+    "risky_compare": risky("compare"),
+    "preflight_fill": preflight("fill"),
+    "risky_fill": risky("fill"),
     "math_decimal": only("math", "decimal"),
     "math_hex": only("math", "hex"),
     "copy_single": only("copy", "single"),
@@ -884,6 +1318,9 @@ GRIDS: dict[str, Callable[[], Grid]] = {
     "copy_pack": only("copy", "pack"),
     "copy_unpack": only("copy", "unpack"),
     "out": only("out"),
+    "copy_fill": only("fill", "fill"),
+    "compare": only("compare", every_mode=True),
+    "search": only("search", every_mode=True),
 }
 
 

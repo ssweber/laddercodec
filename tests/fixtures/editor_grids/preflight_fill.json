@@ -1,0 +1,23 @@
+{
+ "cases": [
+  {"row": "copy.fill.control", "case": "fill DS1 -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "DS1", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.hex-wide", "case": "fill FFFFh -> DS1..DS2", "instruction": "copy", "mode": "fill", "fields": {"source": "FFFFh", "destination": "DS1", "destination_end": "DS2"}},
+  {"row": "copy.fill.text.numbers", "case": "fill 5 -> TXT1..TXT2", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "TXT1", "destination_end": "TXT2"}},
+  {"row": "copy.fill.text.constants", "case": "fill \"A\" -> TXT1..TXT2", "instruction": "copy", "mode": "fill", "fields": {"source": "\"A\"", "destination": "TXT1", "destination_end": "TXT2"}},
+  {"row": "copy.fill.text.registers", "case": "fill TXT1 -> TXT2..TXT3", "instruction": "copy", "mode": "fill", "fields": {"source": "TXT1", "destination": "TXT2", "destination_end": "TXT3"}},
+  {"row": "copy.fill.real-digits", "case": "fill 123456.7 -> DF1..DF2", "instruction": "copy", "mode": "fill", "fields": {"source": "123456.7", "destination": "DF1", "destination_end": "DF2"}},
+  {"row": "copy.fill.sd", "case": "fill 5 -> SD140..SD147", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "SD140", "destination_end": "SD147"}},
+  {"row": "copy.fill.value.banks", "case": "fill X001 -> C10..C11", "instruction": "copy", "mode": "fill", "fields": {"source": "X001", "destination": "C10", "destination_end": "C11"}},
+  {"row": "copy.fill.value.forms", "case": "fill X[DS1] -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "X[DS1]", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.value.constants", "case": "fill 0 -> DS10..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "0", "destination": "DS10", "destination_end": "DS11"}},
+  {"row": "copy.fill.destination.ranges", "case": "fill 1 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "1", "destination": "X001", "destination_end": "X002"}},
+  {"row": "copy.fill.destination-end.banks", "case": "fill 1 -> X001..X036", "instruction": "copy", "mode": "fill", "fields": {"source": "1", "destination": "X001", "destination_end": "X036"}},
+  {"row": "copy.fill.destination.mixed-banks", "case": "fill 5 -> X001..X001", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "X001", "destination_end": "X001"}},
+  {"row": "copy.fill.destination-start.forms", "case": "fill 5 -> DS[DS1]..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "DS[DS1]", "destination_end": "DS11"}},
+  {"row": "copy.fill.destination-end.forms", "case": "fill 5 -> DS10..DS[DS1]", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "DS10", "destination_end": "DS[DS1]"}},
+  {"row": "copy.fill.destination-start.constants", "case": "fill 5 -> 5..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "5", "destination_end": "DS11"}},
+  {"row": "copy.fill.destination-end.constants", "case": "fill 5 -> DS10..5", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "DS10", "destination_end": "5"}},
+  {"row": "copy.fill.pairs.banks", "case": "fill X001 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "X001", "destination": "X001", "destination_end": "X002"}},
+  {"row": "copy.fill.pairs.constants", "case": "fill 5 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "X001", "destination_end": "X002"}}
+ ]
+}

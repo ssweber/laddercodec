@@ -11,24 +11,43 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 
 | Grid | What it holds |
 | --- | --- |
-| `preflight.json` | the first case of every row of the other grids: each field and state in one short run |
-| `risky.json` | the spellings a dialog field may not take as typed: empty, a space at either end, a tab, a character outside ASCII, text over 40 characters (128- and 129-character quoted text) |
+| `preflight.json` | the first case of every row of the Math, Copy, Out and Search grids: each field and state in one short run |
+| `risky.json` | the spellings a dialog field may not take as typed, for Math, Copy, Out and Search: empty, a space at either end, a tab, a character outside ASCII, text over 40 characters (128- and 129-character quoted text) |
+| `preflight_compare.json`, `risky_compare.json` | the same for Compare |
+| `preflight_fill.json`, `risky_fill.json` | the same for Fill |
 | `math_decimal.json`, `math_hex.json` | Math (without the risky spellings): each bank and pointer form as the result, as an operand (with a constant and alone), as a RAND bound and as a SUM range; every constant spelling as an operand and alone; RAND with equal and reversed bounds; the range functions |
 | `copy_single.json` | Single Copy: each bank, pointer form and constant spelling as the source and the destination; each source bank against each destination bank; constants against each bank; text into TXT |
 | `copy_block.json` | Block Copy: source ranges, destination banks, bank pairs |
 | `copy_pack.json` | Pack: each bit bank against each register bank at 16 and 32 bits (and 1, 2, 17 and 33 for DS and DD); register sources |
 | `copy_unpack.json` | Unpack: the same, in the other direction |
 | `out.json` | Out: each bank, pointer form and constant as the target; ranges |
+| `copy_fill.json` | Fill: each bank, pointer form and constant spelling as the value; each bank as the destination range, with a reversed range, one point and the bank's last address; each value bank against each destination bank; constants against each bank; text and numbers into TXT; hex above FFFFh into each register bank; reals of 7 significant digits and more; ranges in SD |
+| `compare.json` | Compare: each bank and pointer form as A and as B; every constant spelling as B, and a constant of each kind as A; each register bank against each register bank and against constants; each operator on numbers, on hex, on two texts, and on hex against a number or a number against text |
+| `search.json` | Search: each bank as the table, with its ends; each bank, pointer form and constant as the value; each bank as the result and as the found flag; each operator on numbers, hex and text; the Continuous and One Shot options |
 
-A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. `case` is
-unique in its file and stable: it is built from the fields' text. `row` groups the cases that ask
-one question (`copy.single.source.banks`). Out has no `mode`. Cases are in a fixed order.
+A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
+case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
+Continuous Search and `5022` is One Shot. A case without options leaves both buttons as the
+dialog opens them. Both open unchecked. `case` is unique in its file and stable: it is built
+from the fields' text. `row` groups the cases that ask one question (`copy.single.source.banks`).
+Out has no `mode`. A Compare or Search case has the operator as its `mode`. Cases are in a fixed
+order.
 
-The runner aborts the whole run when a field does not read back as typed, so **run `preflight.json`
-and `risky.json` first**. Preflight tries one case in each row, so a field that cannot take text
-(Out's range end, a constant or pointer in a range end) stops a short run. The risky spellings are
-in their own file so that one stopping the run costs little. Preflight repeats cases of the other
-files, with the same labels.
+A Fill case has the mode `fill`. Its fields have the names that the runner gives the Copy
+dialog's fields: `source` is the value, and `destination` to `destination_end` is the range.
+The runner does not drive Fill yet, so it refuses to load `copy_fill.json`,
+`preflight_fill.json` and `risky_fill.json`.
+
+Compare is a contact, so the runner runs its cases only with `--wire`. Compare's preflight and
+risky cases are in `preflight_compare.json` and `risky_compare.json`. Run those with `--wire`
+too.
+
+When a field does not read back as typed, the runner records the case as `not_taken` and closes
+the dialog with Cancel. Then it goes on to the next case. **Run the preflight and risky files
+first.** Preflight tries one case in each row. A field that cannot take text (Out's range end, a
+constant or pointer in a range end) then shows up in a short run. The risky spellings are in
+files of their own. The other files hold only spellings that the generator expects a field to
+read back as typed. Preflight repeats cases of the other files, with the same labels.
 
 The runner takes about 4 seconds a case. The files are split by dialog and mode so none passes
 about 2,000 cases. The generator prints the number of cases and the time of each file.
@@ -42,7 +61,13 @@ uv run devtools/editor_grids.py --check   # exit 1 if they differ, messages incl
 
 The generator builds the lists from laddercodec's own bank ranges, X/Y slots, pointer banks and
 constant kinds, so a new bank or kind changes the grids. `tests/test_editor_grids.py` fails when
-the committed files differ from what the generator writes.
+the committed files differ from what the generator writes. The Fill, Compare and Search grids
+use the constant spellings of the other grids. They add `0ffh` to the hex spellings.
+
+CLICK has answered the Math, Copy and Out grids. If you change a list that they use, their cases
+change, and `tests/test_editor_answers.py` fails because the answers no longer match the grid.
+The generator adds the Search cases to `preflight.json` and `risky.json` after the answered
+ones. The test compares only the answered dialogs' cases in those two files.
 
 ## Verdicts
 
@@ -54,8 +79,12 @@ into a number register other than DF takes Copy Character Value (`to_value`), th
 default, since a plain copy is refused; a single Copy of a number constant or a number
 register into TXT takes the dialog's default too, Copy Value as text with Suppress zero for
 an integer and Real Numbering for a real; Pack and Unpack take the bits or
-words form of the bank typed. The verdicts exist to be compared with CLICK's answers case by
-case. `--check` compares the messages too; the test compares the verdict, error and field only.
+words form of the bank typed. A Fill case is built as `Fill`, with `source` as the value,
+`destination` to `destination_end` as the range and no option set. A Compare case is built as
+`CompareContact` with A as `left` and B as `right`. A Search case sets `continuous` when its
+options set 5021 to 1, and `oneshot` when they set 5022 to 1.
+The verdicts exist to be compared with CLICK's answers case by case. `--check` compares the
+messages too; the test compares the verdict, error and field only.
 
 ## CLICK's answers
 

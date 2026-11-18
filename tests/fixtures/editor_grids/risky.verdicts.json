@@ -65,5 +65,18 @@
   "out  ": {"verdict": "refused", "error": "AddressError", "field": "Coil.operand", "message": "Coil.operand: ' ' is not a CLICK address"},
   "out \u0663": {"verdict": "refused", "error": "AddressError", "field": "Coil.operand", "message": "Coil.operand: '\u0663' is not a CLICK address"},
   "out Y001.. DS1": {"verdict": "refused", "error": "AddressError", "field": "Coil.range_end", "message": "Coil.range_end: ' DS1' is not a CLICK address"},
-  "out  DS1..Y002": {"verdict": "refused", "error": "AddressError", "field": "Coil.operand", "message": "Coil.operand: ' DS1' is not a CLICK address"}
+  "out  DS1..Y002": {"verdict": "refused", "error": "AddressError", "field": "Coil.operand", "message": "Coil.operand: ' DS1' is not a CLICK address"},
+  "search  DS1..DS10 == 5 -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.table_start", "message": "Search.table_start: ' DS1' is not a CLICK address"},
+  "search DS1.. DS1 == 5 -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.table_end", "message": "Search.table_end: ' DS1' is not a CLICK address"},
+  "search DS1..DS10 ==  DS1 -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.value", "message": "Search.value: ' DS1' is not a CLICK address"},
+  "search DS1..DS10 == DS1  -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.value", "message": "Search.value: 'DS1 ' is not a CLICK address"},
+  "search TXT1..TXT10 == \"\u00e9\" -> DS30,C1": {"verdict": "accepted"},
+  "search TXT1..TXT10 == \"\t\" -> DS30,C1": {"verdict": "accepted"},
+  "search TXT1..TXT10 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS30,C1": {"verdict": "accepted"},
+  "search TXT1..TXT10 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"' is refused; a text constant is 1 to 128 characters in quotes (use $hh for a character by code)"},
+  "search DS1..DS10 ==  -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.value", "message": "Search.value: is blank; it needs a value"},
+  "search DS1..DS10 ==   -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.value", "message": "Search.value: ' ' is not a CLICK address"},
+  "search DS1..DS10 == \u0663 -> DS30,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.value", "message": "Search.value: '\u0663' is not a CLICK address"},
+  "search DS1..DS10 == DS20 ->  DS1,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.result", "message": "Search.result: ' DS1' is not a CLICK address"},
+  "search DS1..DS10 == DS20 -> DS30, DS1": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: ' DS1' is not a CLICK address"}
 }
