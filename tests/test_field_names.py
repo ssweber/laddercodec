@@ -24,7 +24,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import laddercodec
-from laddercodec import instructions, model
+from laddercodec import circuit, instructions, model
 from laddercodec.operands import address, checks
 
 SRC = Path(laddercodec.__file__).parent
@@ -49,6 +49,7 @@ def _classes() -> dict[str, type]:
     found: dict[str, type] = {}
     modules = [
         model,
+        circuit,
         address,
         checks,
         instructions,

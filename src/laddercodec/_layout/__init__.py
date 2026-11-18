@@ -4,7 +4,8 @@ The work runs in three steps.  ``network`` reads the cell grid into nets and con
 ``tree`` reduces the nets to one series-parallel tree for each CLICK rung, by structure
 alone.  ``render`` draws each tree in the packed layout.  ``docs/internals/layout.md`` gives
 the rules.  ``read_csv`` and ``write_csv`` use :func:`canonical`.  ``laddercodec.check()``
-uses ``network`` and ``tree.circuits``.
+uses ``network`` and ``tree.circuits``.  ``build`` makes the network from a public
+``Circuit`` for ``laddercodec.lay_out()``.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from ..codes import Code
 from ..model import PinnedInstruction
 from .network import GridCell, Network, cell_of, network
 from .render import render
-from .tree import Branch, LayoutError, Leaf, Node, Out, RungTree, Series, trees
+from .tree import LayoutError, Leaf, Node, Out, OutputBranch, RungTree, SeriesNode, trees
 
 __all__ = [
     "LayoutError",
@@ -146,9 +147,9 @@ class _Circuit:
             series = tuple(self.node(n) for n in pin.series)
             self.pins.setdefault(sink.box, []).append((sink.slot, series))
 
-    def branch(self, branch: Branch) -> object:
+    def branch(self, branch: OutputBranch) -> object:
         items = tuple(
-            self.branch(item) if isinstance(item, Branch) else self.box(item.sink)
+            self.branch(item) if isinstance(item, OutputBranch) else self.box(item.sink)
             for item in branch.items
         )
         return ("branch", tuple(self.node(n) for n in branch.series), items)
@@ -170,5 +171,5 @@ class _Circuit:
             return node.edge.contact
         if isinstance(node, Out):
             return self.box(node.sink)
-        kind = "series" if isinstance(node, Series) else "parallel"
+        kind = "series" if isinstance(node, SeriesNode) else "parallel"
         return (kind, tuple(self.node(c) for c in node.children))

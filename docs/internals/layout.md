@@ -176,6 +176,32 @@ shows is reported with `captured=False`.
     on one net pair it with no box. A box below the pinned box on its main input's net is
     paired only through such a reset.
 
+## Building from a circuit
+
+`lay_out()` starts from a `Circuit` instead of a grid. `_layout/build.py` builds the network
+straight from it, and `trees()` and `render()` draw it as they draw a grid's network.
+
+- **Nets.** Net 0 is the rail. Each term of a series ends on a new net, and the next term
+  starts on that net. The last term ends on the net where the series ends. All legs of a
+  `Parallel` start on the same net and end on the same net.
+- **Order.** The builder numbers contacts and box inputs depth-first in source order and
+  gives each that number as its row. The tree orders OR legs and output items by row, so
+  they keep the order the caller wrote. The builder doesn't factor or sort anything.
+- **Boxes.** A box takes a slot for each of its rows. A pinned box marks the slots of the
+  pins it uses, and each pin term starts on the rail. A used pin with no term gets a net
+  that nothing reaches, so it is drawn blank and `check()` reports it (C0202).
+- **Wire legs.** For each `Series(())` leg of a `Parallel`, the builder adds an edge whose
+  contact is the marker `WIRE_LEG`. `render()` draws that edge as `-` on a row of its own.
+  A network read from a grid has no such edge. In a grid, a wire beside a contact joins the
+  contact's two nets into one net, and the network lists the contact in `bypassed`.
+- **Errors.** `lay_out()` raises `LayoutError` for a rung of more than 32 rows
+  (`layout-too-tall`), more than 31 condition columns (`layout-too-wide`), nets that cross
+  (`layout-cannot-draw`), and a split rung that holds a `NOP` (`layout-nop-split`). It does
+  not raise for a `check()` finding.
+
+`tests/test_circuit_round_trip.py` reads every laid-out rung of the fixtures back to a
+circuit and checks that `lay_out()` gives the same bytes.
+
 ## Writing CSV
 
 `write_csv` writes each rung's layout and checks that the rows read back to it exactly. If a
@@ -208,6 +234,14 @@ For the next capture round:
   (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`). `read_csv` drops the `NOP`, then
   splits the rung in two. No capture shows CLICK's check doing both on one rung.
 - A contact that two pins share. What code does CLICK give it, if it refuses it?
+- A box below a pinned box that uses a pin, where the box hangs off a net that the pinned
+  box's branch also hangs off. Two examples:
+  - `C1` into a retentive on_delay with Reset `C2`, and `out(Y1)` below it on C1's net.
+  - `C1`, then a branch through `C3` into that on_delay, and `out(Y1)` below it on C1's net.
+
+  `check()` reports nothing for either rung. The pin rows cross the vertical wire down to
+  the coil, so `lay_out()` raises `layout-cannot-draw`. The grid path keeps such a rung as
+  drawn. How does CLICK draw these rungs?
 - A `NOP` reached only by contacts that also reach a coil. `check()` reports nothing, as
   for a `NOP` on a coil's net. These were probed and not captured:
   - C1 splits with a wire to the `NOP` and C2 to a coil

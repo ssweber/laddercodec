@@ -47,6 +47,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "EncodeError",
             "WriterError",
             "CsvError",
+            "LayoutError",
             "LegacyEncodingWarning",
             "RefusedFieldWarning",
             "UndecodedRungWarning",
@@ -67,6 +68,13 @@ PAGES: tuple[ReferencePage, ...] = (
             "write_bundle",
             "CsvLocation",
         ),
+    ),
+    ReferencePage(
+        slug="layout",
+        title="Layout API",
+        tier="Stable Core",
+        summary="Build a rung from its circuit, and lay it out as CLICK's syntax check draws it.",
+        symbols=("lay_out", "Circuit", "Branch", "Box", "Series", "Parallel"),
     ),
     ReferencePage(
         slug="instructions",

@@ -47,7 +47,7 @@ class Out:
 
 
 @dataclass(frozen=True)
-class Series:
+class SeriesNode:
     children: tuple[Node, ...]
 
     @property
@@ -56,7 +56,7 @@ class Series:
 
 
 @dataclass(frozen=True)
-class Parallel:
+class ParallelNode:
     children: tuple[Node, ...]
 
     @property
@@ -64,7 +64,7 @@ class Parallel:
         return min(c.key for c in self.children)
 
 
-Node = Leaf | Out | Series | Parallel
+Node = Leaf | Out | SeriesNode | ParallelNode
 
 
 def _has_out(node: Node) -> bool:
@@ -79,16 +79,16 @@ def _out_key(node: Node) -> tuple[int, int]:
     """Return the sort key of an output item, which is the key of its topmost box."""
     if isinstance(node, Out):
         return node.key
-    if isinstance(node, (Series, Parallel)):
+    if isinstance(node, (SeriesNode, ParallelNode)):
         return min(_out_key(c) for c in node.children if _has_out(c))
     raise AssertionError("an output item holds a box")
 
 
-def _compound(kind: type[Series] | type[Parallel], children: list[Node]) -> Node:
+def _compound(kind: type[SeriesNode] | type[ParallelNode], children: list[Node]) -> Node:
     flat: list[Node] = []
     for child in children:
         flat.extend(child.children if isinstance(child, kind) else (child,))
-    if kind is Parallel:
+    if kind is ParallelNode:
         items = [c for c in flat if _has_out(c)]
         legs = [c for c in flat if not _has_out(c)]
         if items and legs:
@@ -141,7 +141,7 @@ def reduce(source: object, sink: object, arcs: list[Arc]) -> Node:
         for (s, d), group in groups.items():
             if len(group) > 1:
                 changed = True
-                merged.append(Arc(s, d, _compound(Parallel, [a.node for a in group])))
+                merged.append(Arc(s, d, _compound(ParallelNode, [a.node for a in group])))
             else:
                 merged.append(group[0])
         arcs = merged
@@ -155,7 +155,7 @@ def reduce(source: object, sink: object, arcs: list[Arc]) -> Node:
                 continue
             a, b = ins[node][0], outs[node][0]
             arcs = [x for x in arcs if x is not a and x is not b]
-            arcs.append(Arc(a.src, b.dst, _compound(Series, [a.node, b.node])))
+            arcs.append(Arc(a.src, b.dst, _compound(SeriesNode, [a.node, b.node])))
             changed = True
             break
         if not changed:
@@ -180,11 +180,11 @@ class BoxItem:
 
 
 @dataclass
-class Branch:
+class OutputBranch:
     """Contacts in series from a net, then the items hanging off their end net, in order."""
 
     series: list[Node]
-    items: list[BoxItem | Branch] = field(default_factory=list)
+    items: list[BoxItem | OutputBranch] = field(default_factory=list)
 
 
 @dataclass
@@ -199,28 +199,28 @@ class PinCircuit:
 class RungTree:
     """One CLICK rung: its main branch from the rail, and the circuit of every used pin."""
 
-    branch: Branch
+    branch: OutputBranch
     pins: dict[int, PinCircuit]  # sink index -> circuit
 
 
-def _items(node: Node) -> list[BoxItem | Branch]:
+def _items(node: Node) -> list[BoxItem | OutputBranch]:
     if isinstance(node, Out):
         return [BoxItem(node.sink)]
-    if isinstance(node, Parallel):
-        out: list[BoxItem | Branch] = []
+    if isinstance(node, ParallelNode):
+        out: list[BoxItem | OutputBranch] = []
         for child in node.children:
             out.extend(_items(child))
         return out
-    if isinstance(node, Series):
+    if isinstance(node, SeriesNode):
         *series, last = node.children
-        return [Branch(list(series), _items(last))]
+        return [OutputBranch(list(series), _items(last))]
     raise AssertionError("a leaf cannot end at an output")
 
 
 def _series_terms(node: Node | None) -> list[Node]:
     if node is None:
         return []
-    return list(node.children) if isinstance(node, Series) else [node]
+    return list(node.children) if isinstance(node, SeriesNode) else [node]
 
 
 @dataclass
@@ -360,14 +360,14 @@ def trees(net: Network) -> list[RungTree]:
         )
     out: list[RungTree] = []
     for item in items:
-        branch = item if isinstance(item, Branch) else Branch([], [item])
+        branch = item if isinstance(item, OutputBranch) else OutputBranch([], [item])
         boxes = _box_ids(branch, net)
         mine_pins = {i: p for i, p in pin_trees.items() if net.sinks[i].box in boxes}
         out.append(RungTree(branch, mine_pins))
     return out
 
 
-def _box_ids(branch: Branch, net: Network) -> set[int]:
+def _box_ids(branch: OutputBranch, net: Network) -> set[int]:
     found: set[int] = set()
     for item in branch.items:
         if isinstance(item, BoxItem):

@@ -25,6 +25,7 @@ nav:
       - Overview: reference/index.md
       - Codec API: reference/api/codec.md
       - CSV I/O API: reference/api/csv.md
+      - Layout API: reference/api/layout.md
       - Instructions API: reference/api/instructions.md
 
 exclude_docs: |

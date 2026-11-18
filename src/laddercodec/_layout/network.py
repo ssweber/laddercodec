@@ -26,6 +26,11 @@ from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
 COLUMNS = 31
 AF_X = COLUMNS
 
+#: The contact of an edge that stands for a wire-only Or leg.  Only the circuit builder in
+#: ``build.py`` makes such an edge.  In a grid, a wire joins its two ends into one net, and a
+#: contact beside it is in ``Network.bypassed``.
+WIRE_LEG = object()
+
 
 @dataclass(frozen=True)
 class GridCell:
@@ -61,7 +66,7 @@ class Edge:
 
 
 @dataclass(frozen=True)
-class Box:
+class BoxNode:
     """An AF box, or a NOP, whose token is on row ``row``.
 
     ``slots`` holds the absolute row of every input, top first.  The lead slots come first,
@@ -95,7 +100,7 @@ class Network:
     rail: int
     edges: list[Edge]
     sinks: list[Sink]
-    boxes: list[Box]
+    boxes: list[BoxNode]
     #: The number of wire cells on a net that no contact and no box input uses.
     dead_wire_cells: int = 0
     #: Contacts whose two sides are on one net, because a wire joins them.
@@ -119,19 +124,19 @@ class _UnionFind:
             self.parent[ra] = rb
 
 
-def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = False) -> list[Box]:
+def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = False) -> list[BoxNode]:
     """Return every box in an AF column, with the rows of its inputs.
 
     If ``raw_pins`` is true, a ``RawInstruction`` box of several parts gets an input on the
     row of each part, and every one of those inputs counts as used.  laddercodec does not
     know which of the pins a raw box uses.
     """
-    boxes: list[Box] = []
+    boxes: list[BoxNode] = []
     for r, token in enumerate(instructions):
         if token == "NOP":
             if any(r in b.slots for b in boxes):
                 continue  # an earlier box's input row, such as count_down's main input
-            boxes.append(Box("NOP", r, (r,), (True,), 0))
+            boxes.append(BoxNode("NOP", r, (r,), (True,), 0))
         elif isinstance(token, PinnedInstruction):
             lead = token.lead_rows
             slots = (r, *(r + off for off in token.pin_rows))
@@ -140,14 +145,14 @@ def boxes_of(instructions: Sequence[object], rows: int, *, raw_pins: bool = Fals
                 True,
                 *(lab is not None for lab in token.pin_labels()),
             )
-            boxes.append(Box(token, r, tuple(s for s in slots if s < rows), used, lead))
+            boxes.append(BoxNode(token, r, tuple(s for s in slots if s < rows), used, lead))
         elif raw_pins and isinstance(token, RawInstruction) and token.part_rows():
             slots = tuple(s for s in (r, *(r + off for off in token.part_rows())) if s < rows)
-            boxes.append(Box(token, r, slots, tuple(True for _ in slots), 0))
+            boxes.append(BoxNode(token, r, slots, tuple(True for _ in slots), 0))
         elif isinstance(token, AfInstruction):
-            boxes.append(Box(token, r, (r,), (True,), 0))
+            boxes.append(BoxNode(token, r, (r,), (True,), 0))
         elif token not in ("", None):
-            boxes.append(Box(token, r, (r,), (True,), 0))
+            boxes.append(BoxNode(token, r, (r,), (True,), 0))
     return boxes
 
 

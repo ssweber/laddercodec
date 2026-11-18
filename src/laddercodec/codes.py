@@ -179,6 +179,8 @@ class Code(StrEnum):
     """An ``Undecoded`` field refused."""
     INVALID_TEE = "invalid-tee"
     """A ``Tee`` built around something other than one contact."""
+    INVALID_CIRCUIT = "invalid-circuit"
+    """A ``Series``, ``Parallel``, ``Box``, ``Branch`` or ``Circuit`` built from a part it doesn't take, such as a Parallel with one leg, an empty Series outside a Parallel, or a pin that the box doesn't use."""
 
     # check() findings: ``check()`` reports these.
     NOT_SERIES_PARALLEL = "not-series-parallel"
@@ -213,6 +215,8 @@ class Code(StrEnum):
     # Layout only: these codes come only from laying a rung out. ``check()`` never reports them. If ``write_csv`` can't lay a rung out without changing its circuit, it raises a ``WriterError``, and the ``__cause__`` of that error has one of these codes.
     LAYOUT_TOO_WIDE = "layout-too-wide"
     """A layout that needs more than 31 condition columns."""
+    LAYOUT_TOO_TALL = "layout-too-tall"
+    """A circuit that ``lay_out`` would draw as a rung of more than 32 rows."""
     LAYOUT_NOP_SPLIT = "layout-nop-split"
     """A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung."""
     LAYOUT_CANNOT_DRAW = "layout-cannot-draw"

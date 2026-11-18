@@ -24,8 +24,18 @@ from typing import Any
 from ..codes import Code
 from ..instructions import Tee
 from ..model import AfInstruction, PinnedInstruction
-from .network import COLUMNS, Network
-from .tree import BoxItem, Branch, LayoutError, Leaf, Node, Parallel, PinCircuit, RungTree, Series
+from .network import COLUMNS, WIRE_LEG, Network
+from .tree import (
+    BoxItem,
+    LayoutError,
+    Leaf,
+    Node,
+    OutputBranch,
+    ParallelNode,
+    PinCircuit,
+    RungTree,
+    SeriesNode,
+)
 
 RAIL = 0
 
@@ -78,14 +88,14 @@ class _Painter:
         return len(self.nets) - 1
 
     # ---- placement ----
-    def first_lead(self, branch: Branch) -> int:
+    def first_lead(self, branch: OutputBranch) -> int:
         item = branch.items[0]
-        if isinstance(item, Branch):
+        if isinstance(item, OutputBranch):
             return self.first_lead(item)
         token = self.network.boxes[self.network.sinks[item.sink].box].token
         return token.lead_rows if isinstance(token, PinnedInstruction) else 0
 
-    def place_branch(self, branch: Branch, start: int, top: int) -> int:
+    def place_branch(self, branch: OutputBranch, start: int, top: int) -> int:
         """Place ``branch`` from net ``start`` with its top on ``top``; return its height."""
         net, height = self.place_series(branch.series, start, None, top)
         cursor = top
@@ -152,11 +162,9 @@ class _Painter:
         if not terms:
             if end is None:
                 return start, 0
-            raise LayoutError(
-                "an empty Or leg (a wire around the block) shorts it. Remove that wire, or put "
-                "a contact on it.",
-                code=Code.SHORTED_CONTACT,
-            )
+            # Draw a wire-only Or leg as wire on a row of its own.  CLICK holds such a leg,
+            # and only its syntax check refuses it.
+            return self.place_cell(start, end, top, "-"), 1
         net, height = start, 0
         for index, term in enumerate(terms):
             target = end if index == len(terms) - 1 else None
@@ -165,25 +173,31 @@ class _Painter:
         return net, height
 
     def place_term(self, term: Node, start: int, end: int | None, top: int) -> tuple[int, int]:
-        if isinstance(term, Parallel):
+        if isinstance(term, ParallelNode):
             merge = self.new_net() if end is None else end
             row = top
             for leg in term.children:
-                legs = list(leg.children) if isinstance(leg, Series) else [leg]
-                _net, h = self.place_series(legs, start, merge, row)
+                _net, h = self.place_series(_leg_terms(leg), start, merge, row)
                 row += h
             return merge, row - top
-        if isinstance(term, Series):
+        if isinstance(term, SeriesNode):
             return self.place_series(list(term.children), start, end, top)
-        if not isinstance(term, Leaf):
+        if not isinstance(term, Leaf) or term.edge.contact is WIRE_LEG:
             raise AssertionError(f"unexpected term {term!r}")
+        return self.place_cell(start, end, top, term.edge.contact), 1
+
+    def place_cell(self, start: int, end: int | None, top: int, contact: object) -> int:
+        """Place a contact, or the ``"-"`` of a wire leg, from net ``start`` on row ``top``.
+
+        Return the net that the cell ends on.
+        """
         dst = self.new_net() if end is None else end
-        self.contacts.append(_Contact(start, dst, top, term.edge.contact))
+        self.contacts.append(_Contact(start, dst, top, contact))
         self.nets[start].touch(top)
         self.nets[dst].touch(top)
         self.nets[dst].col = max(self.nets[dst].col, self.nets[start].col + 1)
         self.cond_bottom = max(self.cond_bottom, top)
-        return dst, 1
+        return dst
 
     # ---- painting ----
     def paint(self) -> tuple[list[list[object]], list[object]]:
@@ -254,6 +268,15 @@ class _Painter:
             conditions.append(cells)
         instructions = [self.af.get(row, "") for row in range(height)]
         return conditions, instructions
+
+
+def _leg_terms(leg: Node) -> list[Node]:
+    """Return the series terms of one leg of a parallel block.  A wire leg has none."""
+    if isinstance(leg, SeriesNode):
+        return list(leg.children)
+    if isinstance(leg, Leaf) and leg.edge.contact is WIRE_LEG:
+        return []
+    return [leg]
 
 
 def _with_down(contact: Any, down: bool) -> object:

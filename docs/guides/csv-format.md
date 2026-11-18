@@ -216,6 +216,9 @@ rung that `laddercodec.check()` reports
 `read_csv` and `write_csv` handle it as drawn. The rules are in
 [Layout](../internals/layout.md).
 
+To lay a rung out from Python without a grid, build its circuit and call
+`lay_out()` ([Build a rung from its circuit](encoding.md#build-a-rung-from-its-circuit)).
+
 ## Vertical topology
 
 OR conditions (`Or()`), multi-output stacking, and `branch()` conditions all

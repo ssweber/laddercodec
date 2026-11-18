@@ -12,7 +12,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
-from ._layout.network import AF_X, Box, Edge, GridCell, Network, Sink, cell_of, network
+from ._layout.network import AF_X, BoxNode, Edge, GridCell, Network, Sink, cell_of, network
 from ._layout.tree import (
     Arc,
     Circuits,
@@ -205,7 +205,7 @@ def _pin_rule(token: object, slot: int, lead: int, *, as_captured: bool) -> _Rul
     return _Rule(Code.INPUT_WITHOUT_CONTACT, None, False)
 
 
-def _unwired_rule(box: Box, slot: int, *, holds: bool, rail_feeds_a_box: bool) -> _Rule:
+def _unwired_rule(box: BoxNode, slot: int, *, holds: bool, rail_feeds_a_box: bool) -> _Rule:
     """Return the rule for the pin of ``box`` at ``slot``, which no rail or contact reaches.
 
     Set ``holds`` when the pin's row holds a contact or a wire.
