@@ -201,6 +201,8 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `compare.answers.json`, `search.answers.json` | the answers to the files of those names (669 and 810 cases) |
 | `preflight_compare.answers.json`, `risky_compare.answers.json` | the answers to the files of those names (12 and 11 cases) |
 | `out.answers.json`, `copy_single.answers.json`, `copy_block.answers.json`, `copy_pack.answers.json`, `copy_unpack.answers.json`, `math_decimal.answers.json`, `math_hex.answers.json` | the answers to the files of those names (477, 900, 661, 615, 603, 1,071 and 883 cases); six Pack cases (33 T, CT or SC bits into DS or DD) hold `boxes`: OBJ-041, then OBJ-024 |
+| `timer.answers.json`, `counter.answers.json`, `shift.answers.json`, `for.answers.json`, `copy_fill.answers.json`, `drum.answers.json`, `send.answers.json` | the answers to the files of those names (388, 355, 231, 249, 969, 754 and 981 cases). A Timer's `read_back` also holds `accumulator`, and a Counter's holds `accumulator` and `completion_bit`. CLICK fills these from the done bit. A `not_taken` case may have a null `read_back` and null `limits` |
+| `risky_timer.answers.json`, `risky_shift.answers.json`, `risky_for.answers.json`, `risky_drum.answers.json`, `risky_send.answers.json`, `risky_counter.answers.json`, `risky_fill.answers.json` | the answers to the files of those names (11, 4, 9, 15, 56, 11 and 14 cases). Two Counter cases and one Fill case are `crashed`. A `not_taken` or `crashed` case may have a null `read_back` and null `limits` |
 | `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file) |
 | `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
@@ -209,13 +211,18 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
-rule changes. The `plc`, `runs` and `clip` fields name no machine. Every case and every answer is as the
-runner wrote it.
+rule changes. The `plc`, `runs` and `clip` fields name no machine. The IP addresses in the Send
+cases are the text that the cases type. Every case and every answer is as the runner wrote it.
 
 A case with `outcome` `not_taken` has no answer, because CLICK did not take the text. The rules
 must refuse it. A case with a null `outcome` has none either: CLICK closed before it answered. A case with
-`outcome` `crashed` has none: CLICK exited after the case's OK without answering. No case has a
-null `read_back` now.
+`outcome` `crashed` has none: CLICK exited after the case's OK without answering. The `read_back`
+of a `not_taken` case shows what the dialog held. It differs from the text that the case asked
+for in two ways only. A Drum's dialog holds a step or output count past its bound at the bound,
+so 0 is held as 1 and 17 as 16. A dialog that closes the count box holds no count. 27 `not_taken` cases have a null
+`read_back` and null `limits`, because the runner never reached their fields. They are the Send
+cases on a slot port that the PLC's port list does not hold, two Send cases whose Word Swap list
+is closed, and a unit on an event drum.
 
 `tests/test_editor_answers.py` compares them with laddercodec's rules: each case is rebuilt with
 the generator's builders (Receive with its own, at the count the dialog held where an answer

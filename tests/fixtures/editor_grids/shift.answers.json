@@ -1,0 +1,5192 @@
+{
+ "grid": "shift.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "shift-1"
+ ],
+ "cases": [
+  {
+   "row": "shift.control",
+   "case": "shift C1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 8.119,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.xy",
+   "case": "shift X001..X008",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "X008"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "X008"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.xy",
+   "case": "shift Y001..Y008",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "Y008"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "Y008"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X001..X002",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "X002"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "X002"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X001..X016",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "X016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "X016"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X001..X021",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "X021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "X021"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X101..X116",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X101",
+    "end_bit": "X116"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "X101",
+    "end_bit": "X116"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X101..X201",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X101",
+    "end_bit": "X201"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "start_bit": "X101",
+    "end_bit": "X201"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X815..X816",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X815",
+    "end_bit": "X816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "X815",
+    "end_bit": "X816"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X816..X817",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X816",
+    "end_bit": "X817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X816",
+    "end_bit": "X817"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X002..X001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X002",
+    "end_bit": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X002",
+    "end_bit": "X001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift X001..X001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "X001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y001..Y002",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "Y002"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "Y002"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y001..Y016",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "Y016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "Y016"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y001..Y021",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "Y021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "Y021"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y101..Y116",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y101",
+    "end_bit": "Y116"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "Y101",
+    "end_bit": "Y116"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y101..Y201",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y101",
+    "end_bit": "Y201"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "Y101",
+    "end_bit": "Y201"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y815..Y816",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y815",
+    "end_bit": "Y816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "Y815",
+    "end_bit": "Y816"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y816..Y817",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y816",
+    "end_bit": "Y817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "Y816",
+    "end_bit": "Y817"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y002..Y001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y002",
+    "end_bit": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "Y002",
+    "end_bit": "Y001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift Y001..Y001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "Y001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C1..C2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.861,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C1..C2000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C2000"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 7.676,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C2000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C1999..C2000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1999",
+    "end_bit": "C2000"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 7.721,
+   "read_back": {
+    "start_bit": "C1999",
+    "end_bit": "C2000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C2000..C2001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C2000",
+    "end_bit": "C2001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "C2000",
+    "end_bit": "C2001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C2..C1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C2",
+    "end_bit": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.671,
+   "read_back": {
+    "start_bit": "C2",
+    "end_bit": "C1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift C1..C1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift T1..T2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "T1",
+    "end_bit": "T2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "T1",
+    "end_bit": "T2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift CT1..CT2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CT1",
+    "end_bit": "CT2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "CT1",
+    "end_bit": "CT2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift SC1..SC2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SC1",
+    "end_bit": "SC2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "SC1",
+    "end_bit": "SC2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift DS1..DS2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DS1",
+    "end_bit": "DS2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "DS1",
+    "end_bit": "DS2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift DD1..DD2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DD1",
+    "end_bit": "DD2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DD1",
+    "end_bit": "DD2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift DH1..DH2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DH1",
+    "end_bit": "DH2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "DH1",
+    "end_bit": "DH2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift DF1..DF2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DF1",
+    "end_bit": "DF2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "DF1",
+    "end_bit": "DF2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift XD0..XD0u",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD0",
+    "end_bit": "XD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "XD0",
+    "end_bit": "XD0u"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift YD0..YD0u",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD0",
+    "end_bit": "YD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "YD0",
+    "end_bit": "YD0u"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift TD1..TD2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TD1",
+    "end_bit": "TD2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "TD1",
+    "end_bit": "TD2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift CTD1..CTD2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CTD1",
+    "end_bit": "CTD2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "CTD1",
+    "end_bit": "CTD2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift SD1..SD2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SD1",
+    "end_bit": "SD2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "SD1",
+    "end_bit": "SD2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.ranges",
+   "case": "shift TXT1..TXT2",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TXT1",
+    "end_bit": "TXT2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "TXT1",
+    "end_bit": "TXT2"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "start_bit": "X001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X016..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X016",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.427,
+   "read_back": {
+    "start_bit": "X016",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X016",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X016"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X021..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X021",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X021",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X021",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X021"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X036..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X036",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X036",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X036",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X036"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X101..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X101",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X101",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X101",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X101"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X101"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X816..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X816",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X816",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X816",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X816"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "X000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X017..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X017",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X017",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X017",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X017"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X017"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X020..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X020",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X020",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X020",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X020"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X020"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X037..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X037",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "X037",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X037",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X037"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X037"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X100..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X100",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.827,
+   "read_back": {
+    "start_bit": "X100",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X100",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.999,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X100"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X117..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X117",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.958,
+   "read_back": {
+    "start_bit": "X117",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X117",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X117"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X117"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift X817..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "X817",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "X817",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..X817",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "X817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "X817"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.821,
+   "read_back": {
+    "start_bit": "Y001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.725,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y016..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y016",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.842,
+   "read_back": {
+    "start_bit": "Y016",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y016",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.896,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y016"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y021..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y021",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "Y021",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y021",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.44,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y021"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y036..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y036",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.688,
+   "read_back": {
+    "start_bit": "Y036",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y036",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.81,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y036"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y101..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y101",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.768,
+   "read_back": {
+    "start_bit": "Y101",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y101",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y101"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y101"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y816..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y816",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "Y816",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y816",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y816"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.329,
+   "read_back": {
+    "start_bit": "Y000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y017..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y017",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "Y017",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y017",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y017"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y017"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y020..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y020",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "Y020",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y020",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y020"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y020"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y037..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y037",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "Y037",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y037",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y037"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y037"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y100..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y100",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "Y100",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y100",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y100"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y117..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y117",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "Y117",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y117",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y117"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y117"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift Y817..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "Y817",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "Y817",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..Y817",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "Y817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "Y817"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift C2000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C2000",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.698,
+   "read_back": {
+    "start_bit": "C2000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift C0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "C0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..C0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift C2001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C2001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C2001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..C2001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C2001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C2001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift T1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "T1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "T1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..T1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "T1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "T1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift T500..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "T500",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "T500",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..T500",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "T500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "T500"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift T0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "T0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "T0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..T0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "T0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "T0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift T501..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "T501",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "start_bit": "T501",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..T501",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "T501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "T501"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CT1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CT1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "CT1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CT1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CT1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CT1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CT250..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CT250",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "CT250",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CT250",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CT250"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CT250"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CT0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CT0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "CT0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CT0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CT0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CT0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CT251..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CT251",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "CT251",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CT251",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CT251"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CT251"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SC1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SC1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "SC1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SC1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SC1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SC1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SC1000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SC1000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "SC1000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SC1000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SC1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SC1000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SC0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SC0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "start_bit": "SC0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SC0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SC0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SC0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SC1001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SC1001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "SC1001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SC1001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SC1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SC1001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DS1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DS1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DS1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DS1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DS1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DS4500..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DS4500",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DS4500",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DS4500",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DS4500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DS4500"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DS0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DS0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "start_bit": "DS0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DS0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DS0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DS0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DS4501..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DS4501",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "DS4501",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DS4501",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DS4501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DS4501"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DD1000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DD1000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DD1000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DD1000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DD1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DD1000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DD1001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DD1001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "DD1001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DD1001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DD1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DD1001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DH1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DH1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "DH1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DH1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DH1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DH500..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DH500",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DH500",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DH500",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DH500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DH500"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DH0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DH0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DH0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DH0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DH0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DH0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DH501..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DH501",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DH501",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DH501",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DH501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DH501"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DF1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DF1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DF1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DF1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DF1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DF1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DF500..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DF500",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "DF500",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DF500",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DF500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DF500"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DF0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DF0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "DF0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DF0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DF0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DF0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift DF501..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "DF501",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "DF501",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..DF501",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "DF501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "DF501"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "XD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD0u..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD0u",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "XD0u",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD0u",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD0u"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "XD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD8..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD8",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "XD8",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD9..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD9",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "XD9",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD9",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD9"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD9"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD00..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD00",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "XD00",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD00",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD00"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD00"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift XD0U..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "XD0U",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "XD0U",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..XD0U",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "XD0U"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "XD0U"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "YD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD0u..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD0u",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "YD0u",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD0u",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD0u"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "YD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD8..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD8",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "YD8",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD9..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD9",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "YD9",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD9",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD9"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD9"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD00..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD00",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "YD00",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD00",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD00"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD00"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift YD0U..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "YD0U",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "YD0U",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..YD0U",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "YD0U"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.5,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "YD0U"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "TD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TD500..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TD500",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.507,
+   "read_back": {
+    "start_bit": "TD500",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TD500",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TD500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TD500"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.708,
+   "read_back": {
+    "start_bit": "TD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TD501..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TD501",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "TD501",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TD501",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TD501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TD501"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CTD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CTD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "CTD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CTD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CTD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CTD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CTD250..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CTD250",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "CTD250",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CTD250",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CTD250"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CTD250"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CTD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CTD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "CTD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CTD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CTD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CTD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift CTD251..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "CTD251",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "CTD251",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..CTD251",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "CTD251"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "CTD251"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SD1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SD1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "SD1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SD1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SD1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SD1000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SD1000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "SD1000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SD1000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SD1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SD1000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SD0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SD0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "start_bit": "SD0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SD0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SD0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift SD1001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "SD1001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "SD1001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..SD1001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "SD1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "SD1001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TXT1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TXT1",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "TXT1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TXT1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TXT1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TXT1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TXT1000..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TXT1000",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "start_bit": "TXT1000",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TXT1000",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TXT1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TXT1000"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TXT0..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TXT0",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "start_bit": "TXT0",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TXT0",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TXT0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TXT0"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.banks",
+   "case": "shift TXT1001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "TXT1001",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "TXT1001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.banks",
+   "case": "shift C1..TXT1001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "TXT1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "TXT1001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.forms",
+   "case": "shift C[DS1]..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C[DS1]",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C[DS1]",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1..C[DS1]",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C[DS1]"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.forms",
+   "case": "shift c1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "c1",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.704,
+   "read_back": {
+    "start_bit": "c1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1..c1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "c1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "c1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.forms",
+   "case": "shift C001..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C001",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 3.977,
+   "read_back": {
+    "start_bit": "C001",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1..C001",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C001"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.forms",
+   "case": "shift C 1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C 1",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.625,
+   "read_back": {
+    "start_bit": "C 1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1..C 1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 21.987,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C 1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.constants",
+   "case": "shift 5..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "5",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "start_bit": "5",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.constants",
+   "case": "shift C1..5",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "5"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.constants",
+   "case": "shift 1.5..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "1.5",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "1.5",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.constants",
+   "case": "shift C1..1.5",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "1.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "1.5"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.constants",
+   "case": "shift FFh..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "FFh",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "FFh",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.constants",
+   "case": "shift C1..FFh",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "FFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "FFh"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.constants",
+   "case": "shift \"A\"..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "\"A\"",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "\"A\"",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.constants",
+   "case": "shift C1..\"A\"",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "\"A\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "\"A\""
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.constants",
+   "case": "shift $41..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "$41",
+    "end_bit": "C8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "start_bit": "$41",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.constants",
+   "case": "shift C1..$41",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "$41"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "$41"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  }
+ ]
+}

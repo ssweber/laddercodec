@@ -1,0 +1,359 @@
+{
+ "grid": "risky_counter.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_counter-1",
+  "risky_counter-2",
+  "risky_counter-3"
+ ],
+ "cases": [
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=\"é\"",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "\"é\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "done": "CT1",
+    "preset": "\"é\"",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=\"\t\"",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "\"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "done": "CT1",
+    "preset": "\"\t\"",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "crashed",
+   "code": null,
+   "message": "CLICK exited while waiting for CLICK's answer to case 3 (counter.preset.constants count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\")",
+   "syntax_check": null,
+   "seconds": 0.314,
+   "read_back": {
+    "done": "CT1",
+    "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stops": [
+    {
+     "out": "risky_counter-1",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 3 (counter.preset.constants count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\")",
+     "crashed": true
+    }
+   ]
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "crashed",
+   "code": null,
+   "message": "CLICK exited while waiting for CLICK's answer to case 4 (counter.preset.constants count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\")",
+   "syntax_check": null,
+   "seconds": 0.314,
+   "read_back": {
+    "done": "CT1",
+    "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   },
+   "stops": [
+    {
+     "out": "risky_counter-2",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 4 (counter.preset.constants count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\")",
+     "crashed": true
+    }
+   ]
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "done": "CT1",
+    "preset": "",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset= ",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": " "
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "done": "CT1",
+    "preset": " ",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.constants",
+   "case": "count_up CT1 preset=٣",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "٣"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "done": "CT1",
+    "preset": "٣",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.forms",
+   "case": "count_up CT1 preset= DS1",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 6.238,
+   "read_back": {
+    "done": "CT1",
+    "preset": " DS1",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.preset.forms",
+   "case": "count_up CT1 preset=DS1 ",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1",
+    "preset": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 8.013,
+   "read_back": {
+    "done": "CT1",
+    "preset": "DS1 ",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.done.forms",
+   "case": "count_up  CT1 preset=10",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": " CT1",
+    "preset": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 4.053,
+   "read_back": {
+    "done": " CT1",
+    "preset": "10",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  },
+  {
+   "row": "counter.done.forms",
+   "case": "count_up CT1  preset=10",
+   "instruction": "counter",
+   "mode": "count_up",
+   "fields": {
+    "done": "CT1 ",
+    "preset": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0206: There is no Contact for the Up input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0206: There is no Contact for the Up input."
+    ]
+   },
+   "seconds": 5.631,
+   "read_back": {
+    "done": "CT1 ",
+    "preset": "10",
+    "accumulator": "CTD1",
+    "completion_bit": "CT1"
+   },
+   "limits": {
+    "done": 16,
+    "preset": 16,
+    "accumulator": 30000,
+    "completion_bit": 30000
+   }
+  }
+ ]
+}

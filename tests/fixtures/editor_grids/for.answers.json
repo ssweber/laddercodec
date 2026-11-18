@@ -1,0 +1,4933 @@
+{
+ "grid": "for.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "for-1"
+ ],
+ "cases": [
+  {
+   "row": "for.control",
+   "case": "for 10",
+   "instruction": "for",
+   "fields": {
+    "count": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.536,
+   "read_back": {
+    "count": "10"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.oneshot",
+   "case": "for 10 oneshot=1",
+   "instruction": "for",
+   "options": {
+    "oneshot": 1
+   },
+   "fields": {
+    "count": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.525,
+   "read_back": {
+    "count": "10"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.oneshot",
+   "case": "for 10 oneshot=0",
+   "instruction": "for",
+   "options": {
+    "oneshot": 0
+   },
+   "fields": {
+    "count": "10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.374,
+   "read_back": {
+    "count": "10"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.oneshot",
+   "case": "for DS1 oneshot=1",
+   "instruction": "for",
+   "options": {
+    "oneshot": 1
+   },
+   "fields": {
+    "count": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.208,
+   "read_back": {
+    "count": "DS1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.oneshot",
+   "case": "for DS1 oneshot=0",
+   "instruction": "for",
+   "options": {
+    "oneshot": 0
+   },
+   "fields": {
+    "count": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 3.852,
+   "read_back": {
+    "count": "DS1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0",
+   "instruction": "for",
+   "fields": {
+    "count": "0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.362,
+   "read_back": {
+    "count": "0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 5",
+   "instruction": "for",
+   "fields": {
+    "count": "5"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.408,
+   "read_back": {
+    "count": "5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -5",
+   "instruction": "for",
+   "fields": {
+    "count": "-5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "count": "-5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for +5",
+   "instruction": "for",
+   "fields": {
+    "count": "+5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "+5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 005",
+   "instruction": "for",
+   "fields": {
+    "count": "005"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.327,
+   "read_back": {
+    "count": "005"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -005",
+   "instruction": "for",
+   "fields": {
+    "count": "-005"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "-005"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for +0",
+   "instruction": "for",
+   "fields": {
+    "count": "+0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "+0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -0",
+   "instruction": "for",
+   "fields": {
+    "count": "-0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.359,
+   "read_back": {
+    "count": "-0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 32767",
+   "instruction": "for",
+   "fields": {
+    "count": "32767"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.328,
+   "read_back": {
+    "count": "32767"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 32768",
+   "instruction": "for",
+   "fields": {
+    "count": "32768"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.357,
+   "read_back": {
+    "count": "32768"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -32768",
+   "instruction": "for",
+   "fields": {
+    "count": "-32768"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "-32768"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -32769",
+   "instruction": "for",
+   "fields": {
+    "count": "-32769"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "-32769"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 2147483647",
+   "instruction": "for",
+   "fields": {
+    "count": "2147483647"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.337,
+   "read_back": {
+    "count": "2147483647"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 2147483648",
+   "instruction": "for",
+   "fields": {
+    "count": "2147483648"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "2147483648"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -2147483648",
+   "instruction": "for",
+   "fields": {
+    "count": "-2147483648"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "-2147483648"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -2147483649",
+   "instruction": "for",
+   "fields": {
+    "count": "-2147483649"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "-2147483649"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 65535",
+   "instruction": "for",
+   "fields": {
+    "count": "65535"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.337,
+   "read_back": {
+    "count": "65535"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 65536",
+   "instruction": "for",
+   "fields": {
+    "count": "65536"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.356,
+   "read_back": {
+    "count": "65536"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 99999999999",
+   "instruction": "for",
+   "fields": {
+    "count": "99999999999"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "count": "99999999999"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1-2",
+   "instruction": "for",
+   "fields": {
+    "count": "1-2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "1-2"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for --5",
+   "instruction": "for",
+   "fields": {
+    "count": "--5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "--5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for +-5",
+   "instruction": "for",
+   "fields": {
+    "count": "+-5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "+-5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.5",
+   "instruction": "for",
+   "fields": {
+    "count": "1.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "1.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -1.5",
+   "instruction": "for",
+   "fields": {
+    "count": "-1.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "-1.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for +1.5",
+   "instruction": "for",
+   "fields": {
+    "count": "+1.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "+1.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.50",
+   "instruction": "for",
+   "fields": {
+    "count": "1.50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "1.50"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 01.5",
+   "instruction": "for",
+   "fields": {
+    "count": "01.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "01.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for .5",
+   "instruction": "for",
+   "fields": {
+    "count": ".5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": ".5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -.5",
+   "instruction": "for",
+   "fields": {
+    "count": "-.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "-.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.",
+   "instruction": "for",
+   "fields": {
+    "count": "1."
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "1."
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1E5",
+   "instruction": "for",
+   "fields": {
+    "count": "1E5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "1E5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1e5",
+   "instruction": "for",
+   "fields": {
+    "count": "1e5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "1e5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.5E+3",
+   "instruction": "for",
+   "fields": {
+    "count": "1.5E+3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "1.5E+3"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.5E3",
+   "instruction": "for",
+   "fields": {
+    "count": "1.5E3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "1.5E3"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.5e-3",
+   "instruction": "for",
+   "fields": {
+    "count": "1.5e-3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "1.5e-3"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -1.5E-3",
+   "instruction": "for",
+   "fields": {
+    "count": "-1.5E-3"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "-1.5E-3"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1E",
+   "instruction": "for",
+   "fields": {
+    "count": "1E"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "1E"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for E5",
+   "instruction": "for",
+   "fields": {
+    "count": "E5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "E5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1.5.2",
+   "instruction": "for",
+   "fields": {
+    "count": "1.5.2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.411,
+   "read_back": {
+    "count": "1.5.2"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 3.4028235E+38",
+   "instruction": "for",
+   "fields": {
+    "count": "3.4028235E+38"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "3.4028235E+38"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 3.4028236E+38",
+   "instruction": "for",
+   "fields": {
+    "count": "3.4028236E+38"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "3.4028236E+38"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 3.5E+38",
+   "instruction": "for",
+   "fields": {
+    "count": "3.5E+38"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "3.5E+38"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -3.5E+38",
+   "instruction": "for",
+   "fields": {
+    "count": "-3.5E+38"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "-3.5E+38"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1E39",
+   "instruction": "for",
+   "fields": {
+    "count": "1E39"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "1E39"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1E-45",
+   "instruction": "for",
+   "fields": {
+    "count": "1E-45"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "1E-45"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1E-50",
+   "instruction": "for",
+   "fields": {
+    "count": "1E-50"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "1E-50"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0h",
+   "instruction": "for",
+   "fields": {
+    "count": "0h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "0h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0H",
+   "instruction": "for",
+   "fields": {
+    "count": "0H"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "0H"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 5h",
+   "instruction": "for",
+   "fields": {
+    "count": "5h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.434,
+   "read_back": {
+    "count": "5h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for FFh",
+   "instruction": "for",
+   "fields": {
+    "count": "FFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "FFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for ffh",
+   "instruction": "for",
+   "fields": {
+    "count": "ffh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "ffh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0FFh",
+   "instruction": "for",
+   "fields": {
+    "count": "0FFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "0FFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0FFH",
+   "instruction": "for",
+   "fields": {
+    "count": "0FFH"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "0FFH"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 000Fh",
+   "instruction": "for",
+   "fields": {
+    "count": "000Fh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "000Fh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for FFFFh",
+   "instruction": "for",
+   "fields": {
+    "count": "FFFFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "FFFFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 10000h",
+   "instruction": "for",
+   "fields": {
+    "count": "10000h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "10000h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 7FFFh",
+   "instruction": "for",
+   "fields": {
+    "count": "7FFFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "7FFFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 8000h",
+   "instruction": "for",
+   "fields": {
+    "count": "8000h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "8000h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for FFFFFFFFh",
+   "instruction": "for",
+   "fields": {
+    "count": "FFFFFFFFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "FFFFFFFFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0FFFFFFFFh",
+   "instruction": "for",
+   "fields": {
+    "count": "0FFFFFFFFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "0FFFFFFFFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 100000000h",
+   "instruction": "for",
+   "fields": {
+    "count": "100000000h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "100000000h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for FFFFFFFFFh",
+   "instruction": "for",
+   "fields": {
+    "count": "FFFFFFFFFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "FFFFFFFFFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for +FFh",
+   "instruction": "for",
+   "fields": {
+    "count": "+FFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "+FFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -FFh",
+   "instruction": "for",
+   "fields": {
+    "count": "-FFh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "-FFh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for h",
+   "instruction": "for",
+   "fields": {
+    "count": "h"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.435,
+   "read_back": {
+    "count": "h"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1Eh",
+   "instruction": "for",
+   "fields": {
+    "count": "1Eh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "1Eh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for DH",
+   "instruction": "for",
+   "fields": {
+    "count": "DH"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DH"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for EH",
+   "instruction": "for",
+   "fields": {
+    "count": "EH"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "EH"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for ABCH",
+   "instruction": "for",
+   "fields": {
+    "count": "ABCH"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "ABCH"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 0ffh",
+   "instruction": "for",
+   "fields": {
+    "count": "0ffh"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "0ffh"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"A\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"A\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "\"A\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"AB\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"AB\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "\"AB\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"HELLO\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"HELLO\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"HELLO\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"a\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"a\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "\"a\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"E\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"E\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"E\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"e\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"e\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "\"e\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"1E5\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"1E5\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"1E5\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"5\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"5\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "\"5\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"1.5\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"1.5\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"1.5\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"$41\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"$41\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "\"$41\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"A B\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"A B\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.411,
+   "read_back": {
+    "count": "\"A B\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \" \"",
+   "instruction": "for",
+   "fields": {
+    "count": "\" \""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.462,
+   "read_back": {
+    "count": "\" \""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "\"\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"A",
+   "instruction": "for",
+   "fields": {
+    "count": "\"A"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.533,
+   "read_back": {
+    "count": "\"A"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for A\"",
+   "instruction": "for",
+   "fields": {
+    "count": "A\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "A\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $41",
+   "instruction": "for",
+   "fields": {
+    "count": "$41"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "$41"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $00",
+   "instruction": "for",
+   "fields": {
+    "count": "$00"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.462,
+   "read_back": {
+    "count": "$00"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $0D",
+   "instruction": "for",
+   "fields": {
+    "count": "$0D"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "$0D"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $FF",
+   "instruction": "for",
+   "fields": {
+    "count": "$FF"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "$FF"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $ff",
+   "instruction": "for",
+   "fields": {
+    "count": "$ff"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "$ff"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $1",
+   "instruction": "for",
+   "fields": {
+    "count": "$1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "$1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $100",
+   "instruction": "for",
+   "fields": {
+    "count": "$100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "$100"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $G1",
+   "instruction": "for",
+   "fields": {
+    "count": "$G1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "$G1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $",
+   "instruction": "for",
+   "fields": {
+    "count": "$"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "$"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for $ 41",
+   "instruction": "for",
+   "fields": {
+    "count": "$ 41"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "$ 41"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for -$41",
+   "instruction": "for",
+   "fields": {
+    "count": "-$41"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "-$41"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for abc",
+   "instruction": "for",
+   "fields": {
+    "count": "abc"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "abc"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1 2",
+   "instruction": "for",
+   "fields": {
+    "count": "1 2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.31,
+   "read_back": {
+    "count": "1 2"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1,5",
+   "instruction": "for",
+   "fields": {
+    "count": "1,5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "1,5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for DS",
+   "instruction": "for",
+   "fields": {
+    "count": "DS"
+   },
+   "outcome": "refused",
+   "code": "OBJ-002",
+   "message": "Please enter a correct address.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "DS"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for DS1.5",
+   "instruction": "for",
+   "fields": {
+    "count": "DS1.5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "DS1.5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 5DS",
+   "instruction": "for",
+   "fields": {
+    "count": "5DS"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "5DS"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for #5",
+   "instruction": "for",
+   "fields": {
+    "count": "#5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "#5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for @5",
+   "instruction": "for",
+   "fields": {
+    "count": "@5"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "@5"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for 1 0",
+   "instruction": "for",
+   "fields": {
+    "count": "1 0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.331,
+   "read_back": {
+    "count": "1 0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X001",
+   "instruction": "for",
+   "fields": {
+    "count": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "X001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X016",
+   "instruction": "for",
+   "fields": {
+    "count": "X016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "X016"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X021",
+   "instruction": "for",
+   "fields": {
+    "count": "X021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "X021"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X036",
+   "instruction": "for",
+   "fields": {
+    "count": "X036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "X036"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X101",
+   "instruction": "for",
+   "fields": {
+    "count": "X101"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "X101"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X816",
+   "instruction": "for",
+   "fields": {
+    "count": "X816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "X816"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X000",
+   "instruction": "for",
+   "fields": {
+    "count": "X000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "X000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X017",
+   "instruction": "for",
+   "fields": {
+    "count": "X017"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "X017"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X020",
+   "instruction": "for",
+   "fields": {
+    "count": "X020"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "X020"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X037",
+   "instruction": "for",
+   "fields": {
+    "count": "X037"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "X037"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X100",
+   "instruction": "for",
+   "fields": {
+    "count": "X100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "X100"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X117",
+   "instruction": "for",
+   "fields": {
+    "count": "X117"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "X117"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for X817",
+   "instruction": "for",
+   "fields": {
+    "count": "X817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "count": "X817"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y001",
+   "instruction": "for",
+   "fields": {
+    "count": "Y001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "Y001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y016",
+   "instruction": "for",
+   "fields": {
+    "count": "Y016"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "Y016"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y021",
+   "instruction": "for",
+   "fields": {
+    "count": "Y021"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.671,
+   "read_back": {
+    "count": "Y021"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y036",
+   "instruction": "for",
+   "fields": {
+    "count": "Y036"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.448,
+   "read_back": {
+    "count": "Y036"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y101",
+   "instruction": "for",
+   "fields": {
+    "count": "Y101"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "count": "Y101"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y816",
+   "instruction": "for",
+   "fields": {
+    "count": "Y816"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "count": "Y816"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y000",
+   "instruction": "for",
+   "fields": {
+    "count": "Y000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.425,
+   "read_back": {
+    "count": "Y000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y017",
+   "instruction": "for",
+   "fields": {
+    "count": "Y017"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.432,
+   "read_back": {
+    "count": "Y017"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y020",
+   "instruction": "for",
+   "fields": {
+    "count": "Y020"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "Y020"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y037",
+   "instruction": "for",
+   "fields": {
+    "count": "Y037"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "count": "Y037"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y100",
+   "instruction": "for",
+   "fields": {
+    "count": "Y100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "Y100"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y117",
+   "instruction": "for",
+   "fields": {
+    "count": "Y117"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "count": "Y117"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for Y817",
+   "instruction": "for",
+   "fields": {
+    "count": "Y817"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "count": "Y817"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for C1",
+   "instruction": "for",
+   "fields": {
+    "count": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "C1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for C2000",
+   "instruction": "for",
+   "fields": {
+    "count": "C2000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "C2000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for C0",
+   "instruction": "for",
+   "fields": {
+    "count": "C0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "C0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for C2001",
+   "instruction": "for",
+   "fields": {
+    "count": "C2001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "count": "C2001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for T1",
+   "instruction": "for",
+   "fields": {
+    "count": "T1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "T1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for T500",
+   "instruction": "for",
+   "fields": {
+    "count": "T500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "count": "T500"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for T0",
+   "instruction": "for",
+   "fields": {
+    "count": "T0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "T0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for T501",
+   "instruction": "for",
+   "fields": {
+    "count": "T501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "T501"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CT1",
+   "instruction": "for",
+   "fields": {
+    "count": "CT1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "CT1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CT250",
+   "instruction": "for",
+   "fields": {
+    "count": "CT250"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "CT250"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CT0",
+   "instruction": "for",
+   "fields": {
+    "count": "CT0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "CT0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CT251",
+   "instruction": "for",
+   "fields": {
+    "count": "CT251"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "CT251"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SC1",
+   "instruction": "for",
+   "fields": {
+    "count": "SC1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "SC1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SC1000",
+   "instruction": "for",
+   "fields": {
+    "count": "SC1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "SC1000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SC0",
+   "instruction": "for",
+   "fields": {
+    "count": "SC0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "SC0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SC1001",
+   "instruction": "for",
+   "fields": {
+    "count": "SC1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "SC1001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DS1",
+   "instruction": "for",
+   "fields": {
+    "count": "DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.563,
+   "read_back": {
+    "count": "DS1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DS4500",
+   "instruction": "for",
+   "fields": {
+    "count": "DS4500"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.038,
+   "read_back": {
+    "count": "DS4500"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DS0",
+   "instruction": "for",
+   "fields": {
+    "count": "DS0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DS0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DS4501",
+   "instruction": "for",
+   "fields": {
+    "count": "DS4501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "count": "DS4501"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DD1",
+   "instruction": "for",
+   "fields": {
+    "count": "DD1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.753,
+   "read_back": {
+    "count": "DD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DD1000",
+   "instruction": "for",
+   "fields": {
+    "count": "DD1000"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.825,
+   "read_back": {
+    "count": "DD1000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DD0",
+   "instruction": "for",
+   "fields": {
+    "count": "DD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DD1001",
+   "instruction": "for",
+   "fields": {
+    "count": "DD1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DD1001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DH1",
+   "instruction": "for",
+   "fields": {
+    "count": "DH1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DH1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DH500",
+   "instruction": "for",
+   "fields": {
+    "count": "DH500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DH500"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DH0",
+   "instruction": "for",
+   "fields": {
+    "count": "DH0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DH0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DH501",
+   "instruction": "for",
+   "fields": {
+    "count": "DH501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DH501"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DF1",
+   "instruction": "for",
+   "fields": {
+    "count": "DF1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DF1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DF500",
+   "instruction": "for",
+   "fields": {
+    "count": "DF500"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DF500"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DF0",
+   "instruction": "for",
+   "fields": {
+    "count": "DF0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DF0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for DF501",
+   "instruction": "for",
+   "fields": {
+    "count": "DF501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DF501"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD0",
+   "instruction": "for",
+   "fields": {
+    "count": "XD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.43,
+   "read_back": {
+    "count": "XD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD0u",
+   "instruction": "for",
+   "fields": {
+    "count": "XD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "XD0u"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD1",
+   "instruction": "for",
+   "fields": {
+    "count": "XD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "XD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD8",
+   "instruction": "for",
+   "fields": {
+    "count": "XD8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "XD8"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD9",
+   "instruction": "for",
+   "fields": {
+    "count": "XD9"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "XD9"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD00",
+   "instruction": "for",
+   "fields": {
+    "count": "XD00"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "XD00"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for XD0U",
+   "instruction": "for",
+   "fields": {
+    "count": "XD0U"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "XD0U"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD0",
+   "instruction": "for",
+   "fields": {
+    "count": "YD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "YD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD0u",
+   "instruction": "for",
+   "fields": {
+    "count": "YD0u"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "YD0u"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD1",
+   "instruction": "for",
+   "fields": {
+    "count": "YD1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "YD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD8",
+   "instruction": "for",
+   "fields": {
+    "count": "YD8"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "YD8"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD9",
+   "instruction": "for",
+   "fields": {
+    "count": "YD9"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "YD9"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD00",
+   "instruction": "for",
+   "fields": {
+    "count": "YD00"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "YD00"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for YD0U",
+   "instruction": "for",
+   "fields": {
+    "count": "YD0U"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "YD0U"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TD1",
+   "instruction": "for",
+   "fields": {
+    "count": "TD1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.773,
+   "read_back": {
+    "count": "TD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TD500",
+   "instruction": "for",
+   "fields": {
+    "count": "TD500"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.746,
+   "read_back": {
+    "count": "TD500"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TD0",
+   "instruction": "for",
+   "fields": {
+    "count": "TD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "count": "TD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TD501",
+   "instruction": "for",
+   "fields": {
+    "count": "TD501"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "TD501"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CTD1",
+   "instruction": "for",
+   "fields": {
+    "count": "CTD1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.768,
+   "read_back": {
+    "count": "CTD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CTD250",
+   "instruction": "for",
+   "fields": {
+    "count": "CTD250"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.794,
+   "read_back": {
+    "count": "CTD250"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CTD0",
+   "instruction": "for",
+   "fields": {
+    "count": "CTD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "CTD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for CTD251",
+   "instruction": "for",
+   "fields": {
+    "count": "CTD251"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "CTD251"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SD1",
+   "instruction": "for",
+   "fields": {
+    "count": "SD1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.736,
+   "read_back": {
+    "count": "SD1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SD1000",
+   "instruction": "for",
+   "fields": {
+    "count": "SD1000"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.239,
+   "read_back": {
+    "count": "SD1000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SD0",
+   "instruction": "for",
+   "fields": {
+    "count": "SD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "count": "SD0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for SD1001",
+   "instruction": "for",
+   "fields": {
+    "count": "SD1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "SD1001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TXT1",
+   "instruction": "for",
+   "fields": {
+    "count": "TXT1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.731,
+   "read_back": {
+    "count": "TXT1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TXT1000",
+   "instruction": "for",
+   "fields": {
+    "count": "TXT1000"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "TXT1000"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TXT0",
+   "instruction": "for",
+   "fields": {
+    "count": "TXT0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "TXT0"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.banks",
+   "case": "for TXT1001",
+   "instruction": "for",
+   "fields": {
+    "count": "TXT1001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "TXT1001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for X[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "X[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for Y[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "Y[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": "Y[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for C[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "C[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "C[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for T[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "T[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.496,
+   "read_back": {
+    "count": "T[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for CT[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "CT[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "CT[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for SC[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "SC[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "SC[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DS[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.668,
+   "read_back": {
+    "count": "DD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DH[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DH[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DH[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DF[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DF[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DF[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for XD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "XD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "XD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for YD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "YD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.551,
+   "read_back": {
+    "count": "YD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for TD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "TD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "TD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for CTD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "CTD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "CTD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for SD[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "SD[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "SD[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for TXT[DS1]",
+   "instruction": "for",
+   "fields": {
+    "count": "TXT[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "TXT[DS1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS4500]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS4500]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.548,
+   "read_back": {
+    "count": "DS[DS4500]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS4501]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS4501]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "DS[DS4501]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS0]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS0]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[DS0]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[ds1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[ds1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "DS[ds1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS001]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS001]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.417,
+   "read_back": {
+    "count": "DS[DS001]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS1+1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS1+1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DS[DS1+1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS1 + 1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS1 + 1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[DS1 + 1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS1-1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS1-1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DS[DS1-1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.418,
+   "read_back": {
+    "count": "DS[]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS1",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "DS[DS1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DS[DS1]]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DS[DS1]]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "DS[DS[DS1]]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[X1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[X1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.747,
+   "read_back": {
+    "count": "DS[X1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[Y1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[Y1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[Y1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[C1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[C1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.675,
+   "read_back": {
+    "count": "DS[C1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[T1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[T1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[T1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[CT1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[CT1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "DS[CT1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[SC1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[SC1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[SC1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[DD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DH1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DH1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[DH1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[DF1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[DF1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.612,
+   "read_back": {
+    "count": "DS[DF1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[XD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[XD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[XD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[YD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[YD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[YD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[TD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[TD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "DS[TD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[CTD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[CTD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.585,
+   "read_back": {
+    "count": "DS[CTD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[SD1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[SD1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[SD1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS[TXT1]",
+   "instruction": "for",
+   "fields": {
+    "count": "DS[TXT1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "DS[TXT1]"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for ds1",
+   "instruction": "for",
+   "fields": {
+    "count": "ds1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 3.811,
+   "read_back": {
+    "count": "ds1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS001",
+   "instruction": "for",
+   "fields": {
+    "count": "DS001"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 3.834,
+   "read_back": {
+    "count": "DS001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS01",
+   "instruction": "for",
+   "fields": {
+    "count": "DS01"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 3.821,
+   "read_back": {
+    "count": "DS01"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for x1",
+   "instruction": "for",
+   "fields": {
+    "count": "x1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "count": "x1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for x001",
+   "instruction": "for",
+   "fields": {
+    "count": "x001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "x001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for c001",
+   "instruction": "for",
+   "fields": {
+    "count": "c001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.416,
+   "read_back": {
+    "count": "c001"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS 1",
+   "instruction": "for",
+   "fields": {
+    "count": "DS 1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 3.891,
+   "read_back": {
+    "count": "DS 1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for xd0U",
+   "instruction": "for",
+   "fields": {
+    "count": "xd0U"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "count": "xd0U"
+   },
+   "limits": {
+    "count": 16
+   }
+  }
+ ]
+}
