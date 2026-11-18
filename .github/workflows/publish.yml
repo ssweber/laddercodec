@@ -27,14 +27,21 @@ jobs:
       - name: Set up Python (using uv)
         run: uv python install
 
-      - name: Install all dependencies
-        run: uv sync --locked --all-extras --dev
-
-      - name: Run tests
-        run: uv run pytest
+      - name: Check that the commit is on main
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - name: Build package
         run: uv build
+
+      - name: Check the built wheel
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          uv venv --no-project "$RUNNER_TEMP/wheel"
+          uv pip install --python "$RUNNER_TEMP/wheel" dist/*.whl
+          "$RUNNER_TEMP/wheel/bin/python" -I -c 'import os, importlib.metadata as m, laddercodec; tag = os.environ["TAG"].removeprefix("v"); v = m.version("laddercodec"); print(v); assert not tag or v == tag, (v, tag)'
 
       - name: Publish to PyPI (using uv)
         uses: pypa/gh-action-pypi-publish@release/v1

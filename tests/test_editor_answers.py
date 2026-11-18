@@ -66,6 +66,10 @@ ANSWER_FILES = (
     "copy_unpack",
     "math_decimal",
     "math_hex",
+    "compare",
+    "search",
+    "risky_compare",
+    "preflight_compare",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -84,6 +88,28 @@ EDGE_SPACE_KEPT = (
     "deliberate: CLICK accepts an edge space and the save keeps it; an instruction holds the "
     "address in display form, so construction refuses the space, and decode reads that save "
     "as the address without it"
+)
+
+# Reasons for Compare and Search cases.
+CMP_SPACE = (
+    "deliberate: CLICK accepts a space at the start or end of this field, or inside an "
+    "address, and the save trims it or keeps it; nothing in CLICK refuses it. An "
+    "instruction holds the address in display form, so construction refuses the space, "
+    "and read_csv refuses a save that keeps it"
+)
+DH_NO_NUMBER = "kept: CLICK accepts DH1 == DH and saves B empty, so laddercodec refuses it"
+SEARCH_QUOTE = (
+    'CLICK keeps a doubled quote inside a Search value ("A""B") and the rules refuse it; '
+    'whether a PLC matches A"B is open'
+)
+SEARCH_TABLE_ID = (
+    "CLICK refuses this Search table with OBJ-004. The rules refuse it with OBJ-008, or "
+    "OBJ-012 for TXT1..TXT1"
+)
+
+LONG_TEXT = (
+    "CLICK's save holds all 128 characters. The recorded stored text is shorter; "
+    "decode_program reads the full text"
 )
 
 # Reasons for Copy cases.  INNER_SPACE covers a Math result too, and RX2_COUNT is a
@@ -236,6 +262,67 @@ DISAGREEMENTS: dict[Key, str] = _table(
     ),
     (INNER_SPACE, "copy_single", "stored", ("single DS2 -> DS 1",)),
     (INNER_SPACE, "math_decimal", "outcome", ("dec DS 1 = DS2 + 1",)),
+    (CMP_SPACE, "compare", "outcome", ("compare DS 1 == DS2", "compare DS1 == DS 1")),
+    (CMP_SPACE, "compare", "stored", ("compare DS1 == DS 1",)),
+    (DH_NO_NUMBER, "compare", "outcome", ("compare DH1 == DH",)),
+    (
+        CMP_SPACE,
+        "risky_compare",
+        "outcome",
+        (
+            "compare  DS1 == DS2",
+            "compare DS1  == DS2",
+            "compare DS1 ==  DS1",
+            "compare DS1 == DS1 ",
+        ),
+    ),
+    (
+        CMP_SPACE,
+        "risky",
+        "outcome",
+        (
+            "search DS1..DS10 ==  DS1 -> DS30,C1",
+            "search DS1..DS10 == DS1  -> DS30,C1",
+            "search DS1..DS10 == DS20 ->  DS1,C1",
+        ),
+    ),
+    (CMP_SPACE, "search", "outcome", ("search DS1..DS10 == DS 1 -> DS30,C1",)),
+    (
+        SEARCH_QUOTE,
+        "search",
+        "outcome",
+        (
+            'search TXT1..TXT10 != "A""B" -> DS30,C1',
+            'search TXT1..TXT10 == "A""B" -> DS30,C1',
+        ),
+    ),
+    (
+        SEARCH_QUOTE,
+        "search",
+        "stored",
+        (
+            'search TXT1..TXT10 != "A""B" -> DS30,C1',
+            'search TXT1..TXT10 == "A""B" -> DS30,C1',
+        ),
+    ),
+    (
+        SEARCH_TABLE_ID,
+        "search",
+        "code",
+        (
+            "search DH1..DS1 == 5 -> DS30,C1",
+            "search DH1..TXT1 == 5 -> DS30,C1",
+            "search TXT1..DS1 == 5 -> DS30,C1",
+            "search TXT1..TXT1 == 5 -> DS30,C1",
+        ),
+    ),
+    (
+        LONG_TEXT,
+        "risky",
+        "stored",
+        ('search TXT1..TXT10 == "' + "A" * 128 + '" -> DS30,C1',),
+    ),
+    (LONG_TEXT, "risky_compare", "stored", ('compare TXT1 == "' + "A" * 128 + '"',)),
     (SD_POINTER, "copy_single", "outcome", ("single SD[DS1] -> DS1",)),
     (SD_POINTER, "copy_single", "stored", ("single SD[DS1] -> DS1",)),
     (
@@ -257,7 +344,15 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 2840
+CODES_COMPARED = 2959
+
+#: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
+#: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
+#: outcome is one where CLICK closed before it answered.
+NOT_TAKEN = 52
+NO_OUTCOME = 2
+CRASHED = 0
+NO_READ_BACK = 0
 
 
 @pytest.fixture(scope="module")
@@ -398,16 +493,41 @@ def _columns() -> list[str]:
     return [*letters, "AF"]
 
 
-def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
+def compare(
+    generator: Any, answers: dict[str, list[dict[str, Any]]] | None = None
+) -> tuple[dict[Key, str], dict[str, int]]:
     """Compare every answer file with the rules.
 
     Return each difference found, keyed by (grid, label, kind), and the counts of cases
-    compared, cases skipped and codes compared.
+    compared, cases skipped, codes compared, cases not taken, cases with no outcome and cases
+    where CLICK crashed. *answers* maps a grid to its cases. It replaces the answer files.
     """
     found: dict[Key, str] = {}
-    counts = {"compared": 0, "skipped": 0, "codes": 0}
-    for grid in ANSWER_FILES:
-        for case in _answers(grid):
+    counts = {
+        "compared": 0,
+        "skipped": 0,
+        "codes": 0,
+        "not_taken": 0,
+        "no_answer": 0,
+        "crashed": 0,
+    }
+    if answers is None:
+        answers = {grid: _answers(grid) for grid in ANSWER_FILES}
+    for grid, cases in answers.items():
+        for case in cases:
+            # A case with no answer is counted before the length rule, as tally_answers counts
+            # it.
+            if case["outcome"] == "crashed":
+                # CLICK exited after OK without answering. That says nothing about the case,
+                # so it agrees with no verdict and disagrees with none.
+                counts["crashed"] += 1
+                continue
+            if case["outcome"] is None:
+                # The run recorded no answer: CLICK closed before it answered.
+                counts["no_answer"] += 1
+                continue
+            if case["outcome"] == "not_taken":
+                counts["not_taken"] += 1
             if too_long(case):
                 counts["skipped"] += 1
                 continue
@@ -416,6 +536,12 @@ def compare(generator: Any) -> tuple[dict[Key, str], dict[str, int]]:
             # keyed by the row, not by the case.
             label = case["row"] if grid == "pickcheck" else case["case"]
             accepted, click_id = rules_verdict(generator, case)
+            if case["outcome"] == "not_taken":
+                # CLICK did not let the runner enter the text, so it has no answer. The
+                # rules must refuse it as well.
+                if accepted:
+                    found[(grid, label, "outcome")] = "CLICK did not take the text, rules accept"
+                continue
             clicks = case["outcome"] == "accepted"
             if case["outcome"] not in ("accepted", "refused") or clicks != accepted:
                 found[(grid, label, "outcome")] = (
@@ -588,27 +714,78 @@ def test_the_length_rule_skips_what_cannot_be_typed(
     compared: tuple[dict[Key, str], dict[str, int]],
 ) -> None:
     _, counts = compared
-    assert counts["skipped"] == 3, "RESULTS names three risky cases past their field's limit"
+    assert counts["skipped"] == 5, "five cases are past their field's limit"
     skipped = [c["case"] for g in ANSWER_FILES for c in _answers(g) if too_long(c)]
-    assert len(skipped) == 3
+    assert len(skipped) == 5
 
 
 def test_every_case_was_answered() -> None:
-    for grid in ANSWER_FILES:
-        for case in _answers(grid):
-            assert case["outcome"] in ("accepted", "refused"), (grid, case["case"])
-            read_back = case["read_back"]
+    """Every case has an outcome, except a counted few that have none to compare.
+
+    A new case that is not taken, or has no outcome or no read_back, fails this test on its
+    count."""
+    tally = tally_answers({grid: _answers(grid) for grid in ANSWER_FILES})
+    assert tally == {
+        "not_taken": NOT_TAKEN,
+        "no_outcome": NO_OUTCOME,
+        "crashed": CRASHED,
+        "no_read_back": NO_READ_BACK,
+    }
+
+
+def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+    """Check each case's outcome and read_back, and return the counts of the cases that have
+    no answer to compare.
+
+    Raise AssertionError for an outcome that is not accepted, refused, not_taken, crashed or
+    None, and for a read_back that differs from the case's fields.
+    """
+    tally = {"not_taken": 0, "no_outcome": 0, "crashed": 0, "no_read_back": 0}
+    for grid, cases in answers.items():
+        for case in cases:
+            if case["outcome"] in ("not_taken", "crashed"):
+                tally[case["outcome"]] += 1
+            elif case["outcome"] is None:
+                tally["no_outcome"] += 1
+            else:
+                assert case["outcome"] in ("accepted", "refused"), (grid, case["case"])
+            read_back = case.get("read_back")
+            if read_back is None:
+                tally["no_read_back"] += 1
+                continue
             if grid == "receive_count":
                 # The dialog also held the Slave ID and, where a case left the count unset,
                 # the count it defaults to.
                 assert all(read_back[k] == v for k, v in case["fields"].items()), case["case"]
             else:
                 assert read_back == case["fields"], (grid, case["case"])
+    return tally
+
+
+def test_a_crashed_case_is_counted_and_never_compared(generator: Any) -> None:
+    """A case with outcome ``crashed`` is counted, and ``compare`` neither accepts nor
+    disagrees with it, whatever the rules say."""
+    accepted = next(c for c in _answers("compare") if c["outcome"] == "accepted")
+    refused = next(c for c in _answers("compare") if c["outcome"] == "refused")
+    cases = [dict(accepted, outcome="crashed"), dict(refused, outcome="crashed", read_back=None)]
+    found, counts = compare(generator, {"compare": cases})
+    assert found == {}
+    assert counts["crashed"] == 2
+    assert counts["compared"] == 0
+    assert tally_answers({"compare": cases}) == {
+        "not_taken": 0,
+        "no_outcome": 0,
+        "crashed": 2,
+        "no_read_back": 1,
+    }
 
 
 def test_codes_compared_are_the_count(compared: tuple[dict[Key, str], dict[str, int]]) -> None:
     _, counts = compared
     assert counts["codes"] == CODES_COMPARED, counts
+    assert counts["not_taken"] == NOT_TAKEN, counts
+    assert counts["no_answer"] == NO_OUTCOME, counts
+    assert counts["crashed"] == CRASHED, counts
 
 
 def test_a_case_listed_twice_fails() -> None:
@@ -636,7 +813,6 @@ def test_a_chain_of_boxes_starts_with_the_code() -> None:
 
 
 #: The dialogs and modes that the answers to ``preflight.json`` and ``risky.json`` cover.
-#: Those two grids also hold Search cases, which CLICK has not answered.
 ANSWERED_DIALOGS = {
     ("math", "decimal"),
     ("math", "hex"),
@@ -645,17 +821,19 @@ ANSWERED_DIALOGS = {
     ("copy", "pack"),
     ("copy", "unpack"),
     ("out", None),
+    *(("compare", op) for op in ("==", "!=", ">", "<", ">=", "<=")),
+    *(("search", op) for op in ("==", "!=", ">", "<", ">=", "<=")),
 }
 
 
 def test_answers_are_the_grids_cases() -> None:
-    """The answer files of the nine editor grids that the loop names hold the cases of their
-    grid files, with the same labels in the same order, the same instruction, mode and fields,
-    and no lists or options set.
+    """The answer files of the editor grids that the loop names hold the cases of their
+    grid files, with the same labels in the same order, the same instruction, mode, fields and
+    options, and no lists set.
 
     In ``preflight.json`` and ``risky.json``, only the cases of the dialogs in
-    ``ANSWERED_DIALOGS`` are compared. Every case of the other seven grids must be of one of
-    those dialogs."""
+    ``ANSWERED_DIALOGS`` are compared. Every case of the other grids must be of one of those
+    dialogs."""
     for grid in (
         "preflight",
         "risky",
@@ -666,6 +844,10 @@ def test_answers_are_the_grids_cases() -> None:
         "copy_unpack",
         "math_decimal",
         "math_hex",
+        "compare",
+        "search",
+        "risky_compare",
+        "preflight_compare",
     ):
         every = json.loads((GRIDS / f"{grid}.json").read_text(encoding="utf-8"))["cases"]
         cases = [c for c in every if (c["instruction"], c.get("mode")) in ANSWERED_DIALOGS]
@@ -678,5 +860,7 @@ def test_answers_are_the_grids_cases() -> None:
             assert answer["instruction"] == case["instruction"], where
             assert answer.get("mode") == case.get("mode"), where
             assert answer["fields"] == case["fields"], where
-            # CLICK answered each case with its lists and options as the dialog opened them.
-            assert "choices" not in case and "options" not in case, where
+            # CLICK answered each case with its lists as the dialog opened them. A Search case
+            # may set Continuous or One Shot, and its answer holds the same options.
+            assert "choices" not in case, where
+            assert answer.get("options") == case.get("options"), where

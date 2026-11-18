@@ -42,11 +42,8 @@ order.
 
 A Fill case has the mode `fill`. Its fields have the names that the runner gives the Copy
 dialog's fields: `source` is the value, and `destination` to `destination_end` is the range.
-The runner does not drive Fill yet, so it refuses to load `copy_fill.json`,
-`preflight_fill.json` and `risky_fill.json`.
 
-The runner does not drive Timer, Counter, Shift, For or Drum yet either, so it refuses to load
-their files. Until it drives them, a case names everything except a list's item by
+A Timer, Counter, Shift, For or Drum case names everything except a list's item by
 laddercodec's names:
 
 - `instruction` is `timer`, `counter`, `shift`, `for` or `drum`.
@@ -69,16 +66,15 @@ laddercodec's names:
 CLICK fills in a timer's or counter's current value when you type its number: TD1 for T1,
 and CTD1 for CT1. So a case leaves `accumulator` out. The one case in each of the rows
 `timer.accumulator` and `counter.accumulator` types it, to find out whether the dialog takes
-it.
+it. The runner reads these two read-only fields back and never types them.
 
 Each drum case starts from a drum that laddercodec accepts and changes one field, list or
 option. A refusal then names the field that the case changed. A refusal of `num_steps` names
 `presets` or `events`, and a refusal of `num_outputs` names `outputs`. When a case changes the
 number of steps or outputs, it also fills each step or output that the new number adds.
 
-The runner does not drive Send either, so it refuses to load `send.json`, `preflight_send.json`
-and `risky_send.json`. Many of Send's fields and lists mirror those in the runner's entry for
-Receive. Until the runner drives Send, a Send case names them like this:
+Many of Send's fields and lists mirror those in the runner's entry for Receive. A Send case
+names them like this:
 
 - `instruction` is `send`. Send has no mode.
 - The fields that mirror Receive's have Receive's names: `slave_id` (Slave ID),
@@ -87,13 +83,13 @@ Receive. Until the runner drives Send, a Send case names them like this:
   (Exception Response).
 - `sending` is the Sending bit, which has the name of `Send`'s field.
 - `ip` and `server_port` are the IP Address and the Server Port Number. Only a case on a TCP
-  port types them. `ip` is an IP address control, not an Edit, and the runner does not fill one
-  yet.
+  port types them. `ip` is an IP address control, not an Edit. The runner fills it and reads it
+  back from the control's four fields.
 - `count` and `server_port` are Edits that take digits only. The runner sets their text
   directly, so it can still type other characters.
 - The lists have Receive's names: `port` (Com Port), `function`, `addressing` and `word_swap`.
-  A case picks an item by the text that the list shows. The Word Swap item `ON` is a guess
-  that no answer has shown yet.
+  A case picks an item by the text that the list shows. CLICK resets Word Swap to OFF when
+  the fields are filled, so the runner picks the item again before it presses OK.
 
 Each Send case starts from a Send that laddercodec accepts with the case's function code and
 addressing, and changes one field or list. The plain Send writes DS1 to the holding register
@@ -111,12 +107,15 @@ does not write is refused on the source.
 
 Compare is a contact, so the runner runs its cases only with `--wire`. Compare's preflight and
 risky cases are in `preflight_compare.json` and `risky_compare.json`. Run those with `--wire`
-too.
+too. The runner refuses `--wire` for Counter, Shift Register, Drum, For and a retentive
+Timer, because it wires only the first input and CLICK reports C0202 for an unwired reset.
 
 When a field does not read back as typed, the runner records the case as `not_taken` and closes
-the dialog with Cancel. Then it goes on to the next case. **Run the preflight and risky files
-first.** Preflight tries one case in each row. A field that cannot take text (Out's range end, a
-constant or pointer in a range end) then shows up in a short run. The risky spellings are in
+the dialog with Cancel. A Compare or Search case with text and one of `>`, `<`, `>=` or `<=`
+comes back `not_taken`, because CLICK closes the field for entry. Then the runner goes on to
+the next case. **Run the preflight and risky files first.** Preflight tries one case in each
+row. A field that cannot take text (Out's range end, a constant or pointer in a range end) then
+shows up in a short run. The risky spellings are in
 files of their own. The other files hold only spellings that the generator expects a field to
 read back as typed. Preflight repeats cases of the other files, with the same labels.
 
@@ -137,10 +136,10 @@ Counter, For and Drum grids use the constant spellings of the other grids. They 
 the hex spellings. The Timer, Counter, For and Drum grids also try values of their own, such as
 -1 for a timer preset and 39999 for a drum duration.
 
-CLICK has answered the Math, Copy and Out grids. If you change a list that they use, their cases
-change, and `tests/test_editor_answers.py` fails because the answers no longer match the grid.
-The generator adds the Search cases to `preflight.json` and `risky.json` after the answered
-ones. The test compares only the answered dialogs' cases in those two files.
+CLICK has answered the Math, Copy, Out, Compare and Search grids. If you change a list that they
+use, their cases change, and `tests/test_editor_answers.py` fails because the answers no longer
+match the grid. The generator adds the Search cases to `preflight.json` and `risky.json` after
+the others. The test compares the cases of all these dialogs in those two files.
 
 ## Verdicts
 
@@ -189,9 +188,8 @@ messages too; the test compares the verdict, error and field only.
 
 ## CLICK's answers
 
-ClickNick's runner drove CLICK Programming Software v4.00's editor, on 2026-11-16, and wrote
-`result.json` with one entry per case under `cases`: the case's own keys, then `outcome`
-(`accepted`, `refused` or `other`), `code` and `message` (the error box's), `syntax_check`,
+An answers file has one entry per case under `cases`: the case's own keys, then `outcome`
+(`accepted`, `refused`, `not_taken`, `crashed` or null), `code` and `message` (the error box's), `syntax_check`,
 `seconds`, `read_back` (each field as the dialog showed it), `limits` (each field's text limit)
 and, for an accepted case that was saved, `stored` (the saved rung as laddercodec CSV rows).
 Where one OK raised a chain of error boxes, `boxes` lists each box's code and message, and
@@ -199,19 +197,25 @@ Where one OK raised a chain of error boxes, `boxes` lists each box's code and me
 
 | File | What it holds |
 | --- | --- |
-| `preflight.answers.json`, `risky.answers.json` | the answers to the files of those names (92 and 67 cases) |
+| `preflight.answers.json`, `risky.answers.json` | the answers to the files of those names (110 and 80 cases, Search cases included) |
+| `compare.answers.json`, `search.answers.json` | the answers to the files of those names (669 and 810 cases) |
+| `preflight_compare.answers.json`, `risky_compare.answers.json` | the answers to the files of those names (12 and 11 cases) |
 | `out.answers.json`, `copy_single.answers.json`, `copy_block.answers.json`, `copy_pack.answers.json`, `copy_unpack.answers.json`, `math_decimal.answers.json`, `math_hex.answers.json` | the answers to the files of those names (477, 900, 661, 615, 603, 1,071 and 883 cases); six Pack cases (33 T, CT or SC bits into DS or DD) hold `boxes`: OBJ-041, then OBJ-024 |
-| `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file; the runner's own case file is not kept) |
-| `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs, `rxc1` and `rxc2`). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
+| `receive.answers.json` | 18 Receive cases: a master address in each bank, with function code 01 and 03 (the cases are in the file) |
+| `receive_count.answers.json` | 10 Receive cases that set the count (function code 03): a TXT master at count unset, 1, 2, 3, 4, 126, 250 and 252, and a DS master at 1 and 2 (two runs). `read_back` holds every field, the count and Slave ID too; for the unset case the count is the 2 the dialog held |
 | `pickcheck.answers.json` | 28 cases that check the Address Picker's lists against the dialog |
-| `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused (run `pc1`, with its saves kept) |
-| `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`); run `k1`, with its saves kept |
+| `picker_lists.answers.json` | 15 cases from the Address Picker's lists for a hex Math result, Pack's destination and Unpack's destination: an address the list holds is accepted, an SC or SD (or another bank) it leaves out is refused |
+| `rule_rows.answers.json` | 3 cases CLICK accepts: a Block Copy of TXT1..TXT2 into TXT11, and a hex Math into YD0 and YD1 (`DH1 + DH2`) |
 | `sc_sd_writable.answers.json` | the SC and SD addresses the Address Picker lists, per instruction, field and bank, with the bank tabs it leaves open; 12 fields, 8 of them for a field the picker lists only after another field is filled (`filled`: the source of a Pack or Unpack), and a bank with no list is null |
 
 They are CLICK's, and are never edited to fit the code: when a rule and an answer disagree, the
-rule changes. Only the run metadata was changed when they were committed: the absolute paths in
-`runs` became the run directories' names, and the PLC's IP address and name became "a PLC
-connected to CLICK v4.00". Every case and every answer is as the runner wrote it.
+rule changes. The `plc`, `runs` and `clip` fields name no machine. Every case and every answer is as the
+runner wrote it.
+
+A case with `outcome` `not_taken` has no answer, because CLICK did not take the text. The rules
+must refuse it. A case with a null `outcome` has none either: CLICK closed before it answered. A case with
+`outcome` `crashed` has none: CLICK exited after the case's OK without answering. No case has a
+null `read_back` now.
 
 `tests/test_editor_answers.py` compares them with laddercodec's rules: each case is rebuilt with
 the generator's builders (Receive with its own, at the count the dialog held where an answer

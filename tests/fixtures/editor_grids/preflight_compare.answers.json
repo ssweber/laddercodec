@@ -1,0 +1,344 @@
+{
+ "grid": "preflight_compare.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": ["preflight_compare-1"],
+ "cases": [
+  {
+   "row": "compare.control",
+   "case": "compare DS1 == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 8.011,
+   "read_back": {
+    "a": "DS1",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1==DS2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case01.clip.csv"
+  },
+  {
+   "row": "compare.operators",
+   "case": "compare DS1 != DS2",
+   "instruction": "compare",
+   "mode": "!=",
+   "fields": {
+    "a": "DS1",
+    "b": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.904,
+   "read_back": {
+    "a": "DS1",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1!=DS2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case02.clip.csv"
+  },
+  {
+   "row": "compare.text.operators",
+   "case": "compare TXT1 != TXT2",
+   "instruction": "compare",
+   "mode": "!=",
+   "fields": {
+    "a": "TXT1",
+    "b": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 7.184,
+   "read_back": {
+    "a": "TXT1",
+    "b": "TXT2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,TXT1!=TXT2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case03.clip.csv"
+  },
+  {
+   "row": "compare.mixed.operators",
+   "case": "compare DH1 == DS1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DH1",
+    "b": "DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-007",
+   "message": "The data types are different. Please specify the same data type.",
+   "syntax_check": null,
+   "seconds": 0.437,
+   "read_back": {
+    "a": "DH1",
+    "b": "DS1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.a.banks",
+   "case": "compare X001 == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "X001",
+    "b": "DS2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "a": "X001",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.banks",
+   "case": "compare DS1 == X001",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "a": "DS1",
+    "b": "X001"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.a.forms",
+   "case": "compare X[DS1] == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "X[DS1]",
+    "b": "DS2"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "a": "X[DS1]",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.forms",
+   "case": "compare DS1 == X[DS1]",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "X[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "a": "DS1",
+    "b": "X[DS1]"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare DS1 == 0",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "0"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.63,
+   "read_back": {
+    "a": "DS1",
+    "b": "0"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1==0,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case09.clip.csv"
+  },
+  {
+   "row": "compare.a.constants",
+   "case": "compare 5 == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "5",
+    "b": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case09",
+    "lines": []
+   },
+   "seconds": 6.811,
+   "read_back": {
+    "a": "5",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,5==DS2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case10.clip.csv"
+  },
+  {
+   "row": "compare.pairs.banks",
+   "case": "compare DS1 == XD0",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "XD0"
+   },
+   "outcome": "refused",
+   "code": "OBJ-007",
+   "message": "The data types are different. Please specify the same data type.",
+   "syntax_check": null,
+   "seconds": 0.435,
+   "read_back": {
+    "a": "DS1",
+    "b": "XD0"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.pairs.constants",
+   "case": "compare DS1 == 1.5",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "1.5"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case10 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase10 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case10",
+    "lines": []
+   },
+   "seconds": 6.844,
+   "read_back": {
+    "a": "DS1",
+    "b": "1.5"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1==1.5,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "preflight_compare-1/saves/case12.clip.csv"
+  }
+ ]
+}
