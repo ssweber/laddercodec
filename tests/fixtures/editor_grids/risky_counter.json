@@ -1,0 +1,15 @@
+{
+ "cases": [
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=\"\u00e9\"", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "\"\u00e9\""}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=\"\t\"", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "\"\t\""}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": ""}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset= ", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": " "}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=\u0663", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "\u0663"}},
+  {"row": "counter.preset.forms", "case": "count_up CT1 preset= DS1", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": " DS1"}},
+  {"row": "counter.preset.forms", "case": "count_up CT1 preset=DS1 ", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "DS1 "}},
+  {"row": "counter.done.forms", "case": "count_up  CT1 preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": " CT1", "preset": "10"}},
+  {"row": "counter.done.forms", "case": "count_up CT1  preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1 ", "preset": "10"}}
+ ]
+}

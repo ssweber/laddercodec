@@ -1,0 +1,7 @@
+{
+  "for 10": {"verdict": "accepted"},
+  "for 10 oneshot=1": {"verdict": "accepted"},
+  "for 0": {"verdict": "accepted"},
+  "for X001": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: 'X001' is not allowed; ForLoop.count takes DS, DD, TD, CTD, SD (OBJ-004)"},
+  "for X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "ForLoop.count", "message": "ForLoop.count: 'X[DS1]' is a pointer; ForLoop.count takes none"}
+}

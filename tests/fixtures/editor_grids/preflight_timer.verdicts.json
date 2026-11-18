@@ -1,0 +1,12 @@
+{
+  "on_delay T1 preset=100 unit=ms": {"verdict": "accepted"},
+  "on_delay T1 preset=100 unit=sec": {"verdict": "accepted"},
+  "on_delay T1 preset=100 unit=ms retained=1": {"verdict": "accepted"},
+  "on_delay T1 preset=0 unit=ms": {"verdict": "accepted"},
+  "on_delay T1 preset=5 unit=ms": {"verdict": "accepted"},
+  "on_delay T1 preset=X001 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: 'X001' is not allowed; Timer.preset takes DS (OBJ-004)"},
+  "on_delay T1 preset=X[DS1] unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.preset", "message": "Timer.preset: 'X[DS1]' is a pointer; Timer.preset takes none"},
+  "on_delay X001 preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: 'X001' is not allowed; Timer.done takes T"},
+  "on_delay T[DS1] preset=100 unit=ms": {"verdict": "refused", "error": "AddressError", "field": "Timer.done", "message": "Timer.done: 'T[DS1]' is not a CLICK address"},
+  "on_delay T1,TD1 preset=100 unit=ms": {"verdict": "accepted"}
+}

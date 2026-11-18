@@ -1,0 +1,6 @@
+{
+  "shift  C1..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: ' C1' is not a CLICK address"},
+  "shift C1.. C1": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: ' C1' is not a CLICK address"},
+  "shift C1 ..C8": {"verdict": "refused", "error": "AddressError", "field": "Shift.start_bit", "message": "Shift.start_bit: 'C1 ' is not a CLICK address"},
+  "shift C1..C1 ": {"verdict": "refused", "error": "AddressError", "field": "Shift.end_bit", "message": "Shift.end_bit: 'C1 ' is not a CLICK address"}
+}

@@ -1,0 +1,13 @@
+{
+ "cases": [
+  {"row": "shift.control", "case": "shift C1..C8", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": "C8"}},
+  {"row": "shift.xy", "case": "shift X001..X008", "instruction": "shift", "fields": {"start_bit": "X001", "end_bit": "X008"}},
+  {"row": "shift.ranges", "case": "shift X001..X002", "instruction": "shift", "fields": {"start_bit": "X001", "end_bit": "X002"}},
+  {"row": "shift.start.banks", "case": "shift X001..C8", "instruction": "shift", "fields": {"start_bit": "X001", "end_bit": "C8"}},
+  {"row": "shift.end.banks", "case": "shift C1..X001", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": "X001"}},
+  {"row": "shift.start.forms", "case": "shift C[DS1]..C8", "instruction": "shift", "fields": {"start_bit": "C[DS1]", "end_bit": "C8"}},
+  {"row": "shift.end.forms", "case": "shift C1..C[DS1]", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": "C[DS1]"}},
+  {"row": "shift.start.constants", "case": "shift 5..C8", "instruction": "shift", "fields": {"start_bit": "5", "end_bit": "C8"}},
+  {"row": "shift.end.constants", "case": "shift C1..5", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": "5"}}
+ ]
+}

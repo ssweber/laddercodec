@@ -1,0 +1,20 @@
+{
+  "time_drum base": {"verdict": "accepted"},
+  "time_drum unit=ms": {"verdict": "accepted"},
+  "time_drum unit=ms presets[0]=0": {"verdict": "accepted"},
+  "time_drum presets[0]=5": {"verdict": "accepted"},
+  "time_drum presets[0]=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'X001' is not allowed; Drum.presets[0] takes DS (OBJ-004)"},
+  "time_drum presets[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.presets[0]", "message": "Drum.presets[0]: 'X[DS1]' is a pointer; Drum.presets[0] takes none"},
+  "time_drum num_steps=0": {"verdict": "refused", "error": "FieldError", "field": "Drum.presets", "message": "Drum.presets: 0 steps is outside 1-16"},
+  "time_drum num_outputs=0": {"verdict": "refused", "error": "FieldError", "field": "Drum.outputs", "message": "Drum.outputs: 0 outputs is outside 1-16"},
+  "time_drum outputs[1]=Y001": {"verdict": "refused", "error": "FieldError", "field": "Drum.outputs[1]", "message": "Drum.outputs[1]: 'Y001' is already output 0; each output is a different bit (OBJ-014)"},
+  "time_drum outputs[0]=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: 'X001' is not allowed; Drum.outputs[0] takes Y, C"},
+  "time_drum outputs[0]=Y[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.outputs[0]", "message": "Drum.outputs[0]: 'Y[DS1]' is not a CLICK address"},
+  "time_drum current_step=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.current_step", "message": "Drum.current_step: 'X001' is not allowed; Drum.current_step takes DS"},
+  "time_drum accumulator=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.accumulator", "message": "Drum.accumulator: 'X001' is not allowed; Drum.accumulator takes TD"},
+  "time_drum completion_flag=X001": {"verdict": "refused", "error": "AddressError", "field": "Drum.completion_flag", "message": "Drum.completion_flag: 'X001' is not allowed; Drum.completion_flag takes C"},
+  "event_drum events[0]=X016": {"verdict": "accepted"},
+  "event_drum events[0]=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Drum.events[0]", "message": "Drum.events[0]: 'X[DS1]' is not a CLICK address"},
+  "time_drum jog_enabled=1": {"verdict": "accepted"},
+  "time_drum jump_enabled=1 jump_step=DS2": {"verdict": "accepted"}
+}

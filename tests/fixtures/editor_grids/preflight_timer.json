@@ -1,0 +1,14 @@
+{
+ "cases": [
+  {"row": "timer.control", "case": "on_delay T1 preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "100"}, "choices": {"unit": "ms"}},
+  {"row": "timer.units", "case": "on_delay T1 preset=100 unit=sec", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "100"}, "choices": {"unit": "sec"}},
+  {"row": "timer.retained", "case": "on_delay T1 preset=100 unit=ms retained=1", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "100"}, "choices": {"unit": "ms"}, "options": {"retained": 1}},
+  {"row": "timer.preset.edges", "case": "on_delay T1 preset=0 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "0"}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=5 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "5"}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.banks", "case": "on_delay T1 preset=X001 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "X001"}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.forms", "case": "on_delay T1 preset=X[DS1] unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "X[DS1]"}, "choices": {"unit": "ms"}},
+  {"row": "timer.done.banks", "case": "on_delay X001 preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "X001", "preset": "100"}, "choices": {"unit": "ms"}},
+  {"row": "timer.done.forms", "case": "on_delay T[DS1] preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T[DS1]", "preset": "100"}, "choices": {"unit": "ms"}},
+  {"row": "timer.accumulator", "case": "on_delay T1,TD1 preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "accumulator": "TD1", "preset": "100"}, "choices": {"unit": "ms"}}
+ ]
+}

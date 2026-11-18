@@ -1,0 +1,8 @@
+{
+ "cases": [
+  {"row": "shift.start.forms", "case": "shift  C1..C8", "instruction": "shift", "fields": {"start_bit": " C1", "end_bit": "C8"}},
+  {"row": "shift.end.forms", "case": "shift C1.. C1", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": " C1"}},
+  {"row": "shift.start.forms", "case": "shift C1 ..C8", "instruction": "shift", "fields": {"start_bit": "C1 ", "end_bit": "C8"}},
+  {"row": "shift.end.forms", "case": "shift C1..C1 ", "instruction": "shift", "fields": {"start_bit": "C1", "end_bit": "C1 "}}
+ ]
+}

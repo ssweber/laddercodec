@@ -1,0 +1,13 @@
+{
+ "cases": [
+  {"row": "counter.control", "case": "count_up CT1 preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "10"}},
+  {"row": "counter.preset.edges", "case": "count_up CT1 preset=0", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "0"}},
+  {"row": "counter.preset.constants", "case": "count_up CT1 preset=5", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "5"}},
+  {"row": "counter.preset.lengths", "case": "count_up CT1 preset=000000000005", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "000000000005"}},
+  {"row": "counter.preset.banks", "case": "count_up CT1 preset=X001", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "X001"}},
+  {"row": "counter.preset.forms", "case": "count_up CT1 preset=X[DS1]", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "preset": "X[DS1]"}},
+  {"row": "counter.done.banks", "case": "count_up X001 preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": "X001", "preset": "10"}},
+  {"row": "counter.done.forms", "case": "count_up CT[DS1] preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT[DS1]", "preset": "10"}},
+  {"row": "counter.accumulator", "case": "count_up CT1,CTD1 preset=10", "instruction": "counter", "mode": "count_up", "fields": {"done": "CT1", "accumulator": "CTD1", "preset": "10"}}
+ ]
+}

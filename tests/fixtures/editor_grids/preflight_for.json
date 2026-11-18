@@ -1,0 +1,9 @@
+{
+ "cases": [
+  {"row": "for.control", "case": "for 10", "instruction": "for", "fields": {"count": "10"}},
+  {"row": "for.oneshot", "case": "for 10 oneshot=1", "instruction": "for", "fields": {"count": "10"}, "options": {"oneshot": 1}},
+  {"row": "for.count.constants", "case": "for 0", "instruction": "for", "fields": {"count": "0"}},
+  {"row": "for.count.banks", "case": "for X001", "instruction": "for", "fields": {"count": "X001"}},
+  {"row": "for.count.forms", "case": "for X[DS1]", "instruction": "for", "fields": {"count": "X[DS1]"}}
+ ]
+}

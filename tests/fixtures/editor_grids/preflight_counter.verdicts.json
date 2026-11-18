@@ -1,0 +1,11 @@
+{
+  "count_up CT1 preset=10": {"verdict": "accepted"},
+  "count_up CT1 preset=0": {"verdict": "accepted"},
+  "count_up CT1 preset=5": {"verdict": "accepted"},
+  "count_up CT1 preset=000000000005": {"verdict": "accepted"},
+  "count_up CT1 preset=X001": {"verdict": "refused", "error": "AddressError", "field": "Counter.preset", "message": "Counter.preset: 'X001' is not allowed; Counter.preset takes DS, DD (OBJ-004)"},
+  "count_up CT1 preset=X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Counter.preset", "message": "Counter.preset: 'X[DS1]' is a pointer; Counter.preset takes none"},
+  "count_up X001 preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: 'X001' is not allowed; Counter.done takes CT"},
+  "count_up CT[DS1] preset=10": {"verdict": "refused", "error": "AddressError", "field": "Counter.done", "message": "Counter.done: 'CT[DS1]' is not a CLICK address"},
+  "count_up CT1,CTD1 preset=10": {"verdict": "accepted"}
+}
