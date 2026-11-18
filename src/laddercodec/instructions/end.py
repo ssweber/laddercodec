@@ -20,7 +20,7 @@ END_TYPE_MARKER = 0x2727
 _END_TAGS = (0x0000,)
 
 
-@dataclass
+@dataclass(frozen=True)
 class End(AfInstruction):
     """Program terminator instruction."""
 

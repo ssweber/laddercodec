@@ -67,7 +67,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Home(AfInstruction):
     """The Home instruction.  laddercodec does not interpret its fields, and keeps each as a
     string.

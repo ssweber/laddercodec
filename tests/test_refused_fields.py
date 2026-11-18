@@ -32,6 +32,7 @@ from typing import Any, cast
 
 import pytest
 
+import laddercodec
 import laddercodec._grid
 import laddercodec.operands.unchecked as unchecked_mod
 from laddercodec import (
@@ -230,7 +231,6 @@ def _stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields) -> bytes
     with monkeypatch.context() as patch:
         patch.setattr(laddercodec._grid, "_check_instruction", lambda *_args: None)
         patch.setattr(unchecked_mod, "refusals", lambda _inst: ())
-        patch.setattr(unchecked_mod, "_as_constructed", lambda inst: inst)
         return encode(rungs)
 
 
@@ -271,22 +271,32 @@ def test_decoded_and_unchanged_it_writes_the_stored_bytes(
     assert held.build_blob() in data
 
 
-def _fix(held: object, valid: object) -> None:
-    """Set each field of *held* that differs from *valid* to the value in *valid*."""
-    for f in dataclasses.fields(cast("Any", valid)):
-        if getattr(held, f.name) != getattr(valid, f.name):
-            setattr(held, f.name, getattr(valid, f.name))
+def _fixes(held: object, valid: object) -> dict[str, Any]:
+    """Return each field of *held* that differs from *valid*, with the value in *valid*."""
+    return {
+        f.name: getattr(valid, f.name)
+        for f in dataclasses.fields(cast("Any", valid))
+        if getattr(held, f.name) != getattr(valid, f.name)
+    }
+
+
+def _swap(rungs: list[Rung], old: object, new: object) -> None:
+    """Put *new* in place of the instruction *old* in *rungs*."""
+    for rung in rungs:
+        for row in rung.conditions:
+            row[:] = [new if t is old else t for t in row]
+        rung.instructions[:] = [new if t is old else t for t in rung.instructions]
 
 
 @pytest.mark.parametrize("source", ["clipboard", "csv"])
 @pytest.mark.parametrize(("golden", "old", "new", "cls", "fields"), CASES, ids=_IDS)
-def test_a_field_fixed_by_assignment_is_accepted(
+def test_a_field_fixed_by_replace_is_accepted(
     tmp_path, monkeypatch, source, golden, old, new, cls, fields
 ) -> None:
-    """After a field changes, the instruction is checked again.
+    """``replace`` checks the instruction again when a field changes.
 
-    Once the refused field is fixed, the instruction holds no refusal, and the rungs encode
-    as the golden that they were edited from.
+    Once the refused field is fixed, the copy holds no refusal, and the rungs encode as the
+    golden that they were edited from.
     """
     if source == "clipboard":
         rungs, _ = _decoded(_stored_bytes(tmp_path, monkeypatch, golden, old, new, cls, fields))
@@ -295,8 +305,10 @@ def test_a_field_fixed_by_assignment_is_accepted(
     index, held = _held(rungs)
     golden_bytes = (GOLDEN / f"{golden}.bin").read_bytes()
     [valid] = [t for t in _tokens(decode(golden_bytes)[index]) if type(t) is cls]
-    _fix(held, valid)
-    assert not refusals(held)
+    fixed = laddercodec.replace(held, **_fixes(held, valid))
+    assert not refusals(fixed)
+    assert stored_blob(fixed) is None
+    _swap(rungs, held, fixed)
     assert encode(rungs) == golden_bytes
 
 
@@ -325,10 +337,9 @@ def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
     }
     if not typed:
         pytest.skip("the fix holds no letters")
-    _fix(held, valid)
-    for name, value in typed.items():
-        setattr(held, name, value)
-    assert not refusals(held)
+    fixed = laddercodec.replace(held, **(_fixes(held, valid) | typed))
+    assert not refusals(fixed)
+    _swap(rungs, held, fixed)
     assert encode(rungs) == golden_bytes
 
 
@@ -415,7 +426,7 @@ REAL_MATH = [
 @pytest.mark.parametrize(("file", "index"), REAL_MATH, ids=[f"{f}:{i}" for f, i in REAL_MATH])
 def test_clicks_own_refused_math_writes_its_bytes(monkeypatch, file, index) -> None:
     """Each Math encodes as it did when it decoded as ``raw(...)``, with CLICK's blob and cell
-    rows. After a field changes, ``encode()`` raises."""
+    rows. ``replace`` raises the refusal for a copy that changes a field."""
     data = (FIXTURES / "v4_captures" / file).read_bytes()
     rungs, _ = _decoded(data)
     rung = rungs[index]
@@ -438,9 +449,9 @@ def test_clicks_own_refused_math_writes_its_bytes(monkeypatch, file, index) -> N
     assert out == encode(as_raw)
     again, _ = _decoded(out)
     assert encode(again) == out
-    math.oneshot = not math.oneshot
-    with pytest.raises(FieldError):
-        encode(rung)
+    with pytest.raises(FieldError) as caught:
+        laddercodec.replace(math, oneshot=not math.oneshot)
+    assert caught.value.code == refusals(math)[0].code
 
 
 #: Edits made to both a program file and the clipboard capture of the same program. Each is
@@ -649,19 +660,25 @@ def _copy_rung(copy_af: Copy) -> Rung:
     )
 
 
-def test_write_csv_refuses_a_value_set_after_construction(tmp_path) -> None:
-    """If you set a refused value on an instruction after it is built, ``write_csv`` raises.
+def _force(inst: object, **values: object) -> None:
+    """Write *values* to the fields of the frozen *inst* without running its checks."""
+    for name, value in values.items():
+        object.__setattr__(inst, name, value)
+
+
+def test_write_csv_refuses_a_value_forced_after_construction(tmp_path) -> None:
+    """If code forces a refused value onto a built instruction, ``write_csv`` raises.
 
     The rows that it would write do not read back as the rung.
     """
     copy_af = Copy("DS1", "DS2")
-    copy_af.dest = "Y001"
+    _force(copy_af, dest="Y001")
     with pytest.raises(WriterError, match="Y001"):
         write_csv(tmp_path / "out.csv", [_copy_rung(copy_af)])
 
 
 def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
-    """``write_csv`` also raises for a token changed to a refused value in a rung that holds
+    """``write_csv`` also raises for a token forced to a refused value in a rung that holds
     a refusal.
 
     The writer reads such a rung back unchecked, and the token read back holds a refusal
@@ -673,6 +690,6 @@ def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
     rung = _copy_rung(copy_af)
     rung.conditions[0][0] = contact
     write_csv(tmp_path / "held.csv", [rung])
-    copy_af.dest = "Y002"
+    _force(copy_af, dest="Y002")
     with pytest.raises(WriterError, match="Y002"):
         write_csv(tmp_path / "out.csv", [rung])

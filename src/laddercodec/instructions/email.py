@@ -72,7 +72,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Email(AfInstruction):
     """The Email instruction, with each field kept as a string under its CLICK tag id.
 

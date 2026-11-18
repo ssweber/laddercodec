@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import laddercodec
 import laddercodec.instructions as instructions_mod
 from laddercodec import RefusedFieldWarning, decode, decode_program, encode, read_csv
 from laddercodec.codes import Code
@@ -381,18 +382,17 @@ class TestDecodeRefusedAddress:
         ]
         # While the instructions are unchanged, they write the bytes that CLICK stored.
         assert encode_rung(1, rung.conditions, rung.instructions) == data
-        # replace() runs the checks on the copy, so it raises. Setting a field drops the
-        # stored blob, so encoding checks the coil and raises.
+        # dataclasses.replace and laddercodec.replace run the checks on a changed copy, so
+        # both raise.
         with pytest.raises(AddressError, match="Y901"):
             replace(coil, oneshot=True)
-        coil.oneshot = True
         with pytest.raises(AddressError, match="Y901"):
-            encode_rung(1, rung.conditions, rung.instructions)
-        # Setting the field to a valid address clears the refusal. The contact is unchanged,
-        # so it still writes its stored bytes, and encoding does not raise.
-        coil.operand = "Y001"
-        assert not refusals(coil)
-        assert encode_rung(1, rung.conditions, rung.instructions) != data
+            laddercodec.replace(coil, oneshot=True)
+        # A copy with a valid address holds no refusal. The contact is unchanged, so it
+        # still writes its stored bytes, and encoding does not raise.
+        fixed = laddercodec.replace(coil, operand="Y001")
+        assert not refusals(fixed)
+        assert encode_rung(1, rung.conditions, [fixed]) != data
 
     def test_scr_decode(self) -> None:
         # shift_scr.scr holds two shift(C1..C2) rungs. C2 occurs only as their end bits.
@@ -409,14 +409,13 @@ class TestDecodeRefusedAddress:
             # from the tags of its SCR entry.
             stored = shift.build_blob()
             assert stored in encode(rung)
-            # Once a field changes, the shift is checked again. A valid end bit is accepted,
-            # and a refused one makes encoding raise.
-            shift.end_bit = "C3"
-            assert not refusals(shift)
-            assert shift.build_blob() != stored
-            shift.end_bit = "X117"
+            # A copy that changes a field is checked again. A valid end bit is accepted, and
+            # a refused one raises.
+            fixed = laddercodec.replace(shift, end_bit="C3")
+            assert not refusals(fixed)
+            assert fixed.build_blob() != stored
             with pytest.raises(AddressError, match="X117"):
-                encode(rung)
+                laddercodec.replace(shift, end_bit="X117")
         # Rung 1 of coverage.scr is ~C4 -> out(C3). C4 occurs only once in the file.
         data = (_SCR_DIR / "coverage.scr").read_bytes()
         assert data.count(_utf16z("C4")) == 1

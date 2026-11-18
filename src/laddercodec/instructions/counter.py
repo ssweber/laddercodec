@@ -62,7 +62,7 @@ _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Counter(PinnedInstruction):
     """A counter instruction (count_up / count_down)."""
 

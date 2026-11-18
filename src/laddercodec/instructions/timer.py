@@ -55,7 +55,7 @@ _TIMER_STD_TAGS = (0x6068, 0x606A, 0x6069, 0x21F9, 0x21FA, 0x21FB)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Timer(PinnedInstruction):
     """An on-delay or off-delay timer instruction.
 

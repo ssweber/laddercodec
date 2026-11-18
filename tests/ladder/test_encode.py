@@ -29,6 +29,7 @@ from laddercodec import (
     decode,
     encode,
     read_csv,
+    replace,
 )
 from laddercodec.csv import CSV_HEADER
 from laddercodec.encode import _sanitize_to_ascii, encode_rung
@@ -406,22 +407,15 @@ def test_read_csv_refuses_empty_text_constant(
     assert str(exc.value).isascii()
 
 
-def test_encode_refuses_empty_text_constant_set_after_build(tmp_path: Path) -> None:
-    # encode() checks an instance again, in case it changed after it was built. It raises
-    # the same FieldError that building the instance with that value raises.
-    ok = read_csv(_one_row_csv(tmp_path, "C1", "out(Y001)"))[0]
-    bad = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))[0]
-    bad.instructions[0].source = '""'  # type: ignore[union-attr]
+def test_replace_refuses_an_empty_text_constant(tmp_path: Path) -> None:
+    # replace() raises the same FieldError that building the instance with that value raises.
+    [rung] = read_csv(_one_row_csv(tmp_path, "C1", 'copy("Q",TXT813)'))
     with pytest.raises(FieldError, match=r"^Copy.source: '\"\"' is refused") as exc:
-        encode([ok, bad])
+        replace(rung.instructions[0], source='""')
     assert exc.value.field == "Copy.source"
-
-
-def test_encode_refuses_empty_text_constant_in_objects() -> None:
     copy = Copy(source='"Q"', dest="TXT1")
-    copy.source = '""'
     with pytest.raises(FieldError, match="a text constant is 1 to 128 characters"):
-        encode_rung(2, [_empty(), _empty()], [copy, ""])
+        replace(copy, source='""')
 
 
 @pytest.mark.parametrize("condition", ['TXT842==""', '""!=TXT842', 'T:TXT842==""'])
@@ -530,7 +524,7 @@ def test_encode_refuses_a_comment_too_long() -> None:
         encode(Rung(1, [_empty()], [""], "x" * 1500))
 
 
-def test_encode_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None:
+def test_replace_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None:
     drum = Drum(
         kind="time_event_drum",
         outputs=["C1"],
@@ -542,8 +536,6 @@ def test_encode_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None
         current_step="DS1",
         completion_flag="C2",
     )
-    drum.accumulator = "DS5"
-    rows = drum.cell_params().get("visual_rows", 1)
-    rung = Rung(rows, [["-"] * 31 for _ in range(rows)], [drum] + [""] * (rows - 1), None)
-    with pytest.raises(EncodeError, match="accumulator must be a TD address: 'DS5'"):
-        encode(rung)
+    with pytest.raises(FieldError, match="^Drum.accumulator: 'DS5' is not allowed") as exc:
+        replace(drum, accumulator="DS5")
+    assert exc.value.code == "bank-not-allowed"

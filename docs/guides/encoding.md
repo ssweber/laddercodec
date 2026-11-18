@@ -226,9 +226,37 @@ done is refused, the Timer is not checked for an accumulator that matches it.
 
 A decoded instruction can hold a refused value, with a `RefusedFieldWarning`
 ([Decoding](decoding.md#values-clicks-dialog-refuses)). If you encode it
-unchanged, you get the bytes it was decoded from. If you change it, it is checked
-again, and `encode()` raises the `FieldError` that building it raises. If you read
-it from CSV, it has no bytes to write, and `encode()` raises that error.
+unchanged, you get the bytes it was decoded from. If you change it with
+`replace()`, the copy is checked again, and `replace()` raises the `FieldError` that
+building it raises. If you read it from CSV, it has no bytes to write, and
+`encode()` raises that error.
+
+## Change An Instruction
+
+```python
+from laddercodec import Timer, replace
+
+timer = Timer(kind="on_delay", done="T1", accumulator="TD1", preset="100", unit="Tms")
+slower = replace(timer, preset="500")
+print(timer.preset, slower.preset)
+# 100 500
+```
+
+An instruction is frozen. If you assign to a field, Python raises
+`dataclasses.FrozenInstanceError`. To change an instruction, call `replace()` with
+the new field values. It returns a copy and leaves the instruction you passed
+unchanged. Put the copy in the rung in place of the old one.
+
+`replace()` checks the copy as if you built it new. A refused value raises the
+`FieldError` that building the instruction raises. A name that is not a field
+raises `TypeError`.
+
+A decoded instruction can hold the blob that it was decoded from
+([Decoding](decoding.md#values-clicks-dialog-refuses)). If every value that you
+pass is equal to the field's current value, the copy has that blob and the same
+refusals. So does a copy that changes only a contact's `wire_down`. A value that
+the constructor writes in another form is a change. For example, `"ds1"` is a
+change to a field that holds `"DS1"`.
 
 ## Comments
 

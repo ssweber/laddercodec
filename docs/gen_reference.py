@@ -110,6 +110,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "Position",
             "Velocity",
             "constant_text",
+            "replace",
         ),
     ),
 )

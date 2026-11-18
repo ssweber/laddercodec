@@ -64,7 +64,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Position(AfInstruction):
     """The Position instruction, with each field kept as the text that its tag stores.
 

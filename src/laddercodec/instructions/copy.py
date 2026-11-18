@@ -1207,13 +1207,13 @@ def _read_termination(check: Refusals, inst: Copy | BlockCopy) -> None:
             code=Code.BLANK_FIELD,
         )
     elif inst.termination_code == "none":
-        inst.termination_code = "0"
+        object.__setattr__(inst, "termination_code", "0")
     elif inst.termination_code.startswith("$"):
         code = check("termination_code", check_constant, _TERMINATION, char_id="OBJ-036")
         if code is not None:
             spelled = check.run(_ascii_code, int(code.value))
             if spelled is not None:
-                inst.termination_code = spelled
+                object.__setattr__(inst, "termination_code", spelled)
 
 
 def _check_termination_form(check: Refusals, inst: Copy | BlockCopy) -> None:
@@ -1265,7 +1265,7 @@ def _termination_csv(termination_code: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Copy(AfInstruction):
     """A single copy instruction.
 
@@ -1315,7 +1315,7 @@ class Copy(AfInstruction):
             if _is_one_digit_code(self.source):
                 # A single Copy accepts $ and one hex digit as a character code. CLICK
                 # stores it with two digits, so $1 becomes $01.
-                self.source = f"$0{self.source[1]}"
+                object.__setattr__(self, "source", f"$0{self.source[1]}")
             elif (why := _real_hex_refusal(self.source)) is not None:
                 check.refuse("source", why, Reason.FORM, code=Code.COPY_HEX_READS_AS_REAL)
             if self.convert not in _VALID_CONVERTS:
@@ -1332,7 +1332,7 @@ class Copy(AfInstruction):
             if self.suppress_zero is None and not (
                 self.convert == "to_text" and _real_text_source(self.source)
             ):
-                self.suppress_zero = False
+                object.__setattr__(self, "suppress_zero", False)
             if self.suppress_zero is None:
                 check.flag("exponential")
             else:
@@ -1437,7 +1437,7 @@ class Copy(AfInstruction):
                 )
             elif const is not None:
                 # Write the source in the form that CLICK stores.
-                self.source = _source_display(self.source, const.kind)
+                object.__setattr__(self, "source", _source_display(self.source, const.kind))
             if not check.refused("source", "dest"):
                 # CLICK's dialog shows the last TXT that a text fills, such as TXT1001. It
                 # refuses an end past TXT1000 as out of range.
@@ -1692,7 +1692,7 @@ def _asks_txt_choice(dest_bank: str) -> bool:
 _BLOCKCOPY_CONVERTS = frozenset({None, "to_value", "to_ascii"})
 
 
-@dataclass
+@dataclass(frozen=True)
 class BlockCopy(AfInstruction):
     """A block copy instruction (copy_type_idx=1).
 
@@ -1905,7 +1905,7 @@ class BlockCopy(AfInstruction):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Fill(AfInstruction):
     """A fill instruction (copy_type_idx=2).
 
@@ -2001,7 +2001,7 @@ _PACK_KINDS = frozenset({"pack_bits", "pack_words", "pack_text"})
 _PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
 
 
-@dataclass
+@dataclass(frozen=True)
 class Pack(AfInstruction):
     """A pack instruction (copy_type_idx=3).
 
@@ -2166,7 +2166,7 @@ class Pack(AfInstruction):
 _UNPACK_KINDS = frozenset({"unpack_to_bits", "unpack_to_words"})
 
 
-@dataclass
+@dataclass(frozen=True)
 class Unpack(AfInstruction):
     """An unpack instruction (copy_type_idx=4).
 

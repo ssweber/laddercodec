@@ -122,7 +122,7 @@ _SEARCH_TAGS = (
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Search(AfInstruction):
     """A search instruction.
 

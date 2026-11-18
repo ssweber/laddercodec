@@ -59,7 +59,7 @@ def _extract_fields(tags: dict[int, str]) -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Velocity(AfInstruction):
     """A Velocity instruction. Each field holds the string of one stored tag, and this
     library does not interpret it.

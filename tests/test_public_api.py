@@ -107,6 +107,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Search",
     "Shift",
     "constant_text",
+    "replace",
 )
 
 
@@ -174,6 +175,8 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     assert laddercodec.Code is codes.Code
     assert laddercodec.CLICK_IDS is codes.CLICK_IDS
     assert laddercodec.CLICK_IDS[laddercodec.Code.ADDRESS_OUT_OF_RANGE] == ("OBJ-003",)
+    unchecked = importlib.import_module("laddercodec.operands.unchecked")
+    assert laddercodec.replace is unchecked.replace
 
 
 def test_errors_form_one_tree_of_value_errors() -> None:

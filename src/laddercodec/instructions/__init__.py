@@ -74,7 +74,7 @@ _Parsed = TypeVar("_Parsed", bound=ConditionInstruction | AfInstruction)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class UnknownCondition:
     """An instruction cell on a condition column (A..AE) that the decoder could not read.
 
@@ -85,8 +85,13 @@ class UnknownCondition:
 
     raw: bytes
 
+    def __post_init__(self) -> None:
+        # A frozen instance must hold bytes. A bytearray could change, and it does not hash.
+        if isinstance(self.raw, bytearray):
+            object.__setattr__(self, "raw", bytes(self.raw))
 
-@dataclass
+
+@dataclass(frozen=True)
 class UnknownInstruction:
     """An instruction cell on the AF column that the decoder could not read.
 
@@ -96,6 +101,11 @@ class UnknownInstruction:
     """
 
     raw: bytes
+
+    def __post_init__(self) -> None:
+        # A frozen instance must hold bytes. A bytearray could change, and it does not hash.
+        if isinstance(self.raw, bytearray):
+            object.__setattr__(self, "raw", bytes(self.raw))
 
 
 ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition

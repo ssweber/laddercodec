@@ -9,10 +9,12 @@ checks refuse stays a raw instruction.
 
 from __future__ import annotations
 
+import dataclasses
 from pathlib import Path
 
 import pytest
 
+import laddercodec
 from laddercodec.csv import read_csv
 from laddercodec.csv.converter import CsvError
 from laddercodec.instructions import (
@@ -273,8 +275,10 @@ def test_flag_field_other_values_refused(field, bad) -> None:
         _FLAG_FIELDS[field](bad)
 
 
-def test_counter_reset_cleared_after_construction_fails_at_encode() -> None:
+def test_counter_reset_cleared_after_construction_is_refused() -> None:
     counter = _counter()
-    counter.reset_enabled = False
-    with pytest.raises(ValueError, match="Unsupported counter variant"):
-        counter.build_blob()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        counter.reset_enabled = False  # type: ignore[misc]
+    with pytest.raises(FieldError, match="Counter.reset_enabled") as caught:
+        laddercodec.replace(counter, reset_enabled=False)
+    assert caught.value.code == "invalid-choice"

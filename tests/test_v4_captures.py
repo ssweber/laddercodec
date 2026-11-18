@@ -58,6 +58,7 @@ from pathlib import Path
 
 import pytest
 
+import laddercodec
 from laddercodec import FieldError, encode, read_csv
 from laddercodec._layout import circuit
 from laddercodec.binary_helpers import _parse_tagged_fields_verbose
@@ -540,8 +541,8 @@ def test_math_xy_range_refused_for_an_option_slot_end(
     between their ends.
 
     A rung with a refused range decodes as that Math, and the Math keeps the refusal. It
-    writes the blob that CLICK stored until a field changes. After that, encode() raises the
-    refusal. A range that is not refused decodes as a Math with no refusal.
+    writes the blob that CLICK stored. ``laddercodec.replace`` raises the refusal for a copy
+    that changes a field. A range that is not refused decodes as a Math with no refusal.
     """
     assert (formula in REFUSED_XY_RANGES) == (expected != _points_between(formula))
     path = CAPTURE_DIR / file
@@ -564,9 +565,8 @@ def test_math_xy_range_refused_for_an_option_slot_end(
     assert blob == native[: len(blob)]
     assert _blob_fields(blob) == _blob_fields(native)
     assert blob in encode(rung)
-    af.oneshot = not af.oneshot
     with pytest.raises(FieldError, match=match):
-        encode(rung)
+        laddercodec.replace(af, oneshot=not af.oneshot)
 
 
 @pytest.mark.parametrize("index", range(17, 21))

@@ -26,7 +26,7 @@ CALL_FUNC_CODE = "9221"
 _CALL_TAGS = (0x3219, 0x6208, 0x3218, 0x0000)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Call(AfInstruction):
     """Subroutine call instruction."""
 
