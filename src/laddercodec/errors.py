@@ -54,9 +54,9 @@ class CsvError(LaddercodecError):
     ``read_bundle`` raises it for the same reasons in any file of the bundle.  It also
     raises it when ``main.csv`` is missing, when CLICK refuses the name of a file in
     ``subroutines/`` as a subroutine name, when one of those names starts or ends with
-    whitespace, and when two of them are equal with case ignored.  For a name that CLICK
-    refuses, the ``CsvError`` copies the refusal's data in the same way as for a pin row,
-    described next.
+    whitespace, and when two of them are equal with the case of A-Z ignored.  For a name
+    that CLICK refuses, the ``CsvError`` copies the refusal's data in the same way as for a
+    pin row, described next.
 
     Both functions raise it for a bad ``allow=``, before they read any file.  A bad
     ``allow=`` is an item that is not a code's name, a single string or bytes in place of a
@@ -83,7 +83,7 @@ class CsvError(LaddercodecError):
       ``layout-too-tall``, its ``click_id`` is ``None``, and its location is the rung's
       ``R`` row.
     - ``read_bundle`` raises it for two files in ``subroutines/`` whose names are equal when
-      case is ignored.  Its ``code`` is then ``duplicate-subroutine-name``, and its
+      the case of A-Z is ignored.  Its ``code`` is then ``duplicate-subroutine-name``, and its
       ``click_id`` is ``GUI-036``.
 
     If you build a ``CsvError`` with ``refusal``, it copies its attributes from the refusal
@@ -130,7 +130,8 @@ class WriterError(LaddercodecError):
     opens the file.  If it raises ``WriterError``, it has not created or changed the file.
 
     ``write_bundle`` raises it for a rung that the CSV can't hold, for two subroutines whose
-    names are equal when case is ignored, for a subroutine name that holds a control
+    names are equal when the case of A-Z is ignored, for two subroutines whose files would be
+    one file on a file system that ignores case, for a subroutine name that holds a control
     character, and for a path that it would write that exists and is of the wrong kind.  It
     raises before it writes any file.
 
@@ -142,7 +143,7 @@ class WriterError(LaddercodecError):
 
     - For a rung that needs more than 32 rows, ``code`` is ``layout-too-tall`` and
       ``click_id`` is ``None``.
-    - For two subroutines whose names are equal when case is ignored, ``code`` is
+    - For two subroutines whose names are equal when the case of A-Z is ignored, ``code`` is
       ``duplicate-subroutine-name`` and ``click_id`` is ``GUI-036``.
     """
 
@@ -167,12 +168,16 @@ class LayoutError(LaddercodecError):
     - ``layout-too-wide``: a rung needs more than the 31 condition columns.
     - ``layout-cannot-draw``: two wires or two cells of the drawing would fall on one place.
     - ``layout-nop-split``: outputs meet only at the rail, and one of them is a NOP.
+    - ``output-above-box-inputs``: an output comes before a box whose pin is used, on that
+      box's main input circuit.  Its ``click_id`` is ``C000A``.
+    - ``shared-input-net``: an output comes after a box whose pin is used, on that box's
+      main input circuit.  Its ``click_id`` is ``C000A``.
 
-    ``click_id`` is ``None`` for these codes.  When ``write_csv`` can't lay out a rung, it
-    raises :class:`~laddercodec.WriterError`.  The ``__cause__`` of that error can be a
-    ``LayoutError`` with one of these codes, or with the code of a ``check()`` finding such
-    as ``not-series-parallel``.  Its ``click_id`` is then CLICK's id when CLICK has one, such
-    as ``C0001``.
+    ``click_id`` is ``None`` for the four ``layout-`` codes.  When ``write_csv`` can't lay
+    out a rung, it raises :class:`~laddercodec.WriterError`.  The ``__cause__`` of that error
+    can be a ``LayoutError`` with one of these codes, or with the code of a ``check()``
+    finding such as ``not-series-parallel``.  Its ``click_id`` is then CLICK's id when CLICK
+    has one, such as ``C0001``.
     """
 
     def __init__(self, message: str, click_id: str | None = None, *, code: Code) -> None:

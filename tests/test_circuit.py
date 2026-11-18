@@ -297,18 +297,18 @@ def test_a_used_pin_left_out_is_drawn_unwired() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _layout_error(circuit: Circuit, code: Code) -> LayoutError:
+def _layout_error(circuit: Circuit, code: Code, click_id: str | None = None) -> LayoutError:
     """Return the error that ``lay_out`` raises, after checking its code and message."""
     with pytest.raises(LayoutError) as caught:
         lay_out(circuit)
     error = caught.value
     assert error.code is code
-    assert error.click_id is None
+    assert error.click_id == click_id
     # The message names no row or column of the drawing, and it gives an example.
     assert "row " not in str(error)
     assert "column " not in str(error)
     assert "such as" in str(error) or "For example" in str(error)
-    if code is not Code.LAYOUT_TOO_TALL:
+    if code not in (Code.LAYOUT_TOO_TALL, Code.SHARED_INPUT_NET, Code.OUTPUT_ABOVE_BOX_INPUTS):
         assert isinstance(error.__cause__, LayoutError)
         assert error.__cause__.code is code
     return error
@@ -335,29 +335,88 @@ def test_31_contacts_fit_and_32_raise() -> None:
     _layout_error(Circuit(Branch(tuple(contacts), (Box(Y1),))), Code.LAYOUT_TOO_WIDE)
 
 
-def test_box_below_a_pinned_box_on_its_net_clashes() -> None:
-    """The pin rows of the timer lie across the vertical that reaches the coil below it."""
-    circuit = Circuit(Branch((X1,), (Box(RETAINED, {".reset": X2}), Box(Y1))))
+_C000A = Code.SHARED_INPUT_NET
+_C000A_ABOVE = Code.OUTPUT_ABOVE_BOX_INPUTS
+_C000A_MESSAGE = (
+    "An output hangs off the input circuit of a box whose pin is used (C000A). Put the output "
+    "in a rung of its own, such as Circuit(Branch((Contact('X001'),), (Box(Coil('Y001')),)))."
+)
+
+
+@pytest.mark.parametrize(
+    ("outputs", "code"),
+    [
+        ((Box(RETAINED, {".reset": X2}), Box(Y1)), _C000A),
+        ((Box(Y1), Box(RETAINED, {".reset": X2})), _C000A_ABOVE),
+    ],
+    ids=["after", "above"],
+)
+def test_box_beside_a_pinned_box_on_its_net_is_c000a(outputs: tuple[Box, Box], code: Code) -> None:
+    """A coil after or above a retentive timer on the timer's main input net is refused
+    with C000A.  One message fits both sides.  It says to put the coil in a rung of its own.
+    """
+    error = _layout_error(Circuit(Branch((X1,), outputs)), code, "C000A")
+    assert str(error) == _C000A_MESSAGE
+    assert "above" not in str(error)
+    assert "after" not in str(error)
+
+
+def test_coil_above_a_pinned_box_is_what_check_reports() -> None:
+    """lay_out refuses the coil above the timer with the code that check() gives the same
+    rung drawn as a grid."""
+    timer = RETAINED
+    grid = Rung(
+        [[X1, "T", *["-"] * 29], ["", "-", *["-"] * 29], [X2, *["-"] * 30]],
+        [Coil("Y001"), timer, ""],
+        None,
+    )
+    [finding] = check(grid)
+    error = _layout_error(
+        Circuit(Branch((X1,), (Box(Y1), Box(timer, {".reset": X2})))), _C000A_ABOVE, "C000A"
+    )
+    assert (finding.code, finding.click_id) == (error.code, error.click_id)
+
+
+@pytest.mark.parametrize("side", ["after", "above"])
+def test_box_beside_a_branch_to_a_pinned_box_is_c000a(side: str) -> None:
+    """The coil hangs off X001's net, and the timer's main input circuit runs through it.
+
+    CLICK refuses that circuit with the coil above the timer with C000A.
+    """
+    timer_branch = Branch((X3,), (Box(RETAINED, {".reset": X2}),))
+    nested = Branch((C("C1"),), (timer_branch,))
+    code = _C000A if side == "after" else _C000A_ABOVE
+    for branch in (timer_branch, nested):
+        outputs = (branch, Box(Y1)) if side == "after" else (Box(Y1), branch)
+        _layout_error(Circuit(Branch((X1,), outputs)), code, "C000A")
+
+
+def test_box_above_a_branch_beside_a_pinned_box_lays_out() -> None:
+    """The coil hangs off X004's net, which is not on the timer's main input circuit, so
+    lay_out draws it above the timer."""
+    timer_branch = Branch((X3,), (Box(RETAINED, {".reset": X2}),))
+    coil_branch = Branch((C("X004"),), (Box(Y1),))
+    (rung,) = lay_out(Circuit(Branch((X1,), (coil_branch, timer_branch))))
+    assert check(rung) == []
+
+
+def test_box_after_a_branch_beside_a_pinned_box_cannot_be_drawn() -> None:
+    """The coil hangs off X004's net, which is not on the timer's main input circuit."""
+    timer_branch = Branch((X3,), (Box(RETAINED, {".reset": X2}),))
+    coil_branch = Branch((C("X004"),), (Box(Y1),))
+    circuit = Circuit(Branch((X1,), (timer_branch, coil_branch)))
     error = _layout_error(circuit, Code.LAYOUT_CANNOT_DRAW)
     assert "two of its wires would cross" in str(error)
     assert "move each of those boxes into a Circuit of its own" in str(error)
 
 
-def test_box_after_a_branch_to_a_pinned_box_clashes() -> None:
-    """The coil hangs off X001's net, and the timer's branch hangs off it too."""
-    timer_branch = Branch((X3,), (Box(RETAINED, {".reset": X2}),))
-    _layout_error(Circuit(Branch((X1,), (timer_branch, Box(Y1)))), Code.LAYOUT_CANNOT_DRAW)
-    nested = Branch((C("C1"),), (timer_branch,))
-    _layout_error(Circuit(Branch((X1,), (nested, Box(Y1)))), Code.LAYOUT_CANNOT_DRAW)
-
-
-def test_the_clash_lays_out_with_each_later_box_in_its_own_circuit() -> None:
-    """The message for the clash says to move each box after the pinned box into a Circuit
-    of its own.  If one of two later boxes stays, the circuit still clashes."""
+def test_c000a_lays_out_with_each_later_box_in_its_own_circuit() -> None:
+    """The message for C000A says to put each output in a rung of its own.  If one of two
+    later boxes stays, the circuit is still refused."""
     timer = Box(RETAINED, {".reset": X2})
     later = (Box(Y1), Box(Y2))
-    _layout_error(Circuit(Branch((X1,), (timer, *later))), Code.LAYOUT_CANNOT_DRAW)
-    _layout_error(Circuit(Branch((X1,), (timer, later[0]))), Code.LAYOUT_CANNOT_DRAW)
+    _layout_error(Circuit(Branch((X1,), (timer, *later))), _C000A, "C000A")
+    _layout_error(Circuit(Branch((X1,), (timer, later[0]))), _C000A, "C000A")
     rungs = [r for box in (timer, *later) for r in lay_out(Circuit(Branch((X1,), (box,))))]
     assert check(rungs) == []
 

@@ -237,7 +237,12 @@ def lay_out(circuit: Circuit) -> list[Rung]:
     - ``layout-too-tall``: a rung needs more than 32 rows;
     - ``layout-too-wide``: a rung needs more than the 31 condition columns, A to AE;
     - ``layout-cannot-draw``: two cells or two wires would fall on one place in the drawing;
-    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a ``NOP``.
+    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a ``NOP``;
+    - ``output-above-box-inputs`` or ``shared-input-net``, with ``click_id`` ``C000A``: an
+      output comes before or after a box whose pin is used, and it hangs off the net of that
+      box's main input, or off a net that the main input's circuit runs through.  The code is
+      ``output-above-box-inputs`` for an output before the box, and ``shared-input-net`` for
+      one after it.
     """
     from ._layout.build import lay_out as _lay_out
 

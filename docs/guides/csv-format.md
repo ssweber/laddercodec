@@ -53,11 +53,14 @@ project = read_bundle("my_program")
   a file of the same name. It does not delete or change any other file. A
   subroutine file left from an earlier write stays, and `read_bundle` reads it;
 - raises `FieldError` for a subroutine name that CLICK refuses. It raises
-  `WriterError` for two names that are equal when case is ignored, and for a
-  name that holds a control character (U+0000 to U+001F, or U+007F) anywhere,
-  including at either end. It also raises `WriterError` when a path that it
-  would write exists and is of the wrong kind, such as a directory named
-  `main.csv`;
+  `WriterError` for two names that are equal when the case of A-Z is ignored
+  (`Pump` and `pump`, but not `é1` and `É1`). It raises `WriterError` with no
+  `code` for two names whose files would be one file on a file system that
+  ignores case, such as NTFS (`é1` and `É1`, but not `Straße` and `STRASSE`). It
+  raises `WriterError` for a name that holds a control character (U+0000 to
+  U+001F, or U+007F) anywhere, including at either end. It also raises
+  `WriterError` when a path that it would write exists and is of the wrong
+  kind, such as a directory named `main.csv`;
 - checks every name and path and builds every file's rows before it writes any
   file. A `FieldError` or `WriterError` leaves the directory as it was. An
   `OSError` while it writes, such as a full disk, can leave some files written
@@ -800,20 +803,24 @@ currently emit:
     rejected).
 - A single `copy` source and a `math` constant are written as CLICK stores them,
   in `to_csv()`, `write_csv` and the encoded rung alike:
-  - a real as CLICK prints it back: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
-    `0.5`, `1E5` is `100000.0`, and in a `math` a typed `+2.5` stays.
-    laddercodec prints a real with 7 significant digits, which fits those
-    answers, and keeps a typed `+` in a `math` (`+2.50` is written `+2.5`). CLICK
-    has not answered for the rest. A real
-    that 7 significant digits would print in exponent form (from `1E+07` up and
-    below `1E-04`, such as `1.5E+10`) is kept as typed. So is one whose
-    7-digit print is another float32 value (`1234567.89`);
+  - a real as CLICK saves it: `1.50` is `1.5`, `1e3` is `1000.0`, `.5` is
+    `0.5`, and in a `math` a typed `+2.5` stays. A `math` real is written as
+    CLICK's Math saves it (`0.000015` is `1.5E-05`, `20000000.0` is `2E+07`,
+    `1234.000001` stays), except an integral one, which keeps a `.0` (`1E5` is
+    `100000.0`). In a `math`, `write_csv` writes each real in a form that CLICK
+    saves as the same value when you type it. CLICK cuts `0.00012345` typed so
+    to `0.000123`, and saves `1.2345E-04` as `0.00012345`. So `write_csv` writes
+    `math(1.2345E-04,DF1,mode=decimal)`, and the encoded rung holds
+    `0.00012345`. In a `copy`, a real is printed with 7 significant digits. One
+    that 7 digits would print in exponent form (from `1E+07` up and below
+    `1E-04`, such as `1.5E+10`) is kept as typed;
   - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), as CLICK's Copy
     stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
     zeros aside. It saves a real typed with more cut to 7 (`3.4028235E+38` as
     `3.402823E+38`). So a `copy` rejects one, and the message names the constant
     of 7 digits to write (`copy(1.2345678,DF1)` names `1.234568`). A `math`
-    keeps 6 and rejects more the same way (`0.33333334` names `0.333333`);
+    rejects a real that CLICK would save as another value, and the message
+    names the constant to write (`0.33333334` names `0.333333`);
   - in a `copy`, a decimal integer without leading zeros (`005` is `5`, `+5`
     and `+0` stay, `-0` is `0`), and a hex constant with uppercase digits, its
     leading zeros and a lowercase `h` (`0ffh` is `0FFh`, `ABCH` is `ABCh`);
@@ -829,10 +836,10 @@ currently emit:
 
   `constant_text()` writes a Python int, float or str as text that builds a `math`
   or a `copy` holding that value (`constant_text(255, hex=True)` is `FFh`). A `copy`
-  rejects a real of more than 7 significant digits, and a `math` rejects one of
-  more than 6 (`constant_text(1/3)` is `0.33333334`). The largest float32 value is
-  `3.402823466E+38`. Write `3.402823E+38` in a `copy` and `3.40282E+38` in a
-  `math`.
+  rejects a real of more than 7 significant digits, and a `math` rejects one that
+  CLICK would save as another value (`constant_text(1/3)` is `0.33333334`). The
+  largest float32 value is `3.402823466E+38`. Write it as `3.402823E+38` in a
+  `copy` and in a `math`.
 - Constants, counts and address numbers use the digits 0-9 only. A digit from
   another script (`٣`) is rejected.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
@@ -886,8 +893,18 @@ currently emit:
       pointer, a line break)
     - a real constant above float32's largest value, 3.402823466E+38, in size
       (`1E39`, and `3.4028235E+38`, which float32 rounds to that value)
-    - a real of more than 6 significant digits, which CLICK saves cut to 6
-      (`0.33333334` names `0.333333`, and `3.402823466E+38` names `3.40282E+38`)
+    - a real that CLICK would save as another value. The message names the text
+      that CLICK saves and the constant to write. From `1E-04` to below `1E+07`
+      CLICK saves a real in positional form, and otherwise in exponent form.
+      What it keeps depends on how the real is typed:
+      - without an `E`, 6 digits after the point (`0.33333334` is saved as
+        `0.333333`, `0.00012345` as `0.000123`, `12345678.9` as
+        `1.234568E+07`; `1234567.0` is accepted);
+      - with an `E`, 7 significant digits (`1.2345678E+15` is saved as
+        `1.234568E+15`, `3.402823466E+38` as `3.402823E+38`; `1.2345E-04` and
+        `1.234567E+10` are accepted);
+      - with a lowercase `e`, a `math` rejects a real that either rule would
+        change (`1.2345e-04` names `1.2345E-04`).
   - Each address lies inside its bank's range: `DS1 + DS0` is rejected.
   - A sign goes at the start, after `(` or after `,`. A decimal `math` joins it to
     the constant after it (`( + 5 )` is written `( +5 )`). After an operator, put
@@ -1144,8 +1161,8 @@ raise a `LaddercodecError` for input they can't read or write, and every
 |----------------|------------------------------------------------------------------------------|
 | `DecodeError`  | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
 | `EncodeError`  | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
-| `CsvError`     | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when case is ignored |
-| `WriterError`  | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when case is ignored, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
+| `CsvError`     | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when the case of A-Z is ignored |
+| `WriterError`  | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when the case of A-Z is ignored or whose files would be one file on a file system that ignores case, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
 | `FieldError`   | building an instruction, `read_csv`, `read_bundle` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address. `write_bundle` for a subroutine name that CLICK refuses |
 
 ## Consumer recommendations

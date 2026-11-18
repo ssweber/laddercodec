@@ -46,6 +46,10 @@ _MESSAGES = {
         "its own, such as Circuit(Branch((), (Box('NOP'),)))."
     ),
 }
+_SHARED_NET = (
+    "An output hangs off the input circuit of a box whose pin is used (C000A). Put the output "
+    "in a rung of its own, such as Circuit(Branch((Contact('X001'),), (Box(Coil('Y001')),)))."
+)
 _OTHER = (
     "laddercodec can't lay out this circuit. Report it at "
     "https://github.com/ssweber/laddercodec/issues with the Python that builds the Circuit."
@@ -143,6 +147,9 @@ def lay_out(circuit: Circuit) -> list[Rung]:
     from ..encode import MAX_ROWS
 
     net = network_of(circuit)
+    shared = _box_beside_pinned(net)
+    if shared is not None:
+        raise LayoutError(_SHARED_NET, "C000A", code=shared)
     out: list[Rung] = []
     try:
         drawn = [render(net, tree) for tree in trees(net)]
@@ -162,3 +169,27 @@ def lay_out(circuit: Circuit) -> list[Rung]:
         comment = circuit.comment if index == 0 else None
         out.append(Rung(cast(Any, conditions), cast(Any, instructions), comment))
     return out
+
+
+def _box_beside_pinned(net: Network) -> Code | None:
+    """Return the code for a box on the main input circuit of a box with a used pin, or None.
+
+    The other box's main input is on the pinned box's main input net, or on a net that the
+    main input's circuit runs through from the rail.  CLICK refuses an output above the
+    pinned box there with C000A (``output-above-box-inputs``).  An output after the pinned
+    box is ``shared-input-net``: the pin rows would cross the wire down to it, and CLICK
+    refuses it with C000A when it is drawn above the pinned box.  The first such pair in
+    source order decides the code.
+    """
+    mains = [s for s in net.sinks if s.slot == net.boxes[s.box].main]
+    for s in mains:
+        box = net.boxes[s.box]
+        if s.net == net.rail or not isinstance(box.token, PinnedInstruction):
+            continue
+        if not any(box.used[box.main + 1 :]):
+            continue
+        nets = net.upstream(s.net)
+        for t in mains:
+            if t.box != s.box and t.net in nets:
+                return Code.OUTPUT_ABOVE_BOX_INPUTS if t.row < s.row else Code.SHARED_INPUT_NET
+    return None

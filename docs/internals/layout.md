@@ -94,7 +94,7 @@ as drawn. These are the shapes:
 - a circuit that is not series-parallel (C0001)
 - a contact that no rail reaches or that feeds no box (C0202 and C0003)
 - a contact that a wire shorts (C0002)
-- a box above a box with a used pin on its main input's net, or another box's input on a
+- a box above a box with a used pin on its main input's circuit, or another box's input on a
   pin's net (C000A)
 - a pin with no contact of its own (C0205, C0212)
 
@@ -156,7 +156,8 @@ shows is reported with `captured=False`.
 17. Two boxes are paired on a net that the rail reaches through a contact, not on the rail
     itself, when one has a used pin (a retentive timer, a counter, a shift, a drum) and one
     of these holds:
-    - the other box's main input is on the pinned box's main input's net, above it
+    - the other box's main input is above the pinned box, on the pinned box's main
+      input's net or on a net that the main input's circuit runs through from the rail
       (`output-above-box-inputs`)
     - an input of the other box is on the net of one of the pinned box's pins
       (`shared-input-net`)
@@ -196,8 +197,12 @@ straight from it, and `trees()` and `render()` draw it as they draw a grid's net
   contact's two nets into one net, and the network lists the contact in `bypassed`.
 - **Errors.** `lay_out()` raises `LayoutError` for a rung of more than 32 rows
   (`layout-too-tall`), more than 31 condition columns (`layout-too-wide`), nets that cross
-  (`layout-cannot-draw`), and a split rung that holds a `NOP` (`layout-nop-split`). It does
-  not raise for a `check()` finding.
+  (`layout-cannot-draw`), and a split rung that holds a `NOP` (`layout-nop-split`). It also
+  raises `C000A` for a box before or after a box with a used pin, where the other box hangs
+  off the pinned box's main input circuit. The code is `output-above-box-inputs` for a box
+  before the pinned box, as `check()` reports it. It is `shared-input-net` for a box after
+  it, because the pin rows would cross the wire down to that box. It does not raise for any
+  other `check()` finding.
 
 `tests/test_circuit_round_trip.py` reads every laid-out rung of the fixtures back to a
 circuit and checks that `lay_out()` gives the same bytes.
@@ -241,14 +246,6 @@ For the next capture round:
   (`C1 -> out(Y1)`, an unwired `NOP` row, `C2 -> out(Y2)`). `read_csv` drops the `NOP`, then
   splits the rung in two. No capture shows CLICK's check doing both on one rung.
 - A contact that two pins share. What code does CLICK give it, if it refuses it?
-- A box below a pinned box that uses a pin, where the box hangs off a net that the pinned
-  box's branch also hangs off. Two examples:
-  - `C1` into a retentive on_delay with Reset `C2`, and `out(Y1)` below it on C1's net.
-  - `C1`, then a branch through `C3` into that on_delay, and `out(Y1)` below it on C1's net.
-
-  `check()` reports nothing for either rung. The pin rows cross the vertical wire down to
-  the coil, so `lay_out()` raises `layout-cannot-draw`. The grid path keeps such a rung as
-  drawn. How does CLICK draw these rungs?
 - A `NOP` reached only by contacts that also reach a coil. `check()` reports nothing, as
   for a `NOP` on a coil's net. These were probed and not captured:
   - C1 splits with a wire to the `NOP` and C2 to a coil

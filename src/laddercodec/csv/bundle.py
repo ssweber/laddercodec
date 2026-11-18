@@ -23,6 +23,29 @@ MAIN_PROGRAM_NAME = "Main Program"
 #: The field that a refused subroutine name is reported against.
 _NAME_FIELD = "Program.name"
 
+#: Folds A-Z to a-z and leaves every other character as it is.
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def _same_name_key(name: str) -> str:
+    """Return the text that is equal for two subroutine names that CLICK holds as one name.
+
+    CLICK ignores the case of A-Z in a subroutine name, and only of A-Z: ``Pump`` and
+    ``pump`` are one name, and ``é1`` and ``É1`` are two.
+    """
+    return name.translate(_ASCII_LOWER)
+
+
+def _same_file_key(name: str) -> str:
+    """Return the text that is equal for two subroutine names that may be one file.
+
+    A file system that ignores case, such as NTFS, compares names one character at a time,
+    each in upper case.  So ``é1.csv`` and ``É1.csv`` are one file, and ``Straße.csv`` and
+    ``STRASSE.csv`` are two.  A character whose upper case is more than one character is
+    kept as it is.
+    """
+    return "".join(up if len(up := ch.upper()) == 1 else ch for ch in name)
+
 
 def _bundle_paths(directory: Path) -> tuple[Path, list[Path]]:
     """Return the path of ``main.csv`` in *directory* and the paths of its subroutine files.
@@ -116,9 +139,10 @@ def read_bundle(
         if the names of the files in ``subroutines/`` are refused.  ``read_bundle`` checks
         the names before it reads any file.  It refuses a name that CLICK refuses as a
         subroutine name, a name that starts or ends with whitespace, and two names that are
-        equal when case is ignored.  For a name that CLICK refuses, the ``CsvError`` copies
-        the ``FieldError``'s ``field``, ``code``, ``reason`` and ``click_id``.  For two
-        names that are equal when case is ignored, its ``code`` is
+        equal when the case of A-Z is ignored.  For a name that CLICK refuses, the
+        ``CsvError`` copies the ``FieldError``'s ``field``, ``code``, ``reason`` and
+        ``click_id``.  For two names that are equal when the case of A-Z is ignored, its
+        ``code`` is
         ``duplicate-subroutine-name`` and its ``click_id`` is ``GUI-036``.
     FieldError
         If a file holds a value that CLICK's dialog refuses, as ``read_csv`` raises it.
@@ -150,7 +174,8 @@ def _subroutine_names(paths: Sequence[Path]) -> list[str]:
     """Return the subroutine name of each file in *paths*: its name without ``.csv``.
 
     Raise ``CsvError`` if CLICK refuses a name as a subroutine name, if a name starts or
-    ends with whitespace, or if two names are equal when case is ignored.  Read no file.
+    ends with whitespace, or if two names are equal when the case of A-Z is ignored.  Read
+    no file.
     """
     names: list[str] = []
     seen: dict[str, Path] = {}
@@ -172,11 +197,11 @@ def _subroutine_names(paths: Sequence[Path]) -> list[str]:
                     f"The subroutine name in {path.name!r} starts or ends with whitespace. "
                     "Remove the whitespace from the start and end of the file name."
                 )
-            first = seen.setdefault(name.casefold(), path)
+            first = seen.setdefault(_same_name_key(name), path)
             if first is not path:
                 raise CsvError(
                     f"Subroutine files {first.name!r} and {path.name!r} have the same name "
-                    "when case is ignored (GUI-036). Rename one of them.",
+                    "when the case of A-Z is ignored (GUI-036). Rename one of them.",
                     code=Code.DUPLICATE_SUBROUTINE_NAME,
                     click_id="GUI-036",
                 )
@@ -215,11 +240,12 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
     FieldError
         If CLICK refuses a subroutine's name.  The ``field`` is ``Program.name``.
     WriterError
-        If two subroutines have names that are equal when case is ignored.  They would be
-        one file on Windows and macOS.  The error's ``code`` is then
-        ``duplicate-subroutine-name``, and its ``click_id`` is ``GUI-036``.  It is also
-        raised for a name that holds a control character, U+0000 to U+001F or U+007F,
-        anywhere in the name.  It is raised when
+        If two subroutines have names that are equal when the case of A-Z is ignored.
+        The error's ``code`` is then ``duplicate-subroutine-name``, and its ``click_id``
+        is ``GUI-036``.  It is also raised, with no ``code`` and no ``click_id``, for two
+        names whose files would be one file on a file system that ignores case, such as
+        ``é1`` and ``É1``.  It is raised for a name that holds a control character,
+        U+0000 to U+001F or U+007F, anywhere in the name.  It is raised when
         *directory*, ``subroutines/``, ``main.csv`` or a subroutine's file exists and is
         of the wrong kind, such as a directory named ``main.csv``.  ``write_bundle``
         also raises it for a rung that the CSV can't hold, as ``write_csv`` does.
@@ -233,6 +259,7 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
     """
     directory = Path(directory)
     names: dict[str, str] = {}
+    file_names: dict[str, str] = {}
     for program in project.subroutines:
         check_program_name(program.name, _NAME_FIELD)
         # Check the name before it is stripped, so that a control character at either end,
@@ -245,15 +272,22 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
                 f"U+{ord(control):04X}. Remove the character from the name."
             )
         name = program.name.strip()
-        key = name.casefold()
+        key = _same_name_key(name)
         if key in names:
             raise WriterError(
-                f"Subroutines {names[key]!r} and {name!r} have the same name when case is "
-                "ignored (GUI-036). Rename one of them.",
+                f"Subroutines {names[key]!r} and {name!r} have the same name when the case "
+                "of A-Z is ignored (GUI-036). Rename one of them.",
                 code=Code.DUPLICATE_SUBROUTINE_NAME,
                 click_id="GUI-036",
             )
+        file_key = _same_file_key(name)
+        if file_key in file_names:
+            raise WriterError(
+                f"The files of subroutines {file_names[file_key]!r} and {name!r} would be one file "
+                "on a file system that ignores case, such as NTFS. Rename one of them."
+            )
         names[key] = name
+        file_names[file_key] = name
 
     sub_dir = directory / "subroutines"
     programs: list[tuple[Path, Program, UndecodedStop, str]] = [

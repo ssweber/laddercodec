@@ -34,7 +34,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import Finding, Rung, check, decode, encode, read_csv
+from laddercodec import Finding, Rung, check, decode, decode_program, encode, read_csv
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
@@ -210,6 +210,30 @@ def test_layoutq_raw_drum_with_a_leg_on_its_jump_row_has_no_findings() -> None:
     rung = read_csv(V4 / "layoutq_stub.csv")[6]
     assert type(rung.instructions[0]).__name__ == "RawInstruction"
     assert check(rung) == []
+
+
+def test_timer_coil_gets_clicks_errors() -> None:
+    """check() reports C000A on both rungs of ``timer_coil.csv``, as CLICK's check did.
+
+    Rung 1 has out(Y001) on the net of a retentive timer's reset, below the timer. Rung 2
+    has out(Y002) on the net after X001, above the timer. The timer's main input is X001
+    and X003 in series, so its circuit runs through that net. ``timer_coil_errors.txt`` is
+    CLICK's answer, and ``timer_coil_checked.scr`` is the program that CLICK saved after its
+    check. CLICK kept both rungs as pasted, and read_csv lays them out the same way.
+    """
+    rungs = read_csv(LC / "timer_coil.csv")
+    errors = (LC / "timer_coil_errors.txt").read_text(encoding="utf-8")
+    want = [e for e in _click_errors(errors) if e[1] != "C0201"]  # C0201: the program has no END
+    findings = check(rungs)
+    assert _as_click(findings) == want
+    assert _cells(findings) == [
+        (0, "shared-input-net", "C000A", 0, 31),
+        (1, "output-above-box-inputs", "C000A", 1, 31),
+    ]
+    saved = decode_program((LC / "timer_coil_checked.scr").read_bytes()).rungs
+    assert [(r.conditions, r.instructions) for r in rungs] == [
+        (r.conditions, r.instructions) for r in saved
+    ]
 
 
 @pytest.mark.parametrize(

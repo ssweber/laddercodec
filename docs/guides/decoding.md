@@ -378,7 +378,7 @@ shape with that CLICK id. [Error codes](codes.md) lists every code.
 | `contact-feeds-only-nop` | a contact the rail reaches that feeds a `NOP` and no other box, even when a coil is on another wire or leg of the rung; CLICK's text is "There is no Coil instruction in the rung" | `C0003` |
 | `shorted-contact` | a contact whose two sides a wire joins (in parallel with a wire-only leg); CLICK's text is "Short circuit error" | `C0002` |
 | `unwired-input` | a timer's or counter's reset whose row holds nothing (no contact, no wire, no vertical into it), at its AF cell | `C0202` |
-| `output-above-box-inputs` | a box above a box with a used pin row (a `.reset()` row and the like), both off the pinned box's main input's net, once per group of boxes that share nets | `C000A` |
+| `output-above-box-inputs` | a box above a box with a used pin row (a `.reset()` row and the like), off the pinned box's main input's net or off a net that the main input's circuit runs through, such as the net between `X001` and `X003` when the two feed a timer in series, once per group of boxes that share nets | `C000A` |
 | `shared-input-net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
 | `input-without-contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 | `undecoded-rung` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
