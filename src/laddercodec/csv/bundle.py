@@ -6,6 +6,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 from ..codes import Code
+from ..decode import Rung
 from ..errors import CsvError, LaddercodecError, WriterError
 from ..model import FieldError, Program, Project, check_program_name
 from ..refused import warn_refused
@@ -13,7 +14,7 @@ from ..undecoded import UndecodedStop
 from .ast import ProgramBundleAst
 from .location import located_in_file
 from .parser import csv_stem, parse_csv_file
-from .reader import read_rungs
+from .reader import allowed_codes, read_rungs
 from .writer import _csv_rows, write_rows
 
 #: The name that ``read_bundle`` gives the main program. CLICK names it the same.
@@ -70,7 +71,13 @@ def parse_bundle(directory: Path | str) -> ProgramBundleAst:
     return ProgramBundleAst(directory=dir_path, main=main, subroutines=subroutines)
 
 
-def read_bundle(directory: Path | str, *, strict: bool = True, unchecked: bool = False) -> Project:
+def read_bundle(
+    directory: Path | str,
+    *,
+    strict: bool = True,
+    unchecked: bool = False,
+    allow: Iterable[str] = (),
+) -> Project:
     """Read the bundle in *directory* and return it as a ``Project``.
 
     A bundle is a directory that holds ``main.csv`` and, optionally, a ``subroutines/``
@@ -89,33 +96,48 @@ def read_bundle(directory: Path | str, *, strict: bool = True, unchecked: bool =
     ``read_bundle`` ignores every other file.
 
     ``read_bundle`` reads each file as :func:`~laddercodec.read_csv` reads it, with the
-    same *strict* and *unchecked*.  When *unchecked* is ``True``, each
+    same *strict*, *unchecked* and *allow*.  When *unchecked* is ``True``, each
     ``RefusedFieldWarning`` names its program.
+
+    *allow* lists the codes of the refusals that you accept in every file, such as
+    ``allow=["bank-not-allowed"]``.  ``read_bundle`` keeps or raises each refusal as
+    ``read_csv`` does.  It emits no ``RefusedFieldWarning`` for a refusal that it keeps
+    because *allow* lists its code.
 
     Raises
     ------
     CsvError
-        If ``main.csv`` is missing, if a file can't be read, or if the names of the
-        files in ``subroutines/`` are refused.  ``read_bundle`` checks the names before
-        it reads any file.  It refuses a name that CLICK refuses as a subroutine name, a
-        name that starts or ends with whitespace, and two names that are equal when case
-        is ignored.  For a name that CLICK refuses, the ``CsvError`` copies the
-        ``FieldError``'s ``field``, ``code``, ``reason`` and ``click_id``.  For two names
-        that are equal when case is ignored, its ``code`` is ``duplicate-subroutine-name``
-        and its ``click_id`` is ``GUI-036``.
+        If *allow* holds an item that is not a code's name, if *allow* is a single string,
+        bytes or a value that you can't iterate over, or if you pass both
+        ``unchecked=True`` and a non-empty *allow*.  ``read_bundle`` checks *allow*
+        before it reads any file, and this error has no location.
+
+        ``CsvError`` is also raised if ``main.csv`` is missing, if a file can't be read, or
+        if the names of the files in ``subroutines/`` are refused.  ``read_bundle`` checks
+        the names before it reads any file.  It refuses a name that CLICK refuses as a
+        subroutine name, a name that starts or ends with whitespace, and two names that are
+        equal when case is ignored.  For a name that CLICK refuses, the ``CsvError`` copies
+        the ``FieldError``'s ``field``, ``code``, ``reason`` and ``click_id``.  For two
+        names that are equal when case is ignored, its ``code`` is
+        ``duplicate-subroutine-name`` and its ``click_id`` is ``GUI-036``.
     FieldError
         If a file holds a value that CLICK's dialog refuses, as ``read_csv`` raises it.
         It is an ``AddressError`` for an address.
 
-    Each error has a :class:`~laddercodec.CsvLocation` as its ``location``.  The
-    location's ``file`` is the file at fault.  If ``main.csv`` is missing, ``file`` is
-    the path where ``main.csv`` should be.
+    Each error, except an error about *allow*, has a :class:`~laddercodec.CsvLocation` as
+    its ``location``.  The location's ``file`` is the file at fault.  If ``main.csv`` is
+    missing, ``file`` is the path where ``main.csv`` should be.
     """
+    codes = allowed_codes(allow, unchecked=unchecked, caller="read_bundle")
     main_path, sub_paths = _bundle_paths(Path(directory))
     names = _subroutine_names(sub_paths)
-    main = Program(MAIN_PROGRAM_NAME, 1, read_rungs(main_path, strict=strict, unchecked=unchecked))
+
+    def read(path: Path) -> list[Rung]:
+        return read_rungs(path, strict=strict, unchecked=unchecked, allow=codes)
+
+    main = Program(MAIN_PROGRAM_NAME, 1, read(main_path))
     subroutines = [
-        Program(name, prog_idx, read_rungs(path, strict=strict, unchecked=unchecked))
+        Program(name, prog_idx, read(path))
         for prog_idx, (name, path) in enumerate(zip(names, sub_paths, strict=True), start=2)
     ]
     if unchecked:

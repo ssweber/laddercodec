@@ -32,7 +32,7 @@ from .instructions import (
     UnknownCondition,
     UnknownInstruction,
 )
-from .operands.unchecked import refusals, stored_blob, stored_cell_rows
+from .operands.unchecked import allowed, refusals, stored_blob, stored_cell_rows
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
@@ -46,15 +46,18 @@ def _check_instruction(token: ConditionInstruction | AfInstruction) -> None:
     A decoded instruction that holds the blob it was read from is not checked.
     ``encode()`` writes those bytes, as it does for a ``RawInstruction``.
 
+    An instruction whose refusals ``read_csv(..., allow=...)`` allowed by their codes is
+    not checked either.  ``encode()`` writes the blob of its fields.
+
     Any other instruction is checked.  An instruction built from stored data can hold the
     refusals that its construction would raise (see ``laddercodec.operands.unchecked``).
     The function raises the first of them.  This way ``encode()`` writes only values that
-    construction accepts.
+    construction accepts, or that the caller allowed.
     """
     if stored_blob(token) is not None:
         return
     found = refusals(token)
-    if found:
+    if found and not allowed(token):
         raise found[0].with_traceback(None)
 
 

@@ -58,6 +58,11 @@ class CsvError(LaddercodecError):
     refuses, the ``CsvError`` copies the refusal's data in the same way as for a pin row,
     described next.
 
+    Both functions raise it for a bad ``allow=``, before they read any file.  A bad
+    ``allow=`` is an item that is not a code's name, a single string or bytes in place of a
+    list, a value that you can't iterate over, or a non-empty ``allow=`` with
+    ``unchecked=True``.  This ``CsvError`` has no ``location``.
+
     Some boxes, such as a counter, take inputs from pin rows below the box's own row.
     ``read_csv`` builds such a box from all of its rows.  If the box refuses a value at that
     step, the ``FieldError`` reaches you wrapped in a ``CsvError``, and ``except FieldError``

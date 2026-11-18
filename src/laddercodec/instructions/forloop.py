@@ -57,7 +57,9 @@ _FOR_FORM = (
 )
 
 
-def _validate_for_count(value: str) -> str:
+def _normalized_count(value: str) -> str:
+    """Return *value* without the spaces at either end, and in display form if it is an
+    address. Raise :class:`FieldError` if it is blank or has a space inside it."""
     text = value.strip()
     if not text:
         raise FieldError(
@@ -76,7 +78,12 @@ def _validate_for_count(value: str) -> str:
             reason=Reason.FORM,
             code=Code.INVALID_CONSTANT,
         )
-    text = normalize_address(text, "ForLoop.count")
+    return normalize_address(text, "ForLoop.count")
+
+
+def _check_for_count(text: str) -> None:
+    """Raise :class:`FieldError` if CLICK's For dialog refuses *text*, a count in display
+    form."""
     check_operand(
         text,
         "ForLoop.count",
@@ -85,7 +92,6 @@ def _validate_for_count(value: str) -> str:
         bank_id="OBJ-004",
         bank_code=Code.FOR_COUNT_BANK,
     )
-    return text
 
 
 @dataclass(frozen=True)
@@ -97,9 +103,12 @@ class ForLoop(AfInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            count = check.run(_validate_for_count, self.count)
+            # Write the count in display form before the bank check, so that a count that
+            # the check refuses, such as ``x1``, is held as ``X001``.
+            count = check.run(_normalized_count, self.count)
             if count is not None:
                 object.__setattr__(self, "count", count)
+                check.run(_check_for_count, count)
             check.flag("oneshot")
 
     @classmethod

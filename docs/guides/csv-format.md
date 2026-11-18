@@ -5,11 +5,11 @@ This page defines laddercodec's 33-column CSV format. `read_csv` reads it and
 
 Relevant entry points:
 
-- `laddercodec.read_csv(path, *, strict=True, unchecked=False)`
+- `laddercodec.read_csv(path, *, strict=True, unchecked=False, allow=())`
 - `laddercodec.write_csv(path, rungs, *, index=False, stop="end")`
 - `laddercodec.csv_rows(rungs, *, index=False, stop="end")`
 - `laddercodec.write_bundle(directory, project, *, index=False)`
-- `laddercodec.read_bundle(directory, *, strict=True, unchecked=False)`
+- `laddercodec.read_bundle(directory, *, strict=True, unchecked=False, allow=())`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
 
 ## Scope and guarantees
@@ -64,10 +64,10 @@ project = read_bundle("my_program")
   and others not;
 - with `index=True`, numbers the rungs of each file from `R1`.
 
-`read_bundle(directory, *, strict=True, unchecked=False)`:
+`read_bundle(directory, *, strict=True, unchecked=False, allow=())`:
 
-- reads each file as `read_csv` reads it, with the same `strict` and
-  `unchecked`. An error has the location of the file at fault;
+- reads each file as `read_csv` reads it, with the same `strict`, `unchecked`
+  and `allow`. An error from a file has the location of that file;
 - returns the main program as `"Main Program"`, `prog_idx` 1, and then the
   subroutines in the order described next, with `prog_idx` 2, 3, 4 and so on;
 - raises `CsvError` for a missing `main.csv`. It also raises `CsvError` for a
@@ -1036,6 +1036,33 @@ the first refusal's location.
 A value that no stored instruction holds still raises. Examples are a timer unit
 that is none of CLICK's, a flag that is not 0 or 1, and pin rows the box can't
 take. A CSV holds no stored bytes, so `encode()` refuses the instruction.
+
+To accept some refusals and write the instruction anyway, list their codes in
+`allow=`:
+
+```python
+from laddercodec import encode, read_csv
+
+rungs = read_csv("main.csv", allow=["bank-not-allowed"])
+data = encode(rungs)
+```
+
+`read_csv` reads an instruction that CLICK's dialog refuses only if you list the
+code of every error in the refusal ([Error codes](codes.md)). Any other refusal
+raises, as it does by default. The values that `unchecked=True` can't keep raise
+whatever you list. `read_csv` emits no warning for an instruction that it reads
+this way. `encode()`, `write_csv` and `write_bundle` write it.
+
+`read_csv` keeps a refusal that you list only when laddercodec can write the
+instruction and read it back the same. Otherwise the refusal raises, as it does by
+default. A check that depends on a refused field does not run, so `allow=` can let
+through a value that such a check would refuse.
+
+If you change a field with `replace`, the copy is checked again. A refused value
+that the copy still holds then raises, even if you listed its code.
+
+If you list a name that is not a code, or pass both `allow=` and `unchecked=True`,
+`read_csv` raises `CsvError` before it reads the file.
 
 ## Where a read error is
 
