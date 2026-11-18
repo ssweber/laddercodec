@@ -61,8 +61,10 @@ src/laddercodec/
 ├── refused.py            # RefusedFieldWarning, warn_refused(): a decoded instruction that holds a value its checks refuse
 ├── compat.py             # find_v4_only() / is_v4_only(): instructions an older CLICK would mangle
 ├── layout_check.py       # check(): a Finding (.code, .click_id such as C0001) per shape CLICK's syntax check cannot lay out
+├── circuit.py            # lay_out() and the circuit types: Series, Parallel, Box, Branch, Circuit
 ├── _layout/              # Lays a rung out as CLICK's syntax check draws it: network.py (nets, contact edges),
-│                         #   tree.py (series-parallel tree), render.py (packed layout). Used by csv/ and layout_check.py
+│                         #   tree.py (series-parallel tree), render.py (packed layout), build.py (network
+│                         #   from a Circuit, for lay_out). Used by csv/, layout_check.py and circuit.py
 ├── cell.py               # ClickCell, preamble, terminal and row builders
 ├── topology.py           # Program header, rung preamble, cell offset math, wire flags
 ├── empty_multirow.py     # Deterministic empty multi-row payload synthesis
@@ -119,7 +121,7 @@ src/laddercodec/
   - `tests/test_operand_guards.py` counts three things in `instructions/` and compares the counts with an allowlist. They are each `re` function call, each set, tuple, list or dict literal of bank names, and each raise of `ValueError` or a `laddercodec.errors` class outside blob parsing.
   - A new one fails the test. Remove an allowlist entry when the code no longer has it.
   - `devtools/classify_dryrun.py` calls the shared checks in `operands/checks.py` with each field's parameters. It reports where they disagree with today's checks.
-- **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it. A rung that CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. See [`docs/internals/layout.md`](docs/internals/layout.md).
+- **Layout.** `read_csv` and `write_csv` lay a rung out as CLICK's syntax check draws it. A rung that CLICK would split reads as several rungs. `check()` reports the shapes CLICK refuses. `lay_out()` lays a rung out from a `Circuit` instead of a grid. See [`docs/internals/layout.md`](docs/internals/layout.md).
 - **csv/.** `read_csv` takes a canonical CSV (33 columns: marker + A..AE + AF; wire tokens `T`, `-`, `|`, blank). `converter.py` handles pin rows (`.reset()` → retentive timers) and tall-instruction padding.
 - **Devtools.**
   - `devtools/inspect_bin.py <file.bin>` shows instructions with `to_csv()` and the tagged-field breakdown of raw blobs.

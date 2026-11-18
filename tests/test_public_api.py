@@ -54,6 +54,12 @@ EXPECTED_ROOT_EXPORTS = (
     "is_v4_only",
     "check",
     "Finding",
+    "lay_out",
+    "Circuit",
+    "Branch",
+    "Box",
+    "Series",
+    "Parallel",
     "Rung",
     "Program",
     "Project",
@@ -67,6 +73,7 @@ EXPECTED_ROOT_EXPORTS = (
     "EncodeError",
     "WriterError",
     "CsvError",
+    "LayoutError",
     "LegacyEncodingWarning",
     "RefusedFieldWarning",
     "UndecodedRungWarning",
@@ -201,11 +208,14 @@ def test_new_root_exports_are_their_home_module_objects() -> None:
     assert laddercodec.CLICK_IDS[laddercodec.Code.ADDRESS_OUT_OF_RANGE] == ("OBJ-003",)
     unchecked = importlib.import_module("laddercodec.operands.unchecked")
     assert laddercodec.replace is unchecked.replace
+    circuit = importlib.import_module("laddercodec.circuit")
+    for name in ("Box", "Branch", "Circuit", "Parallel", "Series", "lay_out"):
+        assert getattr(laddercodec, name) is getattr(circuit, name), name
+    errors = importlib.import_module("laddercodec.errors")
+    assert laddercodec.LayoutError is errors.LayoutError
 
 
 def test_errors_form_one_tree_of_value_errors() -> None:
-    from laddercodec.errors import LayoutError
-
     base = laddercodec.LaddercodecError
     assert issubclass(base, ValueError)
     for error in (
@@ -214,7 +224,7 @@ def test_errors_form_one_tree_of_value_errors() -> None:
         laddercodec.CsvError,
         laddercodec.WriterError,
         laddercodec.FieldError,
-        LayoutError,
+        laddercodec.LayoutError,
     ):
         assert issubclass(error, base), error
     assert issubclass(laddercodec.AddressError, laddercodec.FieldError)

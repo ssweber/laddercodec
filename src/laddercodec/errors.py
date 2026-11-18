@@ -118,12 +118,21 @@ class WriterError(LaddercodecError):
 
 
 class LayoutError(LaddercodecError):
-    """Raised when a rung has a shape that CLICK's syntax check refuses, or one that
-    laddercodec's layout cannot draw.
+    """Raised by :func:`~laddercodec.lay_out` for a circuit that CLICK can't hold or that
+    laddercodec can't draw.
 
-    ``code`` names the shape.  It is a Code such as ``"not-series-parallel"``.  ``click_id``
-    is CLICK's error id when CLICK is known to refuse the shape (``C0001``, ``C0202``).
-    Otherwise it is ``None``.
+    ``code`` is a :class:`~laddercodec.Code` that says why:
+
+    - ``layout-too-tall``: a rung needs more than 32 rows.
+    - ``layout-too-wide``: a rung needs more than the 31 condition columns.
+    - ``layout-cannot-draw``: two wires or two cells of the drawing would fall on one place.
+    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a NOP.
+
+    ``click_id`` is ``None`` for these codes.  When ``write_csv`` can't lay out a rung, it
+    raises :class:`~laddercodec.WriterError`.  The ``__cause__`` of that error can be a
+    ``LayoutError`` with one of these codes, or with the code of a ``check()`` finding such
+    as ``not-series-parallel``.  Its ``click_id`` is then CLICK's id when CLICK has one, such
+    as ``C0001``.
     """
 
     def __init__(self, message: str, click_id: str | None = None, *, code: Code) -> None:

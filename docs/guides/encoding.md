@@ -49,6 +49,68 @@ You can pass lists, and the rung stores them as tuples. `rung.logical_rows` is t
 number of rows, `len(rung.conditions)`. A `Rung` is frozen and can be hashed. Two
 rungs that differ only in `comment_rtf` are equal.
 
+## Build A Rung From Its Circuit
+
+```python
+from laddercodec import Box, Branch, Circuit, Coil, Contact, Parallel, check, encode, lay_out
+
+circuit = Circuit(
+    Branch(
+        conditions=(Contact("X001"), Parallel((Contact("X002"), Contact("C1")))),
+        outputs=(
+            Box(Coil("Y001")),
+            Branch(conditions=(Contact("C2"),), outputs=(Box(Coil("Y002")),)),
+        ),
+    ),
+    comment="Start the pump",
+)
+
+rungs = lay_out(circuit)
+assert check(rungs) == []
+binary = encode(rungs)
+```
+
+`lay_out()` returns the rungs as CLICK's syntax check draws them, so you don't place
+any cell yourself. In CSV, these rungs are:
+
+```text
+#,Start the pump
+R,X001,T:X002,T,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)
+,,C1,C2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y002)
+```
+
+A circuit has no rows or columns. It is built from these parts:
+
+| Part | Holds |
+|---|---|
+| `Series(terms)` | terms in series, from left to right |
+| `Parallel(legs)` | two or more legs, drawn from the top down in the order given |
+| `Box(instruction, pins=())` | an AF instruction or `"NOP"`, and the term that feeds each pin it uses |
+| `Branch(conditions=(), outputs=())` | conditions in series, then the boxes and branches that hang off their end |
+| `Circuit(branch, comment=None)` | the branch from the rail, and the rung's comment |
+
+A term is a `Contact`, a `CompareContact`, a `Series` or a `Parallel`. The parts
+are frozen and can be hashed. A part that a class doesn't take raises `FieldError`
+with the code `invalid-circuit`.
+
+A pinned box takes the term for each pin by the pin's name, such as
+`Box(timer, {".reset": Contact("X002")})` for a retentive `Timer`. `lay_out()` puts
+each pin on the row that CLICK gives it.
+
+If outputs meet only at the rail, CLICK makes one rung of each. `lay_out()` does the
+same and puts the comment on the first rung. So `len(lay_out(circuit))` is the
+number of CLICK rungs.
+
+An empty `Series(())` is a wire. You can use it only as a leg of a `Parallel`, as
+in `Parallel((Contact("X001"), Series(())))`. CLICK holds such a leg, and its
+syntax check refuses it. `lay_out()` draws this shape and other shapes that only
+the syntax check refuses. To find them, call `check()` on the rungs.
+
+`lay_out()` raises `LayoutError` for a circuit that CLICK can't hold, such as one
+that needs more than 32 rows or more than the 31 condition columns. The error's
+`code` says which. The rules of the drawing are in
+[CSV layout](csv-format.md#layout).
+
 ## Wire Tokens
 
 Condition columns accept four wire tokens as strings:

@@ -133,6 +133,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `invalid-raw` | A `RawInstruction` field with a value of the wrong type or out of range, or a `raw(...)` token whose `rows=` does not fit its `pins=`. |  |
 | `invalid-undecoded` | An `Undecoded` field refused. |  |
 | `invalid-tee` | A `Tee` built around something other than one contact. |  |
+| `invalid-circuit` | A `Series`, `Parallel`, `Box`, `Branch` or `Circuit` built from a part it doesn't take, such as a Parallel with one leg, an empty Series outside a Parallel, or a pin that the box doesn't use. |  |
 
 ## check() findings
 
@@ -162,5 +163,6 @@ These codes come only from laying a rung out. `check()` never reports them. If `
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `layout-too-wide` | A layout that needs more than 31 condition columns. |  |
+| `layout-too-tall` | A circuit that `lay_out` would draw as a rung of more than 32 rows. |  |
 | `layout-nop-split` | A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung. |  |
 | `layout-cannot-draw` | Nets that collide, cells that overlap, or a contact drawn twice. |  |
