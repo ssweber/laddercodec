@@ -114,7 +114,7 @@ from typing import TYPE_CHECKING, cast
 
 from .empty_multirow import synthesize_empty_multirow
 from .errors import EncodeError
-from .instructions import AfInstruction, ConditionInstruction
+from .instructions import AfInstruction, ConditionInstruction, Tee
 from .topology import (
     GRID_FIRST_ROW_START,
     PREAMBLE_COMMENT_BODY,
@@ -147,8 +147,8 @@ _TOKEN_FLAGS: dict[str, tuple[int, int, int]] = {
 
 SUPPORTED_CONDITION_TOKENS = frozenset(_TOKEN_FLAGS)
 
-#: A condition-column token: wire string or ConditionInstruction.
-ConditionToken = str | ConditionInstruction
+#: A condition-column token: a wire string, a ConditionInstruction, or a Tee around one.
+ConditionToken = str | ConditionInstruction | Tee
 
 #: An AF-column token: ``""`` / ``"NOP"`` string or AfInstruction.
 AfToken = str | AfInstruction
@@ -278,7 +278,8 @@ def _compute_seg_boundaries(
     boundary is the largest of:
 
         - col+2 for a ``T`` and col+1 for a ``|``, in row R-1 only;
-        - col+2 for a Contact or CompareContact, in any of rows 0..R-1.
+        - col+2 for a Contact or CompareContact, or a ``Tee`` around one, in any of rows
+          0..R-1.
 
     In CLICK the seg flags depend on the order in which the user made the rows.
     If a user "inserts row above", the original top row keeps boundary 0 and
@@ -300,7 +301,7 @@ def _compute_seg_boundaries(
         ct_max = 0
         for prev_r in range(r):
             for c_idx, tok in enumerate(condition_rows[prev_r]):
-                if isinstance(tok, ConditionInstruction):
+                if isinstance(tok, (ConditionInstruction, Tee)):
                     ct_max = max(ct_max, c_idx + 2)
         boundaries[r] = max(tj_max, ct_max)
     return boundaries
@@ -346,7 +347,7 @@ def encode_rung(
         The token grid, one list per row. Each row has 31 condition-column
         entries. Each entry is ``""`` blank, ``"-"`` horizontal wire,
         ``"|"`` vertical pass-through, ``"T"`` junction-down,
-        or a condition instruction such as a ``Contact``.
+        a condition instruction such as a ``Contact``, or a ``Tee`` around one.
     af_tokens:
         One per row. ``"NOP"`` encodes the NOP instruction on the AF
         column, and ``""`` leaves it blank. An AF instruction object,

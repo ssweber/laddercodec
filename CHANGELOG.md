@@ -41,7 +41,7 @@ Several entries below say that laddercodec now rejects a value. That applies whe
 
 - **`decode()` always returns a list.** It now returns a `list[Rung]` even when the clipboard holds one rung. v0.4.0 returned the `Rung` itself in that case.
   - Do: Unpack a single rung with `[rung] = decode(data)`. Remove any `isinstance(result, list)` check.
-- **`Contact` and `Coil` are built by kind, with the operand first.** `Contact(operand, kind="no", immediate=False, wire_down=False)` takes `kind` `"no"`, `"nc"`, `"rise"` or `"fall"`. `Coil(operand, kind="out", range_end=None, immediate=False, oneshot=False)` takes `kind` `"out"`, `"latch"` or `"reset"`. v0.4.0 took an `InstructionType` as `type`, first, and `edge_kind` for an edge contact. Errors now name `Contact.kind` and `Coil.kind`.
+- **`Contact` and `Coil` are built by kind, with the operand first.** `Contact(operand, kind="no", immediate=False)` takes `kind` `"no"`, `"nc"`, `"rise"` or `"fall"`. `Coil(operand, kind="out", range_end=None, immediate=False, oneshot=False)` takes `kind` `"out"`, `"latch"` or `"reset"`. v0.4.0 took an `InstructionType` as `type`, first, and `edge_kind` for an edge contact. Errors now name `Contact.kind` and `Coil.kind`.
   - `Contact(InstructionType.CONTACT_NC, "X001")` → `Contact("X001", kind="nc")`
   - `Contact(InstructionType.CONTACT_EDGE, "X001", edge_kind="rise")` → `Contact("X001", kind="rise")`
   - `Coil(InstructionType.COIL_LATCH, "Y001")` → `Coil("Y001", kind="latch")`
@@ -129,7 +129,18 @@ Several entries below say that laddercodec now rejects a value. That applies whe
 - **`Email`, `Home`, `Position` and `Velocity` are provisional.** Their fields are named after CLICK's tag ids, such as `tag_3218`. A later release will rename them.
   - Do: Expect to rename these fields when you upgrade to that release.
 - **Instructions are frozen, and `replace()` changes one.** Assigning to a field of an instruction now raises `dataclasses.FrozenInstanceError`, and every instruction is hashable. In v0.4.0 you could assign any value to a field.
-  - Do: Write `inst = laddercodec.replace(inst, preset="500")` where you assigned to a field, and put the copy in the rung. `replace()` raises the `FieldError` that building the instruction raises. If you change no field, `encode()` writes the copy as the bytes that the instruction was decoded from.
+  - Do: Write `inst = laddercodec.replace(inst, preset="500")` where you assigned to a field, and put the copy in the rung with `replace(rung, ...)`. `replace()` raises the `FieldError` that building the instruction raises. If you change no field, `encode()` writes the copy as the bytes that the instruction was decoded from.
+- **`Rung` is now frozen and stores its rows as tuples, and a contact with a wire down is now `Tee(contact)`.** In v0.4.0 a `Rung` took `logical_rows` first and held lists, and a contact held its wire as `wire_down=True`. Encoded bytes and CSV text (`T:X001`) do not change.
+  - `Rung(1, rows, afs, None)` → `Rung(rows, afs, None)`. `logical_rows` is a read-only property, `len(rung.conditions)`.
+  - `Contact("X001", wire_down=True)` → `Tee(Contact("X001"))`. `Contact` and `CompareContact` have no `wire_down`, and `Contact.from_csv_token("T:X001")` raises `CsvError`.
+  - `rung.instructions[0] = coil` → `rung = replace(rung, instructions=[coil, *rung.instructions[1:]])`. Assigning to a field or a cell raises, and a rung is hashable.
+  - `decode()` and `decode_program()` return `Tee(UnknownCondition)` for a cell they can't read that has a wire down. v0.4.0 dropped the wire.
+  - `encode()` raises `EncodeError` for a `Tee` in column A or on the rung's last row, as it does for `"T"` and `"|"`. v0.4.0 encoded `Contact(wire_down=True)` there.
+  - `Rung()` raises `EncodeError` for a text where a row or the instructions list belongs. v0.4.0 encoded `"-" * 31` as a row of one-character tokens.
+  - Two rungs that differ only in `comment_rtf` are equal.
+  - The alias `DecodedRung` is gone. Use `Rung`.
+  - Do: Where you read `wire_down`, test `isinstance(cell, Tee)` and read the contact from `cell.contact`.
+  - Do: Compare a rung's rows with tuples, or compare whole rungs.
 
 ## 0.4.0 (2026-11-14)
 

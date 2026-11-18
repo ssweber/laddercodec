@@ -32,7 +32,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from laddercodec import FieldError, read_csv
+from laddercodec import FieldError, Tee, read_csv
 from laddercodec.model import AfInstruction, ConditionInstruction
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -59,6 +59,8 @@ def golden_instructions() -> dict[str, Any]:
             for rung in read_csv(path):
                 cells = [c for row in rung.conditions for c in row] + list(rung.instructions)
                 for cell in cells:
+                    if isinstance(cell, Tee):
+                        cell = cell.contact
                     if isinstance(cell, (AfInstruction, ConditionInstruction)):
                         found.setdefault(key_of(cell), cell)
     return found

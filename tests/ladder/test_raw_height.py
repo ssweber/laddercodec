@@ -157,7 +157,7 @@ def _short_email() -> RawInstruction:
 
 @pytest.mark.parametrize("below", ["NOP", Coil("Y001")], ids=["nop", "coil"])
 def test_clipboard_short_box_stays_raw(below: object) -> None:
-    rung = Rung(2, [["-"] * 31, ["-"] * 31], [_short_email(), below], None, None)
+    rung = Rung([["-"] * 31, ["-"] * 31], [_short_email(), below], None, None)
     data = encode(rung)
     assert _af_cells(data)[0] == ("Email", 1, 1)
     (back,) = decode(data)
@@ -326,7 +326,6 @@ def test_csv_raw_pads_rung_as_typed(class_name: str) -> None:
 
 def _rung_of(af: AfInstruction, rows: int) -> Rung:
     return Rung(
-        logical_rows=rows,
         conditions=[["-"] * 31, *[[""] * 31 for _ in range(rows - 1)]],
         instructions=[af, *[""] * (rows - 1)],
         comment=None,
@@ -619,9 +618,9 @@ def test_raw_field_value_the_token_cant_carry_is_written_as_hex(
     assert box.to_csv() == f"raw(Math,{box.blob.hex()},rows=1,sub=1)"
     assert RawInstruction.from_csv_token(box.to_csv()) == box
     out = tmp_path / "x.csv"
-    write_csv(out, [Rung(1, [["-"] * 31], [box], None, None)])
+    write_csv(out, [Rung([["-"] * 31], [box], None, None)])
     (back,) = read_csv(out)
-    assert back.instructions == [box]
+    assert back.instructions == (box,)
     assert back.instructions[0].blob == box.blob
 
 
@@ -633,7 +632,7 @@ def test_raw_field_value_the_token_carries_stays_in_the_fields_form(
     box = _field_box(value, last)
     assert box.to_csv().startswith("raw(Math,0x271a,1,rows=1,sub=1,")
     out = tmp_path / "x.csv"
-    write_csv(out, [Rung(1, [["-"] * 31], [box], None, None)])
+    write_csv(out, [Rung([["-"] * 31], [box], None, None)])
     (back,) = read_csv(out)
     assert back.instructions[0].blob == box.blob
 

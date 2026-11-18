@@ -23,6 +23,7 @@ from laddercodec.instructions import (
     AfInstruction,
     ConditionInstruction,
     RawInstruction,
+    Tee,
     UnknownCondition,
     UnknownInstruction,
 )
@@ -110,6 +111,10 @@ def _print_rung(rung: Rung, rung_idx: int) -> None:
             if tok in ("", "-"):
                 continue
             col = _col_letter(col_idx)
+            if isinstance(tok, Tee):
+                # A Tee holds a contact with a wire down from the cell's left edge.
+                print(f"    [{row_idx}][{col}] wire down from the cell's left edge")
+                tok = tok.contact
             if isinstance(tok, ConditionInstruction):
                 print(f"    [{row_idx}][{col}] {tok!r}")
                 print(f"      csv: {tok.to_csv()}")

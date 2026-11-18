@@ -48,8 +48,8 @@ def test_encode_decode_multi_roundtrip_empty() -> None:
     assert len(result) == 2
     for d in result:
         assert d.logical_rows == 1
-        assert d.conditions == [[""] * 31]
-        assert d.instructions == [""]
+        assert d.conditions == (("",) * 31,)
+        assert d.instructions == ("",)
         assert d.comment is None
 
 
@@ -72,7 +72,7 @@ def test_encode_decode_multi_roundtrip_mixed() -> None:
     result = decode(data)
     assert len(result) == 2
     assert result[0].logical_rows == 1
-    assert result[0].instructions == ["NOP"]
+    assert result[0].instructions == ("NOP",)
     assert result[0].comment == "Rung 0"
     assert result[1].logical_rows == 2
     assert result[1].comment is None

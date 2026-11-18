@@ -76,6 +76,7 @@ PAGES: tuple[ReferencePage, ...] = (
             "AfToken",
             "Contact",
             "CompareContact",
+            "Tee",
             "Coil",
             "OutVariant",
             "Timer",

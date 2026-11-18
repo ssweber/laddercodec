@@ -232,14 +232,14 @@ def test_multi_rung_rejects_vertical_last_row() -> None:
 
 
 def test_multi_rung_rejects_out_of_range_rows() -> None:
-    with pytest.raises(EncodeError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="A rung has 1 to 32 rows"):
         encode_rungs(
             [
                 (0, [], []),
                 (1, [_empty()], [""]),
             ]
         )
-    with pytest.raises(EncodeError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="A rung has 1 to 32 rows"):
         encode_rungs(
             [
                 (33, [_empty() for _ in range(33)], [""] * 33),
@@ -305,7 +305,7 @@ def test_rung_counts_around_256_round_trip(count: int) -> None:
     result = decode(encode_rungs(rungs))
     assert isinstance(result, list)
     assert len(result) == count
-    assert all(r.instructions == ["NOP"] for r in result)
+    assert all(r.instructions == ("NOP",) for r in result)
 
 
 def test_comment_past_256_rungs_round_trips() -> None:

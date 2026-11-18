@@ -177,6 +177,8 @@ class Code(StrEnum):
     """A ``RawInstruction`` field with a value of the wrong type or out of range, or a ``raw(...)`` token whose ``rows=`` does not fit its ``pins=``."""
     INVALID_UNDECODED = "invalid-undecoded"
     """An ``Undecoded`` field refused."""
+    INVALID_TEE = "invalid-tee"
+    """A ``Tee`` built around something other than one contact."""
 
     # check() findings: ``check()`` reports these.
     NOT_SERIES_PARALLEL = "not-series-parallel"
@@ -214,7 +216,7 @@ class Code(StrEnum):
     LAYOUT_NOP_SPLIT = "layout-nop-split"
     """A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung."""
     LAYOUT_CANNOT_DRAW = "layout-cannot-draw"
-    """Nets that collide, cells that overlap, a contact that can't take a down wire, or a contact drawn twice."""
+    """Nets that collide, cells that overlap, or a contact drawn twice."""
 
 
 CLICK_IDS: dict[Code, tuple[str, ...]] = {

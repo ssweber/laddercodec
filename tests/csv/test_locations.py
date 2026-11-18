@@ -14,6 +14,7 @@ from laddercodec import (
     CsvLocation,
     FieldError,
     RefusedFieldWarning,
+    Tee,
     read_csv,
 )
 from laddercodec.codes import Code
@@ -593,8 +594,8 @@ class TestHeldRefusals:
         assert CsvLocation.of(raised.value) == want
 
     def test_a_contact_with_a_down_wire(self, tmp_path: Path) -> None:
-        """The layout copies the contact to set its down wire, and the copy keeps the
-        location of the refusal."""
+        """The contact with a down wire reads as a ``Tee``, and the contact inside it keeps
+        the location of the refusal."""
         rows: list[Row | list[str]] = [
             ("R", {**_wired("X1"), 1: "T:DS2"}, "out(Y001)"),
             ("", {0: "X2", 1: "X3"}, ""),
@@ -602,8 +603,9 @@ class TestHeldRefusals:
         path = _write(tmp_path / "main.csv", rows)
         with pytest.warns(RefusedFieldWarning):
             [rung] = read_csv(path, unchecked=True)
-        contact = rung.conditions[0][1]
-        assert getattr(contact, "wire_down", False)
+        tee = rung.conditions[0][1]
+        assert isinstance(tee, Tee)
+        contact = tee.contact
         want = CsvLocation(file=path, line=2, rung_line=2, row=0, column=1)
         assert [CsvLocation.of(e) for e in refusals(contact)] == [want]
         with pytest.raises(FieldError) as raised:

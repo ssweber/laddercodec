@@ -13,6 +13,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Iterable
 
+from .instructions import Tee
 from .operands.errors import FieldError
 from .operands.unchecked import refusals
 
@@ -85,7 +86,10 @@ def warn_refused(rungs: Iterable[object], *, program: str | None = None) -> None
         conditions = getattr(rung, "conditions", ())
         instructions = getattr(rung, "instructions", ())
         for row, af in zip(conditions, instructions, strict=False):
-            for token in (*row, af):
+            for cell in (*row, af):
+                # The refusals belong to the contact inside a Tee, so the warning names the
+                # contact.
+                token = cell.contact if isinstance(cell, Tee) else cell
                 found = refusals(token)
                 if found:
                     warnings.warn(

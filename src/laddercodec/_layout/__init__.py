@@ -15,7 +15,6 @@ from typing import Any, cast
 
 from ..codes import Code
 from ..model import PinnedInstruction
-from ..operands.unchecked import rebuilt
 from .network import GridCell, Network, cell_of, network
 from .render import render
 from .tree import Branch, LayoutError, Leaf, Node, Out, RungTree, Series, trees
@@ -70,7 +69,6 @@ def _render(rung: Any, net: Network, found: list[RungTree]) -> list[Any]:
         conditions, instructions = render(net, tree)
         out.append(
             Rung(
-                logical_rows=len(conditions),
                 conditions=cast(Any, conditions),
                 instructions=cast(Any, instructions),
                 comment=rung.comment if i == 0 else None,
@@ -169,10 +167,7 @@ class _Circuit:
     def node(self, node: Node) -> object:
         if isinstance(node, Leaf):
             self.leaves.append(id(node.edge))
-            contact = node.edge.contact
-            if hasattr(contact, "wire_down"):
-                return rebuilt(cast(Any, contact), wire_down=False)
-            return contact
+            return node.edge.contact
         if isinstance(node, Out):
             return self.box(node.sink)
         kind = "series" if isinstance(node, Series) else "parallel"

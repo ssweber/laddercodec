@@ -41,8 +41,7 @@ cell rows. :func:`keep_stored_blob` and :func:`keep_cell_rows` keep them.
 rows, as it does for a ``RawInstruction``. If no blob was kept, ``build_blob()`` and
 ``encode()`` raise the first refusal that the instruction holds. A copy that
 :func:`replace` or :func:`rebuilt` makes keeps the blob only when the copy changes no
-field other than ``wire_down``. The cell stores ``wire_down``, not the blob.
-``dataclasses.replace`` never passes the blob on.
+field. ``dataclasses.replace`` never passes the blob on.
 
 :func:`replace` is public as ``laddercodec.replace``. The rest of this module is not
 public API.
@@ -77,13 +76,9 @@ __all__ = [
     "unchecked",
 ]
 
-#: Fields that the cell stores rather than the blob. A change to one does not discard a
-#: kept blob.
-_CELL_FIELDS = frozenset({"wire_down"})
-
-#: Fields that say where a box or contact sits in the rung. No refusal that an instruction
-#: keeps depends on one. A pin_rows that the check refuses always raises.
-_LAYOUT_FIELDS = frozenset({"wire_down", "pin_rows"})
+#: Fields that say where a box sits in the rung. No refusal that an instruction keeps
+#: depends on one. A pin_rows that the check refuses always raises.
+_LAYOUT_FIELDS = frozenset({"pin_rows"})
 
 #: The list of refusals kept in the innermost :func:`unchecked` block. It is None outside
 #: such a block and inside :func:`checked`.
@@ -211,16 +206,16 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
     If *inst* holds refusals, the copy holds refusals too, instead of raising them. If
     *inst* holds none, the copy runs its checks as construction does.
 
-    If *changes* names no field other than ``wire_down`` and ``pin_rows``, the copy holds a
-    copy of each of *inst*'s own errors. Each copy has the message, ``location``, fields,
+    If *changes* names no field other than ``pin_rows``, the copy holds a copy of each of
+    *inst*'s own errors. Each copy has the message, ``location``, fields,
     reason, code and CLICK id of its original, and names the copy of *inst* as its ``obj``.
     The errors of *inst* are not changed. A Modbus target or Modbus address in a field is
     the same object in *inst* and in the copy, so its errors are not copied. If *changes*
     names any other field, the checks run on the copy's values, and the copy holds the
     errors that they raise.
 
-    If *changes* names no field other than ``wire_down``, the copy also keeps the blob and
-    cell rows that *inst* was decoded from.
+    If *changes* is empty, the copy also keeps the blob and cell rows that *inst* was
+    decoded from.
     """
     if refusals(inst):
         with unchecked():
@@ -228,7 +223,7 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
     else:
         copied = dataclasses.replace(cast("Any", inst), **changes)
     held = getattr(inst, "_held", None)
-    if held is not None and set(changes) <= _CELL_FIELDS:
+    if held is not None and not changes:
         object.__setattr__(copied, "_held", held)
     own = getattr(inst, "_refusal", None)
     if own is not None and set(changes) <= _LAYOUT_FIELDS:
@@ -252,7 +247,7 @@ def _copied_errors(head: FieldError, inst: object, owner: object) -> FieldError:
 
 
 def replace(inst: _T, /, **changes: Any) -> _T:
-    """Return a copy of the instruction *inst* with the fields in *changes* set.
+    """Return a copy of *inst*, an instruction or a ``Rung``, with the fields in *changes* set.
 
     An instruction is frozen, so call this to get one that differs. Name each field as a
     keyword, as for ``dataclasses.replace``. A name that is not a field of *inst* raises
@@ -273,19 +268,21 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     - ``encode()`` writes the blob and cell rows that *inst* was decoded from;
     - if *inst* has no stored blob, ``encode()`` raises the first refusal that the copy holds.
 
-    A change to ``wire_down`` alone has the same result, because the cell stores
-    ``wire_down`` and the blob does not.
+    A ``Rung`` is frozen too. ``replace(rung, instructions=...)`` returns a copy of the
+    rung with those instructions. On a ``Rung``, no check runs. The copy holds the cells
+    that you pass, and the cells of *rung* that you do not change, as they are.
+    ``replace`` does not build them again.
     """
     if not is_dataclass(inst) or isinstance(inst, type):
-        raise TypeError(f"replace() takes an instruction, not {type(inst).__name__}")
+        raise TypeError(f"replace() takes an instruction or a Rung, not {type(inst).__name__}")
     names = {f.name for f in fields(inst)}
     changed = {
         name: value
         for name, value in changes.items()
         if name not in names or value != getattr(inst, name)
     }
-    if set(changed) <= _CELL_FIELDS:
-        return rebuilt(inst, **changed)
+    if not changed:
+        return rebuilt(inst)
     with checked():
         return _as_built(inst, changed)
 

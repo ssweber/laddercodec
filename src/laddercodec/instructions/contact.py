@@ -12,6 +12,7 @@ from typing import Literal, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
+from ..errors import CsvError
 from ..model import (
     TYPE_CODE_TO_ITYPE,
     ConditionInstruction,
@@ -61,6 +62,19 @@ _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 # ---------------------------------------------------------------------------
 
 
+def refuse_down_prefix(token: str, class_name: str) -> None:
+    """Raise :class:`~laddercodec.CsvError` if *token* starts with ``T:`` or ``|:``.
+
+    The prefix marks a wire down in the contact's cell. A contact class holds no wire, so
+    its ``from_csv_token`` cannot read the prefix.
+    """
+    if len(token) > 2 and token[1] == ":" and token[0] in ("T", "|"):
+        raise CsvError(
+            f"{token!r} has a wire down, and a {class_name} holds no wire. Wrap the contact "
+            f"in a Tee, such as Tee({class_name}.from_csv_token({token[2:]!r}))."
+        )
+
+
 @dataclass(frozen=True)
 class Contact(ConditionInstruction):
     """A contact: normally open (``no``), normally closed (``nc``), or an edge contact
@@ -73,11 +87,10 @@ class Contact(ConditionInstruction):
     operand: str  # e.g. "X001"
     kind: ContactKind = "no"
     immediate: bool = False
-    wire_down: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.flag("immediate", "wire_down")
+            check.flag("immediate")
             check.normalize("operand")
             address = check("operand", check_address, BIT_BANKS)
             if self.immediate is True and self.kind in _EDGE_KINDS:
@@ -107,17 +120,13 @@ class Contact(ConditionInstruction):
     def from_csv_token(cls, token: str) -> Contact:
         """Parse NO/NC/immediate forms plus edge forms `rise(...)`/`fall(...)`.
 
-        It also accepts the wire-down prefix ``T:`` or ``|:``, as in ``T:X001`` and
-        ``T:rise(X002)``.
+        A token with the wire-down prefix ``T:`` or ``|:``, such as ``T:X001``, raises
+        :class:`~laddercodec.CsvError`. A contact holds no wire. Wrap the contact in a
+        :class:`~laddercodec.Tee` instead.
         """
 
         token = token.strip()
-
-        # Detect wire-down prefix: T:X001 or |:rise(X002)
-        wire_down = False
-        if len(token) > 2 and token[1] == ":" and token[0] in ("T", "|"):
-            wire_down = True
-            token = token[2:]
+        refuse_down_prefix(token, cls.__name__)
 
         # Detect negation prefix
         negated = token.startswith("~")
@@ -142,14 +151,12 @@ class Contact(ConditionInstruction):
                 edge_match.group(2).strip(),
                 kind=cast(ContactKind, edge_match.group(1)),
                 immediate=immediate,
-                wire_down=wire_down,
             )
 
         return cls(
             token.strip(),
             kind="nc" if negated else "no",
             immediate=immediate,
-            wire_down=wire_down,
         )
 
     @property
@@ -161,17 +168,13 @@ class Contact(ConditionInstruction):
         if self.kind in _EDGE_KINDS:
             # An immediate edge contact exists only when a read with unchecked=True kept
             # the refusal instead of raising it.
-            inner = f"{self.kind}({self.operand}){suffix}"
-        else:
-            prefix = "~" if self.kind == "nc" else ""
-            inner = f"{prefix}{self.operand}{suffix}"
-        if self.wire_down:
-            return f"T:{inner}"
-        return inner
+            return f"{self.kind}({self.operand}){suffix}"
+        prefix = "~" if self.kind == "nc" else ""
+        return f"{prefix}{self.operand}{suffix}"
 
     def cell_params(self) -> dict:
         """Return the ClickCell keyword arguments that this instruction sets."""
-        return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
+        return {"is_contact": True}
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this contact cell."""

@@ -1272,7 +1272,7 @@ def test_down_wire_in_the_output_column_is_refused() -> None:
         f"rung 0, row 0 is not decoded, and an undecoded marker stands in for it: {error}"
     ]
     assert isinstance(rung, Rung)
-    assert rung.instructions == [Undecoded(error, 0, 0, 31, "end")]
+    assert rung.instructions == (Undecoded(error, 0, 0, 31, "end"),)
     assert rung.comment == f"UNDECODED: rung 0, row 0: {error}"
 
 

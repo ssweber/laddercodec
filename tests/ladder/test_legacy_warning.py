@@ -24,7 +24,6 @@ _FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def _rung(expr: str) -> Rung:
     return Rung(
-        logical_rows=1,
         conditions=[[""] * 31],
         instructions=[Math(expression=expr, dest="DD1")],
         comment=None,

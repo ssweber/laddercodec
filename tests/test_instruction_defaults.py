@@ -35,7 +35,7 @@ import pytest
 from laddercodec import decode
 from laddercodec.binary_helpers import _STANDARD_SENTINEL, _tag_wire_type, tag_default
 from laddercodec.csv import read_csv
-from laddercodec.instructions import from_tags_af, from_tags_condition
+from laddercodec.instructions import Tee, from_tags_af, from_tags_condition
 from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
 from laddercodec.model import AfInstruction, ConditionInstruction
 from laddercodec.operands.unchecked import refusals
@@ -65,14 +65,14 @@ def _corpus() -> dict[str, Instruction]:
     found: dict[str, Instruction] = {}
     for rung in rungs:
         for token in [t for row in rung.conditions for t in row] + list(rung.instructions):
+            # The wire down of a Tee describes the grid, and the contact's blob does not
+            # hold it.
+            if isinstance(token, Tee):
+                token = token.contact
             if not isinstance(token, Instruction) or isinstance(token, RawInstruction):
                 continue
             if refusals(token):
                 continue  # its checks refuse a stored value, so it builds no blob to compare
-
-            # The wire-down flag describes the grid, and the blob does not hold it.
-            if getattr(token, "wire_down", False):
-                token = dataclasses.replace(token, wire_down=False)
             found.setdefault(token.to_csv(), token)
     return found
 

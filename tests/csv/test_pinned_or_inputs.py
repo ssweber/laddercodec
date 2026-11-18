@@ -300,7 +300,7 @@ WRITER_CASES = {
 @pytest.mark.parametrize("name", list(WRITER_CASES))
 def test_writer_keeps_box_rows_in_place(name: str) -> None:
     conds, afs = WRITER_CASES[name]
-    rung = Rung(logical_rows=len(conds), conditions=conds, instructions=afs, comment=None)
+    rung = Rung(conditions=conds, instructions=afs, comment=None)
     (back,) = read_csv_rows(decoded_rung_to_rows(rung))
     assert back.conditions == rung.conditions
     assert back.instructions == rung.instructions
@@ -315,7 +315,6 @@ def test_writer_names_pin_rows_csv_cannot_express() -> None:
     """
     conds = [_wire("X1"), _wire("X9"), _wire("X8"), _empty(), _empty()]
     rung = Rung(
-        logical_rows=5,
         conditions=conds,
         instructions=[_drum((1, 3, 4)), "", "", "", ""],
         comment=None,

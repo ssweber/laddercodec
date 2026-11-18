@@ -25,14 +25,14 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
     """Read any Click Ladder CSV and return one ``Rung`` per CLICK rung.
 
     Handles both single-rung and multi-rung CSV files in a single call.
-    Each ``Rung`` is a dataclass with attributes ``logical_rows``,
-    ``conditions``, ``instructions``, ``comment``, ``comment_rtf``::
+    Each ``Rung`` is a frozen dataclass with the fields ``conditions``,
+    ``instructions``, ``comment`` and ``comment_rtf``::
 
         rungs = read_csv(path)
         r = rungs[0]
-        r.logical_rows    # int
-        r.conditions      # list[list[ConditionToken]]
-        r.instructions    # list[AfToken]
+        r.logical_rows    # int, len(r.conditions)
+        r.conditions      # tuple[tuple[ConditionToken, ...], ...]
+        r.instructions    # tuple[AfToken, ...]
         r.comment         # str | None
 
     Each rung is drawn as CLICK's syntax check draws it.  The CSV gives the

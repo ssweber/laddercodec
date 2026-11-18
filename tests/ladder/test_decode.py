@@ -48,8 +48,8 @@ def test_encode_decode_roundtrip_empty() -> None:
     data = encode_rung(1, conds, afs)
     [result] = decode(data)
     assert result.logical_rows == 1
-    assert result.conditions == conds
-    assert result.instructions == afs
+    assert result.conditions == tuple(map(tuple, conds))
+    assert result.instructions == tuple(afs)
     assert result.comment is None
 
 
@@ -60,8 +60,8 @@ def test_encode_decode_roundtrip_wire_nop_comment() -> None:
     data = encode_rung(2, conds, afs, comment=comment)
     [result] = decode(data)
     assert result.logical_rows == 2
-    assert result.conditions == conds
-    assert result.instructions == afs
+    assert result.conditions == tuple(map(tuple, conds))
+    assert result.instructions == tuple(afs)
     assert result.comment == comment
 
 
@@ -180,7 +180,7 @@ def test_rtf_decode_unicode_escape_signed_16bit_arg() -> None:
     assert _decode_rtf(payload) == "\u9f99"
 
 
-# -- DecodedRung preserves raw RTF --
+# -- A decoded Rung keeps the raw RTF --
 
 
 def test_decoded_rung_has_comment_rtf() -> None:

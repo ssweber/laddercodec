@@ -19,7 +19,6 @@ from laddercodec.csv import read_csv
 from laddercodec.csv.converter import CsvError
 from laddercodec.instructions import (
     Coil,
-    CompareContact,
     Contact,
     Counter,
     Drum,
@@ -253,8 +252,6 @@ def test_counter_csv_read_keeps_reset() -> None:
 
 _FLAG_FIELDS = {
     "Timer.retained": lambda v: Timer("on_delay", "T1", "TD1", "5", "Ts", retained=v),
-    "Contact.wire_down": lambda v: Contact("X1", wire_down=v),
-    "CompareContact.wire_down": lambda v: CompareContact("==", "DS1", "5", wire_down=v),
     "Drum.jog_enabled": lambda v: _drum(jog_enabled=v),
     "Drum.jump_enabled": lambda v: _drum(jump_enabled=v, jump_step="DS2"),
 }

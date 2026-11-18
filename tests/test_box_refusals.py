@@ -26,6 +26,7 @@ from laddercodec import (
     Reason,
     Search,
     Shift,
+    Tee,
 )
 from laddercodec.instructions.out_variant import OutVariant
 
@@ -179,7 +180,8 @@ def test_call_reports_its_one_field_once() -> None:
             lambda: Contact("X1", kind="rise", immediate=True),
             ("Contact.immediate", Reason.CONFLICT, None),
         ),
-        (lambda: Contact("X1", wire_down=2), ("Contact.wire_down", Reason.FLAG, None)),
+        (lambda: Contact("X1", immediate=2), ("Contact.immediate", Reason.FLAG, None)),
+        (lambda: Tee("X001"), ("Tee.contact", Reason.FORM, None)),
         # CompareContact
         (
             lambda: CompareContact("==", "DS1", "QQ9"),

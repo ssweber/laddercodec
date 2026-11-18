@@ -19,6 +19,7 @@ from ..model import (
 )
 from ..operands.checks import ALL_KINDS, Constants, Refusals, check_operand
 from ..operands.constants import HEX16_MAX, Kind
+from .contact import refuse_down_prefix
 from .family import ConditionInstructionFamilySpec
 
 # ---------------------------------------------------------------------------
@@ -141,11 +142,9 @@ class CompareContact(ConditionInstruction):
     op: Literal["==", "!=", "<", ">", "<=", ">="]
     left: str  # left operand, e.g. "DS1"
     right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"', "$41"
-    wire_down: bool = False
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            check.flag("wire_down")
             if not isinstance(self.op, str) or self.op not in COMPARE_OP_TO_FUNC:
                 check.refuse(
                     "op",
@@ -179,14 +178,12 @@ class CompareContact(ConditionInstruction):
     def from_csv_token(cls, token: str) -> CompareContact:
         """Parse the CSV token of a compare contact, such as ``DS1==1`` or ``DS2>=DS3``.
 
-        A ``T:`` or ``|:`` prefix, as in ``T:DS1==1``, sets ``wire_down``.
+        A token with the wire-down prefix ``T:`` or ``|:``, such as ``T:DS1==1``, raises
+        :class:`~laddercodec.CsvError`. A contact holds no wire. Wrap the contact in a
+        :class:`~laddercodec.Tee` instead.
         """
         token = token.strip()
-
-        wire_down = False
-        if len(token) > 2 and token[1] == ":" and token[0] in ("T", "|"):
-            wire_down = True
-            token = token[2:]
+        refuse_down_prefix(token, cls.__name__)
 
         parts = split_comparison(token)
         if parts is None:
@@ -195,7 +192,7 @@ class CompareContact(ConditionInstruction):
                 "==, !=, <, >, <= or >=, such as DS1==1."
             )
         left, op, right = parts
-        return cls(op=cast(CompareOp, op), left=left, right=right, wire_down=wire_down)
+        return cls(op=cast(CompareOp, op), left=left, right=right)
 
     @property
     def func_code(self) -> str:
@@ -206,14 +203,11 @@ class CompareContact(ConditionInstruction):
         return COMPARE_OP_TO_TYPE_IDX[self.op]
 
     def to_csv(self) -> str:
-        inner = f"{self.left}{self.op}{self.right}"
-        if self.wire_down:
-            return f"T:{inner}"
-        return inner
+        return f"{self.left}{self.op}{self.right}"
 
     def cell_params(self) -> dict:
         """Return the ``ClickCell`` keyword arguments that depend on this instruction alone."""
-        return {"is_contact": True, "wire_down": 1 if self.wire_down else 0}
+        return {"is_contact": True}
 
     def build_blob(self) -> bytes:
         """Build the instruction data blob for this compare contact cell."""

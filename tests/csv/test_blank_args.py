@@ -329,7 +329,6 @@ def test_a_range_with_a_blank_end_writes_and_reads_back(tmp_path: Path) -> None:
     with unchecked():
         block = BlockCopy(source_start="", source_end="DS4", dest_start="DS40", dest_end="DS43")
     rung = Rung(
-        logical_rows=1,
         conditions=[["-"] * len(CONDITION_COLUMNS)],
         instructions=[block],
         comment_rtf=None,

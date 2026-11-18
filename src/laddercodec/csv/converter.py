@@ -67,6 +67,7 @@ from ..instructions import (
     KNOWN_PIN_NAMES,
     CompareContact,
     Contact,
+    Tee,
     parse_af_call,
 )
 from ..instructions import AfToken as RungAfToken
@@ -174,8 +175,8 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
 
     After the blocks are finished and padded, the padding rows are all blank.  This pass
     restores their vertical wires.  Where row *R* has a ``T`` (junction down), a ``|``
-    (vertical pass-through) or a condition instruction with ``wire_down=True``, a blank
-    cell below it on row *R+1* becomes ``|``.
+    (vertical pass-through) or a ``Tee`` (a contact with a wire down), a blank cell below
+    it on row *R+1* becomes ``|``.
 
     The exception is a cell whose left neighbour ``(R+1, C-1)`` holds a horizontal path,
     which is anything other than ``""`` or ``"|"``.  That horizontal wire joins the end of
@@ -189,11 +190,8 @@ def _hydrate_wire_continuations(condition_rows: list[list[ConditionToken]]) -> N
     for row_idx in range(len(condition_rows) - 2):
         for col_idx in range(len(condition_rows[row_idx])):
             token = condition_rows[row_idx][col_idx]
-            # A T or | wire, or a contact with wire_down=True, continues down into the cell
-            # below.
-            propagates_down = token in ("T", "|") or (
-                hasattr(token, "wire_down") and token.wire_down
-            )
+            # A T or | wire, or a Tee, continues down into the cell below.
+            propagates_down = isinstance(token, Tee) or token in ("T", "|")
             if propagates_down and condition_rows[row_idx + 1][col_idx] == "":
                 # Check if a horizontal wire from the left already connects here.
                 if col_idx > 0:
@@ -532,7 +530,13 @@ def _finalize_active_block(
 
 
 def condition_node_to_token(node: object) -> ConditionToken:
-    """Convert a parsed condition AST node to an encode-ready token."""
+    """Convert a parsed condition AST node to an encode-ready token.
+
+    A contact read with a ``T:`` or ``|:`` prefix becomes a ``Tee`` around the contact.
+    """
+    if isinstance(node, (ContactCondition, EdgeCondition, ComparisonCondition)):
+        contact = _contact_of(node)
+        return Tee(contact) if node.wire_down else contact
     if isinstance(node, BlankCondition):
         return ""
     if isinstance(node, HorizontalWire):
@@ -541,25 +545,6 @@ def condition_node_to_token(node: object) -> ConditionToken:
         return "T"
     if isinstance(node, VerticalPassThroughWire):
         return "|"
-    if isinstance(node, ContactCondition):
-        return Contact(
-            node.operand,
-            kind="nc" if node.negated else "no",
-            immediate=node.immediate,
-            wire_down=node.wire_down,
-        )
-    if isinstance(node, EdgeCondition):
-        # An immediate edge contact is refused when it is built.
-        return Contact(
-            node.operand,
-            kind=node.kind,
-            immediate=node.immediate,
-            wire_down=node.wire_down,
-        )
-    if isinstance(node, ComparisonCondition):
-        return CompareContact(
-            op=node.op, left=node.left, right=node.right, wire_down=node.wire_down
-        )
     if isinstance(node, GenericCondition):
         if re.fullmatch(r"[A-Za-z]{1,3}\d{1,5}", node.raw):
             check_address(node.raw, "Contact.operand")  # an address with digits not in 0-9
@@ -568,6 +553,18 @@ def condition_node_to_token(node: object) -> ConditionToken:
             "~X001 or rise(X001), a compare such as DS1==1, or a wire: -, | or T."
         )
     raise TypeError(f"Unknown condition node type: {type(node).__name__}")
+
+
+def _contact_of(
+    node: ContactCondition | EdgeCondition | ComparisonCondition,
+) -> ConditionInstruction:
+    """Return the contact that a parsed contact, edge or compare node names, without its wire."""
+    if isinstance(node, ContactCondition):
+        return Contact(node.operand, kind="nc" if node.negated else "no", immediate=node.immediate)
+    if isinstance(node, EdgeCondition):
+        # An immediate edge contact is refused when it is built.
+        return Contact(node.operand, kind=node.kind, immediate=node.immediate)
+    return CompareContact(op=node.op, left=node.left, right=node.right)
 
 
 def _af_call_to_token(call: AfCall, *, strict: bool = True) -> AfToken:
@@ -714,8 +711,10 @@ def reads_back(token: object) -> bool:
     """
     try:
         with unchecked():
-            if isinstance(token, ConditionInstruction):
+            if isinstance(token, Tee) and isinstance(token.contact, ConditionInstruction):
                 again: object = condition_node_to_token(parse_condition_token(token.to_csv()))
+            elif isinstance(token, ConditionInstruction):
+                again = condition_node_to_token(parse_condition_token(token.to_csv()))
             elif isinstance(token, AfInstruction):
                 again = af_node_to_token(parse_af_token(token.to_csv()))
                 if isinstance(token, PinnedInstruction) and isinstance(again, PinnedInstruction):
@@ -859,7 +858,6 @@ def convert_literal(rung: RungAst, *, strict: bool = True) -> Rung:
     _hydrate_wire_continuations(condition_rows)
 
     return Rung(
-        len(condition_rows),
         cast(list[list[RungConditionToken]], condition_rows),
         cast(list[RungAfToken], af_tokens),
         comment,

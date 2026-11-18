@@ -84,9 +84,9 @@ def test_encode_rung_rejects_vertical_last_row() -> None:
 
 
 def test_encode_rung_rejects_out_of_range_rows() -> None:
-    with pytest.raises(EncodeError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="A rung has 1 to 32 rows"):
         encode_rung(0, [], [])
-    with pytest.raises(EncodeError, match="logical_rows"):
+    with pytest.raises(EncodeError, match="A rung has 1 to 32 rows"):
         encode_rung(33, [_empty() for _ in range(33)], [""] * 33)
 
 
@@ -246,8 +246,8 @@ class TestInstructionRoundTrip:
         buf = encode_rung(1, [row], [Coil("Y001")])
         assert buf == (GOLDEN_DIR / "instr-series.bin").read_bytes()
         [d] = decode(buf)
-        assert d.conditions == [row]
-        assert d.instructions == [Coil("Y001")]
+        assert d.conditions == (tuple(row),)
+        assert d.instructions == (Coil("Y001"),)
 
     # -- CompareContact round-trips --
 
@@ -509,19 +509,19 @@ def test_encode_refuses_an_unknown_condition() -> None:
     # decode() keeps a condition cell it can't read as an UnknownCondition.
     row: list = [UnknownCondition(b"\x00" * 8)] + ["-"] * 30
     with pytest.raises(EncodeError, match=r"^Unknown condition at row=0, col=0: "):
-        encode(Rung(1, [row], [""], None))
+        encode(Rung([row], [""], None))
 
 
 def test_encode_refuses_an_unknown_instruction() -> None:
     # decode() keeps an AF cell it can't read as an UnknownInstruction.
-    rung = Rung(1, [["-"] * 31], [UnknownInstruction(b"\x00" * 8)], None)
+    rung = Rung([["-"] * 31], [UnknownInstruction(b"\x00" * 8)], None)
     with pytest.raises(EncodeError, match=r"^Rung 1: Unknown instruction at row=0, AF: "):
-        encode([Rung(1, [["-"] * 31], [""], None), rung])
+        encode([Rung([["-"] * 31], [""], None), rung])
 
 
 def test_encode_refuses_a_comment_too_long() -> None:
     with pytest.raises(EncodeError, match="Comment body exceeds 1400 bytes"):
-        encode(Rung(1, [_empty()], [""], "x" * 1500))
+        encode(Rung([_empty()], [""], "x" * 1500))
 
 
 def test_replace_refuses_a_drum_accumulator_changed_to_a_non_td_address() -> None:

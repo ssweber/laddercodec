@@ -26,7 +26,6 @@ preferred public surface.
 from laddercodec import Coil, Contact, Rung, encode
 
 rung = Rung(
-    logical_rows=1,
     conditions=[
         [Contact("X001"), "-", Contact("X002", kind="nc")] + [""] * 28,
     ],
@@ -37,15 +36,18 @@ rung = Rung(
 binary = encode(rung)
 ```
 
-Every `Rung` has five fields:
+Every `Rung` has four fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `logical_rows` | `int` | `1..32` |
-| `conditions` | `list[list[object]]` | One row per logical row, exactly 31 condition columns each |
-| `instructions` | `list[object]` | One AF token per logical row |
+| `conditions` | `tuple[tuple[object, ...], ...]` | One row per logical row, 1..32 rows, exactly 31 condition columns each |
+| `instructions` | `tuple[object, ...]` | One AF token per logical row |
 | `comment` | `str \| None` | Optional plain text with lightweight markdown styling |
 | `comment_rtf` | `bytes \| None` | Raw RTF payload from a decode; leave it `None` when you build a rung |
+
+You can pass lists, and the rung stores them as tuples. `rung.logical_rows` is the
+number of rows, `len(rung.conditions)`. A `Rung` is frozen and can be hashed. Two
+rungs that differ only in `comment_rtf` are equal.
 
 ## Wire Tokens
 
@@ -59,15 +61,21 @@ Condition columns accept four wire tokens as strings:
 | `""` | Blank cell |
 
 ```python
-from laddercodec import Rung, encode
+from laddercodec import Contact, Rung, Tee, encode
 
 conds = [
-    ["-", "T", "-", "-"] + [""] * 27,
+    ["-", "T", Tee(Contact("X001")), "-"] + [""] * 27,
     ["", "-", "-", "-"] + [""] * 27,
 ]
 
-binary = encode(Rung(logical_rows=2, conditions=conds, instructions=["NOP", ""], comment=None))
+binary = encode(Rung(conditions=conds, instructions=["NOP", ""], comment=None))
 ```
+
+A contact can have a wire down from its cell's left edge, as `"T"` does. Wrap the
+contact in a `Tee`, such as `Tee(Contact("X001"))`. Its CSV token is `T:X001`.
+
+Column A and the rung's last row can't hold a `Tee`, a `"T"` or a `"|"`. `encode()`
+raises `EncodeError` for one there.
 
 ## Condition-Side Instructions
 
@@ -116,7 +124,6 @@ Timers are typically easiest to build directly:
 from laddercodec import Contact, Rung, Timer, encode
 
 rung = Rung(
-    logical_rows=2,
     conditions=[
         [Contact("X001")] + [""] * 30,
         [""] * 31,
@@ -245,7 +252,14 @@ print(timer.preset, slower.preset)
 An instruction is frozen. If you assign to a field, Python raises
 `dataclasses.FrozenInstanceError`. To change an instruction, call `replace()` with
 the new field values. It returns a copy and leaves the instruction you passed
-unchanged. Put the copy in the rung in place of the old one.
+unchanged.
+
+A `Rung` is frozen too, and `replace()` works on it. To put the copy in a rung, call
+`replace()` on the rung with its new `instructions`:
+
+```python
+rung = replace(rung, instructions=[slower, ""])
+```
 
 `replace()` checks the copy as if you built it new. A refused value raises the
 `FieldError` that building the instruction raises. A name that is not a field
@@ -254,18 +268,17 @@ raises `TypeError`.
 A decoded instruction can hold the blob that it was decoded from
 ([Decoding](decoding.md#values-clicks-dialog-refuses)). If every value that you
 pass is equal to the field's current value, the copy has that blob and the same
-refusals. So does a copy that changes only a contact's `wire_down`. A value that
-the constructor writes in another form is a change. For example, `"ds1"` is a
-change to a field that holds `"DS1"`.
+refusals. A value that the constructor writes in another form is a change. For
+example, `"ds1"` is a change to a field that holds `"DS1"`.
 
 ## Comments
 
 Comments are plain text with optional markdown-style inline formatting:
 
 ```python
-rung.comment = "Motor start circuit"
-rung.comment = "**Bold** and _italic_ and __underlined__"
-rung.comment = "Line one\nLine two"
+rung = replace(rung, comment="Motor start circuit")
+rung = replace(rung, comment="**Bold** and _italic_ and __underlined__")
+rung = replace(rung, comment="Line one\nLine two")
 ```
 
 The comment body limit is 1400 bytes after RTF encoding. For multi-row rungs
@@ -280,8 +293,8 @@ Pass a list of `Rung` objects to `encode()`:
 from laddercodec import Rung, encode
 
 rungs = [
-    Rung(logical_rows=1, conditions=[[""] * 31], instructions=["NOP"], comment=None),
-    Rung(logical_rows=1, conditions=[[""] * 31], instructions=["NOP"], comment="Second rung"),
+    Rung(conditions=[[""] * 31], instructions=["NOP"], comment=None),
+    Rung(conditions=[[""] * 31], instructions=["NOP"], comment="Second rung"),
 ]
 
 binary = encode(rungs)

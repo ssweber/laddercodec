@@ -132,6 +132,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `invalid-token` | A CSV token that doesn't follow its instruction's syntax. |  |
 | `invalid-raw` | A `RawInstruction` field with a value of the wrong type or out of range, or a `raw(...)` token whose `rows=` does not fit its `pins=`. |  |
 | `invalid-undecoded` | An `Undecoded` field refused. |  |
+| `invalid-tee` | A `Tee` built around something other than one contact. |  |
 
 ## check() findings
 
@@ -162,4 +163,4 @@ These codes come only from laying a rung out. `check()` never reports them. If `
 |---|---|---|
 | `layout-too-wide` | A layout that needs more than 31 condition columns. |  |
 | `layout-nop-split` | A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung. |  |
-| `layout-cannot-draw` | Nets that collide, cells that overlap, a contact that can't take a down wire, or a contact drawn twice. |  |
+| `layout-cannot-draw` | Nets that collide, cells that overlap, or a contact drawn twice. |  |

@@ -286,7 +286,6 @@ REGEX_ALLOWED: dict[Key, int] = {
 }
 
 BANK_NAMES_ALLOWED: dict[Key, int] = {
-    ("comparison.py", "('T', '|')"): 1,
     ("comparison.py", "frozenset({'TD', 'CTD', 'DS', 'DD', 'DF', 'SD'})"): 1,
     ("comparison.py", "frozenset({'TXT'})"): 1,
     ("comparison.py", "frozenset({'XD', 'YD', 'DH'})"): 1,
@@ -380,6 +379,14 @@ VALUE_ERROR_ALLOWED: dict[Key, int] = {
     (
         "comparison.py",
         "CsvError(f('Could not read {token!r} as a compare contact. Write two operands joined by ==, !=, <, >, <= or >=, such as DS1==1.'))",
+    ): 1,
+    (
+        "contact.py",
+        "CsvError(f('{token!r} has a wire down, and a {class_name} holds no wire. Wrap the contact in a Tee, such as Tee({class_name}.from_csv_token({token[2:]!r})).'))",
+    ): 1,
+    (
+        "__init__.py",
+        "WriterError(f(\"Tee holds an UnknownCondition ({len(self.contact.raw)} bytes), and no CSV token holds one. Replace the contact, such as Tee(Contact('X001')).\"))",
     ): 1,
     ("copy.py", "WriterError(f('Unknown convert: {self.convert!r}'))"): 1,
     ("copy.py", "CsvError(f('Unsupported copy-family instruction: {call.name!r}'))"): 1,

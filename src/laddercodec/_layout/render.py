@@ -19,11 +19,11 @@ later pins down.  The box ends on the row of its last input.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any
 
 from ..codes import Code
+from ..instructions import Tee
 from ..model import AfInstruction, PinnedInstruction
-from ..operands.unchecked import rebuilt
 from .network import COLUMNS, Network
 from .tree import BoxItem, Branch, LayoutError, Leaf, Node, Parallel, PinCircuit, RungTree, Series
 
@@ -256,16 +256,9 @@ class _Painter:
         return conditions, instructions
 
 
-def _with_down(contact: object, down: bool) -> object:
-    if hasattr(contact, "wire_down"):
-        return rebuilt(cast(Any, contact), wire_down=down)
-    if down:
-        raise LayoutError(
-            f"laddercodec can't lay out this rung: a {type(contact).__name__} needs a wire "
-            "down from its cell, and laddercodec can't draw one there",
-            code=Code.LAYOUT_CANNOT_DRAW,
-        )
-    return contact
+def _with_down(contact: Any, down: bool) -> object:
+    """Return the cell token of *contact*, as a ``Tee`` if the cell has a wire down."""
+    return Tee(contact) if down else contact
 
 
 def render(network: Network, tree: RungTree) -> tuple[list[list[object]], list[object]]:
