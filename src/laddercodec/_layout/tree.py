@@ -351,11 +351,13 @@ def trees(net: Network) -> list[RungTree]:
     root = reduce(rail, c.top, c.main_arcs)
     items = _items(root)
     if len(items) > 1 and any(net.boxes[net.sinks[i].box].token == "NOP" for i in main):
-        # laddercodec knows how CLICK splits a rung of coils or Copy boxes.  It has no
-        # capture of CLICK splitting a rung that holds a NOP.
+        # The callers first drop each NOP on the rail's net when the rung has a box that is
+        # not such a NOP (``without_rail_nops``).  So this NOP is behind a contact, or every
+        # box is a NOP.  No capture shows how CLICK splits either rung.
         raise LayoutError(
-            "laddercodec can't split a rung that holds a NOP into CLICK rungs. Write each "
-            "output in a rung of its own, or remove the NOP.",
+            "laddercodec can't split a rung into CLICK rungs when it holds a NOP behind a "
+            "contact, or when all of its outputs are NOPs. Write each output in a rung of its "
+            "own, or remove the NOP.",
             code=Code.LAYOUT_NOP_SPLIT,
         )
     out: list[RungTree] = []

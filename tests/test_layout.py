@@ -363,22 +363,104 @@ def test_contact_on_two_main_inputs_is_drawn_once(name: str, tmp_path: Path) -> 
     assert circuit(got) == circuit([drawn])
 
 
-@pytest.mark.parametrize(
-    "rows",
-    [
-        [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["-"], "NOP")],
-        [_csv_row("R", ["-"], "NOP"), _csv_row("", ["C2"], "out(Y2)")],
-        [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["C2"], "NOP")],
-    ],
-    ids=["wired from the rail", "first", "behind a contact"],
-)
-def test_rung_that_would_split_off_a_nop_stays_as_drawn(rows, tmp_path: Path) -> None:
-    """A rung whose layout would split a NOP into a rung of its own stays as drawn.
+def test_rung_that_would_split_off_a_nop_behind_a_contact_stays_as_drawn(
+    tmp_path: Path,
+) -> None:
+    """A rung whose layout would split a NOP behind a contact into a rung of its own stays
+    as drawn.
 
     No capture shows CLICK making that split."""
+    rows = [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["C2"], "NOP")]
     drawn, got = _read_rows(tmp_path, rows)
     assert got == [drawn]
     assert canonical(drawn) is None
+
+
+#: Rungs with a NOP that the rail feeds with no contact, beside another output, and the
+#: rungs that CLICK's check leaves after it drops the NOP.
+_RAIL_NOP = {
+    "on a row of its own below a coil's rung": (
+        [_csv_row("R", ["C1"], "out(Y1)"), _csv_row("", ["-"], "NOP")],
+        [[_csv_row("R", ["C1"], "out(Y1)")]],
+    ),
+    "beside a coil on the rail": (
+        [_csv_row("R", ["-"], "NOP"), _csv_row("", ["-"], "out(Y001)")],
+        [[_csv_row("R", ["-"], "out(Y001)")]],
+    ),
+    "above a contact into a coil": (
+        [_csv_row("R", ["-"], "NOP"), _csv_row("", ["X001"], "out(Y002)")],
+        [[_csv_row("R", ["X001"], "out(Y002)")]],
+    ),
+    "below two coils that meet only at the rail": (
+        [
+            ["#", "Pumps"],
+            _csv_row("R", ["X001"], "out(Y003)"),
+            _csv_row("", ["X002"], "out(Y004)"),
+            _csv_row("", ["-"], "NOP"),
+        ],
+        [
+            [["#", "Pumps"], _csv_row("R", ["X001"], "out(Y003)")],
+            [_csv_row("R", ["X002"], "out(Y004)")],
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_RAIL_NOP))
+def test_nop_on_the_rail_beside_another_output_is_dropped(name: str, tmp_path: Path) -> None:
+    """read_csv drops the NOP and lays the rest of the rung out without it, as CLICK's check
+    does.  The rung splits where its outputs meet only at the rail, with the comment on the
+    first rung."""
+    rows, parts = _RAIL_NOP[name]
+    drawn, got = _read_rows(tmp_path, rows)
+    assert "NOP" in drawn.instructions
+    want = [_read_rows(tmp_path, part)[0] for part in parts]
+    assert [_drawing(r) for r in got] == [_drawing(r) for r in want]
+    assert check(got) == []
+
+
+#: More rungs with a NOP that the rail feeds with no contact, and the rungs that the layout
+#: leaves after it drops the NOP.  CLICK's check on these rungs is not captured.
+_RAIL_NOP_UNCAPTURED = {
+    "reached through a vertical wire": (
+        [_csv_row("R", ["-", "T", "X001"], "out(Y001)"), _csv_row("", ["", "-"], "NOP")],
+        [_csv_row("R", ["X001"], "out(Y001)")],
+    ),
+    "below a counter with a reset": (
+        [
+            _csv_row("R", ["C1"], "count_up(CT1,CTD1,preset=5)"),
+            _csv_row("", ["C2"], ".reset()"),
+            _csv_row("", ["-"], "NOP"),
+        ],
+        [
+            _csv_row("R", ["C1"], "count_up(CT1,CTD1,preset=5)"),
+            _csv_row("", ["C2"], ".reset()"),
+        ],
+    ),
+}
+
+
+@pytest.mark.parametrize("name", list(_RAIL_NOP_UNCAPTURED))
+def test_nop_on_the_rail_is_dropped_beside_any_box(name: str, tmp_path: Path) -> None:
+    """read_csv drops the NOP however the rail's wires reach it, and beside a pinned box."""
+    rows, alone = _RAIL_NOP_UNCAPTURED[name]
+    drawn, got = _read_rows(tmp_path, rows)
+    assert "NOP" in drawn.instructions
+    _, want = _read_rows(tmp_path, alone)
+    assert [_drawing(r) for r in got] == [_drawing(r) for r in want]
+    assert check(got) == []
+
+
+def test_nop_on_the_rail_is_written_without_it(tmp_path: Path) -> None:
+    """A decoded rung keeps its NOP, and write_csv writes the rung in CLICK's layout, without
+    the NOP."""
+    rows, parts = _RAIL_NOP["on a row of its own below a coil's rung"]
+    drawn, _ = _read_rows(tmp_path, rows)
+    [decoded] = decode(encode(drawn))
+    assert "NOP" in decoded.instructions
+    written = decoded_rung_to_rows(decoded)
+    assert written == decoded_rung_to_rows(_read_rows(tmp_path, parts[0])[0])
+    assert all(row[-1] != "NOP" for row in written)
 
 
 def test_golden_reads_as_click_checked_its_unpowered_nop() -> None:

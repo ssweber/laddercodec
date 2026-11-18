@@ -48,7 +48,6 @@ CODES_DIFFER: dict[int, str] = {}
 
 #: Rungs whose read_csv layout differs from the rung CLICK saved after its check.
 LAYOUT_DIFFERS = {
-    13: "CLICK's check drops a NOP on a row of its own beside a coil's rung; read_csv keeps it",
     14: "CLICK's check wires a rung of only wires through AF, stored as a NOP; read_csv keeps"
     " the wires",
 }

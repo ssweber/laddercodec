@@ -421,5 +421,49 @@ def test_c000a_lays_out_with_each_later_box_in_its_own_circuit() -> None:
     assert check(rungs) == []
 
 
-def test_nop_beside_another_output_on_the_rail() -> None:
-    _layout_error(Circuit(Branch((), (Box("NOP"), Box(Y1)))), Code.LAYOUT_NOP_SPLIT)
+@pytest.mark.parametrize(
+    ("outputs", "want"),
+    [
+        ((Box("NOP"), Box(Y1)), [[["R", *_wire(0), "|", "out(Y001)"]]]),
+        (
+            (Box("NOP"), Branch((X1,), (Box(Y2),))),
+            [[["R", "X001", *_wire(1), "|", "out(Y002)"]]],
+        ),
+        (
+            (
+                Branch((X1,), (Box(Coil("Y003")),)),
+                Branch((X2,), (Box(Coil("Y004")),)),
+                Box("NOP"),
+            ),
+            [
+                [["R", "X001", *_wire(1), "|", "out(Y003)"]],
+                [["R", "X002", *_wire(1), "|", "out(Y004)"]],
+            ],
+        ),
+    ],
+    ids=["beside a coil on the rail", "above a contact into a coil", "after two branches"],
+)
+def test_nop_on_the_rail_beside_another_output_is_dropped(
+    outputs: tuple[Box | Branch, ...], want: list[list[list[str]]]
+) -> None:
+    """A NOP that the rail feeds with no contact is dropped when the rung has another output.
+
+    The rest of the circuit is laid out without it, and outputs that meet only at the rail
+    split into rungs.  The comment goes on the first rung."""
+    rungs = lay_out(Circuit(Branch((), outputs), comment="Pumps"))
+    assert [[r for r in _rows([rung]) if r[0] != "#"] for rung in rungs] == want
+    assert [rung.comment for rung in rungs] == ["Pumps", *[None] * (len(want) - 1)]
+    assert check(rungs) == []
+
+
+def test_nop_behind_a_contact_beside_another_output_on_the_rail() -> None:
+    circuit = Circuit(Branch((), (Branch((X1,), (Box("NOP"),)), Branch((X2,), (Box(Y1),)))))
+    error = _layout_error(circuit, Code.LAYOUT_NOP_SPLIT)
+    assert "one of them is a NOP behind a contact" in str(error)
+
+
+def test_two_nops_on_the_rail() -> None:
+    """Neither NOP is dropped, because the rung has no box that is not a NOP."""
+    error = _layout_error(Circuit(Branch((), (Box("NOP"), Box("NOP")))), Code.LAYOUT_NOP_SPLIT)
+    assert "or all of them are NOPs" in str(error)
+    assert "Circuit(Branch((), (Box('NOP'),)))" in str(error)

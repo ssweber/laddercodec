@@ -167,7 +167,8 @@ class LayoutError(LaddercodecError):
     - ``layout-too-tall``: a rung needs more than 32 rows.
     - ``layout-too-wide``: a rung needs more than the 31 condition columns.
     - ``layout-cannot-draw``: two wires or two cells of the drawing would fall on one place.
-    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a NOP.
+    - ``layout-nop-split``: outputs meet only at the rail, and one of them is a NOP behind a
+      contact, or all of them are NOPs.
     - ``output-above-box-inputs``: an output comes before a box whose pin is used, on that
       box's main input circuit.  Its ``click_id`` is ``C000A``.
     - ``shared-input-net``: an output comes after a box whose pin is used, on that box's
