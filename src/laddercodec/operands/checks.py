@@ -903,16 +903,20 @@ class Refusals:
         click_id: str | None = None,
         *,
         code: Code,
+        then: str | None = None,
     ) -> None:
         """Refuse ``attrs``, one field or a pair, with the message ``Class.attr: rule``.
 
-        In a pair, the first field leads, and the message names it.
+        In a pair, the first field leads, and the message names it.  CLICK's id follows the
+        rule in parentheses.  ``then`` is a sentence that tells the user what to do.  It
+        follows the id.
         """
         fields = tuple(map(self.field, (attrs,) if isinstance(attrs, str) else attrs))
         tail = f" ({click_id})" if click_id else ""
+        after = f". {then}" if then else ""
         self.add(
             FieldError(
-                f"{fields[0]}: {rule}{tail}",
+                f"{fields[0]}: {rule}{tail}{after}",
                 field=fields,
                 reason=reason,
                 code=code,

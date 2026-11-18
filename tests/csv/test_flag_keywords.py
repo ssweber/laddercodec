@@ -20,6 +20,13 @@ def _read(token: str) -> Any:
     return af_node_to_token(parse_af_token(token))
 
 
+#: A Send of two DS registers. A Send offers Word Swap for it.
+SEND_WORDS = SEND.replace(
+    "register_type=coil),source=C11", "register_type=holding),source=DS1..DS2"
+)
+assert SEND_WORDS != SEND
+
+
 _FLAGS = [
     ("math(DS1 + 1,DS2,mode=decimal,oneshot={v})", "Math.oneshot"),
     ("search(DS1..DS10 == 1,result=DS20,found=C1,continuous={v})", "Search.continuous"),
@@ -29,7 +36,7 @@ _FLAGS = [
         "timed(C1,on_acc=TD1,on_preset=3,unit=Ts,maintained={v})",
         "OutVariant.maintained",
     ),
-    (SEND[:-1] + ",word_swap={v})", "Send.word_swap"),
+    (SEND_WORDS[:-1] + ",word_swap={v})", "Send.word_swap"),
     (RECEIVE[:-1] + ",word_swap={v})", "Receive.word_swap"),
 ]
 

@@ -33,7 +33,7 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.address import address_shape, xy_points, xy_room
+from ..operands.address import address_shape, parse_address, xy_points, xy_room
 from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS
 from ..operands.checks import Constants, Refusals, check_constant, check_csv_flag
 from ..operands.constants import Kind, hex_display
@@ -473,8 +473,10 @@ def _remote_start_str(remote_start: str | ModbusAddress) -> str:
 
 _BANK_ID = "OBJ-004"
 _RANGE_ID = "OBJ-010"
-_ODD_ID = "OBJ-029"  # a Receive TXT count that is odd: "only an even number"
 
+#: The remote banks that a Send with a CLICK address accepts for each function code. SD is in
+#: the register sets only so that a number outside SD is refused as out of range. A Send
+#: refuses every SD remote address after that check.
 _SEND_REMOTE_BITS = frozenset({"Y", "C"})
 _SEND_REMOTE_REGS_FC06 = frozenset({"DS", "DH", "SD", "TD", "YD", "TXT"})
 _SEND_REMOTE_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "SD", "TD", "TXT"})
@@ -487,17 +489,30 @@ _SEND_LOCAL_REGS_FC16 = frozenset({"CTD", "DS", "DD", "DH", "DF", "TD", "SD", "T
 _FC16_ONLY = frozenset({"CTD", "DD", "DF"})
 #: Local data types whose hex remote start stops at FFFDh (int32, float, text).
 _SEND_HEX_FFFD = frozenset({"DD", "CTD", "DF", "TXT"})
+#: A Send TXT count is in characters, two to a register.
+_TXT_SEND_MAX = 246
+#: CLICK's id for a TXT count that is odd.
+_ODD_ID = "OBJ-029"
+
+#: The register banks of each data type: int16, int32, float, hex and text. With a CLICK
+#: remote address, a Send or Receive pairs a local bank only with remote banks of its own
+#: data type.
+_SAME_TYPE: dict[str, frozenset[str]] = {
+    bank: group
+    for group in (
+        frozenset({"DS", "TD", "SD"}),
+        frozenset({"DD", "CTD"}),
+        frozenset({"DF"}),
+        frozenset({"DH", "XD", "YD"}),
+        frozenset({"TXT"}),
+    )
+    for bank in group
+}
 
 #: For a Receive with a CLICK remote address, the remote banks that each local bank
-#: accepts. A local bank of each data type (int16, int32, float, hex or text) pairs only
-#: with remote banks of the same type.
+#: accepts.
 _RECEIVE_REMOTE_FOR_DEST: dict[str, frozenset[str]] = {
-    "DS": frozenset({"DS", "TD", "SD"}),
-    "DD": frozenset({"DD", "CTD"}),
-    "DF": frozenset({"DF"}),
-    "DH": frozenset({"DH", "XD", "YD"}),
-    "YD": frozenset({"DH", "XD", "YD"}),
-    "TXT": frozenset({"TXT"}),
+    dest: _SAME_TYPE[dest] for dest in ("DS", "DD", "DF", "DH", "YD", "TXT")
 }
 _RECEIVE_REMOTE_REGS = frozenset().union(*_RECEIVE_REMOTE_FOR_DEST.values())
 #: The local banks that a Receive accepts. CLICK's bank masks are 6 for FC01 and FC02, and
@@ -703,6 +718,176 @@ def _check_quantity_bounds(
         )
 
 
+def _or_list(names: list[str]) -> str:
+    """Return ``names`` joined as a list that ends with "or": ``DS, TD or SD``."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}"
+
+
+def _slave_banks(source_bank: str, fc: int | None) -> list[str]:
+    """Return the CLICK slave banks that a Send from ``source_bank`` writes with ``fc``, in
+    CLICK's bank order. With no ``fc``, return the banks of either FC06 or FC16."""
+    if fc == 6:
+        remote_banks = _SEND_REMOTE_REGS_FC06
+    elif fc == 16:
+        remote_banks = _SEND_REMOTE_REGS_FC16
+    else:
+        remote_banks = _SEND_REMOTE_REGS_FC06 | _SEND_REMOTE_REGS_FC16
+    same = _SAME_TYPE.get(source_bank, frozenset()) & remote_banks
+    return [bank for bank in ADDRESS_BANKS if bank in same and bank != "SD"]
+
+
+def _lowest(bank: str) -> str:
+    """Return the lowest address of ``bank`` in display form, such as ``DS1``."""
+    return Address(bank, ADDRESS_BANKS[bank][0]).display
+
+
+def _check_send_pair(check: Refusals, remote_addr: Address, local: Address, fc: int | None) -> None:
+    """Refuse a CLICK slave address whose bank is not of the source's data type.
+
+    A DS, TD or SD source writes DS or TD. A DH, XD or YD source writes DH or YD. A DD or
+    CTD source writes DD or CTD. A DF source writes DF, and a TXT source writes TXT. FC16
+    writes no YD.
+    """
+    if remote_addr.bank in _SAME_TYPE[local.bank]:
+        return
+    takes = _slave_banks(local.bank, fc)
+    if not takes:
+        return  # the source check refuses a bank that this function code can't send
+    example = _lowest(takes[0])
+    check.refuse(
+        ("remote_start", "source"),
+        f"{remote_addr.display!r} can't take a source in {local.bank}",
+        Reason.CONFLICT,
+        _BANK_ID,
+        code=Code.BANK_NOT_ALLOWED,
+        then=f'Pick a slave address in {_or_list(takes)}, such as remote_start="{example}".',
+    )
+
+
+def _send_hex_room(remote: str | ModbusAddress, local: Address) -> int | None:
+    """Return the number of elements that a Send from ``local`` may write from a hex
+    ``remote`` start, or None if the start is not hex or the source refuses it.
+
+    Each element counts as one address, and a TXT character counts as one element. The
+    count may run to FFFDh from a DD, DF or CTD source, and to FFFEh from any other register
+    source. A DS source from FFFEh writes 1 element, and a DD source from FFF0h writes 14.
+    From FFFCh the room is 3 TXT characters, so a TXT source sends at most 2."""
+    if not isinstance(remote, ModbusAddress) or not remote.is_hex or local.bank not in _SAME_TYPE:
+        return None
+    start = int(remote.address[:-1], 16)
+    if local.bank in _SEND_HEX_FFFD and start > 0xFFFD:
+        return None
+    last = 0xFFFD if local.bank in _WIDE_BANKS else 0xFFFE
+    return last - start + 1
+
+
+def _check_send_txt_count(
+    check: Refusals, quantity: int, local: Address, hex_room: int | None
+) -> None:
+    """Refuse a TXT count that is not an even number of characters from 2 to 246, or that
+    runs past TXT1000.
+
+    After a hex start, ``hex_room`` lowers the top of the range. A count outside the range
+    gets the range id, even when it is also odd."""
+    last = ADDRESS_BANKS["TXT"][1]
+    left = last - local.number + 1
+    high = _TXT_SEND_MAX if hex_room is None else max(2, min(_TXT_SEND_MAX, hex_room))
+    if quantity > left:
+        if left >= 2:
+            then = f"Lower the count, such as quantity={min(left - left % 2, high - high % 2)}."
+        else:
+            then = f'Start at a lower TXT address, such as source="TXT{last - 1}".'
+        check.refuse(
+            "quantity",
+            f"{quantity} characters from {local.display} run past TXT{last}",
+            Reason.RANGE,
+            _RANGE_ID,
+            code=Code.COUNT_OUT_OF_RANGE,
+            then=then,
+        )
+    elif not 2 <= quantity <= high:
+        check.refuse(
+            "quantity",
+            f"{quantity} is outside 2-{high} TXT characters",
+            Reason.RANGE,
+            _RANGE_ID,
+            code=Code.COUNT_OUT_OF_RANGE,
+            then="Send an even count of characters, such as "
+            f"quantity={2 if quantity < 2 else high - high % 2}.",
+        )
+    elif quantity % 2:
+        even = quantity + 1 if quantity < min(left, high) else quantity - 1
+        check.refuse(
+            "quantity",
+            f"{quantity} is an odd count of TXT characters",
+            Reason.RANGE,
+            _ODD_ID,
+            code=Code.COUNT_OUT_OF_RANGE,
+            then=f"Send an even count of characters, such as quantity={even}.",
+        )
+
+
+def _check_send_hex_room(
+    check: Refusals, remote: ModbusAddress, local: Address, quantity: int | None
+) -> None:
+    """Refuse a hex remote start past FFFDh for a DD, DF, CTD or TXT source, and a count
+    of registers that runs past the room that :func:`_send_hex_room` returns.
+
+    ``quantity`` is None when the count is refused. The TXT count check refuses a TXT count
+    that runs past the room. The count that the message suggests stays inside the Send's
+    count cap."""
+    start = int(remote.address[:-1], 16)
+    if local.bank in _SEND_HEX_FFFD and start > 0xFFFD:
+        check.refuse(
+            ("remote_start", "source"),
+            f"{remote.address!r} is outside 0h-FFFDh for a {local.bank} source",
+            Reason.CONFLICT,
+            _RANGE_ID,
+            code=Code.REMOTE_ADDRESS_OUT_OF_RANGE,
+        )
+        return
+    room = _send_hex_room(remote, local)
+    if room is None or local.bank == "TXT" or quantity is None or quantity <= room:
+        return
+    cap = _SEND_CAPS[2] if local.bank in _WIDE_BANKS else _SEND_CAPS[1]
+    check.refuse(
+        "quantity",
+        f"{quantity} from hex {remote.address!r} is outside 1-{room}",
+        Reason.RANGE,
+        _RANGE_ID,
+        code=Code.COUNT_OUT_OF_RANGE,
+        then=f"Lower the count, such as quantity={min(room, cap)}.",
+    )
+
+
+def _check_send_word_swap(
+    check: Refusals, send: Send, fc: int, bit: bool, local: Address, counted: bool
+) -> None:
+    """Refuse Word Swap where a Send does not offer it.
+
+    A Send offers Word Swap only with FC16. It offers it for a DD, DF or CTD source, and
+    for a DS, DH, TD or SD source with a count of 2 or more. If ``word_swap`` is not a
+    flag, it is refused as not a flag instead."""
+    if bit or fc != 16:
+        why, partner = f"with FC{fc:02d}", "function_code"
+    elif local.bank == "TXT":
+        why, partner = "for a TXT source", "source"
+    elif local.bank not in _WIDE_BANKS and counted and send.quantity == 1:
+        why, partner = f"for one {local.bank} register", "quantity"
+    else:
+        return
+    if not _is_flag(send.word_swap):
+        check.flag("word_swap")
+        return
+    check.refuse(
+        ("word_swap", partner),
+        f"Word Swap is not offered {why}",
+        Reason.CONFLICT,
+        code=Code.OPTION_NOT_OFFERED,
+        then="Drop word_swap=1.",
+    )
+
+
 def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | None) -> int:
     """Return the function code that a Send uses by default.
 
@@ -758,6 +943,18 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
         )
         if remote_addr is not None:
             bit = remote_addr.bank in _SEND_REMOTE_BITS
+            if remote_addr.bank == "SD":
+                source = parse_address(send.source) if isinstance(send.source, str) else None
+                banks = _slave_banks(source.bank if source is not None else "DS", None)
+                check.refuse(
+                    "remote_start",
+                    f"{remote_addr.display!r} is in SD, which a Send can't write",
+                    Reason.NOT_WRITABLE,
+                    _BANK_ID,
+                    code=Code.NOT_WRITABLE,
+                    then="Pick a slave address in another bank, such as "
+                    f'remote_start="{_lowest(banks[0] if banks else "DS")}".',
+                )
     elif remote.is_hex:
         register_type = remote.register_type or "holding"
         if register_type not in ("coil", "holding"):
@@ -826,45 +1023,31 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
                     bank_id=_BANK_ID,
                 )
 
+    if remote_addr is not None and bit is False and local is not None:
+        _check_send_pair(check, remote_addr, local, fc)
+
     if bit is not None and local is not None and counted:
         xy_room = None
         if local.bank in XY_BANKS and remote_addr is not None:
             xy_room = _remote_xy_room(local, remote_addr)
-        _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
+        if local.bank == "TXT" and (fc or default_fc) != 6:
+            _check_send_txt_count(check, quantity, local, _send_hex_room(remote, local))
+        else:
+            _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
     elif counted:
         _check_quantity_bounds(check, quantity, _SEND_CAPS, bit)
 
-    if (
-        isinstance(remote, ModbusAddress)
-        and remote.is_hex
-        and local is not None
-        and local.bank in _SEND_HEX_FFFD
-    ):
-        start = int(remote.address[:-1], 16)
-        if start > 0xFFFD:
-            check.refuse(
-                ("remote_start", "source"),
-                f"{remote.address!r} is outside 0h-FFFDh for a {local.bank} source",
-                Reason.CONFLICT,
-                _RANGE_ID,
-                code=Code.REMOTE_ADDRESS_OUT_OF_RANGE,
-            )
-        else:
-            room = min(_SEND_CAPS[2], 0xFFFE - start)
-            if local.bank == "DD" and counted and quantity > room:
-                check.refuse(
-                    "quantity",
-                    f"{quantity} from hex {remote.address!r} is outside 1-{room}",
-                    Reason.RANGE,
-                    _RANGE_ID,
-                    code=Code.COUNT_OUT_OF_RANGE,
-                )
+    if isinstance(remote, ModbusAddress) and remote.is_hex and local is not None:
+        _check_send_hex_room(check, remote, local, quantity if counted else None)
 
     # Send: one C bit can't serve two status fields (OBJ-014).
     _check_status_bits(check, send, ("sending", "success", "error"), "OBJ-014")
     _check_status(check, send, "exception_response", _EXCEPTION_BANKS)
+
+    if send.word_swap and fc is not None and bit is not None and local is not None:
+        _check_send_word_swap(check, send, fc, bit, local, counted)
     if fc is None or default_fc is None:
         return None
     return fc, default_fc

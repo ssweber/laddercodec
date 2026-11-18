@@ -251,30 +251,10 @@ START_984_ID = (
     "kept: both refuse a 984 start of a kind that the function code does not write. CLICK "
     "refuses the slave address with OBJ-010. laddercodec refuses the source with OBJ-004"
 )
-SEND_PAIRS = (
-    "to do: with CLICK addressing, CLICK pairs a Send's slave bank with the data type of the "
-    "source (OBJ-004). A DS or TD slave takes DS, TD or SD. A DH or YD slave takes DH, XD or "
-    "YD. A DD or CTD slave takes DD or CTD. A DF slave takes DF, and a TXT slave takes TXT. "
-    "An SD slave is refused. The rules check the slave bank alone"
-)
-SEND_TXT = (
-    "to do: CLICK counts a Send's TXT in characters. The count is even (OBJ-029), from 2 to "
-    "246, and does not run past TXT1000 (OBJ-010). The TXT start is odd (OBJ-028). The rules "
-    "count TXT in registers, from 1 to 123"
-)
-SEND_HEX_ROOM = (
-    "to do: CLICK refuses a Send count that runs past FFFEh from a hex start, for a DS, DF or "
-    "CTD source (OBJ-010). A DF or CTD element is two registers. The rules check this room "
-    "for DD only"
-)
-SEND_HEX_TXT = (
-    "open: CLICK refuses these TXT counts after a hex start with OBJ-010. Its ranges do not "
-    "follow from a count in characters: FFFCh gives 2 to 3, and FFFDh gives 2 to 2. The "
-    "rules do not check this room for TXT"
-)
-SEND_WORD_SWAP = (
-    "to do: CLICK offers Word Swap for a Send only with FC16, from a 32-bit source (DD, DF or "
-    "CTD) or from DS with a count of 2 or more. The rules accept Word Swap on any Send"
+SEND_TXT_ODD_START = (
+    "to do: CLICK refuses a Send from an even TXT address with OBJ-028, before it checks "
+    "the count. The rules have no code for this refusal yet. They accept the start. With FC16 "
+    "they refuse the count with OBJ-010, and with FC06 they accept the Send"
 )
 
 
@@ -698,160 +678,19 @@ DISAGREEMENTS: dict[Key, str] = _table(
     (PRESET_EDGE, "risky_counter", "outcome", ("count_up CT1 preset= DS1",)),
     (PRESET_EDGE, "risky_timer", "outcome", ("on_delay T1 preset=DS1  unit=ms",)),
     (
-        SEND_HEX_ROOM,
-        "send",
-        "outcome",
-        (
-            "send fc16 hex 0FFFEh <- DS1 x2",
-            "send fc16 hex FFFDh <- CTD1 x2",
-            "send fc16 hex FFFDh <- DF1 x2",
-            "send fc16 hex FFFEh <- DS1 x2",
-        ),
-    ),
-    (
-        SEND_HEX_TXT,
-        "send",
-        "outcome",
-        (
-            "send fc16 hex FFFCh <- TXT1 x1",
-            "send fc16 hex FFFDh <- TXT1 x1",
-        ),
-    ),
-    (
-        SEND_PAIRS,
-        "send",
-        "outcome",
-        (
-            "send fc06 click DH1 <- DS1",
-            "send fc06 click DH1 <- SD1",
-            "send fc06 click DH1 <- TD1",
-            "send fc06 click DH1 <- TXT1",
-            "send fc06 click DH500 <- DS1",
-            "send fc06 click DS1 <- DH1",
-            "send fc06 click DS1 <- TXT1",
-            "send fc06 click DS1 <- XD0",
-            "send fc06 click DS1 <- YD0",
-            "send fc06 click SD1 <- DH1",
-            "send fc06 click SD1 <- DS1",
-            "send fc06 click SD1 <- SD1",
-            "send fc06 click SD1 <- TD1",
-            "send fc06 click SD1 <- TXT1",
-            "send fc06 click SD1 <- XD0",
-            "send fc06 click SD1 <- YD0",
-            "send fc06 click SD1000 <- DS1",
-            "send fc06 click TD1 <- DH1",
-            "send fc06 click TD1 <- TXT1",
-            "send fc06 click TD1 <- XD0",
-            "send fc06 click TD1 <- YD0",
-            "send fc06 click TXT1 <- DH1",
-            "send fc06 click TXT1 <- DS1",
-            "send fc06 click TXT1 <- SD1",
-            "send fc06 click TXT1 <- TD1",
-            "send fc06 click TXT1 <- XD0",
-            "send fc06 click TXT1 <- YD0",
-            "send fc06 click TXT1000 <- DS1",
-            "send fc06 click YD0 <- DS1",
-            "send fc06 click YD0 <- SD1",
-            "send fc06 click YD0 <- TD1",
-            "send fc06 click YD0 <- TXT1",
-            "send fc06 click YD00 <- DS1",
-            "send fc06 click YD0U <- DS1",
-            "send fc06 click YD0u <- DS1",
-            "send fc06 click YD1 <- DS1",
-            "send fc06 click YD8 <- DS1",
-            "send fc16 click CTD1 <- DF1 x2",
-            "send fc16 click CTD1 <- DH1 x2",
-            "send fc16 click CTD1 <- DS1 x2",
-            "send fc16 click CTD1 <- SD1 x2",
-            "send fc16 click CTD1 <- TD1 x2",
-            "send fc16 click CTD1 <- TXT1 x2",
-            "send fc16 click DD1 <- DF1 x2",
-            "send fc16 click DD1 <- DH1 x2",
-            "send fc16 click DD1 <- DS1 x2",
-            "send fc16 click DD1 <- SD1 x2",
-            "send fc16 click DD1 <- TD1 x2",
-            "send fc16 click DD1 <- TXT1 x2",
-            "send fc16 click DF1 <- CTD1 x2",
-            "send fc16 click DF1 <- DD1 x1",
-            "send fc16 click DF1 <- DD1 x2",
-            "send fc16 click DF1 <- DH1 x2",
-            "send fc16 click DF1 <- DS1 x2",
-            "send fc16 click DF1 <- SD1 x2",
-            "send fc16 click DF1 <- TD1 x2",
-            "send fc16 click DF1 <- TXT1 x2",
-            "send fc16 click DF500 <- DD1 x1",
-            "send fc16 click DH1 <- CTD1 x2",
-            "send fc16 click DH1 <- DD1 x2",
-            "send fc16 click DH1 <- DF1 x2",
-            "send fc16 click DH1 <- DS1 x2",
-            "send fc16 click DH1 <- SD1 x2",
-            "send fc16 click DH1 <- TD1 x2",
-            "send fc16 click DH1 <- TXT1 x2",
-            "send fc16 click DS1 <- CTD1 x2",
-            "send fc16 click DS1 <- DD1 x2",
-            "send fc16 click DS1 <- DF1 x2",
-            "send fc16 click DS1 <- DH1 x2",
-            "send fc16 click DS1 <- TXT1 x2",
-            "send fc16 click SD1 <- CTD1 x2",
-            "send fc16 click SD1 <- DD1 x2",
-            "send fc16 click SD1 <- DF1 x2",
-            "send fc16 click SD1 <- DH1 x2",
-            "send fc16 click SD1 <- DS1 x2",
-            "send fc16 click SD1 <- SD1 x2",
-            "send fc16 click SD1 <- TD1 x2",
-            "send fc16 click SD1 <- TXT1 x2",
-            "send fc16 click TD1 <- CTD1 x2",
-            "send fc16 click TD1 <- DD1 x2",
-            "send fc16 click TD1 <- DF1 x2",
-            "send fc16 click TD1 <- DH1 x2",
-            "send fc16 click TD1 <- TXT1 x2",
-            "send fc16 click TXT1 <- CTD1 x2",
-            "send fc16 click TXT1 <- DD1 x2",
-            "send fc16 click TXT1 <- DF1 x2",
-            "send fc16 click TXT1 <- DH1 x2",
-            "send fc16 click TXT1 <- DS1 x2",
-            "send fc16 click TXT1 <- SD1 x2",
-            "send fc16 click TXT1 <- TD1 x2",
-        ),
-    ),
-    (
-        SEND_TXT,
+        SEND_TXT_ODD_START,
         "send",
         "code",
         (
-            "send fc16 984 400001 <- TXT1 x125",
+            "send fc16 984 400001 <- TXT1000 x1",
             "send fc16 984 400001 <- TXT1000 x2",
         ),
     ),
     (
-        SEND_TXT,
+        SEND_TXT_ODD_START,
         "send",
         "outcome",
-        (
-            "send fc06 984 400001 <- TXT1000",
-            "send fc16 984 400001 <- TXT1 x1",
-            "send fc16 984 400001 <- TXT1 x123",
-            "send fc16 984 400001 <- TXT1 x124",
-            "send fc16 984 400001 <- TXT1 x126",
-            "send fc16 984 400001 <- TXT1 x246",
-            "send fc16 984 400001 <- TXT1 x3",
-            "send fc16 984 400001 <- TXT1000 x1",
-            "send fc16 984 400001 <- TXT999 x1",
-            "send fc16 click TXT1 <- TXT1 x1",
-            "send fc16 click TXT1 <- TXT1 x3",
-            "send fc16 hex 0h <- TXT1 x1",
-            "send fc16 hex 0h <- TXT1 x3",
-        ),
-    ),
-    (
-        SEND_WORD_SWAP,
-        "send",
-        "outcome",
-        (
-            "send fc06 984 400001 <- DS1 word_swap=ON",
-            "send fc15 984 1 <- C1 x2 word_swap=ON",
-            "send fc16 984 400001 <- TXT1 x2 word_swap=ON",
-        ),
+        ("send fc06 984 400001 <- TXT1000",),
     ),
     (
         SERVER_PORT,
@@ -893,7 +732,7 @@ DISAGREEMENTS: dict[Key, str] = _table(
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 4028
+CODES_COMPARED = 4133
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no

@@ -576,6 +576,10 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
   saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type
   changes what the Math computes, and which other positional reals CLICK stores as integers.
+- **Send Word Swap after a change of function code.** With FC16 and Word Swap on, switch the Send to FC06.
+  Does CLICK keep Word Swap stored, or clear it? A runner case types `send fc16 984 400001 <- DS1 x2
+  word_swap=ON`, then picks FC06 and saves. The code refuses Word Swap with any code but FC16, so a stored
+  FC06 Send with Word Swap decodes with a `RefusedFieldWarning`.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
   they store? The code refuses both.
 - **Number constant into TXT:** a single Copy of a number whose text fills more than one TXT saves the TXT

@@ -645,6 +645,9 @@ Producer may emit:
     Send takes `register_type` `coil` or `holding`. It may be typed with `H`, zero padding or
     lowercase digits and is written in CLICK's form (`0H` is `0h`, `000Fh` is `Fh`, `ffeh` is
     `FFEh`).
+  - A Send count from a hex `remote_start` ends at `FFFDh` from a DD, DF or CTD source, and
+    at `FFFEh` from any other register source. Each element, and each TXT character, counts
+    as one address. From `FFFCh`, a TXT source sends 2 characters.
   - `function_code=N` picks the Modbus code when the address leaves a choice. Receive from a
     CLICK address reads with FC01 (bits) or FC03 (registers) unless `function_code=2` or `4`.
     Send writes one element with FC05/FC06 and a block with FC15/FC16; `function_code=15` or
@@ -654,9 +657,16 @@ Producer may emit:
     the destination's type: DS from DS, TD or SD; DD from DD or CTD; DF from DF; DH or YD
     from DH, XD or YD; TXT from TXT. A YD destination, or DH read from XD or YD, takes one
     element; TXT takes an even count of 2 to 250 characters.
+  - A Send to a CLICK `remote_start` writes a register of the source's type: DS or TD from
+    DS, TD or SD; DD or CTD from DD or CTD; DF from DF; DH or YD from DH, XD or YD; TXT from
+    TXT. A Send can't write an SD register.
+  - A Send from TXT with FC16 takes an even count of 2 to 246 characters. With FC06 it
+    sends one TXT register.
   - `word_swap=1` is refused where CLICK turns Word Swap off: a bit Receive, a YD or TXT
     destination, one DS or DH element, DH read from XD or YD, and DD or DF read from a CLICK
     address.
+  - A Send offers `word_swap=1` only with FC16. It doesn't offer it for a TXT source, or for
+    one register of DS, DH, TD or SD.
   - A range (`source=DS1..DS5`) runs forward inside one bank. Counts: Send 1-1968 bits or
     1-123 registers (1-61 for DD, DF, CTD); Receive 1-2000 bits or 1-125 registers (1-62 for
     DD, DF).
