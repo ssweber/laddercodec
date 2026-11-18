@@ -43,6 +43,7 @@ import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 
+from ._comment import PLAIN, Run, Style, write_runs
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
@@ -268,15 +269,6 @@ _PAYLOAD_BYTES_OFFSET = RUNG0_PREAMBLE_BASE + PREAMBLE_COMMENT_BODY  # 0x0298
 _INSTR_DATA_OFFSET = 0x25
 
 
-@dataclass(frozen=True)
-class _RtfStyle:
-    """The bold, italic and underline state while the RTF decoder writes Markdown."""
-
-    bold: bool = False
-    italic: bool = False
-    underline: bool = False
-
-
 @dataclass
 class _RtfGroupState:
     """The state of one RTF group.
@@ -285,16 +277,10 @@ class _RtfGroupState:
     characters follow a ``\\u`` control.
     """
 
-    style: _RtfStyle
+    style: Style
     skip_destination: bool = False
     unicode_skip: int = 1
 
-
-_RTF_STYLE_MARKERS: tuple[tuple[str, str], ...] = (
-    ("bold", "**"),
-    ("italic", "*"),
-    ("underline", "__"),
-)
 
 _RTF_ANSI_CPG_RE = re.compile(rb"\\ansicpg(\d+)")
 
@@ -314,34 +300,6 @@ def _validate_buffer(data: bytes) -> None:
         raise DecodeError(
             f"Buffer too short: need at least {GRID_FIRST_ROW_START:#x} bytes, got {len(data):#x}"
         )
-
-
-def _emit_rtf_style_transition(out: list[str], current: _RtfStyle, target: _RtfStyle) -> _RtfStyle:
-    """Emit markdown markers needed to move from ``current`` to ``target``."""
-    if current == target:
-        return current
-
-    for attr, marker in reversed(_RTF_STYLE_MARKERS):
-        if getattr(current, attr) and not getattr(target, attr):
-            out.append(marker)
-
-    for attr, marker in _RTF_STYLE_MARKERS:
-        if getattr(target, attr) and not getattr(current, attr):
-            out.append(marker)
-
-    return target
-
-
-def _append_rtf_text(
-    out: list[str], render_style: _RtfStyle, target_style: _RtfStyle, text: str
-) -> _RtfStyle:
-    """Append visible text, opening/closing markdown markers as needed."""
-    if not text:
-        return render_style
-
-    render_style = _emit_rtf_style_transition(out, render_style, target_style)
-    out.append(text)
-    return render_style
 
 
 def _parse_rtf_control(body: str, i: int) -> tuple[str | None, int | None, int]:
@@ -443,7 +401,9 @@ def _decode_rtf(payload: bytes) -> str:
     It removes the RTF prefix and suffix around the comment text and decodes the
     rest as cp1252.  Then it reads the control words in the body, so that they set
     the style or add a line break or a character, and their names do not appear in
-    the text.
+    the text. :func:`write_runs` writes the styled text as Markdown. It puts a backslash
+    before a literal ``*``, ``_`` or ``\\`` where the Markdown reader would otherwise read
+    the character as a marker or an escape.
     """
     # Find the body between the RTF prefix and suffix.
     if payload.startswith(_PREFIX):
@@ -472,9 +432,8 @@ def _decode_rtf(payload: bytes) -> str:
 
     body = payload[body_start:body_end].decode("cp1252")
 
-    stack = [_RtfGroupState(style=_RtfStyle())]
-    render_style = _RtfStyle()
-    out: list[str] = []
+    stack = [_RtfGroupState(style=PLAIN)]
+    runs: list[Run] = []
     i = 0
 
     while i < len(body):
@@ -504,7 +463,7 @@ def _decode_rtf(payload: bytes) -> str:
 
             if control in {"\\", "{", "}"}:
                 if not group.skip_destination:
-                    render_style = _append_rtf_text(out, render_style, group.style, control)
+                    runs.append((group.style, control))
             elif control == "'":
                 if next_i <= len(body) and i + 4 <= len(body):
                     hex_digits = body[i + 2 : i + 4]
@@ -513,17 +472,17 @@ def _decode_rtf(payload: bytes) -> str:
                     except ValueError:
                         text = ""
                     if text and not group.skip_destination:
-                        render_style = _append_rtf_text(out, render_style, group.style, text)
+                        runs.append((group.style, text))
                     next_i = i + 4
             elif control == "~":
                 if not group.skip_destination:
-                    render_style = _append_rtf_text(out, render_style, group.style, " ")
+                    runs.append((group.style, " "))
             elif control == "_":
                 if not group.skip_destination:
-                    render_style = _append_rtf_text(out, render_style, group.style, "-")
+                    runs.append((group.style, "-"))
             elif control == "-":
                 if not group.skip_destination:
-                    render_style = _append_rtf_text(out, render_style, group.style, "-")
+                    runs.append((group.style, "-"))
             elif control == "*":
                 group.skip_destination = True
             elif isinstance(control, str):
@@ -538,31 +497,30 @@ def _decode_rtf(payload: bytes) -> str:
                 elif control == "ulnone":
                     group.style = replace(group.style, underline=False)
                 elif control == "plain":
-                    group.style = _RtfStyle()
+                    group.style = PLAIN
                 elif control == "uc":
                     if arg is not None:
                         group.unicode_skip = max(arg, 0)
                 elif control == "u":
                     if arg is not None and not group.skip_destination:
                         text = _decode_rtf_unicode_char(arg)
-                        render_style = _append_rtf_text(out, render_style, group.style, text)
+                        runs.append((group.style, text))
                     next_i = _skip_rtf_fallback_chars(body, next_i, group.unicode_skip)
                 elif control in {"par", "line"}:
                     if not group.skip_destination:
-                        render_style = _append_rtf_text(out, render_style, group.style, "\n")
+                        runs.append((group.style, "\n"))
                 elif control == "tab":
                     if not group.skip_destination:
-                        render_style = _append_rtf_text(out, render_style, group.style, "\t")
+                        runs.append((group.style, "\t"))
 
             i = next_i
             continue
 
         if ch not in "\r\n" and not group.skip_destination:
-            render_style = _append_rtf_text(out, render_style, group.style, ch)
+            runs.append((group.style, ch))
         i += 1
 
-    _emit_rtf_style_transition(out, render_style, _RtfStyle())
-    return "".join(out)
+    return write_runs(runs)
 
 
 def _read_rung0_comment(data: bytes) -> tuple[bytes | None, int]:

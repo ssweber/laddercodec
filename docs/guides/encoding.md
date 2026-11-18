@@ -348,7 +348,14 @@ Comments are plain text with optional markdown-style inline formatting:
 rung = replace(rung, comment="Motor start circuit")
 rung = replace(rung, comment="**Bold** and _italic_ and __underlined__")
 rung = replace(rung, comment="Line one\nLine two")
+rung = replace(rung, comment=r"Pump_1_Run waits for \_init\_")
 ```
+
+To write a `*` or `_` as text where it would otherwise start or end a style,
+put a backslash before it. To write a backslash before `*`, `_` or another
+backslash, write `\\`. The last comment above encodes as
+`Pump_1_Run waits for _init_`, with no styling. See
+[Comment styles and escapes](csv-format.md#comment-styles-and-escapes).
 
 The comment body limit is 1400 bytes after RTF encoding. For multi-row rungs
 the practical limit can be lower; see

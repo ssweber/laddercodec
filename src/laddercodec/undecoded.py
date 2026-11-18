@@ -274,14 +274,15 @@ def recovered_comment(error: str, payload: bytes) -> str:
     The text starts on its own line, so that the note's error does not run into it.
     ``encode()`` refuses an RTF body over ``COMMENT_MAX_BYTES`` bytes, however many rows the
     rung has. If the whole comment would be longer than that, the text is cut and ends with
-    ``...``. If the note alone is too long, its error is cut in the same way. The styling
-    characters ``*`` and ``_`` in the text are not escaped, because the encoder has no
-    escape for them.
+    ``...``. If the note alone is too long, its error is cut in the same way. The comment
+    is Markdown that reads back as the plain text. A backslash goes before a ``*``, ``_``
+    or ``\\`` that would otherwise be read as a style or an escape.
     """
+    from ._comment import write_text
     from .encode import COMMENT_MAX_BYTES, _build_rtf_body
 
-    def size(comment: str) -> int:
-        return len(_build_rtf_body(comment).encode("cp1252"))
+    def size(plain: str) -> int:
+        return len(_build_rtf_body(write_text(plain)).encode("cp1252"))
 
     def longest(fits: Callable[[int], bool], high: int) -> int:
         """Return the largest k in 0..high for which *fits* is true, found by bisection.
@@ -305,16 +306,16 @@ def recovered_comment(error: str, payload: bytes) -> str:
         note = comment_note(error[:keep].rstrip() + "...")
     text = recover_text(payload)
     if not text:
-        return note
+        return write_text(note)
     comment = f"{note}\n{text}"
     if size(comment) <= COMMENT_MAX_BYTES:
-        return comment
+        return write_text(comment)
 
     def cut(k: int) -> str:
         return f"{note}\n{text[:k].rstrip()}..."
 
     keep = longest(lambda k: size(cut(k)) <= COMMENT_MAX_BYTES, len(text))
-    return cut(keep) if keep else note
+    return write_text(cut(keep) if keep else note)
 
 
 def read_comment(rtf: bytes | None, rung: int, failed: list[tuple[int, str]]) -> str | None:
@@ -345,13 +346,15 @@ def warn_comments(failed: Iterable[tuple[int, str]], *, program: str | None = No
 def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:
     """Return the one-row rung that stands for a rung that could not be decoded.
 
-    Its comment is the marker's headline, followed by *comment* if one is given. A caller
-    passes the rung's own comment when that comment decoded. The one row is a wire from
-    the rail straight into the marker, with no conditions.
+    Its comment is the marker's headline as text, followed by *comment* if one is given.
+    A caller passes the rung's own comment, as Markdown, when that comment decoded. The one
+    row is a wire from the rail straight into the marker, with no conditions.
     """
+    from ._comment import write_text
     from .decode import Rung
 
-    lines = [marker.headline, comment] if comment else [marker.headline]
+    headline = write_text(marker.headline)
+    lines = [headline, comment] if comment else [headline]
     return Rung(
         conditions=[["-"] * CONDITION_COLUMNS],
         instructions=[marker],

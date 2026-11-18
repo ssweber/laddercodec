@@ -139,6 +139,7 @@ def encode_rungs(
             ``__text__``  → underline
             ``*text*``    → italic (asterisk)
             ``_text_``    → italic (underscore)
+        A backslash before ``*``, ``_`` or ``\\`` makes that character text.
         Line breaks: ``\\n`` becomes an RTF paragraph break (``\\par``).
 
     Returns

@@ -181,6 +181,11 @@ RTF comment bodies are decoded to plain text with markdown formatting:
 - `{\ul text}` → `__text__`
 - `\par` → newline
 
+`decode()` puts a backslash before a `*`, `_` or `\` in the text where
+`encode()` would otherwise read it as a style or an escape. So CLICK's comment
+text `_init_` decodes as `\_init\_`. See
+[Comment styles and escapes](csv-format.md#comment-styles-and-escapes).
+
 ## Multi-rung buffers
 
 A buffer of several rungs decodes the same way, to a longer list:
