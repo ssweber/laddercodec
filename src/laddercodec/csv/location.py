@@ -46,8 +46,10 @@ class CsvLocation:
 
     When ``read_csv`` reads with ``unchecked=True``, an instruction keeps each refusal
     instead of raising it. The refusal appears in the ``errors`` of a
-    :class:`~laddercodec.RefusedFieldWarning`. Each kept refusal has the location that the
-    default read would give it when it raised. Its message does not end with the location.
+    :class:`~laddercodec.RefusedFieldWarning`. When ``read_csv`` reads with ``allow=``, an
+    instruction keeps each refusal that ``allow=`` lists, and no warning is emitted. Each
+    kept refusal has the location that the default read would give it when it raised. Its
+    message does not end with the location.
 
     Attributes
     ----------

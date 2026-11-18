@@ -65,7 +65,7 @@ from laddercodec.instructions.send_receive import Receive, Send
 from laddercodec.instructions.shift import Shift
 from laddercodec.instructions.timer import Timer
 from laddercodec.model import AfInstruction, Reason
-from laddercodec.operands.unchecked import rebuilt, refusals, stored_blob
+from laddercodec.operands.unchecked import refusals, stored_blob
 from tests.kept_refusals import kept
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -251,11 +251,7 @@ def test_stored_bytes_decode_as_the_instruction(
     decoded, [warning] = _decoded(data)
     found = _held(decoded)
     assert found[0] == index
-    if (cls, fields[0]) in _BYTE_EDITS:
-        # A CSV does not hold a Modbus function code, and the bytes do. Compare without it.
-        assert rebuilt(found[1], function_code=None) == held
-    else:
-        assert found[1] == held
+    assert found[1] == held
     kept(_held(decoded)[1], *fields)
     assert (warning.rung, warning.program) == (index, None)
 

@@ -37,7 +37,7 @@ from ..operands.address import address_shape, xy_points, xy_room
 from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS
 from ..operands.checks import Constants, Refusals, check_constant, check_csv_flag
 from ..operands.constants import Kind, hex_display
-from ..operands.unchecked import holds_refusals
+from ..operands.unchecked import allowed, holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
 if TYPE_CHECKING:
@@ -719,7 +719,15 @@ def _send_default_fc(send: Send, bit: bool, local: Address, remote_bank: str | N
 
 def _validate_send(send: Send) -> tuple[int, int]:
     """Check every field of *send*, and return the function code that the Send is written
-    with and the default function code."""
+    with and the default function code.
+
+    If the refusals of *send* were allowed by code (:func:`allowed`), return the two
+    function codes without raising the refusals. A refusal that leaves either code unknown
+    still raises."""
+    if allowed(send):
+        found = _check_send(send, Refusals(send))
+        if found is not None:
+            return found
     with Refusals(send) as check:
         found = _check_send(send, check)
     assert found is not None  # a refusal ended the block
@@ -881,7 +889,15 @@ def _receive_default_fc(remote: str | ModbusAddress, bit: bool, kind_984: str | 
 
 def _validate_receive(receive: Receive) -> tuple[int, int]:
     """Check every field of *receive*, and return the function code that the Receive is
-    written with and the default function code."""
+    written with and the default function code.
+
+    If the refusals of *receive* were allowed by code (:func:`allowed`), return the two
+    function codes without raising the refusals. A refusal that leaves either code unknown
+    still raises."""
+    if allowed(receive):
+        found = _check_receive(receive, Refusals(receive))
+        if found is not None:
+            return found
     with Refusals(receive) as check:
         found = _check_receive(receive, check)
     assert found is not None  # a refusal ended the block
@@ -1231,10 +1247,13 @@ class Receive(AfInstruction):
                 check, self, ("dest", "receiving", "success", "error", "exception_response")
             )
             found = _check_receive(self, check)
+            if found is not None:
+                # Set inside the block, so that a Receive that holds a refusal also has
+                # None for its default code.
+                fc, default_fc = found
+                object.__setattr__(self, "function_code", None if fc == default_fc else fc)
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
-        fc, default_fc = found
-        object.__setattr__(self, "function_code", None if fc == default_fc else fc)
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -1337,10 +1356,13 @@ class Send(AfInstruction):
                 check, self, ("source", "sending", "success", "error", "exception_response")
             )
             found = _check_send(self, check)
+            if found is not None:
+                # Set inside the block, so that a Send that holds a refusal also has None
+                # for its default code.
+                fc, default_fc = found
+                object.__setattr__(self, "function_code", None if fc == default_fc else fc)
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
-        fc, default_fc = found
-        object.__setattr__(self, "function_code", None if fc == default_fc else fc)
 
     def to_csv(self) -> str:
         parts: list[str] = []

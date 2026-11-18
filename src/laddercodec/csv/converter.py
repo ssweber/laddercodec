@@ -55,6 +55,7 @@ drops the padding rows.
 from __future__ import annotations
 
 import re
+import warnings
 from collections.abc import Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import Any, cast
@@ -67,8 +68,12 @@ from ..instructions import (
     KNOWN_PIN_NAMES,
     CompareContact,
     Contact,
+    Receive,
+    Send,
     Tee,
+    parse_af_blob,
     parse_af_call,
+    parse_condition_blob,
 )
 from ..instructions import AfToken as RungAfToken
 from ..instructions import ConditionToken as RungConditionToken
@@ -79,7 +84,7 @@ from ..model import (
     PinnedInstruction,
     check_address,
 )
-from ..operands.unchecked import checked, refusals, unchecked
+from ..operands.unchecked import allowed, checked, rebuilt, refusals, unchecked
 from .ast import (
     AfBlank,
     AfCall,
@@ -419,14 +424,18 @@ def _finalize_pinned_block(
     try:
         boxed = token.with_pins(pins, slots)
     except ValueError as exc:
-        error = CsvError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
-        if isinstance(exc, FieldError):
-            # The box refuses a value that a pin row sets.  Locate the error at that row.
-            culprit = _refused_pin(token, pins, slots)
-            if culprit is not None:
-                add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
-            _locate_at_pins(token, pins, slots, exc.errors, pin_places)
-        raise error from exc
+        raise _pin_error(token, pins, slots, exc, pin_places) from exc
+    if allowed(boxed) and not writes_back(boxed):
+        if refusals(token):
+            # The default read raises the refusal of the box's own cell before it reads the
+            # pins.  Raise it from that cell.
+            locate_held([token], **block.place, column=AF_COLUMN)
+            raise refusals(token)[0].with_traceback(None)
+        # Inside ``read_csv(..., allow=...)``, the box keeps the refusals that its pins
+        # cause.  laddercodec can't write it and read it back the same, so raise them as
+        # ``with_pins`` raises them by default.
+        first = refusals(boxed)[0]
+        raise _pin_error(token, pins, slots, first, pin_places) from first
     # Inside ``read_csv(..., unchecked=True)``, the box keeps the refusals that ``with_pins``
     # would otherwise raise.  Locate each one where it would have been raised.
     _locate_at_pins(token, pins, slots, refusals(boxed), pin_places)
@@ -435,6 +444,24 @@ def _finalize_pinned_block(
     if lead:
         af_tokens[lead] = "NOP"
     return rows, af_tokens, tail
+
+
+def _pin_error(
+    token: PinnedInstruction,
+    pins: dict[str, tuple[str, ...]],
+    slot_rows: tuple[int, ...],
+    exc: ValueError,
+    pin_places: dict[str, dict[str, int | None]],
+) -> CsvError:
+    """Return the ``CsvError`` to raise when *token* refuses *pins* with *exc*."""
+    error = CsvError(str(exc), refusal=exc if isinstance(exc, FieldError) else None)
+    if isinstance(exc, FieldError):
+        # The box refuses a value that a pin row sets.  Locate the error at that row.
+        culprit = _refused_pin(token, pins, slot_rows)
+        if culprit is not None:
+            add_own_location(error, **pin_places[culprit], column=AF_COLUMN)
+        _locate_at_pins(token, pins, slot_rows, exc.errors, pin_places)
+    return error
 
 
 def _locate_at_pins(
@@ -730,6 +757,37 @@ def reads_back(token: object) -> bool:
     except Exception:  # noqa: BLE001 - a value the CSV can't hold breaks it anywhere
         return False
     return again == token
+
+
+def writes_back(inst: ConditionInstruction | AfInstruction) -> bool:
+    """Return True if the blob that *inst* builds parses back to an instruction equal to
+    *inst*.
+
+    The function parses the blob as ``decode()`` parses it.  If building or parsing the
+    blob fails, the function returns False, because laddercodec can't write the
+    instruction.
+
+    The blob does not store the name of a Send or Receive target, so the function gives the
+    parsed instruction the name of *inst*'s target before it compares the two.
+    """
+    parse = parse_condition_blob if isinstance(inst, ConditionInstruction) else parse_af_blob
+    try:
+        blob = inst.build_blob()
+        with warnings.catch_warnings():
+            # The parse only tests the blob.  A warning from it is not the caller's.
+            warnings.simplefilter("ignore")
+            back = parse(blob)
+            if (
+                isinstance(inst, (Send, Receive))
+                and isinstance(back, (Send, Receive))
+                and type(back.target) is type(inst.target)
+                and back.target.name != inst.target.name
+            ):
+                renamed = rebuilt(back.target, name=inst.target.name)
+                back = rebuilt(back, target=renamed)
+    except Exception:  # noqa: BLE001 - a blob that can't be built or parsed can't be written
+        return False
+    return back == inst
 
 
 # ---------------------------------------------------------------------------

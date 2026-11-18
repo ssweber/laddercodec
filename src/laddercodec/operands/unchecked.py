@@ -39,9 +39,15 @@ cell rows. :func:`keep_stored_blob` and :func:`keep_cell_rows` keep them.
 
 ``build_blob()`` returns the kept blob, and ``encode()`` writes it with the kept cell
 rows, as it does for a ``RawInstruction``. If no blob was kept, ``build_blob()`` and
-``encode()`` raise the first refusal that the instruction holds. A copy that
-:func:`replace` or :func:`rebuilt` makes keeps the blob only when the copy changes no
-field. ``dataclasses.replace`` never passes the blob on.
+``encode()`` raise the first refusal that the instruction holds, unless the refusals were
+allowed. A copy that :func:`replace` or :func:`rebuilt` makes keeps the blob only when the
+copy changes no field. ``dataclasses.replace`` never passes the blob on.
+
+A block can allow refusals by their codes: ``unchecked(allow=codes)``. Inside it, an
+instruction keeps a refusal only if every error in the refusal has a code in *codes*, and
+any other refusal raises. :func:`allowed` returns True for an instruction whose refusals
+were all kept this way. ``build_blob()`` and ``encode()`` build the blob of such an
+instruction from its fields. ``read_csv(..., allow=...)`` reads a CSV inside such a block.
 
 :func:`replace` is public as ``laddercodec.replace``. The rest of this module is not
 public API.
@@ -52,7 +58,7 @@ from __future__ import annotations
 import copy
 import dataclasses
 import functools
-from collections.abc import Generator
+from collections.abc import Generator, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import fields, is_dataclass
@@ -62,6 +68,7 @@ from .address import NotDisplayForm
 from .errors import FieldError, Reason
 
 __all__ = [
+    "allowed",
     "checked",
     "holds_refusals",
     "keep_cell_rows",
@@ -84,6 +91,10 @@ _LAYOUT_FIELDS = frozenset({"pin_rows"})
 #: such a block and inside :func:`checked`.
 _KEPT: ContextVar[list[FieldError] | None] = ContextVar("_KEPT", default=None)
 
+#: The codes that the innermost :func:`unchecked` block allows. It is None when that block
+#: allows every refusal that an instruction can keep, and outside any block.
+_ALLOW: ContextVar[frozenset[str] | None] = ContextVar("_ALLOW", default=None)
+
 #: Reasons for a refusal that construction always raises, even inside :func:`unchecked`.
 _STRICT_REASONS = frozenset({Reason.CHOICE, Reason.FLAG})
 
@@ -91,18 +102,26 @@ _T = TypeVar("_T")
 
 
 @contextmanager
-def unchecked() -> Generator[list[FieldError]]:
+def unchecked(allow: Iterable[str] | None = None) -> Generator[list[FieldError]]:
     """Let an instruction built inside the block keep a refusal of its checks instead of
     raising it.
 
     The block yields a list of the kept errors, one for each instruction, Modbus target or
     Modbus address built with refusals, in the order that they were built.
+
+    With *allow*, an instruction keeps a refusal only if every error in the refusal has a
+    code in *allow*. Any other refusal raises. Each instruction, Modbus target or Modbus
+    address that keeps a refusal is marked, and :func:`allowed` reads the mark. A block
+    nested inside this one allows only what its own *allow* names.
     """
+    codes = None if allow is None else frozenset(allow)
     kept: list[FieldError] = []
     token = _KEPT.set(kept)
+    allow_token = _ALLOW.set(codes)
     try:
         yield kept
     finally:
+        _ALLOW.reset(allow_token)
         _KEPT.reset(token)
 
 
@@ -132,7 +151,8 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
     Inside :func:`unchecked`, the wrapped ``__post_init__`` keeps a refusal that the
     instance may hold instead of raising it. The wrapped ``build_blob`` returns the kept
     blob (:func:`stored_blob`), or raises the first refusal of an instance that holds
-    refusals.
+    refusals. It builds the blob of an instance whose refusals were all allowed
+    (:func:`allowed`).
 
     The instance stores the error that construction raised as ``_refusal``. That error is
     the first refusal, and its ``errors`` holds every refusal. Each refusal that names no
@@ -159,10 +179,15 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
                 raise
             if not all(_keepable(error) for error in exc.errors):
                 raise
+            allow = _ALLOW.get()
+            if allow is not None and not all(error.code in allow for error in exc.errors):
+                raise
             for error in exc.errors:
                 if error.obj is None:
                     error.obj = self
             object.__setattr__(self, "_refusal", exc)  # a Modbus target is frozen
+            if allow is not None:
+                object.__setattr__(self, "_allowed", True)
             kept.append(exc)
 
     cast("Any", cls).__post_init__ = wrapper
@@ -187,16 +212,30 @@ def refusals(inst: object) -> tuple[FieldError, ...]:
     first, because those are built first. The refusals of *inst* itself follow, in the
     order of each error's ``errors``.
     """
-    found: list[FieldError] = []
+    return tuple(error for holder in _holders(inst) for error in holder._refusal.errors)
+
+
+def allowed(inst: object) -> bool:
+    """Return whether *inst* holds refusals and every one of them was kept inside an
+    :func:`unchecked` block that allows its code.
+
+    A Modbus target or Modbus address in a field of *inst* holds its own refusals, and they
+    count too.
+    """
+    holders = list(_holders(inst))
+    return bool(holders) and all(getattr(holder, "_allowed", False) for holder in holders)
+
+
+def _holders(inst: object) -> Iterator[Any]:
+    """Yield each object in *inst* that holds a refusal of its own, in the order of
+    :func:`refusals`: the Modbus targets and Modbus addresses in its fields, then *inst*."""
     if is_dataclass(inst) and not isinstance(inst, type):
         for f in fields(inst):
             nested = getattr(inst, f.name)
             if is_dataclass(nested):
-                found.extend(refusals(nested))
-    own = getattr(inst, "_refusal", None)
-    if own is not None:
-        found.extend(own.errors)
-    return tuple(found)
+                yield from _holders(nested)
+    if getattr(inst, "_refusal", None) is not None:
+        yield inst
 
 
 def rebuilt(inst: _T, **changes: Any) -> _T:
@@ -216,9 +255,14 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
 
     If *changes* is empty, the copy also keeps the blob and cell rows that *inst* was
     decoded from.
+
+    If *changes* names no field but ``pin_rows``, :func:`allowed` returns the same for the
+    copy as for *inst*. Otherwise the copy is checked again. Inside an :func:`unchecked`
+    block with *allow*, it keeps only the refusals that *allow* lists. Anywhere else,
+    :func:`allowed` returns False for it, and ``encode()`` raises its first refusal.
     """
     if refusals(inst):
-        with unchecked():
+        with unchecked(allow=_ALLOW.get()):
             copied = dataclasses.replace(cast("Any", inst), **changes)
     else:
         copied = dataclasses.replace(cast("Any", inst), **changes)
@@ -228,6 +272,8 @@ def rebuilt(inst: _T, **changes: Any) -> _T:
     own = getattr(inst, "_refusal", None)
     if own is not None and set(changes) <= _LAYOUT_FIELDS:
         object.__setattr__(copied, "_refusal", _copied_errors(own, inst, copied))
+        if getattr(inst, "_allowed", False):
+            object.__setattr__(copied, "_allowed", True)
     return cast("_T", copied)
 
 
@@ -259,14 +305,18 @@ def replace(inst: _T, /, **changes: Any) -> _T:
     If any field changes, ``replace`` builds the copy from its values as if you built it
     new, and every check of the instruction runs. It also builds again each Modbus target
     or Modbus address in a field that holds a refusal. A refused value raises the
-    :class:`~laddercodec.FieldError` that building the instruction raises. The copy has no
-    stored blob, so ``encode()`` writes the blob of its values.
+    :class:`~laddercodec.FieldError` that building the instruction raises. It raises even
+    for a code that ``read_csv(..., allow=...)`` allowed when it read *inst*. The copy has
+    no stored blob, so ``encode()`` writes the blob of its values.
 
     If no field changes, ``replace`` raises no refusal. The copy has the stored blob of
     *inst*, and the same refusals as *inst*:
 
     - ``encode()`` writes the blob and cell rows that *inst* was decoded from;
-    - if *inst* has no stored blob, ``encode()`` raises the first refusal that the copy holds.
+    - if *inst* was read with ``allow=`` and its refusals were allowed, ``encode()`` writes
+      the blob of the copy's values;
+    - otherwise, if *inst* has no stored blob, ``encode()`` raises the first refusal that
+      the copy holds.
 
     A ``Rung`` is frozen too. ``replace(rung, instructions=...)`` returns a copy of the
     rung with those instructions. On a ``Rung``, no check runs. The copy holds the cells
@@ -364,7 +414,8 @@ def _writing_stored_blob(build_blob: Any) -> Any:
     """Wrap a ``build_blob`` method.
 
     The wrapper returns the kept blob if :func:`stored_blob` returns one. Otherwise it
-    raises the first refusal of an instance that holds refusals, or builds the blob.
+    raises the first refusal of an instance that holds refusals that were not allowed
+    (:func:`allowed`), or builds the blob.
     """
 
     @functools.wraps(build_blob)
@@ -373,7 +424,7 @@ def _writing_stored_blob(build_blob: Any) -> Any:
         if blob is not None:
             return blob
         found = refusals(self)
-        if found:
+        if found and not allowed(self):
             raise found[0].with_traceback(None)
         return build_blob(self, *args, **kwargs)
 
