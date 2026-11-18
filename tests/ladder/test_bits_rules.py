@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from laddercodec import AddressError, CsvError, FieldError, decode, read_csv
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
@@ -157,17 +158,17 @@ class TestCompare:
         with pytest.raises(FieldError, match=rf"^CompareContact.{field}: .* is above FFFFh"):
             CompareContact.from_csv_token(token)
 
-    # CLICK's compare dialog accepts a quoted text of 1 to 128 printable ASCII characters.
-    # Each case breaks that rule.
+    # CLICK's compare dialog accepts a quoted text of 1 to 128 characters. Data A holds
+    # printable ASCII only. Each case breaks that rule.
     @pytest.mark.parametrize(
         "token",
         [
             'TXT1==""',
             '""!=TXT1',
             'TXT1=="' + "A" * 129 + '"',
-            'TXT1=="é"',
-            'TXT1=="	"',
-            'TXT1=="Aé"',
+            '"é"==TXT1',
+            '"	"==TXT1',
+            '"Aé"!=TXT1',
         ],
     )
     def test_text_is_one_to_128_printable_characters(self, token: str) -> None:
@@ -175,6 +176,21 @@ class TestCompare:
             FieldError, match="a text constant is 1 to 128 characters|printable ASCII only"
         ):
             CompareContact.from_csv_token(token)
+
+    # Data B holds any character that CLICK keeps: U+0001 to U+FFFF except a surrogate.
+    @pytest.mark.parametrize("text", ["é", "\t", "Aé", "€", "a\nb", "\x01"])
+    def test_data_b_text_holds_the_characters_click_keeps(self, tmp_path: Path, text: str) -> None:
+        compare = CompareContact("==", "TXT1", f'"{text}"')
+        assert compare.to_csv() == f'TXT1=="{text}"'
+        assert CompareContact.from_csv_token(compare.to_csv()) == compare
+        [rung] = decode(encode_rung(1, [[compare] + ["-"] * 30], [""]))
+        assert rung.conditions[0][0] == compare
+        assert _read_condition(tmp_path, compare.to_csv()) == compare
+
+    @pytest.mark.parametrize("text", ["\x00", "A\x00", "\U0001f600", "\ud800"])
+    def test_data_b_text_refuses_what_click_does_not_keep(self, text: str) -> None:
+        with pytest.raises(FieldError, match=r"^CompareContact.right: "):
+            CompareContact("==", "TXT1", f'"{text}"')
 
     def test_quoted_character_code_is_text(self) -> None:
         quoted = CompareContact.from_csv_token('TXT1=="$41"')
@@ -238,25 +254,83 @@ class TestCompare:
             CompareContact(op="==", left=left, right=right)
         assert CompareContact(op="==", left="TXT1", right="$22").right == "$22"
 
-    # A character code is $ and two hex digits, $00 to $FF. Each case has another form.
+    # In Data A, a character code is $ and two hex digits, $00 to $FF. Each case has another
+    # form.
     @pytest.mark.parametrize("code", ["$1", "$D", "$100", "$4142", "$G1"])
-    @pytest.mark.parametrize("field", ["left", "right"])
-    def test_other_dollar_forms_refused(self, code: str, field: str) -> None:
-        operands = {"left": "TXT1", "right": "TXT1"} | {field: code}
+    def test_other_dollar_forms_refused_in_data_a(self, code: str) -> None:
         with pytest.raises(
-            FieldError, match=rf"^CompareContact.{field}: .* \$ and two hex digits, \$00 to \$FF"
+            FieldError, match=r"^CompareContact.left: .* \$ and two hex digits, \$00 to \$FF"
         ):
-            CompareContact(op="==", **operands)
+            CompareContact(op="==", left=code, right="TXT1")
+
+    # Data B also takes $ and one hex digit.
+    @pytest.mark.parametrize("code", ["$", "$100", "$4142", "$G1"])
+    def test_other_dollar_forms_refused_in_data_b(self, code: str) -> None:
+        with pytest.raises(
+            FieldError,
+            match=r"^CompareContact.right: .* \$ and one or two hex digits, \$0 to \$FF",
+        ):
+            CompareContact(op="==", left="TXT1", right=code)
+
+    @pytest.mark.parametrize("code", ["$1", "$D", "$d"])
+    def test_one_digit_code_kept_as_typed_in_data_b(self, code: str) -> None:
+        compare = CompareContact(op="==", left="TXT1", right=code)
+        assert compare.right == code
+        assert compare.to_csv() == f"TXT1=={code}"
+        assert CompareContact.from_csv_token(f"TXT1=={code}") == compare
+        tags = {0x3218: "4103", 0x6066: "TXT1", 0x6067: code, 0x21F7: "0"}
+        assert kept(from_tags_condition("Compare", 0x2714, tags)) == compare
+
+    # CLICK saves Data B empty for DH, so Data B refuses a hex constant that spells a
+    # bank name. A leading 0 makes it hex.
+    @pytest.mark.parametrize("value", ["DH", "dh", "Dh"])
+    def test_a_bank_name_as_hex_refused_in_data_b(self, value: str) -> None:
+        with pytest.raises(FieldError) as info:
+            CompareContact(op="==", left="DH1", right=value)
+        assert str(info.value) == (
+            f"CompareContact.right: {value!r} is the bank name DH, not a hex constant. "
+            "Write the hex constant with a leading 0, such as 0DH."
+        )
+        assert info.value.code == Code.INVALID_CONSTANT
+        assert info.value.click_id is None
+        assert CompareContact(op="==", left="DH1", right=f"0{value}").right == f"0{value}"
+
+    def test_a_bank_name_as_hex_opposite_a_numeric_data_a_is_a_group_refusal(self) -> None:
+        with pytest.raises(FieldError, match="not in one compare group") as info:
+            CompareContact(op="==", left="DS1", right="DH")
+        assert info.value.code == Code.COMPARE_MIXED_TYPES
+
+    def test_a_bank_name_as_hex_stays_in_data_a(self) -> None:
+        assert CompareContact(op="==", left="DH", right="DH1").left == "DH"
+
+    def test_a_bank_name_as_hex_blob_keeps_its_refusal(self) -> None:
+        tags = {0x3218: "4103", 0x6066: "DH1", 0x6067: "DH", 0x21F7: "0"}
+        assert kept(from_tags_condition("Compare", 0x2714, tags), "CompareContact.right")
 
     def test_other_dollar_form_blob_keeps_its_refusal(self) -> None:
         tags = {0x3218: "4103", 0x6066: "TXT1", 0x6067: "$41", 0x21F7: "0"}
         assert isinstance(from_tags_condition("Compare", 0x2714, tags), CompareContact)
-        compare = from_tags_condition("Compare", 0x2714, tags | {0x6067: "$4"})
-        assert kept(compare, "CompareContact.right").right == "$4"
+        compare = from_tags_condition("Compare", 0x2714, tags | {0x6066: "$4"})
+        assert kept(compare, "CompareContact.left").left == "$4"
+        compare = from_tags_condition("Compare", 0x2714, tags | {0x6067: "$G1"})
+        assert kept(compare, "CompareContact.right").right == "$G1"
 
-    def test_quote_inside_text_refused(self) -> None:
-        with pytest.raises(FieldError, match="no quote inside"):
-            CompareContact("==", '"a"=="b"', '"c"')
+    # No form of a text constant holds a quote together with other characters: $22 is a
+    # lone quote character. The message names no $22.
+    @pytest.mark.parametrize(
+        ("left", "right", "field"),
+        [('"a"=="b"', '"c"', "left"), ("TXT1", '"A""B"', "right"), ("TXT1", '"a"b"', "right")],
+    )
+    def test_quote_inside_text_refused(self, left: str, right: str, field: str) -> None:
+        with pytest.raises(FieldError) as info:
+            CompareContact("==", left, right)
+        message = str(info.value)
+        assert message.startswith(f"CompareContact.{field}: ")
+        assert message.endswith(
+            "holds a quote with other characters, which a text constant can't hold; write "
+            'the text without it, such as "AB"'
+        )
+        assert info.value.code == Code.INVALID_TEXT_CONSTANT
 
     def test_quote_character_refused_through_read_csv(self, tmp_path: Path) -> None:
         with pytest.raises(FieldError, match="^CompareContact.right: .* no quote inside"):

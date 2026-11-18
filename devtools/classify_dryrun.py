@@ -120,7 +120,7 @@ class Namespace:
         import laddercodec
         from laddercodec import instructions
         from laddercodec.codes import Code
-        from laddercodec.instructions.comparison import _GROUP_BANKS
+        from laddercodec.instructions.comparison import GROUP_BANKS
         from laddercodec.instructions.forloop import FOR_LIMIT_BANKS
         from laddercodec.model import AddressError, FieldError, InstructionType, normalize_address
         from laddercodec.operands import checks
@@ -141,8 +141,8 @@ class Namespace:
         self.real_beyond_kept_digits: Any = real_beyond_kept_digits
         # The shared checks hold their own banks. The banks below belong to one instruction
         # family each, and come from that family's module.
-        self.compare_groups: Any = _GROUP_BANKS
-        self.compare_banks: Any = frozenset().union(*_GROUP_BANKS.values())
+        self.compare_groups: Any = GROUP_BANKS
+        self.compare_banks: Any = frozenset().union(*GROUP_BANKS.values())
         self.for_limit_banks: Any = FOR_LIMIT_BANKS
 
     def constants(self, kinds: Any = None, **limits: Any) -> Any:
@@ -163,27 +163,41 @@ class Namespace:
 # ---------------------------------------------------------------------------
 
 
-def compare_rule(other_group: str) -> Callable[[Any, str], None]:
+def compare_rule(other_group: str, *, data_b: bool) -> Callable[[Any, str], None]:
     """Return the rule for a Compare operand whose other side is in ``other_group``.
 
-    The rule accepts a constant of every kind. A hex constant is at most FFFFh. A real may
-    have any spelling, and a value beyond float32, such as ``3.5E+38``, is accepted until
-    someone checks where CLICK's limit is. The Compare family checks the group pairing
-    itself. Opposite a numeric operand the rule accepts an integer or a real, opposite a hex
-    operand a hex constant, and opposite a text operand quoted text or ``$hh``.
+    The rule accepts a constant of every kind. A hex constant is at most FFFFh. A real must
+    fit float32, and ``3.5E+38`` is refused with OBJ-005. The Compare family checks the group
+    pairing itself. Opposite a numeric operand the rule accepts an integer or a real, opposite
+    a hex operand a hex constant, and opposite a text operand quoted text or ``$hh``. Data B
+    (``data_b``) also takes ``$`` and one hex digit, and text of the characters a single
+    Copy's text holds, and refuses a hex constant that spells a bank name (``DH``) opposite
+    a hex operand. Data A takes printable ASCII text.
     """
 
     def rule(ns: Any, value: str) -> None:
-        constants = ns.constants(hex_high=0xFFFF, float32=False)
+        constants = ns.constants(
+            hex_high=0xFFFF,
+            real_id="OBJ-005",
+            one_digit_char=data_b,
+            printable=not data_b,
+        )
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "CompareContact.x", ns.compare_banks, constants)
         if op.constant is not None:
             kind = op.constant.kind
+            if kind == ns.Kind.TEXT and not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
+                ns.refuse(
+                    "text holds U+0001 to U+FFFF, no NUL and no surrogate",
+                    code="INVALID_TEXT_CONSTANT",
+                )
             group = {"integer": "numeric", "float": "numeric", "hex": "hex"}.get(kind, "text")
         else:
             group = next(g for g, banks in ns.compare_groups.items() if op.bank in banks)
         if group != other_group:
             ns.refuse("not in one compare group", code="COMPARE_MIXED_TYPES")
+        if data_b and group == "hex" and text.upper() in ns.checks.ADDRESS_BANKS:
+            ns.refuse("a bank name is no hex constant", code="INVALID_CONSTANT")
 
     return rule
 
@@ -317,16 +331,22 @@ def search_rule(table: str) -> Callable[[Any, str], None]:
     The rule accepts a constant of every kind. A hex constant is at most FFFFh. The Search
     family itself checks which table banks each kind of constant may search. An integer or
     a real searches DS, DD, DF, TD and CTD. Hex searches DH, and text or ``$hh`` searches
-    TXT. Text may hold the same characters as the text of a single Copy: U+0001 to U+FFFF,
-    without the surrogates.
+    TXT. ``$`` and one hex digit is a character code too. An address value is in the table's
+    compare group. Text may hold the same characters as the text of a single Copy: U+0001 to
+    U+FFFF, without the surrogates.
     """
 
     def rule(ns: Any, value: str) -> None:
-        constants = ns.constants(hex_high=0xFFFF, hex_sign=True, printable=False)
+        constants = ns.constants(
+            hex_high=0xFFFF, hex_sign=True, printable=False, real_id="OBJ-005", one_digit_char=True
+        )
         text = ns.normalize(value)
         op = ns.checks.check_operand(text, "Search.value", ns.checks.REGISTER_BANKS, constants)
         if op.constant is not None and table not in ns.search_tables[op.constant.kind]:
             ns.refuse("the value's kind does not search this table", code="SEARCH_VALUE_BANK")
+        groups = ns.compare_groups.values()
+        if op.bank is not None and not any(op.bank in g and table in g for g in groups):
+            ns.refuse("the value's bank is not in the table's group", code="SEARCH_VALUE_BANK")
         if op.constant and op.constant.kind == ns.Kind.TEXT:
             if not _COPY_TEXT_CHARS.issuperset(str(op.constant.value)):
                 ns.refuse(
@@ -436,7 +456,7 @@ def _bits() -> list[Field]:
                     f"CompareContact.{side} ({fixed}={base[fixed]})",
                     f"CompareContact/{name}/{side}",
                     _make("CompareContact", **base)(side),
-                    compare_rule(group),
+                    compare_rule(group, data_b=side == "right"),
                 )
             )
     out_variants = {

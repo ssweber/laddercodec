@@ -30,6 +30,7 @@ from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
 from ..errors import CsvError
 from ..model import Address, AfInstruction, Reason
+from ..operands.address import read_typed_address
 from ..operands.banks import REGISTER_BANKS
 from ..operands.checks import (
     ALL_KINDS,
@@ -40,7 +41,8 @@ from ..operands.checks import (
     check_quoted_text,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
-from .comparison import CompareOp
+from ..operands.unchecked import read_in_another_form
+from .comparison import GROUP_BANKS, CompareOp, bank_group
 from .copy import check_box_operand, check_range
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -98,8 +100,16 @@ _TEXT_OPS = frozenset({"==", "!="})
 #: FFFFh is a 32-bit hex constant, which is refused with OBJ-005.  Hex text with a sign, such
 #: as ``+1h``, reads as a hex constant, so the field refuses it as a constant and not as an
 #: address.  Text is not limited to printable ASCII here.  ``check_quoted_text`` checks it,
-#: with its quotes, for the characters that CLICK keeps.
-_VALUE = Constants(ALL_KINDS, hex_high=HEX16_MAX, hex_sign=True, printable=False)
+#: with its quotes, for the characters that CLICK keeps.  A real outside float32 is refused
+#: with OBJ-005.  ``$`` and one hex digit (``$1``) is a character code, kept as typed.
+_VALUE = Constants(
+    ALL_KINDS,
+    hex_high=HEX16_MAX,
+    hex_sign=True,
+    printable=False,
+    one_digit_char=True,
+    real_id="OBJ-005",
+)
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -207,17 +217,29 @@ class Search(AfInstruction):
                     Reason.CONFLICT,
                     code=Code.TEXT_ORDER_COMPARE,
                 )
+        if table is None:
+            return
         # A constant's kind decides which banks the table may be in.
-        if (
-            const is not None
-            and table is not None
-            and table.bank not in SEARCH_TABLE_BANKS[const.kind]
-        ):
+        if const is not None and table.bank not in SEARCH_TABLE_BANKS[const.kind]:
+            article = "an" if const.kind is Kind.INTEGER else "a"
             check.refuse(
                 ("value", "table_start"),
-                f"{self.value!r} is a {const.kind} value, which searches "
+                f"{self.value!r} is {article} {const.kind} value, which searches "
                 f"{', '.join(sorted(SEARCH_TABLE_BANKS[const.kind]))}, not {table.bank}",
                 Reason.CONFLICT,
+                "OBJ-004",
+                code=Code.SEARCH_VALUE_BANK,
+            )
+        # An address value and the table are in one compare group: hex, numeric or text.
+        group = None if value.bank is None else bank_group(value.bank)
+        if group is not None and group != bank_group(table.bank):
+            banks = sorted(TABLE_BANKS.intersection(GROUP_BANKS[group]))
+            check.refuse(
+                ("value", "table_start"),
+                f"{self.value!r} is a {group} address, which searches "
+                f"{', '.join(banks)}, not {table.bank}",
+                Reason.CONFLICT,
+                "OBJ-004",
                 code=Code.SEARCH_VALUE_BANK,
             )
 
@@ -285,9 +307,11 @@ def from_tags(
         return None
 
     value = tag_value(tags, 0x6065)
-    table_start = tag_value(tags, 0x6066)
+    # CLICK saves the table start and the result as typed ("ds1", "DS001"), and the result
+    # with any space at its ends (" DS1"). It saves the other fields in display form.
+    table_start = read_typed_address(tag_value(tags, 0x6066))
     table_end = tag_value(tags, 0x6067)
-    result = tag_value(tags, 0x6079)
+    result = read_typed_address(tag_value(tags, 0x6079), trim=True)
     found = tag_value(tags, 0x607A)
     cmp_idx = str(tag_int(tags, 0x21F7))
     op = _CMP_CODE_TO_OP.get(cmp_idx)
@@ -295,7 +319,7 @@ def from_tags(
     if not all([value, table_start, table_end, result, found]) or op is None:
         return None
 
-    return Search(
+    built = Search(
         table_start=table_start,
         table_end=table_end,
         value=value,
@@ -305,6 +329,10 @@ def from_tags(
         continuous=tag_flag(tags, 0x1277),
         oneshot=tag_flag(tags, 0x11F8),
     )
+    if (table_start, result) != (tag_value(tags, 0x6066), tag_value(tags, 0x6079)):
+        # While the Search is unchanged, it encodes as the bytes CLICK stored.
+        read_in_another_form(built)
+    return built
 
 
 def parse_af_call(call: AfCall) -> Search:

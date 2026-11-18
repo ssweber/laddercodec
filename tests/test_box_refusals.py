@@ -306,7 +306,7 @@ def test_call_reports_its_one_field_once() -> None:
             lambda: _search(value="TXT1", op=">"),
             ("Search.op", Reason.CONFLICT, None),
         ),
-        (lambda: _search(value="0FFh"), ("Search.value", Reason.CONFLICT, None)),
+        (lambda: _search(value="0FFh"), ("Search.value", Reason.CONFLICT, "OBJ-004")),
         (lambda: _search(continuous=2), ("Search.continuous", Reason.FLAG, None)),
     ],
 )

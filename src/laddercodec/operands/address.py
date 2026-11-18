@@ -144,6 +144,17 @@ def read_as_typed(value: str) -> str:
     return value if len(display) > len(value) else display
 
 
+def read_typed_address(value: str, *, trim: bool = False) -> str:
+    """Return the address that CLICK saved as typed in ``value``, in display form.
+
+    Return ``value`` unchanged if it does not read as an address, such as a constant.  With
+    ``trim``, spaces at the start and end are removed first, for a field that CLICK saves
+    with them (``" DS1"``).  :func:`read_as_typed` reads the rest.
+    """
+    display = read_as_typed(value.strip(" ") if trim else value)
+    return display if parse_address(display) is not None else value
+
+
 def normalize_fields(inst: object, *names: str) -> None:
     """Write each named text field of ``inst`` in display form with :func:`normalize_address`.
 

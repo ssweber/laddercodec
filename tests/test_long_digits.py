@@ -50,9 +50,6 @@ IN_RANGE = [
     _ZEROS + "1",
     "1." + _RUN,
 ]
-#: Compare accepts a real of any size, because it does not hold its constants to float32.
-HUGE_REALS = [_RUN + ".5", "1E" + _RUN, "1E+" + _RUN]
-HUGE_REAL_FIELDS = {"CompareContact.left", "CompareContact.right"}
 OUT_OF_RANGE = [
     _RUN,
     "-" + _RUN,
@@ -177,7 +174,7 @@ def test_long_digit_text_is_refused_not_a_crash(case: tuple[str, Any, Path_]) ->
             except Exception as exc:  # noqa: BLE001 - the crash is what this test looks for
                 crashes.append(f"{text[:6]}...{text[-6:]}: {type(exc).__name__}: {exc}"[:120])
                 continue
-            if text in OUT_OF_RANGE and not (label in HUGE_REAL_FIELDS and text in HUGE_REALS):
+            if text in OUT_OF_RANGE:
                 accepted.append(text[:6] + "..." + text[-6:])
     assert not crashes, f"{label} crashed: {crashes}"
     if (label, kind_of(inst, label.split(".")[-1])) not in UNCHECKED and label.split(".")[

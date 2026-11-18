@@ -69,8 +69,9 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
   non-ASCII digits, as it did before. If it read only ASCII digits, those blobs would stay raw.
 - **A held condition from a program file.** When `decode_program()` builds a contact that has a refusal, the
   contact has no blob to write. `encode()` raises the refusal's error. The unknown condition that it decoded as
-  before did not encode either. An output box writes the blob composed from its tags, as its raw box did.
-  Decide whether a condition should do the same.
+  before did not encode either. A Compare whose Data B CLICK saved as typed (`ds1`, ` DS1`) has no blob
+  either, so it encodes in display form. An output box writes the blob composed from its tags, as its raw
+  box did. Decide whether a condition should do the same.
 
 - **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
   proposal is `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed. It
@@ -188,9 +189,10 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
         rules report the range's OBJ-1014 first, whatever stands before it.
       - A median over a refused bank that is also past 1024 bytes. The rules report OBJ-1002 before OBJ-1013.
   - CLICK accepts an edge space in Math's result and formula, Copy's source and destination, a Block source, a
-    Pack destination and an Unpack source. laddercodec refuses it. Ruled (closed): the refusal stays, because
-    an instruction holds the address in display form. Decode reads CLICK's edge-space saves. A single Copy's
-    destination and a Pack's destination keep the space, and decode as the address without it. The ratchet
+    Pack destination, an Unpack source, Compare's Data A and Data B, and a Search's value and result.
+    laddercodec refuses it. Ruled (closed): the refusal stays, because an instruction holds the address in
+    display form. Decode reads CLICK's edge-space saves. A single Copy's destination, a Pack's destination,
+    Compare's Data B and a Search's result keep the space, and decode as the address without it. The ratchet
     keeps these entries with that reason. Both `dec  DS1 = ...` and `dec DS1  = ...` put the space in the Math
     result.
   - CLICK refuses an Unpack of a DS into DS with OBJ-004. laddercodec said OBJ-024. Closed: every Unpack
@@ -307,9 +309,11 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
   - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (closed, above).
   - A hex Math result past SD's range (SD0, SD1001) is OBJ-004 (closed). The OBJ-003 for an SD as a hex
     result covers SD1-SD1000 only. The rules refuse an SD past them as a bank that the result does not accept.
-  - Copy `DS 1` (a space inside) (closed). CLICK accepts it as a single Copy's source (saved `DS1`), as a
-    single Copy's destination (saved `DS 1`, which `read_csv` refuses) and as a decimal Math result. The rules
-    refuse it. Sam ruled on 2026-11-17 that it stays refused on purpose, as the edge space is.
+  - `DS 1` (a space inside) (closed). CLICK accepts it as a single Copy's source (saved `DS1`), as a single
+    Copy's destination (saved `DS 1`, which `read_csv` refuses), as a decimal Math result, as Compare's Data A
+    (saved `DS1`) and Data B (saved `DS 1`), and as a Search value (saved `DS1`). The rules refuse it. Sam
+    ruled on 2026-11-17 that it stays refused on purpose, as the edge space is. A decoded Compare whose Data B
+    holds `DS 1` keeps the refusal.
   - CLICK accepts an SD pointer (`SD[DS1]`) as a single Copy's source and saves it as typed. The rules refuse
     it.
   - Pack and Unpack order (closed): in every answered case, the rules report CLICK's id first.
@@ -338,11 +342,15 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     `xd0U`, `DS[ds1]`):
     - a single Copy's, a Block Copy's and a Pack's destination;
     - each address of a Math formula;
-    - a hex Math's result.
+    - a hex Math's result;
+    - Compare's Data B, with a space at its ends (` DS1`, `DS1 `);
+    - a Search's table start, and its result with a space at its ends.
 
-    Decode reads them in display form. If the instruction is unchanged, decode writes the saved blob. CLICK
-    saves a Copy, Block Copy or Unpack source, a decimal Math result and an Out address in display form, so
-    typed text there stays raw.
+    Decode reads them in display form. If the instruction is unchanged, decode writes the saved blob. A
+    Compare from a program file keeps no blob (item 1, "A held condition from a program file"), so it
+    encodes in display form. CLICK saves a Copy, Block Copy or Unpack source, a decimal Math result, an Out
+    address, Compare's Data A, and a Search's value, table end and Result Flag in display form, so typed text
+    there stays raw.
     - Not answered (CLICK), read in display form by the code's own rule: in those fields, a typed form that no
       answer shows. Examples are a DH as a hex Math result (`dh1`, `DH01`), an X or Y number with extra zeros
       (`X0001`), a lowercase bit (`y021`), a word register with a leading zero (`XD01`, `ctd01`, `txt01`), a
@@ -517,6 +525,26 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Which X point is the 17th element from X001** in a Send or Receive. CLICK stores only the start and the
   count, so this needs a PLC.
 - **Compare with text in Data A:** the dialog offers = and !=. Which of the two does it save?
+- **A one-digit `$` code in Compare's Data A:** does the dialog accept `compare $1 == TXT1`, and how does it
+  save it? Data B and a Search value keep `$1` as typed. The code still refuses it in Data A.
+- **Text outside printable ASCII in Compare's Data A:** does the dialog accept `compare "é" == TXT1` and a tab,
+  and are they saved as typed? Data B keeps them. The code still refuses them in Data A.
+- **A doubled quote in a Search text value:** CLICK accepts `search TXT1..TXT10 == "A""B"` and saves the
+  value as `"A""B"`. On the PLC, does it match `A"B` or `A""B`? This needs a PLC. The code refuses the value,
+  since no form of a Search text value holds a quote.
+- **`DH` as a hex constant elsewhere:** CLICK saves Compare's Data B empty when you type `DH`, and the code
+  refuses it there opposite a hex Data A. Does CLICK blank a `DH` constant in a Search value, Compare's Data A,
+  a Copy, a Fill or a Math, or as the hex remote address of a Send or Receive? The code accepts it in each of
+  them as the hex constant D. Does Compare's Data B accept `DH1 == 0DH` and `DH1 == dh`, and save them as
+  typed? The code accepts `0DH` and refuses `dh`.
+- **Search value pairs and Compare's real bound.** The group rule decides these, and no answer shows them:
+  - a DS table with a DH or YD value;
+  - a DH table with a DS or TXT value;
+  - a TXT table with a DS or XD value;
+  - a DD, DF, TD or CTD table with any value address.
+
+  The code accepts a value in the table's group and refuses any other with OBJ-004. In Compare's Data A, does
+  CLICK refuse a real outside float32 (`3.5E+38 == DF1`) with OBJ-005, as it does in Data B? The code does.
 - **Coil range over SC:** does Compile refuse an SC range with read-only bits between its ends?
 - **Math result into SD9, YD1 and YD0u:** paste each, copy back, and see what is stored. (Item 3's grids
   answer whether the dialog accepts them. This question is about what a paste stores.)
@@ -528,8 +556,8 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   correctly, or accept ones that CLICK stores wrongly.
 - **Largest real in Math:** a decimal Math refuses `3.4028235E+38` into DS1, alone and as
   `DS1 + 3.4028235E+38`, with OBJ-1009. Open: does it accept `3.40282E+38` and refuse `3.40283E+38` into DF1,
-  and is it saved as typed? The code accepts the first and refuses the second with OBJ-1009. Compare accepts
-  `3.5E+38`.
+  and is it saved as typed? The code accepts the first and refuses the second with OBJ-1009. Compare and
+  Search accept `3.4028235E+38` and refuse a larger real with OBJ-005.
 - **Fill with hex above FFFFh:** does the Fill dialog accept such a constant, and into which banks? A single
   Copy accepts it into DD or CTD only. The code's Fill accepts it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
@@ -660,6 +688,15 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 
 ## Later (nothing unless marked)
 
+- **CLICK ids for Compare and Search refusals.** CLICK shows an id for these refusals, and the code gives
+  none or another. Add the ids, with no new codes:
+  - mixed Compare groups: OBJ-007 (`compare-mixed-types` has no id);
+  - `$100`, `$G1`, `$` and `$ 41` in Compare's Data B and in a Search value: OBJ-005;
+  - a Search table in a bank that Search doesn't take: OBJ-004, and OBJ-005 for an XD0u or YD0u start;
+  - a Search table whose end is in another bank than its start (`DH1..DS1`, `DH1..TXT1`, `TXT1..DS1`) and a
+    one-register TXT table (`TXT1..TXT1`): OBJ-004, where the code says OBJ-008 or OBJ-012.
+- **A quote inside Copy text (CLICK).** Does a single Copy's source accept `"A""B"`, and what does CLICK
+  save? laddercodec refuses it and says to write the text without the quote.
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
@@ -670,7 +707,6 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches,
   because their registry SPECs have no CSV names. Check whether these readers are dead code, and delete them
   or wire them.
-- **Search's refusal message** says "is a integer value". Fix the article.
 - **Hex message without an OBJ id (CLICK):** in Fill and Math, the refusal for a padded 32-bit constant ("a hex
   constant above FFFFh has at most 8 digits") carries no OBJ id. Find the id that CLICK shows there, if any. A
   single Copy source reports OBJ-005 for it, as CLICK does.

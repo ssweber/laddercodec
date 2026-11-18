@@ -5,7 +5,7 @@
 - :func:`check_operand`: an address, a pointer or a constant, in one field;
   :func:`constant_shape` names the kind of constant a text is spelled as, limits aside;
   :func:`bank_of` returns the bank of an address or pointer that the check accepts.
-- :func:`check_quoted_text`: a quoted text constant, as Compare and Search take it;
+- :func:`check_quoted_text`: a quoted text constant, as a Search value takes it;
   :func:`check_kept_text`: text a single Copy source or a Search value holds.
 - :func:`check_out_target`: an address a coil writes.
 - :func:`check_writable_sd`: an SD register a Copy or a decimal Math writes.
@@ -103,13 +103,15 @@ class Constants:
     #: refused either way.  This flag decides whether :func:`check_operand` refuses it as a
     #: constant (:class:`FieldError`) or as an address (:class:`AddressError`).
     hex_sign: bool = False
-    #: Whether a real must be within float32.  With ``False``, any spelling of a real is
-    #: read.
-    float32: bool = True
+    #: CLICK's id for a real constant outside the float32 range, where the field's dialog
+    #: gives one.
+    real_id: str | None = None
     #: The most characters between the quotes of a text constant.
     text_max: int = TEXT_MAX
     #: Whether a text constant holds printable ASCII only (space to ``~``).
     printable: bool = True
+    #: Whether ``$`` and one hex digit (``$1``) is a character code, kept as typed.
+    one_digit_char: bool = False
     #: The most characters the typed constant may have, or ``None``.
     max_length: int | None = None
     #: CLICK's id for a decimal or hex constant outside the field's limits, where the
@@ -263,8 +265,18 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
         else:
             rule = f"a text constant is 1 to {constants.text_max} characters in quotes"
         # classify() refuses a quote inside the text, an empty text and a text longer than
-        # TEXT_MAX.
-        quoted = '"' in value[1:-1]
+        # TEXT_MAX.  No form holds a quote together with other characters: $22 is a lone
+        # quote character.  A field of one character keeps the rule below.
+        inner = value[1:-1]
+        quoted = '"' in inner
+        if quoted and inner != '"' and constants.text_max > 1:
+            return at.error(
+                value,
+                "holds a quote with other characters, which a text constant can't hold; "
+                'write the text without it, such as "AB"',
+                Reason.FORM,
+                code=Code.INVALID_TEXT_CONSTANT,
+            )
         return at.error(
             value,
             f"is refused; {rule}, with no quote inside (write the quote character as $22)",
@@ -305,6 +317,7 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
             "is refused; a real constant is a finite number within float32 "
             "(up to about 3.4028235E+38)",
             Reason.RANGE,
+            constants.real_id,
             code=Code.CONSTANT_OUT_OF_RANGE,
         )
     if kinds == ALL_KINDS:
@@ -314,6 +327,15 @@ def _unread(value: str, at: _At, constants: Constants) -> FieldError:
     else:
         rule = f"{at.label} takes {_kinds_text(kinds)}"
     return at.error(value, f"is refused; {rule}", Reason.KIND, code=Code.NOT_A_CONSTANT)
+
+
+#: The rule that a refused ``$`` value breaks in a field that takes ``$`` and one hex digit.
+_ONE_DIGIT_CHAR_RULE = "a character code is $ and one or two hex digits, $0 to $FF, such as $41"
+
+
+def _is_one_digit_code(value: str) -> bool:
+    """Return whether ``value`` is ``$`` and one hex digit (``$1``)."""
+    return len(value) == 2 and value[0] == "$" and value[1] in "0123456789ABCDEFabcdef"
 
 
 def check_constant(
@@ -329,19 +351,21 @@ def check_constant(
     no character code, where the field's dialog gives one.
 
     :func:`~laddercodec.operands.constants.classify` reads the text, and then ``constants``
-    applies the field's kinds and limits.  A real beyond float32 is read only when
-    :attr:`Constants.float32` is off.
+    applies the field's kinds and limits.
     """
     at = _at(field, label)
     if value == "":
         raise _blank(at)
     if value.startswith("$"):
         const = classify(value)
+        if const is None and constants.one_digit_char and _is_one_digit_code(value):
+            const = Constant(Kind.CHAR, int(value[1], 16))
         if const is None or const.kind is not Kind.CHAR:
             if Kind.CHAR in constants.kinds:
+                rule = _ONE_DIGIT_CHAR_RULE if constants.one_digit_char else CHAR_CODE_RULE
                 raise at.error(
                     value,
-                    f"is refused; {CHAR_CODE_RULE}",
+                    f"is refused; {rule}",
                     Reason.FORM,
                     char_id,
                     code=Code.INVALID_CHAR_CODE,
@@ -350,12 +374,6 @@ def check_constant(
             raise at.error(value, f"is refused; {rule}", Reason.KIND, code=Code.NOT_A_CONSTANT)
     else:
         const = classify(value)
-        if (
-            const is None
-            and not constants.float32
-            and constant_shape(value, constants) is Kind.FLOAT
-        ):
-            const = Constant(Kind.FLOAT, float(value))
         if const is None:
             if Kind.INTEGER in constants.kinds and _INTEGER_SHAPE.fullmatch(value.upper()):
                 # The text is an integer beyond int32.  The field's own sign rule and limits
@@ -470,13 +488,15 @@ def check_kept_text(value: str, text: str, field: str, *, label: str | None = No
 def check_quoted_text(
     value: str, field: str, *, label: str | None = None, kept: bool = False
 ) -> None:
-    """Refuse a quoted text constant that Compare and Search refuse.
+    """Refuse a quoted text constant that the field refuses.
 
     The text between the quotes must be 1 to :data:`TEXT_MAX` printable ASCII characters,
-    with no quote inside.  A quote would end the text in the CSV token, so you write it as
+    with no quote inside.  For a quote alone between the quotes, the message says to write
     ``$22``.  With ``kept``, for a Search value, the text may hold any character that CLICK
-    keeps (:func:`check_kept_text`), not only printable ASCII.  On the PLC, the text is
-    compared against consecutive TXT registers, starting from the one the instruction names.
+    keeps (:func:`check_kept_text`), not only printable ASCII.  With ``kept``, the message for
+    a quote among other characters says to leave the quote out, because ``$22`` matches only
+    a lone quote character.  On the PLC, the text is compared against consecutive TXT
+    registers, starting from the one the instruction names.
     """
     at = _at(field, label)
     if value == "":
@@ -495,12 +515,14 @@ def check_quoted_text(
     if kept:
         check_kept_text(value, inner, field, label=label)
     if '"' in inner:
-        raise at.error(
-            value,
-            "holds a quote; write the quote character as $22",
-            Reason.FORM,
-            code=Code.INVALID_TEXT_CONSTANT,
-        )
+        if kept and inner != '"':
+            rule = (
+                "holds a quote, which a Search text value can't hold; write the text "
+                'without it, such as "AB"'
+            )
+        else:
+            rule = "holds a quote; write the quote character as $22"
+        raise at.error(value, rule, Reason.FORM, code=Code.INVALID_TEXT_CONSTANT)
 
 
 # ---------------------------------------------------------------------------

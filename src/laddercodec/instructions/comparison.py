@@ -6,7 +6,7 @@ operators: EQ, NE, GT, LT, GE and LE.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Literal, cast
 
 from ..binary_helpers import tag_int, tag_value
@@ -17,8 +17,10 @@ from ..model import (
     InstructionType,
     Reason,
 )
-from ..operands.checks import ALL_KINDS, Constants, Refusals, check_operand
+from ..operands.address import ADDRESS_BANKS, read_typed_address
+from ..operands.checks import ALL_KINDS, Constants, Refusals, check_kept_text, check_operand
 from ..operands.constants import HEX16_MAX, Kind
+from ..operands.unchecked import read_in_another_form
 from .contact import refuse_down_prefix
 from .family import ConditionInstructionFamilySpec
 
@@ -91,17 +93,29 @@ def split_comparison(token: str) -> tuple[str, str, str] | None:
 # ---------------------------------------------------------------------------
 
 #: The data banks that a compare accepts, in three groups. Both operands of a compare must be
-#: in the same group.
-_GROUP_BANKS: dict[str, frozenset[str]] = {
+#: in the same group. A Search value address and its table are in one group too.
+GROUP_BANKS: dict[str, frozenset[str]] = {
     "hex": frozenset({"XD", "YD", "DH"}),
     "numeric": frozenset({"TD", "CTD", "DS", "DD", "DF", "SD"}),
     "text": frozenset({"TXT"}),
 }
-_DATA_BANKS = frozenset().union(*_GROUP_BANKS.values())
+_DATA_BANKS = frozenset().union(*GROUP_BANKS.values())
 
-#: A compare accepts every kind of constant. A hex constant must fit in 16 bits. A real
-#: constant may be spelled any way, and its value is not checked against the float32 range.
-_COMPARE_CONSTANTS = Constants(ALL_KINDS, hex_high=HEX16_MAX, float32=False)
+
+def bank_group(bank: str) -> str | None:
+    """Return the group of ``bank`` in :data:`GROUP_BANKS`, or None for a bank in no group."""
+    return next((group for group, banks in GROUP_BANKS.items() if bank in banks), None)
+
+
+#: The constants Data A takes. A compare accepts every kind of constant. A hex constant must
+#: fit in 16 bits. A real constant must fit float32, and CLICK refuses a larger one with
+#: OBJ-005. Text holds printable ASCII only.
+_DATA_A = Constants(ALL_KINDS, hex_high=HEX16_MAX, real_id="OBJ-005")
+#: The constants that Data B accepts. They are Data A's, with two differences. ``$`` and
+#: one hex digit (``$1``) is a character code, kept as typed. Text may hold any character
+#: that CLICK keeps, and :func:`_operand_group` checks it. The contact also refuses a hex
+#: constant that spells a bank name (``DH``) in Data B, opposite a hex Data A.
+_DATA_B = replace(_DATA_A, one_digit_char=True, printable=False)
 
 _CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numeric"}
 
@@ -110,15 +124,18 @@ _CONSTANT_GROUPS = {Kind.HEX: "hex", Kind.INTEGER: "numeric", Kind.FLOAT: "numer
 _TEXT_OPS = ("==", "!=")
 
 
-def _operand_group(value: str, name: str) -> str:
+def _operand_group(value: str, name: str, constants: Constants) -> str:
     """Return the group of a compare operand: ``"hex"``, ``"numeric"`` or ``"text"``.
 
     Raise :class:`FieldError` if the operand is neither an address in a data bank that a
-    compare accepts nor a constant that CLICK's compare dialog accepts."""
-    operand = check_operand(value, name, _DATA_BANKS, _COMPARE_CONSTANTS)
-    if operand.constant is not None:
-        return _CONSTANT_GROUPS.get(operand.constant.kind, "text")
-    return next(group for group, banks in _GROUP_BANKS.items() if operand.bank in banks)
+    compare accepts nor one of the ``constants`` that its side of the dialog accepts."""
+    operand = check_operand(value, name, _DATA_BANKS, constants)
+    const = operand.constant
+    if const is not None:
+        if const.kind is Kind.TEXT and not constants.printable:
+            check_kept_text(value, str(const.value), name)
+        return _CONSTANT_GROUPS.get(const.kind, "text")
+    return next(group for group, banks in GROUP_BANKS.items() if operand.bank in banks)
 
 
 # ---------------------------------------------------------------------------
@@ -156,8 +173,8 @@ class CompareContact(ConditionInstruction):
             # normalize_address returns a constant as it was written, so an operand that is a
             # constant is safe to normalize.
             check.normalize("left", "right")
-            left = check("left", _operand_group)
-            right = check("right", _operand_group)
+            left = check("left", _operand_group, _DATA_A)
+            right = check("right", _operand_group, _DATA_B)
             if left is not None and right is not None and left != right:
                 check.refuse(
                     ("left", "right"),
@@ -165,6 +182,16 @@ class CompareContact(ConditionInstruction):
                     "are not in one compare group; hex, numeric and text operands do not mix",
                     Reason.CONFLICT,
                     code=Code.COMPARE_MIXED_TYPES,
+                )
+            elif right == "hex" and self.right.upper() in ADDRESS_BANKS:
+                # CLICK saves Data B empty for a hex constant that spells a bank name (DH).
+                check.refuse(
+                    "right",
+                    f"{self.right!r} is the bank name {self.right.upper()}, not a hex "
+                    "constant. Write the hex constant with a leading 0, such as "
+                    f"0{self.right.upper()}.",
+                    Reason.FORM,
+                    code=Code.INVALID_CONSTANT,
                 )
             if left == "text" and self.op not in _TEXT_OPS:
                 check.refuse(
@@ -244,12 +271,19 @@ def from_tags(
     if class_name != "Compare" or type_code != _COMPARE_TYPE_CODE:
         return None
     left = tag_value(tags, 0x6066)
-    right = tag_value(tags, 0x6067)
+    stored_right = tag_value(tags, 0x6067)
+    # CLICK saves an address in Data B as typed, with any space at its ends (" DS1",
+    # "ds1", "DS001", "XD0U"). It saves Data A in display form.
+    right = read_typed_address(stored_right, trim=True)
     type_idx = str(tag_int(tags, 0x21F7))
     op = _TYPE_IDX_TO_OP.get(type_idx)
     if not left or not right or op is None:
         return None
-    return CompareContact(op=op, left=left, right=right)
+    built = CompareContact(op=op, left=left, right=right)
+    if right != stored_right:
+        # While the contact is unchanged, it encodes as the bytes CLICK stored.
+        read_in_another_form(built)
+    return built
 
 
 SPEC = ConditionInstructionFamilySpec(

@@ -6,7 +6,6 @@ parameters.
 
 from __future__ import annotations
 
-import math
 import re
 
 import pytest
@@ -37,8 +36,8 @@ ANY = Constants(ALL_KINDS)
 DIGITS = Constants(frozenset({N}), signs="", high=32767)
 #: A counter preset: an int32 integer, a leading '-' only, at most 12 characters.
 COUNTER = Constants(frozenset({N}), signs="-", max_length=12)
-#: A Compare constant. Hex is at most 16 bits, and a real may be outside the float32 range.
-COMPARE = Constants(ALL_KINDS, hex_high=0xFFFF, float32=False)
+#: A Compare constant. Hex is at most 16 bits, and a real outside float32 is OBJ-005.
+COMPARE = Constants(ALL_KINDS, hex_high=0xFFFF, real_id="OBJ-005")
 #: A hex remote address: 0h to FFFEh.
 HEX_REMOTE = Constants(frozenset({H}), hex_high=0xFFFE)
 #: A Fill into TXT: one character.
@@ -68,11 +67,11 @@ ACCEPTED: list[tuple[str, Constants, Constant]] = [
     ("-5", COUNTER, Constant(N, -5)),
     ("000000000005", COUNTER, Constant(N, 5)),
     ("-2147483648", COUNTER, Constant(N, -2147483648, wide=True)),
-    # Compare: 16-bit hex, and a real outside the float32 range
+    # Compare: 16-bit hex, and a real that rounds to float32's largest value
     ("FFFFh", COMPARE, Constant(H, 0xFFFF)),
     ("000000001h", COMPARE, Constant(H, 1)),
-    ("3.5E+38", COMPARE, Constant(F, 3.5e38)),
-    ("-3.5E+38", COMPARE, Constant(F, -3.5e38)),
+    ("3.4028235E+38", COMPARE, Constant(F, 3.4028235e38)),
+    ("-3.4028235E+38", COMPARE, Constant(F, -3.4028235e38)),
     # a Fill into TXT
     ('"A"', ONE_CHAR, Constant(T, "A")),
     ("$41", ONE_CHAR, Constant(C, 0x41)),
@@ -87,9 +86,16 @@ def test_check_constant_accepts(value: str, constants: Constants, expected: Cons
     assert check_constant(value, "X.f", constants) == expected
 
 
-def test_compare_reads_a_real_beyond_float32_as_infinite() -> None:
-    const = check_constant("1E999", "X.f", COMPARE)
-    assert const.kind is F and math.isinf(float(const.value))
+@pytest.mark.parametrize("value", ["3.4028236E+38", "3.5E+38", "-3.5E+38", "1E39", "1E999"])
+def test_a_real_beyond_float32_carries_the_fields_id(value: str) -> None:
+    """A real that float32 can't hold is refused with the field's ``real_id``, and with no
+    id where the field gives none."""
+    with pytest.raises(FieldError, match="within float32") as caught:
+        check_constant(value, "X.f", COMPARE)
+    assert caught.value.click_id == "OBJ-005"
+    with pytest.raises(FieldError, match="within float32") as caught:
+        check_constant(value, "X.f", ANY)
+    assert caught.value.click_id is None
 
 
 REFUSED: list[tuple[str, Constants, str]] = [
@@ -101,7 +107,7 @@ REFUSED: list[tuple[str, Constants, str]] = [
     ("0FFFFFFFFh", ANY, "a hex constant above FFFFh has at most 8 digits"),
     ("3.5E+38", ANY, "float32"),
     ('""', ANY, "1 to 128 characters"),
-    ('"a"b"', ANY, "no quote inside"),
+    ('"a"b"', ANY, "holds a quote with other characters"),
     ("$1", ANY, "two hex digits"),
     ("$100", ANY, "two hex digits"),
     ("nan", ANY, "not a constant"),
@@ -194,6 +200,19 @@ def test_text_outside_printable_ascii_passes_when_the_field_allows_it() -> None:
     assert check_constant('"é"', "X.f", Constants(ALL_KINDS, printable=False)) == Constant(T, "é")
 
 
+@pytest.mark.parametrize(("value", "code"), [("$1", 1), ("$D", 13), ("$d", 13), ("$41", 0x41)])
+def test_a_one_digit_code_is_a_char_where_the_field_takes_it(value: str, code: int) -> None:
+    one_digit = Constants(ALL_KINDS, one_digit_char=True)
+    assert check_constant(value, "X.f", one_digit) == Constant(C, code)
+
+
+@pytest.mark.parametrize("value", ["$", "$G", "$100", "$٣"])
+def test_a_field_taking_one_digit_codes_refuses_other_dollar_forms(value: str) -> None:
+    one_digit = Constants(ALL_KINDS, one_digit_char=True)
+    with pytest.raises(FieldError, match=r"\$ and one or two hex digits, \$0 to \$FF"):
+        check_constant(value, "X.f", one_digit)
+
+
 # ---------------------------------------------------------------------------
 # check_operand
 # ---------------------------------------------------------------------------
@@ -228,7 +247,7 @@ OPERANDS_REFUSED: list[tuple[str, dict, type[FieldError], str]] = [
     ("40000", {"banks": {"DS"}, "constants": DIGITS}, FieldError, "outside 0 to 32767"),
     ("2147483648", {"constants": ANY}, FieldError, "-2147483648 to 2147483647"),
     ("$1", {"constants": ANY}, FieldError, "two hex digits"),
-    ('"a"b"', {"constants": ANY}, FieldError, "no quote inside"),
+    ('"a"b"', {"constants": ANY}, FieldError, "holds a quote with other characters"),
     # ... and any other text an address.
     ("+1", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
     ("1.5", {"banks": {"DS"}, "constants": DIGITS}, AddressError, "not a CLICK address"),
