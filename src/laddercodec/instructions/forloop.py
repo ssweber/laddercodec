@@ -88,7 +88,7 @@ def _validate_for_count(value: str) -> str:
     return text
 
 
-@dataclass
+@dataclass(frozen=True)
 class ForLoop(AfInstruction):
     """FOR loop instruction."""
 
@@ -99,7 +99,7 @@ class ForLoop(AfInstruction):
         with Refusals(self) as check:
             count = check.run(_validate_for_count, self.count)
             if count is not None:
-                self.count = count
+                object.__setattr__(self, "count", count)
             check.flag("oneshot")
 
     @classmethod
@@ -150,7 +150,7 @@ class ForLoop(AfInstruction):
         )
 
 
-@dataclass
+@dataclass(frozen=True)
 class Next(AfInstruction):
     """NEXT loop instruction."""
 
@@ -173,7 +173,7 @@ class Next(AfInstruction):
         return _build_blob("Next", NEXT_TYPE_MARKER, (0x0000,), [""])
 
 
-@dataclass
+@dataclass(frozen=True)
 class Break(AfInstruction):
     """The CLICK v4 BREAK instruction, which leaves the innermost loop.
 
@@ -198,7 +198,7 @@ class Break(AfInstruction):
         return _build_blob("Next", NEXT_TYPE_MARKER, _LOOP_EXIT_TAGS, [_BREAK_FUNC_CODE, ""])
 
 
-@dataclass
+@dataclass(frozen=True)
 class Continue(AfInstruction):
     """The CLICK v4 CONTINUE instruction, which skips to the next iteration of the loop.
 

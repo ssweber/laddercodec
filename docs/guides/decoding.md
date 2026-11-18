@@ -107,11 +107,25 @@ If you encode the instruction unchanged, it encodes as it did when it decoded as
 - If it is a condition that `decode_program()` decoded, it has no such blob, and
   `encode()` raises its `error`.
 
-If you change a field that the blob holds, the instruction is checked again. Any
-field counts except a contact's `wire_down`. If the instruction is still refused,
-`encode()` raises the refusal that it holds now. If your change fixed it, `encode()`
-encodes it as building it from its fields would (`ds2` is written `DS2`). To fix
-a refusal, change the field that the error names, then encode.
+To fix a refusal, call `replace()` with a new value for the field that the error
+names, and put the copy in the rung:
+
+```python
+from laddercodec import replace
+
+math = rungs[2].instructions[0]
+rungs[2].instructions[0] = replace(math, expression="SUM ( X001 : X016 )")
+```
+
+If a value that you pass differs from the instruction's, `replace()` checks the copy
+as if you built it new. If a value is still refused, `replace()` raises the
+`FieldError` that building the instruction raises. If every value passes, the copy
+encodes as building it from its fields would (`ds2` is written `DS2`). If every
+value that you pass is equal to the field's current value, or only a contact's
+`wire_down` differs, the copy has the same blob and refusals as the original. A
+value that the constructor writes in another form is a change. For example, `"ds2"`
+is a change to a field that holds `"DS2"`
+([Change An Instruction](encoding.md#change-an-instruction)).
 
 `write_csv()` writes the instruction as it is held. `read_csv(path, unchecked=True)`
 reads it back with the same warning and locates each refusal in the CSV

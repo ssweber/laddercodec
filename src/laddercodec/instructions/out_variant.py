@@ -127,7 +127,7 @@ _OUT_VARIANT_TAGS = (
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class OutVariant(AfInstruction):
     """A CLICK v4 Out coil variant: toggle, debounce, flasher or timed."""
 

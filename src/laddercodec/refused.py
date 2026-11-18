@@ -22,10 +22,11 @@ class RefusedFieldWarning(UserWarning):
     instruction still decodes as that instruction.
 
     If you leave the instruction unchanged, it encodes as the bytes it was decoded from.
-    If you change it, it is checked again. An instruction read from CSV, or a condition
-    read from a program file, has no stored bytes to write. When the instruction does not
-    write stored bytes and still holds a refusal, ``encode()`` raises that refusal, as
-    building the instruction would.
+    If you change a field with :func:`~laddercodec.replace`, the copy is checked again, and
+    a refused value raises. An instruction read from CSV, or a condition read from a
+    program file, has no stored bytes to write. When the instruction does not write stored
+    bytes and still holds a refusal, ``encode()`` raises that refusal, as building the
+    instruction would.
 
     Attributes
     ----------

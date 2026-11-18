@@ -21,7 +21,7 @@ RETURN_FUNC_CODE = "9223"
 _RETURN_TAGS = (0x3218, 0x0000)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Return(AfInstruction):
     """Return instruction."""
 

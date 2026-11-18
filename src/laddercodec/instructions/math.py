@@ -178,7 +178,7 @@ def _holds_nickname(expression: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Math(AfInstruction):
     """A math instruction.
 
@@ -233,7 +233,7 @@ class Math(AfInstruction):
                     # Each refusal of the formula is recorded on the field Math.expression.
                     formula = check.run(parse, self.expression, self.mode)
                     if formula is not None:
-                        self.expression = formula.display
+                        object.__setattr__(self, "expression", formula.display)
             check.flag("oneshot")
 
     def to_csv(self) -> str:
@@ -365,7 +365,7 @@ def from_tags(
     # refuses decimal constants.  So only a decimal Math is checked.
     findings = _legacy_findings(stored_internal) if mode == "decimal" else []
     if findings:
-        math._legacy_findings = findings
+        object.__setattr__(math, "_legacy_findings", findings)
     return math
 
 

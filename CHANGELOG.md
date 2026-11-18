@@ -8,7 +8,7 @@
 
 ### Added
 - **One error tree.** Every error that `decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()` and `check()` raise for input they can't read or write is now a `LaddercodecError`. Each is still a `ValueError`. The classes are `DecodeError`, the new `EncodeError`, `CsvError`, `WriterError`, and `FieldError` with its subclass `AddressError`.
-- **More top-level exports.** `laddercodec` now exports `LaddercodecError`, `DecodeError`, `EncodeError`, `CsvError`, `WriterError`, `UnknownCondition`, `UnknownInstruction`, `Email`, `Home`, `Position`, `Velocity`, `ConditionInstruction`, `AfInstruction`, `ConditionToken` and `AfToken`.
+- **More top-level exports.** `laddercodec` now exports `LaddercodecError`, `DecodeError`, `EncodeError`, `CsvError`, `WriterError`, `UnknownCondition`, `UnknownInstruction`, `Email`, `Home`, `Position`, `Velocity`, `ConditionInstruction`, `AfInstruction`, `ConditionToken`, `AfToken` and `replace`.
 - **Undecoded markers.** When `decode()` or `decode_program()` can't read a rung, they now return an `Undecoded` marker for it and emit an `UndecodedRungWarning`. The other rungs still decode. The marker acts as `end()` in the main program and `return()` in a subroutine. `Program.undecoded` lists the markers. `write_csv` and `read_csv` round-trip a marker as an `undecoded(...)` token. `encode()` rejects a marker, and `check()` reports it as an `undecoded-rung` finding.
 - **CSV errors say where.** An error from `read_csv` now has a `CsvLocation` (file, line, rung, row and column) as its `location`, and its message ends with it. Each refusal in `.errors` has its own `location`.
 - **Field errors say why.** A `FieldError` now has `reason` (a `Reason` such as `bank`, `range` or `conflict`), `click_id` (CLICK's own id, such as `OBJ-005`, when CLICK has one), `fields` (one field, or both fields of a pair) and `errors` (every refusal for the construction, the raised one first).
@@ -53,12 +53,11 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - Do: Catch `CsvError` where you caught `ConvertError`. `except ValueError` needs no change.
 - **Some errors are now `ValueError`s.** `read_csv` raises `CsvError` for a file that isn't UTF-8 and for a `csv.Error`. v0.4.0 raised `UnicodeDecodeError` and `csv.Error`. A `send` or `receive` with no `target=` or `remote_start=` raises `CsvError`. v0.4.0 raised `KeyError`. `encode()` raises `EncodeError` for a rung holding an `UnknownCondition` or `UnknownInstruction`. v0.4.0 raised `TypeError` or `AttributeError`.
   - Do: Catch `CsvError`, or `ValueError`, where you caught `UnicodeDecodeError`, `csv.Error` or `KeyError` around `read_csv`.
-- **`encode()` raises `FieldError` for empty text set after building.** A `Copy` or `Fill` whose text you set to `""` after building it now raises `FieldError`. v0.4.0 raised a bare `ValueError`.
 - **A rung that doesn't decode no longer fails the call.** A down wire in the output column, or a wire flag that no token matches, now gives an `Undecoded` marker for that rung. A clipboard row or program record that can't be read gives one marker for that rung and every rung after it. v0.4.0 raised `DecodeError` or `ValueError`. A wrong magic, size or program header still raises `DecodeError`. A comment that doesn't decode keeps its rung and emits an `UndecodedCommentWarning`. v0.4.0 raised `DecodeError` in `decode()`.
   - Do: Check `Program.undecoded` where you caught those errors. Catch `UndecodedRungWarning` and `UndecodedCommentWarning` if you need to know.
 - **`write_csv` writes a marker for a rung it can't write.** A rung holding an unknown condition or instruction is now written as an undecoded marker, with an `UndecodedRungWarning`. v0.4.0 raised `WriterError`.
   - Do: Pass `stop="return"` when you write a subroutine.
-- **A stored value that CLICK's dialog refuses no longer makes a cell raw.** `decode()` and `decode_program()` now decode the instruction and emit a `RefusedFieldWarning`. v0.4.0 decoded it as `raw(...)` or an unknown condition. If you change such an instruction, `encode()` checks it and raises the `FieldError` that building it would raise.
+- **A stored value that CLICK's dialog refuses no longer makes a cell raw.** `decode()` and `decode_program()` now decode the instruction and emit a `RefusedFieldWarning`. v0.4.0 decoded it as `raw(...)` or an unknown condition. If you change such an instruction with `replace()`, `replace()` raises the `FieldError` that building it would raise.
   - Do: Nothing, to decode and encode a rung unchanged. Catch `RefusedFieldWarning` to find these instructions. Fix the field it names before you encode one that you read from CSV.
 - **Math and Copy constants are written as CLICK stores them.** A real in a `Math` or a single `Copy` source is now the value CLICK prints back, so `1.50` is `1.5` and `1e3` is `1000.0`. Hex has uppercase digits (`0ffh` is `0FFh`), and a `Copy` drops leading zeros and a typed `+`. `to_csv()`, `write_csv` and `encode()` write that form. v0.4.0 kept the typed text. `copy(EH,...)` and `copy(1Eh,...)` now raise `FieldError`. v0.4.0 read them as hex 14 and 30, but CLICK stores them as the reals 0.0 and 1.0.
   - Do: Compare constants in CLICK's form, or build both sides through the instruction.
@@ -129,6 +128,8 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - Do: Read `finding.code` where you read `finding.kind`, and `finding.click_id` where you read `finding.code`. Compare with the new names.
 - **`Email`, `Home`, `Position` and `Velocity` are provisional.** Their fields are named after CLICK's tag ids, such as `tag_3218`. A later release will rename them.
   - Do: Expect to rename these fields when you upgrade to that release.
+- **Instructions are frozen, and `replace()` changes one.** Assigning to a field of an instruction now raises `dataclasses.FrozenInstanceError`, and every instruction is hashable. In v0.4.0 you could assign any value to a field.
+  - Do: Write `inst = laddercodec.replace(inst, preset="500")` where you assigned to a field, and put the copy in the rung. `replace()` raises the `FieldError` that building the instruction raises. If you change no field, `encode()` writes the copy as the bytes that the instruction was decoded from.
 
 ## 0.4.0 (2026-11-14)
 

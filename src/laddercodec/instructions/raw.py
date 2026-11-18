@@ -343,7 +343,7 @@ def _split_raw_args(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class RawInstruction(AfInstruction):
     """An AF instruction kept as its blob, so that it is written back byte for byte.
 
@@ -400,6 +400,11 @@ class RawInstruction(AfInstruction):
             other.part_count,
             other._cell_rows(),
         )
+
+    def __hash__(self) -> int:
+        # Hash what __eq__ compares, so that two equal boxes hash equal even if only one
+        # of them states its height.
+        return hash((self.class_name, self.blob, self.part_count, self._cell_rows()))
 
     def _cell_rows(self) -> tuple[int, int]:
         """Return the row span (+0x09) and sub-rows (+0x0A) that this box encodes."""

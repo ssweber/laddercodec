@@ -68,6 +68,7 @@ from .model import (
     Reason,
 )
 from .operands.constants import constant_text
+from .operands.unchecked import replace
 from .refused import RefusedFieldWarning
 from .undecoded import UndecodedCommentWarning, UndecodedRungWarning
 
@@ -139,4 +140,5 @@ __all__ = [
     "Search",
     "Shift",
     "constant_text",
+    "replace",
 ]

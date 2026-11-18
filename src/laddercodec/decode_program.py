@@ -33,7 +33,7 @@ from .instructions.contact import Contact
 from .instructions.undecoded import Stop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
-from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
+from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob, rebuilt
 from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 from .undecoded import (
@@ -847,7 +847,7 @@ def _build_rung(
                     conditions[row][col] = "|"  # vertical only
                 # "T" or "|" already set — keep as is
             elif isinstance(cell, (Contact, CompareContact)):
-                cell.wire_down = True
+                conditions[row][col] = rebuilt(cell, wire_down=True)
 
     # Drop stray NOPs inside a tall instruction's rows, such as a NOP left behind
     # on a drum pin row. The clipboard decoder does the same.

@@ -61,7 +61,7 @@ _EDGE_TAGS = (0x6065, 0x21F6, 0x3218, 0x0000)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Contact(ConditionInstruction):
     """A contact: normally open (``no``), normally closed (``nc``), or an edge contact
     (``rise``, ``fall``).

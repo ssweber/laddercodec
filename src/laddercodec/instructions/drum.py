@@ -265,7 +265,7 @@ def _timer_done_bit(accumulator: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Drum(PinnedInstruction):
     """A drum sequencer instruction: an event_drum, a time_drum or a time_event_drum.
 

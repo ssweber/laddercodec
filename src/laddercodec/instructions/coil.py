@@ -95,7 +95,7 @@ def _bank_of(value: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Coil(AfInstruction):
     """An output coil: ``out``, ``latch`` (Set) or ``reset``, on one bit or a range.
 

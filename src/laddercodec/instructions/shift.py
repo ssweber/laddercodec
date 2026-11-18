@@ -46,7 +46,7 @@ _SHIFT_SUB_MARKERS = (b"\x00\x00\x00\x00", b"\x01\x00\x00\x00", b"\x02\x00\x00\x
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Shift(PinnedInstruction):
     """A shift register instruction."""
 

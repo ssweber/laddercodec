@@ -130,7 +130,7 @@ _COMPARE_TAGS = (0x3218, 0x6066, 0x6067, 0x21F7, 0x0000)
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class CompareContact(ConditionInstruction):
     """A comparison contact (EQ, NE, GT, LT, GE, LE).
 

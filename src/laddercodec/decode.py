@@ -58,7 +58,7 @@ from .instructions import (
 from .instructions.raw import find_blob_boundary
 from .legacy import warn_legacy
 from .model import PinnedInstruction
-from .operands.unchecked import keep_cell_rows
+from .operands.unchecked import keep_cell_rows, rebuilt
 from .refused import warn_refused
 from .topology import (
     CELL_SIZE,
@@ -699,7 +699,7 @@ def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool
             return UnknownCondition(raw=instr_raw)
         # Read wire_down flag from cell header (+0x21).
         if data[pos + 0x21] == 1:
-            parsed.wire_down = True
+            parsed = rebuilt(parsed, wire_down=True)
         return parsed
     seg = data[pos + 0x19]  # segment flag (+0x19)
     wr = data[pos + 0x1D]

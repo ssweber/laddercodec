@@ -892,7 +892,7 @@ class Refusals:
         for attr in attrs:
             value = self(attr, check_flag)
             if value is not None:
-                setattr(self._inst, attr, value)
+                object.__setattr__(self._inst, attr, value)
 
     def normalize(self, *attrs: str) -> None:
         """Write each field in display form (see

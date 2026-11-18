@@ -24,12 +24,10 @@ An instruction class opts in with :func:`holds_refusals`.
 :class:`~laddercodec.model.AfInstruction` and :class:`~laddercodec.model.ConditionInstruction`
 apply it to every subclass. The Modbus targets and the Modbus address apply it themselves.
 
-An instruction that holds refusals also keeps a snapshot of its field values as built.
-While its fields still have those values, :func:`refusals` returns the refusals that it
-was built with. Once a field changes, :func:`refusals` runs the construction checks on the
-current values. If you fix a refused field by assigning a valid value to it, that field
-has no refusal any more. A change to any dataclass field counts, ``pin_rows`` included,
-except a change to ``wire_down``. The cell stores ``wire_down``, not the blob.
+An instruction is frozen, so the refusals that it holds are the refusals that it was
+built with. If you change a field with :func:`replace`, it builds a new instruction and
+runs every check again. A refused value raises. :func:`rebuilt` builds a copy that holds
+the refusals of its values instead of raising them.
 
 The decoders keep the blob that an instruction was read from in two cases. In the first,
 the instruction holds refusals. In the second, its fields do not reproduce what CLICK
@@ -39,24 +37,26 @@ From the clipboard, the decoder keeps the blob and the row bytes of the cell. Fo
 output box from a program file, it keeps a blob composed from the box's tags, and the
 cell rows. :func:`keep_stored_blob` and :func:`keep_cell_rows` keep them.
 
-While the fields are unchanged, ``build_blob()`` returns the kept blob, and ``encode()``
-writes it with the kept cell rows, as it does for a ``RawInstruction``. If a field has
-changed, or no blob was kept, ``build_blob()`` and ``encode()`` raise the first refusal
-that the instruction holds. If a field has changed and the instruction holds no refusal,
-they write the blob of the copy that construction makes from the current values.
-:func:`rebuilt` passes the kept blob on to a copy that changes only ``wire_down``.
-``dataclasses.replace`` does not.
+``build_blob()`` returns the kept blob, and ``encode()`` writes it with the kept cell
+rows, as it does for a ``RawInstruction``. If no blob was kept, ``build_blob()`` and
+``encode()`` raise the first refusal that the instruction holds. A copy that
+:func:`replace` or :func:`rebuilt` makes keeps the blob only when the copy changes no
+field other than ``wire_down``. The cell stores ``wire_down``, not the blob.
+``dataclasses.replace`` never passes the blob on.
 
-Not public API.
+:func:`replace` is public as ``laddercodec.replace``. The rest of this module is not
+public API.
 """
 
 from __future__ import annotations
 
+import copy
+import dataclasses
 import functools
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import fields, is_dataclass, replace
+from dataclasses import fields, is_dataclass
 from typing import Any, TypeVar, cast
 
 from .address import NotDisplayForm
@@ -71,6 +71,7 @@ __all__ = [
     "read_in_another_form",
     "rebuilt",
     "refusals",
+    "replace",
     "stored_blob",
     "stored_cell_rows",
     "unchecked",
@@ -79,6 +80,10 @@ __all__ = [
 #: Fields that the cell stores rather than the blob. A change to one does not discard a
 #: kept blob.
 _CELL_FIELDS = frozenset({"wire_down"})
+
+#: Fields that say where a box or contact sits in the rung. No refusal that an instruction
+#: keeps depends on one. A pin_rows that the check refuses always raises.
+_LAYOUT_FIELDS = frozenset({"wire_down", "pin_rows"})
 
 #: The list of refusals kept in the innermost :func:`unchecked` block. It is None outside
 #: such a block and inside :func:`checked`.
@@ -134,9 +139,9 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
     blob (:func:`stored_blob`), or raises the first refusal of an instance that holds
     refusals.
 
-    The instance stores the error that construction raised as ``_refusal``, with a snapshot
-    of its field values as built. That error is the first refusal, and its ``errors`` holds
-    every refusal. Each refusal that names no ``obj`` gets the instance as its ``obj``.
+    The instance stores the error that construction raised as ``_refusal``. That error is
+    the first refusal, and its ``errors`` holds every refusal. Each refusal that names no
+    ``obj`` gets the instance as its ``obj``.
     Outside the block, or for a refusal that no instruction may keep, the error is raised
     as usual.
     """
@@ -163,7 +168,6 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
                 if error.obj is None:
                     error.obj = self
             object.__setattr__(self, "_refusal", exc)  # a Modbus target is frozen
-            object.__setattr__(self, "_held", _Held(_values(self)))
             kept.append(exc)
 
     cast("Any", cls).__post_init__ = wrapper
@@ -171,92 +175,29 @@ def holds_refusals(cls: type[_T]) -> type[_T]:
 
 
 class _Held:
-    """The state that an instruction keeps when it holds refusals or a decoded blob.
+    """The blob and cell rows that an instruction was decoded from."""
 
-    It holds a snapshot of the field values when the instruction was built or decoded,
-    without ``wire_down``. It also holds the blob and cell rows that the instruction was
-    decoded from, if the decoder kept them.
-    """
+    __slots__ = ("blob", "cell")
 
-    __slots__ = ("blob", "cell", "values")
-
-    def __init__(self, values: object, blob: bytes | None = None) -> None:
-        self.values = values
+    def __init__(self, blob: bytes) -> None:
         self.blob = blob
         self.cell: dict[str, int] = {}
-
-
-def _frozen(value: object) -> object:
-    """Return a snapshot of *value* to compare with ``==`` later.
-
-    A dataclass becomes its type and fields. A list, tuple or dict becomes its type and
-    items.
-    """
-    if is_dataclass(value) and not isinstance(value, type):
-        return (
-            type(value),
-            tuple((f.name, _frozen(getattr(value, f.name))) for f in fields(value)),
-        )
-    if isinstance(value, (list, tuple)):
-        return (type(value), tuple(_frozen(item) for item in value))
-    if isinstance(value, dict):
-        return (dict, tuple((key, _frozen(item)) for key, item in value.items()))
-    return value
-
-
-def _values(inst: object) -> object:
-    """Return a snapshot of the field values of *inst*, without ``wire_down``, which the
-    cell stores."""
-    if not is_dataclass(inst):
-        return ()
-    return tuple(
-        (f.name, _frozen(getattr(inst, f.name))) for f in fields(inst) if f.name not in _CELL_FIELDS
-    )
-
-
-def _unchanged(inst: object, held: _Held) -> bool:
-    return _values(inst) == held.values
-
-
-def _refusals_now(inst: object) -> tuple[FieldError, ...]:
-    """Return the refusals that construction raises for the current values of *inst*, with
-    every check raising as it does outside :func:`unchecked`."""
-    try:
-        with checked():
-            replace(cast("Any", inst))
-    except FieldError as exc:
-        for error in exc.errors:
-            if not _is_nested(error.obj, inst):
-                error.obj = inst
-        return tuple(exc.errors)
-    return ()
-
-
-def _is_nested(obj: object, inst: object) -> bool:
-    """Return whether *obj* is the value of one of the fields of *inst*."""
-    return is_dataclass(inst) and any(getattr(inst, f.name) is obj for f in fields(inst))
 
 
 def refusals(inst: object) -> tuple[FieldError, ...]:
     """Return every refusal that *inst* holds, or an empty tuple if it holds none.
 
-    While the field values of an instruction built inside :func:`unchecked` are as built,
-    it holds the refusals that it was built with. Once a field changes, it holds the
-    refusals that construction raises for the current values. The refusals of a Modbus
-    target or Modbus address in a field of *inst* come first, because those are built
-    first. The refusals of *inst* itself follow, in the order of each error's ``errors``.
+    An instruction built inside :func:`unchecked` holds the refusals that it was built
+    with. The refusals of a Modbus target or Modbus address in a field of *inst* come
+    first, because those are built first. The refusals of *inst* itself follow, in the
+    order of each error's ``errors``.
     """
     found: list[FieldError] = []
-    if is_dataclass(inst):
+    if is_dataclass(inst) and not isinstance(inst, type):
         for f in fields(inst):
             nested = getattr(inst, f.name)
-            if getattr(nested, "_held", None) is not None:
+            if is_dataclass(nested):
                 found.extend(refusals(nested))
-    held = getattr(inst, "_held", None)
-    if held is None:
-        return tuple(found)
-    if not _unchanged(inst, held):
-        return (*found, *_refusals_now(inst))
     own = getattr(inst, "_refusal", None)
     if own is not None:
         found.extend(own.errors)
@@ -264,44 +205,104 @@ def refusals(inst: object) -> tuple[FieldError, ...]:
 
 
 def rebuilt(inst: _T, **changes: Any) -> _T:
-    """Return ``replace(inst, **changes)``, built inside :func:`unchecked` if *inst* holds
-    a refusal.
+    """Return ``dataclasses.replace(inst, **changes)``, built inside :func:`unchecked` if
+    *inst* holds a refusal.
 
-    If *inst* holds refusals, the copy keeps the refusals of its own values instead of
-    raising them. If *inst* holds none, the copy runs its checks as construction does. A
-    copy that changes only ``wire_down`` of an unchanged instruction also keeps the blob
-    and cell rows that *inst* was decoded from. Each refusal that the copy keeps gets the
-    ``location`` of the refusal of *inst* with the same fields, reason, code, CLICK id and
-    message. The location says where ``read_csv`` read the value.
+    If *inst* holds refusals, the copy holds refusals too, instead of raising them. If
+    *inst* holds none, the copy runs its checks as construction does.
+
+    If *changes* names no field other than ``wire_down`` and ``pin_rows``, the copy holds a
+    copy of each of *inst*'s own errors. Each copy has the message, ``location``, fields,
+    reason, code and CLICK id of its original, and names the copy of *inst* as its ``obj``.
+    The errors of *inst* are not changed. A Modbus target or Modbus address in a field is
+    the same object in *inst* and in the copy, so its errors are not copied. If *changes*
+    names any other field, the checks run on the copy's values, and the copy holds the
+    errors that they raise.
+
+    If *changes* names no field other than ``wire_down``, the copy also keeps the blob and
+    cell rows that *inst* was decoded from.
     """
-    found = refusals(inst)
-    if found:
+    if refusals(inst):
         with unchecked():
-            copied = replace(cast("Any", inst), **changes)
+            copied = dataclasses.replace(cast("Any", inst), **changes)
     else:
-        copied = replace(cast("Any", inst), **changes)
+        copied = dataclasses.replace(cast("Any", inst), **changes)
     held = getattr(inst, "_held", None)
-    if held is not None and set(changes) <= _CELL_FIELDS and _unchanged(inst, held):
+    if held is not None and set(changes) <= _CELL_FIELDS:
         object.__setattr__(copied, "_held", held)
-        own = getattr(inst, "_refusal", None)
-        if own is not None:
-            object.__setattr__(copied, "_refusal", own)
-    _carry_locations(found, refusals(copied))
+    own = getattr(inst, "_refusal", None)
+    if own is not None and set(changes) <= _LAYOUT_FIELDS:
+        object.__setattr__(copied, "_refusal", _copied_errors(own, inst, copied))
     return cast("_T", copied)
 
 
-def _carry_locations(found: tuple[FieldError, ...], copies: tuple[FieldError, ...]) -> None:
-    """Give each refusal in *copies* that has no ``location`` the location of the refusal
-    in *found* with the same fields, reason, code, CLICK id and message."""
-    located = {_same(error): getattr(error, "location", None) for error in found}
-    for error in copies:
-        location = located.get(_same(error))
-        if location is not None and getattr(error, "location", None) is None:
-            object.__setattr__(error, "location", location)
+def _copied_errors(head: FieldError, inst: object, owner: object) -> FieldError:
+    """Return a copy of *head*, whose ``errors`` holds a copy of each error in
+    ``head.errors``.
+
+    A copy of an error that names *inst* as its ``obj`` names *owner* instead.
+    """
+    twins = {id(error): copy.copy(error) for error in (head, *head.errors)}
+    for error in (head, *head.errors):
+        twin = twins[id(error)]
+        twin.errors = tuple(twins.get(id(other), other) for other in error.errors)
+        if error.obj is inst:
+            twin.obj = owner
+    return twins[id(head)]
 
 
-def _same(error: FieldError) -> tuple[object, ...]:
-    return (error.fields, error.reason, error.code, error.click_id, str(error))
+def replace(inst: _T, /, **changes: Any) -> _T:
+    """Return a copy of the instruction *inst* with the fields in *changes* set.
+
+    An instruction is frozen, so call this to get one that differs. Name each field as a
+    keyword, as for ``dataclasses.replace``. A name that is not a field of *inst* raises
+    ``TypeError``.
+
+    A value that is equal to the field's current value is no change. A value that the
+    constructor would write in another form, such as ``"ds1"`` for ``"DS1"``, is a change.
+
+    If any field changes, ``replace`` builds the copy from its values as if you built it
+    new, and every check of the instruction runs. It also builds again each Modbus target
+    or Modbus address in a field that holds a refusal. A refused value raises the
+    :class:`~laddercodec.FieldError` that building the instruction raises. The copy has no
+    stored blob, so ``encode()`` writes the blob of its values.
+
+    If no field changes, ``replace`` raises no refusal. The copy has the stored blob of
+    *inst*, and the same refusals as *inst*:
+
+    - ``encode()`` writes the blob and cell rows that *inst* was decoded from;
+    - if *inst* has no stored blob, ``encode()`` raises the first refusal that the copy holds.
+
+    A change to ``wire_down`` alone has the same result, because the cell stores
+    ``wire_down`` and the blob does not.
+    """
+    if not is_dataclass(inst) or isinstance(inst, type):
+        raise TypeError(f"replace() takes an instruction, not {type(inst).__name__}")
+    names = {f.name for f in fields(inst)}
+    changed = {
+        name: value
+        for name, value in changes.items()
+        if name not in names or value != getattr(inst, name)
+    }
+    if set(changed) <= _CELL_FIELDS:
+        return rebuilt(inst, **changed)
+    with checked():
+        return _as_built(inst, changed)
+
+
+def _as_built(inst: Any, changes: dict[str, Any]) -> Any:
+    """Return ``dataclasses.replace(inst, **changes)``, and build again each Modbus target
+    or Modbus address in a field that holds refusals.
+
+    Call it inside :func:`checked`, so that each build raises its first refusal.
+    """
+    values = {f.name: getattr(inst, f.name) for f in fields(inst)} | changes
+    nested = {
+        name: _as_built(value, {})
+        for name, value in values.items()
+        if is_dataclass(value) and not isinstance(value, type) and refusals(value)
+    }
+    return dataclasses.replace(inst, **(changes | nested))
 
 
 def read_in_another_form(inst: object) -> None:
@@ -326,14 +327,13 @@ def needs_stored_blob(inst: object) -> bool:
 
 
 def keep_stored_blob(inst: object, blob: bytes) -> None:
-    """Store *blob*, the bytes that *inst* was decoded from, with a snapshot of the current
-    field values of *inst*. :func:`stored_blob` returns the blob.
+    """Store *blob*, the bytes that *inst* was decoded from. :func:`stored_blob` returns
+    the blob.
 
     The decoders call it only for an instruction for which :func:`needs_stored_blob`
     returns True. No other instruction keeps a blob.
     """
-    held = _Held(_values(inst), blob)
-    object.__setattr__(inst, "_held", held)
+    object.__setattr__(inst, "_held", _Held(blob))
 
 
 def keep_cell_rows(inst: object, span: int, sub_rows: int) -> None:
@@ -343,7 +343,7 @@ def keep_cell_rows(inst: object, span: int, sub_rows: int) -> None:
     Do nothing if *inst* has no kept blob. A value of zero is not stored.
     """
     held = getattr(inst, "_held", None)
-    if held is None or held.blob is None:
+    if held is None:
         return
     held.cell = {
         key: value for key, value in (("visual_rows", span), ("sub_rows", sub_rows)) if value
@@ -351,21 +351,16 @@ def keep_cell_rows(inst: object, span: int, sub_rows: int) -> None:
 
 
 def stored_blob(inst: object) -> bytes | None:
-    """Return the blob that *inst* was decoded from, or None if no blob was kept or a field
-    other than ``wire_down`` has changed since."""
+    """Return the blob that *inst* was decoded from, or None if no blob was kept."""
     held = getattr(inst, "_held", None)
-    if held is None or held.blob is None or not _unchanged(inst, held):
-        return None
-    return held.blob
+    return None if held is None else held.blob
 
 
 def stored_cell_rows(inst: object) -> dict[str, int]:
-    """Return the cell rows kept with the blob of *inst* (:func:`keep_cell_rows`) while
-    :func:`stored_blob` returns that blob, or an empty dict otherwise."""
+    """Return the cell rows kept with the blob of *inst* (:func:`keep_cell_rows`), or an
+    empty dict if no blob was kept."""
     held: _Held | None = getattr(inst, "_held", None)
-    if held is None or stored_blob(inst) is None:
-        return {}
-    return dict(held.cell)
+    return {} if held is None else dict(held.cell)
 
 
 def _writing_stored_blob(build_blob: Any) -> Any:
@@ -383,27 +378,6 @@ def _writing_stored_blob(build_blob: Any) -> Any:
         found = refusals(self)
         if found:
             raise found[0].with_traceback(None)
-        if getattr(self, "_held", None) is not None:
-            # The instance has changed since it was built from stored data, and its checks
-            # pass. Write the blob of the copy that construction makes from its current
-            # values, which has each address in display form.
-            return build_blob(_as_constructed(self), *args, **kwargs)
         return build_blob(self, *args, **kwargs)
 
     return wrapper
-
-
-def _as_constructed(inst: Any) -> Any:
-    """Return a copy of *inst* that construction makes from its current values, with every
-    check raising.
-
-    A field value that keeps its own refusals, such as a Modbus target, is copied the same
-    way.
-    """
-    changes = {}
-    for f in fields(inst):
-        nested = getattr(inst, f.name)
-        if getattr(nested, "_held", None) is not None:
-            changes[f.name] = _as_constructed(nested)
-    with checked():
-        return replace(inst, **changes)

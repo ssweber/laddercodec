@@ -23,7 +23,7 @@ Stop = Literal["end", "return"]
 _STOPS: tuple[Stop, ...] = ("end", "return")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Undecoded(AfInstruction):
     """A marker for a rung that laddercodec could not decode, with the reason.
 

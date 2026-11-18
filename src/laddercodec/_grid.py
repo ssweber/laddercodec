@@ -7,8 +7,7 @@ its own headers, comments and page padding, and calls these functions for the gr
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
-from typing import Any, cast
+from dataclasses import dataclass
 
 from .cell import ClickCell, build_row
 from .encode import (
@@ -26,61 +25,23 @@ from .errors import EncodeError
 from .instructions import (
     AfInstruction,
     ConditionInstruction,
-    Copy,
-    Fill,
     Undecoded,
     UnknownCondition,
     UnknownInstruction,
 )
-from .operands.unchecked import checked, refusals, stored_blob, stored_cell_rows
+from .operands.unchecked import refusals, stored_blob, stored_cell_rows
 from .topology import COLS_PER_ROW, CONDITION_COLUMNS
 
 # ---------------------------------------------------------------------------
 # 5a: Shared validation
 # ---------------------------------------------------------------------------
 
-#: An empty text constant.  CLICK writes one TXT register per character of a
-#: text constant, so ``""`` writes nothing.  To write the blank (NUL) character, use
-#: the ASCII-code constant ``$00``.  Copy, Fill, a compare contact and a Search
-#: refuse ``""`` when they are built.  The check here catches only a Copy or Fill
-#: whose operand was set to ``""`` after it was built.
-_EMPTY_TEXT_CONSTANT = '""'
 
-
-def _text_constant_operands(token: object) -> tuple[str, ...]:
-    """Return the operands of *token* that may hold a quoted text constant."""
-    if isinstance(token, Copy):
-        return (token.source,)
-    if isinstance(token, Fill):
-        return (token.value,)
-    return ()
-
-
-def _check_text_constants(
-    token: ConditionInstruction | AfInstruction, prefix: str, where: str
-) -> None:
-    """Refuse an empty text constant ``""`` that was set in a Copy or Fill after it was built.
-
-    The function builds *token* again, so it raises the same ``FieldError`` that building a
-    Copy or Fill with ``""`` raises.  If that build does not raise, it raises ``EncodeError``.
-    """
-    for operand in _text_constant_operands(token):
-        if operand.strip() == _EMPTY_TEXT_CONSTANT:
-            with checked():
-                replace(cast("Any", token))
-            raise EncodeError(
-                f'{prefix}Empty text constant "" in {token.to_csv()} at {where}: '
-                "CLICK writes nothing for it; use $00 for the NUL character"
-            )
-
-
-def _check_instruction(
-    token: ConditionInstruction | AfInstruction, prefix: str, where: str
-) -> None:
+def _check_instruction(token: ConditionInstruction | AfInstruction) -> None:
     """Refuse a value in *token* that CLICK's dialog refuses.
 
-    A decoded instruction that is unchanged and still has the blob it was read from is not
-    checked.  ``encode()`` writes those bytes, as it does for a ``RawInstruction``.
+    A decoded instruction that holds the blob it was read from is not checked.
+    ``encode()`` writes those bytes, as it does for a ``RawInstruction``.
 
     Any other instruction is checked.  An instruction built from stored data can hold the
     refusals that its construction would raise (see ``laddercodec.operands.unchecked``).
@@ -92,7 +53,6 @@ def _check_instruction(
     found = refusals(token)
     if found:
         raise found[0].with_traceback(None)
-    _check_text_constants(token, prefix, where)
 
 
 def _validate_rung(
@@ -135,7 +95,7 @@ def _validate_rung(
                     "cell, or remove it."
                 )
             if isinstance(token, ConditionInstruction):
-                _check_instruction(token, prefix, f"row={row_idx}, col={col_idx}")
+                _check_instruction(token)
                 continue
             if token not in SUPPORTED_CONDITION_TOKENS:
                 raise EncodeError(
@@ -163,7 +123,7 @@ def _validate_rung(
         if isinstance(af, Undecoded):
             raise EncodeError(f"{prefix}Row {row_idx}, AF: {af.refusal()}")
         if isinstance(af, AfInstruction):
-            _check_instruction(af, prefix, f"row={row_idx}, AF")
+            _check_instruction(af)
 
     nop_count = sum(1 for af in af_tokens if _normalize_af(af) == "NOP")
     if nop_count > 1:

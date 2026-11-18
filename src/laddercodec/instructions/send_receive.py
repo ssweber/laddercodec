@@ -1201,7 +1201,7 @@ def _target_fields(
 # ---------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(frozen=True)
 class Receive(AfInstruction):
     """A Modbus Receive (RD) instruction."""
 
@@ -1229,7 +1229,7 @@ class Receive(AfInstruction):
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
         fc, default_fc = found
-        self.function_code = None if fc == default_fc else fc
+        object.__setattr__(self, "function_code", None if fc == default_fc else fc)
 
     def to_csv(self) -> str:
         parts: list[str] = []
@@ -1307,7 +1307,7 @@ class Receive(AfInstruction):
         return bytes(out)
 
 
-@dataclass
+@dataclass(frozen=True)
 class Send(AfInstruction):
     """A Modbus Send (SD) instruction."""
 
@@ -1335,7 +1335,7 @@ class Send(AfInstruction):
             check.flag("word_swap")
         assert found is not None  # a refusal ended the block
         fc, default_fc = found
-        self.function_code = None if fc == default_fc else fc
+        object.__setattr__(self, "function_code", None if fc == default_fc else fc)
 
     def to_csv(self) -> str:
         parts: list[str] = []

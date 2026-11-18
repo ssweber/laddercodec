@@ -117,7 +117,11 @@ class PinnedInstruction(AfInstruction):
     is not zero, the AF cell of the main input's row holds a NOP in a decoded rung.
     """
 
-    pin_rows: tuple[int, ...]
+    if TYPE_CHECKING:
+        # Each pinned class defines pin_rows as a field of its frozen dataclass. A
+        # read-only property here lets the type checker accept that field.
+        @property
+        def pin_rows(self) -> tuple[int, ...]: ...
 
     def _check_pin_rows(self) -> None:
         """Raise :class:`FieldError` unless ``pin_rows`` is valid for this box.

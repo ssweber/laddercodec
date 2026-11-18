@@ -31,6 +31,7 @@ from typing import Any
 
 import pytest
 
+import laddercodec
 from laddercodec import (
     RawInstruction,
     RefusedFieldWarning,
@@ -186,9 +187,10 @@ def test_each_answered_save_reads_in_display_form(
     [back] = [t for t in decoded.instructions if isinstance(t, type(inst))]
     assert back == inst and not refusals(back)
     assert encode(decoded) == data
-    # Changed, it is built in display form.
-    box.oneshot = True
-    assert box.build_blob() == replace(inst, oneshot=True).build_blob()
+    # A changed copy is built in display form.
+    changed = laddercodec.replace(box, oneshot=True)
+    assert stored_blob(changed) is None
+    assert changed.build_blob() == replace(inst, oneshot=True).build_blob()
 
 
 #: The saves of a single Copy that converts its value.  Each reads as the Copy and holds no
@@ -375,9 +377,9 @@ def test_a_typed_clipboard_blob_reads_in_display_form(
     [box] = decoded.instructions
     assert box == inst
     assert encode(decoded) == data
-    parsed.oneshot = True
-    assert stored_blob(parsed) is None
-    assert parsed.build_blob() == replace(inst, oneshot=True).build_blob()
+    changed = laddercodec.replace(parsed, oneshot=True)
+    assert stored_blob(changed) is None
+    assert changed.build_blob() == replace(inst, oneshot=True).build_blob()
 
 
 @pytest.mark.parametrize(
