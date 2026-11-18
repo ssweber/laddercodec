@@ -8,7 +8,8 @@ say so. If you write a CSV by hand, start at [Layout](#layout).
 Relevant entry points:
 
 - `laddercodec.read_csv(path, *, strict=True, unchecked=False)`
-- `laddercodec.write_csv(path, rungs, *, index=False)`
+- `laddercodec.write_csv(path, rungs, *, index=False, stop="end")`
+- `laddercodec.csv_rows(rungs, *, index=False, stop="end")`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
 - `pyrung.click.to_ladder(program, tag_map)`
 - `pyrung.click.LadderBundle.write(directory)`
@@ -1039,7 +1040,7 @@ or `main.csv` when it is missing.
 
 ## Errors
 
-`decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()` and `check()`
+`decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()`, `csv_rows()` and `check()`
 raise a `LaddercodecError` for input they can't read or write, and every
 `LaddercodecError` is a `ValueError`:
 
@@ -1048,7 +1049,7 @@ raise a `LaddercodecError` for input they can't read or write, and every
 | `DecodeError`  | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
 | `EncodeError`  | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
 | `CsvError`     | `read_csv` for a file that isn't UTF-8, or a row, token or rung it can't read |
-| `WriterError`  | `write_csv` for a rung the CSV can't hold                                    |
+| `WriterError`  | `write_csv` and `csv_rows` for a rung the CSV can't hold                     |
 | `FieldError`   | building an instruction, `read_csv` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address |
 
 ## Strict validation and failure mode

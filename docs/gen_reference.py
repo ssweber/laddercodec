@@ -58,7 +58,7 @@ PAGES: tuple[ReferencePage, ...] = (
         title="CSV I/O API",
         tier="Stable Core",
         summary="Read and write Click Ladder CSV files.",
-        symbols=("read_csv", "write_csv", "CsvLocation"),
+        symbols=("read_csv", "write_csv", "csv_rows", "CSV_HEADER", "CsvLocation"),
     ),
     ReferencePage(
         slug="instructions",

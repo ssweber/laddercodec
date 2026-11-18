@@ -25,7 +25,9 @@ def _excel_column_name(index_1_based: int) -> str:
 
 
 CONDITION_COLUMNS = tuple(_excel_column_name(i) for i in range(1, 32))
-CSV_HEADER = (MARKER_COLUMN, *CONDITION_COLUMNS, OUTPUT_COLUMN)
+CSV_HEADER: tuple[str, ...] = (MARKER_COLUMN, *CONDITION_COLUMNS, OUTPUT_COLUMN)
+"""The header row of every Click Ladder CSV: ``marker``, ``A`` to ``AE`` and ``AF``."""
+
 TOTAL_COLUMNS = len(CSV_HEADER)
 
 

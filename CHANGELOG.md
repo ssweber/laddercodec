@@ -15,6 +15,7 @@
 - **Field errors say why.** A `FieldError` now has `reason` (a `Reason` such as `bank`, `range` or `conflict`), `click_id` (CLICK's own id, such as `OBJ-005`, when CLICK has one), `fields` (one field, or both fields of a pair) and `errors` (every refusal for the construction, the raised one first).
 - **`RefusedFieldWarning` and `read_csv(..., unchecked=True)`.** `decode()` and `decode_program()` emit a `RefusedFieldWarning` for each instruction that holds a value CLICK's dialog refuses. `read_csv(..., unchecked=True)` reads such an instruction as written, with the same warning.
 - **`constant_text()`.** It returns the text that a `Math` or `Copy` source stores for a Python int, float or str. `constant_text(255, hex=True)` is `FFh`.
+- **`csv_rows()` and `CSV_HEADER`.** `csv_rows(rungs, *, index=False, stop="end")` returns the rows that `write_csv` writes after the header, each as a list of strings. You can use them without writing a file. `laddercodec` also exports `CSV_HEADER`, the header row, as a tuple of strings.
 
 ### Fixed
 - **Copy conversions that CLICK saves.** A single Copy between DF and CTD, of a real constant into DD or CTD, or of an integer constant outside int16 into DF now encodes with conversion type 7, as CLICK saves it. `convert=to_binary` on these copies now works. v0.4.0 wrote a plain copy and rejected `to_binary`. CLICK's saves of these copies now decode as the `Copy`. v0.4.0 decoded them as `raw(Copy,...)`.
@@ -28,6 +29,7 @@
 - **Hex Math `1E3h`.** A hex `Math` holding `1E3h`, which CLICK stores for a constant typed `1e3`, now decodes as the `Math`, and `read_csv` reads it. v0.4.0 decoded it as `raw(Math,...)` and `read_csv` rejected it.
 - **Bare `ValueError` and `KeyError` crashes.** A constant, For count, Timer set point, Drum preset, DS Slave ID or `ModbusAddress` of more than 4300 digits now reads as its value or raises `FieldError`. A `CompareContact` operator that is not `==`, `!=`, `<`, `>`, `<=` or `>=` now raises `FieldError`. v0.4.0 raised `ValueError` for the digits and `KeyError` for the operator.
 - **More rejections carry CLICK's id.** Many rejections that had no `click_id` now have one. For example, a Pack destination in a bank that Pack never writes, such as `X001`, now has `OBJ-004`. A Pack destination whose bank can't take the source, such as `C1..C16` into `TD1`, now has `OBJ-024`. laddercodec rejects the same values as before.
+- **No partial file from `write_csv`.** When `write_csv` raises `WriterError` for a rung, it now creates no file and leaves a file already at the path unchanged. v0.4.0 left a file that held only the header and the rows before that rung, in place of any file that was there.
 
 ### Changed
 - **Receive TXT count.** A Receive into TXT now accepts an even count of 2 to 250 characters, as CLICK does. v0.4.0 rejected a count over 124.

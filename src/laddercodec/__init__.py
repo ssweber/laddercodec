@@ -4,7 +4,8 @@
 to paste. ``decode()`` turns that binary back into ``Rung`` objects. ``decode_program()``
 decodes the bytes of a ``Scr*.tmp`` file, one of the temp files that CLICK writes to disk.
 ``read_csv()`` and ``write_csv()`` convert between ``Rung`` objects and a CSV form that
-people and programs can read and edit. ``check()`` lists the places in your rungs where the
+people and programs can read and edit. ``csv_rows()`` returns the rows that ``write_csv()``
+writes after the header. ``check()`` lists the places in your rungs where the
 lines connect in a way that CLICK's Syntax Check refuses or may refuse. It also lists each
 marker that stands in for a rung that laddercodec could not decode.
 """
@@ -12,7 +13,8 @@ marker that stands in for a rung that laddercodec could not decode.
 from .codes import CLICK_IDS, Code
 from .compat import find_v4_only, is_v4_only
 from .csv import CsvLocation, read_csv
-from .csv.writer import write_csv
+from .csv.contract import CSV_HEADER
+from .csv.writer import csv_rows, write_csv
 from .decode import Rung, decode
 from .decode_program import decode_program
 from .encode import encode
@@ -99,6 +101,8 @@ __all__ = [
     "decode_program",
     "read_csv",
     "write_csv",
+    "csv_rows",
+    "CSV_HEADER",
     "CsvLocation",
     "find_v4_only",
     "is_v4_only",

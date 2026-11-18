@@ -1,8 +1,8 @@
 """The exceptions that laddercodec raises. Each one is a subclass of :class:`LaddercodecError`.
 
-``decode()``, ``decode_program()``, ``encode()``, ``read_csv()``, ``write_csv()`` and
-``check()`` raise a ``LaddercodecError`` for input they can't read or write.  Each class
-is a ``ValueError``, so ``except ValueError`` catches every one of them.
+``decode()``, ``decode_program()``, ``encode()``, ``read_csv()``, ``write_csv()``,
+``csv_rows()`` and ``check()`` raise a ``LaddercodecError`` for input they can't read or
+write.  Each class is a ``ValueError``, so ``except ValueError`` catches every one of them.
 ``FieldError`` and ``AddressError`` are defined in :mod:`laddercodec.operands.errors`, and
 they are subclasses of :class:`LaddercodecError` too.
 """
@@ -96,10 +96,11 @@ class CsvError(LaddercodecError):
 
 
 class WriterError(LaddercodecError):
-    """Raised when ``write_csv`` is given a rung it can't write as CSV, or a bad ``stop=``.
+    """Raised when ``write_csv`` or ``csv_rows`` is given a rung that the CSV can't hold, or
+    a bad ``stop=``.
 
-    ``stop=`` must be ``"end"`` or ``"return"``.  ``write_csv`` checks it before it writes
-    anything.
+    ``stop=`` must be ``"end"`` or ``"return"``.  ``write_csv`` builds every row before it
+    opens the file.  If it raises ``WriterError``, it has not created or changed the file.
     """
 
 
