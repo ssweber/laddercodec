@@ -15,7 +15,7 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `risky.json` | the spellings a dialog field may not take as typed, for Math, Copy, Out and Search: empty, a space at either end, a tab, a character outside ASCII, text over 40 characters (128- and 129-character quoted text) |
 | `preflight_compare.json`, `risky_compare.json` | the same for Compare |
 | `preflight_fill.json`, `risky_fill.json` | the same for Fill |
-| `preflight_<dialog>.json`, `risky_<dialog>.json` | the same for each of Timer, Counter, Shift, For and Drum (`preflight_timer.json`, `risky_timer.json` and so on) |
+| `preflight_<dialog>.json`, `risky_<dialog>.json` | the same for each of Timer, Counter, Shift, For, Drum and Send (`preflight_timer.json`, `risky_timer.json` and so on) |
 | `math_decimal.json`, `math_hex.json` | Math (without the risky spellings): each bank and pointer form as the result, as an operand (with a constant and alone), as a RAND bound and as a SUM range; every constant spelling as an operand and alone; RAND with equal and reversed bounds; the range functions |
 | `copy_single.json` | Single Copy: each bank, pointer form and constant spelling as the source and the destination; each source bank against each destination bank; constants against each bank; text into TXT |
 | `copy_block.json` | Block Copy: source ranges, destination banks, bank pairs |
@@ -30,6 +30,7 @@ Each grid has a verdicts file beside it, `<grid>.verdicts.json`. The runner read
 | `shift.json` | Shift Register: C1..C8, X001..X008 and Y001..Y008; the ranges of C, X and Y, with a reversed range, one bit and an end past the bank, and one range of each other bank; each bank as the start and as the end |
 | `for.json` | For: each constant spelling, bank and pointer form as the number of loops; One Shot on and off |
 | `drum.json` | Drum, in Time Base and Event Base: each unit, and a unit on an event drum; a duration of 0, 32767, 32768, 39999, 40000 and -1 in each unit; each constant spelling, bank and pointer form as a duration; 0, 1, 16 and 17 steps and outputs; an output used twice, and the completion flag as an output; each bank as an output, the current step, the elapsed time, the completion flag and an event; jog, and the step number to jump to |
+| `send.json` | Modbus Send: each port; each function code with a 984 start of each kind and with each bank as the source; with CLICK addressing, each bit bank against each bit bank and each register bank against each register bank, and one case for each slave address bank that laddercodec refuses for the code; each bank as the source and as a CLICK slave address; the count at its caps, past a bank's end, from X001, X005, Y001, X101 and X816, and from TXT; each spelling of a 984 and a hex slave address, with `h` alone and `1HH`; a hex start near FFFEh with a DD, DF, CTD or TXT source; the Slave ID on each port, with a DS address; the server port and IP address of CPU Port1; each bank in each status field, with only its first address in the success and error bits, and one C bit in two of them; Word Swap |
 
 A case is `{"row", "case", "instruction", "mode", "fields"}`, as the runner reads it. A Search
 case may add `options`, which maps an option's control id to 1 (on) or 0 (off): `5021` is
@@ -74,6 +75,39 @@ Each drum case starts from a drum that laddercodec accepts and changes one field
 option. A refusal then names the field that the case changed. A refusal of `num_steps` names
 `presets` or `events`, and a refusal of `num_outputs` names `outputs`. When a case changes the
 number of steps or outputs, it also fills each step or output that the new number adds.
+
+The runner does not drive Send either, so it refuses to load `send.json`, `preflight_send.json`
+and `risky_send.json`. Many of Send's fields and lists mirror those in the runner's entry for
+Receive. Until the runner drives Send, a Send case names them like this:
+
+- `instruction` is `send`. Send has no mode.
+- The fields that mirror Receive's have Receive's names: `slave_id` (Slave ID),
+  `slave_address` (Starting Slave Address), `master_address` (Starting Master Address),
+  `count` (Number of Bits, or of Master Addresses), and `success`, `error` and `exception`
+  (Exception Response).
+- `sending` is the Sending bit, which has the name of `Send`'s field.
+- `ip` and `server_port` are the IP Address and the Server Port Number. Only a case on a TCP
+  port types them. `ip` is an IP address control, not an Edit, and the runner does not fill one
+  yet.
+- `count` and `server_port` are Edits that take digits only. The runner sets their text
+  directly, so it can still type other characters.
+- The lists have Receive's names: `port` (Com Port), `function`, `addressing` and `word_swap`.
+  A case picks an item by the text that the list shows. The Word Swap item `ON` is a guess
+  that no answer has shown yet.
+
+Each Send case starts from a Send that laddercodec accepts with the case's function code and
+addressing, and changes one field or list. The plain Send writes DS1 to the holding register
+400001 of slave 1 on CPU Port2, with function code 06, the status bits C100, C101 and C102,
+and DS100 for the exception response. A case with function code 05 or 15 sends C1 instead. It
+writes to coil 1 in 984 addressing and to C1 in CLICK addressing. In hex addressing, the Send
+writes to 0h. A case picks an item in the port, function and addressing lists, so it does not
+depend on what the dialog opens with. A case with function code 05 or 06 leaves the count out,
+in case the dialog closes the field for one element. The row `send.count.single` types it. A
+case label names the function code, the addressing (`984`, `hex` or `click`), the slave
+address, the master address and the count, and then each other field or list that differs
+from that Send. A refusal can name a field that the case did not change, because laddercodec
+checks the fields in its own order. For example, a 984 start of a kind that the function code
+does not write is refused on the source.
 
 Compare is a contact, so the runner runs its cases only with `--wire`. Compare's preflight and
 risky cases are in `preflight_compare.json` and `risky_compare.json`. Run those with `--wire`
@@ -131,6 +165,24 @@ with the number of steps and outputs that `num_steps` and `num_outputs` hold. A 
 case leaves out is blank. No cell of the pattern is set. A case's `unit` item is built as the
 laddercodec unit that it names: `ms` as `Tms`, `sec` as `Ts`, `min` as `Tm`, `hour` as `Th`
 and `day` as `Td`. An option that a case sets to 1 is on, and any other option is off.
+
+A Send case is built as `Send` with the function code that the case picks. The port picks the
+target: `CPU Port1` and `WLAN Port` build a `ModbusTcpTarget`, and any other port builds a
+`ModbusRtuTarget`. The slave address is the `remote_start`. With CLICK addressing it is the
+address text. With 984 addressing it is a `ModbusAddress` of the text. With hex addressing it
+is a `ModbusAddress` of the text whose register type is `coil` for function code 05 or 15 and
+`holding` for 06 or 16. A Slave ID, count or server port of decimal digits, with or without a
+minus sign, is built as that number. Any other text is passed as it is, so laddercodec refuses
+it as not a number, or reads a Slave ID as a DS address. A case without `count` is built with
+a count of 1. Word Swap is on when the case picks `ON`.
+
+laddercodec reads a slave address that ends in `h` as hex, and an address of digits only as
+MODBUS 984. It would read `1h` typed in 984 addressing as hex, and `10` typed in hex addressing
+as a 984 address. The grid leaves out both cases.
+
+The grid learns only whether CLICK's dialog accepts each case. It does not learn which X point
+a Send from X001 sends as its 17th element, which needs a PLC. It does not learn what CLICK
+stores for a slave address typed with `h`, which needs a saved project.
 
 The verdicts exist to be compared with CLICK's answers case by case. `--check` compares the
 messages too; the test compares the verdict, error and field only.
