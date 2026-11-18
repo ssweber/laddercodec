@@ -2,9 +2,7 @@
  "grid": "risky.json",
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
- "runs": [
-  "rk1"
- ],
+ "runs": ["rk1", "risky-1", "risky-2", "risky-3", "risky-4", "risky-5"],
  "cases": [
   {
    "row": "math.result.decimal.forms",
@@ -127,12 +125,12 @@
   },
   {
    "row": "math.constants.decimal",
-   "case": "dec DS1 = DS1 + \"\u00e9\"",
+   "case": "dec DS1 = DS1 + \"é\"",
    "instruction": "math",
    "mode": "decimal",
    "fields": {
     "result": "DS1",
-    "formula": "DS1 + \"\u00e9\""
+    "formula": "DS1 + \"é\""
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -141,7 +139,7 @@
    "seconds": 0.433,
    "read_back": {
     "result": "DS1",
-    "formula": "DS1 + \"\u00e9\""
+    "formula": "DS1 + \"é\""
    },
    "limits": {
     "result": 26,
@@ -150,12 +148,12 @@
   },
   {
    "row": "math.constants.decimal.alone",
-   "case": "dec DS1 = \"\u00e9\"",
+   "case": "dec DS1 = \"é\"",
    "instruction": "math",
    "mode": "decimal",
    "fields": {
     "result": "DS1",
-    "formula": "\"\u00e9\""
+    "formula": "\"é\""
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -164,7 +162,7 @@
    "seconds": 0.429,
    "read_back": {
     "result": "DS1",
-    "formula": "\"\u00e9\""
+    "formula": "\"é\""
    },
    "limits": {
     "result": 26,
@@ -403,12 +401,12 @@
   },
   {
    "row": "math.constants.decimal",
-   "case": "dec DS1 = DS1 + \u0663",
+   "case": "dec DS1 = DS1 + ٣",
    "instruction": "math",
    "mode": "decimal",
    "fields": {
     "result": "DS1",
-    "formula": "DS1 + \u0663"
+    "formula": "DS1 + ٣"
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -417,7 +415,7 @@
    "seconds": 0.428,
    "read_back": {
     "result": "DS1",
-    "formula": "DS1 + \u0663"
+    "formula": "DS1 + ٣"
    },
    "limits": {
     "result": 26,
@@ -426,12 +424,12 @@
   },
   {
    "row": "math.constants.decimal.alone",
-   "case": "dec DS1 = \u0663",
+   "case": "dec DS1 = ٣",
    "instruction": "math",
    "mode": "decimal",
    "fields": {
     "result": "DS1",
-    "formula": "\u0663"
+    "formula": "٣"
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -440,7 +438,7 @@
    "seconds": 0.426,
    "read_back": {
     "result": "DS1",
-    "formula": "\u0663"
+    "formula": "٣"
    },
    "limits": {
     "result": 26,
@@ -541,12 +539,12 @@
   },
   {
    "row": "math.constants.hex",
-   "case": "hex DH1 = DH1 + \"\u00e9\"",
+   "case": "hex DH1 = DH1 + \"é\"",
    "instruction": "math",
    "mode": "hex",
    "fields": {
     "result": "DH1",
-    "formula": "DH1 + \"\u00e9\""
+    "formula": "DH1 + \"é\""
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -555,7 +553,7 @@
    "seconds": 0.445,
    "read_back": {
     "result": "DH1",
-    "formula": "DH1 + \"\u00e9\""
+    "formula": "DH1 + \"é\""
    },
    "limits": {
     "result": 26,
@@ -564,12 +562,12 @@
   },
   {
    "row": "math.constants.hex.alone",
-   "case": "hex DH1 = \"\u00e9\"",
+   "case": "hex DH1 = \"é\"",
    "instruction": "math",
    "mode": "hex",
    "fields": {
     "result": "DH1",
-    "formula": "\"\u00e9\""
+    "formula": "\"é\""
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -578,7 +576,7 @@
    "seconds": 0.443,
    "read_back": {
     "result": "DH1",
-    "formula": "\"\u00e9\""
+    "formula": "\"é\""
    },
    "limits": {
     "result": 26,
@@ -817,12 +815,12 @@
   },
   {
    "row": "math.constants.hex",
-   "case": "hex DH1 = DH1 + \u0663",
+   "case": "hex DH1 = DH1 + ٣",
    "instruction": "math",
    "mode": "hex",
    "fields": {
     "result": "DH1",
-    "formula": "DH1 + \u0663"
+    "formula": "DH1 + ٣"
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -831,7 +829,7 @@
    "seconds": 0.441,
    "read_back": {
     "result": "DH1",
-    "formula": "DH1 + \u0663"
+    "formula": "DH1 + ٣"
    },
    "limits": {
     "result": 26,
@@ -840,12 +838,12 @@
   },
   {
    "row": "math.constants.hex.alone",
-   "case": "hex DH1 = \u0663",
+   "case": "hex DH1 = ٣",
    "instruction": "math",
    "mode": "hex",
    "fields": {
     "result": "DH1",
-    "formula": "\u0663"
+    "formula": "٣"
    },
    "outcome": "refused",
    "code": "OBJ-1001",
@@ -854,7 +852,7 @@
    "seconds": 0.443,
    "read_back": {
     "result": "DH1",
-    "formula": "\u0663"
+    "formula": "٣"
    },
    "limits": {
     "result": 26,
@@ -991,11 +989,11 @@
   },
   {
    "row": "copy.single.source.constants",
-   "case": "single \"\u00e9\" -> DS1",
+   "case": "single \"é\" -> DS1",
    "instruction": "copy",
    "mode": "single",
    "fields": {
-    "source": "\"\u00e9\"",
+    "source": "\"é\"",
     "destination": "DS1"
    },
    "outcome": "refused",
@@ -1004,7 +1002,7 @@
    "syntax_check": null,
    "seconds": 0.437,
    "read_back": {
-    "source": "\"\u00e9\"",
+    "source": "\"é\"",
     "destination": "DS1"
    },
    "limits": {
@@ -1129,11 +1127,11 @@
   },
   {
    "row": "copy.single.source.constants",
-   "case": "single \u0663 -> DS1",
+   "case": "single ٣ -> DS1",
    "instruction": "copy",
    "mode": "single",
    "fields": {
-    "source": "\u0663",
+    "source": "٣",
     "destination": "DS1"
    },
    "outcome": "refused",
@@ -1142,7 +1140,7 @@
    "syntax_check": null,
    "seconds": 0.431,
    "read_back": {
-    "source": "\u0663",
+    "source": "٣",
     "destination": "DS1"
    },
    "limits": {
@@ -1451,10 +1449,10 @@
   },
   {
    "row": "out.constants",
-   "case": "out \"\u00e9\"",
+   "case": "out \"é\"",
    "instruction": "out",
    "fields": {
-    "address": "\"\u00e9\""
+    "address": "\"é\""
    },
    "outcome": "refused",
    "code": "OBJ-005",
@@ -1462,7 +1460,7 @@
    "syntax_check": null,
    "seconds": 0.417,
    "read_back": {
-    "address": "\"\u00e9\""
+    "address": "\"é\""
    },
    "limits": {
     "address": 16
@@ -1565,10 +1563,10 @@
   },
   {
    "row": "out.constants",
-   "case": "out \u0663",
+   "case": "out ٣",
    "instruction": "out",
    "fields": {
-    "address": "\u0663"
+    "address": "٣"
    },
    "outcome": "refused",
    "code": "OBJ-005",
@@ -1576,7 +1574,7 @@
    "syntax_check": null,
    "seconds": 0.418,
    "read_back": {
-    "address": "\u0663"
+    "address": "٣"
    },
    "limits": {
     "address": 16
@@ -1624,6 +1622,486 @@
    "limits": {
     "address": 16,
     "address_end": 16
+   }
+  },
+  {
+   "row": "search.table-start.forms",
+   "case": "search  DS1..DS10 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": " DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": null,
+   "code": null,
+   "message": null,
+   "syntax_check": null,
+   "seconds": 0.634,
+   "read_back": {
+    "value": "5",
+    "start": " DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stops": [
+    {
+     "out": "risky-1",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 68 (search.table-start.forms search  DS1..DS10 == 5 -> DS30,C1)"
+    },
+    {
+     "out": "risky-3",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 68 (search.table-start.forms search  DS1..DS10 == 5 -> DS30,C1)"
+    }
+   ]
+  },
+  {
+   "row": "search.table-end.forms",
+   "case": "search DS1.. DS1 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS1",
+    "end": " DS1",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.576,
+   "read_back": {
+    "value": "5",
+    "start": "DS1",
+    "end": " DS1",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.forms",
+   "case": "search DS1..DS10 ==  DS1 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": " DS1",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.849,
+   "read_back": {
+    "value": " DS1",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == DS1,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.value.forms",
+   "case": "search DS1..DS10 == DS1  -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS1 ",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case70 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase70 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case70",
+    "lines": []
+   },
+   "seconds": 6.051,
+   "read_back": {
+    "value": "DS1 ",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == DS1,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search TXT1..TXT10 == \"é\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"é\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case71 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase71 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case71",
+    "lines": []
+   },
+   "seconds": 6.527,
+   "read_back": {
+    "value": "\"é\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(TXT1..TXT10 == \"\"é\"\",result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search TXT1..TXT10 == \"\t\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"\t\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case72 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase72 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case72",
+    "lines": []
+   },
+   "seconds": 8.144,
+   "read_back": {
+    "value": "\"\t\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(TXT1..TXT10 == \"\"\t\"\",result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search TXT1..TXT10 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case73 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase73 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case73",
+    "lines": []
+   },
+   "seconds": 7.026,
+   "read_back": {
+    "value": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Search,5300650061007200630068000000222700000100070000006560ffffffff0501220041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410041004100410000000041ffffffff00004100ffffffff000066600954005800540031000067600b540058005400310030000079600944005300000033ffffffff00003000ffffffff00007a60ffffffff4300310000000000ffffffff0000,rows=2,sub=3)\""
+   ]
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search TXT1..TXT10 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.427,
+   "read_back": {
+    "value": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search DS1..DS10 ==  -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "value": "",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search DS1..DS10 ==   -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": " ",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.424,
+   "read_back": {
+    "value": " ",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search DS1..DS10 == ٣ -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "٣",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.438,
+   "read_back": {
+    "value": "٣",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.result.forms",
+   "case": "search DS1..DS10 == DS20 ->  DS1,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": " DS1",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case74 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase74 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case74",
+    "lines": []
+   },
+   "seconds": 6.696,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": " DS1",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Search,0x2722,1,rows=2,sub=3,6065=DS20,6066=DS1,6067=DS10,6079= DS1,607a=C1,0000=)\""
+   ]
+  },
+  {
+   "row": "search.found.forms",
+   "case": "search DS1..DS10 == DS20 -> DS30, DS1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": " DS1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
    }
   }
  ]

@@ -2,10 +2,7 @@
  "grid": "preflight.json",
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
- "runs": [
-  "pf1",
-  "pf2"
- ],
+ "runs": ["pf1", "pf2", "preflight-2"],
  "cases": [
   {
    "row": "math.control",
@@ -2396,6 +2393,639 @@
    "limits": {
     "address": 16,
     "address_end": 16
+   }
+  },
+  {
+   "row": "search.control",
+   "case": "search DS1..DS10 == DS20 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.834,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == DS20,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.options",
+   "case": "search DS1..DS10 == DS20 -> DS30,C1 [5021=1]",
+   "instruction": "search",
+   "mode": "==",
+   "options": {
+    "5021": 1
+   },
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case93 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase93 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case93",
+    "lines": []
+   },
+   "seconds": 6.188,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == DS20,result=DS30,found=C1,continuous=1)\""
+   ]
+  },
+  {
+   "row": "search.operators",
+   "case": "search DS1..DS10 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case94 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase94 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case94",
+    "lines": []
+   },
+   "seconds": 6.042,
+   "read_back": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == 5,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.text.operators",
+   "case": "search TXT1..TXT10 != \"A\" -> DS30,C1",
+   "instruction": "search",
+   "mode": "!=",
+   "fields": {
+    "value": "\"A\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case95 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase95 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case95",
+    "lines": []
+   },
+   "seconds": 6.612,
+   "read_back": {
+    "value": "\"A\"",
+    "start": "TXT1",
+    "end": "TXT10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(TXT1..TXT10 != \"\"A\"\",result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.table.ranges",
+   "case": "search X001..X002 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "X001",
+    "end": "X002",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.434,
+   "read_back": {
+    "value": "5",
+    "start": "X001",
+    "end": "X002",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.table-start.banks",
+   "case": "search DS4500..DS4500 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS4500",
+    "end": "DS4500",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-012",
+   "message": "The same address cannot be used here.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "value": "5",
+    "start": "DS4500",
+    "end": "DS4500",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.table-end.banks",
+   "case": "search DS1..DS0 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS0",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-003",
+   "message": "The entered address is outside the range.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS0",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.table.mixed-banks",
+   "case": "search X001..C1 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "X001",
+    "end": "C1",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.429,
+   "read_back": {
+    "value": "5",
+    "start": "X001",
+    "end": "C1",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.table-start.forms",
+   "case": "search DS[DS1]..DS10 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS[DS1]",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.433,
+   "read_back": {
+    "value": "5",
+    "start": "DS[DS1]",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.table-end.forms",
+   "case": "search DS1..DS[DS1] == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS[DS1]",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "value": "5",
+    "start": "DS1",
+    "end": "DS[DS1]",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.banks",
+   "case": "search DS1..DS10 == X001 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "X001",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "value": "X001",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.forms",
+   "case": "search DS1..DS10 == X[DS1] -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "X[DS1]",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "value": "X[DS1]",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.value.constants",
+   "case": "search DS1..DS10 == 0 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "0",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case96 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase96 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case96",
+    "lines": []
+   },
+   "seconds": 6.164,
+   "read_back": {
+    "value": "0",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DS1..DS10 == 0,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.value.pairs",
+   "case": "search DD1..DD10 == 5 -> DS30,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "5",
+    "start": "DD1",
+    "end": "DD10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case105 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase105 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case105",
+    "lines": []
+   },
+   "seconds": 6.969,
+   "read_back": {
+    "value": "5",
+    "start": "DD1",
+    "end": "DD10",
+    "result": "DS30",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   },
+   "stored": [
+    "R,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"search(DD1..DD10 == 5,result=DS30,found=C1)\""
+   ]
+  },
+  {
+   "row": "search.result.banks",
+   "case": "search DS1..DS10 == DS20 -> X001,C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "X001",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.462,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "X001",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.found.banks",
+   "case": "search DS1..DS10 == DS20 -> DS30,X001",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "X001"
+   },
+   "outcome": "refused",
+   "code": "OBJ-004",
+   "message": "The entered address cannot be used in this instruction.",
+   "syntax_check": null,
+   "seconds": 0.428,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "X001"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.result.forms",
+   "case": "search DS1..DS10 == DS20 -> DS[DS1],C1",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS[DS1]",
+    "found": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.431,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS[DS1]",
+    "found": "C1"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
+   }
+  },
+  {
+   "row": "search.found.forms",
+   "case": "search DS1..DS10 == DS20 -> DS30,DS[DS1]",
+   "instruction": "search",
+   "mode": "==",
+   "fields": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "DS[DS1]"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.434,
+   "read_back": {
+    "value": "DS20",
+    "start": "DS1",
+    "end": "DS10",
+    "result": "DS30",
+    "found": "DS[DS1]"
+   },
+   "limits": {
+    "value": 130,
+    "start": 16,
+    "end": 16,
+    "result": 16,
+    "found": 16
    }
   }
  ]

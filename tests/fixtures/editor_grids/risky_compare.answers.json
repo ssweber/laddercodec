@@ -1,0 +1,333 @@
+{
+ "grid": "risky_compare.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": ["risky_compare-1", "risky_compare-2"],
+ "cases": [
+  {
+   "row": "compare.a.forms",
+   "case": "compare  DS1 == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": " DS1",
+    "b": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 7.743,
+   "read_back": {
+    "a": " DS1",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1==DS2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "risky_compare-1/saves/case01.clip.csv"
+  },
+  {
+   "row": "compare.b.forms",
+   "case": "compare DS1 ==  DS1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.83,
+   "read_back": {
+    "a": "DS1",
+    "b": " DS1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": null,
+   "stored_error": "TypeError: Rung.__init__() got an unexpected keyword argument 'logical_rows'",
+   "clip": "risky_compare-1/saves/case02.clip.csv",
+   "clip_error": "ClickNick, rungs from 1: rung 1, Compare: ClickNick cannot read this Compare.; laddercodec UndecodedRungWarning, rungs from 0: rung 0, row 0 is not decoded, and an undecoded marker stands in for it: no CSV token holds this unknown condition (106 bytes)"
+  },
+  {
+   "row": "compare.a.forms",
+   "case": "compare DS1  == DS2",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1 ",
+    "b": "DS2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.553,
+   "read_back": {
+    "a": "DS1 ",
+    "b": "DS2"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,DS1==DS2,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "risky_compare-1/saves/case03.clip.csv"
+  },
+  {
+   "row": "compare.b.forms",
+   "case": "compare DS1 == DS1 ",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.846,
+   "read_back": {
+    "a": "DS1",
+    "b": "DS1 "
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": null,
+   "stored_error": "TypeError: Rung.__init__() got an unexpected keyword argument 'logical_rows'",
+   "clip": "risky_compare-1/saves/case04.clip.csv",
+   "clip_error": "ClickNick, rungs from 1: rung 1, Compare: ClickNick cannot read this Compare.; laddercodec UndecodedRungWarning, rungs from 0: rung 0, row 0 is not decoded, and an undecoded marker stands in for it: no CSV token holds this unknown condition (106 bytes)"
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare TXT1 == \"é\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"é\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.833,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"é\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"TXT1==\"\"é\"\"\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "risky_compare-1/saves/case05.clip.csv",
+   "clip_error": "laddercodec RefusedFieldWarning, rungs from 0: rung 0: CompareContact holds a value CLICK's dialog refuses, and decodes as it is stored: CompareContact.right: '\"é\"' is refused; text holds printable ASCII only (space to ~); write another character as its $hh code"
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare TXT1 == \"\t\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"\t\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case05 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase05 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case05",
+    "lines": []
+   },
+   "seconds": 6.647,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"\t\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"TXT1==\"\"\t\"\"\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "risky_compare-1/saves/case06.clip.csv",
+   "clip_error": "laddercodec RefusedFieldWarning, rungs from 0: rung 0: CompareContact holds a value CLICK's dialog refuses, and decodes as it is stored: CompareContact.right: '\"\\t\"' is refused; text holds printable ASCII only (space to ~); write another character as its $hh code"
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case06 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase06 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case06",
+    "lines": []
+   },
+   "seconds": 6.537,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "R,\"TXT1==ą\"\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
+   ],
+   "clip": "risky_compare-1/saves/case07.clip.csv"
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare TXT1 == \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.447,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare DS1 == ",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.42,
+   "read_back": {
+    "a": "DS1",
+    "b": ""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare DS1 ==  ",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": " "
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.422,
+   "read_back": {
+    "a": "DS1",
+    "b": " "
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  },
+  {
+   "row": "compare.b.constants",
+   "case": "compare DS1 == ٣",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "DS1",
+    "b": "٣"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.419,
+   "read_back": {
+    "a": "DS1",
+    "b": "٣"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   }
+  }
+ ]
+}
