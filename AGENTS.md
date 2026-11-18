@@ -83,6 +83,9 @@ src/laddercodec/
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)
 │   ├── errors.py         # FieldError (LaddercodecError), AddressError; .errors, .field(s), .code (Code), .reason (Reason), .click_id, .obj
+│   ├── math_real.py      # MathReal: a real in a decimal Math formula. CLICK's save rule is stated once, in .saves.
+│   │                     #   .in_range states the range rule. .stored states the text written for an integral real.
+│   │                     #   The other forms (refusal, stored type, held text) are derived from these three
 │   └── unchecked.py      # unchecked(): build an instruction from what is stored, keeping its refusals; refusals(), rebuilt(); the stored blob an unchanged decoded instruction writes; checked()
 ├── instructions/         # Instruction dataclasses: build_blob(), cell_params(), blob parser, CSV token parser
 │   ├── __init__.py       # Registry: INSTRUCTION_MODULES, parse_condition/af_blob()

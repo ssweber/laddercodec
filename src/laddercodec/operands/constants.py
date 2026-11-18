@@ -151,122 +151,11 @@ def hex_display(digits: str) -> str:
 
 #: The significant digits CLICK keeps of a real constant in a single Copy source.
 REAL_DIGITS = 7
-#: The digits after the point that CLICK keeps of a real constant typed in a Math formula
-#: without an ``E``, in positional form and in exponent form.
-MATH_REAL_DECIMALS = 6
-#: The significant digits that CLICK keeps of a real constant typed in a Math formula with
-#: an ``E``.
-MATH_REAL_DIGITS = 7
-#: The exponents, in exponent form, of the reals typed without an ``E`` that CLICK's Math
-#: saves in positional form: from 1E-04 to below 1E+07.
-_MATH_POSITIONAL = range(-4, 7)
-
-
-def _math_positional(value: float) -> str:
-    printed = f"{value:.{MATH_REAL_DECIMALS}f}".rstrip("0").rstrip(".")
-    return "0" if printed == "-0" else printed
-
-
-def _math_exponent(value: float) -> str:
-    mantissa, exponent = f"{value:.{MATH_REAL_DECIMALS}E}".split("E")
-    return f"{mantissa.rstrip('0').rstrip('.')}E{exponent}"
-
-
-def _math_saves(text: str) -> list[str]:
-    """Return the texts that CLICK's Math may save for the real constant ``text``.
-
-    The list holds one text when CLICK's form for ``text`` is known, and two when it is not.
-    """
-    value = float(text)
-    exponent = int(f"{value:.{MATH_REAL_DECIMALS}E}".split("E")[1])
-    plain = _math_positional(value) if exponent in _MATH_POSITIONAL else _math_exponent(value)
-    general = f"{value:.{MATH_REAL_DIGITS}G}"
-    if "E" in text:
-        return [general]
-    if "e" in text:
-        # CLICK's form for a real typed with a lowercase e is not known.
-        return [plain, general]
-    return [plain]
-
-
-def math_real_kept(text: str) -> tuple[str | None, str] | None:
-    """Return what CLICK's Math saves for the real constant ``text``, and the text to write
-    instead, when CLICK may save it as a different value.  Return None when CLICK keeps its
-    value.
-
-    CLICK's Math saves a real in a form that depends on how it is typed.
-
-    - Typed without an ``E``, it keeps 6 digits after the point and cuts trailing zeros.  It
-      is saved in positional form from 1E-04 to below 1E+07 (``0.33333334`` as ``0.333333``,
-      ``0.00012345`` as ``0.000123``, ``1234567.0`` as ``1234567``), and in exponent form
-      otherwise (``0.000012345678`` as ``1.234568E-05``, ``12345678.9`` as
-      ``1.234568E+07``).
-    - Typed with an ``E``, it keeps 7 significant digits.  It is saved in positional form
-      from 1E-04 to below 1E+07 (``1.2345E-04`` as ``0.00012345``, ``1E5`` as ``100000``),
-      and in exponent form otherwise (``1.2345678E+15`` as ``1.234568E+15``, ``3.0E+38`` as
-      ``3E+38``).
-
-    The form of a real typed with a lowercase ``e`` is not known.  Such a real is taken only
-    when both forms keep its value.
-
-    The first item is the text that CLICK saves, or None when it is not known.  The second
-    is a text that CLICK saves as it is typed.  It holds the same value as ``text`` when such
-    a text exists (``1.2345E-04`` for ``1.2345e-04``), and else the value that CLICK saves.
-    ``text`` must be a real that :func:`classify` reads: finite and within float32.
-    """
-    value = float(text)
-    saves = _math_saves(text)
-    if all(float(s) == value for s in saves):
-        return None
-    saved = saves[0] if len(saves) == 1 else None
-    kept = [
-        c
-        for c in (*saves, _math_exponent(value))
-        if all(float(s) == float(c) for s in _math_saves(c))
-    ]
-    same = [c for c in kept if float(c) == value]
-    return saved, (same or kept or [_math_exponent(value)])[0]
-
-
-def math_real_stored(text: str) -> str:
-    """Return the text that a Math stores for the real constant ``text``.
-
-    ``text`` must be a real that CLICK's Math keeps, one that :func:`math_real_kept` returns
-    None for.
-
-    The text is the one CLICK saves: ``1.50`` is ``1.5``, ``0.000015`` is ``1.5E-05``,
-    ``20000000.0`` is ``2E+07``, ``1234.000001`` stays, and a typed ``+`` stays.  CLICK
-    stores an integral real typed with an ``E``, and ``1234567.0``, as an integer (``1E5``
-    as ``W100000``).  For a real whose saved text is an integer, laddercodec writes the
-    text of :func:`real_display` (``100000.0``).
-    """
-    saved = _math_saves(text)[0]
-    if "." not in saved and "E" not in saved:
-        return real_display(text)
-    return f"+{saved}" if text.startswith("+") else saved
-
-
-def math_real_typing(text: str) -> str | None:
-    """Return a text for the real constant ``text`` that CLICK's Math saves as the same
-    value, or None when there is none.
-
-    The text is ``text`` itself when CLICK keeps it as typed.  Otherwise it is a form with
-    an ``E`` that holds the same value: ``0.00012345``, which CLICK saves as ``0.000123``
-    when it is typed so, is ``1.2345E-04``.  A typed ``+`` stays.  ``text`` must be a real
-    that :func:`classify` reads: finite and within float32.
-    """
-    found = math_real_kept(text)
-    if found is None:
-        return text
-    write = found[1]
-    if float(write) != float(text):
-        return None
-    return f"+{write}" if text.startswith("+") else write
 
 
 def real_display(text: str) -> str:
     """Return the text that laddercodec writes for the real constant ``text`` in a Copy
-    source, and for an integral real in a Math (:func:`math_real_stored`).
+    source.
 
     The text is the real's value printed back, and a typed ``+`` stays.  CLICK stores a real
     in a Copy source the way it prints the real back: ``1.50`` is ``1.5``, ``.5`` is
@@ -382,7 +271,8 @@ def constant_text(value: int | float | str, *, hex: bool = False) -> str:
 
     A single Copy accepts the text for a real of at most 7 significant digits.  CLICK keeps
     7 digits in a Copy, and saves a real with more digits cut to 7.  A Math accepts the
-    text for a real that CLICK's Math saves as the same value (:func:`math_real_kept`).  A
+    text for a real that CLICK's Math saves as the same value
+    (:attr:`~laddercodec.operands.math_real.MathReal.kept`).  A
     Math or a Copy refuses any other real, and its message names the constant to write.
     The largest float32 value is ``3.402823466E+38``.  Write it as ``3.402823E+38`` in a
     Math and in a Copy.
