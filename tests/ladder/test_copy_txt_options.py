@@ -252,6 +252,26 @@ def test_a_txt_register_into_txt_takes_a_termination_code(
     assert Copy.from_csv_token(copy.to_csv()) == copy
 
 
+@pytest.mark.parametrize(
+    ("token", "conv", "end"),
+    [
+        # CLICK saves each of these with 0x1221 -1, 0x3216 13 and 0x1201 -1.
+        ('copy("AB",TXT1,termination_code=$0D)', "0", "TXT2"),
+        ("copy(5,TXT1,convert=to_text(suppress_zero=1,termination_code=$0D))", "1", ""),
+        ("copy(1.5,TXT1,convert=to_text(exponential=0,termination_code=$0D))", "3", "TXT3"),
+        # The code adds no TXT to the end.
+        ('copy("AB",TXT998,termination_code=$0D)', "0", "TXT999"),
+    ],
+)
+def test_a_constant_into_txt_takes_a_termination_code(token: str, conv: str, end: str) -> None:
+    copy = Copy.from_csv_token(token)
+    written = _tags(copy.build_blob())
+    assert (written[0x1221], written[0x3216], written[0x1201]) == ("-1", "13", "-1")
+    assert (written[0x2227], written[0x6077]) == (conv, end)
+    assert copy.to_csv() == token
+    assert parse_af_blob(copy.build_blob()) == copy
+
+
 @pytest.mark.parametrize("code", ["none", "0"])
 def test_no_termination_code_writes_none(code: str) -> None:
     copy = Copy.from_csv_token(f"copy(TXT1,TXT21,termination_code={code})")
@@ -263,8 +283,10 @@ def test_no_termination_code_writes_none(code: str) -> None:
 @pytest.mark.parametrize(
     ("source", "destination", "fmt"),
     [
-        ('"AB"', "TXT1", None),  # a constant into TXT, where the dialog greys the box
+        # What CLICK saves for a $hh code or a hex constant with a termination code is not
+        # known.
         ("$41", "TXT1", None),
+        ("FFh", "TXT1", "to_text"),
         ("TXT1", "YD0", "to_value"),  # a TXT register into a number
         ("TXT1", "DS1", "to_ascii"),
         ("TXT1", "DF1", None),

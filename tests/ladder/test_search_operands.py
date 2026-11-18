@@ -31,9 +31,9 @@ def _read_af(tmp_path: Path, af: str) -> object:
 @pytest.mark.parametrize(
     ("expr", "kw", "message"),
     [
-        ("C1..C10 == 1", "result=DS1,found=C20", "Search.table_start: 'C1' is not allowed"),
+        ("C1..C10 == 1", "result=DS1,found=C20", "Search.table_start: 'C1..C10' is not allowed"),
         ("DS1..SD10 == 1", "result=DS1,found=C20", "Search.table_end: 'SD10' is not allowed"),
-        ("XD1..XD3 == 1", "result=DS1,found=C20", "Search.table_start: 'XD1' is not allowed"),
+        ("XD1..XD3 == 1", "result=DS1,found=C20", "Search.table_start: 'XD1..XD3' is not allowed"),
         ("DS1..DS10 == 1", "result=DD1,found=C20", "Search.result: 'DD1' is not allowed"),
         ("DS1..DS10 == 1", "result=C1,found=C20", "Search.result: 'C1' is not allowed"),
         ("DS1..DS10 == X001", "result=DS20,found=C20", "Search.value: 'X001' is not allowed"),
@@ -184,7 +184,7 @@ def test_source_one_digit_code_kept_as_typed(tmp_path: Path, source: str) -> Non
 @pytest.mark.parametrize(
     ("fields", "refused"),
     [
-        ({0x6066: "C1", 0x6067: "C10"}, ["table_start", "table_end"]),  # a bit table
+        ({0x6066: "C1", 0x6067: "C10"}, ["table_start"]),  # a bit table, one refusal
         ({0x607A: "Y001"}, ["found"]),  # the Result Flag is a C bit
         ({0x6066: "DS10", 0x6067: "DS1"}, ["table_end"]),  # backwards
         (

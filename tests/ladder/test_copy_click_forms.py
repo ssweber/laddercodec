@@ -480,7 +480,7 @@ def test_a_real_beyond_seven_significant_digits_is_refused(
         ("0.0001234567", "0.0001234567"),  # nor is a leading zero
         ("1234567.0", "1234567.0"),
         ("1.234567E+20", "1.234567E+20"),
-        ("100000000.0", "100000000.0"),
+        ("100000000.0", "1E+08"),  # from 1E+07 up, a real is stored in exponent form
         ("3.402823E+38", "3.402823E+38"),
     ],
 )

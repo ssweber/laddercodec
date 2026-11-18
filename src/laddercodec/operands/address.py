@@ -196,21 +196,53 @@ def normalize_address(value: str, field: str | None = None) -> str:
     Inside :func:`display_form_only`, an address that is not in display form raises
     :class:`FieldError` naming ``field``.
     """
-    pointer = _LOOSE_POINTER_RE.fullmatch(value)
+    pointer = _loose_pointer(value)
     if pointer is not None:
-        bank = pointer.group(1).upper()
-        if bank in ADDRESS_BANKS:
-            index = normalize_address(pointer.group(2), field)
-            return to_display(value, f"{bank}[{index}]", field)
-        return value
+        bank, index = pointer
+        return to_display(value, f"{bank}[{normalize_address(index, field)}]", field)
+    display = _loose_display(value)
+    return value if display is None else to_display(value, display, field)
+
+
+#: How many texts each address cache below holds. A program names a few thousand addresses.
+_CACHE_SIZE = 8192
+
+
+@functools.lru_cache(maxsize=_CACHE_SIZE)
+def _loose_pointer(value: str) -> tuple[str, str] | None:
+    """Return the bank in uppercase and the index as typed of a pointer in any letter case.
+
+    Return None if ``value`` is not a pointer into a bank of :data:`ADDRESS_BANKS`.
+    """
+    match = _LOOSE_POINTER_RE.fullmatch(value)
+    if match is None or match.group(1).upper() not in ADDRESS_BANKS:
+        return None
+    return match.group(1).upper(), match.group(2)
+
+
+@functools.lru_cache(maxsize=_CACHE_SIZE)
+def _loose_display(value: str) -> str | None:
+    """Return the display form of an address typed in any letter case, or None.
+
+    None means that ``value`` is not an address in a bank of :data:`ADDRESS_BANKS`.
+    """
     match = _LOOSE_ADDRESS_RE.fullmatch(value)
+    if match is None or match.group(1).upper() not in ADDRESS_BANKS:
+        return None
+    return Address(match.group(1).upper(), int(match.group(2)), match.group(3) != "").display
+
+
+@functools.lru_cache(maxsize=_CACHE_SIZE)
+def _address_parts(value: str) -> tuple[str, str, bool] | None:
+    """Return the bank, the digits and the ``u`` of an address in CLICK's uppercase form.
+
+    Return None for other text. The bank need not be one of :data:`ADDRESS_BANKS`, and the
+    number need not be in its range.
+    """
+    match = _ADDRESS_RE.fullmatch(value)
     if match is None:
-        return value
-    bank = match.group(1).upper()
-    if bank not in ADDRESS_BANKS:
-        return value
-    address = Address(bank, int(match.group(2)), match.group(3) != "")
-    return to_display(value, address.display, field)
+        return None
+    return match.group(1), match.group(2), match.group(3) == "u"
 
 
 def _bank_range_text(bank: str) -> str:
@@ -282,10 +314,10 @@ def parse_address(text: str) -> Address | None:
     ``YD0u`` are addresses here. :func:`check_address` refuses them when it is given no
     banks.
     """
-    match = _ADDRESS_RE.fullmatch(text)
-    if match is None:
+    parts = _address_parts(text)
+    if parts is None:
         return None
-    bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
+    bank, digits, upper = parts
     if bank not in ADDRESS_BANKS or not _in_range(bank, digits, upper):
         return None
     return Address(bank, int(digits), upper)
@@ -381,15 +413,15 @@ def check_address(
             reason=Reason.MISSING,
             code=Code.BLANK_FIELD,
         )
-    match = _ADDRESS_RE.fullmatch(value)
-    if match is None:
+    parts = _address_parts(value)
+    if parts is None:
         raise AddressError(
             f"{name}: {value!r} is not a CLICK address",
             field=field,
             reason=Reason.ADDRESS,
             code=Code.NOT_AN_ADDRESS,
         )
-    bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
+    bank, digits, upper = parts
     if bank not in ADDRESS_BANKS:
         raise AddressError(
             f"{name}: {value!r} has no CLICK bank {bank!r}; banks are {', '.join(ADDRESS_BANKS)}",
@@ -467,9 +499,11 @@ def _text_fields(inst: object) -> dict[str, Any]:
 def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> str:
     """Return ``message`` with the typed text beside each display form that it quotes.
 
-    For example, ``'X000'`` becomes ``'x0' (X000)``.  If two fields reached the same
-    display form from different text, such as ``C1`` and ``C001``, leave that form as it
-    is, because the message does not say which field it quotes.
+    For example, ``'X000'`` becomes ``'x0' (X000)``.  A quoted range of two display forms
+    gets the typed text of both ends: ``'X001..X002'`` becomes ``'x1..x2' (X001..X002)``.
+    If two fields reached the same display form from different text, such as ``C1`` and
+    ``C001``, leave that form as it is, because the message does not say which field it
+    quotes.
     """
     typed: dict[str, set[str]] = {}
     for name, old in before.items():
@@ -480,6 +514,14 @@ def _typed_text(message: str, before: dict[str, Any], after: dict[str, Any]) -> 
         for o, n in zip(olds, news, strict=True):
             if isinstance(n, str) and normalize_address(o) == n:
                 typed.setdefault(n, set()).add(o)
+    single = {display: next(iter(texts)) for display, texts in typed.items() if len(texts) == 1}
+    for first, first_text in single.items():
+        for last, last_text in single.items():
+            shown = f"{first}..{last}"
+            if (first_text, last_text) != (first, last) and repr(shown) in message:
+                message = message.replace(
+                    repr(shown), f"{f'{first_text}..{last_text}'!r} ({shown})"
+                )
     for display, texts in typed.items():
         if len(texts) == 1 and (text := next(iter(texts))) != display:
             message = message.replace(repr(display), f"{text!r} ({display})")

@@ -87,7 +87,7 @@ _REFUSED = [
     ("fill(TXT1,DS1..DS4)", "can't take 'TXT1'; a TXT register copies to TXT"),
     ("fill(DS1,TXT1..TXT4)", "can't take 'DS1'; a numeric register copies to"),
     ('fill("A",DS1..DS4)', "can't take '\"A\"'; a text constant copies to TXT"),
-    ("fill(5,C1..C4)", "Fill.dest_start: 'C1' is not allowed"),
+    ("fill(5,C1..C4)", "Fill.dest_start: 'C1..C4' is not allowed"),
     ("fill(0,DS1..DD5)", "Fill.dest_end: 'DD5' is not in the bank"),
     ("fill(DS[DS1],DS2..DS5)", "is a pointer; only a single Copy"),
     # Pack and Unpack keep a range in one slot (OBJ-033/035/1009) and limit its size
@@ -129,13 +129,13 @@ _REFUSED = [
     ("copy(10000h,TXT1)", "a hex constant above FFFFh copies to DD, CTD"),
     # Block Copy banks. Some banks are refused as a source or a destination (OBJ-004), and
     # each source bank copies only to certain destination banks.
-    ("blockcopy(DS1..DS3,YD1..YD3)", "BlockCopy.dest_start: 'YD1' is not allowed"),
-    ("blockcopy(DS1..DS2,YD0..YD0u)", "BlockCopy.dest_start: 'YD0' is not allowed"),
-    ("blockcopy(TD1..TD3,DS1..DS3)", "BlockCopy.source_start: 'TD1' is not allowed"),
-    ("blockcopy(CTD1..CTD3,DS1..DS3)", "BlockCopy.source_start: 'CTD1' is not allowed"),
-    ("blockcopy(YD1..YD3,DS1..DS3)", "BlockCopy.source_start: 'YD1' is not allowed"),
-    ("blockcopy(XD0..XD0u,DS1..DS2)", "BlockCopy.source_start: 'XD0' is not allowed"),
-    ("blockcopy(DS1..DS3,T1..T3)", "BlockCopy.dest_start: 'T1' is not allowed"),
+    ("blockcopy(DS1..DS3,YD1..YD3)", "BlockCopy.dest_start: 'YD1..YD3' is not allowed"),
+    ("blockcopy(DS1..DS2,YD0..YD0u)", "BlockCopy.dest_start: 'YD0..YD0u' is not allowed"),
+    ("blockcopy(TD1..TD3,DS1..DS3)", "BlockCopy.source_start: 'TD1..TD3' is not allowed"),
+    ("blockcopy(CTD1..CTD3,DS1..DS3)", "BlockCopy.source_start: 'CTD1..CTD3' is not allowed"),
+    ("blockcopy(YD1..YD3,DS1..DS3)", "BlockCopy.source_start: 'YD1..YD3' is not allowed"),
+    ("blockcopy(XD0..XD0u,DS1..DS2)", "BlockCopy.source_start: 'XD0..XD0u' is not allowed"),
+    ("blockcopy(DS1..DS3,T1..T3)", "BlockCopy.dest_start: 'T1..T3' is not allowed"),
     ("blockcopy(TXT1..TXT3,DF1..DF3)", "a block copy from TXT goes to DS, DD, DH, TXT"),
     ("blockcopy(TXT1..TXT3,TD1..TD3)", "a block copy from TXT goes to DS, DD, DH, TXT"),
     ("blockcopy(C1..C3,DS1..DS3)", "a block copy from C goes to Y, C"),
@@ -169,15 +169,15 @@ _REFUSED = [
     ("pack_text(TXT1..TXT4,SD1)", "Pack.dest: 'SD1' is not allowed"),
     ("pack_text(TXT1..TXT4,YD0u)", "Pack.dest: 'YD0u' is not allowed"),
     ("pack_bits(C1..C16,YD0u)", "Pack.dest: 'YD0u' is not allowed"),
-    ("pack_words(DD1..DD2,DF1)", "Pack.source_start: 'DD1' is not allowed"),
-    ("pack_words(XD0..XD1,DD1)", "Pack.source_start: 'XD0' is not allowed"),
+    ("pack_words(DD1..DD2,DF1)", "Pack.source_start: 'DD1..DD2' is not allowed"),
+    ("pack_words(XD0..XD1,DD1)", "Pack.source_start: 'XD0..XD1' is not allowed"),
     ("pack_bits(C1..C1,DS1)", r"C1\.\.C1 is one address"),
     ("pack_bits(C5..C1,DS1)", r"C5\.\.C1 runs backwards"),
     # Unpack pairs. Only DH unpacks to Y. DS unpacks to C only. Nothing unpacks to DF.
-    ("unpack_to_bits(DS5,Y001..Y016)", "an unpack from DS goes to C"),
-    ("unpack_to_bits(DD5,Y001..Y016)", "an unpack from DD goes to C, DS, DH"),
-    ("unpack_to_words(DD1,DF1..DF2)", "Unpack.dest_start: 'DF1' is not allowed"),
-    ("unpack_to_words(DD1,YD0..YD0u)", "Unpack.dest_start: 'YD0' is not allowed"),
+    ("unpack_to_bits(DS5,Y001..Y016)", "an unpack to bits from DS goes to C "),
+    ("unpack_to_bits(DD5,Y001..Y016)", "an unpack to bits from DD goes to C "),
+    ("unpack_to_words(DD1,DF1..DF2)", "Unpack.dest_start: 'DF1..DF2' is not allowed"),
+    ("unpack_to_words(DD1,YD0..YD0u)", "Unpack.dest_start: 'YD0..YD0u' is not allowed"),
     ("unpack_to_bits(TXT1,C1..C16)", "Unpack.source: 'TXT1' is not allowed"),
     ("unpack_to_bits(XD0u,C1..C16)", "Unpack.source: 'XD0u' is not allowed"),
     ("unpack_to_bits(DS1,C1..C1)", r"C1\.\.C1 is one address"),
@@ -665,18 +665,24 @@ def test_copy_csv_paths_agree(tmp_path: Path) -> None:
     assert copy.to_csv() == token
 
 
-def test_termination_code_needs_a_number_register_copied_to_text() -> None:
-    """CLICK v4's dialog offers Termination Code for a number register copied to text and for
-    a TXT register copied to TXT. It greys the option out for a constant copied to TXT."""
+def test_termination_code_needs_a_copy_into_txt() -> None:
+    """A termination code needs a copy into TXT: of a number register copied to text, of a
+    TXT register, of a decimal integer or real constant copied to text, or of quoted text."""
     Copy("DS1", "TXT1", convert="to_text", termination_code="$0D")
     Copy("DS1", "TXT1", convert="to_binary", termination_code="$0D")
     Copy("TXT1", "TXT2", termination_code="$0D")
+    Copy("5", "TXT1", convert="to_text", termination_code="$0D")
+    Copy("1.5", "TXT1", convert="to_text", termination_code="$0D")
+    Copy('"AB"', "TXT1", termination_code="$0D")
     for source, destination, fmt in [
         ("DS1", "DD1", None),
         ("TXT1", "DF1", None),
         ("TXT1", "DS1", "to_value"),
-        ("5", "TXT1", "to_text"),
         ("DD1", "DF1", "to_binary"),
+        ("5", "TXT1", "to_binary"),
+        # What CLICK saves for these with a termination code is not known.
+        ("FFh", "TXT1", "to_text"),
+        ("$41", "TXT1", None),
     ]:
         with pytest.raises(FieldError, match=r"Copy.termination_code: '\$0D'"):
             Copy(source, destination, convert=fmt, termination_code="$0D")
@@ -758,7 +764,7 @@ def test_pack_kind_decodes_from_the_bank(instruction: Pack | Unpack) -> None:
         (
             {0x6074: "DS1", 0x6075: "DS3", 0x6076: "YD1", 0x6077: "YD3", 0x2223: "1"},  # YD dest
             BlockCopy,
-            ["dest_start", "dest_end"],
+            ["dest_start"],  # one refusal of the range
         ),
         (
             # the destination end is not where the copy ends

@@ -148,11 +148,8 @@ def _counter(**kw: Any) -> Counter:
         ),
         (
             lambda: _search(table_start="C1", table_end="C2", op="~"),
-            [
-                ("Search.op", Reason.CHOICE),
-                ("Search.table_start", Reason.BANK),
-                ("Search.table_end", Reason.BANK),
-            ],
+            # Both ends of the table are refused for the same reason: one refusal.
+            [("Search.op", Reason.CHOICE), ("Search.table_start", Reason.BANK)],
         ),
     ],
 )

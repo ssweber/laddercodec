@@ -826,11 +826,11 @@ currently emit:
     registers)
   - a Math result is DS, DD, DF, TD, CTD or SD in decimal mode, and DH or YD in hex
     mode
-- A single `copy` destination, every address a `blockcopy` fills and a decimal
-  `math` result accept only the SD registers a program writes: SD29, SD31, SD32,
-  SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114,
+- A single `copy` destination, every address a `blockcopy` or `fill` fills and a
+  decimal `math` result accept only the SD registers a program writes: SD29, SD31,
+  SD32, SD34-SD36, SD40-SD42, SD50, SD51, SD60, SD61, SD106-SD108, SD112-SD114,
   SD140-SD147, SD214 and SD215. Any other SD raises `AddressError`
-  (`copy(DS1,SD43)`, `blockcopy(DS1..DS2,SD42..SD43)`).
+  (`copy(DS1,SD43)`, `blockcopy(DS1..DS2,SD42..SD43)`, `fill(5,SD29..SD38)`).
 - Block Copy, Pack and Unpack pair banks as CLICK's dialog does:
   - `blockcopy`: bits go to Y or C; DS, DD, DH, DF and SD to DS, DD, DH, DF,
     TD, CTD or SD; TXT to DS, DD, DH or TXT. The destination end is the start
@@ -840,7 +840,9 @@ currently emit:
   - `pack_*`: X, Y, T, CT and SC bits pack into DH; C bits into DS, DD, DH or
     DF; DS words into DD or DF; DH words into DD; TXT into DS, DD, DH, DF, TD
     or CTD, and at most 4 characters into DH (`pack_text(TXT1..TXT4,DH1)`).
-  - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C.
+  - `unpack_to_*`: DS unpacks to C; DD and DF to C, DS or DH; DH to Y or C. An
+    `unpack_to_bits` goes to the bit banks of that list (Y, C), and an
+    `unpack_to_words` to its registers (DS, DH).
 - Constants:
   - A single `copy` takes a 32-bit integer constant. A hex constant above `FFFFh`
     copies only to DD or CTD.
@@ -860,7 +862,9 @@ currently emit:
     `math(1.2345E-04,DF1,mode=decimal)`, and the encoded rung holds
     `0.00012345`. In a `copy`, a real is printed with 7 significant digits. One
     that 7 digits would print in exponent form (from `1E+07` up and below
-    `1E-04`, such as `1.5E+10`) is kept as typed;
+    `1E-04`, such as `1.5E+10`) is kept as typed, except a real typed without an
+    `E` from `1E+07` up. That one is written in exponent form, so `10000000000.0`
+    is `1E+10`;
   - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), as CLICK's Copy
     stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
     zeros aside. It saves a real typed with more cut to 7 (`3.4028235E+38` as
@@ -1050,6 +1054,11 @@ currently emit:
 - A TXT register or pointer copied to TXT takes a termination code with no converter:
   `copy(TXT1,TXT21,termination_code=$0D)`, and for a range
   `blockcopy(TXT1..TXT2,TXT11..TXT12,termination_code=$0D)`.
+  - Quoted text copied to TXT takes one the same way: `copy("AB",TXT1,termination_code=$0D)`.
+    A decimal integer or a real copied to TXT takes one inside `to_text(...)`:
+    `copy(5,TXT1,convert=to_text(suppress_zero=1,termination_code=$0D))`. The code adds
+    no TXT register to the end that the constant fills. A hex constant or a `$hh` code
+    with a code raises `FieldError`.
   - `none`, `0` or no keyword means no code, and any copy takes that.
   - A code for any other copy raises `FieldError`. So does a code beside a
     `convert=` kwarg. Inside `to_binary(...)` or `to_text(...)`, it is the converter's

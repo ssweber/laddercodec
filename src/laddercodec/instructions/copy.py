@@ -10,15 +10,20 @@ All five variants share the same binary class, discriminated by field[6]:
 - ``3`` → pack (``Pack``)
 - ``4`` → unpack (``Unpack``)
 
-The fixture ``tests/fixtures/coverage/golden/copy__to_text_term.csv`` holds a copy to text
-with the termination checkbox ticked. For that copy, CLICK's dialog greys out the termination
-value. The blob still stores the flag and the character code as usual.
+A single Copy into TXT accepts a termination code when its source is a number register, a
+TXT register, a decimal integer or real constant, or quoted text. The blob stores the flag
+(tag 0x1221) and the character code (tag 0x3216) for each of them. The code adds no TXT to
+the end that a constant fills. What CLICK saves for a hex constant or a ``$hh`` code
+with a termination code is not known, so a single Copy refuses them.
+The fixture ``tests/fixtures/coverage/golden/copy__to_text_term.csv`` holds a copy of a
+register to text with the box ticked. For that copy, CLICK's dialog greys out the
+termination value.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast, get_args
 
@@ -287,8 +292,9 @@ def _source_display(source: str, kind: Kind) -> str:
       a lowercase ``h``. ``0ffh`` becomes ``0FFh``.
     - A real of at most 7 significant digits is printed back without a typed ``+``.
       ``1.50`` becomes ``1.5``, ``+1.5`` becomes ``1.5`` and ``1E5`` becomes
-      ``100000.0``. See :func:`~laddercodec.operands.constants.copy_real_display`. The
-      caller refuses a real with more digits before it calls this function.
+      ``100000.0``, and ``10000000000.0`` becomes ``1E+10``. See
+      :func:`~laddercodec.operands.constants.copy_real_display`. The caller refuses a real
+      with more digits before it calls this function.
     - Text and a character code are returned unchanged.
     """
     if kind is Kind.INTEGER:
@@ -470,6 +476,95 @@ def _range_end(
     return address
 
 
+def _end_or_refusal(
+    value: str, field: str, banks: Collection[str] | None, bank_id: str | None
+) -> Address | FieldError:
+    """Return the address of one end of a range, or the error that refuses it. The caller
+    decides how to keep the error."""
+    try:
+        return _range_end(value, field, banks, bank_id)
+    except FieldError as exc:
+        return exc
+
+
+# The codes of the end refusals that ``_range_refusal`` merges into one refusal of the range.
+_MERGED_CODES = frozenset({Code.BANK_NOT_ALLOWED, Code.ADDRESS_OUT_OF_RANGE})
+
+
+def _range_refusal(start: str, end: str, first: FieldError, last: FieldError) -> FieldError | None:
+    """Return one error that refuses the range ``start..end``, when its two ends are refused
+    for the same reason by the bank rule or the out-of-range rule. Return None when they
+    are not.
+
+    ``first`` refuses ``start`` and ``last`` refuses ``end``. The two are refused for the
+    same reason when they have the same class, code, reason and CLICK id, and their
+    messages are the same apart from the field and the quoted value. The error names both
+    fields, and its message quotes the range once, as ``'C1..C2'``, or as ``'C1'`` when
+    the start and the end are the same text.
+
+    Two ends that are pointers, are not addresses or name no CLICK bank stay two
+    refusals. A message such as ``'5..6' is not a CLICK address`` would read as if the
+    range were one value.
+    """
+    same = (type(first), first.code, first.reason, first.click_id) == (
+        type(last), last.code, last.reason, last.click_id,
+    )  # fmt: skip
+    if not same or first.code not in _MERGED_CODES or first.field is None or last.field is None:
+        return None
+    first_text, last_text = str(first), str(last)
+    start_text, end_text = repr(start), repr(end)
+    if first_text.count(start_text) != 1 or last_text.count(end_text) != 1:
+        return None
+    first_rule = first_text.replace(first.field, "\0").replace(start_text, "\1")
+    if first_rule != last_text.replace(last.field, "\0").replace(end_text, "\1"):
+        return None
+    span = start if start == end else f"{start}..{end}"
+    return type(first)(
+        first_text.replace(start_text, repr(span)),
+        field=(first.field, last.field),
+        reason=first.reason,
+        code=first.code,
+        click_id=first.click_id,
+    )
+
+
+def check_range_ends(
+    check: Refusals,
+    start_attr: str,
+    start: str,
+    end_attr: str,
+    end: str,
+    banks: Collection[str] | None = None,
+    bank_id: str | None = None,
+    *,
+    between: Callable[[Address], object] | None = None,
+) -> tuple[Address | None, Address | None]:
+    """Check each end of the range ``start..end`` on its own through ``check``, and return
+    both ends. An end that is refused is returned as None.
+
+    If the bank rule or the out-of-range rule refuses both ends for the same reason,
+    ``check`` keeps one refusal of the range (:func:`_range_refusal`). ``fill(1,C1..C2)``
+    is refused once, as ``'C1..C2' is not allowed``. Otherwise ``check`` keeps the refusal of each end.
+
+    ``between`` runs with the start's address when the start is accepted, before the end
+    is checked. Its refusals then come before a refusal of the end. Neither end may be a
+    pointer. ``bank_id`` is CLICK's id for an end in a bank outside ``banks``.
+    """
+    found = check(start_attr, _end_or_refusal, banks, bank_id)
+    if isinstance(found, FieldError):
+        last = check(end_attr, _end_or_refusal, banks, bank_id)
+        if isinstance(last, FieldError):
+            merged = _range_refusal(start, end, found, last)
+            for error in (found, last) if merged is None else (merged,):
+                check.add(error)
+            return None, None
+        check.add(found)
+        return None, last
+    if found is not None and between is not None:
+        between(found)
+    return found, check(end_attr, _range_end, banks, bank_id)
+
+
 def _check_relation(
     cls: str,
     start_field: str,
@@ -576,15 +671,16 @@ def _check_range(
     ids: bool = True,
 ) -> tuple[Address | None, Address | None]:
     """Do the checks of :func:`check_range` through ``check`` and keep every refusal. Check
-    each end on its own, and then the two ends together.
+    each end on its own, and then the two ends together. Two ends that the bank rule
+    or the out-of-range rule refuses for the same reason are one refusal
+    (:func:`check_range_ends`).
 
     Return both ends, with None for an end that was refused. The ends are returned even
     when the check of the two together refused them. That refusal names the end's field
     first.
     """
     cls = check.field(start_attr).partition(".")[0]
-    first = check(start_attr, _range_end, banks, bank_id)
-    last = check(end_attr, _range_end, banks, bank_id)
+    first, last = check_range_ends(check, start_attr, start, end_attr, end, banks, bank_id)
     if first is not None and last is not None:
         check.run(
             _check_relation, cls, start_attr, start, end_attr, end, first, last,
@@ -1011,6 +1107,12 @@ def _source_row(rows: _Rows, source_bank: str) -> frozenset[str]:
     return next(dst for src, dst in rows if source_bank in src)
 
 
+def _of_kind(kind: str, banks: frozenset[str]) -> frozenset[str]:
+    """Return the banks of ``banks`` that an Unpack of ``kind`` writes: the bit banks for
+    ``"bits"`` and the registers for ``"words"``."""
+    return banks & BIT_BANKS if kind == "bits" else banks - BIT_BANKS
+
+
 def _check_row(
     cls: str,
     rows: _Rows,
@@ -1020,17 +1122,33 @@ def _check_row(
     dest_field: str,
     destination: str,
     dest_bank: str,
+    kind: str | None = None,
 ) -> None:
     """Refuse ``dest_bank`` if the pairing row of ``source_bank`` leaves it out. The refusal
-    names the destination field first and the source field second."""
+    names the destination field first and the source field second.
+
+    ``kind`` is the kind of an Unpack, ``"bits"`` or ``"words"``, or None when it is not
+    known. Whatever the kind, the row decides which banks are refused. The message names
+    only the banks of the row that suit the kind: the bit banks for bits, the registers for
+    words. ``unpack_to_bits`` from DD goes to C, and ``unpack_to_words`` from DD goes to DS
+    and DH.
+    """
     allowed = _source_row(rows, source_bank)
     if dest_bank not in allowed:
         what = {"BlockCopy": "a block copy", "Pack": "a pack", "Unpack": "an unpack"}[cls]
+        if kind is None:
+            rule = f"{what} from {source_bank} goes to {_bank_list(allowed)}"
+        else:
+            banks = _of_kind(kind, allowed)
+            if banks:
+                rule = f"{what} to {kind} from {source_bank} goes to {_bank_list(banks)}"
+            else:
+                sources = _sources(tuple(row for row in rows if _of_kind(kind, row[1])))
+                rule = f"{what} to {kind} takes its source from {_bank_list(sources)}"
         raise _refusal(
             cls,
             (dest_field, source_field),
-            f"{destination!r} can't take {source!r}; "
-            f"{what} from {source_bank} goes to {_bank_list(allowed)}",
+            f"{destination!r} can't take {source!r}; {rule}",
             Reason.CONFLICT,
             _UNPACK_Y_ID if cls == "Unpack" and dest_bank == "Y" else _ROW_IDS[cls],
             code=Code.COPY_BANK_INCOMPATIBLE,
@@ -1068,6 +1186,30 @@ def _check_sd_range(dest: Address, end: int, source: tuple[str, str]) -> None:
         f"register; the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
         Reason.NOT_WRITABLE,
         click_id,
+        code=Code.NOT_WRITABLE,
+    )
+
+
+def _check_fill_sd(first: Address, last: Address) -> None:
+    """Refuse a Fill into an SD range that holds an SD register that is not writable.
+
+    CLICK checks every SD from ``first`` to ``last`` and refuses the range with OBJ-004,
+    whichever SD in the range is read-only: SD140..SD147 is accepted, and SD140..SD149,
+    SD29..SD38 and SD1..SD2 are refused. The refusal names both ends of the range.
+    """
+    if first.bank != "SD" or last.bank != "SD":
+        return
+    unwritable = [n for n in range(first.number, last.number + 1) if n not in WRITABLE_SD]
+    if not unwritable:
+        return
+    span = f"{first.display}..{last.display}"
+    raise _refusal(
+        "Fill",
+        ("dest_start", "dest_end"),
+        f"{span!r} holds SD{unwritable[0]}, which is not a writable SD register; "
+        f"the writable SD are {', '.join(f'SD{n}' for n in sorted(WRITABLE_SD))}",
+        Reason.NOT_WRITABLE,
+        "OBJ-004",
         code=Code.NOT_WRITABLE,
     )
 
@@ -1262,8 +1404,10 @@ class Copy(AfInstruction):
         ``False`` for real numbering and ``True`` for exponential. Any other source has no
         such option and refuses ``True``.
     termination_code:
-        The termination code. Only a number register copied to text (with ``"to_text"`` or
-        ``"to_binary"``) and a TXT register copied to TXT (with ``None``) accept one. The
+        The termination code. Only a copy into TXT accepts one: of a number register (with
+        ``"to_text"`` or ``"to_binary"``), of a decimal integer or a real constant (with
+        ``"to_text"``), and of a TXT register or quoted text (with ``None``). The code adds
+        no TXT to the end that a constant fills. The
         value is ``"0"`` or ``"none"`` for no code, stored as ``"0"``. Otherwise it is a hex
         ASCII code ``"$HH"`` with exactly two digits: ``"$0D"`` is 0x0D, and ``"$D"`` is
         refused. A lowercase code is stored in uppercase (``"$0d"`` as ``"$0D"``).
@@ -1338,21 +1482,34 @@ class Copy(AfInstruction):
             if kind is not None and dst is not None:
                 assert dst.bank is not None
                 self._check_format(check, kind, dst.bank)
+                ckind = None if const is None else const.kind
                 if self.termination_code != "0" and not (
                     (
                         self.convert in ("to_text", "to_binary")
                         and kind == "word"
                         and dst.bank == "TXT"
                     )
-                    or (self.convert is None and kind == "txt" and dst.bank == "TXT")
+                    or (
+                        self.convert == "to_text"
+                        and ckind in (Kind.INTEGER, Kind.FLOAT)
+                        and dst.bank == "TXT"
+                    )
+                    or (
+                        self.convert is None
+                        and (kind == "txt" or ckind is Kind.TEXT)
+                        and dst.bank == "TXT"
+                    )
                 ):
-                    # CLICK's dialog offers Termination Code for a number register copied to
-                    # text and for a TXT register copied to TXT. It greys out the box for a
-                    # constant copied to TXT.
+                    # A copy into TXT takes a termination code: of a number register with
+                    # to_text or to_binary, of a decimal integer or a real constant with
+                    # to_text, and of a TXT register or quoted text with no converter. What
+                    # CLICK saves for a hex constant or a $hh code with a termination code
+                    # is not known, so laddercodec refuses them.
                     check.refuse(
                         ("termination_code", "convert", "source", "dest"),
-                        f"{self.termination_code!r} needs a numeric register copied to TXT "
-                        "with to_text or to_binary, or a TXT register copied to TXT, not "
+                        f"{self.termination_code!r} needs a copy into TXT: of a numeric "
+                        "register with to_text or to_binary, of a decimal integer or a real "
+                        "with to_text, or of a TXT register or quoted text, not "
                         f"{self.source!r} -> {self.dest!r} with convert {self.convert!r}",
                         Reason.CONFLICT,
                         code=Code.OPTION_NOT_OFFERED,
@@ -1899,7 +2056,7 @@ class Fill(AfInstruction):
         with Refusals(self) as check:
             check.normalize("value", "dest_start", "dest_end")
             kind = check("value", _source_kind, REGISTER_BANKS)
-            dest, _ = _check_range(
+            dest, last = _check_range(
                 check, "dest_start", self.dest_start, "dest_end", self.dest_end,
                 _REGISTER_DEST_BANKS, ids=False,
             )  # fmt: skip
@@ -1913,6 +2070,11 @@ class Fill(AfInstruction):
                     # A Fill into TXT takes one character of text.
                     text_max = 1 if dest.bank == "TXT" else TEXT_MAX
                     check("value", check_constant, replace(_CONSTANTS, text_max=text_max))
+            if dest is not None and last is not None and not check.refused("dest_end"):
+                # A Fill into SD needs every SD in its range to be writable (OBJ-004).
+                # CLICK checks this after the pairing of the value with the range. It
+                # refuses TXT1 into SD1..SD2 with OBJ-024.
+                check.run(_check_fill_sd, dest, last)
             check.flag("oneshot")
 
     @property
@@ -2184,15 +2346,20 @@ class Unpack(AfInstruction):
             # range. A pairing refusal then comes before any refusal of the end (OBJ-008,
             # OBJ-009, OBJ-012 or the Y slot). If the start is refused, the end is not
             # checked against it.
-            banks = _destinations(_UNPACK_ROWS)
-            first = check("dest_start", _range_end, banks, "OBJ-004")
-            if src is not None and first is not None:
-                assert src.bank is not None
-                check.run(
-                    _check_row, "Unpack", _UNPACK_ROWS, self.source, "source", src.bank,
-                    "dest_start", self.dest_start, first.bank,
-                )  # fmt: skip
-            last = check("dest_end", _range_end, banks, "OBJ-004")
+            kind = None if check.refused("kind") else short
+
+            def check_pair(first: Address) -> None:
+                if src is not None:
+                    assert src.bank is not None
+                    check.run(
+                        _check_row, "Unpack", _UNPACK_ROWS, self.source, "source", src.bank,
+                        "dest_start", self.dest_start, first.bank, kind,
+                    )  # fmt: skip
+
+            first, last = check_range_ends(
+                check, "dest_start", self.dest_start, "dest_end", self.dest_end,
+                _destinations(_UNPACK_ROWS), "OBJ-004", between=check_pair,
+            )  # fmt: skip
             if first is not None and last is not None:
                 check.run(
                     _check_relation, "Unpack", "dest_start", self.dest_start, "dest_end",
