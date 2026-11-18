@@ -421,6 +421,10 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     its bank.
   - The Math formula's ids (OBJ-1001 to OBJ-1015, as the code sets them) and the result's OBJ-004 are read
     from CLICK's own code. The math grids confirm every one that the rules report.
+- **A unit on an instruction that has none.** An event drum accepts any `unit`, and `to_csv()` and `encode()`
+  drop it. A toggle accepts any falsy `unit`, such as `None` or `0`. Both should refuse a `unit` other than `""`
+  with `OPTION_NOT_OFFERED`. The annotations `TimeUnit | Literal[""]` on `Drum.unit` and
+  `OutVariantUnit | Literal[""]` on `OutVariant.unit` state that contract.
 
 ## 4. Canonical constants (CLICK)
 

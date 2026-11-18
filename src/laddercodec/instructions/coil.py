@@ -30,9 +30,9 @@ if TYPE_CHECKING:
 # Func code tables
 # ---------------------------------------------------------------------------
 
-#: The kind of a coil. Each kind is also the name of the coil's CSV call: ``out(...)``,
-#: ``latch(...)`` or ``reset(...)``.
 CoilKind = Literal["out", "latch", "reset"]
+"""The kind of a coil. Each kind is also the name of the coil's CSV call: ``out(...)``,
+``latch(...)`` or ``reset(...)``."""
 
 COIL_FUNC_CODES: dict[tuple[CoilKind, bool, bool, bool], str] = {
     # (kind, is_range, immediate, oneshot) -> func_code

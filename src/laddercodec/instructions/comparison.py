@@ -27,9 +27,10 @@ from .family import ConditionInstructionFamilySpec
 # ---------------------------------------------------------------------------
 
 CompareOp = Literal["==", "!=", ">", "<", ">=", "<="]
+"""The operator of a compare contact or a Search."""
 
 #: The operator of each compare func code.
-COMPARE_FUNC_CODES: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
+COMPARE_FUNC_CODES: dict[str, CompareOp] = {
     "4103": "==",
     "4104": "!=",
     "4105": ">",
@@ -52,7 +53,7 @@ COMPARE_OP_TO_TYPE_IDX: dict[str, str] = {
 }
 
 #: The operator of each compare type index, for ``from_tags``.
-_TYPE_IDX_TO_OP: dict[str, Literal["==", "!=", ">", "<", ">=", "<="]] = {
+_TYPE_IDX_TO_OP: dict[str, CompareOp] = {
     "0": "==",
     "1": "!=",
     "2": ">",
@@ -139,7 +140,7 @@ class CompareContact(ConditionInstruction):
     and its type marker is 0x2714.
     """
 
-    op: Literal["==", "!=", "<", ">", "<=", ">="]
+    op: CompareOp
     left: str  # left operand, e.g. "DS1"
     right: str  # right operand or literal, e.g. "1", "DS2", "1.1", "FFFFh", '"A"', "$41"
 

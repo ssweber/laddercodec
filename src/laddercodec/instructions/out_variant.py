@@ -36,6 +36,12 @@ if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
 OutVariantKind = Literal["toggle", "debounce", "flasher", "timed"]
+"""The kind of an OutVariant coil. Each kind is also the name of its CSV call."""
+
+OutVariantUnit = Literal["Tms", "Ts", "Tm"]
+"""The time unit of a debounce, flasher or timed coil. A timed coil accepts all three. A
+debounce or flasher coil accepts ``"Tms"`` or ``"Ts"``. A toggle has no unit, and its ``unit``
+is ``""``."""
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -44,7 +50,7 @@ OutVariantKind = Literal["toggle", "debounce", "flasher", "timed"]
 #: The value of tag 0x2248 for each variant.
 _KIND_INDEX: dict[str, str] = {"toggle": "0", "debounce": "1", "flasher": "2", "timed": "3"}
 
-OUT_VARIANT_FUNC_CODES: dict[tuple[OutVariantKind, str, bool], str] = {
+OUT_VARIANT_FUNC_CODES: dict[tuple[OutVariantKind, OutVariantUnit | Literal[""], bool], str] = {
     # (kind, unit, immediate/maintained) -> func_code
     ("toggle", "", False): "8224",
     ("toggle", "", True): "8225",
@@ -60,7 +66,7 @@ OUT_VARIANT_FUNC_CODES: dict[tuple[OutVariantKind, str, bool], str] = {
     ("timed", "Tm", True): "8235",
 }
 
-_FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, str, bool]] = {
+_FUNC_TO_VARIANT: dict[str, tuple[OutVariantKind, OutVariantUnit | Literal[""], bool]] = {
     v: k for k, v in OUT_VARIANT_FUNC_CODES.items()
 }
 
@@ -137,7 +143,7 @@ class OutVariant(AfInstruction):
     on_preset: str = ""  # literal or DS register
     off_acc: str = ""
     off_preset: str = ""
-    unit: str = ""  # "Tms", "Ts", "Tm"; empty for toggle
+    unit: OutVariantUnit | Literal[""] = ""  # blank for a toggle
     immediate: bool = False  # toggle only
     maintained: bool = False  # timed only
 
@@ -305,7 +311,7 @@ class OutVariant(AfInstruction):
             on_preset=kwargs.get("on_preset", ""),
             off_acc=kwargs.get("off_acc", ""),
             off_preset=kwargs.get("off_preset", ""),
-            unit=kwargs["unit"],
+            unit=cast(OutVariantUnit, kwargs["unit"]),  # the OutVariant refuses any other unit
             maintained=maintained,
         )
 

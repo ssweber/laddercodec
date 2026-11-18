@@ -51,6 +51,9 @@ from .raw import _decompose_blob
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
+MathMode = Literal["decimal", "hex"]
+"""The mode of a Math instruction: decimal or hex."""
+
 # ---------------------------------------------------------------------------
 # Func code table
 # ---------------------------------------------------------------------------
@@ -100,7 +103,7 @@ _EMPTY_RESERVED_BYTES = b"".join(
 #: The banks a Math result may be in, for each mode.  CLICK reports OBJ-004 for any other
 #: bank.  A decimal result in SD must be one of ``WRITABLE_SD``, and CLICK reports OBJ-003
 #: for any other SD.
-RESULT_BANKS: dict[str, frozenset[str]] = {
+RESULT_BANKS: dict[MathMode, frozenset[str]] = {
     "decimal": frozenset({"DS", "DD", "DF", "TD", "CTD", "SD"}),
     "hex": frozenset({"DH", "YD"}),
 }
@@ -199,7 +202,7 @@ class Math(AfInstruction):
 
     expression: str
     dest: str
-    mode: Literal["decimal", "hex"] = "decimal"
+    mode: MathMode = "decimal"
     oneshot: bool = False
 
     def __post_init__(self) -> None:
@@ -326,7 +329,7 @@ def from_tags(
     if class_name != "Math" or type_code != _MATH_TYPE_CODE:
         return None
 
-    mode: Literal["decimal", "hex"] = "hex" if tag_flag(tags, 0x11FE) else "decimal"
+    mode: MathMode = "hex" if tag_flag(tags, 0x11FE) else "decimal"
     oneshot = tag_flag(tags, 0x11F8)
 
     # CLICK saves each address in the formula, and the result of a hex Math, as the user
@@ -406,7 +409,7 @@ def parse_af_call(call: AfCall) -> Math:
     expression, dest = call.args
     mode_arg = call.kwargs.get("mode", "decimal")
     if mode_arg == "decimal":
-        mode: Literal["decimal", "hex"] = "decimal"
+        mode: MathMode = "decimal"
     elif mode_arg == "hex":
         mode = "hex"
     else:

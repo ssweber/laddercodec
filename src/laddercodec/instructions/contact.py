@@ -23,9 +23,9 @@ from ..model import (
 from ..operands.checks import BIT_BANKS, Refusals
 from .family import ConditionInstructionFamilySpec
 
-#: A contact's kind.  The CSV tokens of the four kinds are ``X001``, ``~X001``,
-#: ``rise(X001)`` and ``fall(X001)``.
 ContactKind = Literal["no", "nc", "rise", "fall"]
+"""A contact's kind.  The CSV tokens of the four kinds are ``X001``, ``~X001``,
+``rise(X001)`` and ``fall(X001)``."""
 
 # ---------------------------------------------------------------------------
 # Func code and type marker tables

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
@@ -23,13 +23,21 @@ from .family import AfInstructionFamilySpec
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
 
+TimerKind = Literal["on_delay", "off_delay"]
+"""The kind of a timer. Each kind is also the name of its CSV call."""
+
+TimeUnit = Literal["Tms", "Ts", "Tm", "Th", "Td"]
+"""The time unit of a timer or a drum: milliseconds, seconds, minutes, hours or days."""
+
+_TIMER_KINDS: tuple[TimerKind, ...] = get_args(TimerKind)
+
 # ---------------------------------------------------------------------------
 # Func code tables
 # ---------------------------------------------------------------------------
 
 #: The CSV name of each timer unit, by the unit index that tag 0x21F9 stores. The units are
 #: milliseconds, seconds, minutes, hours and days.
-TIMER_UNITS: dict[str, str] = {
+TIMER_UNITS: dict[str, TimeUnit] = {
     "0": "Tms",
     "1": "Ts",
     "2": "Tm",
@@ -38,7 +46,7 @@ TIMER_UNITS: dict[str, str] = {
 }
 
 #: Timer unit name → unit index string.
-TIMER_UNIT_TO_INDEX: dict[str, str] = {v: k for k, v in TIMER_UNITS.items()}
+TIMER_UNIT_TO_INDEX: dict[TimeUnit, str] = {v: k for k, v in TIMER_UNITS.items()}
 
 # ---------------------------------------------------------------------------
 # Tag constants
@@ -64,11 +72,11 @@ class Timer(PinnedInstruction):
     row of the reset input, which ``pin_rows`` gives, so it is at least two rows tall.
     """
 
-    kind: Literal["on_delay", "off_delay"]
+    kind: TimerKind
     done: str  # e.g. "T1"
     accumulator: str  # accumulator register, e.g. "TD1"
     preset: str  # preset value or operand, e.g. "1" or "DS1"
-    unit: str  # "Tms", "Ts", "Tm", "Th", "Td"
+    unit: TimeUnit
     retained: bool = False  # True = retentive (RTON)
     #: The row of the reset input within the box. Rows of OR branches under the
     #: enable input of a retentive timer push the reset input down. A timer without
@@ -79,7 +87,7 @@ class Timer(PinnedInstruction):
     def __post_init__(self) -> None:
         with Refusals(self) as check:
             check.flag("retained")
-            if self.kind not in ("on_delay", "off_delay"):
+            if self.kind not in _TIMER_KINDS:
                 check.refuse(
                     "kind",
                     f"{self.kind!r} is not on_delay or off_delay",
@@ -133,7 +141,7 @@ class Timer(PinnedInstruction):
                 "on_delay(done,accumulator,preset=...,unit=...) or off_delay(...), such as "
                 "on_delay(T1,TD1,preset=1000,unit=Tms)."
             )
-        kind = cast(Literal["on_delay", "off_delay"], m.group(1))
+        kind = cast(TimerKind, m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
@@ -156,7 +164,7 @@ class Timer(PinnedInstruction):
             done=done,
             accumulator=accumulator,
             preset=preset,
-            unit=unit,
+            unit=cast(TimeUnit, unit),  # the Timer refuses a unit that is not a TimeUnit
             retained=False,
         )
 
