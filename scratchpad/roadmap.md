@@ -558,6 +558,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **Other non-pinned boxes in a compact OR layout.** `read_csv` lays them out as it does stacked 2-row
   Copies, and CLICK's post-check layout confirmed that. Capture one more shape (Math, Search or a timer under
   an OR).
+- **A box past the last row.** `encode()` writes a box that runs past the rung's last row, such as a Copy on
+  row 32 of a 32-row rung. `check()` reports it as `layout-too-tall`. What CLICK does with it needs a capture
+  before `encode()` refuses it.
 
 ## For pyrung's export (later; another repo first)
 

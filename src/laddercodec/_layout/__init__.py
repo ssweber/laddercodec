@@ -15,7 +15,9 @@ from collections.abc import Sequence
 from typing import Any, cast
 
 from ..codes import Code
-from ..model import PinnedInstruction
+from ..encode import MAX_ROWS
+from ..model import AfInstruction, PinnedInstruction
+from ..operands.unchecked import stored_cell_rows
 from .network import GridCell, Network, cell_of, network
 from .render import render
 from .tree import LayoutError, Leaf, Node, Out, OutputBranch, RungTree, SeriesNode, trees
@@ -26,10 +28,65 @@ __all__ = [
     "RungTree",
     "canonical",
     "circuit",
+    "drawn",
     "layout",
     "layout_grid",
     "network_of_rung",
+    "rows_needed",
+    "too_tall_message",
 ]
+
+
+def rows_needed(rung: Any) -> int:
+    """Return the number of rows that CLICK needs for *rung*.
+
+    That is the number of rows in the rung, or more if a box runs past the rung's last row.
+    A box spans the rows that ``encode()`` writes for it: ``visual_rows`` of its
+    ``cell_params()``, or the row span stored with a decoded instruction's blob.
+    """
+    height = len(rung.conditions)
+    for row, token in enumerate(rung.instructions):
+        if isinstance(token, AfInstruction):
+            params = {**token.cell_params(), **stored_cell_rows(token)}
+            height = max(height, row + int(params.get("visual_rows", 1)))
+    return height
+
+
+def too_tall_message(subject: str, rows: int, parts: int = 1, k: int = 1) -> str:
+    """Return the message for *subject*, a rung that needs more rows than CLICK holds.
+
+    When *parts* is 1, the rung itself needs *rows* rows.  Otherwise CLICK splits the rung
+    into *parts* rungs, and rung *k* of them, counted from 1, needs *rows* rows.
+    """
+    limit = f"and a CLICK rung holds at most {MAX_ROWS}. Split it into rungs of {MAX_ROWS} rows"
+    fix = (
+        f"{limit} or fewer. For example, move some of its outputs, with the contacts that feed "
+        "them, to a rung of their own."
+    )
+    if parts == 1:
+        return f"{subject} needs {rows} rows, {fix}"
+    within = subject[:1].lower() + subject[1:]
+    return f"CLICK splits {within} into {parts} rungs. Rung {k} of them needs {rows} rows, {fix}"
+
+
+def drawn(rung: Any, subject: str = "The rung") -> tuple[list[Any], bool]:
+    """Return the rungs that ``read_csv`` and ``write_csv`` keep for *rung*, and whether they
+    are in CLICK's layout.
+
+    They are the rungs that :func:`canonical` returns when the rung has a layout.
+    Otherwise they are the rung itself, as drawn.  Raises :class:`LayoutError` with the code
+    ``layout-too-tall`` if one of them needs more than 32 rows.  The message names
+    *subject*.  The height is checked here, after the choice between the layout and the
+    rung as drawn, because ``render()`` never sees a rung that has no layout.
+    """
+    parts = canonical(rung)
+    kept, exact = ([rung], False) if parts is None else (parts, True)
+    for k, part in enumerate(kept, start=1):
+        rows = rows_needed(part)
+        if rows > MAX_ROWS:
+            message = too_tall_message(subject, rows, len(kept), k)
+            raise LayoutError(message, code=Code.LAYOUT_TOO_TALL)
+    return kept, exact
 
 
 def network_of_rung(rung: Any, af_down: Sequence[bool] | None = None) -> Network:
@@ -90,16 +147,19 @@ def canonical(rung: Any) -> list[Any] | None:
       its shape.
     - The layout cannot draw the rung.
 
-    The caller keeps such a rung as it was drawn.  Two findings of ``check()`` still allow a
-    layout.  The first is a pin that no rail or contact reaches.  The layout draws the pin's
-    row blank, the same way CLICK saves a pin whose row holds nothing.  The second is a contact
+    The caller keeps such a rung as it was drawn.  Three findings of ``check()`` still allow
+    a layout.  The first is ``layout-too-tall``, because CLICK may split the rung into rungs
+    that each fit.  :func:`drawn` checks the height of the rungs that the caller keeps.  The
+    second is a pin that no rail or contact reaches.  The layout draws the pin's
+    row blank, the same way CLICK saves a pin whose row holds nothing.  The third is a contact
     that feeds only a NOP.  The layout draws that rung like any other.  CLICK keeps that layout
     when the rung is pasted.  What CLICK's check reports for the rung as written is not
     captured.
     """
     from ..layout_check import check
 
-    if any(f.code not in (Code.UNWIRED_INPUT, Code.CONTACT_FEEDS_ONLY_NOP) for f in check(rung)):
+    allowed = (Code.LAYOUT_TOO_TALL, Code.UNWIRED_INPUT, Code.CONTACT_FEEDS_ONLY_NOP)
+    if any(f.code not in allowed for f in check(rung)):
         return None
     try:
         net = network_of_rung(rung)

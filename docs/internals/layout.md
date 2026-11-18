@@ -212,6 +212,13 @@ writes a rung with no layout as stored, and it reads back as stored. The excepti
 rows at its end. They can read back as a tall box's own rows and be dropped, and the writer
 warns when they are.
 
+`read_csv` and `write_csv` refuse a rung of more than 32 rows (`layout-too-tall`).
+`_layout.drawn()` checks the height of each rung that they keep. Those are the rungs of the
+layout, or the rung as drawn when it has no layout. `render()` never sees a rung with no
+layout, so the check is not in `render()`. The count includes every row that a box spans
+(`visual_rows`). A rung of more than 32 rows still reads and writes when its layout is rungs
+of 32 rows or fewer.
+
 ## Open questions
 
 For the next capture round:

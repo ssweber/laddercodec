@@ -59,7 +59,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field, fields, is_dataclass, replace
 from typing import Any, cast
 
-from .._layout import canonical
+from .._layout import LayoutError, drawn
 from ..decode import Rung
 from ..encode import AfToken, ConditionToken
 from ..errors import CsvError
@@ -750,12 +750,17 @@ def convert_rung(rung: RungAst, *, strict: bool = True) -> list[Rung]:
     Raises
     ------
     CsvError
-        If the rung contains unsupported constructs.
+        If the rung contains unsupported constructs.  It is also raised, with the code
+        ``layout-too-tall``, if a rung that would come back needs more than 32 rows.  The
+        ``LayoutError`` is its ``__cause__``.
     """
     rung_line = rung.rows[0].line if rung.rows else None
     with located(rung_line=rung_line):
         literal = convert_literal(rung, strict=strict)
-        rungs = canonical(literal) or [literal]
+        try:
+            rungs, _ = drawn(literal)
+        except LayoutError as exc:
+            raise CsvError(str(exc), code=exc.code) from exc
     for laid_out in rungs:
         locate_held(rung_tokens(laid_out), rung_line=rung_line)
     return rungs

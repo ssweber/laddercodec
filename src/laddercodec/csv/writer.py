@@ -48,7 +48,7 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import get_args
 
-from .._layout import LayoutError, canonical, circuit
+from .._layout import LayoutError, circuit, drawn
 from ..decode import Rung
 from ..errors import WriterError
 from ..instructions import (
@@ -439,7 +439,7 @@ def _validate_roundtrip(rung: Rung, rows: Sequence[Sequence[str]], *, exact: boo
             )
 
 
-def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
+def decoded_rung_to_rows(rung: Rung, subject: str = "The rung") -> list[list[str]]:
     """Convert a ``Rung`` to a list of CSV row lists.
 
     Each data row is a list of 33 strings: [marker, A..AE, AF].  The first
@@ -460,19 +460,26 @@ def decoded_rung_to_rows(rung: Rung) -> list[list[str]]:
     default ``pin_rows=(1,)``, a retained timer's ``.reset()`` row is the row
     below the timer.  A rung can hold several tall or pinned instructions, and
     each one reads back with all of its rows.
+
+    Raise ``WriterError`` if a rung to write needs more than 32 rows.  Its message starts
+    with *subject*, and its ``__cause__`` is a ``LayoutError`` with the code
+    ``layout-too-tall``.
     """
     rows: list[list[str]] = []
-    for part, exact in _drawn(rung):
+    for part, exact in _drawn(rung, subject):
         part_rows = _rung_rows(part)
         _validate_roundtrip(part, part_rows, exact=exact)
         rows.extend(part_rows)
     return rows
 
 
-def _drawn(rung: Rung) -> list[tuple[Rung, bool]]:
+def _drawn(rung: Rung, subject: str) -> list[tuple[Rung, bool]]:
     """Return the rungs to write for *rung*, each with whether it is in CLICK's layout."""
-    parts = canonical(rung)
-    if parts is None:
+    try:
+        parts, exact = drawn(rung, subject)
+    except LayoutError as exc:
+        raise WriterError(str(exc)) from exc
+    if not exact:
         return [(rung, False)]
     if parts != [rung]:
         try:
@@ -573,7 +580,10 @@ def csv_rows(
     ------
     WriterError
         If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
-        written, such as one whose shape the CSV can't hold.
+        written, such as one whose shape the CSV can't hold.  It is also raised
+        for a rung that needs more than the 32 rows of a CLICK rung.  The message
+        then starts with the rung's index in *rungs*, such as ``rungs[3]``, and the
+        ``__cause__`` is a ``LayoutError`` with the code ``layout-too-tall``.
     """
     return _csv_rows(rungs, index=index, stop=stop, caller="csv_rows")
 
@@ -593,7 +603,7 @@ def _csv_rows(
     for rung_index, rung in enumerate(rungs):
         unknown = _unknown_cell(rung)
         if unknown is None:
-            rows = decoded_rung_to_rows(rung)
+            rows = decoded_rung_to_rows(rung, f"rungs[{rung_index}]")
         else:
             row, column, error = unknown
             marker = Undecoded(error, rung_index, row, column, stop)
@@ -648,9 +658,10 @@ def write_csv(
     ------
     WriterError
         If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
-        written, such as one whose shape the CSV can't hold.  ``write_csv`` builds
-        every row before it opens *path*.  If it raises ``WriterError``, it has not
-        created or changed the file.
+        written, such as one whose shape the CSV can't hold.  It is also raised
+        for a rung that needs more than the 32 rows of a CLICK rung, as
+        :func:`csv_rows` raises it.  ``write_csv`` builds every row before it opens
+        *path*.  If it raises ``WriterError``, it has not created or changed the file.
     """
     write_rows(Path(path), _csv_rows(rungs, index=index, stop=stop, caller="write_csv"))
 

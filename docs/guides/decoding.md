@@ -380,6 +380,7 @@ shape with that CLICK id. [Error codes](codes.md) lists every code.
 | `shared-input-net` | another box's main input below a pin, on the pin's net, where that net is the pin's own (not its box's main input's net), once per group of boxes that share nets | `C000A` |
 | `input-without-contact` | a timer's or drum's reset whose contacts are all on the main input's circuit | `C0205` (timer), `C0212` (drum) |
 | `undecoded-rung` | an undecoded marker, at its AF cell ([Rungs that don't decode](#rungs-that-dont-decode)); CLICK never sees one | none |
+| `layout-too-tall` | a rung that needs more than 32 rows, with every row that a box spans counted; CLICK can't hold one | none |
 
 The net of a C000A finding is one that the rail reaches through a contact, not the
 rail itself. A rung whose rail reaches no box gets no `not-series-parallel`
@@ -409,6 +410,12 @@ C000A has `captured=False` in these cases:
 A rung that holds an undecoded marker gets an `undecoded-rung` finding for each marker,
 then its other findings. A marker rung as the decoders make it (one row of wires
 into the marker) gets only its `undecoded-rung` finding.
+
+A rung that needs more than 32 rows gets one `layout-too-tall` finding for the whole
+rung, after its `undecoded-rung` findings. `encode()` refuses a rung of more than 32
+rows. `read_csv()` and `write_csv()` refuse one too, unless CLICK's layout of it is
+rungs of 32 rows or fewer. That happens when CLICK splits the rung, or when the layout
+packs its rows.
 
 `input-without-contact` on other pins (a counter's reset, a drum's jog) has no CLICK id.
 On a reset wired straight from the rail, or a reset whose contacts are all another
