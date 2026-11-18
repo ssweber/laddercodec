@@ -18,8 +18,8 @@ blank_row = cast(list[ConditionToken], [""] * 31)
 
 # Two rungs of one row each. Every condition cell is empty, and so is the output column AF.
 rungs: list[Rung] = [
-    Rung(1, [blank_row.copy()], [""], None),  # rung 0: 1 row, no comment
-    Rung(1, [blank_row.copy()], [""], comment_text),  # rung 1: 1 row, max comment
+    Rung([blank_row.copy()], [""], None),  # rung 0: 1 row, no comment
+    Rung([blank_row.copy()], [""], comment_text),  # rung 1: 1 row, max comment
 ]
 
 csv_path = GOLDEN_DIR / "mr-cmt-2rung-r1-max1400.csv"

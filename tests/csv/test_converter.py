@@ -48,6 +48,7 @@ from laddercodec.instructions import (
     Return,
     Search,
     Shift,
+    Tee,
     Timer,
 )
 from laddercodec.instructions.raw import _decompose_blob
@@ -63,16 +64,16 @@ def _write_csv(path: Path, rows: list[tuple[str, list[str], str]]) -> None:
             writer.writerow([marker, *conditions, af])
 
 
-def _fields(rung: Rung) -> tuple[int, list, list, str | None]:
+def _fields(rung: Rung) -> tuple[int, tuple, tuple, str | None]:
     return rung.logical_rows, rung.conditions, rung.instructions, rung.comment
 
 
-def _literal(rung: RungAst, *, strict: bool = True) -> tuple[int, list, list, str | None]:
+def _literal(rung: RungAst, *, strict: bool = True) -> tuple[int, tuple, tuple, str | None]:
     """Return ``(rows, conditions, instructions, comment)`` of the rung as written."""
     return _fields(convert_literal(rung, strict=strict))
 
 
-def _laid_out(rung: RungAst) -> tuple[int, list, list, str | None]:
+def _laid_out(rung: RungAst) -> tuple[int, tuple, tuple, str | None]:
     """Lay *rung* out, which must give one rung, and return the same fields of that rung."""
     (got,) = convert_rung(rung)
     return _fields(got)
@@ -244,15 +245,11 @@ class TestLayout:
         assert lr == 4
         assert [type(a).__name__ for a in afs] == ["Copy", "str", "Copy", "str"]
         legs = [conds[r][1] for r in range(4)]
-        assert [(leg.operand, leg.wire_down) for leg in legs[:3]] == [
-            ("C1", True),
-            ("C2", True),
-            ("C3", False),
-        ]
+        assert legs[:3] == [Tee(Contact("C1")), Tee(Contact("C2")), Contact("C3")]
         assert legs[3] == ""
         assert [conds[r][2] for r in range(4)] == ["T", "|", "-", ""]
-        assert conds[1][3:] == [""] * 28
-        assert conds[2][3:] == ["-"] * 28
+        assert conds[1][3:] == ("",) * 28
+        assert conds[2][3:] == ("-",) * 28
         assert all(c == "" for c in conds[3])
 
     def test_one_row_output_below_a_copy(self, tmp_path: Path) -> None:
@@ -453,22 +450,15 @@ class TestConditionNodeToToken:
 
     def test_contact_wire_down(self) -> None:
         node = ContactCondition(operand="X001", negated=False, immediate=False, wire_down=True)
-        result = condition_node_to_token(node)
-        assert isinstance(result, Contact)
-        assert result.wire_down is True
+        assert condition_node_to_token(node) == Tee(Contact("X001"))
 
     def test_edge_wire_down(self) -> None:
         node = EdgeCondition(kind="rise", operand="X002", wire_down=True)
-        result = condition_node_to_token(node)
-        assert isinstance(result, Contact)
-        assert result.kind == "rise"
-        assert result.wire_down is True
+        assert condition_node_to_token(node) == Tee(Contact("X002", kind="rise"))
 
     def test_compare_wire_down(self) -> None:
         node = ComparisonCondition(left="DS1", op="==", right="1", wire_down=True)
-        result = condition_node_to_token(node)
-        assert isinstance(result, CompareContact)
-        assert result.wire_down is True
+        assert condition_node_to_token(node) == Tee(CompareContact("==", "DS1", "1"))
 
     def test_immediate(self) -> None:
         node = ContactCondition(operand="X001", negated=False, immediate=True)

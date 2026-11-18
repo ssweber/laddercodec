@@ -38,7 +38,7 @@ from laddercodec import Finding, Rung, check, decode, encode, read_csv
 from laddercodec.csv.contract import CONDITION_COLUMNS, OUTPUT_COLUMN
 from laddercodec.csv.converter import convert_literal
 from laddercodec.csv.parser import parse_csv_file
-from laddercodec.instructions import Coil, Contact, Shift, Timer
+from laddercodec.instructions import Coil, Contact, Shift, Tee, Timer
 from laddercodec.layout_check import _blank_rows
 from laddercodec.undecoded import UndecodedRungWarning
 
@@ -346,13 +346,13 @@ def test_reset_wired_from_the_rail_is_not_captured() -> None:
     )
 
 
-def _contact(name: str, *, down: bool = False) -> Contact:
-    return Contact(name, wire_down=down)
+def _contact(name: str, *, down: bool = False) -> Contact | Tee:
+    return Tee(Contact(name)) if down else Contact(name)
 
 
 def _rung(conditions: list[list[object]], instructions: list[object]) -> Rung:
     rows = [row + [""] * (31 - len(row)) for row in conditions]
-    return Rung(len(rows), rows, instructions, None)  # type: ignore[arg-type]
+    return Rung(rows, instructions, None)  # type: ignore[arg-type]
 
 
 def _out(name: str) -> Coil:
@@ -724,8 +724,8 @@ def test_message_rows_skip_no_more_than_one_blank_row() -> None:
 
 
 def test_blank_first_row_count_takes_a_rung_with_no_outputs() -> None:
-    assert _blank_rows(Rung(1, [[""] * 31], [], None)) == 1
-    assert _blank_rows(Rung(0, [], [], None)) == 0
+    assert _blank_rows(Rung([[""] * 31], [], None)) == 1
+    assert _blank_rows(Rung([], [], None)) == 0
 
 
 def test_one_rung_or_a_list() -> None:

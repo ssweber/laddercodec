@@ -16,6 +16,7 @@ from laddercodec import (
     Counter,
     RawInstruction,
     Rung,
+    Tee,
     Timer,
     read_csv,
 )
@@ -37,10 +38,10 @@ __all__ = [
 def _token_to_csv(token: ConditionToken | AfToken) -> str:
     """Return the CSV text of *token*.
 
-    Call ``to_csv()`` on a Contact, Coil, CompareContact, Counter, Timer or RawInstruction,
-    and return any other token unchanged.
+    Call ``to_csv()`` on a Tee, Contact, Coil, CompareContact, Counter, Timer or
+    RawInstruction, and return any other token unchanged.
     """
-    if isinstance(token, (Contact, Coil, CompareContact, Counter, Timer, RawInstruction)):
+    if isinstance(token, (Tee, Contact, Coil, CompareContact, Counter, Timer, RawInstruction)):
         return token.to_csv()
     return token
 

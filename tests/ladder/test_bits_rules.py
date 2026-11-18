@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from laddercodec import AddressError, FieldError, decode, read_csv
+from laddercodec import AddressError, CsvError, FieldError, decode, read_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.csv.ast import ComparisonCondition
 from laddercodec.csv.token_parser import parse_condition_token
@@ -325,8 +325,9 @@ class TestCompare:
         assert isinstance(node, ComparisonCondition)
         assert (node.left, node.op, node.right) == (left, op, right)
 
-    def test_wire_down_prefix(self) -> None:
-        assert CompareContact.from_csv_token('T:TXT1!=">"').wire_down
+    def test_wire_down_prefix_is_refused(self) -> None:
+        with pytest.raises(CsvError, match=r"Wrap the contact in a Tee"):
+            CompareContact.from_csv_token('T:TXT1!=">"')
 
 
 _COILS = ("out", "latch", "reset")

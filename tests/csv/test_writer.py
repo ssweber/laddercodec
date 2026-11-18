@@ -17,6 +17,7 @@ from laddercodec import (
     Next,
     Rung,
     Shift,
+    Tee,
     Timer,
     decode,
     read_csv,
@@ -131,7 +132,7 @@ def _search_continuation_row() -> list[object]:
 
     It holds a compare contact with a down wire in A, a T in B and a | in C.
     """
-    return [CompareContact("==", "DS300", "1", wire_down=True), "T", "|"] + [""] * 28
+    return [Tee(CompareContact("==", "DS300", "1")), "T", "|"] + [""] * 28
 
 
 def _event_drum() -> Drum:
@@ -196,7 +197,6 @@ class TestDecodedRungToRows:
     def test_simple_contact_coil(self) -> None:
         """A one-row rung of a contact, wires and a coil writes as one R row."""
         rung = Rung(
-            logical_rows=1,
             conditions=[[Contact("X001")] + ["-"] * 30],
             instructions=[Coil("Y001")],
             comment_rtf=None,
@@ -212,7 +212,6 @@ class TestDecodedRungToRows:
     def test_with_comment(self) -> None:
         """Comment produces # rows before data."""
         rung = Rung(
-            logical_rows=1,
             conditions=[[""] * 31],
             instructions=[""],
             comment_rtf=None,
@@ -230,7 +229,6 @@ class TestDecodedRungToRows:
         """The writer drops a non-retained timer's trailing blank row."""
         timer = Timer("on_delay", "T1", "TD1", "1000", "Tms", retained=False)
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 [Contact("X001")] + ["-"] * 30,
                 [""] * 31,
@@ -247,7 +245,6 @@ class TestDecodedRungToRows:
         """A retained timer's second row has .reset() in the AF column."""
         timer = Timer("on_delay", "T3", "TD3", "10", "Tm", retained=True)
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 [Contact("X001")] + ["-"] * 30,
                 ["-"] * 31,
@@ -265,7 +262,6 @@ class TestDecodedRungToRows:
     def test_nop(self) -> None:
         """A NOP writes as NOP in the AF column."""
         rung = Rung(
-            logical_rows=1,
             conditions=[["-"] * 31],
             instructions=["NOP"],
             comment_rtf=None,
@@ -284,7 +280,6 @@ class TestDecodedRungToRows:
             reset_enabled=True,
         )
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [Contact("C73", kind="rise")] + ["-"] * 30,
                 [""] * 31,
@@ -311,7 +306,6 @@ class TestDecodedRungToRows:
             reset_enabled=True,
         )
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [Contact("C75", kind="rise")] + ["-"] * 30,
                 [Contact("C76")] + ["-"] * 30,
@@ -338,7 +332,6 @@ class TestDecodedRungToRows:
             reset_enabled=True,
         )
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [""] * 31,
                 [Contact("C78", kind="rise")] + ["-"] * 30,
@@ -366,7 +359,6 @@ class TestDecodedRungToRows:
             reset_enabled=True,
         )
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [Contact("C77")] + ["-"] * 30,
                 [Contact("C78", kind="rise")] + ["-"] * 30,
@@ -396,7 +388,6 @@ class TestDecodedRungToRows:
             reset_enabled=True,
         )
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [""] * 8 + ["|"] + [""] * 22,
                 [Contact("C78", kind="rise")] + ["-"] * 30,
@@ -425,7 +416,6 @@ class TestDecodedRungToRows:
         )
         timer = Timer("on_delay", "T5", "TD5", "10", "Tm", retained=True)
         rung = Rung(
-            logical_rows=5,
             conditions=[
                 _edge_row("C81"),
                 _blank_conditions(),
@@ -460,7 +450,6 @@ class TestDecodedRungToRows:
         )
         timer = Timer("on_delay", "T6", "TD6", "20", "Ts", retained=True)
         rung = Rung(
-            logical_rows=5,
             conditions=[
                 _contact_row("C85"),
                 _edge_row("C86"),
@@ -489,7 +478,6 @@ class TestDecodedRungToRows:
     def test_shift_emits_clock_and_reset_pins(self) -> None:
         shift = Shift("C99", "C106")
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 [Contact("C96")] + ["-"] * 30,
                 [Contact("C97")] + ["-"] * 30,
@@ -510,7 +498,6 @@ class TestDecodedRungToRows:
         shift = Shift("C99", "C106")
         timer = Timer("on_delay", "T7", "TD7", "30", "Tms", retained=False)
         rung = Rung(
-            logical_rows=5,
             conditions=[
                 _contact_row("C90"),
                 _contact_row("C91"),
@@ -537,7 +524,6 @@ class TestDecodedRungToRows:
     def test_two_row_shift_is_laid_out_on_three_rows(self) -> None:
         shift = Shift("C99", "C106")
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 [Contact("C96")] + ["-"] * 30,
                 [Contact("C97")] + ["-"] * 30,
@@ -558,7 +544,6 @@ class TestDecodedRungToRows:
         no form for a shift on 2 rows.
         """
         rung = Rung(
-            logical_rows=2,
             conditions=[_blank_conditions(), _blank_conditions()],
             instructions=[Shift("C99", "C106"), ""],
             comment_rtf=None,
@@ -572,7 +557,6 @@ class TestDecodedRungToRows:
 
     def test_forloop_serializes(self) -> None:
         rung = Rung(
-            logical_rows=1,
             conditions=[[Contact("C222")] + ["-"] * 30],
             instructions=[ForLoop(count="3", oneshot=False)],
             comment_rtf=None,
@@ -583,7 +567,6 @@ class TestDecodedRungToRows:
 
     def test_next_serializes(self) -> None:
         rung = Rung(
-            logical_rows=1,
             conditions=[["-"] * 31],
             instructions=[Next()],
             comment_rtf=None,
@@ -595,7 +578,6 @@ class TestDecodedRungToRows:
     def test_comment_rows_not_padded(self) -> None:
         """A comment row holds only the marker and the text, not 33 columns."""
         rung = Rung(
-            logical_rows=1,
             conditions=[[""] * 31],
             instructions=[""],
             comment_rtf=None,
@@ -609,7 +591,6 @@ class TestDecodedRungToRows:
     def test_unknown_instruction_raises(self) -> None:
         """Unknown instructions cannot be written to CSV."""
         rung = Rung(
-            logical_rows=1,
             conditions=[[""] * 31],
             instructions=[UnknownInstruction(raw=b"\x00\x01\x02")],
             comment_rtf=None,
@@ -629,7 +610,6 @@ class TestGenericTallRoundTrip:
     ) -> None:
         lead = Coil("Y801")
         rung = Rung(
-            logical_rows=visual_rows + 1,
             conditions=[
                 _branch_row("C200"),
                 _wire_row(),
@@ -662,7 +642,6 @@ class TestGenericTallRoundTrip:
         lead = Coil("Y802")
         tail = Coil("Y803")
         rung = Rung(
-            logical_rows=visual_rows + 2,
             conditions=[
                 _branch_row("C210"),
                 _branch_row(""),
@@ -692,7 +671,6 @@ class TestDehydrateHydrateWires:
         """The writer drops a padding row with a | under a T, and read_csv restores it."""
         search = Search("DS72", "DS81", "DS71", "DS82", "C81", "==")
         rung = Rung(
-            logical_rows=3,
             conditions=[_branch_row("C10"), _down_row(), _wire_row()],
             instructions=[search, "", Coil("Y001")],
             comment_rtf=None,
@@ -718,7 +696,6 @@ class TestDehydrateHydrateWires:
         conds_row0[5] = "T"  # col F
         conds_row0[15] = "T"  # col P
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 conds_row0,
                 ["", "", "", "", "", "|"] + [""] * 9 + ["|"] + [""] * 15,
@@ -735,9 +712,9 @@ class TestDehydrateHydrateWires:
 
         assert rt.logical_rows == 3
         assert [row[:3] for row in rt.conditions] == [
-            [rung.conditions[0][0], "T", "-"],
-            [rung.conditions[2][0], "|", ""],
-            ["", "-", "-"],
+            (rung.conditions[0][0], "T", "-"),
+            (rung.conditions[2][0], "|", ""),
+            ("", "-", "-"),
         ]
         assert all(cell not in {"T", "|"} for row in rt.conditions for cell in row[2:])
 
@@ -754,7 +731,6 @@ class TestMultiPinnedRoundTrip:
         )
         timer = Timer("on_delay", "T8", "TD8", "10", "Tm", retained=True)
         rung = Rung(
-            logical_rows=5,
             conditions=[
                 _edge_row("C95"),
                 _blank_conditions(),
@@ -774,18 +750,17 @@ class TestMultiPinnedRoundTrip:
         counter_rung, timer_rung = read_csv(out_csv)
 
         assert counter_rung.logical_rows == 3  # Down's row, unused, stays above Reset
-        assert counter_rung.instructions == [counter, "", ""]
+        assert counter_rung.instructions == (counter, "", "")
         column_a = [getattr(row[0], "operand", row[0]) for row in counter_rung.conditions]
         assert column_a == ["C95", "", "C96"]
         assert timer_rung.logical_rows == 2
-        assert timer_rung.instructions == [timer, ""]
+        assert timer_rung.instructions == (timer, "")
         assert [row[0].operand for row in timer_rung.conditions] == ["C97", "C98"]
 
     def test_shift_then_timer_roundtrip_preserves_blank_timer_row(self, tmp_path: Path) -> None:
         shift = Shift("C120", "C127")
         timer = Timer("on_delay", "T9", "TD9", "50", "Tms", retained=False)
         rung = Rung(
-            logical_rows=5,
             conditions=[
                 _contact_row("C99"),
                 _contact_row("C100"),
@@ -814,7 +789,6 @@ class TestMultiPinnedRoundTrip:
 class TestRoundTripValidator:
     def test_accepts_retained_timer(self) -> None:
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 _contact_row("C300"),
                 _contact_row("C301"),
@@ -828,7 +802,6 @@ class TestRoundTripValidator:
 
     def test_accepts_count_down_bridge_shape(self) -> None:
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 _contact_row("C302"),
                 _edge_row("C303"),
@@ -854,7 +827,6 @@ class TestRoundTripValidator:
 
     def test_accepts_generic_tall_continuation_with_comparison_and_t(self) -> None:
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 _contact_row("C305"),
                 _search_continuation_row(),
@@ -868,7 +840,6 @@ class TestRoundTripValidator:
 
     def test_accepts_drum_pin_rows(self) -> None:
         rung = Rung(
-            logical_rows=4,
             conditions=[
                 _contact_row("C306"),
                 _contact_row("C307"),
@@ -884,7 +855,6 @@ class TestRoundTripValidator:
 
     def test_raises_on_missing_retained_timer_reset_pin(self) -> None:
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 _contact_row("C310"),
                 _contact_row("C311"),
@@ -902,7 +872,6 @@ class TestRoundTripValidator:
 
     def test_raises_on_missing_count_down_top_row_contact(self) -> None:
         rung = Rung(
-            logical_rows=3,
             conditions=[
                 _contact_row("C312"),
                 _edge_row("C313"),
@@ -932,7 +901,6 @@ class TestRoundTripValidator:
 
     def test_raises_on_missing_generic_tall_continuation_comparison(self) -> None:
         rung = Rung(
-            logical_rows=2,
             conditions=[
                 _contact_row("C315"),
                 _search_continuation_row(),
@@ -950,7 +918,6 @@ class TestRoundTripValidator:
 
     def test_raises_on_missing_drum_jump_pin(self) -> None:
         rung = Rung(
-            logical_rows=4,
             conditions=[
                 _contact_row("C317"),
                 _contact_row("C318"),
@@ -987,7 +954,6 @@ def _markers(path: Path) -> list[str]:
 def _simple_rung(operand: str, coil: str) -> Rung:
     """Return a one-row rung of a NO contact on *operand* and a coil on *coil*."""
     return Rung(
-        logical_rows=1,
         conditions=[[Contact(operand)] + ["-"] * 30],
         instructions=[Coil(coil)],
         comment_rtf=None,
@@ -1019,7 +985,6 @@ class TestIndexedMarkers:
     def test_index_true_indexes_only_first_row_of_multirow_rung(self, tmp_path: Path) -> None:
         timer = Timer("on_delay", "T3", "TD3", "10", "Tm", retained=True)
         multirow = Rung(
-            logical_rows=2,
             conditions=[
                 [Contact("X001")] + ["-"] * 30,
                 ["-"] * 31,
@@ -1036,7 +1001,6 @@ class TestIndexedMarkers:
 
     def test_index_true_leaves_comment_rows_untouched(self, tmp_path: Path) -> None:
         commented = Rung(
-            logical_rows=1,
             conditions=[[Contact("X001")] + ["-"] * 30],
             instructions=[Coil("Y001")],
             comment_rtf=None,

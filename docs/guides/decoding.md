@@ -17,10 +17,13 @@ Each `Rung` has the same fields that feed `encode()`:
 
 | Field | Type | Description |
 |---|---|---|
-| `logical_rows` | `int` | Number of rows (1..32) |
-| `conditions` | `list[list[str \| Contact \| CompareContact]]` | 31-column grid of wire tokens and instruction objects |
-| `instructions` | `list[str \| Coil \| Timer \| Counter \| ...]` | One AF token per row |
+| `conditions` | `tuple[tuple[str \| Contact \| CompareContact \| Tee, ...], ...]` | 31-column grid of wire tokens and instruction objects, 1..32 rows |
+| `instructions` | `tuple[str \| Coil \| Timer \| Counter \| ..., ...]` | One AF token per row |
 | `comment` | `str \| None` | Plain text with markdown formatting |
+
+`rung.logical_rows` is the number of rows, `len(rung.conditions)`. A contact with a
+wire down from its cell's left edge decodes as a `Tee` around the contact, such as
+`Tee(Contact("X001"))`.
 
 ### Instruction types
 
@@ -108,23 +111,23 @@ If you encode the instruction unchanged, it encodes as it did when it decoded as
   `encode()` raises its `error`.
 
 To fix a refusal, call `replace()` with a new value for the field that the error
-names, and put the copy in the rung:
+names. A `Rung` is frozen, so call `replace()` on the rung too, to put the copy in it:
 
 ```python
 from laddercodec import replace
 
 math = rungs[2].instructions[0]
-rungs[2].instructions[0] = replace(math, expression="SUM ( X001 : X016 )")
+fixed = replace(math, expression="SUM ( X001 : X016 )")
+rungs[2] = replace(rungs[2], instructions=[fixed, *rungs[2].instructions[1:]])
 ```
 
 If a value that you pass differs from the instruction's, `replace()` checks the copy
 as if you built it new. If a value is still refused, `replace()` raises the
 `FieldError` that building the instruction raises. If every value passes, the copy
 encodes as building it from its fields would (`ds2` is written `DS2`). If every
-value that you pass is equal to the field's current value, or only a contact's
-`wire_down` differs, the copy has the same blob and refusals as the original. A
-value that the constructor writes in another form is a change. For example, `"ds2"`
-is a change to a field that holds `"DS2"`
+value that you pass is equal to the field's current value, the copy has the same
+blob and refusals as the original. A value that the constructor writes in another
+form is a change. For example, `"ds2"` is a change to a field that holds `"DS2"`
 ([Change An Instruction](encoding.md#change-an-instruction)).
 
 `write_csv()` writes the instruction as it is held. `read_csv(path, unchecked=True)`
@@ -422,10 +425,10 @@ For all supported instruction types:
 ```python
 from laddercodec import encode, decode, Rung
 
-rung = Rung(lr, conds, afs, cmt)
+rung = Rung(conds, afs, cmt)
 [decoded] = decode(encode(rung))
-assert decoded.logical_rows == lr
-assert decoded.conditions == conds
-assert decoded.instructions == afs
-assert decoded.comment == cmt
+assert decoded == rung
 ```
+
+A rung stores its rows as tuples, so a rung that you build from lists equals the
+decoded one.

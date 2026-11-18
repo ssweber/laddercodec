@@ -933,8 +933,8 @@ def test_native_time_drums_preserves_rows_above_later_rail_rows():
         rung = program.rungs[index]
         assert rung.logical_rows == 4
         for row in range(preceding_rows):
-            assert rung.conditions[row] == ["", "T", *(["-"] * 29)]
-        assert rung.conditions[preceding_rows] == ["-"] * 31
+            assert rung.conditions[row] == ("", "T", *(["-"] * 29))
+        assert rung.conditions[preceding_rows] == ("-",) * 31
         # The wires stay in their stored rows, and the drum is on stored row 1.
         assert rung.instructions[0].__class__.__name__ == "Drum"
         assert "NOP" not in rung.instructions
@@ -1164,7 +1164,9 @@ def test_native_drum_inserted_rows_keep_the_original_nop_wire(tmp_path):
         assert record.instructions[0][:3] == (0, 31, "Drum")
         assert isinstance(rung.instructions[0], Drum)
         assert rung.logical_rows == 4
-        assert rung.conditions == [["-"] * 31 if row == wire_row else [""] * 31 for row in range(4)]
+        assert rung.conditions == tuple(
+            ("-",) * 31 if row == wire_row else ("",) * 31 for row in range(4)
+        )
         assert "NOP" not in rung.instructions  # dropped because it is under the drum's span
         assert record.topology.wiredown == {}
         for row, stored in enumerate(record.topology.stored_rows[1:]):
@@ -1206,14 +1208,14 @@ def test_native_drum_branch_above_original_nop_row_is_preserved(tmp_path):
     assert len(scr) == 1
     rung = scr[0]
     assert rung.logical_rows == 4
-    assert rung.conditions == [
-        ["", "T", *(["-"] * 29)],
-        ["-"] * 31,
-        [""] * 31,
-        [""] * 31,
-    ]
+    assert rung.conditions == (
+        ("", "T", *(["-"] * 29)),
+        ("-",) * 31,
+        ("",) * 31,
+        ("",) * 31,
+    )
     assert isinstance(rung.instructions[0], Drum)
-    assert rung.instructions[1:] == ["", "", ""]
+    assert rung.instructions[1:] == ("", "", "")
 
     block = _walk_rung_records(data, _parse_header(data))[0].topology
     upper, original = block.stored_rows[1:3]
@@ -1265,6 +1267,6 @@ def test_down_wire_in_the_output_column_is_refused(monkeypatch):
     marker = program.rungs[1]
     assert marker.comment is not None
     assert marker.comment.splitlines()[0] == f"UNDECODED: rung 1, row 0: {AF_DOWN_WIRE}"
-    assert marker.conditions == [["-"] * 31]
+    assert marker.conditions == (("-",) * 31,)
     # The rungs around it decode as they do without the down list.
     assert program.rungs[:1] + program.rungs[2:] == want[:1] + want[2:]

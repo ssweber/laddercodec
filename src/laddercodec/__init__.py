@@ -49,6 +49,7 @@ from .instructions import (
     Search,
     Send,
     Shift,
+    Tee,
     Timer,
     Undecoded,
     UnknownCondition,
@@ -139,6 +140,7 @@ __all__ = [
     "Return",
     "Search",
     "Shift",
+    "Tee",
     "constant_text",
     "replace",
 ]

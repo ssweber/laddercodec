@@ -106,6 +106,7 @@ EXPECTED_ROOT_EXPORTS = (
     "Return",
     "Search",
     "Shift",
+    "Tee",
     "constant_text",
     "replace",
 )
@@ -119,7 +120,6 @@ def test_root_public_api_manifest_is_explicit() -> None:
 
 def test_root_public_api_supports_basic_roundtrip(tmp_path: Path) -> None:
     rung = Rung(
-        logical_rows=1,
         conditions=[[Contact.from_csv_token("X001")] + [""] * 30],
         instructions=[Coil.from_csv_token("out(Y001)")],
         comment="Motor start circuit",

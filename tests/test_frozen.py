@@ -3,8 +3,8 @@
 An instruction can't be changed in place. ``replace`` returns a copy:
 
 - If every value that the caller passes is equal to the field's current value, the copy
-  keeps the blob that the original was decoded from, and it holds the same refusals. So
-  does a copy that changes only ``wire_down``. Each copy holds error objects of its own.
+  keeps the blob that the original was decoded from, and it holds the same refusals. Each
+  copy holds error objects of its own.
 - If a value differs, the copy is built as if new, and a refused value raises the
   ``FieldError`` that building it raises.
 """
@@ -28,6 +28,7 @@ from laddercodec import (
     RawInstruction,
     RefusedFieldWarning,
     Rung,
+    Tee,
     Timer,
     decode,
     encode,
@@ -44,7 +45,7 @@ from laddercodec.instructions import (
     UnknownInstruction,
 )
 from laddercodec.model import AfInstruction, ConditionInstruction
-from laddercodec.operands.unchecked import rebuilt, refusals, stored_blob
+from laddercodec.operands.unchecked import rebuilt, refusals, stored_blob, unchecked
 from laddercodec.refused import warn_refused
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -68,6 +69,7 @@ CLASSES = sorted(
             *_subclasses(ConditionInstruction),
             UnknownCondition,
             UnknownInstruction,
+            Tee,
             ModbusAddress,
             ModbusRtuTarget,
             ModbusTcpTarget,
@@ -105,7 +107,6 @@ def _utf16z(text: str) -> bytes:
 
 def _rung(conditions: list[object], af: object) -> Rung:
     return Rung(
-        logical_rows=1,
         conditions=[[*conditions, *["-"] * (31 - len(conditions))]],
         instructions=[af],
         comment_rtf=None,
@@ -265,8 +266,7 @@ def test_replace_unchanged_keeps_the_blob_of_a_decoded_instruction() -> None:
         assert same == copy and same is not copy
         assert stored_blob(same) == stored_blob(copy)
         assert same.build_blob() == copy.build_blob()
-        rung.instructions[0] = same
-        assert encode(rung) == data
+        assert encode(replace(rung, instructions=[same])) == data
 
 
 def test_replace_changed_drops_the_blob_of_a_decoded_instruction() -> None:
@@ -285,8 +285,11 @@ def test_replace_unchanged_keeps_the_refusals_of_a_decoded_instruction() -> None
         (contact, "Contact.operand"),
         (coil, "Coil.operand"),
     ]
-    rung.conditions[0][0] = replace(contact)
-    rung.instructions[0] = replace(coil)
+    rung = replace(
+        rung,
+        conditions=[(replace(contact), *rung.conditions[0][1:])],
+        instructions=[replace(coil)],
+    )
     for old, new in ((contact, rung.conditions[0][0]), (coil, rung.instructions[0])):
         assert new == old and new is not old
         assert _same_refusals(new) == _same_refusals(old)
@@ -309,8 +312,7 @@ def test_replace_that_fixes_every_refusal_gives_a_clean_instruction() -> None:
     fixed = replace(coil, operand="Y001")
     assert fixed == Coil("Y001")
     assert not refusals(fixed) and stored_blob(fixed) is None
-    rung.instructions[0] = fixed
-    assert encode(rung) == encode(_rung([], Coil("Y001")))
+    assert encode(replace(rung, instructions=[fixed])) == encode(_rung([], Coil("Y001")))
 
 
 def test_replace_that_leaves_a_refusal_raises_it() -> None:
@@ -326,12 +328,11 @@ def test_replace_that_leaves_a_refusal_raises_it() -> None:
     assert str(caught.value) == str(built.value)
 
 
-def _decoded_wire_down_contact() -> tuple[bytes, Rung, Contact, RefusedFieldWarning]:
+def _decoded_tee_contact() -> tuple[bytes, Rung, Contact, RefusedFieldWarning]:
     """Return the bytes and the decoded rung of a refused contact with a wire down, the
-    contact, and the warning that decoding it emits."""
-    conditions = [["-", Contact("X101", wire_down=True), *["-"] * 29], ["-", "-", *[""] * 29]]
+    contact inside its ``Tee``, and the warning that decoding it emits."""
+    conditions = [["-", Tee(Contact("X101")), *["-"] * 29], ["-", "-", *[""] * 29]]
     rung = Rung(
-        logical_rows=2,
         conditions=conditions,
         instructions=[Coil("Y001"), Coil("Y002")],
         comment_rtf=None,
@@ -339,60 +340,62 @@ def _decoded_wire_down_contact() -> tuple[bytes, Rung, Contact, RefusedFieldWarn
     )
     data = encode(rung).replace(_utf16z("X101"), _utf16z("X117"))
     decoded, [warning] = _decode_refused(data)
-    contact = decoded.conditions[0][1]
-    assert isinstance(contact, Contact)
-    return data, decoded, contact, warning
+    tee = decoded.conditions[0][1]
+    assert isinstance(tee, Tee) and isinstance(tee.contact, Contact)
+    return data, decoded, tee.contact, warning
 
 
-def test_replace_of_wire_down_alone_keeps_the_blob_and_the_refusals() -> None:
-    """The decoder sets ``wire_down`` of a contact with ``rebuilt``. Each refusal of the
-    contact names the contact that the rung holds, and the warning names its errors."""
-    data, decoded, contact, warning = _decoded_wire_down_contact()
-    assert contact.wire_down is True
+def test_a_decoded_tee_keeps_the_blob_and_the_refusals_of_its_contact() -> None:
+    """The decoder wraps the contact in a ``Tee`` and does not copy it. Each refusal of
+    the contact names that contact, and the warning names the contact, not the ``Tee``.
+    A ``Tee`` around an unchanged copy of the contact encodes as the stored bytes."""
+    data, decoded, contact, warning = _decoded_tee_contact()
     assert warning.instruction is contact
     assert warning.errors == refusals(contact)
     assert all(error.obj is contact for error in refusals(contact))
     assert stored_blob(contact) is not None
-    up = replace(contact, wire_down=False)
-    assert up.wire_down is False
-    assert stored_blob(up) == stored_blob(contact)
-    assert [error.field for error in refusals(up)] == ["Contact.operand"]
-    assert all(error.obj is up for error in refusals(up))
     assert encode(decoded) == data
+    same = replace(contact)
+    rows = [list(row) for row in decoded.conditions]
+    rows[0][1] = Tee(same)
+    assert encode(replace(decoded, conditions=rows)) == data
 
 
 def test_copies_and_write_csv_leave_the_errors_of_the_original_alone(tmp_path) -> None:
     """Each copy holds its own errors. Making a copy, or writing the rung to CSV, does not
     change which instruction an error of the original names."""
-    _, decoded, contact, _ = _decoded_wire_down_contact()
+    _, decoded, contact, _ = _decoded_tee_contact()
     held = refusals(contact)
     same = replace(contact)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RefusedFieldWarning)
         write_csv(tmp_path / "rung.csv", [decoded])
-    up = replace(contact, wire_down=False)
+    again = rebuilt(contact)
     assert refusals(contact) == held
     assert all(error.obj is contact for error in held)
-    for copy in (same, up):
+    for copy in (same, again):
         assert not set(map(id, refusals(copy))) & set(map(id, held))
         assert all(error.obj is copy for error in refusals(copy))
         assert _same_refusals(copy) == _same_refusals(contact)
 
 
-def test_rebuilt_of_wire_down_copies_each_error() -> None:
-    """A copy that changes only ``wire_down`` holds a copy of each error of the original,
+def test_rebuilt_of_pin_rows_copies_each_error() -> None:
+    """A copy that changes only ``pin_rows`` holds a copy of each error of the original,
     with the same message and location, that names the copy."""
-    _, _, contact, _ = _decoded_wire_down_contact()
-    held = refusals(contact)
-    up = rebuilt(contact, wire_down=False)
-    down = rebuilt(up, wire_down=True)
-    for copy in (up, down):
-        assert _same_refusals(copy) == _same_refusals(contact)
+    with unchecked():
+        timer = Timer("on_delay", "T1", "TD2", "1000", "Tms")
+    held = refusals(timer)
+    assert [error.field for error in held] == ["Timer.accumulator"]
+    down = rebuilt(timer, pin_rows=(2,))
+    up = rebuilt(down, pin_rows=(1,))
+    for copy in (down, up):
+        assert _same_refusals(copy) == _same_refusals(timer)
         assert all(error.obj is copy for error in refusals(copy))
         assert not set(map(id, refusals(copy))) & set(map(id, held))
         [head] = refusals(copy)
         assert head.errors == (head,)
-    assert all(error.obj is contact for error in held)
+    assert down.pin_rows == (2,) and up.pin_rows == (1,)
+    assert all(error.obj is timer for error in held)
 
 
 # ---------------------------------------------------------------------------
@@ -423,8 +426,8 @@ def _read_unchecked(tmp_path: Path, row: list[str]) -> tuple[Rung, list[RefusedF
 def test_read_csv_warns_with_the_typed_text_and_the_cell_of_a_contact(
     tmp_path, cell: str, typed: str, field: str
 ) -> None:
-    """The layout rebuilds each contact with its ``wire_down``. The warning still quotes
-    the text as typed, and names the cell."""
+    """The warning names the contact that the laid-out rung holds, quotes the text as
+    typed, and names the cell."""
     rung, [warning] = _read_unchecked(tmp_path, ["R", cell, *["-"] * 30, "out(Y001)"])
     contact = rung.conditions[0][0]
     assert warning.instruction is contact
@@ -467,9 +470,10 @@ def test_replace_unchanged_of_a_csv_instruction_still_refuses_to_encode(tmp_path
     assert same == send
     assert _same_refusals(same) == _same_refusals(send)
     assert stored_blob(same) is None
-    rung.instructions[rung.instructions.index(send)] = same
+    instructions = list(rung.instructions)
+    instructions[instructions.index(send)] = same
     with pytest.raises(FieldError) as caught:
-        encode(rung)
+        encode(replace(rung, instructions=instructions))
     assert str(caught.value) == str(refusals(send)[0])
 
 

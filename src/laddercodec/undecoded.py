@@ -353,7 +353,6 @@ def marker_rung(marker: Undecoded, comment: str | None = None) -> Rung:
 
     lines = [marker.headline, comment] if comment else [marker.headline]
     return Rung(
-        logical_rows=1,
         conditions=[["-"] * CONDITION_COLUMNS],
         instructions=[marker],
         comment="\n".join(lines),

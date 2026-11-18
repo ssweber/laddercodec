@@ -103,6 +103,10 @@ def token_text(token: Any) -> str:
 
     if isinstance(token, str):
         return token
+    # A Tee holds a contact with a wire down. Its CSV text is the contact's with "T:" before
+    # it. A tree without Tee has no such class, so the name is compared, not the type.
+    if type(token).__name__ == "Tee":
+        return f"T:{token_text(token.contact)}"
     if isinstance(token, (UnknownCondition, UnknownInstruction)):
         return f"?{type(token).__name__}:{len(token.raw)}:{sha256(token.raw)}"
     if isinstance(token, (AfInstruction, ConditionInstruction)):

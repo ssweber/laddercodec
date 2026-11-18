@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from ..instructions import UnknownCondition
+from ..instructions import Tee, UnknownCondition
 from ..instructions.raw import RawInstruction
 from ..model import AfInstruction, ConditionInstruction, PinnedInstruction
 
@@ -37,9 +37,14 @@ class GridCell:
 
 
 def cell_of(token: object) -> GridCell:
-    """Return the grid cell that a decoded or CSV-read condition token stands for."""
+    """Return the grid cell that a decoded or CSV-read condition token stands for.
+
+    The cell of a ``Tee`` holds the contact inside it, with its down flag set.
+    """
+    if isinstance(token, Tee):
+        return GridCell(token.contact, True, True)
     if isinstance(token, (ConditionInstruction, UnknownCondition)):
-        return GridCell(token, True, bool(getattr(token, "wire_down", False)))
+        return GridCell(token, True, False)
     text = str(token)
     return GridCell(None, text in ("-", "T"), text in ("T", "|"))
 

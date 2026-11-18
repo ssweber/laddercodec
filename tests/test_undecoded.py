@@ -88,7 +88,7 @@ def _only_marker(rungs: list[Rung], index: int) -> Undecoded:
     (marker,) = rung.instructions
     assert isinstance(marker, Undecoded)
     assert rung.logical_rows == 1
-    assert rung.conditions == [["-"] * 31]
+    assert rung.conditions == (("-",) * 31,)
     assert marker.rung == index
     # decode() does not know whether the rungs come from a subroutine, so the marker acts as
     # end().
@@ -631,7 +631,6 @@ def test_write_csv_still_raises_for_a_shape_it_cannot_write(tmp_path: Path) -> N
     """
     blank = [""] * 31
     rung = Rung(
-        logical_rows=2,
         conditions=[blank, blank],
         instructions=[Shift("C99", "C106"), ""],
         comment=None,
@@ -680,7 +679,6 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
     marker = Undecoded("why", 3, 1)
     contacts = ["", *RUNGS[1].conditions[0][1:]]  # the contacts with no line from the rail
     rung = Rung(
-        logical_rows=2,
         conditions=[["-"] * 31, contacts],
         instructions=[marker, RUNGS[1].instructions[0]],
         comment=None,
@@ -688,9 +686,7 @@ def test_check_runs_the_layout_checks_on_a_rung_with_more_than_a_marker() -> Non
     codes = [(f.code, f.row, f.column) for f in check(rung)]
     assert codes[0] == ("undecoded-rung", 0, 31)
     assert ("no-rail", 1, 1) in codes
-    unwired = Rung(
-        logical_rows=1, conditions=[["", *["-"] * 30]], instructions=[marker], comment=None
-    )
+    unwired = Rung(conditions=[["", *["-"] * 30]], instructions=[marker], comment=None)
     assert [(f.code, f.row, f.column) for f in check(unwired)] == [
         ("undecoded-rung", 0, 31),
         ("unpowered-box", 0, 31),

@@ -51,6 +51,7 @@ def _classes() -> dict[str, type]:
         model,
         address,
         checks,
+        instructions,
         *(m for _, m in inspect.getmembers(instructions, inspect.ismodule)),
     ]
     for module in modules:

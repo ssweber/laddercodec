@@ -60,7 +60,6 @@ def test_validate_roundtrip_accepts_equivalent_raw_instruction(
     # The CSV writes each of these as a raw(...) token, which reads back as a RawInstruction
     # 3 rows tall. The rung is 3 rows tall to match.
     rung = Rung(
-        logical_rows=3,
         conditions=[["-"] * 31, [""] * 31, [""] * 31],
         instructions=[instruction, "", ""],
         comment=None,

@@ -85,7 +85,6 @@ _MATH = [
 
 def _rung(instruction: object) -> Rung:
     return Rung(
-        logical_rows=1,
         conditions=[["-"] * 31],
         instructions=[instruction],
         comment_rtf=None,

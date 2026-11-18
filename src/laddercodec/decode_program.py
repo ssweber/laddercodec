@@ -28,12 +28,10 @@ from .instructions import (
     from_tags_af,
     from_tags_condition,
 )
-from .instructions.comparison import CompareContact
-from .instructions.contact import Contact
 from .instructions.undecoded import Stop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
-from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob, rebuilt
+from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
 from .refused import warn_refused
 from .topology import CONDITION_COLUMNS as _CONDITION_COLUMNS
 from .undecoded import (
@@ -756,7 +754,7 @@ def _build_rung(
     comment_rtf: bytes | None,
 ) -> Rung:
     """Build a Rung from parsed SCR components."""
-    from .instructions import AfToken, ConditionToken, UnknownCondition
+    from .instructions import AfToken, ConditionToken, Tee, UnknownCondition
 
     # Initialize grids
     conditions: list[list[ConditionToken]] = [
@@ -832,7 +830,7 @@ def _build_rung(
             if (row, col_idx) not in instr_positions:
                 conditions[row][col_idx] = "-"
 
-    # 3. Apply wire_down (vertical wires going down)
+    # 3. Apply the down wires. A down wire in an instruction cell wraps it in a Tee.
     for col, row_indices in wiredown.items():
         if col >= _CONDITION_COLUMNS:
             continue
@@ -846,15 +844,14 @@ def _build_rung(
                 elif cell == "":
                     conditions[row][col] = "|"  # vertical only
                 # "T" or "|" already set — keep as is
-            elif isinstance(cell, (Contact, CompareContact)):
-                conditions[row][col] = rebuilt(cell, wire_down=True)
+            elif not isinstance(cell, Tee):
+                conditions[row][col] = Tee(cell)
 
     # Drop stray NOPs inside a tall instruction's rows, such as a NOP left behind
     # on a drum pin row. The clipboard decoder does the same.
     _drop_tall_span_nops(instructions)
 
     return Rung(
-        logical_rows=logical_rows,
         conditions=conditions,
         instructions=instructions,
         comment=comment,

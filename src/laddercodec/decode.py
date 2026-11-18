@@ -11,21 +11,22 @@ Public API
     decode_rungs(data)       -> list[Rung]
     inspect_cells(data, cells) -> list[CellDump]
 
-``decode_rung`` gives back the values that ``encode_rung`` was given:
+``decode_rung`` returns the values that ``encode_rung`` was given, as tuples:
 
     decode_rung(encode_rung(lr, cr, af, cmt))
         .logical_rows  == lr
-        .conditions    == cr
-        .instructions  == af
+        .conditions    == tuple(map(tuple, cr))
+        .instructions  == tuple(af)
         .comment       == cmt
 
 Instruction cells
 -----------------
 
 A cell that holds a contact or a coil is a horizontal wire cell, with the flags
-``(1,1,0)``, that also holds the instruction's data.  The instruction data starts at
-offset ``+0x25`` in the cell.  It holds the class name in UTF-16LE, a type marker, the
-operand and the function code.  A cell with only wires is exactly ``0x40`` bytes long.
+``(1,1,0)``, that also holds the instruction's data.  A contact cell may also set its down
+flag (+0x21) for a wire down.  The decoder returns that cell as a ``Tee`` around the
+contact.  The instruction data starts at offset ``+0x25`` in the cell.  It holds the
+class name in UTF-16LE, a type marker, the operand and the function code.  A cell with only wires is exactly ``0x40`` bytes long.
 A cell with an instruction is longer.
 
 For each instruction type it knows, the decoder builds an object from ``instructions/``,
@@ -39,17 +40,20 @@ from __future__ import annotations
 
 import re
 import struct
-from dataclasses import dataclass, replace
+from collections.abc import Sequence
+from dataclasses import dataclass, field, replace
 
 from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .csv.contract import OUTPUT_COLUMN as _AF_NAME
 from .encode import _PREFIX, _SUFFIX
-from .errors import DecodeError
+from .errors import DecodeError, EncodeError
 from .instructions import (
     AfInstruction,
     AfToken,
+    ConditionInstruction,
     ConditionToken,
     RawInstruction,
+    Tee,
     UnknownCondition,
     UnknownInstruction,
     parse_af_blob,
@@ -58,7 +62,7 @@ from .instructions import (
 from .instructions.raw import find_blob_boundary
 from .legacy import warn_legacy
 from .model import PinnedInstruction
-from .operands.unchecked import keep_cell_rows, rebuilt
+from .operands.unchecked import keep_cell_rows
 from .refused import warn_refused
 from .topology import (
     CELL_SIZE,
@@ -99,7 +103,7 @@ class _CellError(DecodeError):
         self.column = column
 
 
-@dataclass
+@dataclass(frozen=True, init=False)
 class Rung:
     """One rung of ladder logic.  The decoders return it, and ``encode()`` accepts it.
 
@@ -108,16 +112,24 @@ class Rung:
     ``encode()`` writes the flags in a standard form, so its bytes can differ
     from the bytes that CLICK wrote.
 
+    A ``Rung`` is frozen.  You may pass lists for ``conditions`` and ``instructions``.
+    The rung stores them as tuples, so a rung built from lists equals the same rung built
+    from tuples, and it can be hashed.  To change a rung, build a new one or call
+    ``laddercodec.replace(rung, instructions=...)``.  A text where a row of
+    ``conditions`` or the ``instructions`` list belongs raises
+    :class:`~laddercodec.EncodeError`.
+
     Attributes
     ----------
-    logical_rows:
-        Number of rung rows (1..32).
     conditions:
-        One list of tokens per row.  Each row has 31 entries, one per
+        One tuple of tokens per row.  Each row has 31 entries, one per
         condition column.  A cell with only wires is a string (``""`` blank,
         ``"-"`` horizontal, ``"|"`` vertical, ``"T"`` junction-down).  A
         contact is an object such as ``Contact``.  A cell that the decoder
-        does not recognise is an ``UnknownCondition``.
+        does not recognise is an ``UnknownCondition``.  A cell that holds a
+        contact and a wire down from its left edge is a ``Tee`` around the
+        contact, such as ``Tee(Contact("X001"))``.  A ``Tee`` is to a
+        contact what ``"T"`` is to ``"-"``.
     instructions:
         One AF token per row.  A row with no instruction holds ``"NOP"``
         or ``""``.  An instruction is an object such as ``Coil``.  A cell
@@ -129,18 +141,47 @@ class Rung:
     comment_rtf:
         The comment's RTF bytes as the binary stored them, or ``None``.
         ``encode()`` does not read them.  It writes the comment from
-        ``comment``.
+        ``comment``.  Two rungs that differ only in ``comment_rtf`` are equal.
     """
 
-    logical_rows: int
-    conditions: list[list[ConditionToken]]
-    instructions: list[AfToken]
+    conditions: tuple[tuple[ConditionToken, ...], ...]
+    instructions: tuple[AfToken, ...]
     comment: str | None
-    comment_rtf: bytes | None = None
+    comment_rtf: bytes | None = field(default=None, compare=False)
 
+    def __init__(
+        self,
+        conditions: Sequence[Sequence[ConditionToken]],
+        instructions: Sequence[AfToken],
+        comment: str | None,
+        comment_rtf: bytes | None = None,
+    ) -> None:
+        # Read each argument once, so that a generator is checked and stored whole.
+        rows = [conditions] if isinstance(conditions, str) else list(conditions)
+        # A text where a row belongs is most often one flat row of tokens, which tuple()
+        # would split into rows of one cell each.
+        for row in rows:
+            if isinstance(row, str):
+                raise EncodeError(
+                    f"conditions holds the text {row!r} where a row belongs. Pass conditions "
+                    "as one list of 31 tokens per row, such as [['-'] * 31]."
+                )
+        if isinstance(instructions, str):
+            raise EncodeError(
+                f"instructions holds the text {instructions!r} where a list belongs. Pass "
+                "one AF token per row, such as ['NOP']."
+            )
+        # The fields hold tuples whatever sequences the caller passes, so a rung built
+        # from lists equals the same rung built from tuples, and hashes the same.
+        object.__setattr__(self, "conditions", tuple(tuple(row) for row in rows))
+        object.__setattr__(self, "instructions", tuple(instructions))
+        object.__setattr__(self, "comment", comment)
+        object.__setattr__(self, "comment_rtf", comment_rtf)
 
-# Backwards-compatible alias.
-DecodedRung = Rung
+    @property
+    def logical_rows(self) -> int:
+        """The number of rows in the rung, ``len(conditions)``.  ``encode()`` takes 1 to 32."""
+        return len(self.conditions)
 
 
 @dataclass
@@ -695,12 +736,11 @@ def _decode_condition_cell(data: bytes, pos: int, next_pos: int, has_instr: bool
     if has_instr:
         instr_raw = bytes(data[pos + _INSTR_DATA_OFFSET : next_pos])
         parsed = parse_condition_blob(instr_raw)
-        if parsed is None:
-            return UnknownCondition(raw=instr_raw)
-        # Read wire_down flag from cell header (+0x21).
-        if data[pos + 0x21] == 1:
-            parsed = rebuilt(parsed, wire_down=True)
-        return parsed
+        cell: ConditionInstruction | UnknownCondition = (
+            UnknownCondition(raw=instr_raw) if parsed is None else parsed
+        )
+        # The down flag (+0x21) of an instruction cell is a wire down from the cell.
+        return Tee(cell) if data[pos + 0x21] == 1 else cell
     seg = data[pos + 0x19]  # segment flag (+0x19)
     wr = data[pos + 0x1D]
     wd = data[pos + 0x21]
@@ -1098,7 +1138,6 @@ def _build_rung(
     _drop_tall_span_nops(instructions)
 
     return Rung(
-        logical_rows=len(rows),
         conditions=conditions,
         instructions=instructions,
         comment=comment,

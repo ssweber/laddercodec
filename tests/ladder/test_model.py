@@ -33,7 +33,7 @@ class TestKind:
             (Contact("X001", kind="nc", immediate=True), "~X001.immediate"),
             (Contact("X001", "no", True), "X001.immediate"),
             (Contact("C1", kind="rise"), "rise(C1)"),
-            (Contact("C1", kind="fall", wire_down=True), "T:fall(C1)"),
+            (Contact("C1", kind="fall"), "fall(C1)"),
         ],
     )
     def test_contact(self, contact: Contact, token: str) -> None:

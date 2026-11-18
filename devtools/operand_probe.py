@@ -330,6 +330,17 @@ def _range_pairs() -> list[tuple[str, str]]:
 
 RANGE_PAIRS = _range_pairs()
 
+
+def make_rung(ns: Any, conditions: Any, instructions: Any, comment: str | None) -> Any:
+    """Return ``ns.Rung`` built from ``conditions``, ``instructions`` and ``comment``.
+
+    An older tree's ``Rung`` also takes the row count first, as ``logical_rows``.
+    """
+    if "logical_rows" in {f.name for f in dataclasses.fields(ns.Rung)}:
+        return ns.Rung(len(conditions), conditions, instructions, comment)
+    return ns.Rung(conditions, instructions, comment)
+
+
 # ---------------------------------------------------------------------------
 # Per-class probe tables
 # ---------------------------------------------------------------------------
@@ -544,7 +555,6 @@ PROBES: dict[str, Probe] = {
             "operand": "op",
             "kind": _lit("no", "nc", "rise", "fall", None, "up", "NO", ""),
             "immediate": "bool",
-            "wire_down": "bool",
         },
         baselines=lambda ns: {
             "no": dict(operand="X001"),
@@ -559,7 +569,6 @@ PROBES: dict[str, Probe] = {
             "op": _lit("==", "!=", "<", ">", "<=", ">=", "=", "<>", "", "eq"),
             "left": "op",
             "right": "op",
-            "wire_down": "bool",
         },
         baselines=lambda ns: {
             "ds": dict(op="==", left="DS1", right="5"),
@@ -1223,7 +1232,7 @@ class Runner:
         """
         ns = self.ns
         if isinstance(inst, ns.ConditionInstruction):
-            return ns.Rung(1, [[inst] + ["-"] * 30], [""], None)
+            return make_rung(ns, [[inst] + ["-"] * 30], [""], None)
         rows, nop_row = 1, None
         if isinstance(inst, ns.PinnedInstruction):
             rows = inst.pin_rows[-1] + 1
@@ -1236,7 +1245,7 @@ class Runner:
         afs: list[Any] = [inst] + [""] * (rows - 1)
         if nop_row is not None:
             afs[nop_row] = "NOP"
-        return ns.Rung(rows, conditions, afs, None)
+        return make_rung(ns, conditions, afs, None)
 
     def template(self, rung: Any) -> tuple[list[list[str]], list[str]]:
         """Return the CSV writer's rows for ``rung``, and the warnings that it raised."""
@@ -1265,8 +1274,8 @@ class Runner:
             rung = got[0]
             conditions, instructions = rung.conditions, rung.instructions
         else:
-            logical, conditions, instructions, comment = got
-            rung = ns.Rung(logical, conditions, instructions, comment)
+            _logical, conditions, instructions, comment = got
+            rung = make_rung(ns, conditions, instructions, comment)
         return self.main_token(conditions, instructions, condition), rung
 
     def round_trip(self, rung: Any, condition: bool, expect: str) -> str:

@@ -54,6 +54,7 @@ from ..instructions import (
     AfInstruction,
     ConditionInstruction,
     RawInstruction,
+    Tee,
     UnknownCondition,
     UnknownInstruction,
 )
@@ -71,7 +72,7 @@ from .parser import _parse_single_rung_rows
 
 def _token_to_csv(token: object) -> str:
     """Serialize a condition or AF token to its CSV string."""
-    if isinstance(token, (ConditionInstruction, AfInstruction)):
+    if isinstance(token, (Tee, ConditionInstruction, AfInstruction)):
         return token.to_csv()
     if isinstance(token, UnknownCondition):
         raise WriterError(f"Cannot serialize unknown condition to CSV (raw {len(token.raw)} bytes)")
@@ -599,7 +600,8 @@ def _unknown_cell(rung: Rung) -> tuple[int, int, str] | None:
     """
     for row, (conditions, af) in enumerate(zip(rung.conditions, rung.instructions, strict=False)):
         cells = [*enumerate(conditions), (len(CONDITION_COLUMNS), af)]
-        for column, token in cells:
+        for column, cell in cells:
+            token = cell.contact if isinstance(cell, Tee) else cell
             if isinstance(token, (UnknownCondition, UnknownInstruction)):
                 kind = "condition" if isinstance(token, UnknownCondition) else "instruction"
                 return (

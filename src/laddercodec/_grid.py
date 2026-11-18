@@ -8,8 +8,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from .cell import ClickCell, build_row
+from .csv.contract import CONDITION_COLUMNS as _COLUMN_NAMES
 from .encode import (
     _TOKEN_FLAGS,
     MAX_ROWS,
@@ -25,6 +27,7 @@ from .errors import EncodeError
 from .instructions import (
     AfInstruction,
     ConditionInstruction,
+    Tee,
     Undecoded,
     UnknownCondition,
     UnknownInstruction,
@@ -55,6 +58,40 @@ def _check_instruction(token: ConditionInstruction | AfInstruction) -> None:
         raise found[0].with_traceback(None)
 
 
+def _cell_contact(token: ConditionToken) -> str | ConditionInstruction:
+    """Return the contact inside a ``Tee``, or *token* itself if it is not a ``Tee``.
+
+    ``_validate_rung`` refuses an ``UnknownCondition``, inside a ``Tee`` or not, before
+    the grid is built.
+    """
+    if not isinstance(token, Tee):
+        return token
+    return cast("ConditionInstruction", token.contact)
+
+
+def _check_tee(tee: Tee, row_idx: int, col_idx: int, logical_rows: int, prefix: str) -> None:
+    """Raise :class:`EncodeError` if *tee* is in column A or on the rung's last row.
+
+    A ``Tee`` has a wire down, so the same rules hold for it as for ``"T"`` and ``"|"``.
+    """
+    contact = tee.contact
+    text = (
+        tee.to_csv()
+        if isinstance(contact, ConditionInstruction)
+        else f"Tee({type(contact).__name__})"
+    )
+    where = f"{prefix}Row {row_idx}, column {_COLUMN_NAMES[col_idx]}: {text} has a wire down"
+    if col_idx == 0:
+        raise EncodeError(
+            f"{where}, and column A can't hold one. Put the contact in column A without a Tee."
+        )
+    if row_idx == logical_rows - 1:
+        raise EncodeError(
+            f"{where} on the rung's last row, where the wire has no row to reach. Write the "
+            "contact without a Tee, or add a row below it."
+        )
+
+
 def _validate_rung(
     logical_rows: int,
     condition_rows: Sequence[Sequence[ConditionToken]],
@@ -72,15 +109,26 @@ def _validate_rung(
     prefix = f"{label}: " if label else ""
 
     if not (MIN_ROWS <= logical_rows <= MAX_ROWS):
-        raise EncodeError(
-            f"{prefix}logical_rows must be {MIN_ROWS}..{MAX_ROWS}, got {logical_rows}"
+        fix = (
+            "Split it into rungs of 32 rows or fewer."
+            if logical_rows > MAX_ROWS
+            else "Pass conditions as one list of 31 tokens per row, such as [['-'] * 31]."
         )
+        raise EncodeError(
+            f"{prefix}A rung has {MIN_ROWS} to {MAX_ROWS} rows. This one has {logical_rows}. {fix}"
+        )
+    rows = f"{logical_rows} row{'' if logical_rows == 1 else 's'}"
     if len(condition_rows) != logical_rows:
         raise EncodeError(
-            f"{prefix}Expected {logical_rows} condition rows, got {len(condition_rows)}"
+            f"{prefix}The rung has {rows}, and conditions has {len(condition_rows)}. "
+            "Pass one list of 31 tokens per row."
         )
     if len(af_tokens) != logical_rows:
-        raise EncodeError(f"{prefix}Expected {logical_rows} AF tokens, got {len(af_tokens)}")
+        tokens = f"{len(af_tokens)} token{'' if len(af_tokens) == 1 else 's'}"
+        raise EncodeError(
+            f"{prefix}The rung has {rows}, and instructions has {tokens}. Pass one AF "
+            "token per row, with '' for a row that has no instruction."
+        )
 
     for row_idx, row in enumerate(condition_rows):
         if len(row) != CONDITION_COLUMNS:
@@ -88,6 +136,9 @@ def _validate_rung(
                 f"{prefix}Row {row_idx}: expected {CONDITION_COLUMNS} columns, got {len(row)}"
             )
         for col_idx, token in enumerate(row):
+            if isinstance(token, Tee):
+                _check_tee(token, row_idx, col_idx, logical_rows, prefix)
+                token = token.contact
             if isinstance(token, UnknownCondition):
                 raise EncodeError(
                     f"{prefix}Unknown condition at row={row_idx}, col={col_idx}: "
@@ -153,11 +204,14 @@ def _compute_rung_metadata(
 ) -> RungMetadata:
     """Compute instruction indices and segment boundaries."""
     rung_has_instructions = any(
-        isinstance(t, ConditionInstruction) for row in condition_rows for t in row
+        isinstance(_cell_contact(t), ConditionInstruction) for row in condition_rows for t in row
     ) or any(isinstance(af, AfInstruction) for af in af_tokens)
 
     total_instr_count = sum(
-        1 for row in condition_rows for t in row if isinstance(t, ConditionInstruction)
+        1
+        for row in condition_rows
+        for t in row
+        if isinstance(_cell_contact(t), ConditionInstruction)
     ) + sum(1 for af in af_tokens if isinstance(af, AfInstruction))
 
     # Number the condition instructions first, row by row, then the AF instructions.
@@ -166,7 +220,7 @@ def _compute_rung_metadata(
     idx = 0
     for row_idx in range(logical_rows):
         for col_idx, tok in enumerate(condition_rows[row_idx]):
-            if isinstance(tok, ConditionInstruction):
+            if isinstance(_cell_contact(tok), ConditionInstruction):
                 cond_instr_indices[(row_idx, col_idx)] = idx
                 idx += 1
     for row_idx in range(logical_rows):
@@ -221,6 +275,9 @@ def _build_rung_grid(
         for col_idx in range(COLS_PER_ROW):
             if col_idx < CONDITION_COLUMNS:
                 token = cond_row[col_idx]
+                # A Tee writes the cell of the contact inside it, with the down flag set.
+                tee_down = isinstance(token, Tee)
+                token = _cell_contact(token)
                 # An instruction's segment flag is 1 on row 0.  On a later row it is 0 left
                 # of the row's segment boundary, and 1 at or right of the boundary.
                 seg = 1 if col_idx >= seg_bound else (0 if local_row > 0 and seg_bound > 0 else 1)
@@ -240,7 +297,7 @@ def _build_rung_grid(
                             rung_has_instructions=meta.rung_has_instructions,
                             segment=seg,
                             wire_right=1,
-                            wire_down=params["wire_down"],
+                            wire_down=1 if tee_down else 0,
                             instr_index=meta.cond_instr_indices[(local_row, col_idx)],
                             blob=blob,
                         ).to_bytes()

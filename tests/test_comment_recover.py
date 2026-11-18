@@ -142,7 +142,6 @@ def _rung(comment: str) -> Rung:
 
     first = DECODED[0]
     return Rung(
-        logical_rows=first.logical_rows,
         conditions=first.conditions,
         instructions=first.instructions,
         comment=comment,

@@ -10,13 +10,17 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar, cast
 
+from ..codes import Code
+from ..errors import WriterError
 from ..model import (
     AfInstruction,
     ConditionInstruction,
     FieldError,
     PinnedInstruction,
+    Reason,
     display_form_only,
 )
+from ..operands.checks import Refusals
 from ..operands.unchecked import keep_stored_blob, needs_stored_blob, refusals, unchecked
 from . import call as call_mod
 from . import coil as coil_mod
@@ -78,9 +82,10 @@ _Parsed = TypeVar("_Parsed", bound=ConditionInstruction | AfInstruction)
 class UnknownCondition:
     """An instruction cell on a condition column (A..AE) that the decoder could not read.
 
-    The class does not hold the wire flags, which are always ``(1,1,0)`` for contacts.
     ``raw`` holds the instruction's own bytes, from cell offset ``+0x25`` to the cell
     boundary. When ``decode_program`` builds one, ``raw`` holds the class name instead.
+    The class holds no wire flags. If the cell also has a wire down, the decoder wraps the
+    ``UnknownCondition`` in a :class:`Tee`.
     """
 
     raw: bytes
@@ -89,6 +94,53 @@ class UnknownCondition:
         # A frozen instance must hold bytes. A bytearray could change, and it does not hash.
         if isinstance(self.raw, bytearray):
             object.__setattr__(self, "raw", bytes(self.raw))
+
+
+@dataclass(frozen=True)
+class Tee:
+    """A condition cell that holds a contact and a wire down from the cell's left edge.
+
+    It is the contact form of the ``"T"`` wire token. In the CSV, the cell is the contact's
+    token with a ``T:`` prefix. ``Tee(Contact("X001"))`` is ``T:X001``.
+
+    ``contact`` is a ``Contact``, a ``CompareContact`` or another condition instruction,
+    or an ``UnknownCondition``. Building a ``Tee`` around anything else raises
+    :class:`~laddercodec.FieldError`, and so does a ``Tee`` around a ``Tee``.
+    """
+
+    contact: ConditionInstruction | UnknownCondition
+
+    def __post_init__(self) -> None:
+        with Refusals(self) as check:
+            if isinstance(self.contact, Tee):
+                check.refuse(
+                    "contact",
+                    f"{self.contact!r} is a Tee already. Wrap the contact once, such as "
+                    "Tee(Contact('X001')).",
+                    Reason.FORM,
+                    code=Code.INVALID_TEE,
+                )
+            elif not isinstance(self.contact, (ConditionInstruction, UnknownCondition)):
+                check.refuse(
+                    "contact",
+                    f"{self.contact!r} is not a contact. Wrap a Contact or a CompareContact, "
+                    "such as Tee(Contact('X001')). For a wire down with no contact, write 'T'.",
+                    Reason.FORM,
+                    code=Code.INVALID_TEE,
+                )
+
+    def to_csv(self) -> str:
+        """Return the CSV text of the cell: ``T:`` and the contact's token, such as ``T:X001``.
+
+        ``write_csv`` writes this text for the cell. An ``UnknownCondition`` has no CSV
+        token, so a ``Tee`` around one raises :class:`~laddercodec.WriterError`.
+        """
+        if isinstance(self.contact, UnknownCondition):
+            raise WriterError(
+                f"Tee holds an UnknownCondition ({len(self.contact.raw)} bytes), and no CSV "
+                "token holds one. Replace the contact, such as Tee(Contact('X001'))."
+            )
+        return f"T:{self.contact.to_csv()}"
 
 
 @dataclass(frozen=True)
@@ -108,12 +160,13 @@ class UnknownInstruction:
             object.__setattr__(self, "raw", bytes(self.raw))
 
 
-ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition
+ConditionToken = str | Contact | CompareContact | ConditionInstruction | UnknownCondition | Tee
 """A condition-column cell of a ``Rung``.
 
 It is a wire token (``"-"``, ``"|"``, ``"T"`` or ``""``), a condition instruction such as a
 ``Contact`` or a ``CompareContact``, or an ``UnknownCondition`` for a cell that the decoder
-could not read."""
+could not read. A cell that holds one of these instructions and a wire down is a
+:class:`Tee` around the instruction."""
 
 AfToken = (
     str
@@ -417,6 +470,7 @@ __all__ = [
     "Search",
     "Send",
     "Shift",
+    "Tee",
     "Timer",
     "UnknownCondition",
     "UnknownInstruction",

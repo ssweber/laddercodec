@@ -280,12 +280,20 @@ def _fixes(held: object, valid: object) -> dict[str, Any]:
     }
 
 
-def _swap(rungs: list[Rung], old: object, new: object) -> None:
-    """Put *new* in place of the instruction *old* in *rungs*."""
-    for rung in rungs:
-        for row in rung.conditions:
-            row[:] = [new if t is old else t for t in row]
-        rung.instructions[:] = [new if t is old else t for t in rung.instructions]
+def _swap(rungs: list[Rung], old: object, new: object) -> list[Rung]:
+    """Return *rungs* with *new* in place of the instruction *old*."""
+
+    def cell(token: Any) -> Any:
+        return new if token is old else token
+
+    return [
+        replace(
+            rung,
+            conditions=[[cell(t) for t in row] for row in rung.conditions],
+            instructions=[cell(t) for t in rung.instructions],
+        )
+        for rung in rungs
+    ]
 
 
 @pytest.mark.parametrize("source", ["clipboard", "csv"])
@@ -308,7 +316,7 @@ def test_a_field_fixed_by_replace_is_accepted(
     fixed = laddercodec.replace(held, **_fixes(held, valid))
     assert not refusals(fixed)
     assert stored_blob(fixed) is None
-    _swap(rungs, held, fixed)
+    rungs = _swap(rungs, held, fixed)
     assert encode(rungs) == golden_bytes
 
 
@@ -339,7 +347,7 @@ def test_a_field_fixed_in_lowercase_encodes_as_construction_writes_it(
         pytest.skip("the fix holds no letters")
     fixed = laddercodec.replace(held, **(_fixes(held, valid) | typed))
     assert not refusals(fixed)
-    _swap(rungs, held, fixed)
+    rungs = _swap(rungs, held, fixed)
     assert encode(rungs) == golden_bytes
 
 
@@ -652,7 +660,6 @@ def test_a_block_copy_destination_keeps_its_edge_space() -> None:
 
 def _copy_rung(copy_af: Copy) -> Rung:
     return Rung(
-        logical_rows=1,
         conditions=[["-"] * 31],
         instructions=[copy_af],
         comment_rtf=None,
@@ -688,7 +695,7 @@ def test_write_csv_refuses_it_beside_a_held_refusal(tmp_path) -> None:
     _, contact = _held(rungs)
     copy_af = Copy("DS1", "DS2")
     rung = _copy_rung(copy_af)
-    rung.conditions[0][0] = contact
+    rung = replace(rung, conditions=[[contact, *rung.conditions[0][1:]]])
     write_csv(tmp_path / "held.csv", [rung])
     _force(copy_af, dest="Y002")
     with pytest.raises(WriterError, match="Y002"):
