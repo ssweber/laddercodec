@@ -20,12 +20,13 @@ from laddercodec.decode_program import (
     _parse_scr_tags,
     _parse_section_entries,
     _parse_wiredown_table,
+    _read_scr_string,
     _ScrRow,
     _tag_wire_type,
     _walk_rung_records,
     decode_program,
 )
-from laddercodec.instructions import from_tags_af
+from laddercodec.instructions import from_tags_af, parse_af_blob, parse_condition_blob
 from laddercodec.instructions.home import from_tags as home_from_tags
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.position import from_tags as position_from_tags
@@ -306,6 +307,165 @@ def test_scr_out_variant_without_unit_tag_decodes_as_tms(expected: str):
     parsed = from_tags_af(*_parse_scr_tags(raw, 0, len(raw), 1))
     assert parsed is not None
     assert parsed.to_csv() == expected
+
+
+#: A quoted text of 130 characters: the most that CLICK's Compare and Search dialogs accept.
+_LONG_TEXT = '"' + "A" * 128 + '"'
+
+#: The blobs that CLICK v4 saved in a program file for a Search and a Compare whose text
+#: is ``_LONG_TEXT``. Each length byte ``ff`` is followed by the u16 byte count ``05 01``
+#: (261: 130 UTF-16LE characters and one NUL byte). The run of A's is written as an
+#: expression. The bytes are the same as the save's.
+_SCR_LONG_TEXT_BLOBS = {
+    "search": (
+        bytes.fromhex(
+            "0d 53 00 65 00 61 00 72 00 63 00 68 00 00 22 27 00 00 00 00 00 00 01 01"
+            " 98 02 00 00 65 60 ff 05 01"
+        )
+        + _LONG_TEXT.encode("utf-16-le")
+        + bytes.fromhex(
+            "00 66 60 09 54 00 58 00 54 00 31 00 00 67 60 0b 54 00 58 00 54 00 31 00 30"
+            " 00 00 79 60 09 44 00 53 00 33 00 30 00 00 7a 60 05 43 00 31 00 00 00 00"
+        )
+    ),
+    "compare": (
+        bytes.fromhex(
+            "0f 43 00 6f 00 6d 00 70 00 61 00 72 00 65 00 00 14 27 00 00 00 00 00 00 01 01"
+            " 75 02 00 00 66 60 09 54 00 58 00 54 00 31 00 00 67 60 ff 05 01"
+        )
+        + _LONG_TEXT.encode("utf-16-le")
+        + bytes.fromhex("00 00 00")
+    ),
+}
+
+
+def test_scr_search_with_a_long_text_reads_the_tags_after_it():
+    from laddercodec.instructions.search import Search
+
+    raw = _SCR_LONG_TEXT_BLOBS["search"]
+    parsed = from_tags_af(*_parse_scr_tags(raw, 0, len(raw), 1))
+    assert isinstance(parsed, Search)
+    assert (parsed.value, parsed.table_start, parsed.table_end) == (_LONG_TEXT, "TXT1", "TXT10")
+    assert (parsed.result, parsed.found) == ("DS30", "C1")
+    assert parse_af_blob(parsed.build_blob()) == parsed
+
+
+def test_scr_compare_with_a_long_text_decodes_the_text():
+    from laddercodec.instructions import from_tags_condition
+    from laddercodec.instructions.comparison import CompareContact
+
+    raw = _SCR_LONG_TEXT_BLOBS["compare"]
+    parsed = from_tags_condition(*_parse_scr_tags(raw, 0, len(raw), 1))
+    assert parsed == CompareContact(op="==", left="TXT1", right=_LONG_TEXT)
+    assert parse_condition_blob(parsed.build_blob()) == parsed
+
+
+def _scr_count(byte_count: int, *, long_form: bool) -> bytes:
+    """Return a string's byte count in the one-byte form or in the ``ff`` + u16 form."""
+    if long_form:
+        return b"\xff" + byte_count.to_bytes(2, "little")
+    return bytes([byte_count])
+
+
+# These strings are built from the rule. The count is the number of bytes: the UTF-16LE
+# text and one NUL byte. A count of 0xFF or more needs the long form. For a count that
+# fits in one byte, the tests check that both forms decode.
+@pytest.mark.parametrize(
+    ("chars", "long_form"),
+    [(63, False), (64, False), (126, False), (63, True), (126, True), (127, True), (500, True)],
+)
+def test_parse_scr_tags_reads_each_string_length_form(chars: int, long_form: bool):
+    text = "B" * chars
+    encoded = text.encode("utf-16-le") + b"\x00"
+    body = (
+        (0x6065).to_bytes(2, "little")
+        + _scr_count(len(encoded), long_form=long_form)
+        + encoded
+        + _compact_scr_string_field(0x6066, "DS1")
+        + _compact_scr_byte_field(0x2224, 1)
+        + (0x0000).to_bytes(2, "little")
+    )
+    raw = _compact_scr_blob("Math", 0x271A, 1, body)
+    _cls, _type, tags, _v_u16, _v_str = _parse_scr_tags(raw, 0, len(raw), 1)
+    assert tags == {0x6065: text, 0x6066: "DS1", 0x2224: "1", 0x0000: ""}
+
+
+def test_parse_scr_tags_reads_a_long_variant_string():
+    """A variant string entry uses the same length forms. This blob is built from the rule."""
+    text = "C" * 130
+    encoded = text.encode("utf-16-le") + b"\x00"
+    short = "X1".encode("utf-16-le") + b"\x00"
+    body = (
+        (0x6872).to_bytes(2, "little")
+        + (0).to_bytes(2, "little")
+        + _scr_count(len(encoded), long_form=True)
+        + encoded
+        + (1).to_bytes(2, "little")
+        + _scr_count(len(short), long_form=False)
+        + short
+        + (0xFFFF).to_bytes(2, "little")
+        + _compact_scr_string_field(0x6065, "DS1")
+        + (0x0000).to_bytes(2, "little")
+    )
+    raw = _compact_scr_blob("Drum", 0x271B, 1, body)
+    _cls, _type, tags, _v_u16, v_str = _parse_scr_tags(raw, 0, len(raw), 1)
+    assert v_str == {0x6872: {0: text, 1: "X1"}}
+    assert tags == {0x6065: "DS1", 0x0000: ""}
+
+
+def test_parse_scr_tags_stops_at_a_long_string_that_runs_past_the_end():
+    """This blob is built from the rule."""
+    body = (0x6065).to_bytes(2, "little") + _scr_count(0x0105, long_form=True) + b"A\x00" * 8
+    raw = _compact_scr_blob("Math", 0x271A, 1, body)
+    _cls, _type, tags, _v_u16, _v_str = _parse_scr_tags(raw, 0, len(raw), 1)
+    assert tags == {}
+
+
+def test_parse_scr_tags_ends_the_walk_at_a_long_variant_string_past_the_end():
+    """This blob is built from the rule."""
+    body = (
+        (0x6872).to_bytes(2, "little")
+        + (0).to_bytes(2, "little")
+        + _scr_count(0x0105, long_form=True)
+        + b"C\x00" * 8
+    )
+    raw = _compact_scr_blob("Drum", 0x271B, 1, body)
+    _cls, _type, tags, _v_u16, v_str = _parse_scr_tags(raw, 0, len(raw), 1)
+    assert v_str == {0x6872: {}}
+    assert tags == {}
+
+
+def test_parse_scr_tags_stops_at_a_string_past_the_blob_end():
+    """A string that ends after the blob's end offset is not read, even when the data
+    holds it."""
+    body = _compact_scr_string_field(0x6065, "DS1")
+    raw = _compact_scr_blob("Math", 0x271A, 1, body)
+    _cls, _type, tags, _v_u16, _v_str = _parse_scr_tags(raw, 0, len(raw) - 1, 1)
+    assert tags == {}
+
+
+def test_read_scr_string_returns_none_for_a_cut_off_long_count():
+    assert _read_scr_string(b"\xff\x05", 0) is None
+
+
+def test_parse_header_rejects_a_long_name_count_past_the_end():
+    """This header is built from the rule."""
+    data = _synthetic_scr([None])
+    long_data = data[:0x42] + _scr_count(0x0FFF, long_form=True) + data[0x43:]
+    assert len(long_data) < 0x0FFF
+    with pytest.raises(DecodeError, match="truncated SCR name or column count"):
+        _parse_header(long_data)
+
+
+def test_parse_header_reads_a_name_in_the_long_length_form():
+    """The program name uses the same length forms. This header is built from the rule."""
+    data = _synthetic_scr([None])
+    name_bytes = "Synth".encode("utf-16-le") + b"\x00"
+    assert data[0x42] == len(name_bytes)
+    long_data = data[:0x42] + _scr_count(len(name_bytes), long_form=True) + data[0x43:]
+    header = _parse_header(long_data)
+    assert header.name == "Synth"
+    assert header.rungs_start == _parse_header(data).rungs_start + 2
 
 
 def test_parse_section_entries_accepts_large_instruction_counts():

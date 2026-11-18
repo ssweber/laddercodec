@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import struct
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from devtools.walk_scr import find_valid_sections, parse_header
-from laddercodec.decode_program import _parse_blob
+from laddercodec.decode_program import _parse_blob, _parse_scr_tags
 
 
 def main() -> None:
@@ -35,34 +34,20 @@ def main() -> None:
             m1 = len(part_rows)
             next_pos = end_off + 2 + data[end_off]  # the byte at end_off is a trailer length
 
-            # Parse tagged fields
-            pos = blob_start
-            sl = data[pos]
-            pos += 1 + sl + 2  # skip class name + type
-            pos += 6 + 1 + m1 + 4  # skip 6 bytes + part count + m1 row bytes + end_offset
-
-            tags = []
-            while pos < end_off:
-                if pos + 3 > len(data):
-                    break
-                tag = struct.unpack_from("<H", data, pos)[0]
-                pos += 2
-                str_len = data[pos]
-                pos += 1
-                val_raw = data[pos : pos + str_len]
-                if len(val_raw) % 2 == 1:
-                    val_raw += b"\x00"
-                val = val_raw.decode("utf-16-le", errors="replace").rstrip("\x00")
-                tags.append((tag, val))
-                pos += str_len
+            _cls, _typ, tags, v_u16, v_str = _parse_scr_tags(data, blob_start, end_off, m1)
 
             col_name = (
                 chr(ord("A") + col)
                 if col < 26
                 else (f"A{chr(ord('A') + col - 26)}" if col < 31 else "AF")
             )
-            tag_str = ", ".join(f"{t:#06x}={v!r}" for t, v in tags)
-            print(f"  [{ii}] r{row} {col_name}: {cls} type={typ:#06x} m1={m1} tags=[{tag_str}]")
+            tag_str = ", ".join(f"{t:#06x}={v!r}" for t, v in tags.items())
+            u16_str = ", ".join(f"{t:#06x}={v!r}" for t, v in v_u16.items())
+            str_str = ", ".join(f"{t:#06x}={v!r}" for t, v in v_str.items())
+            print(
+                f"  [{ii}] r{row} {col_name}: {cls} type={typ:#06x} m1={m1} tags=[{tag_str}]"
+                f" variant_u16=[{u16_str}] variant_string=[{str_str}]"
+            )
             cursor = next_pos
 
 

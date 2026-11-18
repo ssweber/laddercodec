@@ -187,8 +187,8 @@ Instruction blobs use tagged fields where each tag is a 2-byte LE value. The tag
 | 0x20, 0x21, 0x22 | byte | 1 byte |
 | 0x32 | u16 | 2 bytes (uint16 LE) |
 | 0x3A | variant_u16 | Sequence of `[uint16 index, uint16 value]` pairs, terminated by 0xFFFF |
-| 0x60, 0x61, 0x62 | string | `[1B length][UTF-16LE value]` |
-| 0x68 | variant_string | Sequence of `[uint16 index, 1B length, UTF-16LE value]` entries, terminated by 0xFFFF |
+| 0x60, 0x61, 0x62 | string | `[length][UTF-16LE value]` in SCR (see [SCR strings](#scr-strings)) |
+| 0x68 | variant_string | Sequence of `[uint16 index, length, UTF-16LE value]` entries in SCR, terminated by 0xFFFF |
 
 This rule applies identically to both clipboard and SCR instruction blobs — the tag IDs, wire types, and operand values are the same in both formats. Only the framing differs (see below).
 
@@ -201,19 +201,32 @@ The instruction blob content (tag IDs, operand values, wire types) is **identica
 **SCR (Scr\*.tmp):** blobs are stored in instruction sections with explicit framing. Each blob has six bytes after the type code, the part rows and an `end_offset` pointer:
 
 ```
-[1B class_name_len][UTF-16LE class_name][2B type_code]
+[class_name as an SCR string][2B type_code]
 [2B zero][2B opaque][2B zero][1B part_count]
 [part_count part-row bytes][4B end_offset]
 [tagged fields...]
 ```
 
-In all 1600 blobs of the SCR fixtures, the first, second, fifth and sixth bytes after the type code are zero. The third and fourth bytes are an opaque u16 LE. In the fixtures it runs from 0 to about 0x0EFF (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob. They are in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count. Each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. Tags use length-prefixed strings (no `FFFFFFFF` sentinel).
+In all 1600 blobs of the SCR fixtures, the first, second, fifth and sixth bytes after the type code are zero. The third and fourth bytes are an opaque u16 LE. In the fixtures it runs from 0 to about 0x0EFF (the third byte takes every value 0-255, the fourth 0-14). The box's row span and sub-rows are not in the blob. They are in the entry header (see [SCR rung records](#scr-rung-records)). `part_count` is the clipboard blob's part count. Each part-row byte is that part's 1-based rung row, where the clipboard blob stores the rows below the main part. The `end_offset` is an absolute file pointer to the blob boundary — the same boundary that clipboard's `find_blob_boundary()` derives by scanning tags. A string tag holds an [SCR string](#scr-strings). No `FFFFFFFF` sentinel comes before it.
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 
+## SCR strings
+
+The program name, each class name, each string tag and each variant-string entry in an SCR file have the same form. A byte count comes first, then the UTF-16LE text and one NUL byte. The count includes the NUL byte.
+
+```
+[1B count][count bytes]          -- count 0x00 to 0xFE
+[FF][u16 LE count][count bytes]  -- any count
+```
+
+`TXT1` is stored as `09 54 00 58 00 54 00 31 00 00`. A count of 0xFF or more needs the long form, because a first byte of 0xFF marks the long form. A Compare text of 130 characters is stored as `ff 05 01`, then 261 bytes.
+
+CLICK writes the one-byte form for a count up to 0x7F (63 characters), and the long form for a count of 0x105 (130 characters). Which form it writes for 64 to 126 characters is untested. `decode_program()` reads either form for any count.
+
 ## SCR header
 
-After the `SC-SCR  ` magic and opaque header bytes, offset `0x40` holds the u16 program index: 1 for the main program, 2 and up for subroutines. Offset `0x42` is the byte length of the following UTF-16LE name. Immediately after the name:
+After the `SC-SCR  ` magic and opaque header bytes, offset `0x40` holds the u16 program index: 1 for the main program, 2 and up for subroutines. Offset `0x42` holds the program name as an [SCR string](#scr-strings). Immediately after the name:
 
 ```
 [u16 column_count]
