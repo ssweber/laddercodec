@@ -40,6 +40,7 @@
 - **`FieldError.field` names more fields.** It is `Class.attr` of the instruction refused, such as `Send.quantity` or `ModbusTcpTarget.port`, for more refusals than in v0.4.0.
 - **Reworded messages.** Many error and warning messages changed, and many now say what to do, such as `ForLoop.count: '1 0' has a space in it. Write the count as digits only, such as 10.` A message ends with CLICK's id when there is one, such as `(OBJ-004)`. The wording does not change `field`, `code`, `reason` or `click_id`. Code that matches on message text may break. Match on these attributes instead.
 - **Undecoded comments.** A comment that doesn't decode now reads `UNDECODED comment: <error>`, followed by the plain text that could be read. `encode()` writes that text back into CLICK.
+- **CSV format guide.** The guide no longer describes pyrung's exporter. Its sections "Subroutine tail guarantee" and "Strict validation and failure mode" are gone. Three sections have new names and anchors: "`Or(...)` expansion" is "OR legs", "Builder pin continuation rows" is "Pin continuation rows" and "For-loop lowering" is "For loops". Update any link to them.
 - **Docs site follows releases.** The published docs now update when a release is published, not on every change to `main`.
 
 ### Behaviour changes

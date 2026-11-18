@@ -1,9 +1,7 @@
 # CSV Format (v1)
 
 This page defines laddercodec's 33-column CSV format. `read_csv` reads it and
-`write_csv` writes it. pyrung's exporter produces it. The sections that describe
-that exporter (bundle naming, the subroutine `return()` tail, export validation)
-say so. If you write a CSV by hand, start at [Layout](#layout).
+`write_csv` writes it. If you write a CSV by hand, start at [Layout](#layout).
 
 Relevant entry points:
 
@@ -13,8 +11,6 @@ Relevant entry points:
 - `laddercodec.write_bundle(directory, project, *, index=False)`
 - `laddercodec.read_bundle(directory, *, strict=True, unchecked=False)`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
-- `pyrung.click.to_ladder(program, tag_map)`
-- `pyrung.click.LadderBundle.write(directory)`
 
 ## Scope and guarantees
 
@@ -24,8 +20,8 @@ the format below.
 
 - Deterministic output
 - Fully expanded rows (no shorthand expansion required)
-- Strict prevalidation before emit
-- All-or-nothing export for `pyrung` bundle generation
+- `write_csv` builds every row before it opens the file. If it raises
+  `WriterError`, the file is unchanged.
 
 ## Bundle layout
 
@@ -97,16 +93,6 @@ Both readers, `read_bundle` and `parse_bundle(directory)`, list the same files:
 
 `parse_bundle` returns a `ParsedCsvFileAst` for each subroutine file. Its
 `subroutine_slug` is the subroutine's name.
-
-`pyrung`'s `LadderBundle.write(directory)`:
-
-- creates the directory (`parents=True, exist_ok=True`) and overwrites
-  existing files;
-- writes `subroutines/` only when the program has subroutines;
-- names each file after the subroutine's name as written, with no slug
-  applied; a name that comes twice gets `_2`, `_3`, ... on its stem;
-- also writes `rung_sources.json`, which `read_bundle` and `parse_bundle`
-  ignore.
 
 ## CSV shape
 
@@ -204,7 +190,7 @@ R    X001   X002   -      -...- out(Y001)
 - Blank rows inside an OR, blank rows at the top or bottom, and wire stubs that
   join nothing are dropped.
 - A pinned box's pins go on the rows CLICK gives them
-  ([Builder pin continuation rows](#builder-pin-continuation-rows)).
+  ([Pin continuation rows](#pin-continuation-rows)).
 
 The logic never changes. If the circuits of several outputs meet only at the rail,
 `read_csv` makes one rung of each, in order, with the comment on the first. CLICK
@@ -221,9 +207,14 @@ To lay a rung out from Python without a grid, build its circuit and call
 
 ## Vertical topology
 
-OR conditions (`Or()`), multi-output stacking, and `branch()` conditions all
-use continuation rows within a rung. These mechanisms share the same vertical
+OR conditions, multi-output stacking, and branch conditions all use
+continuation rows within a rung. These mechanisms share the same vertical
 space - OR branch rows double as multi-output and branch rows.
+
+In a circuit ([Build a rung from its circuit](encoding.md#build-a-rung-from-its-circuit)),
+an OR is a `Parallel`. The outputs that one condition path feeds are the
+`outputs` of its `Branch`. A branch condition is the `conditions` of a `Branch`
+inside those `outputs`.
 
 ### Bus patterns
 
@@ -279,11 +270,11 @@ merge/split columns even when their own column has no marker below.
   conditions. Shared AND-prefix contacts from earlier columns are not repeated.
 - Each continuation row has at most one AF token or is blank in AF.
 
-## `Or(...)` expansion
+## OR legs
 
 ### Simple OR at power rail
 
-`Or(X001, X002, X003)`:
+An OR of X001, X002 and X003:
 
 ```text
      A      B     ...   AF
@@ -297,7 +288,7 @@ blank.
 
 ### Mid-rung OR
 
-`X001, Or(X002, C1)`:
+X001 in series with an OR of X002 and C1:
 
 ```text
      A      B       C     ...   AF
@@ -310,24 +301,26 @@ blank. Shared AND-prefix (`X001`) appears only on the first row.
 
 ### Series ORs
 
-`Or(X001, X002), Or(C1, C2)`:
+An OR of X001 and X002, in series with an OR of C1 and C2:
 
 ```text
-     A      B     C      D     ...   AF
-R    X001   T     T:C1   T     -...- out(Y001)
-     X002   -     C2
+     A      B      C     ...   AF
+R    X001   T:C1   T     -...- out(Y001)
+     X002   C2
 ```
 
-First OR at power rail (bare contacts, convergent bus at col B). Second OR
-mid-rung (`T:` prefix on `C1`, convergent bus at col D). Continuation rows
-merge - `X002` and `C2` share the same row, connected by `-` wire at col B.
+The first OR is at the power rail, so `X001` and `X002` are bare. The `T:`
+prefix on `C1` draws one vertical at the left edge of col B. That vertical joins
+the outputs of `X001` and `X002`, and it feeds both `C1` and `C2`. The
+convergent bus at col C (`T` / blank) merges the second OR. `X002` and `C2`
+share the same continuation row.
 
 ## Multi-output stacking
 
 Multiple output instructions from the same condition path stack vertically using
 a divergent bus:
 
-`X001, X002` -> `out(Y001)`, `latch(Y002)`, `reset(Y003)`:
+X001 and X002 in series feed `out(Y001)`, `latch(Y002)` and `reset(Y003)`:
 
 ```text
      A      B      C     ...   AF
@@ -339,27 +332,26 @@ R    X001   X002   T     -...- out(Y001)
 Divergent bus at col C: `T` / `T` / `-`. Each row continues right to its own
 output.
 
-## `branch(...)` conditions
+## Branch conditions
 
-Branch-local conditions are placed on continuation rows to the right of the
-output split column. The branch contact carries a `T:` prefix when it is not on
-the final row, maintaining the vertical bus for rows below it.
+Branch-local conditions are placed on continuation rows. The first one sits in
+the output split column. The rest follow it to the right. The branch contact
+carries a `T:` prefix when it is not on the final row, maintaining the vertical
+bus for rows below it.
 
-`X001, X002` -> `out(Y001)`, `branch(C1): out(Y002)`, `out(Y003)`:
+X001 and X002 in series feed `out(Y001)`, a branch with the condition C1 that
+feeds `out(Y002)`, and `out(Y003)`:
 
 ```text
-     A      B      C     D      ...   AF
-R    X001   X002   T     T      -...- out(Y001)
-                   T     T:C1   -...- out(Y002)
-                   -     -      -...- out(Y003)
+     A      B      C      ...   AF
+R    X001   X002   T      -...- out(Y001)
+                   T:C1   -...- out(Y002)
+                   -      -...- out(Y003)
 ```
 
-Divergent bus at col C: `T` / `T` / `-`. Col D: `T` on row 0, `T:C1` on row 1,
-`-` on row 2. The `T:` prefix on `C1` ensures the down-wire continues to row 2
-(dropping `C1` from conditions) so row 2 receives the parent condition without
-`C1`.
-
-Nested branches are not emitted (export error).
+Divergent bus at col C: `T` / `T:C1` / `-`. `C1` sits in the bus on row 1. The
+`T:` prefix on `C1` continues the down-wire at the left edge of col C to row 2,
+so row 2 receives the parent condition without `C1`.
 
 ## Combined OR + multi-output + branch
 
@@ -367,24 +359,24 @@ When a rung has both OR conditions and multiple outputs/branches, they share the
 same set of continuation rows. The OR branches provide the rows needed for the
 outputs.
 
-`X001, Or(X002, X003, X004)` -> `out(Y001)`, `branch(C1): out(Y002)`,
+The conditions are X001 in series with an OR of X002, X003 and X004. They feed
+`out(Y001)`, a branch with the condition C1 that feeds `out(Y002)`, and
 `out(Y003)`:
 
 ```text
-     A      B        C     D      ...   AF
-R    X001   T:X002   T     T      -...- out(Y001)
-            T:X003   |     T:C1   -...- out(Y002)
-            X004           -      -...- out(Y003)
+     A      B        C      ...   AF
+R    X001   T:X002   T      -...- out(Y001)
+            T:X003   T:C1   -...- out(Y002)
+            X004     -      -...- out(Y003)
 ```
 
-Col B: 3-way OR input bus (`T:` / `T:` / bare). Col C: convergent bus
-(`T` / `|` / blank). Col D: divergent bus with branch condition
+Col B: 3-way OR input bus (`T:` / `T:` / bare). Col C holds both the OR merge
+and the output split. Its vertical joins the outputs of `X002`, `X003` and
+`X004`. The same vertical is the divergent bus with the branch condition
 (`T` / `T:C1` / `-`).
 
 The 3 OR branches provide the 3 rows needed for the 3 outputs. `C1` slots in as
-a branch-local condition on the middle row. Middle OR rows reach the output
-split by routing up through `|` to `T`, then right and back down through the
-divergent bus.
+a branch-local condition on the middle row.
 
 ### Outputs under a tall box
 
@@ -414,9 +406,10 @@ The logic is the same. This is the layout that CLICK's syntax check leaves. A
 box with nothing beside it keeps blank rows under it for its height, with its
 verticals carried through. Every row below moves down with the output.
 
-## Builder pin continuation rows
+## Pin continuation rows
 
-Builder side conditions are emitted as continuation rows with dot tokens in `AF`:
+A box's pin conditions go on continuation rows, with a dot token in `AF`. In a
+circuit, they are the terms in the `Box`'s `pins`. The tokens are:
 
 - `.reset()`
 - `.down()`
@@ -486,22 +479,24 @@ writer contract:
   continuation row.
 - Empty rows between rungs are ignored.
 
-## For-loop lowering
+## For loops
 
-`forloop(count, oneshot=...)` lowers to:
+A for loop is a run of rungs, in this order:
 
-1. `for(count)` or `for(count,oneshot=1)` row (`marker=R`)
-2. Body rungs (`marker=R` each): a bare body instruction is a wire-only rung; a
-   body rung with contacts keeps them, and holds `break()` / `continue()`
-   (CLICK v4). A nested loop is its own `for` .. `next()` run, up to three deep.
-3. Closing `next()` row (`marker=R`)
+1. A `for(count)` or `for(count,oneshot=1)` row (`marker=R`).
+2. The body rungs (`marker=R` each). A body rung with no contacts is a wire from
+   the rail to its output (`R,-,...,-,out(C1)`). A nested loop is its own
+   `for` .. `next()` run inside the body.
+3. A closing `next()` row (`marker=R`).
 
-## Subroutine tail guarantee
+CLICK v4 adds `break()` and `continue()` for a body rung. CLICK's syntax check
+refuses these shapes:
 
-Each subroutine CSV emitted by `pyrung` is guaranteed to end with `return()`:
+- a `break()` or `continue()` with no contact before it (C000B, C000C)
+- a `break()` or `continue()` outside a loop (C010F, C0110)
+- loops nested more than three deep (C010D)
 
-- If the last emitted instruction token is already `return()`, unchanged.
-- Otherwise the exporter appends an `R` row with `return()`.
+`read_csv` and `check()` check none of these rules.
 
 ## AF token format (canonical)
 
@@ -630,14 +625,13 @@ Producer may emit:
 - `return()`
 - `for(count)` or `for(count,oneshot=1)`
 - `next()`
-- `break()`, `continue()` (CLICK v4) - on a contacted rung inside a loop
+- `break()`, `continue()` (CLICK v4). See [For loops](#for-loops).
 - `raw(ClassName,0xTTTT,N,rows=R,sub=S,pins=P,fields...)` - opaque instruction
   passthrough for binary round-trip fidelity. `ClassName` is the Click binary
   class name (unquoted), `0xTTTT` the type marker, `N` the part count, and the
-  fields are the blob's tagged fields (`60a5=1`, `68b1[250]=`). Runtime no-op;
-  preserved so CSV -> DSL -> CSV round-trips losslessly for unrecognized
-  instruction types. The older form `raw(ClassName,hex)` holds the whole blob
-  as a hex string, and may be followed by `rows=R,sub=S`.
+  fields are the blob's tagged fields (`60a5=1`, `68b1[250]=`). The older form
+  `raw(ClassName,hex)` holds the whole blob as a hex string, and may be followed
+  by `rows=R,sub=S`.
   - `rows` is the box's row span, 1 to 32, and `sub` is its sub-rows, 1 to 255.
     The writer always writes both. Both go right after the part count (or the
     hex), `rows` first. On read each is optional:
@@ -653,12 +647,11 @@ Producer may emit:
     form `rows` must be the last pin + 1. The reader pads the rung to that height,
     as it does for other tall boxes. The hex form does not check this, and the
     writer uses it for a box stored at any other span.
-  - `Email`, `Home`, `Position`, and `Velocity` currently use this raw passthrough
-    path, because they are not yet modeled as dedicated DSL instruction classes.
-    Their box spans 3 rows, as CLICK draws it. The reader pads the rung with blank
-    rows, as it does for other tall boxes. CLICK stores some boxes at 1 row: one
-    pasted from an earlier version and not yet saved by its dialog. Such a box
-    writes `rows=1,sub=1` and reads back at 1 row.
+  - `write_csv` writes an `Email`, `Home`, `Position` or `Velocity` as a
+    `raw(...)` token. Its box spans 3 rows, as CLICK draws it. The reader pads
+    the rung with blank rows, as it does for other tall boxes. CLICK stores some
+    boxes at 1 row: one pasted from an earlier version and not yet saved by its
+    dialog. Such a box writes `rows=1,sub=1` and reads back at 1 row.
 - `undecoded("<error>",rung=N,row=R,column=C,stop=end)` - the marker that stands in
   for a rung laddercodec could not decode ([Decoding](decoding.md#rungs-that-dont-decode)).
   `rung`, `row` and `column` count from 0 (column 31 is AF). `row` and `column` are
@@ -686,7 +679,6 @@ currently emit:
 
 ## Operand normalization notes
 
-- Tags render as mapped Click addresses (for example `X001`, `DS10`).
 - You can write an address in any letter case, with or without leading zeros.
   laddercodec keeps and writes it in CLICK's display form. X and Y pad to 3 digits
   (`x1` is `X001`). Every other bank is unpadded (`C001` is `C1`, `ds07` is `DS7`,
@@ -999,6 +991,8 @@ Immediate operands are supported only in strict, explicit contexts.
 
 Allowed condition-cell forms:
 
+- `X001.immediate`
+- `~X001.immediate`
 - `immediate(X001)`
 - `~immediate(X001)`
 
@@ -1011,7 +1005,8 @@ Allowed AF token forms:
 
 Rules:
 
-- `Tag.immediate` and `immediate(...)` wrapper style are both supported.
+- A contact takes the `.immediate` suffix or the `immediate(...)` wrapper.
+  `write_csv` writes the suffix. A coil target takes only the wrapper.
 - Immediate is allowed only for:
   - direct rung contacts (normal and negated), and
   - `out(...)`, `latch(...)`, `reset(...)` target operands.
@@ -1021,9 +1016,6 @@ Rules:
 - Immediate coil targets must resolve to `Y` bank addresses.
 - An immediate range is any ascending `Y` range, including one that crosses a
   module (`out(immediate(Y001..Y101))`).
-- pyrung's exporter writes an immediate range in `BANKstart..BANKend` form only when
-  its tags map to one contiguous address span; a mapping that does not fails
-  pyrung's export check with a diagnostic.
 
 ## Values CLICK's dialog refuses
 
@@ -1111,17 +1103,6 @@ raise a `LaddercodecError` for input they can't read or write, and every
 | `CsvError`     | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when case is ignored |
 | `WriterError`  | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when case is ignored, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
 | `FieldError`   | building an instruction, `read_csv`, `read_bundle` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address. `write_bundle` for a subroutine name that CLICK refuses |
-
-## Strict validation and failure mode
-
-Before rendering, `pyrung` runs strict Click validation and extra export checks.
-
-On any issue:
-
-- `LadderExportError` is raised
-- includes structured `issues` entries (`path`, `message`, `source_file`,
-  `source_line`)
-- no CSV bundle is returned/written
 
 ## Consumer recommendations
 
