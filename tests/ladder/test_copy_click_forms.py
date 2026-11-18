@@ -498,6 +498,12 @@ def test_the_txt_end_of_a_real_counts_clicks_form() -> None:
     assert _tags(copy.build_blob())[0x6077] == "TXT12"
 
 
+def test_a_stored_real_of_seven_digits_reads_back_as_stored() -> None:
+    found = _both_paths({0x6074: "1234568.0", 0x6076: "DF1"})
+    assert found.source == "1234568.0"
+    assert not refusals(found)
+
+
 def test_a_stored_real_beyond_seven_digits_keeps_its_refusal() -> None:
     found = _both_paths({0x6074: "3.4028235E+38", 0x6076: "DF1"})
     assert found.source == "3.4028235E+38"

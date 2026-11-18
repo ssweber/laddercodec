@@ -825,7 +825,8 @@ currently emit:
   - contiguous compact form `BANKstart..BANKend` (same bank, +1 sequence), or
   - explicit list form `[A,B,C]`.
 - Indirect refs render as `BANK[pointer]`. The pointer is a DS address, and `BANK` is
-  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`). Only a
+  one of C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT (`copy(DD[DS100],DS1)`). A
+  `copy` source may also be an SD pointer (`copy(SD[DS1],DS1)`). Only a
   single `copy` takes one. `blockcopy`, `fill`, `pack_*`, `unpack_to_*` and `search`
   raise `AddressError`.
 - Copy, Block Copy, Fill, Pack, Unpack, Search and Math operands follow CLICK's
@@ -876,11 +877,11 @@ currently emit:
     saves as the same value when you type it. CLICK cuts `0.00012345` typed so
     to `0.000123`, and saves `1.2345E-04` as `0.00012345`. So `write_csv` writes
     `math(1.2345E-04,DF1,mode=decimal)`, and the encoded rung holds
-    `0.00012345`. In a `copy`, a real is printed with 7 significant digits. One
-    that 7 digits would print in exponent form (from `1E+07` up and below
-    `1E-04`, such as `1.5E+10`) is kept as typed, except a real typed without an
-    `E` from `1E+07` up. That one is written in exponent form, so `10000000000.0`
-    is `1E+10`;
+    `0.00012345`. CLICK saves a `copy` real as its value printed with 7
+    significant digits, whatever form you typed it in. From `1E-04` to below
+    `1E+07` the print is positional (`1.0E+06` is `1000000.0`). Otherwise it is
+    in exponent form, with trailing zeros cut from the mantissa (`1.0E+16` is
+    `1E+16`, `1.50E+16` is `1.5E+16`);
   - in a `copy`, a real without a typed `+` (`+1.5` is `1.5`), as CLICK's Copy
     stores it. CLICK's Copy keeps 7 significant digits, leading and trailing
     zeros aside. It saves a real typed with more cut to 7 (`3.4028235E+38` as

@@ -291,9 +291,8 @@ def test_a_real_into_txt_writes_its_numbering_and_end(
         ("-12345670.0", "-1.234567E+07", "TXT13"),
         ("+10000000000.0", "1E+10", "TXT5"),
         ("9999999.0", "9999999.0", "TXT9"),
-        # CLICK's form is not known for these, and the real is written as typed.
-        ("1E10", "1E10", "TXT4"),
-        ("0.00001", "0.00001", "TXT7"),
+        # No CLICK answer is recorded for this one. It follows the rule for the recorded reals.
+        ("1E10", "1E+10", "TXT5"),
     ],
 )
 def test_a_real_into_txt_is_written_as_click_saves_it(typed: str, saved: str, end: str) -> None:
@@ -553,3 +552,62 @@ def test_the_copy_a_capture_reads_as_writes_clicks_tags(case: str, csv: str) -> 
     ours = _tags(Copy.from_csv_token(csv).build_blob())
     assert (click.pop(0x1201), ours.pop(0x1201)) == ("-1", "0")
     assert ours == click
+
+
+@pytest.mark.parametrize(
+    ("typed", "destination", "source", "end"),
+    [
+        ("1.0E+16", "TXT1", "1E+16", "TXT5"),
+        ("-1.0E+16", "TXT1", "-1E+16", "TXT6"),
+        ("1.0E+16", "TXT995", "1E+16", "TXT999"),
+        ("1.0E+16", "TXT996", "1E+16", "TXT1000"),
+        ("2.0E+20", "TXT995", "2E+20", "TXT999"),
+        ("1.0E+38", "TXT995", "1E+38", "TXT999"),
+        ("-1.0E+38", "TXT995", "-1E+38", "TXT1000"),
+        ("1.5E+16", "TXT1", "1.5E+16", "TXT7"),
+        ("1E+16", "TXT995", "1E+16", "TXT999"),
+        ("1.0E+16", "DF1", "1E+16", ""),
+    ],
+)
+def test_a_real_typed_with_a_whole_mantissa_and_an_exponent_is_stored_without_the_point(
+    typed: str, destination: str, source: str, end: str
+) -> None:
+    """CLICK saves ``1.0E+16`` as ``1E+16`` and counts the saved text for the end of a TXT
+    destination. It keeps ``1.5E+16`` as typed."""
+    convert = "to_text" if destination.startswith("TXT") else None
+    copy = Copy(typed, destination, convert=convert)
+    assert copy.source == source
+    tags = _tags(copy.build_blob())
+    assert (tags[0x6074], tags[0x6077]) == (source, end)
+    assert Copy.from_csv_token(copy.to_csv()) == copy
+
+
+@pytest.mark.parametrize(
+    ("typed", "source", "end"),
+    [
+        ("1.50E+16", "1.5E+16", "TXT7"),
+        ("1.00E+16", "1E+16", "TXT5"),
+        ("1.0E+06", "1000000.0", "TXT9"),
+        ("1.0E-05", "1E-05", "TXT5"),
+        ("1e7", "1E+07", "TXT5"),
+        ("1.0e+16", "1E+16", "TXT5"),
+        ("0.00001", "1E-05", "TXT5"),
+        ("1.0E-10", "1E-10", "TXT5"),
+        ("0.0001", "0.0001", "TXT6"),
+        ("0.00009", "9E-05", "TXT5"),
+        ("1.5E-45", "1.5E-45", "TXT7"),
+    ],
+)
+@pytest.mark.parametrize("destination", ["TXT1", "DF1"])
+def test_a_real_typed_in_exponent_form_is_stored_as_clicks_print(
+    typed: str, source: str, end: str, destination: str
+) -> None:
+    """CLICK prints the value with 7 significant digits, trailing zeros of the mantissa cut,
+    in positional form from 1E-04 to below 1E+07, and counts the printed text for the end."""
+    convert = "to_text" if destination == "TXT1" else None
+    copy = Copy(typed, destination, convert=convert)
+    assert copy.source == source
+    tags = _tags(copy.build_blob())
+    assert tags[0x6074] == source
+    assert tags[0x6077] == (end if destination == "TXT1" else "")
+    assert Copy.from_csv_token(copy.to_csv()) == copy
