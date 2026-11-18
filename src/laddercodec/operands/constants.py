@@ -347,9 +347,9 @@ def printable(text: str) -> bool:
     """Return whether ``text`` is printable ASCII only.
 
     This is a limit of some fields, not part of the shared check, which takes any
-    character.  A Compare text constant and the text of a Fill hold printable ASCII only,
-    and ``$hh`` spells any other code.  A single Copy's text and a Search text value take
-    the characters that :func:`kept_text` accepts instead.
+    character.  The text of Compare's Data A and of a Fill hold printable ASCII only, and
+    ``$hh`` spells any other code.  A single Copy's text, Compare's Data B and a Search text
+    value take the characters that :func:`kept_text` accepts instead.
     """
     return PRINTABLE_ASCII.issuperset(text)
 

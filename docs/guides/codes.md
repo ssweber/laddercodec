@@ -44,7 +44,7 @@ These rules are the same in every instruction. `field` names the field.
 | `constant-kind-not-allowed` | A constant of a kind the field doesn't take, or a Python value of the wrong type, such as `2.5` for a Send or Receive `quantity`. |  |
 | `not-a-constant` | Text read as neither an address nor a constant. |  |
 | `constant-out-of-range` | A constant outside the field's limits (its value, hex digits, float32, text length or typed length), or a minus sign where the field's lowest value is 0 or more. | OBJ-005 |
-| `invalid-constant` | A constant in a form the field refuses: a `+` where no sign is taken, a sign before hex, a space in a count, or a real with more significant digits than CLICK keeps. | OBJ-005 |
+| `invalid-constant` | A constant in a form the field refuses: a `+` where no sign is taken, a sign before hex, a space in a count, a real with more significant digits than CLICK keeps, or a hex constant that spells a bank name (`DH`) in Compare's Data B opposite a hex Data A. | OBJ-005 |
 | `invalid-char-code` | A `$hh` or a termination code that is no character code. | OBJ-036 |
 | `invalid-text-constant` | Quoted text holding a quote or a character CLICK doesn't keep. |  |
 | `not-a-flag` | A flag that is not True, False, 1 or 0. |  |
@@ -119,7 +119,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `compare-mixed-types` | Compare operands in different groups (hex, numeric, text). |  |
-| `search-value-bank` | A Search constant whose kind doesn't search the table's bank. |  |
+| `search-value-bank` | A Search value whose kind or compare group doesn't search the table's bank. | OBJ-004 |
 | `coil-time-unit` | An Out variant with a time unit its kind lacks. |  |
 | `debounce-needs-phase` | A debounce with neither phase filled. | OBJ-006 |
 | `drum-size-out-of-range` | Drum steps or outputs outside 1 to 16. |  |

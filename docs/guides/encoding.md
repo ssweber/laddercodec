@@ -228,12 +228,12 @@ empty `""` writes nothing.
 - `Copy` takes any character from U+0001 to U+FFFF except a surrogate (`"é"`,
   `"€"`, a tab). CLICK keeps these as typed. `Copy` refuses NUL and a character
   above U+FFFF.
-- `Search` takes the characters that `Copy` takes.
-- `CompareContact` takes 1 to 128 printable ASCII characters in quotes.
+- `Search` and the right side of `CompareContact` take the characters that
+  `Copy` takes.
+- The left side of `CompareContact` takes printable ASCII.
 
 `Search` and `CompareContact` match consecutive TXT registers (`"AB"`). They raise
 `FieldError` for `""`, for a longer text and for a quote inside the text.
-`CompareContact` also raises it for non-ASCII text.
 
 Each check runs when you build the instruction and when you read it from CSV. A
 quoted `"$41"` is text. Use `$00` for the blank (NUL) character.

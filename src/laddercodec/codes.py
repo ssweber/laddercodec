@@ -50,7 +50,7 @@ class Code(StrEnum):
     CONSTANT_OUT_OF_RANGE = "constant-out-of-range"
     """A constant outside the field's limits (its value, hex digits, float32, text length or typed length), or a minus sign where the field's lowest value is 0 or more."""
     INVALID_CONSTANT = "invalid-constant"
-    """A constant in a form the field refuses: a ``+`` where no sign is taken, a sign before hex, a space in a count, or a real with more significant digits than CLICK keeps."""
+    """A constant in a form the field refuses: a ``+`` where no sign is taken, a sign before hex, a space in a count, a real with more significant digits than CLICK keeps, or a hex constant that spells a bank name (``DH``) in Compare's Data B opposite a hex Data A."""
     INVALID_CHAR_CODE = "invalid-char-code"
     """A ``$hh`` or a termination code that is no character code."""
     INVALID_TEXT_CONSTANT = "invalid-text-constant"
@@ -152,7 +152,7 @@ class Code(StrEnum):
     COMPARE_MIXED_TYPES = "compare-mixed-types"
     """Compare operands in different groups (hex, numeric, text)."""
     SEARCH_VALUE_BANK = "search-value-bank"
-    """A Search constant whose kind doesn't search the table's bank."""
+    """A Search value whose kind or compare group doesn't search the table's bank."""
     COIL_TIME_UNIT = "coil-time-unit"
     """An Out variant with a time unit its kind lacks."""
     DEBOUNCE_NEEDS_PHASE = "debounce-needs-phase"
@@ -273,6 +273,7 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.COUNT_OUT_OF_RANGE: ("OBJ-010", "OBJ-029"),
     Code.REMOTE_ADDRESS_OUT_OF_RANGE: ("OBJ-010",),
     Code.FOR_COUNT_BANK: ("OBJ-004",),
+    Code.SEARCH_VALUE_BANK: ("OBJ-004",),
     Code.NOT_SERIES_PARALLEL: ("C0001",),
     Code.NO_RAIL: ("C0202",),
     Code.FEEDS_NO_BOX: ("C0202",),

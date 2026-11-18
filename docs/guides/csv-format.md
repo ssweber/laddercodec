@@ -714,11 +714,14 @@ currently emit:
     `flasher` needs both.
   - A compare takes data registers or constants on either side, never bits. Both
     sides come from one group:
-    - hex: XD, YD, DH, `0h`-`FFFFh`
-    - numeric: TD, CTD, DS, DD, DF, SD, or a number (a whole number lies in
-      -2147483648 to 2147483647)
-    - text: TXT, or 1 to 128 printable ASCII characters in quotes such as `"A"` or
-      `"AB"`, or `$41`. A quote is `$22`, and `"$41"` is text.
+    - hex: XD, YD, DH, `0h`-`FFFFh`. The right side rejects `DH` in any letter
+      case. CLICK saves it as an empty field. Write `0DH` for the hex constant D.
+    - numeric: TD, CTD, DS, DD, DF, SD, or a number. A whole number lies in
+      -2147483648 to 2147483647. A real is at most `3.4028235E+38` in size, and a
+      larger one raises `FieldError` with `OBJ-005`.
+    - text: TXT, or 1 to 128 characters in quotes such as `"A"` or `"AB"`, or
+      `$41`. A quote is `$22`, and `"$41"` is text. The left side takes printable
+      ASCII only.
 
     A text compare takes `==` or `!=` only.
 - Timer, counter, shift and drum fields take CLICK's banks:
@@ -817,7 +820,8 @@ currently emit:
   - in a `math`, a hex constant with uppercase digits and no leading zeros
     (`0ffh` is `FFh`, `0000h` is `0h`);
   - in a `copy` to TXT, `$` and one hex digit as the code with two (`$1` is
-    `$01`). A `fill`, a compare and a search still reject `$1`.
+    `$01`). A compare's right side and a `search` value keep `$1` as typed. A
+    `fill` and a compare's left side reject it.
 
   `copy(EH,DH1)` and `copy(1Eh,DH1)` are rejected. CLICK's Copy stores `EH` as
   the real `0.0` and `1Eh` as `1.0`, not as hex. Write the real, or write the hex
@@ -832,7 +836,12 @@ currently emit:
 - Constants, counts and address numbers use the digits 0-9 only. A digit from
   another script (`٣`) is rejected.
 - `search` takes a C bit as its found flag, `==` or `!=` for a text value (a
-  text constant or a TXT register), and a hex value of at most `FFFFh`.
+  text constant or a TXT register), and a hex value of at most `FFFFh`. A value
+  address comes from the table's compare group: XD, YD or DH for a DH table, TXT
+  for a TXT table, and TD, CTD, DS, DD, DF or SD for the others.
+  `search(DS1..DS10 == TXT20,result=DS30,found=C1)` is rejected with `OBJ-004`.
+  A text value can't hold a quote together with other characters, and `"A""B"`
+  is rejected. `$22` searches for a lone quote character.
 - In a decimal `math`, an integer constant must read back as typed. CLICK keeps
   its low 32 bits and refuses it when they print at a different length
   (`3000000000`, `007` and `-0` are rejected).
@@ -918,22 +927,25 @@ currently emit:
 - Text constants are double-quoted (`copy("Q",TXT1)`, `TXT1=="T"`).
   - An ASCII-code constant is `$hh` (`copy($00,TXT1)`, `TXT1==$00`): `$` and
     exactly two hex digits from `$00` to `$FF`. `$`, `$100` and `$4142` raise
-    `FieldError` in every field. So does `$1`, except as a `copy` source.
+    `FieldError` in every field. So does `$1`, except as a `copy` source, a
+    compare's right side or a `search` value.
   - CLICK writes one TXT register per character of a text constant, so `""`
     writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2. A `copy` whose
     text would run past TXT1000 raises `AddressError`.
   - A `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters.
     CLICK stores no end for it.
-  - A Fill value and a compare take 1 to 128 printable ASCII characters in
-    quotes (`TXT771=="AB"` compares TXT771 and TXT772). When the CSV is read or
-    the instruction is built, they refuse `""`, a longer or non-ASCII text and a
-    quote inside the text. Spell any other character as its `$hh` code, and a
-    quote as `$22`.
-  - A Copy source and a search value take any character from U+0001 to U+FFFF
-    except a surrogate (`copy("é",TXT1)`, `"€"`, a tab, a line break). CLICK keeps
-    these as typed. They refuse NUL and a character above U+FFFF. `write_csv`
-    writes them inside the quotes, and `read_csv` reads them back. A line break
-    elsewhere in a token raises `CsvError`.
+  - A Fill value and a compare's left side take 1 to 128 printable ASCII
+    characters in quotes. When the CSV is read or the instruction is built, they
+    refuse `""`, a longer or non-ASCII text and a quote inside the text. Spell
+    any other character as its `$hh` code, and a quote as `$22`.
+  - A compare's right side takes 1 to 128 characters in quotes, and refuses
+    `""`, a longer text and a quote inside the text. A compare of text matches
+    consecutive TXT registers (`TXT771=="AB"` compares TXT771 and TXT772).
+  - A Copy source, a compare's right side and a search value take any character
+    from U+0001 to U+FFFF except a surrogate (`copy("é",TXT1)`, `"€"`, a tab, a
+    line break). CLICK keeps these as typed. They refuse NUL and a character
+    above U+FFFF. `write_csv` writes them inside the quotes, and `read_csv` reads
+    them back. A line break elsewhere in a token raises `CsvError`.
   - A search matches the window the text fills.
   - A quoted `"$41"` is three characters of text, not the code `$41`. Use `$00`
     for the blank (NUL) character.

@@ -291,7 +291,7 @@ _COPY_SOURCE_REFUSED = [
     ("0FFFFFFFFh", "DD1", _HEX_PADDED),
     ('""', "TXT2", _TEXT_RULE),
     ('"""', "TXT2", _TEXT_RULE),
-    ('"a"b"', "TXT2", _TEXT_RULE),
+    ('"a"b"', "TXT2", "holds a quote with other characters"),
     (_TEXT_129, "TXT2", _TEXT_RULE),
     ("1E999", "DF1", _FINITE),
     ("-1E999", "DF1", _FINITE),
@@ -342,7 +342,9 @@ def test_copy_source_constant_edges_accepted(source: str, destination: str) -> N
 # takes it as $ and two hex digits. _DOLLAR_FORMS lists $ texts in other forms.
 _DOLLAR_FORMS = ["$", "$1", "$D", "$d", "$100", "$4142", "$G1", "$٣٣"]
 #: A single Copy's source takes $ and one hex digit, which CLICK stores with two ($1 is $01).
+#: Compare's Data B and a Search value take it too, and keep it as typed.
 _ONE_DIGIT_CODES = ["$1", "$D", "$d"]
+_ONE_DIGIT_FIELDS = ("Copy.source", "Search.value", "CompareContact.right")
 _COPY_DOLLAR_FORMS = [form for form in _DOLLAR_FORMS if form not in _ONE_DIGIT_CODES]
 _DOLLAR_RULE = r"a character code is \$ and two hex digits, \$00 to \$FF"
 _DOLLAR_FIELDS = [
@@ -364,7 +366,7 @@ _DOLLAR_FIELDS = [
         (field, build, code)
         for code in ["$", "$1", "$G1"]
         for field, build in _DOLLAR_FIELDS
-        if not (field == "Copy.source" and code in _ONE_DIGIT_CODES)
+        if not (field in _ONE_DIGIT_FIELDS and code in _ONE_DIGIT_CODES)
     ],
 )
 def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: str) -> None:
@@ -376,10 +378,12 @@ def test_every_field_refuses_other_dollar_forms_alike(field: str, build, code: s
     assert type(caught.value) is FieldError
     # For a termination code, the message adds CLICK's id. The rest of the wording is the same.
     click_id = " (OBJ-036)" if field == "Copy.termination_code" else ""
-    assert str(caught.value) == (
-        f"{field}: {code!r} is refused; a character code is $ and two hex digits, $00 to $FF, "
-        f"such as $41{click_id}"
-    )
+    # A field that keeps $ and one hex digit as typed names both forms.
+    if field in ("Search.value", "CompareContact.right"):
+        rule = "a character code is $ and one or two hex digits, $0 to $FF"
+    else:
+        rule = "a character code is $ and two hex digits, $00 to $FF"
+    assert str(caught.value) == f"{field}: {code!r} is refused; {rule}, such as $41{click_id}"
 
 
 @pytest.mark.parametrize("source", _COPY_DOLLAR_FORMS)
@@ -419,7 +423,7 @@ def test_other_dollar_form_blob_keeps_its_refusal(tags: dict[int, str], value: s
 def test_copy_source_one_digit_code_is_written_with_two(
     tmp_path: Path, typed: str, stored: str
 ) -> None:
-    # CLICK's Copy takes $1 into TXT and stores $01.  Fill, Search and Compare still refuse it.
+    # CLICK's Copy takes $1 into TXT and stores $01.  Fill and Compare's Data A refuse it.
     copy = Copy(typed, "TXT2")
     assert copy.source == stored
     assert copy.to_csv() == f"copy({stored},TXT2)"
@@ -605,9 +609,9 @@ def test_text_copy_into_a_pointer_stores_no_end(tmp_path: Path, source: str) -> 
     assert parse_af_blob(copy.build_blob()) == copy
 
 
-# Text in a Fill holds printable ASCII only, as in Compare. To fill with another character,
-# write its $hh code. A single Copy's text accepts any 16-bit character that CLICK keeps, as
-# Search's text does.
+# Text in a Fill holds printable ASCII only, as in Compare's left side. To fill with another
+# character, write its $hh code. A single Copy's text accepts any 16-bit character that CLICK
+# keeps, as Compare's right side and Search's text do.
 _NOT_PRINTABLE = ['"é"', '"é1"', '"\U0001f600"', '"A\tB"', '"\x7f"']
 _PRINTABLE_RULE = r"text holds printable ASCII only \(space to ~\); write another character"
 _COPY_TEXT_RULE = r"text holds characters U\+0001 to U\+FFFF, no NUL and no surrogate"

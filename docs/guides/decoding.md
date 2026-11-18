@@ -148,17 +148,19 @@ unknown condition), with its bytes kept. These cases do that:
 - a Math stored in nickname view
 - an instruction whose CSV would not read back as the same instruction
 
-If a Copy or Pack destination is stored with a space at either edge, it decodes as
-the address without the space. If you encode it unchanged, it encodes as it did
-when it decoded as `RawInstruction`, space and all.
+If a Copy or Pack destination, the right side of a Compare or a Search's result is
+stored with a space at either end, it decodes as the address without the space. If
+you encode it unchanged, you get back the bytes that CLICK saved, space and all.
 
 CLICK saves some addresses as you typed them, not in display form. These are a
-Copy, Block Copy or Pack destination, each address in a Math formula, and a hex
-Math's result (`DS001`, `ds1`, `YD0U`, `DS[ds1]`). They decode in display form
+Copy, Block Copy or Pack destination, each address in a Math formula, a hex Math's
+result, the right side of a Compare, and a Search's table start and result (`DS001`,
+`ds1`, `YD0U`, `DS[ds1]`). They decode in display form
 (`DS1`, `YD0u`, `DS[DS1]`), as CLICK's editor shows them, and the CSV holds that
 form. When you encode such an instruction:
 
-- If you leave it unchanged, you get back the bytes CLICK saved.
+- If you leave it unchanged, you get back the bytes CLICK saved. A Compare from
+  `decode_program()` is the exception: it encodes in display form.
 - If you change it, it encodes in display form.
 - If you read it back from the CSV that `write_csv` wrote, it encodes in display
   form. A CSV file holds no blob.

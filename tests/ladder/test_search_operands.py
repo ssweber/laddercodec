@@ -79,7 +79,8 @@ def test_refused(tmp_path: Path, expr: str, kw: str, message: str) -> None:
         "search(TXT1..TXT10 == $41,result=DS1,found=C1)",
         "search(DH1..DH10 == 1Fh,result=DS1,found=C1)",
         "search(DF1..DF10 > -1.5,result=DS1,found=C1)",
-        "search(TD1..TD10 >= XD0u,result=DS1,found=C1)",
+        "search(DH1..DH10 >= XD0u,result=DS1,found=C1)",
+        "search(TD1..TD10 >= DF1,result=DS1,found=C1)",
         "search(CTD1..CTD10 < SD1,result=DS1,found=C1)",
         'search(TXT1..TXT10 != "A",result=DS1,found=C1)',
         "search(TXT1..TXT10 == TXT20,result=DS1,found=C1)",
@@ -158,13 +159,26 @@ def test_source_constant_edges_accepted(table: str, source: str) -> None:
     assert parse_af_blob(search.build_blob()) == search
 
 
-# A Search value accepts a $ code only as $ and two hex digits. `$1`, `$D` and `$100` are
-# refused.
+# A Search value accepts a $ code as $ and one or two hex digits. `$`, `$100` and `$4142`
+# are refused.
 @pytest.mark.parametrize("table", ["TXT", "DS"])
-@pytest.mark.parametrize("source", ["$1", "$D", "$d", "$100", "$4142"])
+@pytest.mark.parametrize("source", ["$", "$100", "$4142", "$G1"])
 def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
-    with pytest.raises(FieldError, match="^Search.value: "):
+    with pytest.raises(FieldError, match=r"^Search.value: .* \$ and one or two hex digits"):
         Search(f"{table}1", f"{table}10", source, "DS20", "C1", "==")
+
+
+@pytest.mark.parametrize("source", ["$1", "$D", "$d"])
+def test_source_one_digit_code_kept_as_typed(tmp_path: Path, source: str) -> None:
+    search = Search("TXT1", "TXT10", source, "DS20", "C1", "==")
+    assert search.value == source
+    token = f"search(TXT1..TXT10 == {source},result=DS20,found=C1)"
+    assert search.to_csv() == token
+    assert _read_af(tmp_path, token) == search
+    assert parse_af_blob(search.build_blob()) == search
+    # A character code searches TXT only.
+    with pytest.raises(FieldError, match="^Search.value: .* is a char value, which searches TXT"):
+        Search("DS1", "DS10", source, "DS20", "C1", "==")
 
 
 @pytest.mark.parametrize(
@@ -177,7 +191,8 @@ def test_source_other_dollar_forms_refused(table: str, source: str) -> None:
             {0x6065: '"A"', 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"},  # > on text
             ["op"],
         ),
-        ({0x6065: "TXT20", 0x21F7: "2"}, ["op"]),  # > on a TXT register
+        ({0x6065: "TXT20", 0x6066: "TXT1", 0x6067: "TXT10", 0x21F7: "2"}, ["op"]),  # > on TXT
+        ({0x6065: "TXT20"}, ["value"]),  # a TXT value against a DS table
         ({0x6065: "10000h", 0x6066: "DH1", 0x6067: "DH10"}, ["value"]),  # a 32-bit hex value
         ({0x6065: "3000000000"}, ["value"]),  # outside int32
         ({0x6065: "+1h", 0x6066: "DH1", 0x6067: "DH10"}, ["value"]),  # a signed hex value
@@ -220,15 +235,75 @@ def test_search_value_kind_fits_table(table: str, value: str) -> None:
         ("TXT", "5"),
         ("TXT", "0Fh"),
         ("TXT", "1.5"),
-        # only $ and two hex digits is a character code
+        # $ and three hex digits is no character code, and $ and one is a code for TXT only
         ("DS", "$4"),
         ("DS", "$123"),
         ("DH", "$4"),
         ("DH", "$123"),
-        ("TXT", "$4"),
         ("TXT", "$123"),
     ],
 )
 def test_search_value_kind_must_fit_table(table: str, value: str) -> None:
     with pytest.raises(FieldError, match="^Search.value: "):
         Search(f"{table}1", f"{table}10", value, "DS20", "C20", "==")
+
+
+# An address value is in the compare group of the table: hex (DH, XD, YD), numeric (DS, DD,
+# DF, TD, CTD, SD) or text (TXT).
+@pytest.mark.parametrize(
+    ("table", "value"),
+    [
+        ("DS", "DS20"),
+        ("DS", "DD20"),
+        ("DS", "DF20"),
+        ("DS", "TD20"),
+        ("DS", "CTD20"),
+        ("DS", "SD20"),
+        ("DF", "DS20"),
+        ("DH", "DH20"),
+        ("DH", "XD0"),
+        ("DH", "YD0u"),
+        ("TXT", "TXT20"),
+    ],
+)
+def test_search_value_address_in_the_table_group(table: str, value: str) -> None:
+    Search(f"{table}1", f"{table}10", value, "DS30", "C1", "==")
+
+
+@pytest.mark.parametrize(
+    ("table", "value", "group"),
+    [
+        ("DS", "TXT20", "text"),
+        ("DS", "XD0u", "hex"),
+        ("DS", "DH20", "hex"),
+        ("DD", "YD0", "hex"),
+        ("DH", "DS20", "numeric"),
+        ("DH", "TXT20", "text"),
+        ("TXT", "DS20", "numeric"),
+        ("TXT", "XD0", "hex"),
+    ],
+)
+def test_search_value_address_outside_the_table_group_refused(
+    table: str, value: str, group: str
+) -> None:
+    with pytest.raises(FieldError, match=rf"^Search.value: .* is a {group} address") as info:
+        Search(f"{table}1", f"{table}10", value, "DS30", "C1", "==")
+    assert info.value.click_id == "OBJ-004"
+
+
+def test_a_quote_in_a_search_text_value_is_refused_without_naming_a_code() -> None:
+    # No form of a Search text value holds a quote: $22 is the quote character alone.
+    with pytest.raises(FieldError, match=r"holds a quote") as info:
+        Search("TXT1", "TXT10", '"A""B"', "DS30", "C1", "==")
+    assert "$22" not in str(info.value)
+    assert 'such as "AB"' in str(info.value)
+
+
+def test_a_lone_quote_as_a_search_value_suggests_22() -> None:
+    # $22 is the Search value for the quote character alone.
+    with pytest.raises(FieldError) as info:
+        Search("TXT1", "TXT10", '"""', "DS30", "C1", "==")
+    assert str(info.value) == (
+        'Search.value: \'"""\' holds a quote; write the quote character as $22'
+    )
+    assert Search("TXT1", "TXT10", "$22", "DS30", "C1", "==").value == "$22"

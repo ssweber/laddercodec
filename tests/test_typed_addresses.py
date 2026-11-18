@@ -6,10 +6,13 @@ fields keep the typed text (``DS001``, ``ds1``, ``YD0U``, ``DS[ds1]``):
 
 - the destination of a single Copy, a Block Copy and a Pack;
 - each address in a Math formula;
-- the result of a hex Math.
+- the result of a hex Math;
+- Data B of a Compare, with any space typed at its ends (`` DS1``, ``XD0U``);
+- the table start and the result of a Search, and a space at the ends of the result.
 
-CLICK saves a Copy or Block Copy source, an Unpack source, the result of a decimal Math and
-an Out address in display form.
+CLICK saves a Copy or Block Copy source, an Unpack source, the result of a decimal Math, an
+Out address, Data A of a Compare, and the value, table end and Result Flag of a Search in
+display form.
 
 Each answered save decodes as the instruction, and its CSV is in display form.  While the
 instruction is unchanged, it writes back the bytes that CLICK saved.  Once it is changed, it
@@ -44,11 +47,13 @@ from laddercodec import (
 from laddercodec.csv import CSV_HEADER
 from laddercodec.decode_program import _scr_box
 from laddercodec.encode import encode_rung
-from laddercodec.instructions import parse_af_blob
+from laddercodec.instructions import from_tags_condition, parse_af_blob, parse_condition_blob
+from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.raw import _compose_blob, _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.search import Search
 from laddercodec.model import AfInstruction, display_form_only
 from laddercodec.operands.address import read_as_typed
 from laddercodec.operands.unchecked import refusals, stored_blob
@@ -285,6 +290,18 @@ FLAGGED: list[tuple[str, AfInstruction, dict[int, tuple[str, str]], tuple[int, .
         {0x6065: ("YD0u", "YD0U")},
         (0x11FE, 0x11F8),
     ),
+    (
+        "search oneshot, edge space",
+        Search("DS1", "DS10", "DS20", "DS1", "C1", "==", oneshot=True),
+        {0x6079: ("DS1", " DS1")},
+        (0x11F8,),
+    ),
+    (
+        "search continuous, typed",
+        Search("DS1", "DS10", "5", "DS30", "C1", "==", continuous=True),
+        {0x6066: ("DS1", "DS001")},
+        (0x1277,),
+    ),
 ]
 
 
@@ -356,6 +373,11 @@ TYPED_BLOBS: list[tuple[AfInstruction, dict[int, tuple[str, str]]]] = [
     (Math("DS1 + 1", "DS4"), {0x6228: ("DS1", "ds1"), 0x61FD: ("DS1", "ds1")}),
     (Math("XD0 + 1h", "DH1", "hex"), {0x6228: ("XD0", "XD00"), 0x61FD: ("XD0", "XD00")}),
     (Math("DH2 + DH3", "YD0u", "hex"), {0x6065: ("YD0u", "YD0U")}),
+    (Search("DS1", "DS10", "5", "DS30", "C1", "=="), {0x6066: ("DS1", "ds1")}),
+    (Search("DS1", "DS10", "5", "DS30", "C1", "=="), {0x6066: ("DS1", "DS001")}),
+    (Search("DS1", "DS10", "DS20", "DS1", "C1", "=="), {0x6079: ("DS1", "ds1")}),
+    (Search("DS1", "DS10", "DS20", "DS1", "C1", "=="), {0x6079: ("DS1", "DS001")}),
+    (Search("DS1", "DS10", "DS20", "DS1", "C1", "=="), {0x6079: ("DS1", " DS1")}),
 ]
 
 
@@ -423,6 +445,12 @@ def test_a_typed_form_refused_in_display_form_keeps_the_refusal(
         (Copy("C1", "Y001"), {0x6076: ("Y001", "Y1")}),
         # A decimal Math's result is saved in display form.
         (Math("DS1 + 1", "DS4"), {0x6065: ("DS4", "ds4")}),
+        # A Search value, table end and Result Flag are saved in display form, and no save
+        # shows a space at the ends of the table start.
+        (Search("DS1", "DS10", "DS20", "DS30", "C1", "=="), {0x6065: ("DS20", "ds20")}),
+        (Search("DS1", "DS10", "DS20", "DS30", "C1", "=="), {0x6067: ("DS10", "DS010")}),
+        (Search("DS1", "DS10", "DS20", "DS30", "C1", "=="), {0x607A: ("C1", "c1")}),
+        (Search("DS1", "DS10", "DS20", "DS30", "C1", "=="), {0x6066: ("DS1", " DS1")}),
     ],
 )
 def test_a_form_no_save_shows_stays_raw(
@@ -454,6 +482,8 @@ COVERAGE_EDITS = [
         "DS65 + DS66",
     ),
     ((("DH3", "dh3"),), Math, "dest", "DH3"),
+    ((("DS72", "ds72"),), Search, "table_start", "DS72"),
+    ((("DS82", "ds82"),), Search, "result", "DS82"),
 ]
 
 
@@ -546,3 +576,75 @@ def test_read_as_typed(typed: str, display: str) -> None:
 def test_read_as_typed_leaves_other_text(text: str) -> None:
     with display_form_only():
         assert read_as_typed(text) == text
+
+
+def _compare_tags(blob: bytes) -> dict[int, str]:
+    """Return the tags of a Compare blob, as a program file entry holds them.
+
+    The entry leaves out the func code, and the operator when it is 0 (``==``)."""
+    fields = _decompose_blob(blob)[4]
+    tags = {tag: value for tag, _sentinel, value in fields if tag != 0x3218}
+    if tags.get(0x21F7) == "0":
+        del tags[0x21F7]
+    return tags
+
+
+#: Data B of a Compare as CLICK saved it, as (Data A, typed Data B, display form).
+TYPED_DATA_B = [
+    ("DS1", " DS1", "DS1"),
+    ("DS1", "DS1 ", "DS1"),
+    ("DS1", "ds1", "DS1"),
+    ("DS1", "DS001", "DS1"),
+    ("DS1", "DS01", "DS1"),
+    ("DH1", "XD00", "XD0"),
+    ("DH1", "XD0U", "XD0u"),
+    ("DH1", "YD00", "YD0"),
+    ("DH1", "YD0U", "YD0u"),
+]
+
+
+@pytest.mark.parametrize(("left", "typed", "display"), TYPED_DATA_B)
+def test_a_typed_compare_reads_in_display_form(left: str, typed: str, display: str) -> None:
+    inst = CompareContact("==", left, display)
+    blob = _retagged(inst.build_blob(), {0x6067: (display, typed)})
+    parsed = parse_condition_blob(blob)
+    assert parsed == inst and parsed is not None
+    assert parsed.to_csv() == inst.to_csv()
+    assert not refusals(parsed)
+    # While unchanged, the contact writes the bytes that CLICK saved.
+    assert parsed.build_blob() == blob != inst.build_blob()
+    data = encode_rung(1, [[parsed] + ["-"] * 30], [""])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RefusedFieldWarning)
+        [decoded] = decode(data)
+    assert isinstance(decoded, Rung)
+    assert decoded.conditions[0][0] == inst
+    assert encode(decoded) == data
+    # A changed contact is built in display form.
+    changed = laddercodec.replace(parsed, op="!=")
+    assert stored_blob(changed) is None
+    assert changed.build_blob() == replace(inst, op="!=").build_blob()
+    # The program file decoder reads it the same way.
+    from_program = from_tags_condition("Compare", 0x2714, _compare_tags(blob))
+    assert from_program == inst and not refusals(from_program)
+
+
+def test_a_compare_with_a_space_inside_data_b_keeps_the_refusal() -> None:
+    blob = _retagged(CompareContact("==", "DS1", "DS1").build_blob(), {0x6067: ("DS1", "DS 1")})
+    parsed = parse_condition_blob(blob)
+    assert kept(parsed, "CompareContact.right").right == "DS 1"
+    assert parsed.build_blob() == blob
+    kept(from_tags_condition("Compare", 0x2714, _compare_tags(blob)), "CompareContact.right")
+
+
+@pytest.mark.parametrize("typed", [" DS1", "DS1 ", "DS 1"])
+def test_a_compare_built_with_a_space_in_data_b_is_refused(typed: str) -> None:
+    with pytest.raises(laddercodec.AddressError, match="^CompareContact.right: "):
+        CompareContact("==", "DS1", typed)
+
+
+@pytest.mark.parametrize("typed", ["ds1", "DS001", " DS1"])
+def test_a_typed_compare_data_a_stays_unread(typed: str) -> None:
+    # CLICK saves Data A in display form.
+    blob = _retagged(CompareContact("==", "DS1", "5").build_blob(), {0x6066: ("DS1", typed)})
+    assert parse_condition_blob(blob) is None
