@@ -326,8 +326,10 @@ def test_circuit_catches_a_contact_drawn_twice(
     assert _contacts(parts) == (["C1", "C5", "C5"] if lose else ["C1", "C5", "C5", "C6"])
     with pytest.raises(LayoutError, match="2 times"):
         circuit([drawn])
-    with pytest.raises(WriterError, match="changed the rung's circuit"):
+    with pytest.raises(WriterError, match="changed the rung's circuit") as written:
         decoded_rung_to_rows(drawn)
+    assert written.value.code is None
+    assert written.value.click_id is None
 
 
 #: Rungs with a contact on the circuits of two box inputs, where neither input is a pin.  The

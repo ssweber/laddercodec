@@ -220,6 +220,7 @@ def test_a_rung_that_click_splits_is_refused_for_one_rung_of_33_rows(
     with pytest.raises(WriterError) as written:
         csv_rows([drawn])
     assert str(written.value) == f"CLICK splits rungs[0] {rest}"
+    assert written.value.code is Code.LAYOUT_TOO_TALL
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +281,8 @@ def _writer_error(write: Callable[[], object]) -> WriterError:
     with pytest.raises(WriterError) as caught:
         write()
     error = caught.value
+    assert error.code is Code.LAYOUT_TOO_TALL
+    assert error.click_id is None
     assert isinstance(error.__cause__, LayoutError)
     assert error.__cause__.code is Code.LAYOUT_TOO_TALL
     _assert_too_tall(error, 33)

@@ -36,7 +36,8 @@ constant-kind-not-allowed not-a-constant constant-out-of-range invalid-constant
 invalid-char-code invalid-text-constant not-a-flag invalid-choice
 option-not-offered range-mixed-banks range-not-ascending range-crosses-slot duplicate-address
 timer-pair-mismatch immediate-contact-not-x immediate-coil-not-y immediate-edge-contact
-immediate-not-allowed text-order-compare invalid-subroutine-name invalid-input-rows
+immediate-not-allowed text-order-compare invalid-subroutine-name duplicate-subroutine-name
+invalid-input-rows
 copy-bank-incompatible constant-into-bit copy-converter-bank copy-txt-needs-convert
 copy-hex-reads-as-real text-past-bank block-copy-end-mismatch pack-kind-mismatch pack-too-many
 math-nickname math-invalid-token math-constant-kind math-constant-out-of-range
@@ -68,7 +69,7 @@ PAGE_GEN = _load("gen_codes", ROOT / "docs" / "gen_codes.py")
 
 def test_the_names_are_pinned() -> None:
     assert [code.value for code in Code] == NAMES
-    assert len(NAMES) == len(set(NAMES)) == 93
+    assert len(NAMES) == len(set(NAMES)) == 94
     assert all(code.name == code.value.upper().replace("-", "_") for code in Code)
 
 

@@ -183,8 +183,10 @@ def test_a_bad_stop_raises_writer_error(name: str, tmp_path: Path) -> None:
         "csv_rows": lambda: csv_rows([_split_rung()], stop="halt"),  # type: ignore[arg-type]
         "write_csv": lambda: write_csv(path, [_split_rung()], stop="halt"),  # type: ignore[arg-type]
     }
-    with pytest.raises(WriterError, match=rf"^{name}: stop='halt' must be 'end' or 'return'$"):
+    with pytest.raises(WriterError, match=rf"^{name}: stop='halt' must be 'end' or 'return'$") as e:
         calls[name]()
+    assert e.value.code is None
+    assert e.value.click_id is None
     assert not path.exists()
 
 
@@ -197,8 +199,10 @@ def _unwritable_rung() -> Rung:
 def test_a_writer_error_leaves_no_file(tmp_path: Path) -> None:
     """The rung that fails comes after one that can be written, and no file is made."""
     path = tmp_path / "m.csv"
-    with pytest.raises(WriterError, match="is 3 rows tall, but the rung has only 2 rows"):
+    with pytest.raises(WriterError, match="is 3 rows tall, but the rung has only 2 rows") as e:
         write_csv(path, [_split_rung(), _unwritable_rung()])
+    assert e.value.code is None
+    assert e.value.click_id is None
     assert not path.exists()
     with pytest.raises(WriterError, match="is 3 rows tall, but the rung has only 2 rows"):
         csv_rows([_split_rung(), _unwritable_rung()])

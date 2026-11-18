@@ -60,7 +60,7 @@ class Code(StrEnum):
     INVALID_CHOICE = "invalid-choice"
     """Not one of the field's named values: a unit, type, op, format, kind, port, function code, stop or pattern cell."""
 
-    # Shared rules: these rules apply to several instructions.
+    # Shared rules: these rules apply to several instructions. ``invalid-subroutine-name`` and ``duplicate-subroutine-name`` apply to subroutine names in ``write_bundle`` and ``read_bundle``. For ``duplicate-subroutine-name``, ``write_bundle`` raises a ``WriterError`` and ``read_bundle`` raises a ``CsvError``, and ``field`` is ``None``.
     OPTION_NOT_OFFERED = "option-not-offered"
     """A field or option CLICK's dialog greys out for the other fields' values."""
     RANGE_MIXED_BANKS = "range-mixed-banks"
@@ -85,6 +85,8 @@ class Code(StrEnum):
     """``<`` or ``>`` on text, in a Compare or a Search."""
     INVALID_SUBROUTINE_NAME = "invalid-subroutine-name"
     """A subroutine name over 24 characters, with a forbidden character, or a device name."""
+    DUPLICATE_SUBROUTINE_NAME = "duplicate-subroutine-name"
+    """Two subroutine names that are equal when case is ignored, such as ``Pump`` and ``pump``."""
     INVALID_INPUT_ROWS = "invalid-input-rows"
     """``pin_rows`` that is not one ascending row (1 to 255) per box input."""
 
@@ -212,7 +214,7 @@ class Code(StrEnum):
     UNDECODED_RUNG = "undecoded-rung"
     """A rung that holds an ``Undecoded`` marker. The marker stands in for a rung that a decoder could not decode or that ``write_csv`` could not write."""
 
-    # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``WriterError`` can be a ``LayoutError`` with one of these codes. ``read_csv`` raises a ``CsvError`` whose code is ``layout-too-tall``.
+    # Layout: these codes come from laying a rung out. ``check()`` reports only ``layout-too-tall`` of them. ``lay_out()`` raises a ``LayoutError`` with one of these codes. When ``write_csv`` refuses a rung because of its layout, the ``__cause__`` of its ``WriterError`` can be a ``LayoutError`` with one of these codes. For a rung that needs more than 32 rows, ``read_csv`` raises a ``CsvError`` and ``write_csv`` raises a ``WriterError``, and the code of each is ``layout-too-tall``.
     LAYOUT_TOO_WIDE = "layout-too-wide"
     """A layout that needs more than 31 condition columns."""
     LAYOUT_TOO_TALL = "layout-too-tall"
@@ -236,6 +238,7 @@ CLICK_IDS: dict[Code, tuple[str, ...]] = {
     Code.RANGE_CROSSES_SLOT: ("OBJ-033", "OBJ-1009"),
     Code.DUPLICATE_ADDRESS: ("OBJ-012", "OBJ-014"),
     Code.INVALID_SUBROUTINE_NAME: ("GUI-040",),
+    Code.DUPLICATE_SUBROUTINE_NAME: ("GUI-036",),
     Code.COPY_BANK_INCOMPATIBLE: ("OBJ-004", "OBJ-024"),
     Code.CONSTANT_INTO_BIT: ("OBJ-004", "OBJ-024"),
     Code.TEXT_PAST_BANK: ("OBJ-003",),

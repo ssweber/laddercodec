@@ -561,6 +561,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
 - **A box past the last row.** `encode()` writes a box that runs past the rung's last row, such as a Copy on
   row 32 of a 32-row rung. `check()` reports it as `layout-too-tall`. What CLICK does with it needs a capture
   before `encode()` refuses it.
+- **Subroutine names that differ in case outside A-Z.** `write_bundle` and `read_bundle` compare names with
+  `str.casefold()`, so they refuse `Straße` beside `STRASSE`, and `é` beside `É`, as
+  `duplicate-subroutine-name` (GUI-036). Does CLICK's Add New Subroutine refuse them too?
 
 ## For pyrung's export (later; another repo first)
 

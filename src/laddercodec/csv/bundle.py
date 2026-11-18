@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
+from ..codes import Code
 from ..errors import CsvError, LaddercodecError, WriterError
 from ..model import FieldError, Program, Project, check_program_name
 from ..refused import warn_refused
@@ -99,7 +100,9 @@ def read_bundle(directory: Path | str, *, strict: bool = True, unchecked: bool =
         it reads any file.  It refuses a name that CLICK refuses as a subroutine name, a
         name that starts or ends with whitespace, and two names that are equal when case
         is ignored.  For a name that CLICK refuses, the ``CsvError`` copies the
-        ``FieldError``'s ``field``, ``code``, ``reason`` and ``click_id``.
+        ``FieldError``'s ``field``, ``code``, ``reason`` and ``click_id``.  For two names
+        that are equal when case is ignored, its ``code`` is ``duplicate-subroutine-name``
+        and its ``click_id`` is ``GUI-036``.
     FieldError
         If a file holds a value that CLICK's dialog refuses, as ``read_csv`` raises it.
         It is an ``AddressError`` for an address.
@@ -151,7 +154,9 @@ def _subroutine_names(paths: Sequence[Path]) -> list[str]:
             if first is not path:
                 raise CsvError(
                     f"Subroutine files {first.name!r} and {path.name!r} have the same name "
-                    "when case is ignored. Rename one of them."
+                    "when case is ignored (GUI-036). Rename one of them.",
+                    code=Code.DUPLICATE_SUBROUTINE_NAME,
+                    click_id="GUI-036",
                 )
         names.append(name)
     return names
@@ -189,8 +194,10 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
         If CLICK refuses a subroutine's name.  The ``field`` is ``Program.name``.
     WriterError
         If two subroutines have names that are equal when case is ignored.  They would be
-        one file on Windows and macOS.  It is also raised for a name that holds a control
-        character, U+0000 to U+001F or U+007F, anywhere in the name.  It is raised when
+        one file on Windows and macOS.  The error's ``code`` is then
+        ``duplicate-subroutine-name``, and its ``click_id`` is ``GUI-036``.  It is also
+        raised for a name that holds a control character, U+0000 to U+001F or U+007F,
+        anywhere in the name.  It is raised when
         *directory*, ``subroutines/``, ``main.csv`` or a subroutine's file exists and is
         of the wrong kind, such as a directory named ``main.csv``.  ``write_bundle``
         also raises it for a rung that the CSV can't hold, as ``write_csv`` does.
@@ -220,7 +227,9 @@ def write_bundle(directory: Path | str, project: Project, *, index: bool = False
         if key in names:
             raise WriterError(
                 f"Subroutines {names[key]!r} and {name!r} have the same name when case is "
-                "ignored, so they would be one file in subroutines/. Rename one of them."
+                "ignored (GUI-036). Rename one of them.",
+                code=Code.DUPLICATE_SUBROUTINE_NAME,
+                click_id="GUI-036",
             )
         names[key] = name
 

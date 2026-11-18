@@ -461,9 +461,9 @@ def decoded_rung_to_rows(rung: Rung, subject: str = "The rung") -> list[list[str
     below the timer.  A rung can hold several tall or pinned instructions, and
     each one reads back with all of its rows.
 
-    Raise ``WriterError`` if a rung to write needs more than 32 rows.  Its message starts
-    with *subject*, and its ``__cause__`` is a ``LayoutError`` with the code
-    ``layout-too-tall``.
+    Raise ``WriterError`` with the code ``layout-too-tall`` if a rung to write needs more
+    than 32 rows.  Its message starts with *subject*, and its ``__cause__`` is a
+    ``LayoutError`` with the same code.
     """
     rows: list[list[str]] = []
     for part, exact in _drawn(rung, subject):
@@ -478,7 +478,7 @@ def _drawn(rung: Rung, subject: str) -> list[tuple[Rung, bool]]:
     try:
         parts, exact = drawn(rung, subject)
     except LayoutError as exc:
-        raise WriterError(str(exc)) from exc
+        raise WriterError(str(exc), code=exc.code) from exc
     if not exact:
         return [(rung, False)]
     if parts != [rung]:
@@ -582,8 +582,9 @@ def csv_rows(
         If *stop* is neither ``"end"`` nor ``"return"``, or if a rung can't be
         written, such as one whose shape the CSV can't hold.  It is also raised
         for a rung that needs more than the 32 rows of a CLICK rung.  The message
-        then starts with the rung's index in *rungs*, such as ``rungs[3]``, and the
-        ``__cause__`` is a ``LayoutError`` with the code ``layout-too-tall``.
+        then starts with the rung's index in *rungs*, such as ``rungs[3]``.  The
+        error's ``code`` is ``layout-too-tall``, and its ``__cause__`` is a
+        ``LayoutError`` with the same code.
     """
     return _csv_rows(rungs, index=index, stop=stop, caller="csv_rows")
 
