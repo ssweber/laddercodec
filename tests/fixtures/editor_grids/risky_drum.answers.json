@@ -1,0 +1,781 @@
+{
+ "grid": "risky_drum.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_drum-1"
+ ],
+ "cases": [
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=\"é\"",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"é\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.589,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"é\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=\"\t\"",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"\t\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.583,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"\t\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.592,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.583,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-022",
+   "message": "Please enter a Duration value for each Step.",
+   "syntax_check": null,
+   "seconds": 0.581,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]= ",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": " ",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.577,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": " ",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.constants",
+   "case": "time_drum presets[0]=٣",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "٣",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.58,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "٣",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.forms",
+   "case": "time_drum presets[0]= DS1",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": " DS1",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.438,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": " DS1",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.presets.forms",
+   "case": "time_drum presets[0]=DS1 ",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "DS1 ",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.38,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "DS1 ",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.outputs.forms",
+   "case": "time_drum outputs[0]= Y001",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": " Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 4.417,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": " Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.outputs.forms",
+   "case": "time_drum outputs[0]=Y001 ",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001 ",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.081,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001 ",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.events.forms",
+   "case": "event_drum events[0]= X001",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": " X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 7.168,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": " X001",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.events.forms",
+   "case": "event_drum events[0]=X001 ",
+   "instruction": "drum",
+   "mode": "event_drum",
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001 ",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 2 error(s), 0 warning(s)\r\n",
+    "errors": 2,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 6.04,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "events[0]": "X001 ",
+    "events[1]": "X002",
+    "current_step": "DS1",
+    "completion_flag": "C1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "events[0]": 30000,
+    "events[1]": 30000,
+    "current_step": 16,
+    "completion_flag": 16
+   }
+  },
+  {
+   "row": "drum.jump",
+   "case": "time_drum jump_enabled=1 jump_step= DS1",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "options": {
+    "jump_enabled": 1
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 5.991,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": " DS1"
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16,
+    "jump_step": 16
+   }
+  },
+  {
+   "row": "drum.jump",
+   "case": "time_drum jump_enabled=1 jump_step=DS1 ",
+   "instruction": "drum",
+   "mode": "time_drum",
+   "choices": {
+    "unit": "sec"
+   },
+   "options": {
+    "jump_enabled": 1
+   },
+   "fields": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 3 error(s), 0 warning(s)\r\n",
+    "errors": 3,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection."
+    ]
+   },
+   "seconds": 5.96,
+   "read_back": {
+    "num_steps": "2",
+    "num_outputs": "2",
+    "outputs[0]": "Y001",
+    "outputs[1]": "Y002",
+    "presets[0]": "1000",
+    "presets[1]": "1000",
+    "current_step": "DS1",
+    "accumulator": "TD1",
+    "completion_flag": "C1",
+    "jump_step": "DS1 "
+   },
+   "limits": {
+    "num_steps": 30000,
+    "num_outputs": 30000,
+    "outputs[0]": 30000,
+    "outputs[1]": 30000,
+    "presets[0]": 30000,
+    "presets[1]": 30000,
+    "current_step": 16,
+    "accumulator": 16,
+    "completion_flag": 16,
+    "jump_step": 16
+   }
+  }
+ ]
+}

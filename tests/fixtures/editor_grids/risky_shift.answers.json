@@ -1,0 +1,118 @@
+{
+ "grid": "risky_shift.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_shift-2"
+ ],
+ "cases": [
+  {
+   "row": "shift.start.forms",
+   "case": "shift  C1..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": " C1",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 6.057,
+   "read_back": {
+    "start_bit": " C1",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1.. C1",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": " C1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.423,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": " C1"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.start.forms",
+   "case": "shift C1 ..C8",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1 ",
+    "end_bit": "C8"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.\r\nMain Program : Rung 1 : error C0209: There is no Contact for the Data input.\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 4 error(s), 0 warning(s)\r\n",
+    "errors": 4,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": [
+     "Main Program : Rung 1 : error C0202: Row 2, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0202: Row 3, Column AF : Missing line connection.",
+     "Main Program : Rung 1 : error C0209: There is no Contact for the Data input."
+    ]
+   },
+   "seconds": 5.637,
+   "read_back": {
+    "start_bit": "C1 ",
+    "end_bit": "C8"
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  },
+  {
+   "row": "shift.end.forms",
+   "case": "shift C1..C1 ",
+   "instruction": "shift",
+   "fields": {
+    "start_bit": "C1",
+    "end_bit": "C1 "
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "start_bit": "C1",
+    "end_bit": "C1 "
+   },
+   "limits": {
+    "start_bit": 16,
+    "end_bit": 16
+   }
+  }
+ ]
+}

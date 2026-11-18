@@ -1,0 +1,412 @@
+{
+ "grid": "risky_fill.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_fill-1",
+  "risky_fill-2"
+ ],
+ "cases": [
+  {
+   "row": "copy.fill.text.characters",
+   "case": "fill \"é\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"é\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.251,
+   "read_back": {
+    "source": "\"é\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.text.characters",
+   "case": "fill \"€\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"€\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.75,
+   "read_back": {
+    "source": "\"€\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.text.characters",
+   "case": "fill \"\t\" -> TXT1..TXT2",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\t\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.709,
+   "read_back": {
+    "source": "\"\t\"",
+    "destination": "TXT1",
+    "destination_end": "TXT2"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.forms",
+   "case": "fill  DS1 -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": " DS1",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.511,
+   "read_back": {
+    "source": " DS1",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.forms",
+   "case": "fill DS1  -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "DS1 ",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.725,
+   "read_back": {
+    "source": "DS1 ",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill \"é\" -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"é\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.492,
+   "read_back": {
+    "source": "\"é\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill \"\t\" -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\t\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-024",
+   "message": "The combination of these data types is not allowed.",
+   "syntax_check": null,
+   "seconds": 0.489,
+   "read_back": {
+    "source": "\"\t\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-023",
+   "message": "Only one character is allowed in the Source.",
+   "syntax_check": null,
+   "seconds": 0.49,
+   "read_back": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.481,
+   "read_back": {
+    "source": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill  -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.485,
+   "read_back": {
+    "source": "",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill   -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": " ",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.485,
+   "read_back": {
+    "source": " ",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.value.constants",
+   "case": "fill ٣ -> DS10..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "٣",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.479,
+   "read_back": {
+    "source": "٣",
+    "destination": "DS10",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.destination-start.forms",
+   "case": "fill 5 ->  DS1..DS11",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "5",
+    "destination": " DS1",
+    "destination_end": "DS11"
+   },
+   "outcome": "crashed",
+   "code": null,
+   "message": "CLICK exited while waiting for CLICK's answer to case 13 (copy.fill.destination-start.forms fill 5 ->  DS1..DS11)",
+   "syntax_check": null,
+   "seconds": 0.787,
+   "read_back": {
+    "source": "5",
+    "destination": " DS1",
+    "destination_end": "DS11"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stops": [
+    {
+     "out": "risky_fill-1",
+     "reason": "CLICK exited while waiting for CLICK's answer to case 13 (copy.fill.destination-start.forms fill 5 ->  DS1..DS11)",
+     "crashed": true
+    }
+   ]
+  },
+  {
+   "row": "copy.fill.destination-end.forms",
+   "case": "fill 5 -> DS10.. DS1",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "5",
+    "destination": "DS10",
+    "destination_end": " DS1"
+   },
+   "outcome": "refused",
+   "code": "OBJ-009",
+   "message": "Please enter an end address that is larger than the start address.",
+   "syntax_check": null,
+   "seconds": 0.512,
+   "read_back": {
+    "source": "5",
+    "destination": "DS10",
+    "destination_end": " DS1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  }
+ ]
+}

@@ -70,6 +70,20 @@ ANSWER_FILES = (
     "search",
     "risky_compare",
     "preflight_compare",
+    "timer",
+    "counter",
+    "shift",
+    "for",
+    "copy_fill",
+    "drum",
+    "send",
+    "risky_timer",
+    "risky_shift",
+    "risky_for",
+    "risky_drum",
+    "risky_send",
+    "risky_counter",
+    "risky_fill",
 )
 
 Key = tuple[str, str, str]  # (grid, case label or field, kind)
@@ -142,6 +156,145 @@ RX2_COUNT = (
     "kept: the rx2 run recorded no count and the test takes 1, which CLICK refuses for TXT "
     "(OBJ-010); in the same setup the dialog holds 2 at OK (receive_count), which the rules "
     "accept; no answer says what rx2 held"
+)
+
+# Reasons for the Timer, Counter, Shift, For, Fill, Drum and Send cases.
+INNER_SPACE_FIELD = (
+    "kept: CLICK accepts a space inside an address in this field (DS 1), as it does in a Copy "
+    "source. What it saves here is not recorded. A space inside an address stays refused "
+    "(settled)"
+)
+EDGE_WHITESPACE = (
+    "deliberate: CLICK accepts a space or a tab at the start or end of this field. What it "
+    "saves is not recorded. An instruction holds the field in display form, so construction "
+    "refuses the space or the tab"
+)
+EDGE_SAVED = (
+    "deliberate: CLICK accepts a space or a tab at the start or end of this field, and the "
+    "save keeps it. A Slave ID of ' 1' is saved as ' 1', and a Sending bit of C100 with a tab "
+    "after it keeps the tab. An instruction holds the field in display form, so construction "
+    "refuses the space or the tab"
+)
+PRESET_DROPPED = (
+    "kept: CLICK accepts a preset with a space at either end, and the save of this one holds "
+    "no preset. A rung with no preset is not what the CSV states, so laddercodec refuses the "
+    "space"
+)
+PRESET_EDGE = (
+    "kept: CLICK accepts a preset with a space at either end. What it saves for this one is "
+    "not recorded. The save of the same preset with the space at the other end holds no "
+    "preset, so laddercodec refuses the space"
+)
+FOR_SPACE = (
+    "kept: CLICK stores the For count 1 0 as typed. That count is not a number, so "
+    "laddercodec refuses it"
+)
+FOR_SPACE_UNSAVED = (
+    "kept: CLICK accepts the For count 1 2. What it saves is not recorded. A count with a "
+    "space inside it is not a number, so laddercodec refuses it"
+)
+FOR_BLANK = (
+    "kept: CLICK accepts a For count of one space and stores the space. A space states no "
+    "count, so laddercodec refuses it as blank. CLICK refuses an empty count (OBJ-006)"
+)
+FOR_MINUS_ZERO = (
+    "to do: CLICK accepts -0 as a For count and stores 0. The rules read -0 as an address and "
+    "refuse it"
+)
+COUNTER_NOT_NUMBER = (
+    "kept: CLICK stores the Counter preset 1-2 as typed. It is not a number, so laddercodec "
+    "refuses it"
+)
+COUNTER_NOT_NUMBER_UNSAVED = (
+    "kept: CLICK accepts the Counter preset --5. What it saves is not recorded. It is not a "
+    "number, so laddercodec refuses it"
+)
+COUNT_DIGITS = (
+    "kept: CLICK accepts a Send count written as an Arabic-Indic digit. laddercodec reads a "
+    "count written in ASCII digits only"
+)
+SERVER_PORT = (
+    "kept: CLICK accepts the server port abc. The port is a number from 1 to 65535, the range "
+    "that CLICK's dialog states, so laddercodec refuses abc"
+)
+LONG_DIGITS = (
+    "kept: CLICK accepts a Send source of DS with 41 digits. An address has at most five "
+    "digits after its bank, so laddercodec refuses it. It reads leading zeros within the "
+    "five, as in DS001"
+)
+FILL_TXT_REAL = (
+    'kept: CLICK reads "HELLO" as a real and stores the real 0.0 for a Fill into TXT, not the '
+    "text. laddercodec refuses it as text of more than one character"
+)
+FILL_TXT_REAL_UNSAVED = (
+    'kept: CLICK accepts "HELLO" as a Fill into TXT999..TXT1000. What it saves is not '
+    "recorded. laddercodec refuses it as text of more than one character"
+)
+FILL_TXT_CHAR = (
+    'kept: CLICK accepts "é" as a Fill into TXT and stores it as typed. What a PLC writes '
+    "into one TXT register for it is not known, so laddercodec refuses it"
+)
+FILL_TXT_CHAR_UNSAVED = (
+    'kept: CLICK accepts "€" and a tab as a Fill into TXT. What it stores for them is not '
+    "recorded, and what a PLC writes into one TXT register for them is not known, so "
+    "laddercodec refuses them"
+)
+E_REAL_FILL = (
+    "kept: CLICK accepts 1E and E5 as a Fill source into DS. What it saves is not recorded. "
+    "Neither is an integer constant, so laddercodec refuses them"
+)
+SLOT_PORTS = (
+    "The port list of the PLC that answered has no slot ports, so CLICK did not take these "
+    "cases. The rules accept a slot port"
+)
+ONE_ELEMENT_COUNT = (
+    "CLICK's dialog closes the count box for FC05 and FC06, which write one element. The "
+    "rules accept the count 1"
+)
+START_984_ID = (
+    "kept: both refuse a 984 start of a kind that the function code does not write. CLICK "
+    "refuses the slave address with OBJ-010. laddercodec refuses the source with OBJ-004"
+)
+FILL_SD = (
+    "to do: CLICK refuses a Fill into an SD range unless every SD in the range is writable "
+    "(OBJ-004). The rules accept every SD"
+)
+FILL_HEX = (
+    "to do: CLICK refuses a Fill of hex above FFFFh into every bank (OBJ-005). The rules "
+    "accept up to FFFFFFFFh"
+)
+FILL_TXT_NUMBER = (
+    "to do: CLICK refuses a Fill into TXT of an integer or hex constant of more than one "
+    "character (OBJ-023). It accepts a real, such as 1.5. The rules accept any number"
+)
+SEND_PAIRS = (
+    "to do: with CLICK addressing, CLICK pairs a Send's slave bank with the data type of the "
+    "source (OBJ-004). A DS or TD slave takes DS, TD or SD. A DH or YD slave takes DH, XD or "
+    "YD. A DD or CTD slave takes DD or CTD. A DF slave takes DF, and a TXT slave takes TXT. "
+    "An SD slave is refused. The rules check the slave bank alone"
+)
+SEND_TXT = (
+    "to do: CLICK counts a Send's TXT in characters. The count is even (OBJ-029), from 2 to "
+    "246, and does not run past TXT1000 (OBJ-010). The TXT start is odd (OBJ-028). The rules "
+    "count TXT in registers, from 1 to 123"
+)
+SEND_HEX_ROOM = (
+    "to do: CLICK refuses a Send count that runs past FFFEh from a hex start, for a DS, DF or "
+    "CTD source (OBJ-010). A DF or CTD element is two registers. The rules check this room "
+    "for DD only"
+)
+SEND_HEX_TXT = (
+    "open: CLICK refuses these TXT counts after a hex start with OBJ-010. Its ranges do not "
+    "follow from a count in characters: FFFCh gives 2 to 3, and FFFDh gives 2 to 2. The "
+    "rules do not check this room for TXT"
+)
+SEND_WORD_SWAP = (
+    "to do: CLICK offers Word Swap for a Send only with FC16, from a 32-bit source (DD, DF or "
+    "CTD) or from DS with a count of 2 or more. The rules accept Word Swap on any Send"
+)
+EVENT_DRUM_UNIT = (
+    "to do: an event drum has no time unit, and CLICK closes the unit list. The rules accept "
+    "a unit, and the encoder drops it"
 )
 
 
@@ -340,19 +493,527 @@ DISAGREEMENTS: dict[Key, str] = _table(
     ),
     (COPY_EH, "copy_single", "outcome", ("single 1Eh -> DS1", "single EH -> DS1")),
     (COPY_REAL_DIGITS, "copy_single", "outcome", ("single 3.4028235E+38 -> DS1",)),
+    (COUNTER_NOT_NUMBER, "counter", "outcome", ("count_up CT1 preset=1-2",)),
+    (COUNTER_NOT_NUMBER_UNSAVED, "counter", "outcome", ("count_up CT1 preset=--5",)),
+    (
+        COUNT_DIGITS,
+        "risky_send",
+        "outcome",
+        ("send fc16 984 400001 <- DS1 x١",),
+    ),
+    (
+        EDGE_SAVED,
+        "risky_send",
+        "outcome",
+        (
+            "send fc06 984 400001 <- DS1 id= 1",
+            "send fc06 984 400001 <- DS1 sending=C100\t",
+        ),
+    ),
+    (EDGE_SPACE + " (Fill source)", "risky_fill", "outcome", ("fill  DS1 -> DS10..DS11",)),
+    (EDGE_SPACE + " (Shift range)", "risky_shift", "outcome", ("shift  C1..C8",)),
+    (
+        EDGE_WHITESPACE,
+        "risky_counter",
+        "outcome",
+        (
+            "count_up  CT1 preset=10",
+            "count_up CT1  preset=10",
+        ),
+    ),
+    (
+        EDGE_WHITESPACE,
+        "risky_drum",
+        "outcome",
+        (
+            "event_drum events[0]= X001",
+            "event_drum events[0]=X001 ",
+            "time_drum jump_enabled=1 jump_step= DS1",
+            "time_drum jump_enabled=1 jump_step=DS1 ",
+            "time_drum outputs[0]= Y001",
+            "time_drum outputs[0]=Y001 ",
+            "time_drum presets[0]= DS1",
+            "time_drum presets[0]=DS1 ",
+        ),
+    ),
+    (EDGE_WHITESPACE, "risky_fill", "outcome", ("fill DS1  -> DS10..DS11",)),
+    (
+        EDGE_WHITESPACE,
+        "risky_send",
+        "outcome",
+        (
+            "send fc05 984 1 <-  C1",
+            "send fc05 984 1 <- C1 ",
+            "send fc06 984  400001 <- DS1",
+            "send fc06 984 400001  <- DS1",
+            "send fc06 984 400001 <-  DS1",
+            "send fc06 984 400001 <- DS1 ",
+            "send fc06 984 400001 <- DS1 error= C102",
+            "send fc06 984 400001 <- DS1 error=C102\t",
+            "send fc06 984 400001 <- DS1 error=C102 ",
+            "send fc06 984 400001 <- DS1 exception= DS1",
+            "send fc06 984 400001 <- DS1 exception= DS100",
+            "send fc06 984 400001 <- DS1 exception=DS1 ",
+            "send fc06 984 400001 <- DS1 exception=DS100\t",
+            "send fc06 984 400001 <- DS1 exception=DS100 ",
+            "send fc06 984 400001 <- DS1 id=1\t",
+            "send fc06 984 400001 <- DS1 id=1 ",
+            "send fc06 984 400001 <- DS1 sending= C1",
+            "send fc06 984 400001 <- DS1 sending= C100",
+            "send fc06 984 400001 <- DS1 sending=C1 ",
+            "send fc06 984 400001 <- DS1 sending=C100 ",
+            "send fc06 984 400001 <- DS1 success= C101",
+            "send fc06 984 400001 <- DS1 success=C101\t",
+            "send fc06 984 400001 <- DS1 success=C101 ",
+            "send fc06 click  DS1 <- DS1",
+            "send fc06 click DS1  <- DS1",
+            "send fc16 984 400001 <- DS1 x 1",
+            "send fc16 984 400001 <- DS1 x1\t",
+            "send fc16 984 400001 <- DS1 x1 ",
+        ),
+    ),
+    (EDGE_WHITESPACE, "risky_shift", "outcome", ("shift C1 ..C8",)),
+    (
+        EDGE_WHITESPACE,
+        "risky_timer",
+        "outcome",
+        (
+            "on_delay  T1 preset=100 unit=ms",
+            "on_delay T1  preset=100 unit=ms",
+        ),
+    ),
+    (
+        EVENT_DRUM_UNIT,
+        "drum",
+        "outcome",
+        ("event_drum unit=sec",),
+    ),
+    (
+        E_REAL_FILL,
+        "copy_fill",
+        "outcome",
+        (
+            "fill 1E -> DS10..DS11",
+            "fill E5 -> DS10..DS11",
+        ),
+    ),
+    (
+        FILL_HEX,
+        "copy_fill",
+        "outcome",
+        (
+            "fill 10000h -> CTD1..CTD2",
+            "fill 10000h -> DD1..DD2",
+            "fill 10000h -> DF1..DF2",
+            "fill 10000h -> DH1..DH2",
+            "fill 10000h -> DS1..DS2",
+            "fill 10000h -> DS10..DS11",
+            "fill 10000h -> SD1..SD2",
+            "fill 10000h -> TD1..TD2",
+            "fill 10000h -> TXT1..TXT2",
+            "fill 10000h -> YD0..YD1",
+            "fill FFFFFFFFh -> CTD1..CTD2",
+            "fill FFFFFFFFh -> DD1..DD2",
+            "fill FFFFFFFFh -> DF1..DF2",
+            "fill FFFFFFFFh -> DH1..DH2",
+            "fill FFFFFFFFh -> DS1..DS2",
+            "fill FFFFFFFFh -> DS10..DS11",
+            "fill FFFFFFFFh -> SD1..SD2",
+            "fill FFFFFFFFh -> TD1..TD2",
+            "fill FFFFFFFFh -> TXT1..TXT2",
+            "fill FFFFFFFFh -> YD0..YD1",
+        ),
+    ),
+    (
+        FILL_SD,
+        "copy_fill",
+        "outcome",
+        (
+            "fill -5 -> SD1..SD2",
+            "fill 1.5 -> SD1..SD2",
+            "fill 2147483647 -> SD1..SD2",
+            "fill 5 -> SD1..SD1000",
+            "fill 5 -> SD1..SD2",
+            "fill 5 -> SD106..SD225",
+            "fill 5 -> SD140..SD149",
+            "fill 5 -> SD205..SD214",
+            "fill 5 -> SD212..SD215",
+            "fill 5 -> SD214..SD223",
+            "fill 5 -> SD29..SD38",
+            "fill 5 -> SD999..SD1000",
+            "fill CTD1 -> SD1..SD2",
+            "fill DD1 -> SD1..SD2",
+            "fill DF1 -> SD1..SD2",
+            "fill DH1 -> SD1..SD2",
+            "fill DS1 -> SD1..SD2",
+            "fill DS1 -> SD106..SD225",
+            "fill DS1 -> SD140..SD149",
+            "fill DS1 -> SD205..SD214",
+            "fill DS1 -> SD212..SD215",
+            "fill DS1 -> SD214..SD223",
+            "fill DS1 -> SD29..SD38",
+            "fill FFFFh -> SD1..SD2",
+            "fill FFh -> SD1..SD2",
+            "fill SD1 -> SD1..SD2",
+            "fill TD1 -> SD1..SD2",
+            "fill XD0 -> SD1..SD2",
+            "fill YD0 -> SD1..SD2",
+        ),
+    ),
+    (
+        FILL_TXT_CHAR,
+        "risky_fill",
+        "outcome",
+        ('fill "é" -> TXT1..TXT2',),
+    ),
+    (
+        FILL_TXT_CHAR_UNSAVED,
+        "risky_fill",
+        "outcome",
+        (
+            'fill "\t" -> TXT1..TXT2',
+            'fill "€" -> TXT1..TXT2',
+        ),
+    ),
+    (
+        FILL_TXT_NUMBER,
+        "copy_fill",
+        "outcome",
+        (
+            "fill -5 -> TXT1..TXT2",
+            "fill -5 -> TXT999..TXT1000",
+            "fill 10h -> TXT1..TXT2",
+            "fill 10h -> TXT999..TXT1000",
+            "fill 123 -> TXT1..TXT2",
+            "fill 123 -> TXT999..TXT1000",
+            "fill 2147483647 -> TXT1..TXT2",
+            "fill FFFFh -> TXT1..TXT2",
+            "fill FFh -> TXT1..TXT2",
+            "fill FFh -> TXT999..TXT1000",
+        ),
+    ),
+    (
+        FILL_TXT_REAL,
+        "copy_fill",
+        "outcome",
+        ('fill "HELLO" -> TXT1..TXT2',),
+    ),
+    (
+        FILL_TXT_REAL_UNSAVED,
+        "copy_fill",
+        "outcome",
+        ('fill "HELLO" -> TXT999..TXT1000',),
+    ),
+    (
+        FOR_BLANK,
+        "risky_for",
+        "outcome",
+        ("for  ",),
+    ),
+    (
+        FOR_MINUS_ZERO,
+        "for",
+        "outcome",
+        ("for -0",),
+    ),
+    (
+        FOR_SPACE,
+        "for",
+        "outcome",
+        ("for 1 0",),
+    ),
+    (
+        FOR_SPACE_UNSAVED,
+        "for",
+        "outcome",
+        ("for 1 2",),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "copy_fill",
+        "outcome",
+        ("fill DS 1 -> DS10..DS11",),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "counter",
+        "outcome",
+        (
+            "count_up CT 1 preset=10",
+            "count_up CT1 preset=DS 1",
+        ),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "drum",
+        "outcome",
+        (
+            "event_drum events[0]=X 001",
+            "time_drum jump_enabled=1 jump_step=DS 1",
+            "time_drum outputs[0]=Y 001",
+            "time_drum presets[0]=DS 1",
+        ),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "for",
+        "outcome",
+        ("for DS 1",),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "send",
+        "outcome",
+        (
+            "send fc05 984 1 <- C 1",
+            "send fc06 984 400001 <- DS 1",
+            "send fc06 984 400001 <- DS1 exception=DS 1",
+            "send fc06 984 400001 <- DS1 sending=C 1",
+            "send fc06 click DS 1 <- DS1",
+        ),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "shift",
+        "outcome",
+        (
+            "shift C 1..C8",
+            "shift C1..C 1",
+        ),
+    ),
+    (
+        INNER_SPACE_FIELD,
+        "timer",
+        "outcome",
+        (
+            "on_delay T 1 preset=100 unit=ms",
+            "on_delay T1 preset=DS 1 unit=ms",
+        ),
+    ),
+    (
+        LONG_DIGITS,
+        "risky_send",
+        "outcome",
+        ("send fc06 984 400001 <- DS00000000000000000000000000000000000000001",),
+    ),
+    (
+        ONE_ELEMENT_COUNT,
+        "send",
+        "outcome",
+        (
+            "send fc05 984 1 <- C1 x1",
+            "send fc06 984 400001 <- DS1 x1",
+        ),
+    ),
+    (PRESET_DROPPED, "risky_counter", "outcome", ("count_up CT1 preset=DS1 ",)),
+    (PRESET_DROPPED, "risky_timer", "outcome", ("on_delay T1 preset= DS1 unit=ms",)),
+    (PRESET_EDGE, "risky_counter", "outcome", ("count_up CT1 preset= DS1",)),
+    (PRESET_EDGE, "risky_timer", "outcome", ("on_delay T1 preset=DS1  unit=ms",)),
+    (
+        SEND_HEX_ROOM,
+        "send",
+        "outcome",
+        (
+            "send fc16 hex 0FFFEh <- DS1 x2",
+            "send fc16 hex FFFDh <- CTD1 x2",
+            "send fc16 hex FFFDh <- DF1 x2",
+            "send fc16 hex FFFEh <- DS1 x2",
+        ),
+    ),
+    (
+        SEND_HEX_TXT,
+        "send",
+        "outcome",
+        (
+            "send fc16 hex FFFCh <- TXT1 x1",
+            "send fc16 hex FFFDh <- TXT1 x1",
+        ),
+    ),
+    (
+        SEND_PAIRS,
+        "send",
+        "outcome",
+        (
+            "send fc06 click DH1 <- DS1",
+            "send fc06 click DH1 <- SD1",
+            "send fc06 click DH1 <- TD1",
+            "send fc06 click DH1 <- TXT1",
+            "send fc06 click DH500 <- DS1",
+            "send fc06 click DS1 <- DH1",
+            "send fc06 click DS1 <- TXT1",
+            "send fc06 click DS1 <- XD0",
+            "send fc06 click DS1 <- YD0",
+            "send fc06 click SD1 <- DH1",
+            "send fc06 click SD1 <- DS1",
+            "send fc06 click SD1 <- SD1",
+            "send fc06 click SD1 <- TD1",
+            "send fc06 click SD1 <- TXT1",
+            "send fc06 click SD1 <- XD0",
+            "send fc06 click SD1 <- YD0",
+            "send fc06 click SD1000 <- DS1",
+            "send fc06 click TD1 <- DH1",
+            "send fc06 click TD1 <- TXT1",
+            "send fc06 click TD1 <- XD0",
+            "send fc06 click TD1 <- YD0",
+            "send fc06 click TXT1 <- DH1",
+            "send fc06 click TXT1 <- DS1",
+            "send fc06 click TXT1 <- SD1",
+            "send fc06 click TXT1 <- TD1",
+            "send fc06 click TXT1 <- XD0",
+            "send fc06 click TXT1 <- YD0",
+            "send fc06 click TXT1000 <- DS1",
+            "send fc06 click YD0 <- DS1",
+            "send fc06 click YD0 <- SD1",
+            "send fc06 click YD0 <- TD1",
+            "send fc06 click YD0 <- TXT1",
+            "send fc06 click YD00 <- DS1",
+            "send fc06 click YD0U <- DS1",
+            "send fc06 click YD0u <- DS1",
+            "send fc06 click YD1 <- DS1",
+            "send fc06 click YD8 <- DS1",
+            "send fc16 click CTD1 <- DF1 x2",
+            "send fc16 click CTD1 <- DH1 x2",
+            "send fc16 click CTD1 <- DS1 x2",
+            "send fc16 click CTD1 <- SD1 x2",
+            "send fc16 click CTD1 <- TD1 x2",
+            "send fc16 click CTD1 <- TXT1 x2",
+            "send fc16 click DD1 <- DF1 x2",
+            "send fc16 click DD1 <- DH1 x2",
+            "send fc16 click DD1 <- DS1 x2",
+            "send fc16 click DD1 <- SD1 x2",
+            "send fc16 click DD1 <- TD1 x2",
+            "send fc16 click DD1 <- TXT1 x2",
+            "send fc16 click DF1 <- CTD1 x2",
+            "send fc16 click DF1 <- DD1 x1",
+            "send fc16 click DF1 <- DD1 x2",
+            "send fc16 click DF1 <- DH1 x2",
+            "send fc16 click DF1 <- DS1 x2",
+            "send fc16 click DF1 <- SD1 x2",
+            "send fc16 click DF1 <- TD1 x2",
+            "send fc16 click DF1 <- TXT1 x2",
+            "send fc16 click DF500 <- DD1 x1",
+            "send fc16 click DH1 <- CTD1 x2",
+            "send fc16 click DH1 <- DD1 x2",
+            "send fc16 click DH1 <- DF1 x2",
+            "send fc16 click DH1 <- DS1 x2",
+            "send fc16 click DH1 <- SD1 x2",
+            "send fc16 click DH1 <- TD1 x2",
+            "send fc16 click DH1 <- TXT1 x2",
+            "send fc16 click DS1 <- CTD1 x2",
+            "send fc16 click DS1 <- DD1 x2",
+            "send fc16 click DS1 <- DF1 x2",
+            "send fc16 click DS1 <- DH1 x2",
+            "send fc16 click DS1 <- TXT1 x2",
+            "send fc16 click SD1 <- CTD1 x2",
+            "send fc16 click SD1 <- DD1 x2",
+            "send fc16 click SD1 <- DF1 x2",
+            "send fc16 click SD1 <- DH1 x2",
+            "send fc16 click SD1 <- DS1 x2",
+            "send fc16 click SD1 <- SD1 x2",
+            "send fc16 click SD1 <- TD1 x2",
+            "send fc16 click SD1 <- TXT1 x2",
+            "send fc16 click TD1 <- CTD1 x2",
+            "send fc16 click TD1 <- DD1 x2",
+            "send fc16 click TD1 <- DF1 x2",
+            "send fc16 click TD1 <- DH1 x2",
+            "send fc16 click TD1 <- TXT1 x2",
+            "send fc16 click TXT1 <- CTD1 x2",
+            "send fc16 click TXT1 <- DD1 x2",
+            "send fc16 click TXT1 <- DF1 x2",
+            "send fc16 click TXT1 <- DH1 x2",
+            "send fc16 click TXT1 <- DS1 x2",
+            "send fc16 click TXT1 <- SD1 x2",
+            "send fc16 click TXT1 <- TD1 x2",
+        ),
+    ),
+    (
+        SEND_TXT,
+        "send",
+        "code",
+        (
+            "send fc16 984 400001 <- TXT1 x125",
+            "send fc16 984 400001 <- TXT1000 x2",
+        ),
+    ),
+    (
+        SEND_TXT,
+        "send",
+        "outcome",
+        (
+            "send fc06 984 400001 <- TXT1000",
+            "send fc16 984 400001 <- TXT1 x1",
+            "send fc16 984 400001 <- TXT1 x123",
+            "send fc16 984 400001 <- TXT1 x124",
+            "send fc16 984 400001 <- TXT1 x126",
+            "send fc16 984 400001 <- TXT1 x246",
+            "send fc16 984 400001 <- TXT1 x3",
+            "send fc16 984 400001 <- TXT1000 x1",
+            "send fc16 984 400001 <- TXT999 x1",
+            "send fc16 click TXT1 <- TXT1 x1",
+            "send fc16 click TXT1 <- TXT1 x3",
+            "send fc16 hex 0h <- TXT1 x1",
+            "send fc16 hex 0h <- TXT1 x3",
+        ),
+    ),
+    (
+        SEND_WORD_SWAP,
+        "send",
+        "outcome",
+        (
+            "send fc06 984 400001 <- DS1 word_swap=ON",
+            "send fc15 984 1 <- C1 x2 word_swap=ON",
+            "send fc16 984 400001 <- TXT1 x2 word_swap=ON",
+        ),
+    ),
+    (
+        SERVER_PORT,
+        "send",
+        "outcome",
+        ("send fc06 984 400001 <- DS1 port=CPU Port1 server_port=abc",),
+    ),
+    (
+        SLOT_PORTS,
+        "send",
+        "outcome",
+        (
+            "send fc06 984 400001 <- DS1 port=Slot0 Port1",
+            "send fc06 984 400001 <- DS1 port=Slot0 Port1 id=0",
+            "send fc06 984 400001 <- DS1 port=Slot0 Port1 id=247",
+            "send fc06 984 400001 <- DS1 port=Slot0 Port2",
+            "send fc06 984 400001 <- DS1 port=Slot0 Port2 id=0",
+            "send fc06 984 400001 <- DS1 port=Slot0 Port2 id=247",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port1",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port1 id=0",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port1 id=247",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port2",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port2 id=0",
+            "send fc06 984 400001 <- DS1 port=Slot1 Port2 id=247",
+        ),
+    ),
+    (
+        START_984_ID,
+        "send",
+        "code",
+        (
+            "send fc05 984 400001 <- C1",
+            "send fc06 984 1 <- DS1",
+            "send fc15 984 400001 <- C1 x2",
+            "send fc16 984 1 <- DS1 x2",
+        ),
+    ),
 )
 
 #: The number of cases whose codes are compared. A case counts when CLICK and the rules both
 #: refuse it, CLICK gave an OBJ id, and the rules give a ``click_id``.
-CODES_COMPARED = 2959
+CODES_COMPARED = 3969
 
 #: The cases that have no answer to compare, and the cases that lack a ``read_back``. A case
 #: that is ``not_taken`` is one that CLICK did not let the runner enter. A case with no
 #: outcome is one where CLICK closed before it answered.
-NOT_TAKEN = 52
+NOT_TAKEN = 95
 NO_OUTCOME = 2
-CRASHED = 0
-NO_READ_BACK = 0
+CRASHED = 3
+NO_READ_BACK = 27
 
 
 @pytest.fixture(scope="module")
@@ -380,9 +1041,14 @@ def _answers(name: str) -> list[dict[str, Any]]:
 def too_long(case: dict[str, Any]) -> bool:
     """Return True if the runner put more text in a field than the field's limit allows.
 
-    No user can type such text.
+    No user can type such text. A case whose ``limits`` is None returns False. The runner
+    never reached its fields, and each such case is ``not_taken``. A field that is missing
+    from ``limits`` has no limit. Send's IP address is one.
     """
-    return any(len(text) > case["limits"][name] for name, text in case["fields"].items())
+    limits = case["limits"]
+    if limits is None:
+        return False
+    return any(name in limits and len(text) > limits[name] for name, text in case["fields"].items())
 
 
 def _receive(case: dict[str, Any]) -> object:
@@ -714,9 +1380,15 @@ def test_the_length_rule_skips_what_cannot_be_typed(
     compared: tuple[dict[Key, str], dict[str, int]],
 ) -> None:
     _, counts = compared
-    assert counts["skipped"] == 5, "five cases are past their field's limit"
-    skipped = [c["case"] for g in ANSWER_FILES for c in _answers(g) if too_long(c)]
-    assert len(skipped) == 5
+    assert counts["skipped"] == 16, "16 cases are past their field's limit"
+    # Two crashed cases are past their field's limit too. compare() counts them as crashed.
+    skipped = [
+        c["case"]
+        for g in ANSWER_FILES
+        for c in _answers(g)
+        if too_long(c) and c["outcome"] != "crashed"
+    ]
+    assert len(skipped) == 16
 
 
 def test_every_case_was_answered() -> None:
@@ -738,7 +1410,8 @@ def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
     no answer to compare.
 
     Raise AssertionError for an outcome that is not accepted, refused, not_taken, crashed or
-    None, and for a read_back that differs from the case's fields.
+    None, and for a read_back that differs from the case's fields. A not_taken case is
+    compared with the fields that its dialog holds (held_fields).
     """
     tally = {"not_taken": 0, "no_outcome": 0, "crashed": 0, "no_read_back": 0}
     for grid, cases in answers.items():
@@ -753,13 +1426,47 @@ def tally_answers(answers: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
             if read_back is None:
                 tally["no_read_back"] += 1
                 continue
+            fields = held_fields(case) if case["outcome"] == "not_taken" else case["fields"]
             if grid == "receive_count":
                 # The dialog also held the Slave ID and, where a case left the count unset,
                 # the count it defaults to.
-                assert all(read_back[k] == v for k, v in case["fields"].items()), case["case"]
+                assert all(read_back[k] == v for k, v in fields.items()), case["case"]
             else:
-                assert read_back == case["fields"], (grid, case["case"])
+                # The dialog also held the fields that CLICK fills itself, where the case did
+                # not type them.
+                filled = CLICK_FILLS.get(case["instruction"], ())
+                shown = {k: v for k, v in read_back.items() if k not in filled or k in fields}
+                assert shown == fields, (grid, case["case"])
     return tally
+
+
+#: The fields that CLICK fills itself, by instruction: a Timer's current value, and a
+#: Counter's current value and completion bit. CLICK fills them from the done bit.
+CLICK_FILLS = {"timer": ("accumulator",), "counter": ("accumulator", "completion_bit")}
+
+#: The bounds that a Drum's dialog holds its step and output counts to.
+DRUM_COUNT_BOUNDS = {"num_steps": (1, 16), "num_outputs": (1, 16)}
+
+#: The runner's message for a case whose dialog closed a field the case typed.
+CLOSED_FIELDS = "these fields are closed for entry: "
+
+
+def held_fields(case: dict[str, Any]) -> dict[str, str]:
+    """Return the fields of a not_taken case as its dialog holds them.
+
+    A not_taken case reads back as typed, with two exceptions. A Drum's dialog holds a step
+    or output count past its bound at the bound, so 0 reads back as 1 and 17 as 16. A dialog
+    that closes the count box holds no count. Any other difference fails the test.
+    """
+    fields = dict(case["fields"])
+    if case["instruction"] == "drum":
+        for name, (low, high) in DRUM_COUNT_BOUNDS.items():
+            if fields.get(name, "").isdecimal():
+                fields[name] = str(min(max(int(fields[name]), low), high))
+    message = case["message"] or ""
+    if message.startswith(CLOSED_FIELDS) and message[len(CLOSED_FIELDS) :] == "count":
+        del fields["count"]
+    return fields
 
 
 def test_a_crashed_case_is_counted_and_never_compared(generator: Any) -> None:

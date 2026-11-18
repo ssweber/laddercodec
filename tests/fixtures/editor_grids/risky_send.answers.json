@@ -1,0 +1,2738 @@
+{
+ "grid": "risky_send.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_send-1"
+ ],
+ "cases": [
+  {
+   "row": "send.source.forms",
+   "case": "send fc06 984 400001 <-  DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": " DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 8.386,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": " DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.forms",
+   "case": "send fc06 984 400001 <- DS1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.37,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.forms",
+   "case": "send fc05 984 1 <-  C1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "05 - Write Single Coil",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": " C1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.73,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": " C1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.forms",
+   "case": "send fc05 984 1 <- C1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "05 - Write Single Coil",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": "C1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.047,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "1",
+    "master_address": "C1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.click.forms",
+   "case": "send fc06 click  DS1 <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": " DS1",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.292,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": " DS1",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.click.forms",
+   "case": "send fc06 click DS1  <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "CLICK Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "DS1 ",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.269,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "DS1 ",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.forms",
+   "case": "send fc06 984 400001 <- DS1 sending= C1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": " C1",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.252,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": " C1",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.forms",
+   "case": "send fc06 984 400001 <- DS1 sending=C1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C1 ",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.515,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C1 ",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.forms",
+   "case": "send fc06 984 400001 <- DS1 exception= DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.166,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": " DS1"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.forms",
+   "case": "send fc06 984 400001 <- DS1 exception=DS1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.358,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS1 "
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.risky",
+   "case": "send fc06 984 400001 <- ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-001",
+   "message": "Please enter an Address.",
+   "syntax_check": null,
+   "seconds": 0.702,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.risky",
+   "case": "send fc06 984 400001 <- DS\t1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS\t1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.684,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS\t1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.risky",
+   "case": "send fc06 984 400001 <- DS1é",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1é",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.618,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1é",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.source.risky",
+   "case": "send fc06 984 400001 <- DS00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS00000000000000000000000000000000000000001",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.951,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS00000000000000000000000000000000000000001",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984  <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.69,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984  400001 <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": " 400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.098,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": " 400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984 400001  <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001 ",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.932,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001 ",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984 4000\t01 <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "4000\t01",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.604,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "4000\t01",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984 40000١ <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "40000١",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.695,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "40000١",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.remote.risky",
+   "case": "send fc06 984 400000000000000000000000000000000000000001 <- DS1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400000000000000000000000000000000000000001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-010",
+   "message": "The entered value is outside the range. Range: <400001> to <465535>",
+   "syntax_check": null,
+   "seconds": 0.696,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400000000000000000000000000000000000000001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id=",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.606,
+   "read_back": {
+    "slave_id": "",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-010",
+   "message": "The entered value is outside the range. Range: <1> to <123>",
+   "syntax_check": null,
+   "seconds": 0.606,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id= 1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": " 1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.957,
+   "read_back": {
+    "slave_id": " 1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x 1",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": " 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.905,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": " 1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id=1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1 ",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.805,
+   "read_back": {
+    "slave_id": "1 ",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x1 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.921,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1 ",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id=1\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1\t",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.919,
+   "read_back": {
+    "slave_id": "1\t",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x1\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1\t",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.03,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "1\t",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id=١",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "١",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.676,
+   "read_back": {
+    "slave_id": "١",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x١",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "١",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.866,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "١",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.slave-id.risky",
+   "case": "send fc06 984 400001 <- DS1 id=00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "00000000000000000000000000000000000000001",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.104,
+   "read_back": {
+    "slave_id": "00000000000000000000000000000000000000001",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.count.risky",
+   "case": "send fc16 984 400001 <- DS1 x00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "16 - Write Multiple Registers",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "00000000000000000000000000000000000000001",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.951,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "count": "00000000000000000000000000000000000000001",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending=",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.837,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending= C100",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": " C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.167,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": " C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending=C100 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100 ",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.378,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100 ",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending=C100\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100\t",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.068,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100\t",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending=C100é",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100é",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.694,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100é",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.sending.risky",
+   "case": "send fc06 984 400001 <- DS1 sending=C00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C00000000000000000000000000000000000000001",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.797,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C00000000000000000000000000000000000000001",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success=",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.192,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success= C101",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": " C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.48,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": " C101",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success=C101 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101 ",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.597,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101 ",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success=C101\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101\t",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.174,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101\t",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success=C101é",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101é",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.585,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101é",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.success.risky",
+   "case": "send fc06 984 400001 <- DS1 success=C00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C00000000000000000000000000000000000000001",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.184,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C00000000000000000000000000000000000000001",
+    "error": "C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error=",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.06,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error= C102",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": " C102",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.193,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": " C102",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error=C102 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102 ",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.027,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102 ",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error=C102\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102\t",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.005,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102\t",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error=C102é",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102é",
+    "exception": "DS100"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.684,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102é",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.error.risky",
+   "case": "send fc06 984 400001 <- DS1 error=C00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C00000000000000000000000000000000000000001",
+    "exception": "DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.838,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C00000000000000000000000000000000000000001",
+    "exception": "DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception=",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": ""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.182,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": ""
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception= DS100",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": " DS100"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.178,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": " DS100"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception=DS100 ",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.336,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100 "
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception=DS100\t",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100\t"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 6.026,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100\t"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception=DS100é",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100é"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.579,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS100é"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  },
+  {
+   "row": "send.status.exception.risky",
+   "case": "send fc06 984 400001 <- DS1 exception=DS00000000000000000000000000000000000000001",
+   "instruction": "send",
+   "choices": {
+    "port": "CPU Port2",
+    "function": "06 - Write Single Register",
+    "addressing": "Modbus 984 Addressing"
+   },
+   "fields": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS00000000000000000000000000000000000000001"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.786,
+   "read_back": {
+    "slave_id": "1",
+    "slave_address": "400001",
+    "master_address": "DS1",
+    "sending": "C100",
+    "success": "C101",
+    "error": "C102",
+    "exception": "DS00000000000000000000000000000000000000001"
+   },
+   "limits": {
+    "slave_id": 6,
+    "slave_address": 30000,
+    "master_address": 30000,
+    "count": 4,
+    "sending": 16,
+    "success": 16,
+    "error": 16,
+    "exception": 16,
+    "server_port": 5
+   }
+  }
+ ]
+}

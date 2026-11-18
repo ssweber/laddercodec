@@ -1,0 +1,199 @@
+{
+ "grid": "risky_for.json",
+ "click": "CLICK Programming Software v4.00 (CLICK.exe)",
+ "plc": "a PLC connected to CLICK v4.00",
+ "runs": [
+  "risky_for-1"
+ ],
+ "cases": [
+  {
+   "row": "for.count.constants",
+   "case": "for \"é\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"é\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"é\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"\t\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"\t\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.414,
+   "read_back": {
+    "count": "\"\t\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.415,
+   "read_back": {
+    "count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"",
+   "instruction": "for",
+   "fields": {
+    "count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.413,
+   "read_back": {
+    "count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for ",
+   "instruction": "for",
+   "fields": {
+    "count": ""
+   },
+   "outcome": "refused",
+   "code": "OBJ-006",
+   "message": "Please enter a value.",
+   "syntax_check": null,
+   "seconds": 0.412,
+   "read_back": {
+    "count": ""
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for  ",
+   "instruction": "for",
+   "fields": {
+    "count": " "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 5.403,
+   "read_back": {
+    "count": " "
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.constants",
+   "case": "for ٣",
+   "instruction": "for",
+   "fields": {
+    "count": "٣"
+   },
+   "outcome": "refused",
+   "code": "OBJ-005",
+   "message": "The entered value is illegal.",
+   "syntax_check": null,
+   "seconds": 0.421,
+   "read_back": {
+    "count": "٣"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for  DS1",
+   "instruction": "for",
+   "fields": {
+    "count": " DS1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.172,
+   "read_back": {
+    "count": " DS1"
+   },
+   "limits": {
+    "count": 16
+   }
+  },
+  {
+   "row": "for.count.forms",
+   "case": "for DS1 ",
+   "instruction": "for",
+   "fields": {
+    "count": "DS1 "
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 4.155,
+   "read_back": {
+    "count": "DS1 "
+   },
+   "limits": {
+    "count": 16
+   }
+  }
+ ]
+}
