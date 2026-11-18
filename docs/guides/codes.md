@@ -52,7 +52,7 @@ These rules are the same in every instruction. `field` names the field.
 
 ## Shared rules
 
-These rules apply to several instructions.
+These rules apply to several instructions. `invalid-subroutine-name` and `duplicate-subroutine-name` apply to subroutine names in `write_bundle` and `read_bundle`. For `duplicate-subroutine-name`, `write_bundle` raises a `WriterError` and `read_bundle` raises a `CsvError`, and `field` is `None`.
 
 | Code | Meaning | CLICK id |
 |---|---|---|
@@ -68,6 +68,7 @@ These rules apply to several instructions.
 | `immediate-not-allowed` | Immediate on an instruction with no immediate form. |  |
 | `text-order-compare` | `<` or `>` on text, in a Compare or a Search. |  |
 | `invalid-subroutine-name` | A subroutine name over 24 characters, with a forbidden character, or a device name. | GUI-040 |
+| `duplicate-subroutine-name` | Two subroutine names that are equal when case is ignored, such as `Pump` and `pump`. | GUI-036 |
 | `invalid-input-rows` | `pin_rows` that is not one ascending row (1 to 255) per box input. |  |
 
 ## Copy family
@@ -158,7 +159,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 
 ## Layout
 
-These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `WriterError` can be a `LayoutError` with one of these codes. `read_csv` raises a `CsvError` whose code is `layout-too-tall`.
+These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `WriterError` can be a `LayoutError` with one of these codes. For a rung that needs more than 32 rows, `read_csv` raises a `CsvError` and `write_csv` raises a `WriterError`, and the code of each is `layout-too-tall`.
 
 | Code | Meaning | CLICK id |
 |---|---|---|

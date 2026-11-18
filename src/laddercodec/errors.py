@@ -68,14 +68,21 @@ class CsvError(LaddercodecError):
     which is also ``__cause__``.  It is not this exception.  A refusal of a value that a pin
     row sets is located at that pin's row.  Any other refusal is located at the box's own row.
 
-    A ``CsvError`` that is not about a refused field has ``field``, ``reason`` and
-    ``click_id`` set to ``None``, an empty ``fields``, and ``errors == (self,)``.  Its
-    ``code`` is ``None``, except for a rung of more than 32 rows, described next.  A pin
-    token that does not parse and a rung with no rows are two examples.
+    A ``CsvError`` that is not about a refused field has ``field`` and ``reason`` set to
+    ``None``, an empty ``fields``, and ``errors == (self,)``.  A pin token that does not
+    parse and a rung with no rows are two examples.  Such a ``CsvError`` has ``code`` and
+    ``click_id`` set to ``None``, except in these two cases:
 
-    ``read_csv`` and ``read_bundle`` also raise it for a rung that needs more than the 32 rows
-    of a CLICK rung, in strict and in relaxed mode.  Its ``code`` is then
-    ``layout-too-tall``, and its location is the rung's ``R`` row.
+    - ``read_csv`` and ``read_bundle`` raise it for a rung that needs more than the 32 rows
+      of a CLICK rung, in strict and in relaxed mode.  Its ``code`` is then
+      ``layout-too-tall``, its ``click_id`` is ``None``, and its location is the rung's
+      ``R`` row.
+    - ``read_bundle`` raises it for two files in ``subroutines/`` whose names are equal when
+      case is ignored.  Its ``code`` is then ``duplicate-subroutine-name``, and its
+      ``click_id`` is ``GUI-036``.
+
+    If you build a ``CsvError`` with ``refusal``, it copies its attributes from the refusal
+    and ignores ``field``, ``code`` and ``click_id``.
     """
 
     field: str | None
@@ -91,6 +98,7 @@ class CsvError(LaddercodecError):
         field: str | None = None,
         refusal: FieldError | None = None,
         code: Code | None = None,
+        click_id: str | None = None,
     ) -> None:
         super().__init__(*args)
         if refusal is None:
@@ -98,7 +106,7 @@ class CsvError(LaddercodecError):
             self.fields = () if field is None else (field,)
             self.reason = None
             self.code = code
-            self.click_id = None
+            self.click_id = click_id
             self.errors = (self,)
         else:
             self.field = refusal.field
@@ -124,7 +132,24 @@ class WriterError(LaddercodecError):
     ``write_csv``, ``csv_rows`` and ``write_bundle`` raise it for a rung that needs more than
     the 32 rows of a CLICK rung.  The ``__cause__`` is then a :class:`LayoutError` with the
     code ``layout-too-tall``.
+
+    ``code`` and ``click_id`` are ``None``, except in these two cases:
+
+    - For a rung that needs more than 32 rows, ``code`` is ``layout-too-tall`` and
+      ``click_id`` is ``None``.
+    - For two subroutines whose names are equal when case is ignored, ``code`` is
+      ``duplicate-subroutine-name`` and ``click_id`` is ``GUI-036``.
     """
+
+    code: Code | None
+    click_id: str | None
+
+    def __init__(
+        self, *args: object, code: Code | None = None, click_id: str | None = None
+    ) -> None:
+        super().__init__(*args)
+        self.code = code
+        self.click_id = click_id
 
 
 class LayoutError(LaddercodecError):

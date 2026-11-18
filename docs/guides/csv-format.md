@@ -197,9 +197,9 @@ The logic never changes. If the circuits of several outputs meet only at the rai
 splits them the same way. So `read_csv` can return more rungs than the CSV holds.
 
 If a rung needs more than 32 rows, `read_csv` raises `CsvError` with the code
-`layout-too-tall`, and `write_csv` raises `WriterError`. Both accept the rung if each
-rung of its layout has 32 rows or fewer. That happens when CLICK splits the rung, or
-when the layout drops its blank rows.
+`layout-too-tall`, and `write_csv` raises `WriterError` with the same code. Both accept
+the rung if each rung of its layout has 32 rows or fewer. That happens when CLICK splits
+the rung, or when the layout drops its blank rows.
 
 `write_csv` writes the same layout, so a CSV that it wrote reads back unchanged. A
 rung that `laddercodec.check()` reports

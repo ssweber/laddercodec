@@ -3,14 +3,18 @@
 
 from __future__ import annotations
 
+import copy
 import csv
+import pickle
 import shutil
 import warnings
 from pathlib import Path
 
 import pytest
 
+import laddercodec.csv.bundle
 from laddercodec import (
+    CLICK_IDS,
     CSV_HEADER,
     AddressError,
     Code,
@@ -267,15 +271,28 @@ class TestWriteRefusals:
         assert info.value.code in (Code.INVALID_SUBROUTINE_NAME, Code.BLANK_FIELD)
         assert _snapshot(bundle) == before
 
-    def test_names_equal_ignoring_case(self, bundle: Path) -> None:
+    @pytest.mark.parametrize("second", [" pump", "Pump"])
+    def test_names_equal_ignoring_case(self, bundle: Path, second: str) -> None:
+        """A name that differs only in case and the same name twice are refused alike.  A copy
+        of the error and an unpickled copy have the same code and id."""
         before = _snapshot(bundle)
         with pytest.raises(WriterError) as info:
-            write_bundle(bundle, _project("Pump", "Fan", " pump"))
-        assert str(info.value) == (
-            "Subroutines 'Pump' and 'pump' have the same name when case is ignored, so they "
-            "would be one file in subroutines/. Rename one of them."
+            write_bundle(bundle, _project("Pump", "Fan", second))
+        error = info.value
+        assert str(error) == (
+            f"Subroutines 'Pump' and {second.strip()!r} have the same name when case is "
+            "ignored (GUI-036). Rename one of them."
         )
+        assert error.code is Code.DUPLICATE_SUBROUTINE_NAME
+        assert error.click_id == "GUI-036"
+        assert error.click_id in CLICK_IDS[error.code]
         assert _snapshot(bundle) == before
+        for clone in (copy.copy(error), pickle.loads(pickle.dumps(error))):
+            assert (str(clone), clone.code, clone.click_id) == (
+                str(error),
+                Code.DUPLICATE_SUBROUTINE_NAME,
+                "GUI-036",
+            )
 
     @pytest.mark.parametrize(
         ("name", "code"),
@@ -295,6 +312,8 @@ class TestWriteRefusals:
             f"Subroutine {name!r} holds the control character U+{code}. Remove the "
             "character from the name."
         )
+        assert info.value.code is None
+        assert info.value.click_id is None
         assert _snapshot(bundle) == before
 
     def test_a_rung_that_the_csv_cannot_hold(self, bundle: Path) -> None:
@@ -303,8 +322,10 @@ class TestWriteRefusals:
         project = _project("Pump", "Fan")
         project.subroutines[1].rungs.append(_unwritable_rung())
         before = _snapshot(bundle)
-        with pytest.raises(WriterError, match=r"^Subroutine 'Fan': .* is 3 rows tall"):
+        with pytest.raises(WriterError, match=r"^Subroutine 'Fan': .* is 3 rows tall") as info:
             write_bundle(bundle, project)
+        assert info.value.code is None
+        assert info.value.click_id is None
         assert _snapshot(bundle) == before
 
     @pytest.mark.parametrize(
@@ -329,6 +350,8 @@ class TestWriteRefusals:
         assert str(info.value) == (
             f"{path} exists and is not {kind}. Move it or remove it, then write the bundle again."
         )
+        assert info.value.code is None
+        assert info.value.click_id is None
         assert _snapshot(bundle) == before
 
     def test_a_directory_that_is_a_file(self, tmp_path: Path) -> None:
@@ -448,8 +471,23 @@ class TestReadErrors:
             _subroutine_names(paths)
         assert str(info.value) == (
             "Subroutine files 'Pump.csv' and 'pump.CSV' have the same name when case is "
-            f"ignored. Rename one of them. (at {sub / 'pump.CSV'})"
+            f"ignored (GUI-036). Rename one of them. (at {sub / 'pump.CSV'})"
         )
+        _assert_duplicate_name(info.value)
+
+    def test_names_equal_ignoring_case_from_read_bundle(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``read_bundle`` is given the two paths in memory, so the test runs on a file
+        system that ignores case.  None of the files exists, so a read would raise a
+        different error."""
+        sub = tmp_path / "subroutines"
+        paths = (tmp_path / "main.csv", [sub / "Pump.csv", sub / "pump.csv"])
+        monkeypatch.setattr(laddercodec.csv.bundle, "_bundle_paths", lambda _: paths)
+        with pytest.raises(CsvError) as info:
+            read_bundle(tmp_path)
+        _assert_duplicate_name(info.value)
+        assert CsvLocation.of(info.value) == CsvLocation(file=sub / "pump.csv")
 
     def test_names_equal_ignoring_case_on_disk(self, tmp_path: Path) -> None:
         """``read_bundle`` refuses the pair before it reads any file.  Every file is one that
@@ -460,8 +498,19 @@ class TestReadErrors:
             path.write_bytes(b"\xff")
         if len(list((tmp_path / "subroutines").iterdir())) != 2:
             pytest.skip("this file system ignores case in file names")
-        with pytest.raises(CsvError, match="have the same name when case is ignored"):
+        with pytest.raises(CsvError, match="have the same name when case is ignored") as info:
             read_bundle(tmp_path)
+        _assert_duplicate_name(info.value)
+
+
+def _assert_duplicate_name(error: CsvError) -> None:
+    """Assert that *error* is the refusal of two subroutine files whose names are equal when
+    case is ignored."""
+    assert error.code is Code.DUPLICATE_SUBROUTINE_NAME
+    assert error.click_id == "GUI-036"
+    assert error.click_id in CLICK_IDS[error.code]
+    assert error.field is None
+    assert error.errors == (error,)
 
 
 class TestReadOptions:
