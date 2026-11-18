@@ -84,13 +84,22 @@ from ..operands.math_real import MathReal, held_for
 _NAME = "Math.expression"
 
 
-def _error(rule: str, reason: Reason, click_id: str | None = None, *, code: Code) -> FieldError:
+def _error(
+    rule: str,
+    reason: Reason,
+    click_id: str | None = None,
+    *,
+    code: Code,
+    then: str | None = None,
+) -> FieldError:
     """Return a refusal of the formula, with the message ``Math.expression: rule``.
 
-    If CLICK's id for the refusal is known, the message ends with it in parentheses."""
+    If CLICK's id for the refusal is known, it follows the rule in parentheses. ``then`` is
+    a sentence that tells the user what to do. It follows the id."""
     tail = f" ({click_id})" if click_id else ""
+    after = f". {then}" if then else ""
     return FieldError(
-        f"{_NAME}: {rule}{tail}", field=_NAME, reason=reason, code=code, click_id=click_id
+        f"{_NAME}: {rule}{tail}{after}", field=_NAME, reason=reason, code=code, click_id=click_id
     )
 
 
@@ -1238,10 +1247,11 @@ def parse(text: str, mode: str) -> Formula:
         found.append(
             _error(
                 f"the formula is {length} characters in CLICK's internal form; CLICK allows "
-                f"{MAX_INTERNAL_LENGTH}. Shorten the formula.",
+                f"{MAX_INTERNAL_LENGTH}",
                 Reason.RANGE,
                 "OBJ-1008",
                 code=Code.MATH_FORMULA_TOO_LONG,
+                then="Shorten the formula.",
             )
         )
     if found:

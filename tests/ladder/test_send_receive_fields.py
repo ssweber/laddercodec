@@ -7,7 +7,9 @@ limits are those of CLICK's Send and Receive dialogs, for both RTU and TCP.
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -293,21 +295,83 @@ def test_send_remote_refused(remote) -> None:
 
 
 def test_send_remote_register_lists() -> None:
-    for remote in ("DS1", "DH1", "SD1", "TD1", "TXT1", "YD1"):
-        send(remote_start=remote)
-    for remote in ("CTD1", "DD1", "DF1"):
-        send(remote_start=remote, source="DS1", quantity=2)
+    for remote, source in (("DS1", "DS1"), ("DH1", "DH1"), ("TD1", "DS1"), ("TXT1", "TXT1")):
+        send(remote_start=remote, source=source)
+    send(remote_start="YD1", source="DH1")
+    for remote, source in (("CTD1", "DD1"), ("DD1", "DD1"), ("DF1", "DF1")):
+        send(remote_start=remote, source=source, quantity=2)
     with pytest.raises(AddressError, match="remote_start"):
-        send(remote_start="YD1", quantity=2)  # YD is FC06 only
+        send(remote_start="YD1", source="DH1", quantity=2)  # YD is FC06 only
+
+
+@pytest.mark.parametrize(
+    ("source", "quantity", "ok", "bad"),
+    [
+        ("DS1", 1, ["DS1", "TD1"], ["DH1", "YD0", "TXT1"]),
+        ("TD1", 1, ["DS1", "TD1"], ["DH1", "YD0", "TXT1"]),
+        ("SD1", 1, ["DS1", "TD1"], ["DH1", "YD0", "TXT1"]),
+        ("DH1", 1, ["DH1", "YD0"], ["DS1", "TD1", "TXT1"]),
+        ("XD0", 1, ["DH1", "YD0"], ["DS1", "TD1", "TXT1"]),
+        ("YD0", 1, ["DH1", "YD0"], ["DS1", "TD1", "TXT1"]),
+        ("TXT1", 1, ["TXT1"], ["DS1", "DH1", "TD1", "YD0"]),
+        ("DS1", 2, ["DS1", "TD1"], ["DD1", "DF1", "DH1", "CTD1", "TXT1"]),
+        ("DD1", 2, ["DD1", "CTD1"], ["DS1", "DF1", "DH1", "TD1", "TXT1"]),
+        ("CTD1", 2, ["DD1", "CTD1"], ["DS1", "DF1", "DH1", "TD1", "TXT1"]),
+        ("DF1", 2, ["DF1"], ["DS1", "DD1", "DH1", "CTD1", "TXT1"]),
+        ("DH1", 2, ["DH1"], ["DS1", "DD1", "DF1", "TD1", "TXT1"]),
+        ("TXT1", 2, ["TXT1"], ["DS1", "DD1", "DF1", "DH1", "TD1"]),
+    ],
+)
+def test_send_click_remote_pairs_with_source_type(source, quantity, ok, bad) -> None:
+    """A Send accepts a CLICK slave register only if its data type matches the source's.
+
+    A refused pair names the slave address first, the source second, and has OBJ-004.
+    """
+    for remote in ok:
+        send(remote_start=remote, source=source, quantity=quantity)
+    for remote in bad:
+        with pytest.raises(FieldError) as caught:
+            send(remote_start=remote, source=source, quantity=quantity)
+        error = caught.value
+        assert error.fields == ("Send.remote_start", "Send.source"), remote
+        assert (error.reason, error.click_id) == (Reason.CONFLICT, "OBJ-004")
+
+
+def test_send_pair_refusal_names_the_slave_banks() -> None:
+    with pytest.raises(FieldError) as caught:
+        send(remote_start="DH1", source="DS1")
+    assert str(caught.value) == (
+        "Send.remote_start: 'DH1' can't take a source in DS (OBJ-004). Pick a slave address in "
+        'DS or TD, such as remote_start="DS1".'
+    )
+
+
+@pytest.mark.parametrize(("source", "quantity"), [("DS1", 1), ("DH1", 1), ("DS1", 2)])
+def test_send_refuses_an_sd_slave(source, quantity) -> None:
+    """A Send refuses every SD slave address with OBJ-004, whatever the source."""
+    with pytest.raises(FieldError) as caught:
+        send(remote_start="SD1", source=source, quantity=quantity)
+    error = caught.value
+    assert (error.field, error.reason, error.click_id) == (
+        "Send.remote_start",
+        Reason.NOT_WRITABLE,
+        "OBJ-004",
+    )
+
+
+def test_send_sd_slave_outside_sd_is_out_of_range() -> None:
+    with pytest.raises(AddressError) as caught:
+        send(remote_start="SD0")
+    assert caught.value.reason == Reason.ADDRESS
 
 
 def test_send_local_lists() -> None:
     for source in ("X1", "Y1", "C1", "T1", "CT1", "SC1"):
         send(remote_start="C1", source=source)
     for source in ("DD1", "DF1", "CTD1"):
-        send(remote_start="DS1", source=source, quantity=2)
+        send(remote_start=ModbusAddress("400001"), source=source, quantity=2)
     for source in ("XD0", "YD0u"):
-        send(remote_start="DS1", source=source)
+        send(remote_start="DH1", source=source)
     with pytest.raises(AddressError, match="source"):
         send(remote_start="C1", source="DS1")  # a bit remote address needs a bit source
     with pytest.raises(AddressError, match="source"):
@@ -371,9 +435,9 @@ def test_receive_text_pairs_with_text() -> None:
     [
         (send, {"remote_start": "C1", "source": "C1"}, 1968, 1969),
         (send, {"source": "DS1"}, 123, 124),
-        (send, {"source": "DD1"}, 61, 62),
-        (send, {"source": "DF1"}, 61, 62),
-        (send, {"source": "CTD1"}, 61, 62),
+        (send, {"remote_start": ModbusAddress("400001"), "source": "DD1"}, 61, 62),
+        (send, {"remote_start": ModbusAddress("400001"), "source": "DF1"}, 61, 62),
+        (send, {"remote_start": ModbusAddress("400001"), "source": "CTD1"}, 61, 62),
         (receive, {"remote_start": "C1", "dest": "C1"}, 2000, 2001),
         (receive, {"dest": "DS1"}, 125, 126),
         (receive, {"remote_start": "DD1", "dest": "DD1"}, 62, 63),
@@ -388,7 +452,7 @@ def test_count_caps(build, kw, ok, bad) -> None:
 
 
 def test_dh_counts_as_16_bit() -> None:
-    send(source="DH1", quantity=123)
+    send(remote_start="DH1", source="DH1", quantity=123)
 
 
 def test_count_must_fit_local_bank() -> None:
@@ -756,12 +820,15 @@ def _fc_subtype(instr: Send | Receive) -> str:
     ("kw", "fc_subtype"),
     [
         ({"source": "DS1"}, "1"),  # FC06
-        ({"source": "XD0"}, "1"),
-        ({"source": "YD0u"}, "1"),
-        ({"source": "DD1"}, "3"),  # FC16, because FC06's mask refuses DD, DF and CTD
-        ({"source": "DF1"}, "3"),
-        ({"source": "CTD1"}, "3"),
-        ({"remote_start": "DD1", "source": "DS1"}, "3"),
+        ({"remote_start": "DH1", "source": "XD0"}, "1"),
+        ({"remote_start": "DH1", "source": "YD0u"}, "1"),
+        (
+            {"remote_start": ModbusAddress("400001"), "source": "DD1"},
+            "3",
+        ),  # FC06's mask refuses DD, DF, CTD
+        ({"remote_start": ModbusAddress("400001"), "source": "DF1"}, "3"),
+        ({"remote_start": ModbusAddress("400001"), "source": "CTD1"}, "3"),
+        ({"remote_start": "DD1", "source": "DD1"}, "3"),
         ({"remote_start": ModbusAddress("400001"), "source": "DD1"}, "3"),
         ({"source": "DS1", "quantity": 2}, "3"),
         ({"remote_start": "C1", "source": "C1"}, "0"),  # FC05
@@ -871,7 +938,7 @@ def test_function_code_through_read_csv(tmp_path: Path) -> None:
         f'receive(target={target},remote_start="X001",function_code=2,dest=C1..C5)',
     )
     assert isinstance(got, Receive) and got.function_code == 2
-    sent = _read_af(tmp_path, f'send(target={target},remote_start="DS1",source=DD1)')
+    sent = _read_af(tmp_path, f'send(target={target},remote_start="DD1",source=DD1)')
     assert isinstance(sent, Send) and _fc_subtype(sent) == "3"
     with pytest.raises(FieldError, match="function_code must be a number"):
         _read_af(tmp_path, f'send(target={target},remote_start="DS1",source=DS1,function_code=x)')
@@ -1110,6 +1177,218 @@ def test_send_dd_hex_count_room() -> None:
     send(remote_start=ModbusAddress("FFC1h", "holding"), source="DD1", quantity=61)
     with pytest.raises(FieldError, match="outside 1-60"):
         send(remote_start=ModbusAddress("FFC2h", "holding"), source="DD1", quantity=61)
+
+
+@pytest.mark.parametrize(
+    ("source", "start", "room"),
+    [
+        ("DS1", "FFFEh", 1),
+        ("DS1", "FFFDh", 2),
+        ("DS1", "FF90h", 111),
+        ("DH1", "FFFEh", 1),
+        ("TD1", "FFFEh", 1),
+        ("SD1", "FFFEh", 1),
+        ("DD1", "FFFDh", 1),
+        ("DD1", "FFF0h", 14),
+        ("DF1", "FFFDh", 1),
+        ("DF1", "FFFCh", 2),
+        ("CTD1", "FFFDh", 1),
+        ("CTD1", "FFFCh", 2),
+    ],
+)
+def test_send_hex_count_room(source, start, room) -> None:
+    """A count from a hex start may run to FFFEh from a DS, DH, TD or SD source, and to FFFDh
+    from a DD, DF or CTD source. Each element counts as one address. A longer count raises
+    OBJ-010."""
+    remote = ModbusAddress(start, "holding")
+    send(remote_start=remote, source=source, quantity=room)
+    with pytest.raises(FieldError) as caught:
+        send(remote_start=remote, source=source, quantity=room + 1)
+    error = caught.value
+    assert (error.field, error.click_id) == ("Send.quantity", "OBJ-010")
+    assert str(error) == (
+        f"Send.quantity: {room + 1} from hex {start!r} is outside 1-{room} (OBJ-010). "
+        f"Lower the count, such as quantity={room}."
+    )
+
+
+@pytest.mark.parametrize(
+    ("start", "quantity", "click_id", "message"),
+    [
+        ("FFFCh", 1, "OBJ-010", "1 is outside 2-3 TXT characters"),
+        ("FFFCh", 3, "OBJ-029", "3 is an odd count of TXT characters"),
+        ("FFFCh", 4, "OBJ-010", "4 is outside 2-3 TXT characters"),
+        ("FFFDh", 1, "OBJ-010", "1 is outside 2-2 TXT characters"),
+        ("FFFDh", 3, "OBJ-010", "3 is outside 2-2 TXT characters"),
+        ("FFFDh", 4, "OBJ-010", "4 is outside 2-2 TXT characters"),
+    ],
+)
+def test_send_text_count_from_a_hex_start(start, quantity, click_id, message) -> None:
+    """With FC16 from a hex start, each TXT character counts as one address up to FFFEh. FFFCh
+    takes 2 to 3 characters and FFFDh takes 2. An odd count inside that range raises OBJ-029."""
+    remote = ModbusAddress(start, "holding")
+    send(remote_start=remote, source="TXT1", quantity=2)
+    with pytest.raises(FieldError) as caught:
+        send(remote_start=remote, source="TXT1", quantity=quantity, function_code=16)
+    error = caught.value
+    assert (error.field, error.click_id) == ("Send.quantity", click_id)
+    assert str(error).startswith(f"Send.quantity: {message} ({click_id}). ")
+
+
+def _suggested(error: FieldError) -> dict[str, Any]:
+    """Return the keyword that the message of *error* suggests, such as {"quantity": 2}."""
+    match = re.search(r'such as (\w+)=("?)([^".]+)\2\.$', str(error))
+    assert match, str(error)
+    name, quoted, value = match.groups()
+    return {name: value if quoted else int(value)}
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"remote_start": "SD1", "source": "DS1"},
+        {"remote_start": "SD1", "source": "DH1"},
+        {"remote_start": "SD1", "source": "DD1", "quantity": 2},
+        {"remote_start": "SD1", "source": "DF1", "quantity": 2},
+        {"remote_start": "SD1", "source": "TXT1", "quantity": 2},
+        {"remote_start": "DS1", "source": "DH1"},
+        {"remote_start": "DH1", "source": "DD1", "quantity": 2},
+        {"remote_start": ModbusAddress("FFF0h", "holding"), "source": "DS1", "quantity": 20},
+        {"remote_start": ModbusAddress("FFFCh", "holding"), "source": "TXT1", "quantity": 5},
+        {"remote_start": ModbusAddress("FFFCh", "holding"), "source": "TXT1", "quantity": 1001},
+        {"remote_start": ModbusAddress("FFF0h", "holding"), "source": "TXT1", "quantity": 1001},
+        {"remote_start": ModbusAddress("400001"), "source": "TXT1", "quantity": 250},
+        {"remote_start": ModbusAddress("400001"), "source": "TXT1", "quantity": 3},
+        {"remote_start": ModbusAddress("400001"), "source": "TXT700", "quantity": 302},
+        {"remote_start": ModbusAddress("400001"), "source": "TXT999", "quantity": 3},
+    ],
+)
+def test_send_suggestion_is_accepted(kw) -> None:
+    """A Send built with the value that its refusal suggests is accepted."""
+    with pytest.raises(FieldError) as caught:
+        send(**kw)
+    send(**{**kw, **_suggested(caught.value)})
+
+
+# --- Send TXT counts and Word Swap ------------------------------
+
+
+@pytest.mark.parametrize("quantity", [2, 4, 122, 124, 126, 246])
+def test_send_text_count_is_in_characters(quantity) -> None:
+    """A Send from TXT accepts an even count of 2 to 246 characters."""
+    send(remote_start=ModbusAddress("400001"), source="TXT1", quantity=quantity)
+
+
+@pytest.mark.parametrize(
+    ("source", "quantity", "click_id", "message"),
+    [
+        ("TXT1", 0, "OBJ-010", "0 is outside 2-246 TXT characters"),
+        ("TXT1", 1, "OBJ-010", "1 is outside 2-246 TXT characters"),
+        ("TXT1", 3, "OBJ-029", "3 is an odd count of TXT characters"),
+        ("TXT1", 123, "OBJ-029", "123 is an odd count of TXT characters"),
+        ("TXT1", 125, "OBJ-029", "125 is an odd count of TXT characters"),
+        ("TXT1", 247, "OBJ-010", "247 is outside 2-246 TXT characters"),
+        ("TXT1", 250, "OBJ-010", "250 is outside 2-246 TXT characters"),
+        ("TXT999", 1, "OBJ-010", "1 is outside 2-246 TXT characters"),
+        ("TXT999", 3, "OBJ-010", "3 characters from TXT999 run past TXT1000"),
+    ],
+)
+def test_send_text_count_refused(source, quantity, click_id, message) -> None:
+    """A count outside 2 to 246, or past TXT1000, raises OBJ-010, even when it is also odd.
+    An odd count inside that range raises OBJ-029."""
+    with pytest.raises(FieldError) as caught:
+        send(
+            remote_start=ModbusAddress("400001"), source=source, quantity=quantity, function_code=16
+        )
+    error = caught.value
+    assert (error.field, error.reason, error.click_id) == ("Send.quantity", Reason.RANGE, click_id)
+    assert str(error).startswith(f"Send.quantity: {message} ({click_id}). ")
+    assert len(error.errors) == 1
+
+
+@pytest.mark.parametrize(
+    ("source", "quantity", "suggested"),
+    [("TXT1", 1, 2), ("TXT1", 250, 246), ("TXT1", 3, 4), ("TXT998", 3, 2), ("TXT999", 3, 2)],
+)
+def test_send_text_count_message_suggests_a_count_that_fits(source, quantity, suggested) -> None:
+    with pytest.raises(FieldError) as caught:
+        send(
+            remote_start=ModbusAddress("400001"), source=source, quantity=quantity, function_code=16
+        )
+    assert str(caught.value).endswith(f"such as quantity={suggested}.")
+
+
+def test_send_one_text_register_with_fc06() -> None:
+    """FC06 writes one TXT register, and its count is 1."""
+    sent = send(remote_start=ModbusAddress("400001"), source="TXT1")
+    assert _fc_subtype(sent) == "1"
+    sent = send(remote_start="TXT1", source="TXT999")
+    assert _fc_subtype(sent) == "1"
+
+
+def test_send_text_count_through_csv(tmp_path: Path) -> None:
+    target = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id=1)'
+    got = _read_af(tmp_path, f'send(target={target},remote_start="TXT1",source=TXT1..TXT246)')
+    assert isinstance(got, Send) and got.quantity == 246
+    assert _fields(got)[0x3210] == "246"
+    assert from_tags_af("SD", 0x2729, _fields(got)).quantity == 246
+    with pytest.raises(FieldError, match="odd count"):
+        _read_af(tmp_path, f'send(target={target},remote_start="TXT1",source=TXT1..TXT3)')
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"remote_start": ModbusAddress("400001"), "source": "DD1"},
+        {"remote_start": ModbusAddress("400001"), "source": "DF1"},
+        {"remote_start": ModbusAddress("400001"), "source": "CTD1"},
+        {"remote_start": ModbusAddress("400001"), "source": "DD1", "quantity": 2},
+        {"remote_start": ModbusAddress("400001"), "source": "DS1", "quantity": 2},
+        {"remote_start": "DH1", "source": "DH1", "quantity": 5},
+    ],
+)
+def test_send_word_swap_allowed(kw) -> None:
+    send(word_swap=True, **kw)
+
+
+@pytest.mark.parametrize(
+    ("kw", "partner"),
+    [
+        ({"remote_start": ModbusAddress("400001"), "source": "DS1"}, "function_code"),
+        ({"remote_start": "C1", "source": "C1", "quantity": 2}, "function_code"),
+        ({"remote_start": "C1", "source": "C1"}, "function_code"),
+        ({"remote_start": ModbusAddress("400001"), "source": "TXT1", "quantity": 2}, "source"),
+        *(
+            (
+                {"remote_start": ModbusAddress("400001"), "source": source, "function_code": 16},
+                "quantity",
+            )
+            for source in ("DS1", "DH1", "TD1", "SD1")
+        ),
+    ],
+)
+def test_send_word_swap_not_offered(kw, partner) -> None:
+    """A Send offers Word Swap only with FC16. It does not offer it for a TXT source or for
+    one 16-bit register."""
+    send(**kw)
+    with pytest.raises(FieldError) as caught:
+        send(word_swap=True, **kw)
+    error = caught.value
+    assert error.fields == ("Send.word_swap", f"Send.{partner}")
+    assert (error.reason, error.click_id) == (Reason.CONFLICT, None)
+    assert str(error).endswith(". Drop word_swap=1.")
+
+
+def test_send_word_swap_not_offered_keeps_its_refusal() -> None:
+    fields = _fields(send(remote_start=ModbusAddress("400001"), source="DS1"))
+    fields[0x221C] = "0"
+    assert kept(from_tags_af("SD", 0x2729, fields), "Send.word_swap").word_swap
+
+
+def test_send_unpaired_slave_keeps_its_refusal() -> None:
+    fields = _fields(send(remote_start="DS1", source="DS1"))
+    fields[0x6085] = "DH1"
+    assert kept(from_tags_af("SD", 0x2729, fields), "Send.remote_start").remote_start == "DH1"
 
 
 _RTU_TOKEN = 'ModbusRtuTarget(name="r",com_port="cpu2",device_id={id})'

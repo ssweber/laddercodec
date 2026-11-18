@@ -22,6 +22,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast, get_args
 
+from laddercodec import FieldError, Reason
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
@@ -1692,7 +1693,8 @@ def _send_number(text: str) -> Any:
     return text
 
 
-def _send_check(case: dict[str, Any]) -> dict[str, Any]:
+def _send_build(case: dict[str, Any]) -> Callable[[], Send]:
+    """Return a function that builds the Send of ``case``."""
     f, choices = case["fields"], case["choices"]
     com_port = SEND_PORTS[choices["port"]]
     code = next(n for n, item in SEND_FUNCTIONS.items() if item == choices["function"])
@@ -1736,7 +1738,11 @@ def _send_check(case: dict[str, Any]) -> dict[str, Any]:
             function_code=code,
         )
 
-    return verdict_of(build)
+    return build
+
+
+def _send_check(case: dict[str, Any]) -> dict[str, Any]:
+    return verdict_of(_send_build(case))
 
 
 def _send_remote(code: SendFunctionCode, addressing: str) -> str:
@@ -1759,7 +1765,10 @@ def _send_code(bank: str) -> SendFunctionCode:
 
 
 def _send_takes_remote(code: SendFunctionCode, bank: str) -> bool:
-    """Return True unless laddercodec refuses ``bank`` as the CLICK slave address of ``code``."""
+    """Return True unless laddercodec leaves ``bank`` out of the CLICK slave banks of ``code``.
+
+    The grid keeps a case for each source when a Send refuses the bank for another reason,
+    such as SD or a source of another data type."""
     source = "C1" if code in BIT_FUNCTIONS else "DS1"
     fields = {"slave_id": "1", "slave_address": low(bank), "master_address": source}
     case = {
@@ -1770,7 +1779,14 @@ def _send_takes_remote(code: SendFunctionCode, bank: str) -> bool:
             "addressing": SEND_ADDRESSING["click"],
         },
     }
-    return _send_check(case).get("field") != "Send.remote_start"
+    try:
+        _send_build(case)()
+    except FieldError as exc:
+        return not any(
+            error.fields == ("Send.remote_start",) and error.reason is Reason.BANK
+            for error in exc.errors
+        )
+    return True
 
 
 def send_grid() -> Grid:

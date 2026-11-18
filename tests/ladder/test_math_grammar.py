@@ -774,8 +774,9 @@ def test_reader_prints_every_stored_math(
     expression = _reconstruct_expression(tags[0x61FF], tags[0x61FD])
     if not native and path.endswith("math_wide.bin"):
         if len(tags[0x6229]) > 270:
-            with pytest.raises(FieldError, match="CLICK allows 270"):
+            with pytest.raises(FieldError) as caught:
                 parse(expression, mode)
+            assert str(caught.value).endswith("CLICK allows 270 (OBJ-1008). Shorten the formula.")
             return
         if expression in _OLD_TEMPLATES:
             formula = parse(expression, mode)

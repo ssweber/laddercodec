@@ -489,7 +489,10 @@ def test_formula_reason(expression: str, mode: str, reason: str, click_id: str |
     (error,) = _formula(expression, mode)
     assert (error.field, error.reason, error.click_id) == (_EXPR, reason, click_id)
     assert isinstance(error.reason, Reason)
-    assert str(error).endswith(f" ({click_id})") == (click_id is not None)
+    # CLICK's id ends the rule sentence. A suggestion may follow it.
+    _, marker, after = str(error).partition(f" ({click_id})")
+    ends_rule = bool(marker) and (after == "" or after.startswith(". "))
+    assert ends_rule == (click_id is not None)
     expected = (_EXPR, _MODE) if reason == "conflict" else (_EXPR,)
     assert error.fields == expected
 

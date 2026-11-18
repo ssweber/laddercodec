@@ -237,6 +237,13 @@ def test_send_hex_fffd_banks() -> None:
     assert send_receive._SEND_HEX_FFFD == _of_type(DataType.INT2, DataType.FLOAT, DataType.TXT)
 
 
+def test_same_type_banks() -> None:
+    """Send and Receive group each register bank with the banks of its data type."""
+    assert set(send_receive._SAME_TYPE) == set(BANKS) - BIT_ONLY_TYPES
+    for bank, group in send_receive._SAME_TYPE.items():
+        assert group == _of_type(BANKS[bank].data_type), bank
+
+
 def test_receive_remote_banks() -> None:
     """A Receive pairs each local bank only with remote banks of its data type."""
     for local, remotes in send_receive._RECEIVE_REMOTE_FOR_DEST.items():
