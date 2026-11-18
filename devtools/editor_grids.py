@@ -5,11 +5,11 @@
     uv run devtools/editor_grids.py --check    # exit 1 if the committed files differ
 
 A grid is a case list in the runner's own shape (``{"cases": [{"row", "case", "instruction",
-"mode", "fields", "options"}, ...]}``), one file per dialog, built from laddercodec's own bank
-lists, constant kinds and field rules so the lists keep in step with the code. Each grid has a
-verdicts file beside it, ``<grid>.verdicts.json``: what laddercodec's rules say about each
-case today, keyed by the case's label, for comparing with CLICK's answers when they come. The
-runner reads only the grid.
+"mode", "fields", "choices", "options"}, ...]}``), one file per dialog, built from
+laddercodec's own bank lists, constant kinds and field rules so the lists keep in step with
+the code. Each grid has a verdicts file beside it, ``<grid>.verdicts.json``: what
+laddercodec's rules say about each case today, keyed by the case's label, for comparing with
+CLICK's answers when they come. The runner reads only the grid.
 """
 
 from __future__ import annotations
@@ -20,13 +20,18 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 from laddercodec.instructions.coil import Coil
 from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
+from laddercodec.instructions.counter import Counter
+from laddercodec.instructions.drum import _MAX_DRUM_SIZE, Drum
+from laddercodec.instructions.forloop import ForLoop
 from laddercodec.instructions.math import Math
 from laddercodec.instructions.search import Search
+from laddercodec.instructions.shift import Shift
+from laddercodec.instructions.timer import Timer, TimerKind, TimeUnit
 from laddercodec.model import (
     ADDRESS_BANKS,
     XY_SLOTS,
@@ -342,14 +347,32 @@ class Grid:
         options: dict[str, int] | None = None,
         **fields: str,
     ) -> None:
+        """Add a case whose fields are the keyword arguments. See :meth:`add_case`."""
+        self.add_case(row, label, instruction, mode, fields, options=options)
+
+    def add_case(
+        self,
+        row: str,
+        label: str,
+        instruction: str,
+        mode: str | None,
+        fields: dict[str, str],
+        *,
+        choices: dict[str, str] | None = None,
+        options: dict[str, int] | None = None,
+    ) -> None:
         """Add a case. If the file already has a case with this label, keep only the first.
 
-        ``options`` maps a button's control id, as a decimal string, to 1 (on) or 0 (off). A
-        case without it leaves every option as the dialog opens."""
+        ``choices`` maps a list to the item to pick in it. ``options`` maps a button's control
+        id, as a decimal string, to 1 (on) or 0 (off). For a dialog that the runner does not
+        drive yet, a list or a button is named by laddercodec's field name. A case without
+        ``options`` leaves every option as the dialog opens."""
         case: dict[str, Any] = {"row": row, "case": label, "instruction": instruction}
         if mode is not None:
             case["mode"] = mode
         case["fields"] = fields
+        if choices is not None:
+            case["choices"] = choices
         if options is not None:
             case["options"] = options
         if label in self.labels:
@@ -1192,6 +1215,415 @@ def search_grid() -> Grid:
 
 
 # ---------------------------------------------------------------------------
+# Timer, Counter, Shift, For and Drum
+# ---------------------------------------------------------------------------
+#
+# The runner does not drive these five dialogs yet. Until it does, a case names the dialog,
+# its mode, its fields, its lists (``choices``) and its buttons (``options``) by laddercodec's
+# names: the kind as the mode, and the field names of the instruction's class. The item that
+# a case picks in a list is the text that the list shows, such as ``sec``.
+
+
+def address_forms(bank: str) -> list[str]:
+    """Return a pointer into ``bank``, then other ways to type the lowest address of ``bank``.
+
+    After the pointer come the address in lower case and the address with its number padded
+    to three digits (for X and Y, with no leading zeros). Last come the address with a space
+    before it, with a space after it, and with a space between the bank and the number."""
+    shown = low(bank)
+    digits = shown[len(bank) :]
+    other = str(int(digits)) if bank in XY else digits.zfill(3)
+    return [
+        f"{bank}[DS1]",
+        shown.lower(),
+        f"{bank}{other}",
+        f" {shown}",
+        f"{shown} ",
+        f"{bank} {digits}",
+    ]
+
+
+def _current_value(done: str, bank: str, register: str) -> str:
+    """Return the register that holds the current value of the timer or counter ``done``.
+
+    CLICK assigns it from the number of ``done``: T1 has TD1, and CT1 has CTD1. If ``done``
+    is not an address in ``bank``, return the first register, so that only ``done`` is
+    refused."""
+    try:
+        number = check_address(normalize_address(done), "done", {bank}).number
+    except ValueError:
+        return f"{register}1"
+    return addr(register, number)
+
+
+def _option(case: dict[str, Any], name: str) -> bool:
+    return case.get("options", {}).get(name) == 1
+
+
+#: Each item of the dialog's unit list, from milliseconds to days, and the unit that it picks.
+UNITS: dict[str, TimeUnit] = {"ms": "Tms", "sec": "Ts", "min": "Tm", "hour": "Th", "day": "Td"}
+assert set(UNITS.values()) == set(get_args(TimeUnit))
+TIMER_KINDS: tuple[str, ...] = get_args(TimerKind)
+#: The most steps, and the most outputs, that a drum has.
+DRUM_SIZE = _MAX_DRUM_SIZE
+
+
+def _timer_check(case: dict[str, Any]) -> dict[str, Any]:
+    f = case["fields"]
+    accumulator = f["accumulator"] if "accumulator" in f else _current_value(f["done"], "T", "TD")
+    return verdict_of(
+        lambda: Timer(
+            kind=case["mode"],
+            done=f["done"],
+            accumulator=accumulator,
+            preset=f["preset"],
+            unit=UNITS[case["choices"]["unit"]],
+            retained=_option(case, "retained"),
+        )
+    )
+
+
+def timer_grid() -> Grid:
+    """Return the grid of the Timer dialog, in its on-delay and off-delay modes."""
+    grid = Grid(_timer_check)
+
+    def timer(
+        row: str,
+        kind: str,
+        preset: str,
+        unit: str = "ms",
+        done: str = "T1",
+        accumulator: str | None = None,
+        retained: int | None = None,
+    ) -> None:
+        fields = (
+            {"done": done} if accumulator is None else {"done": done, "accumulator": accumulator}
+        )
+        fields["preset"] = preset
+        label = f"{kind} {done}" + ("" if accumulator is None else f",{accumulator}")
+        label += f" preset={preset} unit={unit}"
+        options = None if retained is None else {"retained": retained}
+        if retained is not None:
+            label += f" retained={retained}"
+        grid.add_case(
+            f"timer.{row}", label, "timer", kind, fields, choices={"unit": unit}, options=options
+        )
+
+    for kind in TIMER_KINDS:
+        timer("control", kind, "100")
+    # Each kind with each unit.
+    for kind in TIMER_KINDS:
+        for unit in UNITS:
+            timer("units", kind, "100", unit)
+    # Retentive on in each unit. An off-delay timer has no retentive option.
+    for unit in UNITS:
+        timer("retained", "on_delay", "100", unit, retained=1)
+    timer("retained", "off_delay", "100", retained=1)
+    # The edges of a constant preset, in each kind and unit.
+    for kind in TIMER_KINDS:
+        for unit in UNITS:
+            for text in ("0", str(INT16_MAX), str(INT16_MAX + 1), "-1"):
+                timer("preset.edges", kind, text, unit)
+    # Each constant spelling, bank and pointer form as the preset.
+    for _, text in kinds_of_constants():
+        timer("preset.constants", "on_delay", text)
+    for bank in BANKS:
+        for text in samples(bank):
+            timer("preset.banks", "on_delay", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        timer("preset.forms", "on_delay", text)
+    # Each bank as the timer number, then other ways to type it.
+    for bank in BANKS:
+        for text in samples(bank):
+            timer("done.banks", "on_delay", "100", done=text)
+    for text in address_forms("T"):
+        timer("done.forms", "on_delay", "100", done=text)
+    # CLICK assigns the current value from the timer number. This case types it, to see
+    # whether the dialog takes it.
+    timer("accumulator", "on_delay", "100", accumulator="TD1")
+    return grid
+
+
+#: The modes of the Counter dialog: laddercodec's two kinds, and an up counter with a down
+#: input.
+COUNTER_MODES = ("count_up", "count_down", "count_up_down")
+
+
+def _counter_check(case: dict[str, Any]) -> dict[str, Any]:
+    f, mode = case["fields"], case["mode"]
+    accumulator = f["accumulator"] if "accumulator" in f else _current_value(f["done"], "CT", "CTD")
+    return verdict_of(
+        lambda: Counter(
+            kind="count_down" if mode == "count_down" else "count_up",
+            done=f["done"],
+            accumulator=accumulator,
+            preset=f["preset"],
+            down_enabled=mode == "count_up_down",
+        )
+    )
+
+
+#: Counter presets of 12 and of 13 characters. CLICK refuses a constant of 13 characters or
+#: more.
+COUNTER_LENGTHS = ["000000000005", "0000000000005", "-00000000005", "-000000000005"]
+
+
+def counter_grid() -> Grid:
+    """Return the grid of the Counter dialog, in its up, down and up-down modes."""
+    grid = Grid(_counter_check)
+
+    def counter(
+        row: str, mode: str, preset: str, done: str = "CT1", accumulator: str | None = None
+    ) -> None:
+        fields = (
+            {"done": done} if accumulator is None else {"done": done, "accumulator": accumulator}
+        )
+        fields["preset"] = preset
+        label = f"{mode} {done}" + ("" if accumulator is None else f",{accumulator}")
+        grid.add_case(f"counter.{row}", f"{label} preset={preset}", "counter", mode, fields)
+
+    for mode in COUNTER_MODES:
+        counter("control", mode, "10")
+    # The edges of a constant preset, in each mode.
+    for mode in COUNTER_MODES:
+        for text in ("0", "-1", str(INT32_MAX), str(INT32_MAX + 1), str(INT32_MIN)):
+            counter("preset.edges", mode, text)
+        counter("preset.edges", mode, str(INT32_MIN - 1))
+    # Each constant spelling, bank and pointer form as the preset.
+    for _, text in kinds_of_constants():
+        counter("preset.constants", "count_up", text)
+    for text in COUNTER_LENGTHS:
+        counter("preset.lengths", "count_up", text)
+    for bank in BANKS:
+        for text in samples(bank):
+            counter("preset.banks", "count_up", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        counter("preset.forms", "count_up", text)
+    # Each bank as the counter number, then other ways to type it.
+    for bank in BANKS:
+        for text in samples(bank):
+            counter("done.banks", "count_up", "10", done=text)
+    for text in address_forms("CT"):
+        counter("done.forms", "count_up", "10", done=text)
+    # CLICK assigns the current value from the counter number. This case types it, to see
+    # whether the dialog takes it.
+    counter("accumulator", "count_up", "10", accumulator="CTD1")
+    return grid
+
+
+def _shift_check(case: dict[str, Any]) -> dict[str, Any]:
+    f = case["fields"]
+    return verdict_of(lambda: Shift(f["start_bit"], f["end_bit"]))
+
+
+def shift_grid() -> Grid:
+    """Return the grid of the Shift Register dialog."""
+    grid = Grid(_shift_check)
+
+    def shift(row: str, start: str, end: str) -> None:
+        grid.add(f"shift.{row}", f"shift {start}..{end}", "shift", None,
+                 start_bit=start, end_bit=end)  # fmt: skip
+
+    shift("control", "C1", "C8")
+    # Eight bits of X or Y.
+    for bank in XY:
+        shift("xy", addr(bank, 1), addr(bank, 8))
+    # The ranges of C, X and Y: two bits, the whole bank, its end, past its end, reversed and
+    # one bit. Each other bank tries only its first range, because the rows shift.start.banks
+    # and shift.end.banks already try each bank.
+    for bank in BANKS:
+        for start, end in ranges(bank) if bank in {"C", *XY} else ranges(bank)[:1]:
+            shift("ranges", start, end)
+    # Each bank as the start and as the end, against a C bit.
+    for bank in BANKS:
+        for text in samples(bank):
+            shift("start.banks", text, "C8")
+            shift("end.banks", "C1", text)
+    for text in address_forms("C"):
+        shift("start.forms", text, "C8")
+        shift("end.forms", "C1", text)
+    for text in FEW:
+        shift("start.constants", text, "C8")
+        shift("end.constants", "C1", text)
+    return grid
+
+
+def _for_check(case: dict[str, Any]) -> dict[str, Any]:
+    return verdict_of(lambda: ForLoop(case["fields"]["count"], oneshot=_option(case, "oneshot")))
+
+
+def for_grid() -> Grid:
+    """Return the grid of the For dialog."""
+    grid = Grid(_for_check)
+
+    def for_(row: str, count: str, oneshot: int | None = None) -> None:
+        label = f"for {count}" + ("" if oneshot is None else f" oneshot={oneshot}")
+        options = None if oneshot is None else {"oneshot": oneshot}
+        grid.add(f"for.{row}", label, "for", None, options=options, count=count)
+
+    for_("control", "10")
+    # One Shot on and off, with a constant and a register count.
+    for count in ("10", "DS1"):
+        for oneshot in (1, 0):
+            for_("oneshot", count, oneshot)
+    # Each constant spelling, bank and pointer form as the count. CLICK's dialog accepts 1 0.
+    # It is not a number, so laddercodec refuses it.
+    for _, text in kinds_of_constants():
+        for_("count.constants", text)
+    for_("count.constants", "1 0")
+    for bank in BANKS:
+        for text in samples(bank):
+            for_("count.banks", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        for_("count.forms", text)
+    return grid
+
+
+def _drum_check(case: dict[str, Any]) -> dict[str, Any]:
+    f, choices, kind = case["fields"], case.get("choices", {}), case["mode"]
+    steps, outputs = int(f["num_steps"]), int(f["num_outputs"])
+
+    def items(name: str, count: int) -> tuple[str, ...]:
+        return tuple(f.get(f"{name}[{i}]", "") for i in range(count))
+
+    event = kind == "event_drum"
+    return verdict_of(
+        lambda: Drum(
+            kind=kind,
+            outputs=items("outputs", outputs),
+            presets=() if event else items("presets", steps),
+            events=items("events", steps) if event else (),
+            # The dialog opens with no cell of the pattern set.
+            pattern=((0,) * outputs,) * steps,
+            current_step=f.get("current_step", ""),
+            completion_flag=f.get("completion_flag", ""),
+            accumulator=f.get("accumulator", ""),
+            unit=UNITS[choices["unit"]] if "unit" in choices else "",
+            jog_enabled=_option(case, "jog_enabled"),
+            jump_enabled=_option(case, "jump_enabled"),
+            jump_step=f.get("jump_step", ""),
+        )
+    )
+
+
+#: The drum kinds that the grid tries. It leaves out time_event_drum, the Time & Event drum
+#: that only CLICK v4 has.
+DRUM_KINDS = ("time_drum", "event_drum")
+
+
+def _drum_base(
+    kind: str, steps: int = 2, outputs: int = 2
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Return the fields and the choices of a drum that laddercodec accepts.
+
+    The outputs run from Y001. Each step of a time drum lasts 1000 s, and the events of an
+    event drum run from X001. The dialog has at most DRUM_SIZE steps and DRUM_SIZE outputs.
+    For a larger ``steps`` or ``outputs``, the function fills only the first DRUM_SIZE."""
+    fields = {"num_steps": str(steps), "num_outputs": str(outputs)}
+    fields |= {f"outputs[{i}]": addr("Y", i + 1) for i in range(min(outputs, DRUM_SIZE))}
+    if kind == "time_drum":
+        fields |= {f"presets[{i}]": "1000" for i in range(min(steps, DRUM_SIZE))}
+    else:
+        fields |= {f"events[{i}]": addr("X", i + 1) for i in range(min(steps, DRUM_SIZE))}
+    fields["current_step"] = "DS1"
+    if kind == "time_drum":
+        fields["accumulator"] = "TD1"
+    fields["completion_flag"] = "C1"
+    choices = {"unit": "sec"} if kind == "time_drum" else {}
+    return fields, choices
+
+
+def drum_grid() -> Grid:
+    """Return the grid of the Drum dialog, in its time and event modes.
+
+    Each drum case starts from a drum that laddercodec accepts and changes one field, list or
+    option. A refusal then names the field that the case changed. A refusal of ``num_steps``
+    names ``presets`` or ``events``, and a refusal of ``num_outputs`` names ``outputs``. When a
+    case changes the number of steps or outputs, it also fills each step or output that the
+    new number adds."""
+    grid = Grid(_drum_check)
+
+    def drum(
+        row: str,
+        kind: str,
+        field: str | None = None,
+        text: str = "",
+        *,
+        steps: int = 2,
+        outputs: int = 2,
+        choices: dict[str, str] | None = None,
+        options: dict[str, int] | None = None,
+    ) -> None:
+        """Add the base drum with ``field`` set to ``text``, ``choices`` picked and
+        ``options`` set. The label names only what differs from the base drum."""
+        fields, picked = _drum_base(kind, steps, outputs)
+        changed = {} if field is None else {field: text}
+        fields |= changed
+        picked |= choices or {}
+        base_fields, base_choices = _drum_base(kind)
+        diff = [f"{k}={v}" for k, v in picked.items() if base_choices.get(k) != v]
+        diff += [f"{k}={v}" for k, v in (options or {}).items()]
+        diff += [f"{k}={v}" for k, v in changed.items() if base_fields.get(k) != v]
+        label = f"{kind} " + (" ".join(diff) if diff else "base")
+        grid.add_case(
+            f"drum.{row}", label, "drum", kind, fields, choices=picked or None, options=options
+        )
+
+    for kind in DRUM_KINDS:
+        drum("control", kind)
+    # Each unit, a unit on an event drum, and the edges of a constant duration in each unit.
+    for unit in UNITS:
+        drum("units", "time_drum", choices={"unit": unit})
+    drum("units", "event_drum", choices={"unit": "sec"})
+    for unit in UNITS:
+        for text in ("0", str(INT16_MAX), str(INT16_MAX + 1), "39999", "40000", "-1"):
+            drum("presets.edges", "time_drum", "presets[0]", text, choices={"unit": unit})
+    # Each constant spelling, bank and pointer form as the first step's duration, and a
+    # register as the second's.
+    for _, text in kinds_of_constants():
+        drum("presets.constants", "time_drum", "presets[0]", text)
+    for bank in BANKS:
+        for text in samples(bank):
+            drum("presets.banks", "time_drum", "presets[0]", text)
+    for text in POINTERS + POINTER_INDEXES + TYPED_FORMS:
+        drum("presets.forms", "time_drum", "presets[0]", text)
+    drum("presets.forms", "time_drum", "presets[1]", "DS2")
+    # The number of steps and of outputs at their edges, and one past each edge.
+    for kind in DRUM_KINDS:
+        for count in (0, 1, DRUM_SIZE, DRUM_SIZE + 1):
+            drum("steps", kind, "num_steps", str(count), steps=count)
+        for count in (0, 1, DRUM_SIZE, DRUM_SIZE + 1):
+            drum("outputs", kind, "num_outputs", str(count), outputs=count)
+    # An output used twice, the completion flag as an output, then each bank as the first
+    # output.
+    for key, text in (("outputs[1]", "Y001"), ("outputs[1]", "Y1"), ("outputs[0]", "C1")):
+        drum("outputs.conflicts", "time_drum", key, text)
+    for bank in BANKS:
+        for text in samples(bank):
+            drum("outputs.banks", "time_drum", "outputs[0]", text)
+    for text in address_forms("Y"):
+        drum("outputs.forms", "time_drum", "outputs[0]", text)
+    # Each bank as the current step, the accumulator and the completion flag.
+    for name in ("current_step", "accumulator", "completion_flag"):
+        for bank in BANKS:
+            for text in samples(bank):
+                drum(f"{name.replace('_', '-')}.banks", "time_drum", name, text)
+    # Each bank as the first event.
+    for bank in BANKS:
+        for text in samples(bank):
+            drum("events.banks", "event_drum", "events[0]", text)
+    for text in address_forms("X"):
+        drum("events.forms", "event_drum", "events[0]", text)
+    # Jog, and the jump input with each bank of step number.
+    for kind in DRUM_KINDS:
+        drum("jog", kind, options={"jog_enabled": 1})
+        drum("jump", kind, "jump_step", "DS2", options={"jump_enabled": 1})
+    for text in samples("DS") + ["DD1", "TD1", "C1"] + address_forms("DS"):
+        drum("jump", "time_drum", "jump_step", text, options={"jump_enabled": 1})
+    return grid
+
+
+# ---------------------------------------------------------------------------
 # Files
 # ---------------------------------------------------------------------------
 
@@ -1221,12 +1653,21 @@ WHOLE: dict[str, Callable[[], Grid]] = {
     "fill": fill_grid,
     "compare": compare_grid,
     "search": search_grid,
+    "timer": timer_grid,
+    "counter": counter_grid,
+    "shift": shift_grid,
+    "for": for_grid,
+    "drum": drum_grid,
 }
 
 #: The whole grids that ``preflight.json`` and ``risky.json`` take their cases from, in order.
 #: The runner places Compare only with ``--wire``, because Compare is a contact. The runner
 #: does not drive Fill yet. So Compare and Fill each have a preflight and a risky file.
 PREFLIGHT_GRIDS = ("math", "copy", "out", "search")
+
+#: The dialogs that the runner does not drive yet. Each has a grid, a preflight file and a
+#: risky file of its own.
+UNDRIVEN = ("timer", "counter", "shift", "for", "drum")
 
 
 @functools.cache
@@ -1260,6 +1701,11 @@ def check_case(case: dict[str, Any]) -> dict[str, Any]:
         "out": _out_check,
         "compare": _compare_check,
         "search": _search_check,
+        "timer": _timer_check,
+        "counter": _counter_check,
+        "shift": _shift_check,
+        "for": _for_check,
+        "drum": _drum_check,
     }
     return checks[case["instruction"]](case)
 
@@ -1303,7 +1749,7 @@ def preflight(*names: str) -> Callable[[], Grid]:
 
 #: The preflight and risky files, then one file for each dialog and mode. Math and Copy have a
 #: file for each mode because their lists are long. Compare and Search have one file each,
-#: which holds every operator.
+#: which holds every operator. Each dialog in UNDRIVEN has one file, which holds every mode.
 GRIDS: dict[str, Callable[[], Grid]] = {
     "preflight": preflight(*PREFLIGHT_GRIDS),
     "risky": risky(*PREFLIGHT_GRIDS),
@@ -1321,6 +1767,9 @@ GRIDS: dict[str, Callable[[], Grid]] = {
     "copy_fill": only("fill", "fill"),
     "compare": only("compare", every_mode=True),
     "search": only("search", every_mode=True),
+    **{f"preflight_{name}": preflight(name) for name in UNDRIVEN},
+    **{f"risky_{name}": risky(name) for name in UNDRIVEN},
+    **{name: only(name, every_mode=True) for name in UNDRIVEN},
 }
 
 

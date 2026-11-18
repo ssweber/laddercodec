@@ -1,0 +1,15 @@
+{
+ "cases": [
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=\"\u00e9\" unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "\"\u00e9\""}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=\"\t\" unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "\"\t\""}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\" unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset= unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": ""}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=  unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": " "}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.constants", "case": "on_delay T1 preset=\u0663 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "\u0663"}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.forms", "case": "on_delay T1 preset= DS1 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": " DS1"}, "choices": {"unit": "ms"}},
+  {"row": "timer.preset.forms", "case": "on_delay T1 preset=DS1  unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1", "preset": "DS1 "}, "choices": {"unit": "ms"}},
+  {"row": "timer.done.forms", "case": "on_delay  T1 preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": " T1", "preset": "100"}, "choices": {"unit": "ms"}},
+  {"row": "timer.done.forms", "case": "on_delay T1  preset=100 unit=ms", "instruction": "timer", "mode": "on_delay", "fields": {"done": "T1 ", "preset": "100"}, "choices": {"unit": "ms"}}
+ ]
+}

@@ -1,0 +1,13 @@
+{
+ "cases": [
+  {"row": "for.count.constants", "case": "for \"\u00e9\"", "instruction": "for", "fields": {"count": "\"\u00e9\""}},
+  {"row": "for.count.constants", "case": "for \"\t\"", "instruction": "for", "fields": {"count": "\"\t\""}},
+  {"row": "for.count.constants", "case": "for \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "for", "fields": {"count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "for.count.constants", "case": "for \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\"", "instruction": "for", "fields": {"count": "\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\""}},
+  {"row": "for.count.constants", "case": "for ", "instruction": "for", "fields": {"count": ""}},
+  {"row": "for.count.constants", "case": "for  ", "instruction": "for", "fields": {"count": " "}},
+  {"row": "for.count.constants", "case": "for \u0663", "instruction": "for", "fields": {"count": "\u0663"}},
+  {"row": "for.count.forms", "case": "for  DS1", "instruction": "for", "fields": {"count": " DS1"}},
+  {"row": "for.count.forms", "case": "for DS1 ", "instruction": "for", "fields": {"count": "DS1 "}}
+ ]
+}

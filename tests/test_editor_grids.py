@@ -27,14 +27,16 @@ _OPERATORS = ("==", "!=", ">", "<", ">=", "<=")
 class Dialog:
     """A dialog as the runner's ``INSTRUCTIONS`` names it.
 
-    ``modes`` is empty for a dialog without modes. ``fields`` holds the names of all its
-    fields, whatever the mode, and ``options`` the control ids of its option buttons. A
+    ``modes`` is empty for a dialog without modes. ``fields`` holds the names of all its fields
+    in every mode. ``lists`` holds the names of its drop-down lists. ``options`` holds the
+    control ids of its option buttons, or for a dialog in UNDRIVEN the names of its flags. A
     ``contact`` is placed only with ``--wire``."""
 
     modes: tuple[str, ...]
     fields: frozenset[str]
     options: frozenset[str] = frozenset()
     contact: bool = False
+    lists: frozenset[str] = frozenset()
 
 
 #: Each dialog that the runner fills, as its ``INSTRUCTIONS`` has it.
@@ -52,6 +54,7 @@ DIALOGS = {
             {"slave_id", "slave_address", "master_address", "count"}
             | {"receiving", "success", "error", "exception"}
         ),
+        lists=frozenset({"port", "function", "addressing", "word_swap"}),
     ),
     "compare": Dialog(_OPERATORS, frozenset({"a", "b"}), contact=True),
     "search": Dialog(
@@ -66,6 +69,36 @@ DIALOGS = {
 FILL = ("copy", "fill")
 FILL_FIELDS = {"source", "destination", "destination_end"}
 FILL_FILES = {"copy_fill.json", "preflight_fill.json", "risky_fill.json"}
+#: The dialogs that the runner does not drive yet. Until it does, a case names the mode, the
+#: fields, the lists and the option buttons by laddercodec's names. Only a dialog's own three
+#: files (UNDRIVEN_FILES) hold its cases, and they hold nothing else.
+UNDRIVEN = {
+    "timer": Dialog(
+        ("on_delay", "off_delay"),
+        frozenset({"done", "accumulator", "preset"}),
+        frozenset({"retained"}),
+        lists=frozenset({"unit"}),
+    ),
+    "counter": Dialog(
+        ("count_up", "count_down", "count_up_down"),
+        frozenset({"done", "accumulator", "preset"}),
+    ),
+    "shift": Dialog((), frozenset({"start_bit", "end_bit"})),
+    "for": Dialog((), frozenset({"count"}), frozenset({"oneshot"})),
+    "drum": Dialog(
+        ("time_drum", "event_drum"),
+        frozenset(
+            {"num_steps", "num_outputs"}
+            | {f"{name}[{i}]" for name in ("outputs", "presets", "events") for i in range(16)}
+            | {"current_step", "accumulator", "completion_flag", "jump_step"}
+        ),
+        frozenset({"jog_enabled", "jump_enabled"}),
+        lists=frozenset({"unit"}),
+    ),
+}
+UNDRIVEN_FILES = {
+    name: {f"{name}.json", f"preflight_{name}.json", f"risky_{name}.json"} for name in UNDRIVEN
+}
 #: The runner takes these keys of a case and no others.
 CASE_KEYS = {"row", "case", "instruction", "mode", "fields", "choices", "options"}
 #: The number of cases in each row, over the dialog grids and the risky files, as committed. If a
@@ -154,6 +187,38 @@ ROW_COUNTS = {
     "copy.unpack.source.constants": 9,
     "copy.unpack.source.forms": 5,
     "copy.unpack.words.widths": 140,
+    "counter.accumulator": 1,
+    "counter.control": 3,
+    "counter.done.banks": 87,
+    "counter.done.forms": 6,
+    "counter.preset.banks": 88,
+    "counter.preset.constants": 106,
+    "counter.preset.edges": 18,
+    "counter.preset.forms": 53,
+    "counter.preset.lengths": 4,
+    "drum.accumulator.banks": 87,
+    "drum.completion-flag.banks": 87,
+    "drum.control": 2,
+    "drum.current-step.banks": 87,
+    "drum.events.banks": 87,
+    "drum.events.forms": 6,
+    "drum.jog": 2,
+    "drum.jump": 15,
+    "drum.outputs": 8,
+    "drum.outputs.banks": 86,
+    "drum.outputs.conflicts": 3,
+    "drum.outputs.forms": 6,
+    "drum.presets.banks": 88,
+    "drum.presets.constants": 108,
+    "drum.presets.edges": 30,
+    "drum.presets.forms": 54,
+    "drum.steps": 8,
+    "drum.units": 5,
+    "for.control": 1,
+    "for.count.banks": 88,
+    "for.count.constants": 112,
+    "for.count.forms": 53,
+    "for.oneshot": 4,
     "math.avg.decimal.ranges": 32,
     "math.constants.decimal": 110,
     "math.constants.decimal.alone": 110,
@@ -214,6 +279,25 @@ ROW_COUNTS = {
     "search.value.constants": 106,
     "search.value.forms": 54,
     "search.value.pairs": 81,
+    "shift.control": 1,
+    "shift.end.banks": 86,
+    "shift.end.constants": 5,
+    "shift.end.forms": 6,
+    "shift.ranges": 37,
+    "shift.start.banks": 87,
+    "shift.start.constants": 5,
+    "shift.start.forms": 6,
+    "shift.xy": 2,
+    "timer.accumulator": 1,
+    "timer.control": 2,
+    "timer.done.banks": 87,
+    "timer.done.forms": 6,
+    "timer.preset.banks": 88,
+    "timer.preset.constants": 108,
+    "timer.preset.edges": 40,
+    "timer.preset.forms": 53,
+    "timer.retained": 6,
+    "timer.units": 8,
 }
 
 #: The most cases that one grid file may hold. Split a longer file by hand, because the
@@ -265,6 +349,7 @@ def test_rows_keep_their_cases() -> None:
     for name in (
         "math_decimal", "math_hex", "copy_single", "copy_block", "copy_pack", "copy_unpack",
         "out", "copy_fill", "compare", "search", "risky", "risky_compare", "risky_fill",
+        *UNDRIVEN, *(f"risky_{n}" for n in UNDRIVEN),
     ):  # fmt: skip
         for case in json.loads((GRIDS / f"{name}.json").read_text(encoding="utf-8"))["cases"]:
             counts[case["row"]] = counts.get(case["row"], 0) + 1
@@ -293,17 +378,22 @@ def test_every_case_has_a_verdict() -> None:
 
 
 def test_cases_are_in_the_runners_shape() -> None:
+    # A dialog that the runner drives has its entry in DIALOGS and none in UNDRIVEN.
+    assert not set(UNDRIVEN) & set(DIALOGS)
     for path in _grid_files():
         cases = json.loads(path.read_text(encoding="utf-8"))["cases"]
         assert 0 < len(cases) <= MAX_CASES, path.name
         labels = [c["case"] for c in cases]
         assert len(labels) == len(set(labels)), f"{path.name} repeats a case label"
         fill_file = path.name in FILL_FILES
+        undriven_file = next((n for n, files in UNDRIVEN_FILES.items() if path.name in files), None)
         for case in cases:
             where = f"{path.name}: {case['case']}"
             assert set(case) <= CASE_KEYS, where
             assert case["row"] and case["case"], where
-            dialog = DIALOGS[case["instruction"]]
+            undriven = case["instruction"] if case["instruction"] in UNDRIVEN else None
+            assert undriven == undriven_file, where
+            dialog = UNDRIVEN[undriven] if undriven else DIALOGS[case["instruction"]]
             is_fill = (case["instruction"], case.get("mode")) == FILL
             assert is_fill == fill_file, where
             if is_fill:
@@ -317,14 +407,15 @@ def test_cases_are_in_the_runners_shape() -> None:
             assert case["fields"], where
             assert set(case["fields"]) <= fields, where
             assert all(isinstance(v, str) for v in case["fields"].values()), where
-            # No grid chooses an item from a list yet.
-            assert "choices" not in case, where
+            choices = case.get("choices", {})
+            assert set(choices) <= dialog.lists, where
+            assert all(isinstance(v, str) and v for v in choices.values()), where
             options = case.get("options", {})
             assert set(options) <= dialog.options, where
             assert all(type(v) is int and v in (0, 1) for v in options.values()), where
         # The runner places a contact only with --wire, which applies to the whole file, so a
         # file holds only contacts or none.
-        contacts = {DIALOGS[c["instruction"]].contact for c in cases}
+        contacts = {(UNDRIVEN | DIALOGS)[c["instruction"]].contact for c in cases}
         assert len(contacts) == 1, f"{path.name} mixes contacts with other instructions"
 
 
