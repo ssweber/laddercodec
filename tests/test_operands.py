@@ -18,6 +18,7 @@ from tests.test_operand_guards import (
     INSTRUCTIONS,
     _bank_items,
     _is_bank_literal,
+    bank_names,
 )
 
 # ---------------------------------------------------------------------------
@@ -109,13 +110,14 @@ def test_every_bank_set_names_only_banks() -> None:
     checked = 0
     for path in sorted(INSTRUCTIONS.glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
+        names = bank_names(tree)
         parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
         for node in ast.walk(tree):
             if isinstance(node, (ast.Tuple, ast.List)):
                 continue
-            if not _is_bank_literal(node, parents.get(node)):
+            if not _is_bank_literal(node, parents, names):
                 continue
-            items = _bank_items(node)
+            items = _bank_items(node, names)
             assert items is not None, ast.unparse(node)
             assert set(items) <= set(Bank.__members__), (path.name, ast.unparse(node))
             checked += 1

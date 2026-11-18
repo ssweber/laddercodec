@@ -31,6 +31,7 @@ SRC = Path(laddercodec.__file__).parent
 _FIELD = re.compile(r"([A-Za-z_]\w*)\.([a-z_]\w*)(?:\[\d+\])?")
 #: Calls whose second argument is a field name.
 _FIELD_SECOND = {
+    "bank_of",
     "check_address",
     "check_operand",
     "check_constant",

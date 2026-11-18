@@ -32,18 +32,23 @@ from ..model import (
     AfInstruction,
     FieldError,
     Reason,
-    check_address,
     xy_slot,
 )
-from ..operands.address import read_as_typed
-from ..operands.checks import (
-    ALL_KINDS,
+from ..operands.address import address_shape, bank_prefix, is_pointer, parse_address, read_as_typed
+from ..operands.banks import (
     BIT_BANKS,
     REGISTER_BANKS,
+    WORD_IO_BANKS,
+    XY_BANKS,
+    bits_per_register,
+)
+from ..operands.checks import (
+    ALL_KINDS,
     WRITABLE_SD,
     Constants,
     Operand,
     Refusals,
+    bank_of,
     check_constant,
     check_csv_flag,
     check_kept_text,
@@ -119,12 +124,12 @@ _CONVTYPE_TO_OPTS: dict[str, tuple[CopyConvert | None, bool, bool]] = {
     "8": ("to_binary", False, False),
 }
 
-_DF_RE = re.compile(r"DF[0-9]+")
-_DD_RE = re.compile(r"DD[0-9]+")
 
-
-def _is_df(operand: str) -> bool:
-    return _DF_RE.fullmatch(operand.strip()) is not None
+def _is_bank_shape(operand: str, bank: str) -> bool:
+    """Return whether ``operand`` is ``bank`` followed by ASCII digits, such as ``DF1`` for
+    DF. Spaces at either end are ignored, and the number may be any length."""
+    shape = address_shape(operand.strip())
+    return shape is not None and shape[0] == bank
 
 
 def _real_text_source(source: str) -> bool:
@@ -132,7 +137,7 @@ def _real_text_source(source: str) -> bool:
     zero, when ``source`` is copied to text. It does for a DF address or pointer and for a
     real constant."""
     return (
-        _operand_bank(source, pointer=True) == "DF"
+        bank_of(source, "Copy.source", pointer=True) == "DF"
         or constant_shape(source, _CONSTANTS) is Kind.FLOAT
     )
 
@@ -143,20 +148,9 @@ def _is_dd_df_pair(source: str, destination: str) -> bool:
 
     For a single copy between these two, CLICK's dialog offers Copy Value or Copy Binary.
     """
-    src, dst = source.strip(), destination.strip()
-    return (_DD_RE.fullmatch(src) is not None and _is_df(dst)) or (
-        _is_df(src) and _DD_RE.fullmatch(dst) is not None
+    return (_is_bank_shape(source, "DD") and _is_bank_shape(destination, "DF")) or (
+        _is_bank_shape(source, "DF") and _is_bank_shape(destination, "DD")
     )
-
-
-def _operand_bank(operand: str, *, pointer: bool = False) -> str | None:
-    """Return the bank of ``operand`` read as an address, or None if it is not an address.
-
-    With ``pointer``, also return the bank of a pointer such as ``DD[DS1]``."""
-    try:
-        return check_operand(operand, "Copy.source", pointer=pointer).bank
-    except FieldError:
-        return None
 
 
 def _converts_value(source: str, destination: str) -> bool:
@@ -170,7 +164,10 @@ def _converts_value(source: str, destination: str) -> bool:
     - A real constant copied into DD or CTD, as an address or a pointer (``1.5`` into
       ``DD[DS1]``).
     """
-    src, dst = _operand_bank(source, pointer=True), _operand_bank(destination, pointer=True)
+    src, dst = (
+        bank_of(source, "Copy.source", pointer=True),
+        bank_of(destination, "Copy.dest", pointer=True),
+    )
     if (src == "DF" and dst in _INT32_BANKS) or (src in _INT32_BANKS and dst == "DF"):
         return True
     return constant_shape(source, _CONSTANTS) is Kind.FLOAT and dst in _INT32_BANKS
@@ -189,7 +186,7 @@ def _wide_into_df(source: str, destination: str) -> bool:
         const is not None
         and const.kind is Kind.INTEGER
         and const.wide
-        and _operand_bank(destination, pointer=True) == "DF"
+        and bank_of(destination, "Copy.dest", pointer=True) == "DF"
     )
 
 
@@ -357,14 +354,6 @@ _KIND_TEXT = {
 }
 
 
-def _bank_prefix(operand: str) -> str:
-    """Return the bank letters that ``operand`` starts with (``CTD`` for ``CTD5``).
-
-    The address does not have to be valid."""
-    m = re.match(r"[A-Z]*", operand)
-    return m.group(0) if m else ""
-
-
 def _bank_list(banks: Collection[str]) -> str:
     return ", ".join(b for b in ADDRESS_BANKS if b in banks)
 
@@ -455,7 +444,7 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
 def _position(address: Address) -> int:
     """Return the position of ``address`` in its bank. ``XD0``, ``XD0u``, ``XD1`` ... are at
     positions 0, 1, 2 ..."""
-    if address.bank in ("XD", "YD"):
+    if address.bank in WORD_IO_BANKS:
         return 1 if address.upper else address.number + (address.number > 0)
     return address.number
 
@@ -467,7 +456,7 @@ def _span(first: Address, last: Address) -> int | None:
     How CLICK counts across ``XD0u`` has not been checked, so an XD or YD range gets no
     count.
     """
-    if first.bank in ("XD", "YD"):
+    if first.bank in WORD_IO_BANKS:
         return None
     return last.number - first.number + 1
 
@@ -521,7 +510,7 @@ def _check_relation(
             ("OBJ-012" if same else "OBJ-009") if ids else None,
             code=Code.RANGE_NOT_ASCENDING,
         )
-    if one_module and first.bank in ("X", "Y") and xy_slot(first.number) != xy_slot(last.number):
+    if one_module and first.bank in XY_BANKS and xy_slot(first.number) != xy_slot(last.number):
         raise _refusal(
             cls,
             pair,
@@ -653,10 +642,8 @@ def _check_kind(
         )
 
 
-#: Most bits one register packs into or unpacks from.
-_BITS_PER_REGISTER = {"DS": 16, "DH": 16, "DD": 32, "DF": 32}
-#: Most bits any one pack moves.
-_MAX_BITS = max(_BITS_PER_REGISTER.values())
+#: Most bits any one pack moves: the bits of a 32-bit register.
+_MAX_BITS = 32
 #: Most words one pack or unpack moves.
 _MAX_WORDS = 2
 #: Most TXT characters that a pack of text can put into one DH. DH is the only destination
@@ -677,7 +664,7 @@ def _count_limit(kind: str, bank: str | None) -> int | None:
     """Return the most bits, words or characters that one register of ``bank`` packs or
     unpacks, or None if there is no limit."""
     if kind == "bits":
-        return _BITS_PER_REGISTER.get(bank or "")
+        return bits_per_register(bank or "")
     if kind == "text":
         return _DH_TEXT_CHARS if bank == "DH" else None
     return _MAX_WORDS
@@ -799,12 +786,12 @@ def _copy_dest_bank(kind: str | None, source: str, destination: str) -> tuple[st
             _check_source_text(source, "Copy.source")
         except FieldError:
             return None, Code.BANK_NOT_ALLOWED
-    in_bit_bank = _bank_prefix(destination) in BIT_BANKS
+    in_bit_bank = bank_prefix(destination) in BIT_BANKS
     if source.startswith("$"):
         return "OBJ-004", Code.CONSTANT_INTO_BIT if in_bit_bank else Code.BANK_NOT_ALLOWED
     if not in_bit_bank:
         return None, Code.BANK_NOT_ALLOWED
-    if kind == "bit" or not _in_its_bank(destination):
+    if kind == "bit" or bank_of(destination, "Copy.dest") is None:
         return "OBJ-004", Code.BANK_NOT_ALLOWED
     if kind in ("number", "text"):
         return "OBJ-024", Code.CONSTANT_INTO_BIT
@@ -831,7 +818,7 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
             or exc.reason is not Reason.POINTER
             or kind is None
             or not source.startswith("$")
-            or not _is_pointer(destination, field)
+            or not is_pointer(destination)
         ):
             raise
         raise AddressError(
@@ -841,28 +828,6 @@ def _check_copy_destination(destination: str, field: str, source: str, kind: str
             click_id="OBJ-004",
             code=exc.code,
         ) from None
-
-
-def _is_pointer(value: str, field: str) -> bool:
-    """Return whether ``value`` is a pointer ``BANK[DSn]``, a bank name with a DS address in
-    brackets."""
-    bank, bracket, index = value.partition("[")
-    if not bracket or bank not in ADDRESS_BANKS or not index.endswith("]"):
-        return False
-    try:
-        return check_address(index[:-1], field).bank == "DS"
-    except AddressError:
-        return False
-
-
-def _in_its_bank(address: str) -> bool:
-    """Return whether ``address`` is a valid CLICK address, with its number inside the range
-    of its bank."""
-    try:
-        check_address(address, "Copy.dest")
-    except AddressError:
-        return False
-    return True
 
 
 def _check_source_value(source: str, field: str) -> Constant:
@@ -973,10 +938,7 @@ def _number_fill_end(source: str, destination: str) -> Address | None:
     """
     if len(source) < 2 or constant_shape(source, _CONSTANTS) not in _NUMBER_KINDS:
         return None
-    try:
-        first = check_operand(destination, "Copy.dest").address
-    except FieldError:
-        return None
+    first = parse_address(destination)
     if first is None or first.bank != "TXT":
         return None
     return Address("TXT", first.number + len(source) - 1)
@@ -2465,7 +2427,7 @@ def _from_tags(
             kind = "pack_text"
             allow_whitespace = True
         elif conv_type == 0:
-            kind = "pack_bits" if _bank_prefix(source) in BIT_BANKS else "pack_words"
+            kind = "pack_bits" if bank_prefix(source) in BIT_BANKS else "pack_words"
             allow_whitespace = False
         else:
             return None
@@ -2481,7 +2443,7 @@ def _from_tags(
     if copy_type == 4:
         if not all([source, destination, destination_end]):
             return None
-        kind = "unpack_to_bits" if _bank_prefix(destination) in BIT_BANKS else "unpack_to_words"
+        kind = "unpack_to_bits" if bank_prefix(destination) in BIT_BANKS else "unpack_to_words"
         return Unpack(
             source=source,
             dest_start=destination,

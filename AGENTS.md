@@ -71,12 +71,14 @@ src/laddercodec/
 ├── model.py              # InstructionType enum, ConditionInstruction / AfInstruction bases; re-exports operands/
 ├── operands/             # Shared operand rules (private; model.py re-exports the public names)
 │   ├── address.py        # ADDRESS_BANKS, Address, check_address, normalize_address, normalize_fields,
-│   │                     #   normalize_items, display form, read_as_typed, X/Y slots
-│   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names)
+│   │                     #   normalize_items, display form, read_as_typed, X/Y slots, xy_points, xy_room;
+│   │                     #   readers that never raise: parse_address, split_pointer, is_pointer, bank_prefix, address_shape
+│   ├── banks.py          # Bank flags in CLICK's type order (bit 0 = X), banks(mask), mask(*names);
+│   │                     #   BIT_BANKS, REGISTER_BANKS, XY_BANKS, WORD_IO_BANKS, bits_per_register
 │   ├── checks.py         # Shared field checks: check_operand, check_constant,
 │   │                     #   check_out_target with per-field Constants; check_quoted_text (Compare, Search);
 │   │                     #   check_flag (re-exported by model.py); check_csv_flag (a CSV 0/1 keyword:
-│   │                     #   Coil, Copy family); BIT_BANKS, REGISTER_BANKS;
+│   │                     #   Coil, Copy family); bank_of (the bank that check_operand accepts, or None);
 │   │                     #   Refusals: collects every refusal of one construction (Timer, Coil)
 │   ├── constants.py      # classify(): constant kinds as CLICK's shared input check reads them;
 │   │                     #   FLOAT32_MAX (Math), hex_display() (Math, Send/Receive)

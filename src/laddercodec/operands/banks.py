@@ -59,3 +59,32 @@ def mask(*names: str) -> Bank:
     for name in names:
         result |= Bank[name]
     return result
+
+
+#: The names of the bit banks: X, Y, C, T, CT and SC.
+BIT_BANKS = banks(BITS)
+#: The names of the register banks.
+REGISTER_BANKS = banks(REGISTERS)
+#: X and Y, the banks that number their points by 16-point slot.
+XY_BANKS = banks(Bank.X | Bank.Y)
+#: XD and YD, the banks that hold the X and Y points as words.
+WORD_IO_BANKS = banks(Bank.XD | Bank.YD)
+
+#: The 16-bit registers and the 32-bit registers.
+_BITS_16 = Bank.DS | Bank.DH | Bank.TD | Bank.SD | Bank.XD | Bank.YD
+_BITS_32 = Bank.DD | Bank.DF | Bank.CTD
+
+
+def bits_per_register(bank: str) -> int | None:
+    """Return how many bits one register of ``bank`` holds: 16 or 32.
+
+    Return None for a bit bank, for TXT and for text that names no bank.
+    """
+    flag = Bank.__members__.get(bank)
+    if flag is None:
+        return None
+    if flag & _BITS_16:
+        return 16
+    if flag & _BITS_32:
+        return 32
+    return None

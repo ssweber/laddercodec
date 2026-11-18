@@ -3,6 +3,10 @@
 :func:`check_address` parses and checks an address, :func:`normalize_address` writes it
 in the form CLICK shows, and ``OPERAND_RE`` is the shape the CSV token parser uses to
 tell a contact from other condition tokens.
+
+:func:`parse_address`, :func:`split_pointer`, :func:`is_pointer`, :func:`bank_prefix` and
+:func:`address_shape` read address text and never raise. :func:`xy_points` and
+:func:`xy_room` count X/Y points by slot.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from contextvars import ContextVar
 from typing import Any, NamedTuple
 
 from ..codes import Code
+from .banks import WORD_IO_BANKS, XY_BANKS
 from .errors import AddressError, FieldError, Reason
 
 #: The pattern of an address token, in any letter case.  The CSV token parser uses it to tell
@@ -51,8 +56,6 @@ XY_SLOTS: tuple[tuple[int, int], ...] = ((1, 16), (21, 36)) + tuple(
     (100 * m + 1, 100 * m + 16) for m in range(1, 9)
 )
 
-_MODULE_BANKS = frozenset({"X", "Y"})
-_WORD_IO_BANKS = frozenset({"XD", "YD"})
 _ADDRESS_RE = re.compile(r"([A-Z]{1,3})([0-9]{1,5})(u?)")
 
 
@@ -69,7 +72,7 @@ class Address(NamedTuple):
 
         X and Y pad the number to 3 digits.  Every other bank writes it with no padding.
         """
-        number = f"{self.number:03d}" if self.bank in _MODULE_BANKS else str(self.number)
+        number = f"{self.number:03d}" if self.bank in XY_BANKS else str(self.number)
         return f"{self.bank}{number}{'u' if self.upper else ''}"
 
 
@@ -200,11 +203,11 @@ def normalize_address(value: str, field: str | None = None) -> str:
 
 
 def _bank_range_text(bank: str) -> str:
-    if bank in _MODULE_BANKS:
+    if bank in XY_BANKS:
         return (
             f"{bank}001-{bank}016, {bank}021-{bank}036, {bank}101-{bank}116 ... {bank}801-{bank}816"
         )
-    if bank in _WORD_IO_BANKS:
+    if bank in WORD_IO_BANKS:
         return f"{bank}0, {bank}0u, {bank}1-{bank}8"
     lo, hi = ADDRESS_BANKS[bank]
     return f"{bank}{lo}-{bank}{hi}"
@@ -212,12 +215,12 @@ def _bank_range_text(bank: str) -> str:
 
 def _in_range(bank: str, digits: str, upper: bool) -> bool:
     if upper:
-        return bank in _WORD_IO_BANKS and digits == "0"
+        return bank in WORD_IO_BANKS and digits == "0"
     number = int(digits)
     lo, hi = ADDRESS_BANKS[bank]
     if not lo <= number <= hi:
         return False
-    if bank in _MODULE_BANKS:
+    if bank in XY_BANKS:
         return xy_slot(number) is not None
     return True
 
@@ -228,6 +231,99 @@ def xy_slot(number: int) -> int | None:
         if first <= number <= last:
             return index
     return None
+
+
+def xy_points(first: int, last: int) -> int:
+    """Return how many X/Y points of :data:`XY_SLOTS` lie in ``first..last``."""
+    return sum(max(0, min(last, hi) - max(first, lo) + 1) for lo, hi in XY_SLOTS)
+
+
+def xy_room(number: int) -> int:
+    """Return how many X/Y points a count from point ``number`` can cover in its slot run.
+
+    A slot run is the set of slots that one count may cross. The CPU slot and its dual
+    option slot form one run, so a count from X001 can cover 32 points. A count from an
+    expansion slot must stay in that slot, so a count from X101 can cover 16.
+    """
+    if number <= 16:
+        return 33 - number
+    if number <= 36:
+        return 37 - number
+    return 17 - number % 100
+
+
+# ---------------------------------------------------------------------------
+# Reading address text without a refusal
+# ---------------------------------------------------------------------------
+
+#: A pointer, ``BANK[index]``, with a bank of one to three uppercase letters.
+_POINTER_RE = re.compile(r"([A-Z]{1,3})\[(.*)\]")
+#: Uppercase letters followed by digits, such as ``DS001`` or ``ZZ1``.
+_SHAPE_RE = re.compile(r"([A-Z]+)([0-9]+)")
+_LETTERS_RE = re.compile(r"[A-Z]*")
+
+
+def parse_address(text: str) -> Address | None:
+    """Return the address that ``text`` spells, or None if it is not a CLICK address.
+
+    The function reads ``text`` as :func:`check_address` does. The bank is uppercase and
+    one of :data:`ADDRESS_BANKS`, and the number is inside the bank's range. ``XD0u`` and
+    ``YD0u`` are addresses here. :func:`check_address` refuses them when it is given no
+    banks.
+    """
+    match = _ADDRESS_RE.fullmatch(text)
+    if match is None:
+        return None
+    bank, digits, upper = match.group(1), match.group(2), match.group(3) == "u"
+    if bank not in ADDRESS_BANKS or not _in_range(bank, digits, upper):
+        return None
+    return Address(bank, int(digits), upper)
+
+
+def split_pointer(text: str) -> tuple[str, str] | None:
+    """Return the bank and the index of the pointer ``BANK[index]``, or None for other text.
+
+    The bank is one to three uppercase letters, and the letters need not name a bank. The
+    index is any text between the brackets that holds no line break. For example,
+    ``split_pointer("DS[ds1]")`` returns ``("DS", "ds1")``.
+    """
+    match = _POINTER_RE.fullmatch(text)
+    return None if match is None else (match.group(1), match.group(2))
+
+
+def is_pointer(text: str) -> bool:
+    """Return whether ``text`` is a pointer: a bank of :data:`ADDRESS_BANKS`, then a DS
+    address in brackets, such as ``DD[DS1]``.
+
+    The bank may be one that no pointer can address, such as X in ``X[DS1]``.
+    """
+    parts = split_pointer(text)
+    if parts is None or parts[0] not in ADDRESS_BANKS:
+        return False
+    index = parse_address(parts[1])
+    return index is not None and index.bank == "DS"
+
+
+def bank_prefix(text: str) -> str:
+    """Return the uppercase ASCII letters at the start of ``text``.
+
+    ``bank_prefix("CTD5")`` returns ``"CTD"``, and ``bank_prefix("X[DS1]")`` returns ``"X"``.
+    The letters need not name a bank, and the rest of ``text`` is not read. If ``text``
+    starts with any other character, the function returns an empty string.
+    """
+    match = _LETTERS_RE.match(text)
+    return match.group(0) if match else ""
+
+
+def address_shape(text: str) -> tuple[str, str] | None:
+    """Return the letters and the digits of ``text`` if it is uppercase ASCII letters
+    followed by ASCII digits. Return None for any other text.
+
+    ``address_shape("DS001")`` returns ``("DS", "001")``. The letters need not name a bank,
+    and the number may be any length.
+    """
+    match = _SHAPE_RE.fullmatch(text)
+    return None if match is None else (match.group(1), match.group(2))
 
 
 def check_address(

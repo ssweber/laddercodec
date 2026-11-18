@@ -18,7 +18,6 @@ taller.  ``pin_rows`` holds the row of each pin, and the blob stores it in its p
 
 from __future__ import annotations
 
-import re
 import struct
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, cast, get_args
@@ -33,7 +32,9 @@ from ..model import (
     check_address,
     normalize_items,
 )
-from ..operands.checks import BIT_BANKS, Constants, Refusals, check_operand
+from ..operands.address import address_shape
+from ..operands.banks import BIT_BANKS
+from ..operands.checks import Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
 from .timer import TimeUnit
@@ -176,13 +177,9 @@ def _format_optional_list(values: tuple[str, ...]) -> str:
     return ",".join(value or "None" for value in values)
 
 
-#: A preset that names a register rather than a literal duration.
-_REGISTER_RE = re.compile(r"[A-Z]+[0-9]+")
-
-
 def is_register_preset(preset: str) -> bool:
     """Return True if a time drum preset names a register, such as ``DS1``, not a duration."""
-    return bool(_REGISTER_RE.fullmatch(preset))
+    return address_shape(preset) is not None
 
 
 def _constant_preset_mask(presets: tuple[str, ...]) -> str:

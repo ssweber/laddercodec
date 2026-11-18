@@ -33,7 +33,9 @@ from ..model import (
     normalize_address,
     to_display,
 )
-from ..operands.checks import BIT_BANKS, Constants, Refusals, check_constant, check_csv_flag
+from ..operands.address import address_shape, xy_points, xy_room
+from ..operands.banks import BIT_BANKS, WORD_IO_BANKS, XY_BANKS
+from ..operands.checks import Constants, Refusals, check_constant, check_csv_flag
 from ..operands.constants import Kind, hex_display
 from ..operands.unchecked import holds_refusals
 from .family import AfInstructionFamilySpec, fixed_cell_params
@@ -136,9 +138,6 @@ def _choice_reason(value: object) -> Reason:
     return Reason.CHOICE if isinstance(value, str) else Reason.FORM
 
 
-_DS_ADDRESS_RE = re.compile(r"DS([1-9][0-9]*)")
-
-
 def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget, high: int) -> None:
     """Refuse a Slave ID that is neither a number from 0 to *high* nor an address from DS1
     to DS4500.
@@ -152,10 +151,12 @@ def _check_device_id(check: Refusals, target: ModbusRtuTarget | ModbusTcpTarget,
         if check.refused("device_id"):
             return
         typed = str(target.device_id)  # check.normalize put it in display form
-        m = _DS_ADDRESS_RE.fullmatch(typed)
+        shape = address_shape(typed)
+        # In display form, a DS number has no leading zero, so DS0 and DS00 are refused here.
+        ds = shape is not None and shape[0] == "DS" and not shape[1].startswith("0")
         # Check the length before int(). DS4500 is the last DS address, so more than four
         # digits is out of range, and int() raises for a string of more than 4300 digits.
-        if not m or len(m.group(1)) > 4 or int(m.group(1)) > 4500:
+        if not ds or len(shape[1]) > 4 or int(shape[1]) > 4500:
             check.refuse(
                 "device_id",
                 f"must be a number or a DS address (DS1..DS4500), got {typed!r}",
@@ -323,34 +324,27 @@ def _check_function_code(check: Refusals, function_code: object, allowed: tuple[
 # Address helpers
 # ---------------------------------------------------------------------------
 
-_ADDR_NUM_RE = re.compile(r"^([A-Z]+)([0-9]+)$")
-_XY_BANKS = frozenset({"X", "Y"})
-
-
-def _xy_points(first: int, last: int) -> int:
-    """How many X/Y points of :data:`XY_SLOTS` lie in ``first..last``."""
-    return sum(max(0, min(last, hi) - max(first, lo) + 1) for lo, hi in XY_SLOTS)
-
 
 def _xy_points_left(number: int) -> int:
     """X/Y points from ``number`` through the last slot (X816), counted along the slots."""
-    return _xy_points(number, XY_SLOTS[-1][1])
+    return xy_points(number, XY_SLOTS[-1][1])
 
 
-def _xy_click_room(number: int) -> int:
-    """Return how many X/Y points a count from point ``number`` can cover in its slot run.
+def _remote_xy_room(local: Address, remote_addr: Address) -> int:
+    """Return how many points a count from the X or Y point ``local`` can cover when the
+    remote start is the CLICK address ``remote_addr``.
 
-    A slot run is the set of slots that one count may cross. The CPU slot and its dual
-    option slot form one run, so a count from X001 can cover 32 points. A count from an
-    expansion slot must stay in that slot, so a count from X101 can cover 16. A Send with
-    a CLICK remote address uses this room for an X/Y source. A Receive into Y uses it too
-    (see :func:`_receive_y_room`).
+    For a remote X or Y start, the higher of the two start numbers decides the slot run
+    (:func:`~laddercodec.operands.address.xy_room`). For a remote start in another bank,
+    such as C, the room is the smaller of the room left in that bank and the slot run from
+    ``local``. A Send with a CLICK remote address uses this room for an X/Y source. A
+    Receive into Y uses it too, except from a remote C start past Y036
+    (:func:`_receive_y_room`).
     """
-    if number <= 16:
-        return 33 - number
-    if number <= 36:
-        return 37 - number
-    return 17 - number % 100
+    if remote_addr.bank in XY_BANKS:
+        return xy_room(max(local.number, remote_addr.number))
+    remote_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
+    return min(remote_room, xy_room(local.number))
 
 
 def _receive_y_room(
@@ -358,7 +352,8 @@ def _receive_y_room(
 ) -> int:
     """Return how many points a Receive can count into Y from the Y point ``local``.
 
-    The limit is the room in the slot run from ``local`` (:func:`_xy_click_room`), for
+    The limit is the room in the slot run from ``local``
+    (:func:`~laddercodec.operands.address.xy_room`), for
     every kind of remote address. The remote start can lower it. For a remote X or Y
     start, the run is taken from the higher of the two start numbers. A remote C, T, CT or
     SC start caps the count at the room left in that bank. A MODBUS 984 start up to 65535
@@ -369,13 +364,11 @@ def _receive_y_room(
     count.
     """
     if remote_addr is not None:
-        if remote_addr.bank in _XY_BANKS:
-            return _xy_click_room(max(local.number, remote_addr.number))
-        remote_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
         if remote_addr.bank == "C" and local.number > 36:
+            remote_room = ADDRESS_BANKS["C"][1] + 1 - remote_addr.number
             return min(remote_room, _xy_points_left(local.number))
-        return min(remote_room, _xy_click_room(local.number))
-    room = _xy_click_room(local.number)
+        return _remote_xy_room(local, remote_addr)
+    room = xy_room(local.number)
     if isinstance(remote, ModbusAddress) and not remote.is_hex and int(remote.address) <= 0xFFFF:
         room = min(room, 0x10000 - int(remote.address))
     return room
@@ -386,12 +379,13 @@ def _check_c_remote_room(check: Refusals, quantity: int, remote_addr: Address) -
     on the remote side.
 
     For a remote X or Y start, the room is the slot run from that start
-    (:func:`_xy_click_room`). For a remote C, T, CT or SC start, it is the room left in
-    that bank. :func:`_check_quantity` checks the room left in C on the local side.
+    (:func:`~laddercodec.operands.address.xy_room`). For a remote C, T, CT or SC start, it
+    is the room left in that bank. :func:`_check_quantity` checks the room left in C on the
+    local side.
     """
     bank, number = remote_addr.bank, remote_addr.number
-    if bank in _XY_BANKS:
-        room = _xy_click_room(number)
+    if bank in XY_BANKS:
+        room = xy_room(number)
         if quantity > room:
             check.refuse(
                 "quantity",
@@ -445,11 +439,11 @@ def _addr_end(start: str, quantity: int, cls: str) -> str:
 
     Five elements from DS1 end at DS5, and 17 from X001 end at X021.
     """
-    m = _ADDR_NUM_RE.fullmatch(start)
-    if not m:
+    shape = address_shape(start)
+    if shape is None:
         return start
-    prefix, number = m.group(1), int(m.group(2))
-    if prefix in _XY_BANKS:
+    prefix, number = shape[0], int(shape[1])
+    if prefix in XY_BANKS:
         return Address(prefix, _xy_nth(prefix, number, quantity - 1, cls)).display
     return Address(prefix, number + quantity - 1).display
 
@@ -664,7 +658,7 @@ def _check_quantity(
             code=Code.COUNT_OUT_OF_RANGE,
         )
         return
-    if local.bank in _XY_BANKS:
+    if local.bank in XY_BANKS:
         room = _xy_points_left(local.number) if xy_room is None else xy_room
         if quantity > room:
             check.refuse(
@@ -677,7 +671,7 @@ def _check_quantity(
                 code=Code.COUNT_OUT_OF_RANGE,
             )
         return
-    if local.bank in ("XD", "YD"):
+    if local.bank in WORD_IO_BANKS:
         return  # XD and YD take one element, and another check refuses a larger count
     last_number = ADDRESS_BANKS[local.bank][1]
     left = last_number - local.number + 1
@@ -826,15 +820,8 @@ def _check_send(send: Send, check: Refusals) -> tuple[int, int] | None:
 
     if bit is not None and local is not None and counted:
         xy_room = None
-        if local.bank in _XY_BANKS and remote_addr is not None:
-            if remote_addr.bank in _XY_BANKS:
-                # Send: the higher of the two start numbers decides the room.
-                xy_room = _xy_click_room(max(local.number, remote_addr.number))
-            else:
-                # A remote C start: the room is the smaller of the room left in C and the
-                # slot run from the local start.
-                c_room = ADDRESS_BANKS[remote_addr.bank][1] + 1 - remote_addr.number
-                xy_room = min(c_room, _xy_click_room(local.number))
+        if local.bank in XY_BANKS and remote_addr is not None:
+            xy_room = _remote_xy_room(local, remote_addr)
         _check_quantity(check, quantity, local, _SEND_CAPS, bit, xy_room)
         if local.bank == "C" and remote_addr is not None:
             _check_c_remote_room(check, quantity, remote_addr)
@@ -974,9 +961,9 @@ def _check_receive(receive: Receive, check: Refusals) -> tuple[int, int] | None:
             label=f"{who} remote_start (for a {local.bank} dest)",
             bank_id=_BANK_ID,
         )
-        hex_pair = remote_addr.bank in ("XD", "YD")
+        hex_pair = remote_addr.bank in WORD_IO_BANKS
     if bit is not None and local is not None and counted:
-        xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in _XY_BANKS else None
+        xy_room = _receive_y_room(local, remote, remote_addr) if local.bank in XY_BANKS else None
         if local.bank == "TXT":
             # A Receive TXT count is in characters, two to a register. It must be even, from
             # 2 to 250.
@@ -1709,8 +1696,8 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
         start, end = raw.split("..", 1)
         start = normalize_address(start.strip(), field)
         end = normalize_address(end.strip(), field)
-        m_start = _ADDR_NUM_RE.fullmatch(start)
-        m_end = _ADDR_NUM_RE.fullmatch(end)
+        m_start = address_shape(start)
+        m_end = address_shape(end)
         if not (m_start and m_end):
             raise FieldError(
                 f"range {raw!r} must run between two addresses of one bank",
@@ -1718,16 +1705,16 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 reason=Reason.FORM,
                 code=Code.NOT_AN_ADDRESS,
             )
-        prefix = m_start.group(1)
-        if m_end.group(1) != prefix:
+        prefix = m_start[0]
+        if m_end[0] != prefix:
             raise FieldError(
-                f"range {raw!r} mixes banks {prefix} and {m_end.group(1)}",
+                f"range {raw!r} mixes banks {prefix} and {m_end[0]}",
                 field=field,
                 reason=Reason.FORM,
                 code=Code.RANGE_MIXED_BANKS,
             )
         check_address(end, field, {prefix}, label=f"range end of {raw!r}")
-        first, last = int(m_start.group(2)), int(m_end.group(2))
+        first, last = int(m_start[1]), int(m_end[1])
         if last < first:
             raise FieldError(
                 f"range {raw!r} runs backwards",
@@ -1735,7 +1722,7 @@ def _parse_range_quantity(raw: str, field: str) -> tuple[str, int]:
                 reason=Reason.FORM,
                 code=Code.RANGE_NOT_ASCENDING,
             )
-        qty = _xy_points(first, last) if prefix in _XY_BANKS else last - first + 1
+        qty = xy_points(first, last) if prefix in XY_BANKS else last - first + 1
         return start, qty
     return raw.strip(), 1
 
