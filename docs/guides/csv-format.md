@@ -10,6 +10,8 @@ Relevant entry points:
 - `laddercodec.read_csv(path, *, strict=True, unchecked=False)`
 - `laddercodec.write_csv(path, rungs, *, index=False, stop="end")`
 - `laddercodec.csv_rows(rungs, *, index=False, stop="end")`
+- `laddercodec.write_bundle(directory, project, *, index=False)`
+- `laddercodec.read_bundle(directory, *, strict=True, unchecked=False)`
 - `laddercodec.csv.bundle.parse_bundle(directory)`
 - `pyrung.click.to_ladder(program, tag_map)`
 - `pyrung.click.LadderBundle.write(directory)`
@@ -36,20 +38,75 @@ A bundle directory contains:
     <name>.csv      one file per subroutine
 ```
 
-Rules:
+`write_bundle` writes a `Project` as a bundle, and `read_bundle` reads it back:
 
-- `parse_bundle(directory)` requires `main.csv`. It reads every `.csv` file
-  directly in `subroutines/` (any case of the extension), in lexical filename
-  order. It takes each file's stem as the subroutine's slug. A bundle with no
-  `subroutines/` folder has no subroutines. `parse_bundle` ignores other files.
-- laddercodec does not write bundles. `write_csv` writes one CSV file.
-- `pyrung`'s `LadderBundle.write(directory)`:
-  - creates the directory (`parents=True, exist_ok=True`) and overwrites
-    existing files;
-  - writes `subroutines/` only when the program has subroutines;
-  - names each file after the subroutine's name as written, with no slug
-    applied; a name that comes twice gets `_2`, `_3`, ... on its stem;
-  - also writes `rung_sources.json`, which `parse_bundle` ignores.
+```python
+from laddercodec import read_bundle, write_bundle
+
+write_bundle("my_program", project)
+project = read_bundle("my_program")
+```
+
+`write_bundle(directory, project, *, index=False)`:
+
+- writes `main.csv` with `stop="end"` and `subroutines/<name>.csv` with
+  `stop="return"`, as `write_csv` writes each file. `<name>` is the
+  subroutine's name with the whitespace stripped from both ends. It does not
+  write `project.main.name`;
+- creates the directory and `subroutines/` if they are missing, and replaces
+  a file of the same name. It does not delete or change any other file. A
+  subroutine file left from an earlier write stays, and `read_bundle` reads it;
+- raises `FieldError` for a subroutine name that CLICK refuses. It raises
+  `WriterError` for two names that are equal when case is ignored, and for a
+  name that holds a control character (U+0000 to U+001F, or U+007F) anywhere,
+  including at either end. It also raises `WriterError` when a path that it
+  would write exists and is of the wrong kind, such as a directory named
+  `main.csv`;
+- checks every name and path and builds every file's rows before it writes any
+  file. A `FieldError` or `WriterError` leaves the directory as it was. An
+  `OSError` while it writes, such as a full disk, can leave some files written
+  and others not;
+- with `index=True`, numbers the rungs of each file from `R1`.
+
+`read_bundle(directory, *, strict=True, unchecked=False)`:
+
+- reads each file as `read_csv` reads it, with the same `strict` and
+  `unchecked`. An error has the location of the file at fault;
+- returns the main program as `"Main Program"`, `prog_idx` 1, and then the
+  subroutines in the order described next, with `prog_idx` 2, 3, 4 and so on;
+- raises `CsvError` for a missing `main.csv`. It also raises `CsvError` for a
+  subroutine name that CLICK refuses, for a name that starts or ends with
+  whitespace, and for two subroutine names that are equal when case is
+  ignored. It checks the names before it reads any file.
+
+The files have no order. A round trip returns the subroutines sorted by name,
+not in the order of `project.subroutines`.
+
+Both readers, `read_bundle` and `parse_bundle(directory)`, list the same files:
+
+- `main.csv` is required.
+- The subroutines are the files directly in `subroutines/` whose names end in
+  `.csv`, in any case. A subroutine's name is its file's name without the last
+  four characters. `..csv` holds the subroutine `.`, and
+  `subroutines/main.csv` holds the subroutine `main`.
+- The subroutines are sorted by name with case ignored. Two names that differ
+  only in case are sorted by their exact text. The order is the same on every
+  operating system.
+- A bundle with no `subroutines/` folder has no subroutines.
+- Other files are ignored.
+
+`parse_bundle` returns a `ParsedCsvFileAst` for each subroutine file. Its
+`subroutine_slug` is the subroutine's name.
+
+`pyrung`'s `LadderBundle.write(directory)`:
+
+- creates the directory (`parents=True, exist_ok=True`) and overwrites
+  existing files;
+- writes `subroutines/` only when the program has subroutines;
+- names each file after the subroutine's name as written, with no slug
+  applied; a name that comes twice gets `_2`, `_3`, ... on its stem;
+- also writes `rung_sources.json`, which `read_bundle` and `parse_bundle`
+  ignore.
 
 ## CSV shape
 
@@ -1035,12 +1092,12 @@ Three cases differ:
   `file` only. A `csv.Error` (such as a cell longer than `csv.field_size_limit()`)
   arrives the same way, at the line its row starts on.
 
-The bundle reader gives the location the same way. `file` names the file at fault,
+`read_bundle` and `parse_bundle` give the location the same way. `file` names the file at fault,
 or `main.csv` when it is missing.
 
 ## Errors
 
-`decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()`, `csv_rows()` and `check()`
+`decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()`, `csv_rows()`, `read_bundle()`, `write_bundle()` and `check()`
 raise a `LaddercodecError` for input they can't read or write, and every
 `LaddercodecError` is a `ValueError`:
 
@@ -1048,9 +1105,9 @@ raise a `LaddercodecError` for input they can't read or write, and every
 |----------------|------------------------------------------------------------------------------|
 | `DecodeError`  | `decode()` for a bad envelope (magic or size), `decode_program()` for a bad file header |
 | `EncodeError`  | `encode()` for a rung it can't write: a grid of the wrong size, a wire CLICK can't draw, two `NOP`s, an `Undecoded` marker, a comment too long |
-| `CsvError`     | `read_csv` for a file that isn't UTF-8, or a row, token or rung it can't read |
-| `WriterError`  | `write_csv` and `csv_rows` for a rung the CSV can't hold                     |
-| `FieldError`   | building an instruction, `read_csv` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address |
+| `CsvError`     | `read_csv` and `read_bundle` for a file that isn't UTF-8, or a row, token or rung they can't read; `read_bundle` for a missing `main.csv`, a subroutine file name that CLICK refuses or that starts or ends with whitespace, or two subroutine file names that are equal when case is ignored |
+| `WriterError`  | `write_csv`, `csv_rows` and `write_bundle` for a rung the CSV can't hold; `write_bundle` for two subroutine names that are equal when case is ignored, a name that holds a control character, or a path it would write that exists and is of the wrong kind |
+| `FieldError`   | building an instruction, `read_csv`, `read_bundle` or `encode()`, for a value CLICK's dialog refuses; `AddressError` for an address. `write_bundle` for a subroutine name that CLICK refuses |
 
 ## Strict validation and failure mode
 

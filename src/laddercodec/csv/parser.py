@@ -20,12 +20,24 @@ from .location import AF_COLUMN, add_location, at, located, located_in_file
 from .token_parser import parse_af_token, parse_condition_token
 
 
+def csv_stem(path: Path) -> str | None:
+    """Return the name of *path* without its last four characters, if they are ``.csv``.
+
+    The ending may be in any case.  Return None if the name does not end in ``.csv``.
+    The stem of ``Pump.CSV`` is ``Pump``, the stem of ``..csv`` is ``.``, and the stem of
+    ``.csv`` is the empty string.
+    """
+    name = path.name
+    return name[:-4] if name.lower().endswith(".csv") else None
+
+
 def _detect_file_role(path: Path) -> tuple[Literal["main", "subroutine"], str | None]:
+    # A CSV file in a folder named "subroutines" is a subroutine, even one named main.csv,
+    # and its stem is the slug.
+    if path.parent.name == "subroutines":
+        return "subroutine", csv_stem(path)
     if path.name == "main.csv":
         return "main", None
-    # A CSV file in a folder named "subroutines" is a subroutine, and its stem is the slug.
-    if path.parent.name == "subroutines" and path.suffix.lower() == ".csv":
-        return "subroutine", path.stem
     return "subroutine", None
 
 

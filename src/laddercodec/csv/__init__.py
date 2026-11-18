@@ -9,16 +9,13 @@ that CLICK's syntax check draws.
 
 from __future__ import annotations
 
-from contextlib import nullcontext
 from pathlib import Path
 
 from ..decode import Rung
-from ..operands.unchecked import unchecked as _unchecked
 from ..refused import warn_refused
 from .contract import CONDITION_COLUMNS, CSV_HEADER
-from .converter import convert_rung, rung_tokens
-from .location import CsvLocation, locate_held, located_in_file
-from .parser import parse_csv_file
+from .location import CsvLocation
+from .reader import read_rungs
 
 
 def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) -> list[Rung]:
@@ -63,15 +60,8 @@ def read_csv(path: Path | str, *, strict: bool = True, unchecked: bool = False) 
     *unchecked* is ``True``, each refusal that an instruction keeps carries the
     location it would have raised with.
     """
-    path = Path(path)
-    ast = parse_csv_file(path, syntax="canonical")
-    rungs: list[Rung] = []
-    with located_in_file(path), _unchecked() if unchecked else nullcontext():
-        for rung in ast.rungs:
-            rungs.extend(convert_rung(rung, strict=strict))
+    rungs = read_rungs(Path(path), strict=strict, unchecked=unchecked)
     if unchecked:
-        for rung in rungs:
-            locate_held(rung_tokens(rung), file=path)
         warn_refused(rungs)
     return rungs
 
