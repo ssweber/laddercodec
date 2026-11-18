@@ -623,11 +623,6 @@ def test_fill_into_sd_refused_for_another_reason(value: str, start: str, end: st
     assert errors[0].code != "not-writable"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="CLICK refuses a Fill of hex above FFFFh with OBJ-005, and laddercodec "
-    "accepts the value and refuses SD1..SD2 with OBJ-004",
-)
 @pytest.mark.parametrize("value", ["10000h", "FFFFFFFFh"])
 def test_fill_of_hex_above_ffffh_into_sd_refuses_the_value(value: str) -> None:
     errors = _errors(lambda: Fill(value, "SD1", "SD2"))

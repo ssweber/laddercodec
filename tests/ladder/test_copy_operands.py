@@ -274,7 +274,7 @@ _HEX_SIGN = "a hex constant has no sign$"
 _COPY_HEX_SIGN = r"a hex constant has no sign \(OBJ-005\)$"
 _HEX_ABOVE = r"is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh \(OBJ-005\)"
 _HEX_PADDED = r"a hex constant above FFFFh has at most 8 digits \(OBJ-005\)$"
-_FILL_HEX_PADDED = "a hex constant above FFFFh has at most 8 digits$"
+_FILL_HEX_ABOVE = r"is above FFFFh; a hex constant here is 0h to FFFFh \(OBJ-005\)"
 _TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _TEXT_ONE = "a text constant is one character in quotes, with no quote inside"
 _INT32 = INT_RULE
@@ -438,11 +438,13 @@ _FILL_VALUE_REFUSED = [
     ("6000000000", "DS52", "DS55", _INT32),
     ("+1h", "DS52", "DS55", _HEX_SIGN),
     ("-1h", "DS52", "DS55", _HEX_SIGN),
-    ("100000000h", "DS52", "DS55", _HEX_ABOVE),
-    ("0FFFFFFFFh", "DS52", "DS55", _FILL_HEX_PADDED),
+    ("10000h", "DS52", "DS55", _FILL_HEX_ABOVE),
+    ("FFFFFFFFh", "DS52", "DS55", _FILL_HEX_ABOVE),
+    ("100000000h", "DS52", "DS55", _FILL_HEX_ABOVE),
+    ("0FFFFFFFFh", "DS52", "DS55", _FILL_HEX_ABOVE),
     ("2147483648", "TXT2", "TXT5", _INT32),
     ("+1h", "TXT2", "TXT5", _HEX_SIGN),
-    ("100000000h", "TXT2", "TXT5", _HEX_ABOVE),
+    ("100000000h", "TXT2", "TXT5", _FILL_HEX_ABOVE),
     ('""', "TXT2", "TXT5", _TEXT_ONE),
     ('"""', "TXT2", "TXT5", _TEXT_ONE),
     ('"a"b"', "TXT2", "TXT5", _TEXT_ONE),
@@ -454,6 +456,12 @@ _FILL_VALUE_REFUSED = [
     ('"AB"', "TXT2", "TXT5", "takes one character"),
     (_TEXT_128, "TXT2", "TXT5", "takes one character"),
     ("-1E999", "DS52", "DS55", _FINITE),
+    # an integer or hex constant of more than one character
+    ("-5", "TXT2", "TXT5", r"takes one. Write one character"),
+    ("123", "TXT2", "TXT5", r"takes one. Write one character"),
+    ("10h", "TXT2", "TXT5", r"takes one. Write one character"),
+    ("5h", "TXT2", "TXT5", r"takes one. Write one character"),
+    ("FFFFh", "TXT2", "TXT5", r"takes one. Write one character"),
 ]
 
 
@@ -479,10 +487,10 @@ def test_fill_value_constant_refused_through_read_csv(tmp_path: Path, token: str
         ("2147483647", "DS52", "DS55"),
         ("-2147483648", "DS52", "DS55"),
         ("FFFFh", "DS52", "DS55"),
-        # a 32-bit hex Fill and a number into TXT are accepted
-        ("10000h", "DS52", "DS55"),
-        ("FFFFFFFFh", "DS52", "DS55"),
+        # a number into TXT is accepted if it is a digit or a real
         ("5", "TXT2", "TXT5"),
+        ("1.5", "TXT2", "TXT5"),
+        ("1234567.8", "TXT2", "TXT5"),
         ('"~"', "TXT2", "TXT5"),
         ("$00", "TXT2", "TXT5"),
         ("$7E", "TXT2", "TXT5"),

@@ -208,6 +208,16 @@ class TestForCount:
         with pytest.raises(FieldError, match="^ForLoop.count"):
             ForLoop(count=limit)
 
+    @pytest.mark.parametrize("count", ["-0", "-00", " -0 "])
+    def test_minus_zero_is_zero(self, count: str) -> None:
+        assert ForLoop(count=count).count == "0"
+        assert ForLoop(count=count).to_csv() == "for(0)"
+
+    @pytest.mark.parametrize("count", ["-0.0", "--0", "-0x", "+0", "-01"])
+    def test_other_signed_counts_refused(self, count: str) -> None:
+        with pytest.raises(FieldError, match="^ForLoop.count"):
+            ForLoop(count=count)
+
     @pytest.mark.parametrize("limit", ["DF1", "DH1", "X001", "C1", "T1", "CT1", "TXT1", "XD0"])
     def test_other_banks_refused(self, tmp_path: Path, limit: str) -> None:
         message = (
