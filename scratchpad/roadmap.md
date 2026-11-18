@@ -375,20 +375,16 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     A real constant or a DF pointer into TXT accepts what CLICK's dialog offers a DF address (closed, Sam,
     2026-11-17):
     - `to_text(exponential=0|1)`, type 3 or 4 (`0x2206` = 1);
-    - a real constant's end at its typed length (`1.5` into TXT1 ends in TXT3);
+    - a real constant's end at its saved length (`1.5` into TXT1 ends in TXT3, and `1.50`, saved as `1.5`,
+      ends in TXT3 too);
     - `suppress_zero` refused.
 
     A DD or DS pointer keeps suppress zero (type 1, no end). The coverage golden `copy__conversion` holds one
-    rung of each new encoding. It waits on a paste check (CLICK). Open:
-    - Not answered (CLICK): a pointer beside DF, DD or CTD (`DD[DS1]` and `CTD[DS1]` into DF1, DF1 into
-      `DD[DS1]` and `CTD[DS1]`, `DF[DS1]` into DD1 and CTD1, pointer to pointer such as `DD[DS1]` into
-      `DF[DS2]`). The encoder writes type 0, and a saved type 7 decodes as `raw(...)`.
-    - Not answered (CLICK): a hex constant above 7FFFh into DF (`FFFFh`). The encoder writes type 0.
-    - Not answered (CLICK): a number's end with Do not suppress zero (type 2). The encoder writes the same
-      end.
-    - A number into TXT with no `to_text` (`copy(5,TXT1)`). CLICK saves every answered number into TXT with a
-      text type. Construction accepts the plain copy and writes type 0. Sam decides whether it is refused or
-      read as `to_text`.
+    rung of each new encoding. It waits on a paste check (CLICK).
+
+    Not answered (CLICK): `DF1` into `DD[DS1]`, `DD1` into `DF[DS1]`, and `DF[DS1]` into `CTD1` and `CTD1`
+    into `DF[DS1]` as a plain copy. The encoder writes type 7 for each of them. CLICK saves type 7 for
+    `DF[DS1]` into DD1, for `DD[DS1]` and `CTD[DS1]` into DF1, and for DF1 into `CTD[DS1]`.
   - Quoted text with an E into TXT: accepted and encoded as text (Sam, 2026-11-17; item 4).
 - **SC gaps (closed, 2026-11-16):** CLICK refuses an Out on an SC address outside `WRITABLE_SC` (SC49, SC163,
   SC310 and 12 more) with OBJ-003. It accepts SC50 and SC162. `WRITABLE_SC` stands. Out, Set and Reset report
@@ -460,9 +456,17 @@ Follow-ups (nothing):
 - The OBJ-1009 message names 3.402823466E+38, which the 6-digit rule itself refuses. Reword the message once
   the largest real in Math is answered (Open CLICK questions).
 
-Open (CLICK): does a clipboard copy-back of a dialog-made Copy carry tag 0x1201 as "0"? The clipboard form
-natively writes "0" (tumbler). The SCR form keeps it empty or leaves it out. A pasted block Copy was saved
-without it. The encoder writes "0" in every Copy-family blob. Nothing changes until CLICK answers.
+Closed (2026-11-18, by the rule that the encoder keeps the pre-v4 form of an instruction that both versions
+share): tag 0x1201 of a Copy. CLICK v4's dialog sets the tag in every single Copy and Block Copy. Its clipboard
+copy holds -1, and its program file holds the tag empty. A clipboard copy from CLICK before v4 holds 0, or -1
+with a termination code. When you paste a Copy that holds 0 into v4, v4's copy-back keeps the 0. The encoder
+writes 0, except -1 for a termination code and for a single Copy's text constant source. The encoder and the
+goldens stay as they are. No capture shows a Fill, Pack or Unpack that v4's dialog saved.
+
+**Open (CLICK v3.92):** paste a single Copy from v4 that has a numeric source and no termination code, so that
+it holds 0x1201 = -1. Does v3.92 read it as it reads the same Copy with 0? If it does, the encoder could write
+-1 in every single Copy and Block Copy. That would change 19 golden `.bin` files, and each would need a paste
+check (CLICK).
 
 **Question for CLICK:** what does each other dialog turn `005`, `+5`, `0ffh`, `0FFH`, `1.50` and `1.5E+3` into?
 Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, drum durations and the For count.
@@ -522,8 +526,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   reserved slots. Open: a span of more than two expansion slots, a Y range that starts in the option slot, and
   the lists CLICK stores on a CPU with I/O modules. There the rule may refuse ranges that CLICK stores
   correctly, or accept ones that CLICK stores wrongly.
-- **Largest real in Math:** does a decimal Math accept `3.40282E+38` and refuse `3.40283E+38` into DF1, and is
-  it saved as typed? The code accepts the first and refuses the second with OBJ-1009. Compare accepts
+- **Largest real in Math:** a decimal Math refuses `3.4028235E+38` into DS1, alone and as
+  `DS1 + 3.4028235E+38`, with OBJ-1009. Open: does it accept `3.40282E+38` and refuse `3.40283E+38` into DF1,
+  and is it saved as typed? The code accepts the first and refuses the second with OBJ-1009. Compare accepts
   `3.5E+38`.
 - **Fill with hex above FFFFh:** does the Fill dialog accept such a constant, and into which banks? A single
   Copy accepts it into DD or CTD only. The code's Fill accepts it into any numeric or TXT range.
@@ -540,16 +545,13 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   `"1E5"` into DS1 are stored 0.0 (refused on purpose, Settled). `"HELLO"` into TXT1 is stored 0.0 too, and
   fills TXT1..TXT3 (item 4). The code accepts the text as typed into TXT and encodes it, as ruled (Sam,
   2026-11-17). Open: does Fill do the same?
-- **Trailing zero in a real into TXT:** `copy(1.50,TXT1,...)` with real numbering, and `1.50` into TXT998.
-  Does CLICK save the source as `1.50` or `1.5`? Where is the end (TXT3, TXT4; TXT1000 or refused)? The code
-  reads `1.5`, counts 3 characters and accepts TXT998.
 - **Characters above U+FFFF:** a source `"😀"` (U+1F600) into TXT1. Does CLICK accept it, how does it save it,
   and which TXT is the end? The code refuses it.
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
   offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
-- **Digits away from 0.333333 in Math.** Does a decimal Math keep `1234567.0` and `0.000012345678` into DF1?
-  What does the saved formula hold (`1234570.0`, `1.23457E+06`, `0.0000123457`, `1.23457E-05`)? The code
-  refuses both, and names `1234570.0` and its own print.
+- **Digits away from 0.333333 in Math.** A decimal Math saves `0.33333334` as `0.333333`. Does it keep
+  `1234567.0` and `0.000012345678` into DF1? What does the saved formula hold (`1234570.0`, `1.23457E+06`,
+  `0.0000123457`, `1.23457E-05`)? The code refuses both, and names `1234570.0` and its own print.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -559,8 +561,9 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   Copies, and CLICK's post-check layout confirmed that. Capture one more shape (Math, Search or a timer under
   an OR).
 - **A box past the last row.** `encode()` writes a box that runs past the rung's last row, such as a Copy on
-  row 32 of a 32-row rung. `check()` reports it as `layout-too-tall`. What CLICK does with it needs a capture
-  before `encode()` refuses it.
+  row 32 of a 32-row rung. `check()` reports it as `layout-too-tall`. `read_csv` refuses the rung, so you can
+  pass such a rung to `encode()` only as a `Rung` that you build in Python. Nobody has tested what CLICK does
+  with it. That needs a capture before `encode()` refuses it.
 - **Subroutine names that differ in case outside A-Z.** `write_bundle` and `read_bundle` compare names with
   `str.casefold()`, so they refuse `Straße` beside `STRASSE`, and `é` beside `É`, as
   `duplicate-subroutine-name` (GUI-036). Does CLICK's Add New Subroutine refuse them too?
