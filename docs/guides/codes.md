@@ -156,13 +156,13 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `shorted-contact` | A wire that joins a contact's two sides. | C0002 |
 | `undecoded-rung` | A rung that holds an `Undecoded` marker. The marker stands in for a rung that a decoder could not decode or that `write_csv` could not write. |  |
 
-## Layout only
+## Layout
 
-These codes come only from laying a rung out. `check()` never reports them. If `write_csv` can't lay a rung out without changing its circuit, it raises a `WriterError`, and the `__cause__` of that error has one of these codes.
+These codes come from laying a rung out. `check()` reports only `layout-too-tall` of them. `lay_out()` raises a `LayoutError` with one of these codes. When `write_csv` refuses a rung because of its layout, the `__cause__` of its `WriterError` can be a `LayoutError` with one of these codes. `read_csv` raises a `CsvError` whose code is `layout-too-tall`.
 
 | Code | Meaning | CLICK id |
 |---|---|---|
 | `layout-too-wide` | A layout that needs more than 31 condition columns. |  |
-| `layout-too-tall` | A circuit that `lay_out` would draw as a rung of more than 32 rows. |  |
+| `layout-too-tall` | A rung that needs more than the 32 rows that a CLICK rung holds. |  |
 | `layout-nop-split` | A rung that holds a NOP and that CLICK would split into several rungs. laddercodec does not know how CLICK splits such a rung. |  |
 | `layout-cannot-draw` | Nets that collide, cells that overlap, or a contact drawn twice. |  |

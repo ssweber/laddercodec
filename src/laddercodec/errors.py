@@ -68,9 +68,14 @@ class CsvError(LaddercodecError):
     which is also ``__cause__``.  It is not this exception.  A refusal of a value that a pin
     row sets is located at that pin's row.  Any other refusal is located at the box's own row.
 
-    A ``CsvError`` that is not about a refused field has ``field``, ``reason``, ``code`` and
-    ``click_id`` set to ``None``, an empty ``fields``, and ``errors == (self,)``.  A pin
+    A ``CsvError`` that is not about a refused field has ``field``, ``reason`` and
+    ``click_id`` set to ``None``, an empty ``fields``, and ``errors == (self,)``.  Its
+    ``code`` is ``None``, except for a rung of more than 32 rows, described next.  A pin
     token that does not parse and a rung with no rows are two examples.
+
+    ``read_csv`` and ``read_bundle`` also raise it for a rung that needs more than the 32 rows
+    of a CLICK rung, in strict and in relaxed mode.  Its ``code`` is then
+    ``layout-too-tall``, and its location is the rung's ``R`` row.
     """
 
     field: str | None
@@ -85,13 +90,14 @@ class CsvError(LaddercodecError):
         *args: object,
         field: str | None = None,
         refusal: FieldError | None = None,
+        code: Code | None = None,
     ) -> None:
         super().__init__(*args)
         if refusal is None:
             self.field = field
             self.fields = () if field is None else (field,)
             self.reason = None
-            self.code = None
+            self.code = code
             self.click_id = None
             self.errors = (self,)
         else:
@@ -114,6 +120,10 @@ class WriterError(LaddercodecError):
     names are equal when case is ignored, for a subroutine name that holds a control
     character, and for a path that it would write that exists and is of the wrong kind.  It
     raises before it writes any file.
+
+    ``write_csv``, ``csv_rows`` and ``write_bundle`` raise it for a rung that needs more than
+    the 32 rows of a CLICK rung.  The ``__cause__`` is then a :class:`LayoutError` with the
+    code ``layout-too-tall``.
     """
 
 
