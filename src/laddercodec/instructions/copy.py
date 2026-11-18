@@ -49,6 +49,7 @@ from ..operands.banks import (
 )
 from ..operands.checks import (
     ALL_KINDS,
+    SOURCE_POINTER_BANKS,
     WRITABLE_SD,
     Constants,
     Operand,
@@ -142,7 +143,7 @@ def _real_text_source(source: str) -> bool:
     zero, when ``source`` is copied to text. It does for a DF address or pointer and for a
     real constant."""
     return (
-        bank_of(source, "Copy.source", pointer=True) == "DF"
+        bank_of(source, "Copy.source", pointer=True, pointer_banks=SOURCE_POINTER_BANKS) == "DF"
         or constant_shape(source, _CONSTANTS) is Kind.FLOAT
     )
 
@@ -170,7 +171,7 @@ def _converts_value(source: str, destination: str) -> bool:
       ``DD[DS1]``).
     """
     src, dst = (
-        bank_of(source, "Copy.source", pointer=True),
+        bank_of(source, "Copy.source", pointer=True, pointer_banks=SOURCE_POINTER_BANKS),
         bank_of(destination, "Copy.dest", pointer=True),
     )
     if (src == "DF" and dst in _INT32_BANKS) or (src in _INT32_BANKS and dst == "DF"):
@@ -439,7 +440,7 @@ def _source_kind(value: str, name: str, banks: Collection[str], *, pointer: bool
     if shape is not None:
         return "text" if shape in (Kind.TEXT, Kind.CHAR) else "number"
     bank = (
-        check_operand(value, name, banks, pointer=True)
+        check_operand(value, name, banks, pointer=True, pointer_banks=SOURCE_POINTER_BANKS)
         if pointer
         else check_box_operand(value, name, banks)
     ).bank

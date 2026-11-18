@@ -34,7 +34,7 @@
   "single DS1 -> DS2": {"verdict": "accepted"},
   "single X001 -> C1": {"verdict": "accepted"},
   "single DS2 -> X001": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'X001' is not allowed; Copy.dest takes Y, C, DS, DD, DH, DF, YD, TD, CTD, SD, TXT (OBJ-024)"},
-  "single X[DS1] -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: 'X[DS1]' is not allowed; a pointer in Copy.source addresses C, DS, DD, DH, DF, XD, YD, TD, CTD, TXT"},
+  "single X[DS1] -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: 'X[DS1]' is not allowed; a pointer in Copy.source addresses C, DS, DD, DH, DF, XD, YD, TD, CTD, SD, TXT"},
   "single DS2 -> X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'X[DS1]' is not allowed; a pointer in Copy.dest addresses C, DS, DD, DH, DF, YD, TD, CTD, TXT"},
   "single 0 -> DS1": {"verdict": "accepted"},
   "single X001 -> X001": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'X001' is not allowed; Copy.dest takes Y, C, DS, DD, DH, DF, YD, TD, CTD, SD, TXT (OBJ-004)"},

@@ -57,13 +57,14 @@ _REFUSED = [
         "Copy.source pointer: 'DD1' is not allowed",
     ),
     ("copy(DS1,QQ[DS1])", r"Copy.dest: 'QQ\[DS1\]' is not allowed"),
-    # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT
+    # a pointer addresses C, DS, DD, DH, DF, XD, YD, TD, CTD or TXT. A source pointer
+    # addresses SD too
     (
         "copy(X[DS1],C1)",
         r"Copy.source: 'X\[DS1\]' is not allowed; a pointer in Copy.source addresses C, DS,",
     ),
     ("copy(SC[DS1],C1)", r"Copy.source: 'SC\[DS1\]' is not allowed"),
-    ("copy(SD[DS1],DS1)", r"Copy.source: 'SD\[DS1\]' is not allowed"),
+    ("copy(DS1,SD[DS1])", r"Copy.dest: 'SD\[DS1\]' is not allowed"),
     ("copy(T[DS1],C1)", r"Copy.source: 'T\[DS1\]' is not allowed"),
     ("copy(C1,Y[DS1])", r"Copy.dest: 'Y\[DS1\]' is not allowed"),
     ("copy(DS1,XD[DS2])", r"Copy.dest: 'XD\[DS2\]' is not allowed"),
@@ -910,3 +911,12 @@ def test_integer_out_of_range_is_reported_before_convert_and_termination(
     with pytest.raises(FieldError) as info:
         Copy(source, destination, convert=convert, termination_code=termination)
     assert info.value.field == "Copy.source"
+
+
+def test_copy_takes_an_sd_pointer_as_its_source_and_not_as_its_destination() -> None:
+    source = Copy.from_csv_token("copy(SD[DS1],DS1)")
+    assert source.source == "SD[DS1]"
+    assert source.to_csv() == "copy(SD[DS1],DS1)"
+    assert Copy.from_csv_token(source.to_csv()) == source
+    with pytest.raises(FieldError, match=r"Copy.dest: 'SD\[DS1\]' is not allowed"):
+        Copy("DS2", "SD[DS1]")

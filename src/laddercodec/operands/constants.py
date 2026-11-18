@@ -154,23 +154,18 @@ REAL_DIGITS = 7
 
 
 def real_display(text: str) -> str:
-    """Return the text that laddercodec writes for the real constant ``text`` in a Copy
-    source.
+    """Return the text that :func:`constant_text` writes for the real constant ``text``.
 
-    The text is the real's value printed back, and a typed ``+`` stays.  CLICK stores a real
-    in a Copy source the way it prints the real back: ``1.50`` is ``1.5``, ``.5`` is
-    ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and a typed ``+2.5`` stays.
-    laddercodec prints with 7 significant digits, in positional form, with at least one
-    digit after the point, which matches those examples.  The digit count and the other
-    details are laddercodec's own choice until CLICK's behaviour is captured.
+    The text is the real's value printed back, and a typed ``+`` stays: ``1.50`` is
+    ``1.5``, ``.5`` is ``0.5``, ``1e3`` is ``1000.0``, ``1E5`` is ``100000.0``, and
+    ``+2.5`` stays.  The print has 7 significant digits, is positional, and has at least one
+    digit after the point.
 
     ``text`` comes back as given in two cases.  The first is when the 7-digit print is a
     different float32 value, because ``text`` has more than 7 significant digits that
     count.  The second is when 7 digits print the value in exponent form: from 1E+07 up, or
-    below 1E-04.  CLICK keeps ``1.5E+10`` as typed.  A single Copy writes a real typed
-    without an ``E`` from 1E+07 up in exponent form instead (:func:`copy_real_display`).
-    CLICK's form for the other values is not known.  ``text`` must be a real that
-    :func:`classify` reads: finite and within float32.
+    below 1E-04.  ``text`` must be a real that :func:`classify` reads: finite and within
+    float32.  A Copy source uses :func:`copy_real_display` instead.
     """
     value = float(text)
     printed = f"{value:.{REAL_DIGITS}G}"
@@ -186,19 +181,23 @@ def real_display(text: str) -> str:
 def copy_real_display(text: str) -> str:
     """Return the text that a single Copy source stores for the real constant ``text``.
 
-    The text is the one :func:`real_display` returns, with these differences that CLICK's
-    Copy shows:
+    CLICK stores the value that you typed, printed with 7 significant digits, whatever the
+    form that you typed it in:
 
+    - From 1E-04 to below 1E+07 the print is positional with at least one digit after the
+      point: ``1.50`` is ``1.5``, ``1E5`` is ``100000.0``, ``1.0E+06`` is ``1000000.0`` and
+      ``1.5e-3`` is ``0.0015``.
+    - Otherwise the print is in exponent form, with the trailing zeros of the mantissa cut
+      and at least two digits of exponent: ``1.0E+16`` is ``1E+16``, ``1.50E+16`` is
+      ``1.5E+16``, ``10000000000.0`` is ``1E+10`` and ``1.0E-05`` is ``1E-05``.
     - A typed ``+`` is dropped: ``+1.5`` is ``1.5``.
-    - A real may be typed in exponent form, and 7 significant digits may print its float32
-      value in exponent form but not exactly.  Such a real is written as that print:
-      ``3.4028235E+38`` is ``3.402823E+38``, a slightly smaller float32 value.  A real that
-      7 digits print exactly is kept as typed, as ``1E-45`` and ``1E-50`` are.  CLICK's
-      form for one typed otherwise, such as ``1e7`` or ``1.0E-10``, is not known.
-    - A real typed without an ``E`` from 1E+07 up in size is written in exponent form,
-      with 7 significant digits and trailing zeros cut: ``10000000000.0`` is ``1E+10`` and
-      ``-12345670.0`` is ``-1.234567E+07``, whatever the destination.  CLICK's form for a
-      real typed without an ``E`` below 1E-04, such as ``0.00001``, is not known.
+    - A real typed in exponent form with more than 7 significant digits is written as the
+      7-digit print of its float32 value: ``3.4028235E+38`` is ``3.402823E+38``, a slightly
+      smaller float32 value.
+
+    - A lowercase ``e`` is written as ``E``: ``1e7`` is ``1E+07`` and ``1.0e+16`` is
+      ``1E+16``.
+    - A real that float32 cannot hold, such as ``1.5E-45``, stays as typed.
 
     ``text`` must be a real that :func:`classify` reads: finite and within float32.  A
     single Copy refuses a real typed with more than 7 significant digits before it calls
@@ -209,9 +208,15 @@ def copy_real_display(text: str) -> str:
     printed = f"{value:.{REAL_DIGITS}G}"
     if "E" in text.upper() and "E" in printed and _float32(float(printed)) != value:
         return printed
-    if "E" not in text.upper() and abs(float(text)) >= _POSITIONAL_BELOW:
-        return f"{float(text):.{REAL_DIGITS}G}"
-    return real_display(text)
+    general = f"{float(text):.{REAL_DIGITS}G}"
+    try:
+        if _float32(float(general)) != value:
+            return text
+    except OverflowError:
+        return text
+    if "." not in general and "E" not in general:
+        general += ".0"
+    return general
 
 
 def _float32(value: float) -> float:

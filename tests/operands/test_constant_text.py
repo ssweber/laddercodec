@@ -126,8 +126,29 @@ def test_real_display(typed: str, printed: str) -> None:
         ("3.4028235E+38", "3.402823E+38"),
         ("1E-45", "1E-45"),
         ("1E-50", "1E-50"),
-        # No CLICK answer is captured for these. laddercodec prints them as real_display
-        # does, but drops a typed +.
+        ("1.0E+16", "1E+16"),
+        ("-1.0E+16", "-1E+16"),
+        ("2.0E+20", "2E+20"),
+        ("1.0E+38", "1E+38"),
+        ("-1.0E+38", "-1E+38"),
+        ("1.5E+16", "1.5E+16"),
+        ("1E+16", "1E+16"),
+        ("1.50E+16", "1.5E+16"),
+        ("1.00E+16", "1E+16"),
+        ("1.0E+06", "1000000.0"),
+        ("1.0E-05", "1E-05"),
+        ("1e7", "1E+07"),
+        ("1.0e+16", "1E+16"),
+        ("1.0E-10", "1E-10"),
+        ("0.00001", "1E-05"),
+        ("0.0001", "0.0001"),
+        ("0.00009", "9E-05"),
+        ("1.5E-45", "1.5E-45"),
+        ("1.5E+10", "1.5E+10"),
+        ("100000000.0", "1E+08"),
+        ("10000000000.0", "1E+10"),
+        # No CLICK answer is captured for these. laddercodec prints them as it prints the
+        # recorded reals, but drops a typed +.
         ("+2.50", "2.5"),
         ("-3.4028235E+38", "-3.402823E+38"),
         ("+3.4028235E+38", "3.402823E+38"),
@@ -138,9 +159,7 @@ def test_real_display(typed: str, printed: str) -> None:
         ("1.17549435E-38", "1.175494E-38"),
         ("1.2345678E+10", "1.234568E+10"),
         ("1234567.89", "1234567.89"),
-        ("1e7", "1e7"),
-        ("+1e7", "1e7"),
-        ("1.0E-10", "1.0E-10"),
+        ("+1e7", "1E+07"),
     ],
 )
 def test_copy_real_display(typed: str, printed: str) -> None:

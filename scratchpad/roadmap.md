@@ -314,8 +314,6 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     (saved `DS1`) and Data B (saved `DS 1`), and as a Search value (saved `DS1`). The rules refuse it. Sam
     ruled on 2026-11-17 that it stays refused on purpose, as the edge space is. A decoded Compare whose Data B
     holds `DS 1` keeps the refusal.
-  - CLICK accepts an SD pointer (`SD[DS1]`) as a single Copy's source and saves it as typed. The rules refuse
-    it.
   - Pack and Unpack order (closed): in every answered case, the rules report CLICK's id first.
     - A Pack counts its source before the pairing. Where the source packs into the destination, the limit is
       the destination's room (16 or 32 bits, 2 words: OBJ-027, OBJ-041, OBJ-040). Where it does not, bits are
@@ -448,9 +446,9 @@ stores them (`feat/canon-math-copy`):
 - `$1` as `$01`.
 
 Hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, and the refusal names the form to write. A
-Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A Copy real typed without
-an `E` and of size 1E+07 or more is written in its `E` form, because CLICK saves it so (`10000000000.0` as
-`1E+10`). A real that CLICK saves as
+Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A Copy real is
+written as CLICK prints its value with 7 significant digits, however it was typed (`10000000000.0` as `1E+10`,
+`1.0E+16` as `1E+16`, `1.0E+06` as `1000000.0`, `1.0E-05` as `1E-05`). A real that CLICK saves as
 another value (more than 7 significant digits in a Copy; in a Math, the rule in **Math real form**) is
 refused, and the refusal names CLICK's form. It is not rewritten (Settled). `constant_text()` writes a Python value in the form that the instruction stores. For such a real,
 it writes the fewest digits that hold its float32 value. The other constants are written as typed:
@@ -481,10 +479,10 @@ Ask in Fill, Compare, Search, Timer and Counter presets, OutVariant presets, dru
 Then make one behaviour-change branch per answer set, as for Math and Copy.
 
 **Questions for CLICK on Math and Copy** (until CLICK answers, the code keeps the behaviour named):
-- **Reals in exponent form.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10` in a Math
-  and a Copy. Does CLICK switch to exponent form between 1E6 and 1E7 (the code's 1E+07)? Does CLICK write
-  `1E+07`, `1.0E+07` or `1E7`? The code writes a real positionally below 1E+07 and from 1E-04 up. It keeps
-  any other as typed.
+- **Reals in exponent form in a Math.** Typed `1e6`, `9999999`, `1e7` to `1e9`, `1.5e10`, `1e-5` and `1.0E-10`.
+  A Copy follows CLICK's answers (7 significant digits, `1E+07`, `1E-05`, `1.5E-45` as typed). For a Math, does
+  CLICK switch to exponent form between 1E6 and 1E7 (the code's 1E+07)? The code writes a real positionally
+  below 1E+07 and from 1E-04 up. It keeps any other as typed.
 - **A typed `+` on a real with digits CLICK drops:** typed `+2.50` in a Math. The code writes `+2.5`. A Copy
   drops a real's `+` (`+1.5` is `1.5`), and the code writes `2.5` there.
 - **Integer `-00` in a Copy:** CLICK stores `-0` as `0`. The code writes `-00` as `0` too. CLICK has not

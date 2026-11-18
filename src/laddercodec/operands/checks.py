@@ -55,6 +55,7 @@ __all__ = [
     "BIT_BANKS",
     "OUT_BANKS",
     "POINTER_BANKS",
+    "SOURCE_POINTER_BANKS",
     "REGISTER_BANKS",
     "WRITABLE_SC",
     "WRITABLE_SD",
@@ -532,6 +533,10 @@ def check_quoted_text(
 #: The banks a pointer ``BANK[DSn]`` can address.
 POINTER_BANKS = frozenset({"C", "DS", "DD", "DH", "DF", "XD", "YD", "TD", "CTD", "TXT"})
 
+#: The banks a pointer can address where a Copy reads it as its source.  CLICK takes an SD
+#: pointer there, and refuses one as a destination.
+SOURCE_POINTER_BANKS = POINTER_BANKS | {"SD"}
+
 
 def check_operand(
     value: str,
@@ -540,6 +545,7 @@ def check_operand(
     constants: Constants | None = None,
     *,
     pointer: bool = False,
+    pointer_banks: Collection[str] = POINTER_BANKS,
     letter_first: bool = False,
     label: str | None = None,
     bank_id: str | None = None,
@@ -550,7 +556,7 @@ def check_operand(
 
     An address goes through :func:`check_address`, narrowed to ``banks``, where ``None``
     allows any bank.  With ``pointer``, a pointer ``BANK[DSn]`` passes when ``BANK`` is in
-    ``banks`` and in :data:`POINTER_BANKS` and the index is a DS address.  With
+    ``banks`` and in ``pointer_banks`` and the index is a DS address.  With
     ``constants``, a constant goes through :func:`check_constant`.  Every refusal of a
     pointer, including a refusal of its index, has the reason ``pointer``.  ``bank_id`` and
     ``bank_code`` are CLICK's id and the code for an address in a bank the field does not
@@ -584,7 +590,7 @@ def check_operand(
                 code=Code.POINTER_OUTSIDE_COPY,
             )
         bank, index_text = parts
-        allowed = POINTER_BANKS.intersection(ADDRESS_BANKS if banks is None else banks)
+        allowed = set(pointer_banks).intersection(ADDRESS_BANKS if banks is None else banks)
         if bank not in allowed:
             listed = ", ".join(b for b in ADDRESS_BANKS if b in allowed)
             raise at.error(
@@ -606,16 +612,23 @@ def check_operand(
     return Operand(bank=address.bank, address=address)
 
 
-def bank_of(value: str, field: str, *, pointer: bool = False) -> str | None:
+def bank_of(
+    value: str,
+    field: str,
+    *,
+    pointer: bool = False,
+    pointer_banks: Collection[str] = POINTER_BANKS,
+) -> str | None:
     """Return the bank of ``value`` if :func:`check_operand` accepts it as an address in any
     bank. Return None for any other text.
 
     ``field`` names the field that ``value`` is read for, as for :func:`check_operand`. With
     ``pointer``, also return the bank of a pointer that :func:`check_operand` accepts, such
     as DD for ``DD[DS1]``. A pointer that it refuses, such as ``X[DS1]``, returns None.
+    ``pointer_banks`` are the banks that a pointer may address, as for :func:`check_operand`.
     """
     try:
-        return check_operand(value, field, pointer=pointer).bank
+        return check_operand(value, field, pointer=pointer, pointer_banks=pointer_banks).bank
     except AddressError:
         return None
 

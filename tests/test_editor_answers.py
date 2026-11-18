@@ -134,10 +134,6 @@ INNER_SPACE = (
     "destination; an instruction holds the address in display form, so construction refuses "
     "the space, and read_csv refuses the save that keeps it (settled)"
 )
-SD_POINTER = (
-    "to do: CLICK takes an SD pointer (SD[DS1]) as a Copy source and saves it as typed; the "
-    "rules refuse it"
-)
 E_REAL = (
     "kept: laddercodec refuses; DS is an integer, so a real such as 0.0 or 1.0 is no source "
     "for a Copy into DS1, yet CLICK lets text that is not a number through as a real (E5 and "
@@ -436,8 +432,6 @@ DISAGREEMENTS: dict[Key, str] = _table(
         ('search TXT1..TXT10 == "' + "A" * 128 + '" -> DS30,C1',),
     ),
     (LONG_TEXT, "risky_compare", "stored", ('compare TXT1 == "' + "A" * 128 + '"',)),
-    (SD_POINTER, "copy_single", "outcome", ("single SD[DS1] -> DS1",)),
-    (SD_POINTER, "copy_single", "stored", ("single SD[DS1] -> DS1",)),
     (
         E_REAL,
         "copy_single",
