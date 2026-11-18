@@ -9,6 +9,7 @@
 ### Added
 - **One error tree.** Every error that `decode()`, `decode_program()`, `encode()`, `read_csv()`, `write_csv()` and `check()` raise for input they can't read or write is now a `LaddercodecError`. Each is still a `ValueError`. The classes are `DecodeError`, the new `EncodeError`, `CsvError`, `WriterError`, and `FieldError` with its subclass `AddressError`.
 - **More top-level exports.** `laddercodec` now exports `LaddercodecError`, `DecodeError`, `EncodeError`, `CsvError`, `WriterError`, `UnknownCondition`, `UnknownInstruction`, `Email`, `Home`, `Position`, `Velocity`, `ConditionInstruction`, `AfInstruction`, `ConditionToken`, `AfToken` and `replace`.
+- **A `Literal` alias for each fixed set of field values.** `laddercodec` and `laddercodec.instructions` now export an alias that lists the values of each instruction field that accepts only a fixed set: `ContactKind`, `CompareOp`, `CoilKind`, `OutVariantKind`, `OutVariantUnit`, `TimerKind`, `TimeUnit`, `CounterKind`, `DrumKind`, `MathMode`, `CopyConvert`, `BlockCopyConvert`, `PackKind`, `UnpackKind`, `ModbusRtuPort`, `ModbusTcpPort`, `ModbusRegisterType`, `SendFunctionCode`, `ReceiveFunctionCode` and `UndecodedStop`. `typing.get_args(laddercodec.ContactKind)` returns `("no", "nc", "rise", "fall")`.
 - **Undecoded markers.** When `decode()` or `decode_program()` can't read a rung, they now return an `Undecoded` marker for it and emit an `UndecodedRungWarning`. The other rungs still decode. The marker acts as `end()` in the main program and `return()` in a subroutine. `Program.undecoded` lists the markers. `write_csv` and `read_csv` round-trip a marker as an `undecoded(...)` token. `encode()` rejects a marker, and `check()` reports it as an `undecoded-rung` finding.
 - **CSV errors say where.** An error from `read_csv` now has a `CsvLocation` (file, line, rung, row and column) as its `location`, and its message ends with it. Each refusal in `.errors` has its own `location`.
 - **Field errors say why.** A `FieldError` now has `reason` (a `Reason` such as `bank`, `range` or `conflict`), `click_id` (CLICK's own id, such as `OBJ-005`, when CLICK has one), `fields` (one field, or both fields of a pair) and `errors` (every refusal for the construction, the raised one first).
@@ -141,6 +142,14 @@ Several entries below say that laddercodec now rejects a value. That applies whe
   - The alias `DecodedRung` is gone. Use `Rung`.
   - Do: Where you read `wire_down`, test `isinstance(cell, Tee)` and read the contact from `cell.contact`.
   - Do: Compare a rung's rows with tuples, or compare whole rungs.
+- **A field with a fixed set of values is annotated with its `Literal` alias.** v0.4.0 annotated the fields below `str` or `int`. A type checker now rejects a plain `str` or `int` in them.
+  - `Timer.unit`, `Drum.unit` and `OutVariant.unit`
+  - `Copy.convert` and `BlockCopy.convert` (v0.4.0's `format`)
+  - `Pack.kind` and `Unpack.kind` (v0.4.0's `pack_type` and `unpack_type`)
+  - `Search.op` (v0.4.0's `comparison`)
+  - `ModbusRtuTarget.com_port`, `ModbusTcpTarget.com_port` and `ModbusAddress.register_type`
+  - `Send.function_code` and `Receive.function_code`
+  - Do: Narrow the value to the alias first, for example with `typing.cast(TimeUnit, unit)`.
 
 ## 0.4.0 (2026-11-14)
 

@@ -45,27 +45,48 @@ from . import timer as timer_mod
 from . import undecoded as undecoded_mod
 from . import velocity as velocity_mod
 from .call import Call
-from .coil import Coil
-from .comparison import CompareContact
-from .contact import Contact
-from .copy import BlockCopy, Copy, Fill, Pack, Unpack
-from .counter import Counter
-from .drum import Drum
+from .coil import Coil, CoilKind
+from .comparison import CompareContact, CompareOp
+from .contact import Contact, ContactKind
+from .copy import (
+    BlockCopy,
+    BlockCopyConvert,
+    Copy,
+    CopyConvert,
+    Fill,
+    Pack,
+    PackKind,
+    Unpack,
+    UnpackKind,
+)
+from .counter import Counter, CounterKind
+from .drum import Drum, DrumKind
 from .email import Email
 from .end import End
 from .family import AfInstructionFamilySpec, ConditionInstructionFamilySpec
 from .forloop import Break, Continue, ForLoop, Next
 from .home import Home
-from .math import Math
-from .out_variant import OutVariant
+from .math import Math, MathMode
+from .out_variant import OutVariant, OutVariantKind, OutVariantUnit
 from .position import Position
 from .raw import RawInstruction
 from .return_ import Return
 from .search import Search
-from .send_receive import ModbusAddress, ModbusRtuTarget, ModbusTcpTarget, Receive, Send
+from .send_receive import (
+    ModbusAddress,
+    ModbusRegisterType,
+    ModbusRtuPort,
+    ModbusRtuTarget,
+    ModbusTcpPort,
+    ModbusTcpTarget,
+    Receive,
+    ReceiveFunctionCode,
+    Send,
+    SendFunctionCode,
+)
 from .shift import Shift
-from .timer import Timer
-from .undecoded import Undecoded
+from .timer import Timer, TimerKind, TimeUnit
+from .undecoded import Undecoded, UndecodedStop
 from .velocity import Velocity
 
 if TYPE_CHECKING:
@@ -477,6 +498,26 @@ __all__ = [
     "Undecoded",
     "Unpack",
     "Velocity",
+    "BlockCopyConvert",
+    "CoilKind",
+    "CompareOp",
+    "ContactKind",
+    "CopyConvert",
+    "CounterKind",
+    "DrumKind",
+    "MathMode",
+    "ModbusRegisterType",
+    "ModbusRtuPort",
+    "ModbusTcpPort",
+    "OutVariantKind",
+    "OutVariantUnit",
+    "PackKind",
+    "ReceiveFunctionCode",
+    "SendFunctionCode",
+    "TimeUnit",
+    "TimerKind",
+    "UndecodedStop",
+    "UnpackKind",
     "from_tags_af",
     "from_tags_condition",
     "get_af_family_by_csv_name",

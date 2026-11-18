@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
@@ -36,9 +36,13 @@ from ..model import (
 from ..operands.checks import BIT_BANKS, Constants, Refusals, check_operand
 from ..operands.constants import INT16_MAX, Kind
 from .family import AfInstructionFamilySpec
+from .timer import TimeUnit
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+DrumKind = Literal["event_drum", "time_drum", "time_event_drum"]
+"""The kind of a drum. Each kind is also the name of its CSV call."""
 
 # ---------------------------------------------------------------------------
 # Func code tables
@@ -84,16 +88,16 @@ _MAX_DRUM_SIZE = 16
 _BASE_TIME, _BASE_EVENT, _BASE_TIME_EVENT = "0", "1", "2"
 
 # The index string of each time unit.  Timer uses the same indexes.
-_DRUM_UNIT_TO_INDEX: dict[str, str] = {
+_DRUM_UNIT_TO_INDEX: dict[TimeUnit, str] = {
     "Tms": "0",
     "Ts": "1",
     "Tm": "2",
     "Th": "3",
     "Td": "4",
 }
-_DRUM_INDEX_TO_UNIT: dict[str, str] = {v: k for k, v in _DRUM_UNIT_TO_INDEX.items()}
+_DRUM_INDEX_TO_UNIT: dict[str, TimeUnit] = {v: k for k, v in _DRUM_UNIT_TO_INDEX.items()}
 
-_DRUM_KINDS = ("event_drum", "time_drum", "time_event_drum")
+_DRUM_KINDS: tuple[DrumKind, ...] = get_args(DrumKind)
 
 # ---------------------------------------------------------------------------
 # Pattern encoding
@@ -280,7 +284,7 @@ class Drum(PinnedInstruction):
     as ``""`` here and ``None`` in CSV.  The lists are stored as tuples.
     """
 
-    kind: Literal["event_drum", "time_drum", "time_event_drum"]
+    kind: DrumKind
     outputs: tuple[str, ...] = ()
     presets: tuple[str, ...] = ()  # time and time & event drums
     events: tuple[str, ...] = ()  # event and time & event drums
@@ -288,7 +292,7 @@ class Drum(PinnedInstruction):
     current_step: str = ""
     completion_flag: str = ""
     accumulator: str = ""  # TD address (time and time & event drums)
-    unit: str = ""  # "Tms"/"Ts"/"Tm"/"Th"/"Td" (time and time & event drums)
+    unit: TimeUnit | Literal[""] = ""  # blank for an event drum
     jog_enabled: bool = False
     jump_enabled: bool = False
     jump_step: str = ""  # DS address
@@ -823,7 +827,8 @@ def parse_af_call(call: AfCall) -> Drum:
             completion_flag=completion_flag,
         )
 
-    unit = call.kwargs.get("unit", "")
+    # The Drum refuses a unit that is not a TimeUnit.
+    unit = cast("TimeUnit | Literal['']", call.kwargs.get("unit", ""))
     if not unit:
         raise CsvError(f"{call.name} needs unit=")
     accumulator = call.kwargs.get("accumulator", "")

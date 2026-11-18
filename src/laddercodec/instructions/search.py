@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
@@ -40,6 +40,7 @@ from ..operands.checks import (
     check_quoted_text,
 )
 from ..operands.constants import HEX16_MAX, SEARCH_TABLE_BANKS, Kind
+from .comparison import CompareOp
 from .copy import check_box_operand, check_range
 from .family import AfInstructionFamilySpec, fixed_cell_params
 
@@ -55,7 +56,7 @@ _CELL_PARAMS: dict = {"visual_rows": 2}
 # ---------------------------------------------------------------------------
 
 #: CSV operator → func code without oneshot; oneshot adds 6 (8970–8975).
-_OP_TO_FUNC: dict[str, int] = {
+_OP_TO_FUNC: dict[CompareOp, int] = {
     "==": 8964,
     "!=": 8965,
     ">": 8966,
@@ -69,7 +70,7 @@ _ONESHOT_FUNC_OFFSET = 6
 # Comparison code tables (field[8])
 # ---------------------------------------------------------------------------
 
-_OP_TO_CMP_CODE: dict[str, str] = {
+_OP_TO_CMP_CODE: dict[CompareOp, str] = {
     "==": "0",
     "!=": "1",
     ">": "2",
@@ -78,7 +79,7 @@ _OP_TO_CMP_CODE: dict[str, str] = {
     "<=": "5",
 }
 
-_CMP_CODE_TO_OP: dict[str, str] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
+_CMP_CODE_TO_OP: dict[str, CompareOp] = {v: k for k, v in _OP_TO_CMP_CODE.items()}
 
 # ---------------------------------------------------------------------------
 # Operand banks
@@ -152,7 +153,7 @@ class Search(AfInstruction):
     value: str
     result: str
     found: str
-    op: str
+    op: CompareOp
     continuous: bool = False
     oneshot: bool = False
 
@@ -331,7 +332,7 @@ def parse_af_call(call: AfCall) -> Search:
     return Search(
         table_start=m.group(1).strip(),
         table_end=m.group(2).strip(),
-        op=m.group(3),
+        op=cast(CompareOp, m.group(3)),  # the regex matches only the six operators
         value=m.group(4).strip(),
         result=result,
         found=found,

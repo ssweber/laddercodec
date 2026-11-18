@@ -60,7 +60,7 @@ from ..instructions import (
 )
 from ..model import PinnedInstruction
 from ..operands.unchecked import refusals, unchecked
-from ..undecoded import Stop, Undecoded, UndecodedRungWarning, marker_rung
+from ..undecoded import Undecoded, UndecodedRungWarning, UndecodedStop, marker_rung
 from .contract import CONDITION_COLUMNS, CSV_HEADER
 from .converter import _is_blank_row, convert_rung, pinned_gap_height
 from .parser import _parse_single_rung_rows
@@ -533,7 +533,7 @@ def write_csv(
     rungs: list[Rung],
     *,
     index: bool = False,
-    stop: Stop = "end",
+    stop: UndecodedStop = "end",
 ) -> None:
     """Write decoded rungs to a canonical CSV file.
 
@@ -569,7 +569,7 @@ def write_csv(
         If *stop* is neither ``"end"`` nor ``"return"`` (nothing is written), or if a
         rung can't be written, such as one whose shape the CSV can't hold.
     """
-    if stop not in get_args(Stop):
+    if stop not in get_args(UndecodedStop):
         raise WriterError(f"write_csv: stop={stop!r} must be 'end' or 'return'")
     path = Path(path)
     with open(path, "w", newline="", encoding="utf-8") as f:

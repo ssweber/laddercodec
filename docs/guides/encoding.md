@@ -80,7 +80,8 @@ raises `EncodeError` for one there.
 ## Condition-Side Instructions
 
 `Contact` takes an operand, then an optional `kind`: `"no"` (the default), `"nc"`,
-`"rise"` or `"fall"`. The comment on each line below is its CSV token:
+`"rise"` or `"fall"`. The alias [`ContactKind`](../reference/api/instructions.md#laddercodec.ContactKind)
+lists these values. The comment on each line below is its CSV token:
 
 ```python
 from laddercodec import CompareContact, Contact
@@ -102,7 +103,8 @@ form of an edge contact, or of a contact on another bank, `Contact` raises
 ## AF-Side Instructions
 
 `Coil` takes an operand, then an optional `kind`: `"out"` (the default), `"latch"`
-or `"reset"`. These are the names of its CSV calls:
+or `"reset"`. The alias [`CoilKind`](../reference/api/instructions.md#laddercodec.CoilKind)
+lists these values. They are also the names of the coil's CSV calls:
 
 ```python
 from laddercodec import Coil

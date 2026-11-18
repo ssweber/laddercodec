@@ -28,7 +28,7 @@ from .instructions import (
     from_tags_af,
     from_tags_condition,
 )
-from .instructions.undecoded import Stop
+from .instructions.undecoded import UndecodedStop
 from .legacy import warn_legacy
 from .model import AfInstruction, Program
 from .operands.unchecked import keep_cell_rows, keep_stored_blob, needs_stored_blob
@@ -895,7 +895,7 @@ def decode_program(data: bytes) -> Program:
     """
     header = _parse_header(data)
     records, framing_error = _walk_until_framing_error(data, header)
-    stop: Stop = "end" if header.prog_idx == _MAIN_PROG_IDX else "return"
+    stop: UndecodedStop = "end" if header.prog_idx == _MAIN_PROG_IDX else "return"
 
     # Drop the empty rungs that Click keeps below the last programmed rung. A
     # clipboard copy of the rungs leaves them out too. After a framing error they
@@ -918,7 +918,7 @@ def decode_program(data: bytes) -> Program:
 
 
 def _record_rung(
-    record: _ScrRungRecord, index: int, stop: Stop, failed: list[tuple[int, str]]
+    record: _ScrRungRecord, index: int, stop: UndecodedStop, failed: list[tuple[int, str]]
 ) -> Rung:
     """Return rung *index* of the program, built from *record*, or an undecoded marker rung.
 

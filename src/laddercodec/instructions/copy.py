@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_flag, tag_int, tag_value
 from ..codes import Code
@@ -91,7 +91,14 @@ _FUNC_TO_COPY_TYPE: dict[str, str] = {v: k for k, v in COPY_FUNC_CODES.items()}
 # Conversion type mapping (field[8])
 # ---------------------------------------------------------------------------
 
-_VALID_CONVERTS = frozenset({None, "to_value", "to_text", "to_binary", "to_ascii"})
+CopyConvert = Literal["to_value", "to_text", "to_binary", "to_ascii"]
+"""The converter of a single Copy, by its CSV name. ``Copy.convert`` is one of these or None."""
+
+BlockCopyConvert = Literal["to_value", "to_ascii"]
+"""The converter of a Block Copy, by its CSV name. ``BlockCopy.convert`` is one of these or
+None."""
+
+_VALID_CONVERTS = frozenset({None, *get_args(CopyConvert)})
 
 #: field[8] conversion_type → (convert, suppress_zero, exponential).
 #: The conversion type also stores the options of a copy to text. An integer source is
@@ -100,7 +107,7 @@ _VALID_CONVERTS = frozenset({None, "to_value", "to_text", "to_binary", "to_ascii
 #: source has no suppress zero option, and the decoder sets suppress_zero to None for it.
 #: Type 7 converts a value between a real and a 32-bit integer (:func:`_converts_value`).
 #: The CSV writes a type 7 copy as a plain copy.
-_CONVTYPE_TO_OPTS: dict[str, tuple[str | None, bool, bool]] = {
+_CONVTYPE_TO_OPTS: dict[str, tuple[CopyConvert | None, bool, bool]] = {
     "0": (None, False, False),
     "1": ("to_text", True, False),  # integer source, suppress zeros
     "2": ("to_text", False, False),  # integer source, don't suppress zeros
@@ -1126,7 +1133,7 @@ def _split_paren_aware(s: str) -> list[str]:
     return parts
 
 
-def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
+def _parse_convert_kwarg(raw: str) -> tuple[CopyConvert, dict[str, str]]:
     """Parse a ``convert=`` kwarg value, returning *(convert, text_opts)*.
 
     Examples: ``to_value``, ``to_text(exponential=1)``.
@@ -1144,7 +1151,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
     if fmt not in ("text", "binary"):
         if inner:
             raise CsvError(f"to_{fmt} takes no arguments: {raw!r}")
-        return f"to_{fmt}", {}
+        return cast(CopyConvert, f"to_{fmt}"), {}
 
     # to_text and to_binary: parse kwargs
     text_opts: dict[str, str] = {}
@@ -1164,7 +1171,7 @@ def _parse_convert_kwarg(raw: str) -> tuple[str, dict[str, str]]:
                 )
             text_opts[k] = v.strip()
 
-    return f"to_{fmt}", text_opts
+    return cast(CopyConvert, f"to_{fmt}"), text_opts
 
 
 def _parse_range(arg: str, name: str, role: str) -> tuple[str, str]:
@@ -1302,7 +1309,7 @@ class Copy(AfInstruction):
 
     source: str
     dest: str
-    convert: str | None = None
+    convert: CopyConvert | None = None
     oneshot: bool = False
     suppress_zero: bool | None = None
     exponential: bool = False
@@ -1689,7 +1696,7 @@ def _asks_txt_choice(dest_bank: str) -> bool:
 
 
 #: Converters a block copy takes.
-_BLOCKCOPY_CONVERTS = frozenset({None, "to_value", "to_ascii"})
+_BLOCKCOPY_CONVERTS = frozenset({None, *get_args(BlockCopyConvert)})
 
 
 @dataclass(frozen=True)
@@ -1719,7 +1726,7 @@ class BlockCopy(AfInstruction):
     source_end: str
     dest_start: str
     dest_end: str
-    convert: str | None = None
+    convert: BlockCopyConvert | None = None
     oneshot: bool = False
     termination_code: str = "0"
 
@@ -1994,8 +2001,10 @@ class Fill(AfInstruction):
 # Pack
 # ---------------------------------------------------------------------------
 
-#: The kinds of Pack, as the CSV names them.
-_PACK_KINDS = frozenset({"pack_bits", "pack_words", "pack_text"})
+PackKind = Literal["pack_bits", "pack_words", "pack_text"]
+"""The kind of a Pack. Each kind is also the name of its CSV call."""
+
+_PACK_KINDS = frozenset(get_args(PackKind))
 
 #: field[8] conversion_type values for pack_text.
 _PACK_TEXT_CONVTYPE = {"default": "9", "allow_whitespace": "10"}
@@ -2024,7 +2033,7 @@ class Pack(AfInstruction):
     source_start: str
     source_end: str
     dest: str
-    kind: str = "pack_bits"
+    kind: PackKind = "pack_bits"
     allow_whitespace: bool = False
     oneshot: bool = False
 
@@ -2162,8 +2171,10 @@ class Pack(AfInstruction):
 # Unpack
 # ---------------------------------------------------------------------------
 
-#: The kinds of Unpack, as the CSV names them.
-_UNPACK_KINDS = frozenset({"unpack_to_bits", "unpack_to_words"})
+UnpackKind = Literal["unpack_to_bits", "unpack_to_words"]
+"""The kind of an Unpack. Each kind is also the name of its CSV call."""
+
+_UNPACK_KINDS = frozenset(get_args(UnpackKind))
 
 
 @dataclass(frozen=True)
@@ -2187,7 +2198,7 @@ class Unpack(AfInstruction):
     source: str
     dest_start: str
     dest_end: str
-    kind: str = "unpack_to_bits"
+    kind: UnpackKind = "unpack_to_bits"
     oneshot: bool = False
 
     def __post_init__(self) -> None:
@@ -2574,7 +2585,8 @@ def parse_af_call(call: AfCall) -> Copy | BlockCopy | Fill | Pack | Unpack:
             source_end=src_end,
             dest_start=dest_start,
             dest_end=dest_end,
-            convert=convert,
+            # The BlockCopy refuses to_text and to_binary.
+            convert=cast("BlockCopyConvert | None", convert),
             oneshot=check_csv_flag(call.kwargs, "oneshot", "BlockCopy.oneshot"),
             termination_code=call.kwargs.get("termination_code", "0"),
         )

@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
@@ -26,6 +26,11 @@ from .family import AfInstructionFamilySpec
 
 if TYPE_CHECKING:
     from ..csv.ast import AfCall
+
+CounterKind = Literal["count_up", "count_down"]
+"""The kind of a counter. Each kind is also the name of its CSV call."""
+
+_COUNTER_KINDS: tuple[CounterKind, ...] = get_args(CounterKind)
 
 # ---------------------------------------------------------------------------
 # Variant encodings
@@ -66,7 +71,7 @@ _COUNTER_STD_TAGS = (0x606B, 0x606A, 0x606C, 0x606D, 0x21FC)
 class Counter(PinnedInstruction):
     """A counter instruction (count_up / count_down)."""
 
-    kind: Literal["count_up", "count_down"]
+    kind: CounterKind
     done: str
     accumulator: str
     preset: str
@@ -80,7 +85,7 @@ class Counter(PinnedInstruction):
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
-            if self.kind not in ("count_up", "count_down"):
+            if self.kind not in _COUNTER_KINDS:
                 check.refuse(
                     "kind",
                     f"{self.kind!r} is not count_up or count_down",
@@ -159,7 +164,7 @@ class Counter(PinnedInstruction):
                 "count_up(CT1,CTD1,preset=100)."
             )
 
-        kind = cast(Literal["count_up", "count_down"], m.group(1))
+        kind = cast(CounterKind, m.group(1))
         args: list[str] = []
         kwargs: dict[str, str] = {}
         for seg in (a.strip() for a in m.group(2).split(",")):
@@ -247,7 +252,7 @@ class Counter(PinnedInstruction):
 _COUNTER_TYPE_CODE = 0x2719
 
 # Mode byte value → (kind, down_enabled, reset_enabled).
-_MODE_TO_VARIANT: dict[int, tuple[Literal["count_up", "count_down"], bool, bool]] = {
+_MODE_TO_VARIANT: dict[int, tuple[CounterKind, bool, bool]] = {
     0: ("count_up", False, True),
     1: ("count_down", False, True),
     2: ("count_up", True, True),

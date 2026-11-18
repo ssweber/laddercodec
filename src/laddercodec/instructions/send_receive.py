@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 import struct
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, cast, get_args
 
 from ..binary_helpers import tag_int, tag_value
 from ..codes import Code
@@ -45,6 +45,22 @@ if TYPE_CHECKING:
 #: cell header, +0x09 and +0x0A are both 3.
 _CELL_PARAMS: dict = {"visual_rows": 3}
 
+ModbusRtuPort = Literal["cpu2", "cpu3", "slot0_1", "slot0_2", "slot1_1", "slot1_2"]
+"""The serial port of a Modbus RTU target."""
+
+ModbusTcpPort = Literal["ethernet", "wlan"]
+"""The network port of a Modbus TCP target. ``"ethernet"`` is CPU port 1."""
+
+ModbusRegisterType = Literal["coil", "discrete_input", "holding", "input"]
+"""The register type of a Modbus address given in hex. A Receive reads the four types with
+function codes 1, 2, 3 and 4, in that order."""
+
+ReceiveFunctionCode = Literal[1, 2, 3, 4]
+"""A Modbus function code that a Receive can use."""
+
+SendFunctionCode = Literal[5, 6, 15, 16]
+"""A Modbus function code that a Send can use."""
+
 # ---------------------------------------------------------------------------
 # Helper dataclasses
 # ---------------------------------------------------------------------------
@@ -56,7 +72,7 @@ class ModbusRtuTarget:
     """A Modbus RTU device on a serial port, which a Send or Receive talks to."""
 
     name: str  # human label, not in binary
-    com_port: str  # "cpu2", "cpu3", "slot0_1", "slot0_2", "slot1_1", "slot1_2"
+    com_port: ModbusRtuPort
     #: Slave ID: a number, or the DS register CLICK reads it from (``"DS2420"``).
     device_id: int | str
 
@@ -82,7 +98,7 @@ class ModbusTcpTarget:
     port: int
     #: Slave ID: a number, or the DS register CLICK reads it from (``"DS2420"``).
     device_id: int | str
-    com_port: str = "ethernet"  # "ethernet" (CPU Port 1) or "wlan"
+    com_port: ModbusTcpPort = "ethernet"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -202,7 +218,7 @@ class ModbusAddress:
     """A remote address given as a MODBUS 984 number or in hex, not as a CLICK address."""
 
     address: str  # "400001" or "0h"
-    register_type: str | None = None  # "coil"|"holding"|... — only for hex
+    register_type: ModbusRegisterType | None = None  # only for a hex address
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -245,7 +261,7 @@ class ModbusAddress:
 
 
 #: Register types of a hex remote address, in function-code order (Receive FC01-FC04).
-REGISTER_TYPES: tuple[str, ...] = ("coil", "discrete_input", "holding", "input")
+REGISTER_TYPES: tuple[ModbusRegisterType, ...] = get_args(ModbusRegisterType)
 #: A hex remote address: 0h to FFFEh.
 _REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE, range_id=None)
 
@@ -255,7 +271,7 @@ _REMOTE_HEX = Constants(frozenset({Kind.HEX}), hex_high=0xFFFE, range_id=None)
 # ---------------------------------------------------------------------------
 
 #: Protocol mode (0x220C) per port.
-_RTU_PORT_MODE: dict[str, str] = {
+_RTU_PORT_MODE: dict[ModbusRtuPort, str] = {
     "cpu2": "0",
     "cpu3": "1",
     "slot0_1": "4",
@@ -263,13 +279,13 @@ _RTU_PORT_MODE: dict[str, str] = {
     "slot1_1": "6",
     "slot1_2": "7",
 }
-_TCP_PORT_MODE: dict[str, str] = {
+_TCP_PORT_MODE: dict[ModbusTcpPort, str] = {
     "ethernet": "2",
     "wlan": "3",
 }
 
-_RTU_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _RTU_PORT_MODE.items()}
-_TCP_PORT_MODE_INV: dict[str, str] = {v: k for k, v in _TCP_PORT_MODE.items()}
+_RTU_PORT_MODE_INV: dict[str, ModbusRtuPort] = {v: k for k, v in _RTU_PORT_MODE.items()}
+_TCP_PORT_MODE_INV: dict[str, ModbusTcpPort] = {v: k for k, v in _TCP_PORT_MODE.items()}
 
 # ---------------------------------------------------------------------------
 # Function codes
@@ -283,7 +299,9 @@ _RD_FC_FROM_SUBTYPE: dict[str, int] = {v: k for k, v in _RD_FC_SUBTYPE.items()}
 _SD_FC_FROM_SUBTYPE: dict[str, int] = {v: k for k, v in _SD_FC_SUBTYPE.items()}
 
 #: Register types of a hex remote address, by Receive function code.
-_RD_FC_REGISTER_TYPE: dict[int, str] = dict(zip((1, 2, 3, 4), REGISTER_TYPES, strict=True))
+_RD_FC_REGISTER_TYPE: dict[int, ModbusRegisterType] = dict(
+    zip(get_args(ReceiveFunctionCode), REGISTER_TYPES, strict=True)
+)
 _RD_REGISTER_TYPE_FC: dict[str, int] = {v: k for k, v in _RD_FC_REGISTER_TYPE.items()}
 
 
@@ -1218,7 +1236,7 @@ class Receive(AfInstruction):
     #: FC01 and a register with FC03. To read a CLICK address with FC02 or FC04, name the
     #: code. A hex or 984 address sets its own code. Construction sets the field to None
     #: when it equals the default.
-    function_code: int | None = None
+    function_code: ReceiveFunctionCode | None = None
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -1324,7 +1342,7 @@ class Send(AfInstruction):
     #: FC05 or FC06, and more than one with FC15 or FC16. It writes one element with FC16
     #: when either side is in DD, DF or CTD. Construction sets the field to None when it
     #: equals the default.
-    function_code: int | None = None
+    function_code: SendFunctionCode | None = None
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
@@ -1552,7 +1570,7 @@ def _from_tags_rd(tags: dict[int, str]) -> Receive | None:
         error=tag_value(tags, 0x607D),
         exception_response=tag_value(tags, 0x6083),
         word_swap=tag_value(tags, 0x221C) == "0",
-        function_code=function_code,
+        function_code=cast("ReceiveFunctionCode", function_code),
     )
 
 
@@ -1576,7 +1594,7 @@ def _from_tags_sd(tags: dict[int, str]) -> Send | None:
         error=tag_value(tags, 0x607D),
         exception_response=tag_value(tags, 0x6083),
         word_swap=tag_value(tags, 0x221C) == "0",
-        function_code=function_code,
+        function_code=cast("SendFunctionCode", function_code),
     )
 
 
@@ -1639,8 +1657,9 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
         int(raw_id) if raw_id.isascii() and raw_id.lstrip("-").isdigit() else raw_id
     )
 
+    # A target refuses a com_port that is not one of its ports.
     if cls_name == "ModbusRtuTarget":
-        com_port = _strip_quotes(kw.get("com_port", "cpu2"))
+        com_port = cast("ModbusRtuPort", _strip_quotes(kw.get("com_port", "cpu2")))
         return ModbusRtuTarget(name=name, com_port=com_port, device_id=device_id)
     if cls_name == "ModbusTcpTarget":
         ip = _strip_quotes(kw.get("ip", ""))
@@ -1654,7 +1673,7 @@ def _parse_target(raw: str) -> ModbusRtuTarget | ModbusTcpTarget:
                 code=Code.INVALID_MODBUS_TARGET,
             )
         port = int(raw_port)
-        com_port = _strip_quotes(kw.get("com_port", "ethernet"))
+        com_port = cast("ModbusTcpPort", _strip_quotes(kw.get("com_port", "ethernet")))
         return ModbusTcpTarget(name=name, ip=ip, port=port, device_id=device_id, com_port=com_port)
     raise FieldError(
         f"{cls_name!r} is not a target type. Write ModbusTcpTarget(...) or ModbusRtuTarget(...).",
@@ -1674,7 +1693,8 @@ def _parse_remote_start(raw: str) -> str | ModbusAddress:
         kw = _parse_constructor_kwargs(m.group(2))
         return ModbusAddress(
             address=kw.get("address", ""),
-            register_type=kw.get("register_type"),
+            # The ModbusAddress refuses any other register type.
+            register_type=cast("ModbusRegisterType | None", kw.get("register_type")),
         )
     return raw
 
@@ -1766,7 +1786,8 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             error=error,
             exception_response=exception_response,
             word_swap=word_swap,
-            function_code=function_code,
+            # The Receive refuses a function code that is not 1, 2, 3 or 4.
+            function_code=cast("ReceiveFunctionCode | None", function_code),
         )
 
     if call.name == "send":
@@ -1782,7 +1803,8 @@ def parse_af_call(call: AfCall) -> Receive | Send:
             error=error,
             exception_response=exception_response,
             word_swap=word_swap,
-            function_code=function_code,
+            # The Send refuses a function code that is not 5, 6, 15 or 16.
+            function_code=cast("SendFunctionCode | None", function_code),
         )
 
     raise FieldError(

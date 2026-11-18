@@ -18,7 +18,7 @@ import warnings
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING
 
-from .instructions.undecoded import Stop, Undecoded
+from .instructions.undecoded import Undecoded, UndecodedStop
 from .topology import CONDITION_COLUMNS
 
 if TYPE_CHECKING:
@@ -372,10 +372,10 @@ def warn_undecoded(rungs: Iterable[Rung], *, program: str | None = None) -> None
 
 __all__ = [
     "BAD_BYTES",
-    "Stop",
     "Undecoded",
     "UndecodedCommentWarning",
     "UndecodedRungWarning",
+    "UndecodedStop",
     "comment_note",
     "marker_rung",
     "markers",

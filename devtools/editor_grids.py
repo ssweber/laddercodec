@@ -536,11 +536,17 @@ def _copy_check(case: dict[str, Any]) -> dict[str, Any]:
         )
     if mode == "pack":
         bank = _bank_of(f["source"])
-        kind = "pack_text" if bank == "TXT" else "pack_bits" if bank in BIT_BANKS else "pack_words"
-        return verdict_of(lambda: Pack(f["source"], f["source_end"], f["destination"], kind))
+        pack_kind = (
+            "pack_text" if bank == "TXT" else "pack_bits" if bank in BIT_BANKS else "pack_words"
+        )
+        return verdict_of(lambda: Pack(f["source"], f["source_end"], f["destination"], pack_kind))
     if mode == "unpack":
-        kind = "unpack_to_bits" if _bank_of(f["destination"]) in BIT_BANKS else "unpack_to_words"
-        return verdict_of(lambda: Unpack(f["source"], f["destination"], f["destination_end"], kind))
+        unpack_kind = (
+            "unpack_to_bits" if _bank_of(f["destination"]) in BIT_BANKS else "unpack_to_words"
+        )
+        return verdict_of(
+            lambda: Unpack(f["source"], f["destination"], f["destination_end"], unpack_kind)
+        )
     raise AssertionError(mode)
 
 

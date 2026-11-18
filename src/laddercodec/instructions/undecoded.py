@@ -6,7 +6,7 @@ The marker is not a CLICK instruction.  It has no binary form, and ``encode()`` 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 from ..codes import Code
 from ..model import AfInstruction, FieldError, Reason
@@ -19,8 +19,11 @@ if TYPE_CHECKING:
 #: The index of the AF column, counted from 0 at column A.
 _LAST_COLUMN = 31
 
-Stop = Literal["end", "return"]
-_STOPS: tuple[Stop, ...] = ("end", "return")
+UndecodedStop = Literal["end", "return"]
+"""What an Undecoded marker acts as: ``"end"`` in the main program, ``"return"`` in a
+subroutine."""
+
+_STOPS: tuple[UndecodedStop, ...] = get_args(UndecodedStop)
 
 
 @dataclass(frozen=True)
@@ -50,7 +53,7 @@ class Undecoded(AfInstruction):
     rung: int
     row: int | None = None
     column: int | None = None
-    stop: Stop = "end"
+    stop: UndecodedStop = "end"
 
     def __post_init__(self) -> None:
         with Refusals(self) as check:
