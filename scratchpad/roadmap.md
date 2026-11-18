@@ -651,6 +651,8 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 - **Unicode line separators.** U+2028, U+0085, VT, FF and x1C-x1E outside quotes read as whitespace in a CSV
   token.
 - **Copy Binary decode.** A type 8 Copy decodes without comparing tag 0x2206.
+- **The `.python-version` pin.** It sets Python 3.13 for a fresh venv, because pyyaml has no wheel for
+  3.15 and `make docs-build` fails without it. Delete the file when pyyaml ships a 3.15 wheel.
 - **Small cleanups.** `tests/csv/test_flag_keywords.py` has no `read_csv(unchecked=True)` case with a
   location. `devtools/classify_dryrun.py` keeps the internal `for_limit_*` names.
 - **Email, Home, Position and Velocity readers:** each has a `from_csv_token` that no CSV token reaches,
