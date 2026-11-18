@@ -111,6 +111,11 @@ that needs more than 32 rows or more than the 31 condition columns. The error's
 `code` says which. The rules of the drawing are in
 [CSV layout](csv-format.md#layout).
 
+`lay_out()` also raises `LayoutError` with `click_id` `C000A` for an output that
+comes before or after a box whose pin is used, such as a retentive `Timer` with a
+`.reset` term, when the output hangs off that box's input circuit. CLICK doesn't
+allow an output there. Put the output in a `Circuit` of its own.
+
 ## Wire Tokens
 
 Condition columns accept four wire tokens as strings:

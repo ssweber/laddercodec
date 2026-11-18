@@ -106,6 +106,18 @@ class Network:
     #: Contacts whose two sides are on one net, because a wire joins them.
     bypassed: list[Edge] = field(default_factory=list)
 
+    def upstream(self, start: int) -> set[int]:
+        """Return ``start`` and every net other than the rail from which contacts lead to it."""
+        seen = {start}
+        todo = [start]
+        while todo:
+            dst = todo.pop()
+            for e in self.edges:
+                if e.dst == dst and e.src != self.rail and e.src not in seen:
+                    seen.add(e.src)
+                    todo.append(e.src)
+        return seen
+
 
 class _UnionFind:
     def __init__(self) -> None:

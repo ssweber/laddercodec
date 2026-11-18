@@ -53,3 +53,10 @@ The CLICK captures are in `v4_captures/`; the pyrung CSVs are here.
   pyrung's `tests/fixtures/user_shapes/` and its bridge. `check_shapes_checked.scr` is the
   `Scr1.tmp` CLICK saved after that check. `tests/test_check_shapes.py` compares `check()`
   with the answer and `read_csv` with the saved rungs.
+- `timer_coil.csv`: two rungs pasted into CLICK v4.00 as one main program. Rung 1 has
+  out(Y001) on the net of a retentive timer's reset, below the timer. Rung 2 has out(Y002)
+  above the timer, on the net between X001 and X003 of the timer's main input.
+  `timer_coil_errors.txt` is CLICK's Syntax Check answer: C000A on both rungs, then C0201
+  for the missing `end()`. `timer_coil_checked.scr` is the `Scr1.tmp` that CLICK saved after
+  the check, with both rungs as pasted. `tests/test_layout_check.py` compares `check()` with
+  the answer and `read_csv` with the saved rungs.

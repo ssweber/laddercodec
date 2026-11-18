@@ -195,6 +195,15 @@ class TestRoundTrip:
             ("Zeta", 4),
         ]
 
+    def test_names_that_differ_in_case_outside_a_z(self, tmp_path: Path) -> None:
+        """CLICK holds ``Straße`` and ``STRASSE`` as two names, and each is a file of its own."""
+        project = _project("STRASSE", "Straße")
+        write_bundle(tmp_path, project)
+        written = sorted(p.name for p in (tmp_path / "subroutines").iterdir())
+        if written != ["STRASSE.csv", "Straße.csv"]:
+            pytest.skip(f"this file system stores the names as {written}")
+        assert read_bundle(tmp_path) == project
+
     def test_a_subroutine_named_main(self, tmp_path: Path) -> None:
         """``subroutines/main.csv`` holds the subroutine ``main``, not the main program."""
         project = _project("main", sub=("C2", "Y4"))
@@ -271,6 +280,35 @@ class TestWriteRefusals:
         assert info.value.code in (Code.INVALID_SUBROUTINE_NAME, Code.BLANK_FIELD)
         assert _snapshot(bundle) == before
 
+    def test_names_equal_ignoring_the_case_of_a_z(self, bundle: Path) -> None:
+        before = _snapshot(bundle)
+        with pytest.raises(WriterError) as info:
+            write_bundle(bundle, _project("Zz", "zz"))
+        assert str(info.value) == (
+            "Subroutines 'Zz' and 'zz' have the same name when the case of A-Z is ignored "
+            "(GUI-036). Rename one of them."
+        )
+        assert (info.value.code, info.value.click_id) == (
+            Code.DUPLICATE_SUBROUTINE_NAME,
+            "GUI-036",
+        )
+        assert _snapshot(bundle) == before
+
+    @pytest.mark.parametrize(("first", "second"), [("É1", "é1"), ("Pumpé", "PUMPÉ")])
+    def test_names_that_would_be_one_file(self, bundle: Path, first: str, second: str) -> None:
+        """CLICK holds the two as two names, and a file system that ignores case holds their
+        files as one."""
+        before = _snapshot(bundle)
+        with pytest.raises(WriterError) as info:
+            write_bundle(bundle, _project(first, second))
+        assert str(info.value) == (
+            f"The files of subroutines {first!r} and {second!r} would be one file on a file "
+            "system that ignores case, such as NTFS. Rename one of them."
+        )
+        assert info.value.code is None
+        assert info.value.click_id is None
+        assert _snapshot(bundle) == before
+
     @pytest.mark.parametrize("second", [" pump", "Pump"])
     def test_names_equal_ignoring_case(self, bundle: Path, second: str) -> None:
         """A name that differs only in case and the same name twice are refused alike.  A copy
@@ -280,8 +318,8 @@ class TestWriteRefusals:
             write_bundle(bundle, _project("Pump", "Fan", second))
         error = info.value
         assert str(error) == (
-            f"Subroutines 'Pump' and {second.strip()!r} have the same name when case is "
-            "ignored (GUI-036). Rename one of them."
+            f"Subroutines 'Pump' and {second.strip()!r} have the same name when the case of "
+            "A-Z is ignored (GUI-036). Rename one of them."
         )
         assert error.code is Code.DUPLICATE_SUBROUTINE_NAME
         assert error.click_id == "GUI-036"
@@ -470,9 +508,22 @@ class TestReadErrors:
         with pytest.raises(CsvError) as info:
             _subroutine_names(paths)
         assert str(info.value) == (
-            "Subroutine files 'Pump.csv' and 'pump.CSV' have the same name when case is "
-            f"ignored (GUI-036). Rename one of them. (at {sub / 'pump.CSV'})"
+            "Subroutine files 'Pump.csv' and 'pump.CSV' have the same name when the case of "
+            f"A-Z is ignored (GUI-036). Rename one of them. (at {sub / 'pump.CSV'})"
         )
+        _assert_duplicate_name(info.value)
+
+    def test_names_that_differ_in_case_outside_a_z(self) -> None:
+        """CLICK holds each pair as two names.  The paths are in memory, so a file system
+        that holds ``é1.csv`` and ``É1.csv`` as one file does not matter."""
+        sub = Path("subroutines")
+        paths = [sub / "STRASSE.csv", sub / "Straße.csv", sub / "É1.csv", sub / "é1.csv"]
+        assert _subroutine_names(paths) == ["STRASSE", "Straße", "É1", "é1"]
+
+    def test_names_equal_ignoring_the_case_of_a_z(self) -> None:
+        sub = Path("subroutines")
+        with pytest.raises(CsvError) as info:
+            _subroutine_names([sub / "Zz.csv", sub / "zz.csv"])
         _assert_duplicate_name(info.value)
 
     def test_names_equal_ignoring_case_from_read_bundle(
@@ -498,14 +549,14 @@ class TestReadErrors:
             path.write_bytes(b"\xff")
         if len(list((tmp_path / "subroutines").iterdir())) != 2:
             pytest.skip("this file system ignores case in file names")
-        with pytest.raises(CsvError, match="have the same name when case is ignored") as info:
+        with pytest.raises(CsvError, match="have the same name when the case of A-Z") as info:
             read_bundle(tmp_path)
         _assert_duplicate_name(info.value)
 
 
 def _assert_duplicate_name(error: CsvError) -> None:
     """Assert that *error* is the refusal of two subroutine files whose names are equal when
-    case is ignored."""
+    the case of A-Z is ignored."""
     assert error.code is Code.DUPLICATE_SUBROUTINE_NAME
     assert error.click_id == "GUI-036"
     assert error.click_id in CLICK_IDS[error.code]

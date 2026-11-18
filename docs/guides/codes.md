@@ -68,7 +68,7 @@ These rules apply to several instructions. `invalid-subroutine-name` and `duplic
 | `immediate-not-allowed` | Immediate on an instruction with no immediate form. |  |
 | `text-order-compare` | `<` or `>` on text, in a Compare or a Search. |  |
 | `invalid-subroutine-name` | A subroutine name over 24 characters, with a forbidden character, or a device name. | GUI-040 |
-| `duplicate-subroutine-name` | Two subroutine names that are equal when case is ignored, such as `Pump` and `pump`. | GUI-036 |
+| `duplicate-subroutine-name` | Two subroutine names that are equal when the case of A-Z is ignored, such as `Pump` and `pump`. | GUI-036 |
 | `invalid-input-rows` | `pin_rows` that is not one ascending row (1 to 255) per box input. |  |
 
 ## Copy family
@@ -96,7 +96,7 @@ These rules apply to the formula of a Math instruction.
 | `math-nickname` | A formula that holds a `<nickname>`. |  |
 | `math-invalid-token` | A word or character that is no formula part. | OBJ-1001 |
 | `math-constant-kind` | A hex constant in a decimal Math, a constant without an `h` in a hex Math, or a text constant in any Math. | OBJ-1001 |
-| `math-constant-out-of-range` | Hex over 4 digits, a real past float32 or with more significant digits than CLICK keeps, an integer past int32, or leading zeros. | OBJ-1009 |
+| `math-constant-out-of-range` | Hex over 4 digits, a real past float32 or with more digits than CLICK keeps, an integer past int32, or leading zeros. | OBJ-1009 |
 | `math-nesting-depth` | Parentheses more than 8 deep. | OBJ-1010 |
 | `math-unbalanced-parens` | A `)` with no `(`, or a `(` with no `)`. | OBJ-1004, OBJ-1005 |
 | `math-function-mode` | A function, an operator or `PI` that only the other mode's keypad has, such as `SIN` in a hex Math or `XOR` in a decimal Math. | OBJ-1006 |
@@ -148,7 +148,7 @@ Compare, Search, Out variants, Drum, Send and Receive, For, and laddercodec's ow
 | `no-coil` | A path from the rail that reaches no box. | C0003 |
 | `contact-feeds-only-nop` | A contact that feeds a NOP and no other box. | C0003 |
 | `unwired-input` | A box input (a Reset input, a Down input, ...) that no rail or contact reaches. | C0202 |
-| `output-above-box-inputs` | A box whose main input is on the same net as the main input of a lower box that uses an input row, such as a `.reset()` row. The rail reaches that net through a contact. | C000A |
+| `output-above-box-inputs` | A box above a lower box that uses an input row, such as a `.reset()` row, where the upper box's main input is on the lower box's main input circuit. That is the lower box's main input net, or a net that its main input circuit runs through from the rail. The rail reaches that net through a contact. | C000A |
 | `shared-input-net` | A box input whose net another input shares. | C000A |
 | `input-without-contact` | A box input with no contact of its own. | C0205, C0212 |
 | `input-shares-enable` | A box input whose circuit shares contacts with an enable. |  |

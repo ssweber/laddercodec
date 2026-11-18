@@ -117,7 +117,8 @@ def check(rungs: Rung | Iterable[Rung]) -> list[Finding]:
     An empty list means that every rung has all of these:
 
     - a series-parallel circuit from the rail into each box input, pins included;
-    - no box above a box with a used pin, on the pinned box's main input's net;
+    - no box above a box with a used pin, on the pinned box's main input's net or on a net
+      that the main input's circuit runs through;
     - no input of another box on a pin's net, unless that net is the rail;
     - contacts of its own on every pin input.
 
@@ -399,7 +400,7 @@ def _layout_findings(index: int, rung: Rung) -> list[Finding]:
     for b, rule, group in _c000a(net, c):
         in_shared |= group
         if rule.code is Code.OUTPUT_ABOVE_BOX_INPUTS:
-            what = "a box above this one hangs off its main input's net"
+            what = "a box above this one hangs off its main input's circuit"
         else:
             what = "a pin of this box shares its net with another box's input"
         add(rule, (net.boxes[b].row, AF_X), what)
@@ -558,7 +559,8 @@ def _c000a(net: Network, c: Circuits) -> list[tuple[int, _Rule, set[int]]]:
     CLICK splits boxes that meet only at the rail into rungs of their own.  A box with a used
     pin is paired with another box when:
 
-    - the other box's main input is on the pinned box's main input's net, above it
+    - the other box's main input is above the pinned box, on the pinned box's main input's
+      net or on a net that the main input's circuit runs through from the rail
       (``"output-above-box-inputs"``), or
     - an input of the other box is on the net of one of its pins (``"shared-input-net"``).
 
@@ -582,7 +584,10 @@ def _c000a(net: Network, c: Circuits) -> list[tuple[int, _Rule, set[int]]]:
     pairs: list[tuple[int, int, _Rule]] = []
     for s in (s for sinks in on.values() for s in sinks if s.box in pinned):
         is_main = s.slot == net.boxes[s.box].main
-        for t in on[s.net]:
+        # A main input is paired with a box on its own net, or on a net that its circuit
+        # runs through on the way from the rail.
+        nets = net.upstream(s.net) if is_main else {s.net}
+        for t in (t for n in nets for t in on.get(n, ())):
             other = net.boxes[t.box]
             if t.box == s.box:
                 continue

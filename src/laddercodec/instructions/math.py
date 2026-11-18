@@ -44,7 +44,7 @@ from ..operands.checks import HEX_MATH_RESULT, Refusals, check_csv_flag, check_w
 from ..operands.constants import INT16_MAX, INT16_MIN
 from ..operands.unchecked import read_in_another_form
 from .family import AfInstructionFamilySpec
-from .math_formula import address_parts, parse
+from .math_formula import address_parts, parse, stored_reals_written
 from .math_formula import range_interiors as formula_range_interiors
 from .raw import _decompose_blob
 
@@ -190,7 +190,9 @@ class Math(AfInstruction):
     expression:
         The formula in Click syntax (e.g. ``"DS65 + DS66"``).  Building a Math rewrites it
         in the form CLICK shows, with one space between tokens, uppercase function names
-        and addresses in display form.  A formula that CLICK's Math dialog refuses raises
+        and addresses in display form.  A real that CLICK keeps only when it is typed with
+        an ``E`` stays in that form (``1.2345E-04``), though the blob stores it as CLICK
+        shows it (``0.00012345``).  A formula that CLICK's Math dialog refuses raises
         :class:`FieldError`.  So does a ``<nickname>``, because Math takes only addresses.
     dest:
         Destination register (e.g. ``"DS67"``).
@@ -236,7 +238,7 @@ class Math(AfInstruction):
                     # Each refusal of the formula is recorded on the field Math.expression.
                     formula = check.run(parse, self.expression, self.mode)
                     if formula is not None:
-                        object.__setattr__(self, "expression", formula.display)
+                        object.__setattr__(self, "expression", formula.written)
             check.flag("oneshot")
 
     def to_csv(self) -> str:
@@ -343,6 +345,10 @@ def from_tags(
         tag_value(tags, 0x61FF),
         internal,
     ) or tag_value(tags, 0x6228)
+    if mode == "decimal":
+        # CLICK saves some reals in a form that it cuts when that form is typed
+        # (1.2345E-04 is saved as 0.00012345). The Math holds a form that CLICK keeps.
+        expression = stored_reals_written(expression)
     if not dest or not expression or _holds_nickname(expression):
         # In CLICK's nickname view, the display text shows nicknames, not addresses.
         # laddercodec can't read that text as a formula, so the blob stays raw.

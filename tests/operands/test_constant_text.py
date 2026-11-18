@@ -39,9 +39,9 @@ def _copy_source(typed: str, destination: str, kept: str | None = None) -> str:
 def _math_refuses(typed: str, kept: str) -> None:
     """Assert that a Math refuses ``typed`` and names ``kept``, and that a Math of ``kept`` builds.
 
-    ``typed`` is a real of more than 6 significant digits."""
+    ``typed`` is a real that CLICK's Math may save as another value."""
     with pytest.raises(
-        FieldError, match=f"CLICK keeps 6 significant digits in Math: write {re.escape(kept)}$"
+        FieldError, match=f"digits than CLICK keeps in Math.*: write {re.escape(kept)}$"
     ):
         Math(typed, "DF1")
     assert Math(kept, "DF1").expression.replace(" ", "") == kept
@@ -217,9 +217,8 @@ def test_constant_text_at_the_float32_edge(sign: int) -> None:
     assert text == ("-" if sign < 0 else "") + "3.402823466E+38"
     assert struct.unpack("<f", struct.pack("<f", float(text)))[0] == sign * FLOAT32_MAX
     minus = "-" if sign < 0 else ""
-    # A Math refuses it and names the value with 6 significant digits. A Copy refuses it and
-    # names the value with 7.
-    _math_refuses(text, f"{minus}3.40282E+38")
+    # A Math and a Copy refuse it, and each names the value with 7 significant digits.
+    _math_refuses(text, f"{minus}3.402823E+38")
     assert _copy_source(text, "DF1", f"{minus}3.402823E+38") == f"{minus}3.402823E+38"
     assert constant_text(sign * 3.4025e38) == ("-" if sign < 0 else "") + "3.4025E+38"
 
@@ -246,10 +245,11 @@ def test_constant_text_is_what_construction_stores(value: int | float | str) -> 
 
 
 #: For each constant_text result with more digits than CLICK keeps, the value that a Copy's
-#: refusal names (7 significant digits) and the value that a Math's refusal names (6).
+#: refusal names (7 significant digits) and the value that a Math's refusal names (6 digits
+#: after the point).
 _BEYOND = {
     "0.33333334": ("0.3333333", "0.333333"),
-    "16777216.0": ("1.677722E+07", "1.67772E+07"),
+    "16777216.0": ("1.677722E+07", "1.677722E+07"),
 }
 
 
@@ -257,9 +257,9 @@ _BEYOND = {
 #: Each entry is (value, constant_text result, the value that a Copy's refusal names, the
 #: value that a Math's refusal names).
 _LONG_EXPONENT = [
-    (FLOAT32_MAX, "3.402823466E+38", "3.402823E+38", "3.40282E+38"),
-    (1.2345678e10, "1.2345678E+10", "1.234568E+10", "1.23457E+10"),
-    (1.17549435e-38, "1.1754944E-38", "1.175494E-38", "1.17549E-38"),
+    (FLOAT32_MAX, "3.402823466E+38", "3.402823E+38", "3.402823E+38"),
+    (1.2345678e10, "1.2345678E+10", "1.234568E+10", "1.234568E+10"),
+    (1.17549435e-38, "1.1754944E-38", "1.175494E-38", "1.175494E-38"),
 ]
 
 

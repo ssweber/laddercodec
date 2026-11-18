@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import csv
 import struct
+import warnings
 from pathlib import Path
 
 import pytest
 
-from laddercodec import FieldError, RefusedFieldWarning, Rung, decode, encode, read_csv
+from laddercodec import FieldError, RefusedFieldWarning, Rung, decode, encode, read_csv, write_csv
 from laddercodec.csv import CSV_HEADER
 from laddercodec.instructions import from_tags_af, parse_af_blob
 from laddercodec.instructions.math import Math
@@ -496,18 +497,162 @@ def test_a_stored_real_above_the_largest_float32_decodes_and_writes_its_bytes(
     """CLICK's Math dialog refuses 3.4028235E+38 (OBJ-1009). A stored Math with that
     constant decodes as the Math and keeps the refusal, and encode() writes its bytes
     unchanged."""
-    # 3.4028200E+38 has the 6 significant digits that a Math takes, and the same length as
-    # the value that replaces it.
-    rung = _read_af_rung(tmp_path, "math(DF1 * 3.4028200E+38,DF9,mode=decimal)")
+    # +3.402821E+38 is a real that CLICK keeps as typed, and it has the same length as the
+    # value that replaces it.
+    rung = _read_af_rung(tmp_path, "math(DF1 * ( +3.402821E+38 ),DF9,mode=decimal)")
     data = encode(rung)
-    old, new = "3.4028200E+38".encode("utf-16-le"), "3.4028235E+38".encode("utf-16-le")
+    old, new = "+3.402821E+38".encode("utf-16-le"), "3.4028235E+38".encode("utf-16-le")
     assert data.count(old) == 4  # the display formula, the template and both internal forms
     data = data.replace(old, new)
     with pytest.warns(RefusedFieldWarning, match=r"3\.4028235E\+38 is outside the float32 range"):
         [decoded] = decode(data)
     assert isinstance(decoded, Rung)
     [math] = decoded.instructions
-    assert isinstance(math, Math) and math.expression == "DF1 * 3.4028235E+38"
+    assert isinstance(math, Math) and math.expression == "DF1 * ( 3.4028235E+38 )"
     kept(math, "Math.expression")
     assert refusals(math)[0].click_id == "OBJ-1009"
     assert encode(decoded) == data
+
+
+#: The tags of CLICK's save of ``dec DF1 = 1.2345E-04`` typed into the Math dialog.
+_SAVED_E_TYPING = {
+    0x6065: "DF1",
+    0x61FF: "0.00012345",
+    0x6228: "0.00012345",
+    0x6229: "F0.00012345",
+    0x61FD: "F0.00012345",
+}
+
+
+def test_click_save_of_a_real_typed_with_an_e_holds_no_refusal(tmp_path: Path) -> None:
+    """CLICK saves 1.2345E-04 as 0.00012345, which it cuts to 0.000123 when it is typed so.
+    The save decodes with no warning, as a Math that holds 1.2345E-04, and that form
+    survives the CSV and encodes as the bytes CLICK saved."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        math = from_tags_af("Math", 0x271A, dict(_SAVED_E_TYPING))
+    assert isinstance(math, Math)
+    assert math.expression == "1.2345E-04" and refusals(math) == ()
+    stored = {tag: value for tag, _sentinel, value in _decompose_blob(math.build_blob())[4]}
+    assert {tag: stored[tag] for tag in _SAVED_E_TYPING} == _SAVED_E_TYPING
+
+    rung = _read_af_rung(tmp_path, "math(1.2345E-04,DF1,mode=decimal)")
+    data = encode(rung)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        [decoded] = decode(data)
+    assert isinstance(decoded, Rung)
+    path = tmp_path / "written.csv"
+    write_csv(path, [decoded])
+    assert "math(1.2345E-04,DF1,mode=decimal)" in path.read_text(encoding="utf-8")
+    [back] = read_csv(path)
+    assert back == decoded
+    assert encode(back) == data
+
+
+@pytest.mark.parametrize(
+    ("typed", "held", "shown"),
+    [
+        # CLICK keeps each of these only when it is typed with an E.
+        ("1.2345E-04", "1.2345E-04", "0.00012345"),
+        ("-1.2345E-04", "-1.2345E-04", "-0.00012345"),
+        ("+1.2345E-04", "+1.2345E-04", "+0.00012345"),
+        ("1.234567E-04", "1.234567E-04", "0.0001234567"),
+        ("1.234567E-03", "1.234567E-03", "0.001234567"),
+        ("1.234567E-01", "1.234567E-01", "0.1234567"),
+        # CLICK keeps the positional print of these when it is typed so.
+        ("1.5E-3", "0.0015", "0.0015"),
+        ("1.234567E+00", "1.234567", "1.234567"),
+        ("1.5e-3", "0.0015", "0.0015"),
+    ],
+)
+def test_math_holds_a_real_in_a_form_click_keeps(typed: str, held: str, shown: str) -> None:
+    """A Math holds each real in a form that CLICK saves as the same value when it is typed,
+    and its blob stores the real as CLICK saves it."""
+    math = Math(f"DF1 * ( {typed} )", "DF9")
+    assert math.expression == f"DF1 * ( {held} )"
+    assert Math(math.expression, "DF9") == math
+    stored = {tag: value for tag, _sentinel, value in _decompose_blob(math.build_blob())[4]}
+    assert stored[0x6228] == f"DF1 * ( {shown} )"
+    assert stored[0x61FD] == f"DF1#*#(#F{shown}#)"
+
+
+@pytest.mark.parametrize(
+    ("stored", "held"),
+    [
+        ("@ * 0.00012345", "DF2 * 1.2345E-04"),
+        ("@ * ( +0.00012345 )", "DF2 * ( +1.2345E-04 )"),
+        ("@ * 0.0015", "DF2 * 0.0015"),
+    ],
+)
+def test_stored_real_that_a_typing_keeps_holds_no_refusal(stored: str, held: str) -> None:
+    tags = {0x6065: "DF1", 0x61FF: stored, 0x61FD: stored.replace("@", "DF2").replace(" ", "#")}
+    math = from_tags_af("Math", 0x271A, tags)
+    assert isinstance(math, Math)
+    assert math.expression == held and refusals(math) == ()
+
+
+def test_stored_real_that_no_typing_keeps_keeps_its_refusal() -> None:
+    """CLICK cuts 0.33333334 to 0.333333 however it is typed."""
+    tags = {0x6065: "DF1", 0x61FF: "@ * 0.33333334", 0x61FD: "DF2#*#F0.33333334"}
+    math = from_tags_af("Math", 0x271A, tags)
+    assert isinstance(math, Math) and math.expression == "DF2 * 0.33333334"
+    assert [error.field for error in refusals(math)] == ["Math.expression"]
+
+
+@pytest.mark.parametrize(
+    ("stored", "held"),
+    [
+        # CLICK keeps 6 digits after the point of a real typed without an E.
+        ("1234.000001", "1234.000001"),
+        ("4194304.1", "4194304.1"),
+        ("8388608.4", "8388608.4"),
+        # CLICK saves a real below 1E-04 or from 1E+07 up in exponent form
+        # (0.000012345678 as 1.234568E-05, and ten million typed with a .0 as 1E+07).
+        ("1.5E-05", "1.5E-05"),
+        ("1E+07", "1E+07"),
+    ],
+)
+def test_stored_real_click_saves_decodes_and_writes_its_bytes(
+    tmp_path: Path, stored: str, held: str
+) -> None:
+    tags = {
+        0x6065: "DF1",
+        0x61FF: f"@ * {stored}",
+        0x6228: f"DF2 * {stored}",
+        0x6229: f"@#*#F{stored}",
+        0x61FD: f"DF2#*#F{stored}",
+    }
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        math = from_tags_af("Math", 0x271A, dict(tags))
+    assert isinstance(math, Math)
+    assert math.expression == f"DF2 * {held}" and refusals(math) == ()
+    written = {tag: value for tag, _sentinel, value in _decompose_blob(math.build_blob())[4]}
+    assert {tag: written[tag] for tag in tags} == tags
+    assert Math(f"DF2 * {held}", "DF1") == math
+
+    rung = _read_af_rung(tmp_path, f"math(DF2 * {held},DF1,mode=decimal)")
+    data = encode(rung)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        [decoded] = decode(data)
+    path = tmp_path / "written.csv"
+    write_csv(path, [decoded])
+    [back] = read_csv(path)
+    assert back == decoded
+    assert encode(back) == data
+
+
+@pytest.mark.parametrize(
+    ("typed", "saved"),
+    [("0.000015", "1.5E-05"), ("20000000.0", "2E+07"), ("( -0.000015 )", "( -1.5E-05 )")],
+)
+def test_math_stores_click_save_text(typed: str, saved: str) -> None:
+    math = Math(f"DF2 * {typed}", "DF1")
+    assert math.expression == f"DF2 * {saved}"
+    written = {tag: value for tag, _sentinel, value in _decompose_blob(math.build_blob())[4]}
+    assert written[0x6228] == f"DF2 * {saved}"
+    assert written[0x61FD] == "DF2#*#" + "#".join(
+        f"F{word}" if word[-1].isdigit() else word for word in saved.split()
+    )

@@ -74,11 +74,12 @@ from ..operands.constants import (
     INT16_MIN,
     INT32_MAX,
     INT32_MIN,
-    MATH_REAL_DIGITS,
+    Kind,
+    classify,
     hex_display,
-    real_beyond_kept_digits,
-    real_display,
-    significant_digits,
+    math_real_kept,
+    math_real_stored,
+    math_real_typing,
 )
 from ..operands.errors import Reason
 
@@ -133,9 +134,9 @@ MAX_NESTING = 8
 #: address and ``#`` between tokens. CLICK refuses a longer one with OBJ-1008,
 #: "The Formula is too long". A sum of 68 addresses fits, and a sum of 69 does not.
 MAX_INTERNAL_LENGTH = 270
-#: The text that a refusal shows for :data:`FLOAT32_MAX`. It is the shortest text whose
-#: value is not above FLOAT32_MAX and that float32 reads back as FLOAT32_MAX.
-_FLOAT32_MAX_TEXT = "3.402823466E+38"
+#: The largest real that a decimal Math takes, as a refusal shows it. Its value is not above
+#: FLOAT32_MAX, and CLICK keeps it as typed.
+_LARGEST_REAL_TEXT = "3.402823E+38"
 #: The longest integer CLICK prints back: ``-2147483648``.
 _MAX_PRINTED = 11
 #: The most bytes that the registers of a median may cover (OBJ-1013).
@@ -210,12 +211,16 @@ class Token:
     constant, ``internal`` is the constant as the internal formula stores it (``H5``,
     ``F1.5``, ``UH10``). ``refused`` is True for a word or constant that the parser has
     already refused. The parser goes on as if such a token were the ``kind`` it looks like.
+    ``written`` is the text that the Math holds for the token when it differs from ``text``.
+    It is set for a real that CLICK saves as ``text`` but cuts when ``text`` itself is typed:
+    ``1.2345E-04`` for ``0.00012345``.
     """
 
     kind: str
     text: str
     internal: str = ""
     refused: bool = False
+    written: str = ""
 
 
 def address_parts(text: str) -> tuple[str, str] | None:
@@ -559,25 +564,31 @@ def _decimal_internal(text: str) -> str | FieldError:
 
     A real is stored as ``F`` followed by the number. Its value, read as a double, may be no
     larger in size than float32's largest value. So ``3.4028235E+38`` is refused, even
-    though float32 rounds it to that largest value. CLICK keeps 6 significant digits of a
-    real (``0.33333334`` is saved as ``0.333333``). laddercodec refuses a real typed with
-    more, and the refusal names the constant to write.
+    though float32 rounds it to that largest value. CLICK keeps 6 digits after the point of
+    a real typed without an ``E`` (``0.33333334`` is saved as ``0.333333``), and 7
+    significant digits of one typed with an ``E``. laddercodec refuses a real that CLICK
+    may save as a different value, and the refusal names the constant to write
+    (:func:`math_real_kept`).
     """
     body = text[1:] if text[:1] in _SIGNS else text
     if not all(c in _DIGITS for c in body):
         if abs(float(text)) > FLOAT32_MAX:
             return _error(
-                f"{text} is outside the float32 range; a real constant is at most "
-                f"{_FLOAT32_MAX_TEXT} in size, float32's largest value",
+                f"{text} is outside the float32 range; a real constant in Math is at most "
+                f"{_LARGEST_REAL_TEXT} in size",
                 Reason.RANGE,
                 "OBJ-1009",
                 code=Code.MATH_CONSTANT_OUT_OF_RANGE,
             )
-        kept = real_beyond_kept_digits(text, MATH_REAL_DIGITS)
-        if kept is not None:
+        found = math_real_kept(text)
+        if found is not None:
+            saved, write = found
+            if saved is not None:
+                what = f"has more digits than CLICK keeps in Math; CLICK saves it as {saved}"
+            else:
+                what = "may have more digits than CLICK keeps in Math"
             return _error(
-                f"{text} has {significant_digits(text)} significant digits; CLICK keeps "
-                f"{MATH_REAL_DIGITS} significant digits in Math: write {kept}",
+                f"{text} {what}: write {write}",
                 Reason.FORM,
                 code=Code.MATH_CONSTANT_OUT_OF_RANGE,
             )
@@ -1072,6 +1083,15 @@ class Formula:
         return " ".join(t.text for t in self.tokens)
 
     @property
+    def written(self) -> str:
+        """The formula as a Math holds it and its CSV writes it.
+
+        It is the display formula, with each real in a form that CLICK keeps as typed
+        (:attr:`Token.written`). Parsed again, it gives the same formula.
+        """
+        return " ".join(t.written or t.text for t in self.tokens)
+
+    @property
     def template(self) -> str:
         """The display formula with ``@`` for each address (tag 0x61FF)."""
         return " ".join("@" if t.kind == "addr" else t.text for t in self.tokens)
@@ -1128,6 +1148,27 @@ class Formula:
         return out
 
 
+def stored_reals_written(expression: str) -> str:
+    """Return a decimal formula that CLICK stored, with each real in a form that CLICK keeps
+    as typed.
+
+    CLICK saves ``1.2345E-04`` as ``0.00012345``, a text that it cuts to ``0.000123`` when
+    it is typed so. This function writes such a real in its form with an ``E``. A real that
+    no typing keeps, and every other word, stays as stored.
+    """
+    words = expression.split(" ")
+    for k, word in enumerate(words):
+        constant = classify(word)
+        if constant is None or constant.kind is not Kind.FLOAT:
+            continue
+        if abs(float(word)) > FLOAT32_MAX:
+            continue
+        typing = math_real_typing(word)
+        if typing is not None:
+            words[k] = typing
+    return " ".join(words)
+
+
 def parse(text: str, mode: str) -> Formula:
     """Parse a Math formula as CLICK's Math dialog reads it, and return the :class:`Formula`.
 
@@ -1172,10 +1213,15 @@ def parse(text: str, mode: str) -> Formula:
                 found.append(internal)
                 tokens[k] = Token("const", t.text, refused=True)
             elif internal.startswith("F"):
-                # Store a real as CLICK prints it back, in both the display and the internal
-                # form (1.50 becomes 1.5 and F1.5).
-                printed = real_display(t.text)
-                tokens[k] = Token("const", printed, f"F{printed}")
+                # Store a real as CLICK saves it, in both the display and the internal form
+                # (1.50 becomes 1.5 and F1.5, 0.000015 becomes 1.5E-05). Where CLICK keeps
+                # that text only when it is typed with an E, the formula holds the E form.
+                # An integral real keeps laddercodec's print (1E5 becomes 100000.0; see
+                # math_real_stored).
+                printed = math_real_stored(t.text)
+                typing = math_real_typing(printed)
+                written = typing if typing not in (None, printed) else ""
+                tokens[k] = Token("const", printed, f"F{printed}", written=written)
             else:
                 tokens[k] = Token("const", t.text, internal)
         shown = " ".join(t.text for t in tokens)

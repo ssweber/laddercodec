@@ -1,0 +1,3 @@
+Main Program : Rung 1 : error C000A: All inputs of the box instruction must originate from the same branch.
+Main Program : Rung 2 : error C000A: All inputs of the box instruction must originate from the same branch.
+Main Program : Rung 3 : error C0201: No unconditional END instruction in the Main Program.

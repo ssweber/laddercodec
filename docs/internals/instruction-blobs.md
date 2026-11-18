@@ -272,7 +272,10 @@ The formula appears four times in the header:
   bare decimal literal prefixed with `H` (`W` outside int16, `F` for a real: `H+5`,
   `F-2.5`) and each hex constant written `UH` and its decimal value. An integer
   keeps its typed text; a real is the value CLICK prints back, in both forms
-  (`1.50` is stored `1.5` and `F1.5`, `1e3` is `1000.0` and `F1000.0`). Click
+  (`1.50` is stored `1.5` and `F1.5`, `1e3` is `1000.0` and `F1000.0`,
+  `1.2345E-04` is `0.00012345` and `F0.00012345`). A decode reads a stored real
+  that CLICK keeps only when it is typed with an `E` in that form, so
+  `0.00012345` decodes as `1.2345E-04`. Click
   splits it on `#`, so an unspaced `ABS(` becomes a single unknown token. In
   CLICK v4 that pastes but raises a Math instruction error.
 - **Comma functions** (`RAND`, `LSH`, `RSH`, `LRO`, `RRO`) are stored infix in
@@ -313,9 +316,15 @@ follows them, and `tests/ladder/test_math_grammar.py` has a test per rule):
    - Decimal: an integer whose low 32 bits print back with `%d` (a typed `+` kept) at
      the typed length, or a real whose value, read as a double, is at most float32's
      largest, 3.402823466E+38, in size. `3.4028235E+38`, which float32 rounds to that
-     value, is refused with OBJ-1009. CLICK keeps 6 significant digits of a real
-     (`0.33333334` is saved as `0.333333`). laddercodec rejects a real typed with more,
-     and names the constant of 6 digits to write (`3.40282E+38` for float32's largest).
+     value, is refused with OBJ-1009. CLICK saves a real in positional form when its
+     exponent is from -4 to 6, and in exponent form otherwise, with trailing zeros cut.
+     A real typed without an `E` keeps 6 digits after the point (`0.00012345` is saved
+     as `0.000123`, `12345678.9` as `1.234568E+07`, `1234567.0` as `1234567`). One
+     typed with an `E` keeps 7 significant digits (`1.2345E-04` is saved as
+     `0.00012345`, `1.2345678E+15` as `1.234568E+15`, `3.0E+38` as `3E+38`). The form
+     of a real typed with a lowercase `e` and more digits is not known. laddercodec
+     rejects a real that CLICK may save as another value, and names the text that
+     CLICK saves and the constant to write (`3.402823E+38` for float32's largest).
    - Hex: CLICK uppercases the word and deletes its first `H`, wherever it is. Then it
      takes 1 to 4 hex digits. So it stores `7` as `7h`, `1e3` as `1E3h` and `7H7` as
      `77h`. laddercodec takes only 1 to 4 hex digits followed by `h` or `H`. It rejects

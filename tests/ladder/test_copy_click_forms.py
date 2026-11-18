@@ -641,7 +641,7 @@ def test_fill_text_stays_printable_ascii() -> None:
 
 
 # ---------------------------------------------------------------------------
-# A Math real keeps 6 significant digits
+# A Math real keeps 6 digits after the point
 # ---------------------------------------------------------------------------
 
 
@@ -663,9 +663,7 @@ def test_clicks_math_of_a_long_real_saves_6_digits() -> None:
     ]
     assert found == [want, want]
     assert not any(refusals(t) for t in found)
-    with pytest.raises(
-        FieldError, match=r"CLICK keeps 6 significant digits in Math: write 0\.333333$"
-    ):
+    with pytest.raises(FieldError, match=r"CLICK saves it as 0\.333333: write 0\.333333$"):
         Math("0.33333334", "DF1")
 
 

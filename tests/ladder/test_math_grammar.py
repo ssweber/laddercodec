@@ -263,8 +263,8 @@ def test_real_above_the_largest_float32_is_refused(constant: str) -> None:
         f"DF1 * ( {constant} )",
         "decimal",
         re.escape(
-            f"{constant} is outside the float32 range; a real constant is at most "
-            "3.402823466E+38 in size, float32's largest value (OBJ-1009)"
+            f"{constant} is outside the float32 range; a real constant in Math is at most "
+            "3.402823E+38 in size (OBJ-1009)"
         ),
     )
 
@@ -276,31 +276,110 @@ def test_real_up_to_the_largest_float32_is_taken(constant: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("constant", "digits", "kept"),
+    ("constant", "saved"),
     [
-        # CLICK saves 0.33333334 typed in a formula as 0.333333.
-        ("0.33333334", 8, "0.333333"),
-        ("1.234567", 7, "1.23457"),
-        ("1234567.89", 9, "1234570.0"),
-        ("0.123456789", 9, "0.123457"),
-        ("-0.33333334", 8, "-0.333333"),
-        ("3.402823466E+38", 10, "3.40282E+38"),
-        ("3.4028234663852886E+38", 17, "3.40282E+38"),
+        # CLICK saves 0.33333334 typed in a formula as 0.333333, and 0.000012345678 as
+        # 1.234568E-05.
+        ("0.33333334", "0.333333"),
+        ("0.000012345678", "1.234568E-05"),
+        ("0.123456789", "0.123457"),
+        ("-0.33333334", "-0.333333"),
+        ("1.0000005", "1.000001"),
+        ("3.402823466E+38", "3.402823E+38"),
+        ("3.4028234663852886E+38", "3.402823E+38"),
+        ("1.23456789E-20", "1.234568E-20"),
     ],
 )
-def test_real_of_more_than_6_digits_is_refused(constant: str, digits: int, kept: str) -> None:
+def test_real_that_click_saves_as_another_value_is_refused(constant: str, saved: str) -> None:
     _refused(
         f"DF1 * ( {constant} )",
         "decimal",
         re.escape(
-            f"{constant} has {digits} significant digits; CLICK keeps 6 significant digits "
-            f"in Math: write {kept}"
+            f"{constant} has more digits than CLICK keeps in Math; CLICK saves it as {saved}: "
+            f"write {saved}"
         ),
     )
 
 
-@pytest.mark.parametrize("constant", ["1.50000000", "0.000333333", "123456.0", "1.5E+10"])
-def test_real_of_6_digits_trailing_zeros_aside_is_taken(constant: str) -> None:
+@pytest.mark.parametrize(
+    ("constant", "saved", "write"),
+    [
+        # Typed without an E, a real keeps 6 digits after the point. CLICK saves 0.00012345
+        # as 0.000123, and 12345678.9 as 1.234568E+07. Typed with an E, 0.00012345 keeps its
+        # value, so the refusal names that form.
+        ("0.00012345", "0.000123", "1.2345E-04"),
+        ("0.0001234567", "0.000123", "1.234567E-04"),
+        ("12345678.9", "1.234568E+07", "1.234568E+07"),
+        ("16777216.0", "1.677722E+07", "1.677722E+07"),
+        ("123456789.0", "1.234568E+08", "1.234568E+08"),
+        # Typed with an E, a real keeps 7 significant digits. CLICK saves 1.2345678E+15 as
+        # 1.234568E+15. 1.23456789E-04 is saved as 0.0001234568, which a real typed without
+        # an E can't hold, so the refusal names the exponent form.
+        ("1.2345678E+15", "1.234568E+15", "1.234568E+15"),
+        ("1.2345678E+37", "1.234568E+37", "1.234568E+37"),
+        ("3.4028234E+38", "3.402823E+38", "3.402823E+38"),
+        ("1.23456789E-04", "0.0001234568", "1.234568E-04"),
+    ],
+)
+def test_real_saved_as_another_value_depends_on_how_it_is_typed(
+    constant: str, saved: str, write: str
+) -> None:
+    _refused(
+        f"DF1 * ( {constant} )",
+        "decimal",
+        re.escape(
+            f"{constant} has more digits than CLICK keeps in Math; CLICK saves it as {saved}: "
+            f"write {write}"
+        ),
+    )
+    Math(f"DF1 * ( {write} )", "DF9")
+
+
+@pytest.mark.parametrize(
+    ("constant", "write"),
+    [
+        ("1.2345e-04", "1.2345E-04"),
+        ("1.23456789e2", "123.456789"),
+        ("1.2345678e15", "1.234568E+15"),
+    ],
+)
+def test_real_typed_with_a_lowercase_e_is_taken_when_both_forms_keep_it(
+    constant: str, write: str
+) -> None:
+    """CLICK's form for a real typed with a lowercase e is not known, so a Math refuses one
+    that either form would change."""
+    _refused(
+        f"DF1 * ( {constant} )",
+        "decimal",
+        re.escape(f"{constant} may have more digits than CLICK keeps in Math: write {write}"),
+    )
+    Math(f"DF1 * ( {write} )", "DF9")
+    Math("DF1 * ( 1.5e-3 )", "DF9")
+
+
+@pytest.mark.parametrize(
+    "constant",
+    [
+        # CLICK saves 1234567.0 as 1234567, 3.0E+38 as 3E+38 and 1.2345E-04 as 0.00012345:
+        # the same values.
+        "1234567.0",
+        "3.0E+38",
+        "1.2345E-04",
+        "1E+07",
+        "3.402821E+38",
+        "-3.402823E+38",
+        "1.50000000",
+        "123456.0",
+        "1.234567",
+        "1234567.89",
+        "0.000123",
+        "1.5E+10",
+        "1.234567E+10",
+        "3.402823E+38",
+        "1E-45",
+    ],
+)
+def test_real_that_click_keeps_is_taken(constant: str) -> None:
     Math(f"DF1 * ( {constant} )", "DF9")
 
 
@@ -314,9 +393,19 @@ def test_real_of_6_digits_trailing_zeros_aside_is_taken(constant: str) -> None:
         ("1.5E+10", "1.5E+10"),
         # A typed sign stays with the real. CLICK stores DS1 + ( +2.5 ) with F+2.5.
         ("( +2.50 )", "( +2.5 )"),
-        # laddercodec keeps an exponent form as typed. Only 1.5E+10 shows how CLICK prints one.
-        ("( -1.5e10 )", "( -1.5e10 )"),
-        ("1.0E-10", "1.0E-10"),
+        # CLICK saves 3.0E+38 as 3E+38 and 0.000012345678 as 1.234568E-05: exponent form
+        # with trailing zeros cut. A real typed with a lowercase e is written the same way:
+        # both rules that may apply to it give that text.
+        ("( -1.5e10 )", "( -1.5E+10 )"),
+        ("1.0E-10", "1E-10"),
+        ("0.000015", "1.5E-05"),
+        ("20000000.0", "2E+07"),
+        ("( -0.000015 )", "( -1.5E-05 )"),
+        # CLICK keeps 6 digits after the point of a real typed without an E, though it has
+        # more than 7 significant digits.
+        ("1234.000001", "1234.000001"),
+        ("4194304.1", "4194304.1"),
+        ("8388608.4", "8388608.4"),
     ],
 )
 def test_real_is_written_as_click_prints_it(typed: str, stored: str) -> None:

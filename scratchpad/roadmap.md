@@ -299,13 +299,12 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     - Do the shift and rotate arguments (`LSH ( XD0 , 1h )`) accept XD and YD, as the rules do? No answer
       covers them.
   - The float32 edge in a decimal Math (closed). `3.4028235E+38`, alone or as an operand, is OBJ-1009, though
-    float32 rounds it to its largest value. The largest real that CLICK answered as accepted is `1E5`. The
-    rules refuse a real whose value, read as a double, is above float32's largest, 3.402823466E+38, in size.
-    Of the bounds that the answers allow, it is the only one with a reason, and the one that refuses least. A
-    Copy source accepts it (`3.4028236E+38` is OBJ-005 there). Open (CLICK), neighbours that no answer covers:
-    - `-3.4028235E+38`: the rules refuse it, as they refuse `-3.5E+38`.
-    - `3.40282347E+38`: the rules refuse it, because it is above the largest as a double.
-    - `3.402823466E+38`, `3.4028234E+38` and any real from 1E5 up to them: the rules accept them.
+    float32 rounds it to its largest value. Into DF1, `3.40282E+38` and `-3.40282E+38` are saved as typed, and
+    `3.40283E+38` is OBJ-1009. So OBJ-1009 starts between `3.40282E+38` and `3.40283E+38`. The rules refuse a
+    real whose value, read as a double, is above float32's largest, 3.402823466E+38, in size. A Copy source
+    accepts it (`3.4028236E+38` is OBJ-005 there). CLICK saves `3.402823E+38`, `-3.402823E+38` and
+    `3.402821E+38` as typed, and `3.4028234E+38` and `3.402823466E+38` as `3.402823E+38`.
+    `-3.4028235E+38` is OBJ-1009. The rules agree with each.
   - A `SUM`'s OBJ-1014 and OBJ-1015 come before OBJ-1002 (closed, above).
   - A hex Math result past SD's range (SD0, SD1001) is OBJ-004 (closed). The OBJ-003 for an SD as a hex
     result covers SD1-SD1000 only. The rules refuse an SD past them as a bank that the result does not accept.
@@ -448,9 +447,9 @@ stores them (`feat/canon-math-copy`):
 - `$1` as `$01`.
 
 Hex Math digits without `h` and a Copy `EH` or `1Eh` stay refused, and the refusal names the form to write. A
-Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A real with more significant
-digits than CLICK keeps (Copy 7, Math 6) is refused, and the refusal names CLICK's form. It is not rewritten
-(Settled). `constant_text()` writes a Python value in the form that the instruction stores. For such a real,
+Copy source also follows CLICK's save of `-0` (`0`) and of a real's `+` (dropped). A real that CLICK saves as
+another value (more than 7 significant digits in a Copy; in a Math, the rule in **Math real form**) is
+refused, and the refusal names CLICK's form. It is not rewritten (Settled). `constant_text()` writes a Python value in the form that the instruction stores. For such a real,
 it writes the fewest digits that hold its float32 value. The other constants are written as typed:
 - `fill(0ffh,...)`, `fill(005,...)`;
 - `DS1==+5`, `DS1==005`, `DF1==1.50`;
@@ -459,10 +458,8 @@ it writes the fewest digits that hold its float32 value. The other constants are
 Modbus hex addresses are already canonical.
 
 Follow-ups (nothing):
-- `constant_text()` can return a form that a Math or a Copy refuses (more than 6 or 7 significant digits). A
-  public helper would return CLICK's form for a value.
-- The OBJ-1009 message names 3.402823466E+38, which the 6-digit rule itself refuses. Reword the message once
-  the largest real in Math is answered (Open CLICK questions).
+- `constant_text()` can return a form that a Math or a Copy refuses (`0.33333334`). A public helper would
+  return CLICK's form for a value.
 
 Closed (2026-11-18, by the rule that the encoder keeps the pre-v4 form of an instruction that both versions
 share): tag 0x1201 of a Copy. CLICK v4's dialog sets the tag in every single Copy and Block Copy. Its clipboard
@@ -554,10 +551,28 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   reserved slots. Open: a span of more than two expansion slots, a Y range that starts in the option slot, and
   the lists CLICK stores on a CPU with I/O modules. There the rule may refuse ranges that CLICK stores
   correctly, or accept ones that CLICK stores wrongly.
-- **Largest real in Math:** a decimal Math refuses `3.4028235E+38` into DS1, alone and as
-  `DS1 + 3.4028235E+38`, with OBJ-1009. Open: does it accept `3.40282E+38` and refuse `3.40283E+38` into DF1,
-  and is it saved as typed? The code accepts the first and refuses the second with OBJ-1009. Compare and
-  Search accept `3.4028235E+38` and refuse a larger real with OBJ-005.
+- **Math real form:** CLICK's Math saves a real in positional form for an exponent from -4 to 6, and in
+  exponent form otherwise. Typed without an `E`, a real keeps 6 digits after the point (`0.00012345` is saved
+  as `0.000123`, `12345678.9` as `1.234568E+07`). Typed with an `E`, it keeps 7 significant digits
+  (`1.2345E-04` as `0.00012345`, `1.2345678E+15` as `1.234568E+15`). The rules refuse each real that CLICK
+  saves as another value and name the saved text. Open:
+  - A lowercase `e` with more digits than CLICK keeps (`1.2345e-04`, `1.2345678e15`). The rules refuse one
+    that either form would change.
+  - A short real is only normalized: `1e5` and `1.` are saved as `100000.0` and `1.0`, and `0.0015` as typed.
+    Which typed forms CLICK cuts and which it only normalizes is not settled.
+- **Math real stored type:** CLICK's Math dialog stores some reals as integers. The encoder writes them as
+  reals:
+
+  | typed | CLICK stores (0x6229) | laddercodec writes |
+  |---|---|---|
+  | `1E5` | `W100000` | `F100000.0` |
+  | `1.5E+3`, `1.5E3` | `H1500` | `F1500.0` |
+  | `1234567.0` | `W1234567` (shown `1234567`) | `F1234567.0` |
+
+  An integral real typed with an `E`, and `1234567.0`, are stored as integers (H in int16, else W). `1e5`
+  (`F100000.0`) and `1.` (`F1.0`) are stored as laddercodec writes them. Every other real is stored as CLICK
+  saves it (`3.0E+38` as `F3E+38`). Open: whether the integer type
+  changes what the Math computes, and which other positional reals CLICK stores as integers.
 - **Fill with hex above FFFFh:** does the Fill dialog accept such a constant, and into which banks? A single
   Copy accepts it into DD or CTD only. The code's Fill accepts it into any numeric or TXT range.
 - **Remote address `h`:** the Send and Receive dialogs let `h` and `1HH` through their span check. What do
@@ -577,9 +592,6 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   and which TXT is the end? The code refuses it.
 - **Pointer on both sides of a Copy:** `DF[DS1]` into `DD[DS1]`, plain and with Copy Binary. Does the dialog
   offer it? What does it save in 0x2227 and 0x2206? The code writes type 7 or type 8 by the bank pair.
-- **Digits away from 0.333333 in Math.** A decimal Math saves `0.33333334` as `0.333333`. Does it keep
-  `1234567.0` and `0.000012345678` into DF1? What does the saved formula hold (`1234570.0`, `1.23457E+06`,
-  `0.0000123457`, `1.23457E-05`)? The code refuses both, and names `1234570.0` and its own print.
 - **Captures for motion and Email:** native Home, Velocity and Position, one per mode, and an Email with To,
   Cc, Bcc, Subject and both body modes filled, each field a distinct value. Their field maps are inferred and
   stay `raw(...)`.
@@ -592,9 +604,6 @@ Each is a dialog check or a capture. Until CLICK answers, the code keeps the beh
   row 32 of a 32-row rung. `check()` reports it as `layout-too-tall`. `read_csv` refuses the rung, so you can
   pass such a rung to `encode()` only as a `Rung` that you build in Python. Nobody has tested what CLICK does
   with it. That needs a capture before `encode()` refuses it.
-- **Subroutine names that differ in case outside A-Z.** `write_bundle` and `read_bundle` compare names with
-  `str.casefold()`, so they refuse `Straße` beside `STRASSE`, and `é` beside `É`, as
-  `duplicate-subroutine-name` (GUI-036). Does CLICK's Add New Subroutine refuse them too?
 - **An address number of six or more digits.** laddercodec reads at most five digits in an address, so it
   refuses `C000001`. Does CLICK's editor accept it?
 - **The length form of a long string in a program file.** CLICK saves a string of up to 63 characters with a
@@ -677,8 +686,8 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
 - **A bare number copied into TXT (Sam):** `copy(5,TXT1)` is refused. It needs `to_text`.
 - **Rule codes (Sam):** the codes are kebab-case names in `.code`, with CLICK's id in `.click_id`, and `allow=`
   takes the name, never the id.
-- **A real constant with more significant digits than CLICK keeps** (Copy 7, Math 6) is refused, and the
-  refusal names CLICK's form. It is never rewritten.
+- **A real constant that CLICK saves as another value** (more than 7 significant digits in a Copy; in a Math,
+  the rule in **Math real form**) is refused, and the refusal names CLICK's form. It is never rewritten.
 - **Text past TXT1000** stays refused (OBJ-003), though CLICK accepts a pasted one.
 - **Search keeps `op` and Call keeps `subroutine`** as field names.
 - **`feat/productivity-codec`** stays as a branch for now.
@@ -751,11 +760,17 @@ The top level now exports `Program`, `UnknownCondition`, `UnknownInstruction`, `
   - C0206-C0214.
 - **`read_csv` and CLICK's check rewrites (Sam).** CLICK's check makes two rewrites:
   - It drops a `NOP` on a row of its own beside a coil's rung (`C1 -> out(Y1)`, `- -> NOP`; one row left).
+    It does the same for a `NOP` fed from the rail:
+    - a rail wire to `NOP` and a rail wire to `out(Y001)`: the `NOP` is dropped, and one rung is left;
+    - a rail wire to `NOP` above `X001 -> out(Y002)`: the `NOP` is dropped, and one rung is left;
+    - `X001 -> out(Y003)`, `X002 -> out(Y004)` and a rail wire to `NOP`: the `NOP` is dropped, and the
+      two coils are split into two rungs, with the comment on the first.
   - It wires a rung of only wires through AF, which decodes as wires into a `NOP`
     (`tests/test_check_shapes.py`, rungs 13 and 14).
 
-  `read_csv` keeps both as drawn. Should it return the post-check form? Dropping that `NOP` is like the
-  unpowered `NOP` that it drops already. A `NOP` in a rung of wires is a token that the CSV does not hold.
+  `read_csv` keeps each of these as drawn, `NOP` included. Without the `NOP` row, it splits the third into
+  two rungs, as CLICK does. Should it return the post-check form? Dropping that `NOP` is like the unpowered
+  `NOP` that it drops already. A `NOP` in a rung of wires is a token that the CSV does not hold.
 - The Home `11f5` flag doesn't round-trip.
 - RawInstruction's hex fallback breaks when the hex contains `,` or `)`.
 - A guard that a REFUSED entry has gone stale.
