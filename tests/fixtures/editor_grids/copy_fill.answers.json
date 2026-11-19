@@ -3,7 +3,8 @@
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
  "runs": [
-  "copy_fill-1"
+  "copy_fill-1",
+  "q1"
  ],
  "cases": [
   {
@@ -26633,6 +26634,128 @@
     "destination": 16,
     "destination_end": 16
    }
+  },
+  {
+   "row": "copy.fill.text.quotes",
+   "case": "fill \"A\"\"B\" -> TXT1..TXT10",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "outcome": "refused",
+   "code": "OBJ-023",
+   "message": "Only one character is allowed in the Source.",
+   "syntax_check": null,
+   "seconds": 2.874,
+   "read_back": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.text.quotes",
+   "case": "fill \"A\"B\" -> TXT1..TXT10",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"A\"B\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "outcome": "refused",
+   "code": "OBJ-023",
+   "message": "Only one character is allowed in the Source.",
+   "syntax_check": null,
+   "seconds": 2.927,
+   "read_back": {
+    "source": "\"A\"B\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   }
+  },
+  {
+   "row": "copy.fill.text.quotes",
+   "case": "fill \"\"\"\" -> TXT1..TXT10",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\"\"\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case09 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase09 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case09",
+    "lines": []
+   },
+   "seconds": 7.285,
+   "read_back": {
+    "source": "\"\"\"\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=\"\"\"\"\"\"\"\",6076=TXT1,6077=TXT10,2223=2,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.fill.text.quotes",
+   "case": "fill \"\"\" -> TXT1..TXT10",
+   "instruction": "copy",
+   "mode": "fill",
+   "fields": {
+    "source": "\"\"\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case12 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase12 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case12",
+    "lines": []
+   },
+   "seconds": 6.747,
+   "read_back": {
+    "source": "\"\"\"",
+    "destination": "TXT1",
+    "destination_end": "TXT10"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16,
+    "destination_end": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100060000007460ffffffff22002200220000007660ffffffff540058005400310000007760ffffffff5400580054003100300000002322ffffffff320000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
   }
  ]
 }

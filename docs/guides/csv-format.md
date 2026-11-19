@@ -564,8 +564,12 @@ All tokens are compact canonical function-style strings:
 
 String rendering:
 
-- Strings are double-quoted.
-- Internal `"` is escaped as `""` (doubled quote). No backslash escaping.
+- A text constant, such as a Copy source or a compare side, is written as typed:
+  its outer quotes and every character between them, with no escaping.
+  `copy("A""B",TXT1)` copies the four characters `A""B`.
+- In a keyword value in quotes, and in the error text of an `undecoded(...)`
+  marker, a `"` is written as `""`. No backslash escaping.
+- The CSV file then quotes the whole cell, as any CSV writer does.
 
 Boolean rendering:
 
@@ -1021,6 +1025,10 @@ currently emit:
   - CLICK writes one TXT register per character of a text constant, so `""`
     writes nothing and `copy("TT",TXT1)` writes TXT1 and TXT2. A `copy` whose
     text would run past TXT1000 raises `AddressError`.
+  - A `copy` text may hold a quote. Each quote between the outer quotes is one
+    character of the text, so `copy("A"B",TXT1)` writes TXT1 to TXT3 and
+    `copy("A""B",TXT1)` writes TXT1 to TXT4. `write_csv` raises `CsvWriteError`
+    for a text that `read_csv` can't read back, such as `"A",B"`.
   - A `copy` of text into a pointer (`TXT[DS1]`) takes 1 to 128 characters.
     CLICK stores no end for it.
   - A Fill value and a compare's left side take 1 to 128 printable ASCII

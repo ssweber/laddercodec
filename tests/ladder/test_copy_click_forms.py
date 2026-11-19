@@ -25,12 +25,15 @@ import pytest
 
 from laddercodec import Rung, decode, decode_program, encode, read_csv, write_csv
 from laddercodec.binary_helpers import _build_blob
+from laddercodec.codes import Code
 from laddercodec.csv import CSV_HEADER
-from laddercodec.errors import CsvReadError
+from laddercodec.decode_program import _scr_box
+from laddercodec.errors import CsvReadError, CsvWriteError
 from laddercodec.instructions import from_tags_af, parse_af_blob
+from laddercodec.instructions.comparison import CompareContact
 from laddercodec.instructions.copy import BlockCopy, Copy, Fill, Pack, Unpack
 from laddercodec.instructions.math import Math
-from laddercodec.instructions.raw import _decompose_blob, _fields_to_tag_dicts
+from laddercodec.instructions.raw import RawInstruction, _decompose_blob, _fields_to_tag_dicts
 from laddercodec.instructions.search import Search
 from laddercodec.operands.errors import FieldError, Reason
 from laddercodec.operands.unchecked import refusals, stored_blob
@@ -644,6 +647,171 @@ def test_clicks_search_of_latin_1_text_decodes() -> None:
 def test_fill_text_stays_printable_ascii() -> None:
     with pytest.raises(FieldError, match="printable ASCII only"):
         Fill('"é"', "TXT1", "TXT3")
+
+
+# ---------------------------------------------------------------------------
+# A quote inside the text of a single Copy
+# ---------------------------------------------------------------------------
+
+#: Each text with a quote inside it that CLICK's Copy dialog accepted, the destination, and
+#: the end that CLICK saved (tag 0x6077). The end counts every character between the outer
+#: quotes, each quote included. One character, or a pointer destination, saves no end.
+_QUOTED = [
+    ('"A""B"', "TXT1", "TXT4"),
+    ('"A"B"', "TXT1", "TXT3"),
+    ('""""', "TXT1", "TXT2"),
+    ('"""', "TXT1", ""),
+    ('"A""', "TXT1", "TXT2"),
+    ('"""A"', "TXT1", "TXT3"),
+    ('"A""B"', "TXT[DS1]", ""),
+    ('"A"B"', "TXT[DS1]", ""),
+]
+
+
+@pytest.mark.parametrize(("source", "destination", "end"), _QUOTED)
+def test_copy_text_with_a_quote_writes_clicks_save(source: str, destination: str, end: str) -> None:
+    """A Copy writes the text as typed, and the end that CLICK saves for it."""
+    tags = _tags(Copy(source, destination).build_blob())
+    assert (tags[0x6074], tags[0x6076], tags[0x6077]) == (source, destination, end)
+
+
+@pytest.mark.parametrize(("source", "destination", "end"), _QUOTED)
+def test_clicks_save_of_text_with_a_quote_decodes(source: str, destination: str, end: str) -> None:
+    saved = {0x6074: source, 0x6076: destination}
+    if end:
+        saved[0x6077] = end
+    found = _both_paths(saved)
+    assert found == Copy(source, destination)
+    assert not refusals(found)
+    assert stored_blob(found) is None
+
+
+@pytest.mark.parametrize(("source", "destination"), [(s, d) for s, d, _ in _QUOTED])
+def test_copy_text_with_a_quote_round_trips(tmp_path: Path, source: str, destination: str) -> None:
+    copy = Copy(source, destination)
+    assert _round_trip(tmp_path, copy, f"copy({source},{destination})") == copy
+
+
+def test_copy_text_with_a_quote_reads_with_keywords(tmp_path: Path) -> None:
+    assert _read_af(tmp_path, 'copy("A"B" , TXT1,oneshot=1)') == Copy('"A"B"', "TXT1", oneshot=True)
+
+
+@pytest.mark.parametrize("token", ['copy("A",B",TXT1)', 'copy("A"B,TXT1)'])
+def test_copy_text_with_a_quote_before_a_comma_is_refused(tmp_path: Path, token: str) -> None:
+    """In a text whose quotes don't pair up, a quote that a comma follows ends the text. The
+    rest of the token then does not read as arguments."""
+    with pytest.raises((CsvReadError, FieldError)):
+        _read_af(tmp_path, token)
+
+
+def test_copy_text_with_a_doubled_quote_and_a_comma_round_trips(tmp_path: Path) -> None:
+    copy = Copy('"A"",B"', "TXT1")
+    assert _round_trip(tmp_path, copy, 'copy("A"",B",TXT1)') == copy
+
+
+def test_copy_text_that_does_not_read_back_is_not_written(tmp_path: Path) -> None:
+    # A Copy built from such a text raises when it is written. A decoded one stays raw.
+    [rung] = decode((CAPTURES / "case21.bin").read_bytes())
+    with pytest.raises(CsvWriteError):
+        write_csv(tmp_path / "w.csv", [replace(rung, instructions=[Copy('"A",B"', "TXT1"), ""])])
+
+
+def _decoded_boxes(tmp_path: Path, tags: dict[int, str]) -> tuple[Rung, list[object]]:
+    """Return a rung, and the box that decode() and the one that decode_program() read from
+    a Copy save of ``tags``."""
+    blob = _stored(tags)
+    _write_af(tmp_path / "raw.csv", f"raw(Copy,{blob.hex()},rows=2,sub=2)")
+    [rung] = read_csv(tmp_path / "raw.csv")
+    [decoded] = decode(encode(rung))
+    [from_clip] = [t for t in decoded.instructions if t]
+    from_scr = _scr_box("Copy", 0x2721, tags, b"\x01", {}, {}, b"\x02\x02")
+    return decoded, [from_clip, from_scr]
+
+
+def _writes(tmp_path: Path, rung: Rung, box: object) -> object:
+    """Write ``rung`` with ``box`` as its instruction, and return the box that read_csv reads
+    back."""
+    path = tmp_path / "written.csv"
+    write_csv(path, [replace(rung, instructions=[box, ""])])
+    [back] = [t for t in read_csv(path)[0].instructions if t]
+    return back
+
+
+#: Saves of a Copy whose text CLICK keeps as typed: the text, the destination, the end, and
+#: whether the save decodes as the Copy. A quote before a comma or a line break leaves a CSV
+#: token that does not read back, so that save stays raw.
+_SAVED_QUOTE_TEXTS = [
+    ('"A",B"', "TXT1", "TXT4", False),
+    ('"Hi", Bob"', "TXT1", "TXT8", False),
+    ('"A","B"', "TXT1", "TXT5", False),
+    ('"A"\nB"', "TXT1", "TXT4", False),
+    ('"A"B"', "TXT1", "TXT3", True),
+    ('"A""B"', "TXT1", "TXT4", True),
+]
+
+
+@pytest.mark.parametrize(("source", "destination", "end", "as_copy"), _SAVED_QUOTE_TEXTS)
+def test_a_decoded_copy_of_text_with_a_quote_always_writes(
+    tmp_path: Path, source: str, destination: str, end: str, as_copy: bool
+) -> None:
+    """decode() and decode_program() read each save as a Copy whose CSV token reads back, or
+    keep it raw. Either way write_csv writes it, and read_csv reads it back."""
+    rung, boxes = _decoded_boxes(tmp_path, {0x6074: source, 0x6076: destination, 0x6077: end})
+    for box in boxes:
+        assert _writes(tmp_path, rung, box) == box
+        if as_copy:
+            assert box == Copy(source, destination)
+            assert not refusals(box)
+        else:
+            assert isinstance(box, RawInstruction)
+
+
+def test_a_save_of_a_lone_quote_inside_text_with_no_end_decodes_as_the_copy(
+    tmp_path: Path,
+) -> None:
+    """A save of ``"A"B"`` into TXT1 that holds the text and the destination, and no end,
+    decodes as the Copy. The Copy writes its stored blob while it is unchanged."""
+    tags = {0x6074: '"A"B"', 0x6076: "TXT1"}
+    rung, boxes = _decoded_boxes(tmp_path, tags)
+    for box in boxes:
+        assert box == Copy('"A"B"', "TXT1")
+        assert not refusals(box)
+        assert _writes(tmp_path, rung, box) == box
+        blob = stored_blob(box)
+        assert blob is not None
+        assert {k: v for k, v in _tags(blob).items() if v} == tags
+    # The encoder writes the end, as CLICK's dialog does.
+    assert _tags(Copy('"A"B"', "TXT1").build_blob())[0x6077] == "TXT3"
+
+
+@pytest.mark.parametrize("text", ['"Tank "A" low"', '"a",b"'])
+def test_an_email_with_a_quote_inside_its_text_decodes_as_the_email(text: str) -> None:
+    """Only a Copy's source is checked for a CSV token that reads back. An Email box holds
+    its height outside its token, and decodes as the Email whatever its text holds."""
+    golden = Path(__file__).resolve().parents[1] / "fixtures" / "coverage" / "golden"
+    [rung] = decode((golden / "raw_instructions__email.bin").read_bytes())
+    [at] = [i for i, t in enumerate(rung.instructions) if type(t).__name__ == "Email"]
+    email = replace(rung.instructions[at], tag_6235=text)
+    instructions = list(rung.instructions)
+    instructions[at] = email
+    [back] = decode(encode(replace(rung, instructions=instructions)))
+    assert back.instructions[at] == email
+    class_name, type_code, _parts, _extra, fields = _decompose_blob(email.build_blob())
+    tags = {tag: value for tag, _sentinel, value in fields}
+    assert from_tags_af(class_name, type_code, tags) == email
+
+
+@pytest.mark.parametrize("text", ['"A""B"', '"A"B"', '""""', '"""'])
+def test_other_text_fields_refuse_a_quote_inside(text: str) -> None:
+    """Compare, Search and Fill refuse a quote inside their text. ``$22`` is a lone quote."""
+    for build, field in (
+        (lambda: CompareContact("==", "TXT1", text), "CompareContact.right"),
+        (lambda: CompareContact("==", text, "TXT1"), "CompareContact.left"),
+        (lambda: Search("TXT1", "TXT10", text, "DS30", "C1", "=="), "Search.value"),
+        (lambda: Fill(text, "TXT1", "TXT10"), "Fill.value"),
+    ):
+        [error] = _errors(build)
+        assert (error.field, error.code) == (field, Code.INVALID_TEXT_CONSTANT)
 
 
 # ---------------------------------------------------------------------------

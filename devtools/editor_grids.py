@@ -308,6 +308,9 @@ FEW = ["5", "1.5", "FFh", '"A"', "$41"]
 FORMS_SHORT = ["DS[DS1]", "X[DS1]", "ds1", "DS001", " DS1"]
 #: Banks to pair every bank with, in a range that crosses banks.
 PARTNERS = ("X", "C", "DS", "TXT")
+#: Text with a quote inside it: a doubled quote, a lone quote, two quotes alone and one
+#: quote alone.
+QUOTED_TEXTS = ('"A""B"', '"A"B"', '""""', '"""')
 
 
 def all_constants() -> list[str]:
@@ -700,6 +703,12 @@ def copy_grid() -> Grid:
     for text in ('"AB"', '"ABC"', '"HELLO"', '"A"'):
         for target in ("TXT1", "TXT999", "TXT1000", "TXT1001", "TXT[DS1]"):
             single("text.fill", text, target)
+    # Text with a quote inside it, into TXT1 and into a pointer. The end that CLICK saves
+    # shows how many TXT registers the text fills.
+    for text in (*QUOTED_TEXTS, '"A""', '"""A"', '"A"'):
+        single("text.quotes", text, "TXT1")
+    for text in QUOTED_TEXTS[:2]:
+        single("text.quotes", text, "TXT[DS1]")
 
     # --- block ------------------------------------------------------------
     block("control", "DS1", "DS2", "DS11")
@@ -981,6 +990,9 @@ def fill_grid() -> Grid:
     for text in REPRESENTATIVES:
         for dst in BANKS:
             fill("pairs.constants", text, low(dst), run_to(dst, 2))
+    # Text with a quote inside it.
+    for text in QUOTED_TEXTS:
+        fill("text.quotes", text, "TXT1", "TXT10")
     return grid
 
 
@@ -1079,6 +1091,11 @@ def compare_grid() -> Grid:
     for bank in REGISTER_ORDER:
         for text in REPRESENTATIVES:
             compare("pairs.constants", low(bank), "==", text)
+    # Text with a quote inside it, as B and then as A.
+    for text in QUOTED_TEXTS:
+        compare("text.quotes", "TXT1", "==", text)
+    for text in QUOTED_TEXTS:
+        compare("text.quotes", text, "==", "TXT1")
     return grid
 
 
@@ -1221,6 +1238,9 @@ def search_grid() -> Grid:
     for text in FORMS_SHORT:
         search("result.forms", "DS1", "DS10", "==", "DS20", result=text)
         search("found.forms", "DS1", "DS10", "==", "DS20", found=text)
+    # Text with a quote inside it. The text.operators row already tries "A""B".
+    for text in QUOTED_TEXTS[1:]:
+        search("text.quotes", "TXT1", "TXT10", "==", text)
     return grid
 
 

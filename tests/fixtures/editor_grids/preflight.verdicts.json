@@ -42,6 +42,7 @@
   "single 5 -> X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'X[DS1]' is not allowed; a pointer in Copy.dest addresses C, DS, DD, DH, DF, YD, TD, CTD, TXT"},
   "single C1 -> X[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'X[DS1]' is not allowed; a pointer in Copy.dest addresses C, DS, DD, DH, DF, YD, TD, CTD, TXT"},
   "single \"AB\" -> TXT999": {"verdict": "accepted"},
+  "single \"A\"\"B\" -> TXT1": {"verdict": "accepted"},
   "block DS1..DS2 -> DS11": {"verdict": "accepted"},
   "block X001..X002 -> C1": {"verdict": "accepted"},
   "block DS1..DS2 -> X001": {"verdict": "refused", "error": "AddressError", "field": "BlockCopy.dest_start", "message": "BlockCopy.dest_start: 'X001..X002' is not allowed; BlockCopy.dest_start takes Y, C, DS, DD, DH, DF, TD, CTD, SD, TXT (OBJ-004)"},
@@ -108,5 +109,6 @@
   "search DS1..DS10 == DS20 -> X001,C1": {"verdict": "refused", "error": "AddressError", "field": "Search.result", "message": "Search.result: 'X001' is not allowed; Search.result takes DS"},
   "search DS1..DS10 == DS20 -> DS30,X001": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'X001' is not allowed; Search.found takes C"},
   "search DS1..DS10 == DS20 -> DS[DS1],C1": {"verdict": "refused", "error": "AddressError", "field": "Search.result", "message": "Search.result: 'DS[DS1]' is a pointer; only a single Copy takes one"},
-  "search DS1..DS10 == DS20 -> DS30,DS[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS[DS1]' is a pointer; only a single Copy takes one"}
+  "search DS1..DS10 == DS20 -> DS30,DS[DS1]": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS[DS1]' is a pointer; only a single Copy takes one"},
+  "search TXT1..TXT10 == \"A\"B\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"A\"B\"' holds a quote, which a Search text value can't hold; write the text without it, such as \"AB\""}
 }

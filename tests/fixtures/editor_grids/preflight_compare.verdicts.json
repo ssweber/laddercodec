@@ -10,5 +10,6 @@
   "compare DS1 == 0": {"verdict": "accepted"},
   "compare 5 == DS2": {"verdict": "accepted"},
   "compare DS1 == XD0": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.left", "message": "CompareContact.left: 'DS1' (numeric) and 'XD0' (hex) are not in one compare group; hex, numeric and text operands do not mix"},
-  "compare DS1 == 1.5": {"verdict": "accepted"}
+  "compare DS1 == 1.5": {"verdict": "accepted"},
+  "compare TXT1 == \"A\"\"B\"": {"verdict": "refused", "error": "FieldError", "field": "CompareContact.right", "message": "CompareContact.right: '\"A\"\"B\"' holds a quote with other characters, which a text constant can't hold; write the text without it, such as \"AB\""}
 }

@@ -899,6 +899,14 @@
   {"row": "copy.single.text.fill", "case": "single \"HELLO\" -> TXT[DS1]", "instruction": "copy", "mode": "single", "fields": {"source": "\"HELLO\"", "destination": "TXT[DS1]"}},
   {"row": "copy.single.text.fill", "case": "single \"A\" -> TXT999", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"", "destination": "TXT999"}},
   {"row": "copy.single.text.fill", "case": "single \"A\" -> TXT1000", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"", "destination": "TXT1000"}},
-  {"row": "copy.single.text.fill", "case": "single \"A\" -> TXT1001", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"", "destination": "TXT1001"}}
+  {"row": "copy.single.text.fill", "case": "single \"A\" -> TXT1001", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"", "destination": "TXT1001"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"\"B\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"\"B\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"B\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"B\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"\"\"\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"\"\"\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"\"\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"\"\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"\"\"A\" -> TXT1", "instruction": "copy", "mode": "single", "fields": {"source": "\"\"\"A\"", "destination": "TXT1"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"\"B\" -> TXT[DS1]", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"\"B\"", "destination": "TXT[DS1]"}},
+  {"row": "copy.single.text.quotes", "case": "single \"A\"B\" -> TXT[DS1]", "instruction": "copy", "mode": "single", "fields": {"source": "\"A\"B\"", "destination": "TXT[DS1]"}}
  ]
 }

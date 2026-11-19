@@ -358,7 +358,7 @@
   "single \"$41\" -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'DS1' can't take \"$41\"; a text constant copies to TXT (OBJ-024)"},
   "single \"A B\" -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'DS1' can't take \"A B\"; a text constant copies to TXT (OBJ-024)"},
   "single \" \" -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'DS1' can't take \" \"; a text constant copies to TXT (OBJ-024)"},
-  "single \"\" -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: \"\" is refused; a text constant is 1 to 128 characters in quotes, with no quote inside (write the quote character as $22) (OBJ-005)"},
+  "single \"\" -> DS1": {"verdict": "refused", "error": "FieldError", "field": "Copy.source", "message": "Copy.source: \"\" is refused; a text constant is 1 to 128 characters in quotes (OBJ-005)"},
   "single \"A -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: '\"A' is not a CLICK address"},
   "single A\" -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.source", "message": "Copy.source: 'A\"' is not a CLICK address"},
   "single $41 -> DS1": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'DS1' can't take '$41'; a text constant copies to TXT (OBJ-004)"},
@@ -898,5 +898,13 @@
   "single \"HELLO\" -> TXT[DS1]": {"verdict": "accepted"},
   "single \"A\" -> TXT999": {"verdict": "accepted"},
   "single \"A\" -> TXT1000": {"verdict": "accepted"},
-  "single \"A\" -> TXT1001": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'TXT1001' is outside TXT1-TXT1000"}
+  "single \"A\" -> TXT1001": {"verdict": "refused", "error": "AddressError", "field": "Copy.dest", "message": "Copy.dest: 'TXT1001' is outside TXT1-TXT1000"},
+  "single \"A\"\"B\" -> TXT1": {"verdict": "accepted"},
+  "single \"A\"B\" -> TXT1": {"verdict": "accepted"},
+  "single \"\"\"\" -> TXT1": {"verdict": "accepted"},
+  "single \"\"\" -> TXT1": {"verdict": "accepted"},
+  "single \"A\"\" -> TXT1": {"verdict": "accepted"},
+  "single \"\"\"A\" -> TXT1": {"verdict": "accepted"},
+  "single \"A\"\"B\" -> TXT[DS1]": {"verdict": "accepted"},
+  "single \"A\"B\" -> TXT[DS1]": {"verdict": "accepted"}
 }

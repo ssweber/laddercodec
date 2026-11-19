@@ -276,8 +276,9 @@ _COPY_HEX_SIGN = r"a hex constant has no sign \(OBJ-005\)$"
 _HEX_ABOVE = r"is above FFFFFFFFh; a hex constant here is 0h to FFFFFFFFh \(OBJ-005\)"
 _HEX_PADDED = r"a hex constant above FFFFh has at most 8 digits \(OBJ-005\)$"
 _FILL_HEX_ABOVE = r"is above FFFFh; a hex constant here is 0h to FFFFh \(OBJ-005\)"
-_TEXT_RULE = "a text constant is 1 to 128 characters in quotes, with no quote inside"
 _TEXT_ONE = "a text constant is one character in quotes, with no quote inside"
+#: A Copy source takes a quote inside its text, so its rule names no quote.
+_COPY_TEXT_LENGTH = r"a text constant is 1 to 128 characters in quotes \(OBJ-005\)$"
 _INT32 = INT_RULE
 _FINITE = "a real constant is a finite number"
 
@@ -290,10 +291,8 @@ _COPY_SOURCE_REFUSED = [
     ("-1h", "TXT2", _COPY_HEX_SIGN),
     ("100000000h", "DD1", _HEX_ABOVE),
     ("0FFFFFFFFh", "DD1", _HEX_PADDED),
-    ('""', "TXT2", _TEXT_RULE),
-    ('"""', "TXT2", _TEXT_RULE),
-    ('"a"b"', "TXT2", "holds a quote with other characters"),
-    (_TEXT_129, "TXT2", _TEXT_RULE),
+    ('""', "TXT2", _COPY_TEXT_LENGTH),
+    (_TEXT_129, "TXT2", _COPY_TEXT_LENGTH),
     ("1E999", "DF1", _FINITE),
     ("-1E999", "DF1", _FINITE),
 ]
@@ -327,6 +326,10 @@ def test_copy_source_constant_refused_through_read_csv(tmp_path: Path, token: st
         ('"$41"', "TXT2"),
         ('" "', "TXT2"),  # printable ASCII runs from space to ~
         ('"~"', "TXT2"),
+        # A quote inside the text is a character of it.
+        ('"""', "TXT2"),
+        ('"a"b"', "TXT2"),
+        ('"A""B"', "TXT2"),
         ("$00", "TXT2"),
         ("$FF", "TXT2"),
         ("$0d", "TXT2"),
@@ -543,9 +546,9 @@ def test_refused_constant_blob_keeps_its_refusal(tags: dict[int, str], field: st
     kept(from_tags_af("Copy", 0x2721, tags), field)
 
 
-def test_quote_character_blob_is_left_unparsed() -> None:
-    # The CSV token copy(""",TXT2) does not read back, so the blob stays raw.
-    assert from_tags_af("Copy", 0x2721, {0x6074: '"""', 0x6076: "TXT2"}) is None
+def test_quote_character_blob_decodes_as_the_copy() -> None:
+    # CLICK saves a lone quote between the outer quotes as typed, with no end.
+    assert from_tags_af("Copy", 0x2721, {0x6074: '"""', 0x6076: "TXT2"}) == Copy('"""', "TXT2")
 
 
 # A single Copy of text into TXT stores the last TXT register that the text fills as the

@@ -808,5 +808,8 @@
   "search DS1..DS10 == DS20 -> ds1,C1": {"verdict": "accepted"},
   "search DS1..DS10 == DS20 -> DS30,ds1": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS1' is not allowed; Search.found takes C"},
   "search DS1..DS10 == DS20 -> DS001,C1": {"verdict": "accepted"},
-  "search DS1..DS10 == DS20 -> DS30,DS001": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS1' is not allowed; Search.found takes C"}
+  "search DS1..DS10 == DS20 -> DS30,DS001": {"verdict": "refused", "error": "AddressError", "field": "Search.found", "message": "Search.found: 'DS1' is not allowed; Search.found takes C"},
+  "search TXT1..TXT10 == \"A\"B\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"A\"B\"' holds a quote, which a Search text value can't hold; write the text without it, such as \"AB\""},
+  "search TXT1..TXT10 == \"\"\"\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"\"\"\"' holds a quote, which a Search text value can't hold; write the text without it, such as \"AB\""},
+  "search TXT1..TXT10 == \"\"\" -> DS30,C1": {"verdict": "refused", "error": "FieldError", "field": "Search.value", "message": "Search.value: '\"\"\"' holds a quote; write the quote character as $22"}
 }

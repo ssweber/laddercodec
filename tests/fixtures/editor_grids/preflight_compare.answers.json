@@ -2,7 +2,7 @@
  "grid": "preflight_compare.json",
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
- "runs": ["preflight_compare-1"],
+ "runs": ["preflight_compare-1", "q1"],
  "cases": [
   {
    "row": "compare.control",
@@ -339,6 +339,40 @@
     "R,DS1==1.5,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,out(Y001)"
    ],
    "clip": "preflight_compare-1/saves/case12.clip.csv"
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare TXT1 == \"A\"\"B\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"A\"\"B\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case13",
+    "lines": []
+   },
+   "seconds": 7.344,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"A\"\"B\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
   }
  ]
 }

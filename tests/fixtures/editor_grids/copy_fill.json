@@ -968,6 +968,10 @@
   {"row": "copy.fill.pairs.constants", "case": "fill $41 -> YD0..YD1", "instruction": "copy", "mode": "fill", "fields": {"source": "$41", "destination": "YD0", "destination_end": "YD1"}},
   {"row": "copy.fill.pairs.constants", "case": "fill $41 -> TD1..TD2", "instruction": "copy", "mode": "fill", "fields": {"source": "$41", "destination": "TD1", "destination_end": "TD2"}},
   {"row": "copy.fill.pairs.constants", "case": "fill $41 -> CTD1..CTD2", "instruction": "copy", "mode": "fill", "fields": {"source": "$41", "destination": "CTD1", "destination_end": "CTD2"}},
-  {"row": "copy.fill.pairs.constants", "case": "fill $41 -> SD1..SD2", "instruction": "copy", "mode": "fill", "fields": {"source": "$41", "destination": "SD1", "destination_end": "SD2"}}
+  {"row": "copy.fill.pairs.constants", "case": "fill $41 -> SD1..SD2", "instruction": "copy", "mode": "fill", "fields": {"source": "$41", "destination": "SD1", "destination_end": "SD2"}},
+  {"row": "copy.fill.text.quotes", "case": "fill \"A\"\"B\" -> TXT1..TXT10", "instruction": "copy", "mode": "fill", "fields": {"source": "\"A\"\"B\"", "destination": "TXT1", "destination_end": "TXT10"}},
+  {"row": "copy.fill.text.quotes", "case": "fill \"A\"B\" -> TXT1..TXT10", "instruction": "copy", "mode": "fill", "fields": {"source": "\"A\"B\"", "destination": "TXT1", "destination_end": "TXT10"}},
+  {"row": "copy.fill.text.quotes", "case": "fill \"\"\"\" -> TXT1..TXT10", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\"\"\"", "destination": "TXT1", "destination_end": "TXT10"}},
+  {"row": "copy.fill.text.quotes", "case": "fill \"\"\" -> TXT1..TXT10", "instruction": "copy", "mode": "fill", "fields": {"source": "\"\"\"", "destination": "TXT1", "destination_end": "TXT10"}}
  ]
 }

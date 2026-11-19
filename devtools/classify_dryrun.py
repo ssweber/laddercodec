@@ -246,7 +246,7 @@ def copy_rule(dest: str) -> Callable[[Any, str], None]:
         text = ns.normalize(value)
         if len(text) == 2 and text[0] == "$" and text[1] in "0123456789ABCDEFabcdef":
             text = f"$0{text[1]}"
-        constants = ns.constants(hex_sign=True, printable=False)
+        constants = ns.constants(hex_sign=True, printable=False, quote=True)
         shape = ns.checks.constant_shape(text, constants)
         if shape is not None:
             ns.checks.check_constant(text, "Copy.source", constants)

@@ -18,6 +18,7 @@
   {"row": "copy.fill.destination-start.constants", "case": "fill 5 -> 5..DS11", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "5", "destination_end": "DS11"}},
   {"row": "copy.fill.destination-end.constants", "case": "fill 5 -> DS10..5", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "DS10", "destination_end": "5"}},
   {"row": "copy.fill.pairs.banks", "case": "fill X001 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "X001", "destination": "X001", "destination_end": "X002"}},
-  {"row": "copy.fill.pairs.constants", "case": "fill 5 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "X001", "destination_end": "X002"}}
+  {"row": "copy.fill.pairs.constants", "case": "fill 5 -> X001..X002", "instruction": "copy", "mode": "fill", "fields": {"source": "5", "destination": "X001", "destination_end": "X002"}},
+  {"row": "copy.fill.text.quotes", "case": "fill \"A\"\"B\" -> TXT1..TXT10", "instruction": "copy", "mode": "fill", "fields": {"source": "\"A\"\"B\"", "destination": "TXT1", "destination_end": "TXT10"}}
  ]
 }

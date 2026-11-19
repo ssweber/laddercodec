@@ -2,7 +2,7 @@
  "grid": "compare.json",
  "click": "CLICK Programming Software v4.00 (CLICK.exe)",
  "plc": "a PLC connected to CLICK v4.00",
- "runs": ["compare-1", "compare-2", "compare-3", "compare-4", "compare-5", "compare-6"],
+ "runs": ["compare-1", "compare-2", "compare-3", "compare-4", "compare-5", "compare-6", "q1"],
  "cases": [
   {
    "row": "compare.control",
@@ -17703,6 +17703,278 @@
     "a": 130,
     "b": 130
    }
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare TXT1 == \"A\"\"B\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"A\"\"B\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case13 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase13 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case13",
+    "lines": []
+   },
+   "seconds": 7.344,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"A\"\"B\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare TXT1 == \"A\"B\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"A\"B\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case14 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase14 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case14",
+    "lines": []
+   },
+   "seconds": 6.585,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"A\"B\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare TXT1 == \"\"\"\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"\"\"\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case15 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase15 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case15",
+    "lines": []
+   },
+   "seconds": 6.611,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"\"\"\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare TXT1 == \"\"\"",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "TXT1",
+    "b": "\"\"\""
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case16 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase16 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case16",
+    "lines": []
+   },
+   "seconds": 6.49,
+   "read_back": {
+    "a": "TXT1",
+    "b": "\"\"\""
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare \"A\"\"B\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"\"B\"",
+    "b": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case17 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase17 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case17",
+    "lines": []
+   },
+   "seconds": 6.615,
+   "read_back": {
+    "a": "\"A\"\"B\"",
+    "b": "TXT1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare \"A\"B\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"A\"B\"",
+    "b": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case18 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase18 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case18",
+    "lines": []
+   },
+   "seconds": 6.657,
+   "read_back": {
+    "a": "\"A\"B\"",
+    "b": "TXT1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare \"\"\"\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"\"\"\"",
+    "b": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case19 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase19 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case19",
+    "lines": []
+   },
+   "seconds": 6.642,
+   "read_back": {
+    "a": "\"\"\"\"",
+    "b": "TXT1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
+  },
+  {
+   "row": "compare.text.quotes",
+   "case": "compare \"\"\" == TXT1",
+   "instruction": "compare",
+   "mode": "==",
+   "fields": {
+    "a": "\"\"\"",
+    "b": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case20 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase20 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case20",
+    "lines": []
+   },
+   "seconds": 6.62,
+   "read_back": {
+    "a": "\"\"\"",
+    "b": "TXT1"
+   },
+   "limits": {
+    "a": 130,
+    "b": 130
+   },
+   "stored": [
+    "#,ClickNick cannot read this rung from CLICK. This empty rung stands in for it.",
+    "#,ClickNick cannot read its Compare. Paste it again.",
+    "R,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+   ]
   }
  ]
 }

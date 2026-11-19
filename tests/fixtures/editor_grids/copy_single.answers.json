@@ -5,7 +5,8 @@
  "runs": [
   "copy_single-1",
   "copy_single-2",
-  "copy_single-3"
+  "copy_single-3",
+  "q1"
  ],
  "cases": [
   {
@@ -23668,6 +23669,262 @@
     "source": 130,
     "destination": 16
    }
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"A\"\"B\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: NewProject1 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\nNewProject1 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "NewProject1",
+    "lines": []
+   },
+   "seconds": 8.483,
+   "read_back": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=\"\"A\"\"\"\"B\"\",6076=TXT1,6077=TXT4,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"A\"B\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"A\"B\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case01 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase01 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case01",
+    "lines": []
+   },
+   "seconds": 6.883,
+   "read_back": {
+    "source": "\"A\"B\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100050000007460ffffffff2200410022004200220000007660ffffffff540058005400310000007760ffffffff540058005400330000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"\"\"\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"\"\"\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case02 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase02 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case02",
+    "lines": []
+   },
+   "seconds": 6.776,
+   "read_back": {
+    "source": "\"\"\"\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=\"\"\"\"\"\"\"\",6076=TXT1,6077=TXT2,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"\"\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"\"\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case03 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase03 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case03",
+    "lines": []
+   },
+   "seconds": 6.753,
+   "read_back": {
+    "source": "\"\"\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100040000007460ffffffff22002200220000007660ffffffff540058005400310000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"A\"\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"A\"\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case04 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase04 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case04",
+    "lines": []
+   },
+   "seconds": 6.932,
+   "read_back": {
+    "source": "\"A\"\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100050000007460ffffffff220041002200220000007660ffffffff540058005400310000007760ffffffff540058005400320000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"\"\"A\" -> TXT1",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"\"\"A\"",
+    "destination": "TXT1"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case05 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase05 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case05",
+    "lines": []
+   },
+   "seconds": 6.567,
+   "read_back": {
+    "source": "\"\"\"A\"",
+    "destination": "TXT1"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=\"\"\"\"\"\"A\"\",6076=TXT1,6077=TXT3,1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"A\"\"B\" -> TXT[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case07 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase07 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case07",
+    "lines": []
+   },
+   "seconds": 7.001,
+   "read_back": {
+    "source": "\"A\"\"B\"",
+    "destination": "TXT[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,0x2721,1,rows=2,sub=2,6074=\"\"A\"\"\"\"B\"\",6076=TXT[DS1],1201=,0000=)\""
+   ]
+  },
+  {
+   "row": "copy.single.text.quotes",
+   "case": "single \"A\"B\" -> TXT[DS1]",
+   "instruction": "copy",
+   "mode": "single",
+   "fields": {
+    "source": "\"A\"B\"",
+    "destination": "TXT[DS1]"
+   },
+   "outcome": "accepted",
+   "code": null,
+   "message": null,
+   "syntax_check": {
+    "text": "--------------------Configuration: case08 - Syntax Check--------------------\r\nCompiler version 1, 0, 4, 0\r\nSyntax Check...\r\nMain Program\r\nMain Program : Rung 2 : error C0201: No unconditional END instruction in the Main Program.\r\n\r\ncase08 - 1 error(s), 0 warning(s)\r\n",
+    "errors": 1,
+    "warnings": 0,
+    "project": "case08",
+    "lines": []
+   },
+   "seconds": 6.542,
+   "read_back": {
+    "source": "\"A\"B\"",
+    "destination": "TXT[DS1]"
+   },
+   "limits": {
+    "source": 130,
+    "destination": 16
+   },
+   "stored": [
+    "R,X001,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,\"raw(Copy,43006f00700079000000212700000100040000007460ffffffff2200410022004200220000007660ffffffff5400580054005b004400530031005d0000000112ffffffff00000000ffffffff0000,rows=2,sub=2)\""
+   ]
   }
  ]
 }
