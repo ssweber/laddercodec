@@ -198,6 +198,23 @@ def tag_default(tag: int, class_name: str = "") -> str:
     return "0" if _tag_wire_type(tag) in ("byte", "u16") else ""
 
 
+#: Flags that are set by default, ``(class_name, tag)``. A program file stores one of
+#: them only when it is clear. No ``from_tags`` reads these flags, so ``tag_flag``
+#: does not use this table.
+_CLASS_FLAG_DEFAULTS: frozenset[tuple[str, int]] = frozenset(
+    ("RD", tag) for tag in (0x1209, 0x120A, 0x120B, 0x121A, 0x121B, 0x121E, 0x121F)
+)
+
+
+def flag_set(tags: dict[int, str], tag: int, class_name: str = "") -> bool:
+    """Return whether a flag is set in the tags that a program file stores.
+
+    The program file stores a flag only when it differs from its default. The default is
+    clear, except for the flags in ``_CLASS_FLAG_DEFAULTS``.
+    """
+    return (tag in tags) != ((class_name, tag) in _CLASS_FLAG_DEFAULTS)
+
+
 def tag_value(tags: dict[int, str], tag: int, class_name: str = "") -> str:
     """Read a value tag, or its default when it is absent or is a blank byte or u16 tag."""
     value = tags.get(tag)

@@ -211,6 +211,48 @@ In all 1600 blobs of the SCR fixtures, the first, second, fifth and sixth bytes 
 
 The byte at `end_offset` is a 1-byte trailer length (observed 0 or 1): the next structure starts at `end_offset + 2 + data[end_offset]`. Certain instruction encodings (`RD`/`SD` always; `Copy`/`Math`/`Out`/`Drum` sometimes) emit a 1-byte trailer whose value is opaque.
 
+## From a program file to the clipboard
+
+A program file stores fewer tags than the clipboard:
+
+- It stores a tag only when its value differs from the default (`tag_default`).
+- It stores a set flag with no payload and leaves a clear flag out. RD's flags `0x1209`,
+  `0x120A`, `0x120B`, `0x121A`, `0x121B`, `0x121E` and `0x121F` are the other way round.
+  They are set by default, and the program file stores one only when it is clear.
+- It stores the func code, `0x3218`, for some instructions, such as an Out's latch
+  (`8195`) or reset (`8196`). It leaves out a Copy's func code, even a one-shot's (`8961`).
+- It leaves out some entries of a variant array, even entries that are not zero, such
+  as those of a Timer's `0x3A05`. It stores a `0x3A` entry as an unsigned u16.
+
+The clipboard stores every tag of the instruction, in a fixed order for its class. It
+writes a clear flag as `0`. It writes a set flag as `-1` in a Copy, Drum, Math or Search,
+and as `1` in a contact, an Out, a For, an RD or an SD. It writes a `0x3A` entry as a
+signed 16-bit number.
+
+`decode_program()` builds the clipboard blob of an entry from a form. The form is an
+instruction of the entry's class, read from the entry's tags. Its blob gives the order of
+the tags, the func code when the entry leaves it out, and the variant entries that the
+program file leaves out. The form is read from the same tags, so its func code agrees
+with the entry's flags. CLICK reads a Copy's one-shot from the func code (`8961`, where a
+plain Copy of DS into DS has `8960`). Then the entry's values are written over the form's
+blob:
+
+- A value tag takes the value that the entry stores, as CLICK saved it, or its default.
+- A flag keeps the form's value when the form and the entry agree on whether the flag is
+  set. Otherwise it is written `0` when clear, and as its class writes a set flag when set.
+- A variant entry takes the entry's value when the entry stores it.
+- The part rows are the entry's.
+
+Where the encoder's own blob differs from CLICK's, this blob differs too. An RD or SD blob
+leaves out the empty entries of its arrays, and a Math blob holds 500 reserved slots where
+CLICK v4 writes more.
+
+For an entry that decodes as `RawInstruction`, the form is built by the class's parser
+without its checks. If no parser builds a form, or the form's blob lacks a tag that the
+entry stores, the blob holds only the stored tags. A stored RD flag that is set by default
+is written `0`, because it is clear. Any other stored flag is written as its class writes a
+set flag. For a class that laddercodec does not read, that is `1`.
+
 ## SCR strings
 
 The program name, each class name, each string tag and each variant-string entry in an SCR file have the same form. A byte count comes first, then the UTF-16LE text and one NUL byte. The count includes the NUL byte.

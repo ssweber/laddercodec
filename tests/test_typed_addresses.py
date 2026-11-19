@@ -19,8 +19,8 @@ instruction is unchanged, it writes back the bytes that CLICK saved.  Once it is
 is built in display form.  If the rules refuse a typed form once it is in display form, the
 decoded instruction holds the refusal.  A typed form that no save shows stays a raw box.
 
-A box that ``decode_program`` reads keeps the blob composed from the program file, in which
-a set flag is an empty field.  That box reads back from the clipboard as itself.
+A box that ``decode_program`` reads keeps the blob of CLICK's clipboard, built from the
+program file's tags.  That box reads back from the clipboard as itself.
 """
 
 from __future__ import annotations
@@ -158,9 +158,9 @@ def _program_box(raw: RawInstruction) -> Instruction:
     """Return the box that ``decode_program`` reads from the program file entry that ``raw``
     was written from.
 
-    ``raw`` holds the blob composed from the entry's tags, in which a set flag is an empty
-    value.  This function reads the box from those tags, in the way that ``decode_program``
-    reads the entry.
+    ``raw`` holds the entry's tags, with each set flag as an empty value, as the program file
+    stores them.  This function reads the box from those tags, in the way that
+    ``decode_program`` reads the entry.
     """
     class_name, type_code, parts, _extra, fields = _decompose_blob(raw.blob)
     assert parts == 1
@@ -181,11 +181,19 @@ def test_each_answered_save_reads_in_display_form(
     assert box == inst
     assert box.to_csv() == csv_text
     assert not refusals(box)
-    # While unchanged, the box writes the bytes that CLICK saved, and the same cell rows.
-    assert box.build_blob() == raw.blob
+    # While unchanged, the box writes the clipboard form: the tags of the encoder's blob, in
+    # its order, with the values that CLICK saved. The answer files hold no clipboard copy;
+    # tests/ladder/test_scr_clipboard_form.py checks the form against CLICK's clipboard.
+    kept = _decompose_blob(box.build_blob())[4]
+    assert [(t, s) for t, s, _v in kept] == [
+        (t, s) for t, s, _v in _decompose_blob(inst.build_blob())[4]
+    ]
+    saved = {(t, s): v for t, s, v in _decompose_blob(raw.blob)[4] if t >> 8 not in (0x11, 0x12)}
+    assert saved.items() <= {(t, s): v for t, s, v in kept}.items()
     instructions = [box if t is raw else t for t in rung.instructions]
     data = encode(replace(rung, instructions=instructions))
-    assert data == encode(rung)
+    as_raw = [replace(raw, blob=box.build_blob()) if t is raw else t for t in rung.instructions]
+    assert data == encode(replace(rung, instructions=as_raw))
     # Read back from the clipboard, it is the same instruction: a hex Math stays hex.
     [decoded] = decode(data)
     assert isinstance(decoded, Rung)
@@ -281,7 +289,7 @@ def _from_program(blob: bytes, rows: int) -> Instruction:
     )
 
 
-#: Boxes that ``decode_program`` reads and that keep the blob composed from the program file,
+#: Boxes that ``decode_program`` reads and that keep the blob built from the program file,
 #: each with a flag set.  Each case is (id, instruction, the tag edits that make the stored
 #: text differ from the display form, the tags of the flags that are set).
 FLAGGED: list[tuple[str, Instruction, dict[int, tuple[str, str]], tuple[int, ...]]] = [
@@ -334,15 +342,14 @@ def test_a_program_box_reads_back_from_the_clipboard(
 ) -> None:
     """A box read from a program file reads back from the clipboard as itself.
 
-    Its blob holds each set flag as an empty value, and the clipboard decoder reads that
-    empty value as set."""
+    Its blob is the clipboard's blob, with the text that CLICK saved and each set flag as
+    ``-1``."""
     blob = inst.build_blob()
     fields = {tag: value for tag, _sentinel, value in _decompose_blob(blob)[4]}
     assert all(fields[flag] == "-1" for flag in flags)
     box = _from_program(_retagged(blob, edits), int(inst.cell_params().get("visual_rows", 1)))
     assert box == inst and not refusals(box)
-    composed = {tag: value for tag, _sentinel, value in _decompose_blob(box.build_blob())[4]}
-    assert all(composed[flag] == "" for flag in flags)
+    assert box.build_blob() == _retagged(blob, edits)
     data = _one_box_of(box)
     with warnings.catch_warnings():
         warnings.simplefilter("error", RefusedFieldWarning)

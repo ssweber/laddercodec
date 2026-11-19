@@ -8,13 +8,12 @@ refuse. The cases cover each instruction family that has checks. The tests show 
   instruction keeps the refusals, and the reader warns with a ``RefusedFieldWarning``.
 - ``write_csv`` writes the instruction as it holds it.
 - An instruction that was decoded and not changed encodes as the bytes it was decoded from.
-  For an output box from a program file, that is the blob that the decoder composes from the
-  file's tags, the same blob that the box holds when it decodes raw.
-- ``encode()`` raises the error that building the instruction raises, in three cases:
+  For an instruction from a program file, that is the clipboard blob that the decoder builds
+  from the file's tags, the same blob that an output box holds when it decodes raw.
+- ``encode()`` raises the error that building the instruction raises, in two cases:
 
   - a field changed and is still refused;
-  - the instruction was read from CSV;
-  - the instruction is a condition from a program file.
+  - the instruction was read from CSV.
 """
 
 from __future__ import annotations
@@ -477,10 +476,9 @@ def _instructions(rungs: list[Rung]) -> list[object]:
 def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> None:
     """The clipboard decoder and the program decoder read the same instructions and refusals.
 
-    An instruction from the clipboard keeps the blob that CLICK stored. A box from a program
-    file keeps the blob that the decoder composes from the entry's tags, the same blob that
-    the box holds when it stays raw. A condition from a program file keeps no blob, so its
-    ``build_blob()`` raises its first refusal.
+    An instruction from the clipboard keeps the blob that CLICK stored. An instruction from
+    the program file keeps the same blob, composed from the entry's tags, and a box that
+    stays raw holds it too.
     """
     scr_dir = FIXTURES / "scr_captures"
     clipboard = (scr_dir / f"{name}.bin").read_bytes()
@@ -514,15 +512,10 @@ def test_program_and_clipboard_decoders_agree(monkeypatch, name, old, new) -> No
         assert [e.field for e in refusals(inst)] == [e.field for e in refusals(inst_scr)]
         blob = stored_blob(inst)
         assert blob is not None and blob in clipboard
+        assert stored_blob(inst_scr) == blob
+        assert inst_scr.build_blob() == blob
         if isinstance(inst_scr, Instruction):
-            raw = raw_boxes.pop(0)
-            assert stored_blob(inst_scr) == raw.blob
-            assert inst_scr.build_blob() == raw.blob
-            continue
-        assert stored_blob(inst_scr) is None
-        with pytest.raises(FieldError) as caught:
-            inst_scr.build_blob()
-        assert str(caught.value) == str(refusals(inst_scr)[0])
+            assert raw_boxes.pop(0).blob == blob
     assert not raw_boxes
 
 

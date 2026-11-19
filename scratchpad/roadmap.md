@@ -67,11 +67,9 @@ an instruction without its checks. pyrung's conformance probes use `raw(...)`. T
 
 - **A strict numeric tag.** `tag_int` reads a tag through `int()`. It accepts `" 1"`, `"+1"`, `"1_0"` and
   non-ASCII digits, as it did before. If it read only ASCII digits, those blobs would stay raw.
-- **A held condition from a program file.** When `decode_program()` builds a contact that has a refusal, the
-  contact has no blob to write. `encode()` raises the refusal's error. The unknown condition that it decoded as
-  before did not encode either. A Compare whose Data B CLICK saved as typed (`ds1`, ` DS1`) has no blob
-  either, so it encodes in display form. An output box writes the blob composed from its tags, as its raw
-  box did. Decide whether a condition should do the same.
+- **A held condition from a program file (closed, 2026-11-19).** A contact that `decode_program()` builds
+  with a refusal, or with a Compare's Data B that CLICK saved as typed, keeps the clipboard blob built from its
+  tags, as an output box does. While it is unchanged, it encodes as that blob.
 
 - **Where in a formula (Sam).** Two identical refusals in one formula (`DS0 + DS0`) can't be told apart. The
   proposal is `FieldError.span`, a half-open `(start, end)` character offset into the expression as typed. It
@@ -339,9 +337,8 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
     - Compare's Data B, with a space at its ends (` DS1`, `DS1 `);
     - a Search's table start, and its result with a space at its ends.
 
-    Decode reads them in display form. If the instruction is unchanged, decode writes the saved blob. A
-    Compare from a program file keeps no blob (item 1, "A held condition from a program file"), so it
-    encodes in display form. CLICK saves a Copy, Block Copy or Unpack source, a decimal Math result, an Out
+    Decode reads them in display form. If the instruction is unchanged, decode writes the saved blob. From a
+    program file, that is the clipboard blob built from the entry's tags, for a Compare too. CLICK saves a Copy, Block Copy or Unpack source, a decimal Math result, an Out
     address, Compare's Data A, and a Search's value, table end and Result Flag in display form, so typed text
     there stays raw.
     - Not answered (CLICK), read in display form by the code's own rule: in those fields, a typed form that no
@@ -354,9 +351,11 @@ rule is written from the 17 sampled rows in `ssweber.github.io/plan/rule-decisio
       - a typed Fill destination;
       - a typed Unpack destination that CLICK accepts (it refused every answered one);
       - what a clipboard copy of a typed Math holds in its operand slots.
-    - A program file holds a set flag as an empty value, and the blob that a decoded program box writes keeps
-      it that way. The clipboard decoder reads an empty flag as set. No CLICK clipboard capture holds one.
-      Open (CLICK): does CLICK read such a pasted box's flag as set?
+    - A program file holds a set flag as an empty value (closed, 2026-11-19). The blob that a decoded program
+      box writes holds each flag as CLICK's clipboard does (`-1` or `1` when set, `0` when clear). CLICK reads
+      an empty flag on the clipboard as clear, so an entry that no family reads writes a set flag as `1`, or
+      `-1` in a Copy, Drum, Math or Search. For a class that no capture shows, `1` is a guess.
+      Open (CLICK): does CLICK read `1` and `-1` alike for every class?
   - A single Copy's conversion type 7 and a number's TXT end (closed, 2026-11-17). CLICK v4 typed each case
     through its dialogs. The captures are in `tests/fixtures/v4_captures/copy_single/`. Decode reads every
     answered save as the Copy. The encoder now does this:

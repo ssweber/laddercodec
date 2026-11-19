@@ -34,8 +34,8 @@ the instruction holds refusals. In the second, its fields do not reproduce what 
 saved, as :func:`read_in_another_form` describes. Examples are stored text that the
 decoder reads in another form, and the conversion that CLICK saved for a single Copy.
 From the clipboard, the decoder keeps the blob and the row bytes of the cell. For an
-output box from a program file, it keeps a blob composed from the box's tags, and the
-cell rows. :func:`keep_stored_blob` and :func:`keep_cell_rows` keep them.
+instruction from a program file, it keeps the clipboard form of the entry's tags, and
+the cell rows of an output box. :func:`keep_stored_blob` and :func:`keep_cell_rows` keep them.
 
 ``build_blob()`` returns the kept blob, and ``encode()`` writes it with the kept cell
 rows, as it does for a ``RawInstruction``. If no blob was kept, ``build_blob()`` and
@@ -70,6 +70,7 @@ from .errors import FieldError, Reason
 __all__ = [
     "allowed",
     "checked",
+    "fields_blob",
     "holds_refusals",
     "keep_cell_rows",
     "keep_stored_blob",
@@ -408,6 +409,16 @@ def stored_cell_rows(inst: object) -> dict[str, int]:
     empty dict if no blob was kept."""
     held: _Held | None = getattr(inst, "_held", None)
     return {} if held is None else dict(held.cell)
+
+
+def fields_blob(inst: Any) -> bytes:
+    """Return the blob that the fields of *inst* encode to.
+
+    It ignores a stored blob, and it does not raise a refusal that *inst* holds. It
+    raises what the encoder raises for a value that it cannot write.
+    """
+    build_blob = type(inst).build_blob
+    return getattr(build_blob, "__wrapped__", build_blob)(inst)
 
 
 def _writing_stored_blob(build_blob: Any) -> Any:

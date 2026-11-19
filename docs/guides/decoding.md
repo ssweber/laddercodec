@@ -104,10 +104,11 @@ If you encode the instruction unchanged, it encodes as it did when it decoded as
 
 - If it was decoded from a clipboard, you get the blob and cell rows that CLICK
   stored.
-- If it is an output box that `decode_program()` decoded, you get the blob that its
-  tags make.
-- If it is a condition that `decode_program()` decoded, it has no such blob, and
-  `encode()` raises its `error`.
+- If `decode_program()` decoded it, you get the blob that CLICK writes to the
+  clipboard for the instruction, with the values that the program file stores. Some
+  arrays differ: an RD or SD blob leaves out their empty entries, and a Math blob holds
+  fewer reserved slots than CLICK v4 writes
+  ([From a program file to the clipboard](../internals/binary-format.md#from-a-program-file-to-the-clipboard)).
 
 To fix a refusal, call `replace()` with a new value for the field that the error
 names. A `Rung` is frozen, so call `replace()` on the rung too, to put the copy in it:
@@ -158,8 +159,7 @@ result, the right side of a Compare, and a Search's table start and result (`DS0
 (`DS1`, `YD0u`, `DS[DS1]`), as CLICK's editor shows them, and the CSV holds that
 form. When you encode such an instruction:
 
-- If you leave it unchanged, you get back the bytes CLICK saved. A Compare from
-  `decode_program()` is the exception: it encodes in display form.
+- If you leave it unchanged, you get back the bytes CLICK saved.
 - If you change it, it encodes in display form.
 - If you read it back from the CSV that `write_csv` wrote, it encodes in display
   form. A CSV file holds no blob.

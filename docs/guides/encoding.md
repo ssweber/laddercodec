@@ -305,7 +305,7 @@ done is refused, the Timer is not checked for an accumulator that matches it.
 
 A decoded instruction can hold a refused value, with a `RefusedFieldWarning`
 ([Decoding](decoding.md#values-clicks-dialog-refuses)). If you encode it
-unchanged, you get the bytes it was decoded from. If you change it with
+unchanged, you get the blob that Decoding describes for it. If you change it with
 `replace()`, the copy is checked again, and `replace()` raises the `FieldError` that
 building it raises. If you read it from CSV, it has no bytes to write, and
 `encode()` raises that error.
